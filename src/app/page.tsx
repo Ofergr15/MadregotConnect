@@ -2,21 +2,20 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getSupabase } from '@/lib/supabase/client';
 
 export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    const coachEmail = localStorage.getItem('coach_email');
-    const athleteId = localStorage.getItem('athlete_id');
-
-    if (coachEmail) {
-      router.replace('/dashboard');
-    } else if (athleteId) {
-      router.replace('/dashboard/program');
-    } else {
-      router.replace('/login');
-    }
+    const supabase = getSupabase();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.replace('/auth/resolve');
+      } else {
+        router.replace('/login');
+      }
+    });
   }, [router]);
 
   return (

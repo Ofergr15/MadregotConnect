@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
-
-const ADMIN_EMAILS = ['grosfeldofer@gmail.com'];
+import { getSupabase } from '@/lib/supabase/client';
 
 export default function DashboardLayout({
   children,
@@ -15,15 +14,21 @@ export default function DashboardLayout({
   const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    const coachEmail = localStorage.getItem('coach_email');
-    const athleteId = localStorage.getItem('athlete_id');
-    if (athleteId) {
-      setAuthorized(true);
-    } else if (coachEmail && ADMIN_EMAILS.includes(coachEmail.toLowerCase())) {
-      setAuthorized(true);
-    } else {
-      router.replace('/login');
-    }
+    const supabase = getSupabase();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setAuthorized(true);
+      } else {
+        // Fallback: check localStorage for legacy sessions
+        const coachEmail = localStorage.getItem('coach_email');
+        const athleteId = localStorage.getItem('athlete_id');
+        if (coachEmail || athleteId) {
+          setAuthorized(true);
+        } else {
+          router.replace('/login');
+        }
+      }
+    });
   }, [router]);
 
   if (!authorized) {
