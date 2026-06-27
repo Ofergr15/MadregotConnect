@@ -33,6 +33,9 @@ export default function AthletesPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteGroup, setInviteGroup] = useState('');
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [publicLink, setPublicLink] = useState<string | null>(null);
+  const [publicLinkCopied, setPublicLinkCopied] = useState(false);
+  const [generatingPublicLink, setGeneratingPublicLink] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -136,6 +139,43 @@ export default function AthletesPage() {
       navigator.clipboard.writeText(inviteLink);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const generatePublicLink = async () => {
+    setGeneratingPublicLink(true);
+    try {
+      const response = await fetch('/api/athletes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicLink: true }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setPublicLink(data.inviteLink);
+      }
+    } catch (error) {
+      console.error('Failed to generate public link:', error);
+    } finally {
+      setGeneratingPublicLink(false);
+    }
+  };
+
+  const copyPublicLink = () => {
+    if (publicLink) {
+      navigator.clipboard.writeText(publicLink);
+      setPublicLinkCopied(true);
+      setTimeout(() => setPublicLinkCopied(false), 2000);
+    }
+  };
+
+  const sharePublicLinkWhatsApp = () => {
+    if (publicLink) {
+      const message = `היי! 🏃‍♂️
+הצטרפו למדרגות After 2KM ב-Garmin Connect!
+חברו את השעון שלכם וקבלו את האימונים ישירות:
+${publicLink}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
     }
   };
 
@@ -341,10 +381,58 @@ ${inviteLink}`;
         </div>
       )}
 
+      {/* Public Invite Link - for WhatsApp Group */}
+      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="font-semibold">Public Invite Link</h3>
+            <p className="text-sm text-slate-400 mt-1">
+              Share one link with the entire WhatsApp group — athletes self-register with their name and Garmin account
+            </p>
+          </div>
+          {!publicLink && (
+            <button
+              onClick={generatePublicLink}
+              disabled={generatingPublicLink}
+              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <UserPlus className="h-4 w-4" />
+              {generatingPublicLink ? 'Generating...' : 'Generate Link'}
+            </button>
+          )}
+        </div>
+        {publicLink && (
+          <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <input value={publicLink} readOnly className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm" />
+              <button
+                onClick={copyPublicLink}
+                className={cn(
+                  "px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2",
+                  publicLinkCopied ? "bg-green-600 text-white" : "bg-slate-600 hover:bg-slate-500 text-white"
+                )}
+              >
+                {publicLinkCopied ? <><Check className="h-4 w-4" />Copied!</> : <><Copy className="h-4 w-4" />Copy</>}
+              </button>
+              <button
+                onClick={sharePublicLinkWhatsApp}
+                className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA59] text-white"
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Anyone with this link can connect their Garmin and choose their pace group
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Athletes Table */}
       {filteredAthletes.length > 0 ? (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-slate-800 rounded-xl border border-slate-700">
+          <div className="overflow-x-auto overflow-y-visible">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-700 bg-slate-700/50">

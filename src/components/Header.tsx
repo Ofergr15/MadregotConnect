@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, Calendar, Users, Layers, Clock, Dumbbell, Utensils } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -10,8 +10,7 @@ const navItems = [
   { href: '/dashboard/plan/new', label: 'New Plan', icon: Calendar },
   { href: '/dashboard/athletes', label: 'Athletes', icon: Users },
   { href: '/dashboard/groups', label: 'Groups', icon: Layers },
-  { href: '/dashboard/training', label: 'Training', icon: Dumbbell },
-  { href: '/dashboard/nutrition', label: 'Nutrition', icon: Utensils },
+  { href: '/dashboard/program', label: 'Program', icon: ClipboardList },
   { href: '/dashboard/history', label: 'History', icon: Clock },
 ];
 

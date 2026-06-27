@@ -60,7 +60,28 @@ export async function POST(request: Request) {
   try {
     const supabase = createServerClient();
     const body = await request.json();
-    const { name, email } = body;
+    const { name, email, publicLink } = body;
+
+    // Public link mode — generate a reusable token without creating an athlete record
+    if (publicLink) {
+      const inviteToken = randomBytes(16).toString('hex');
+
+      // Store as a placeholder athlete entry so the token is valid when someone joins
+      const { error } = await supabase
+        .from('athletes')
+        .insert({
+          coach_id: DEMO_COACH_ID,
+          name: 'Public Invite',
+          email: `public-${inviteToken}@invite.madregot.app`,
+          status: 'invited',
+          invite_token: inviteToken,
+        });
+
+      if (error) throw error;
+
+      const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://madregot-connect.vercel.app'}/join/${inviteToken}`;
+      return NextResponse.json({ inviteLink });
+    }
 
     if (!name || !email) {
       return NextResponse.json(
@@ -87,7 +108,7 @@ export async function POST(request: Request) {
     if (error) throw error;
 
     // Generate invite link
-    const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/invite/${inviteToken}`;
+    const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://madregot-connect.vercel.app'}/join/${inviteToken}`;
 
     return NextResponse.json({
       athlete,
