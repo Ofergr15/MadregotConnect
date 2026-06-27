@@ -818,7 +818,7 @@ export default function NewPlanPage() {
                     <>
                       {/* All Athletes */}
                       {pushTab === 'all' && (
-                        <div className="text-center py-8 space-y-3">
+                        <div className="text-center py-8 space-y-4">
                           <Users className="h-12 w-12 text-slate-500 mx-auto" />
                           <div>
                             <p className="text-lg font-medium">
@@ -829,6 +829,14 @@ export default function NewPlanPage() {
                               Push {workoutCount} workout
                               {workoutCount !== 1 ? 's' : ''} to everyone
                             </p>
+                          </div>
+                          <div className="bg-slate-800 rounded-lg p-3 text-left text-xs text-slate-400 max-w-xs mx-auto">
+                            <p className="font-medium text-slate-300 mb-1">Each athlete gets their group&apos;s plan:</p>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500" /> Group 1 — fastest paces</div>
+                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-500" /> Group 2 — middle paces</div>
+                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500" /> Group 3 — adjusted paces</div>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -841,13 +849,18 @@ export default function NewPlanPage() {
                               No groups found
                             </p>
                           ) : (
-                            groups.map((group) => {
+                            [...groups].sort((a, b) => {
+                              const aGoal = a.marathonGoal ? parseFloat(a.marathonGoal) : 999;
+                              const bGoal = b.marathonGoal ? parseFloat(b.marathonGoal) : 999;
+                              return aGoal - bGoal;
+                            }).map((group, groupIdx) => {
                               const count = activeAthletes.filter(
                                 (a) => a.group_id === group.id
                               ).length;
                               const isSelected = selectedGroupIds.includes(
                                 group.id
                               );
+                              const planLabel = groupIdx < 3 ? `Plan ${groupIdx + 1}` : 'Plan 3';
                               return (
                                 <label
                                   key={group.id}
@@ -875,6 +888,14 @@ export default function NewPlanPage() {
                                       {group.name}
                                     </span>
                                   </div>
+                                  <span className={cn(
+                                    'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                                    groupIdx === 0 ? 'bg-red-500/20 text-red-400' :
+                                    groupIdx === 1 ? 'bg-yellow-500/20 text-yellow-400' :
+                                    'bg-indigo-500/20 text-indigo-400'
+                                  )}>
+                                    {planLabel}
+                                  </span>
                                   <span className="text-xs text-slate-400">
                                     {count} athlete{count !== 1 ? 's' : ''}
                                   </span>
@@ -909,6 +930,7 @@ export default function NewPlanPage() {
                               filteredAthletes.map((athlete) => {
                                 const isSelected =
                                   selectedAthleteIds.includes(athlete.id);
+                                const athleteGroup = groups.find(g => g.id === athlete.group_id);
                                 return (
                                   <label
                                     key={athlete.id}
@@ -933,9 +955,16 @@ export default function NewPlanPage() {
                                       }}
                                       className="rounded border-slate-600 text-primary-500 focus:ring-primary-500"
                                     />
-                                    <span className="text-sm">
-                                      {athlete.name}
-                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-sm">
+                                        {athlete.name}
+                                      </span>
+                                    </div>
+                                    {athleteGroup && (
+                                      <span className="text-[10px] text-slate-500 shrink-0">
+                                        {athleteGroup.name}
+                                      </span>
+                                    )}
                                   </label>
                                 );
                               })
