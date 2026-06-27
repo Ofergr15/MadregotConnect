@@ -42,7 +42,7 @@ export default function JoinPage({ params }: { params: { token: string } }) {
       .catch(() => {});
   }, [params.token]);
 
-  // Listen for messages from Garmin SSO iframe/popup
+  // Listen for messages from Garmin SSO popup
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'garmin-ticket' && event.data?.ticket) {
@@ -50,6 +50,14 @@ export default function JoinPage({ params }: { params: { token: string } }) {
       }
     };
     window.addEventListener('message', handleMessage);
+
+    // Check for stored ticket (mobile flow where popup becomes new tab)
+    const storedTicket = localStorage.getItem('garmin_ticket');
+    if (storedTicket) {
+      localStorage.removeItem('garmin_ticket');
+      handleTicketAuth(storedTicket);
+    }
+
     return () => window.removeEventListener('message', handleMessage);
   }, [name, email, selectedGroup]);
 
