@@ -11,7 +11,7 @@ interface Group {
   marathonGoal?: string;
 }
 
-const GARMIN_SSO_EMBED_URL = 'https://sso.garmin.com/sso/embed?id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso/embed&service=https://sso.garmin.com/sso/embed&source=https://sso.garmin.com/sso/embed&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&redirectAfterAccountCreationUrl=https://sso.garmin.com/sso/embed&createAccountShown=false&rememberMeShown=true&cssUrl=https://sso.garmin.com/sso/css/widget.css&displayNameShown=false';
+const GARMIN_SSO_EMBED_URL = 'https://sso.garmin.com/sso/embed?clientId=GarminConnect&locale=en&id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso/embed&service=https://sso.garmin.com/sso/embed&source=https://sso.garmin.com/sso/embed&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&redirectAfterAccountCreationUrl=https://sso.garmin.com/sso/embed&createAccountShown=false&rememberMeShown=true&initialFocus=true&socialEnabled=false';
 
 export default function JoinPage({ params }: { params: { token: string } }) {
   const [name, setName] = useState('');
