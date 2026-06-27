@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function GarminCallbackPage() {
+function GarminCallbackContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -15,12 +15,25 @@ export default function GarminCallbackPage() {
   }, [searchParams]);
 
   return (
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-4"></div>
+      <p className="text-white font-medium">Connecting to Garmin...</p>
+      <p className="text-slate-400 text-sm mt-2">This window will close automatically</p>
+    </div>
+  );
+}
+
+export default function GarminCallbackPage() {
+  return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-4"></div>
-        <p className="text-white font-medium">Connecting to Garmin...</p>
-        <p className="text-slate-400 text-sm mt-2">This window will close automatically</p>
-      </div>
+      <Suspense fallback={
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-4"></div>
+          <p className="text-white font-medium">Loading...</p>
+        </div>
+      }>
+        <GarminCallbackContent />
+      </Suspense>
     </div>
   );
 }

@@ -38,10 +38,12 @@ export async function POST(req: NextRequest) {
     if (email) updateData.email = email;
     if (groupId) updateData.group_id = groupId;
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('athletes')
       .update(updateData)
-      .eq('id', athlete.id);
+      .eq('id', athlete.id)
+      .select('id, name, email, group_id')
+      .single();
 
     if (updateError) {
       return NextResponse.json(
@@ -50,7 +52,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, athlete: updated });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Internal error' },
