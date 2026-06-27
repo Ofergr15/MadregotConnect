@@ -34,20 +34,28 @@ export default function NewPlanPage() {
     const file = e.target.files?.[0];
     if (file) {
       setImageFile(file);
-      const reader = new FileReader();
-      reader.onload = () => setImagePreview(reader.result as string);
-      reader.readAsDataURL(file);
+      if (file.type === 'application/pdf') {
+        setImagePreview('pdf');
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => setImagePreview(reader.result as string);
+        reader.readAsDataURL(file);
+      }
     }
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
+    if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
       setImageFile(file);
-      const reader = new FileReader();
-      reader.onload = () => setImagePreview(reader.result as string);
-      reader.readAsDataURL(file);
+      if (file.type === 'application/pdf') {
+        setImagePreview('pdf');
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => setImagePreview(reader.result as string);
+        reader.readAsDataURL(file);
+      }
     }
   }, []);
 
@@ -280,7 +288,7 @@ Sunday: Long run 18km`}
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-medium">
               <Upload className="h-4 w-4" />
-              Or Upload Image
+              Or Upload Image / PDF
             </label>
             <div
               onDragOver={(e) => e.preventDefault()}
@@ -293,7 +301,15 @@ Sunday: Long run 18km`}
               )}
               onClick={() => document.getElementById('image-upload')?.click()}
             >
-              {imagePreview ? (
+              {imagePreview === 'pdf' ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-14 bg-red-500/20 rounded-lg flex items-center justify-center">
+                    <span className="text-red-400 text-xs font-bold">PDF</span>
+                  </div>
+                  <p className="text-sm text-slate-300">{imageFile?.name}</p>
+                  <p className="text-xs text-slate-500">Ready to parse</p>
+                </div>
+              ) : imagePreview ? (
                 <img
                   src={imagePreview}
                   alt="Uploaded plan"
@@ -303,7 +319,7 @@ Sunday: Long run 18km`}
                 <>
                   <Upload className="h-8 w-8 text-slate-500 mb-3" />
                   <p className="text-sm text-slate-400">
-                    Drag & drop an image or click to upload
+                    Drag & drop an image or PDF to upload
                   </p>
                   <p className="text-xs text-slate-500 mt-1">
                     Screenshots, photos of whiteboards, coach PDFs
@@ -313,7 +329,7 @@ Sunday: Long run 18km`}
               <input
                 id="image-upload"
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf"
                 onChange={handleImageUpload}
                 className="hidden"
               />
