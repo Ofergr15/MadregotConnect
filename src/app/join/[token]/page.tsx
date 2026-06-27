@@ -218,8 +218,11 @@ export default function JoinPage({ params }: { params: { token: string } }) {
         {/* Logo */}
         <div className="flex flex-col items-center justify-center mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain invert" />
-            <span className="text-lg font-bold text-white uppercase tracking-tight">Madregot After 2KM</span>
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 object-contain brightness-0 invert" />
+            <div className="flex flex-col leading-tight">
+              <span className="text-lg font-bold text-white tracking-tight">Madregot</span>
+              <span className="text-xs font-medium tracking-wide text-slate-400">After 2KM Running Club</span>
+            </div>
           </div>
           <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">Running Club</span>
         </div>

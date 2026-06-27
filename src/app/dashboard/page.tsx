@@ -70,9 +70,12 @@ export default function DashboardPage() {
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary-600 to-primary-800 p-8 text-white">
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-4">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 object-contain invert" />
-            <span className="text-xl font-bold uppercase tracking-tight">Madregot After 2KM</span>
+          <div className="flex items-center gap-4 mb-4">
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-14 w-14 object-contain brightness-0 invert" />
+            <div className="flex flex-col leading-tight">
+              <span className="text-2xl font-bold tracking-tight">Madregot</span>
+              <span className="text-sm font-medium tracking-wide text-primary-100">After 2KM Running Club</span>
+            </div>
           </div>
           <h1 className="text-3xl font-bold mb-2">Welcome back, {coachName}!</h1>
           <p className="text-primary-100 text-lg">
@@ -83,9 +86,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {/* Total Athletes */}
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-primary-500 transition-colors">
+        <div className="bg-slate-800 rounded-xl p-4 sm:p-6 border border-slate-700 hover:border-primary-500 transition-colors">
           <div className="flex items-start justify-between mb-4">
             <div className="bg-primary-500/20 p-3 rounded-lg">
               <Users className="h-6 w-6 text-primary-400" />
@@ -103,7 +106,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Active Groups */}
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-purple-500 transition-colors">
+        <div className="bg-slate-800 rounded-xl p-4 sm:p-6 border border-slate-700 hover:border-purple-500 transition-colors">
           <div className="flex items-start justify-between mb-4">
             <div className="bg-purple-500/20 p-3 rounded-lg">
               <Layers className="h-6 w-6 text-purple-400" />
@@ -117,7 +120,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Workouts This Month */}
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-orange-500 transition-colors">
+        <div className="bg-slate-800 rounded-xl p-4 sm:p-6 border border-slate-700 hover:border-orange-500 transition-colors">
           <div className="flex items-start justify-between mb-4">
             <div className="bg-orange-500/20 p-3 rounded-lg">
               <Calendar className="h-6 w-6 text-orange-400" />
@@ -131,7 +134,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Success Rate */}
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-green-500 transition-colors">
+        <div className="bg-slate-800 rounded-xl p-4 sm:p-6 border border-slate-700 hover:border-green-500 transition-colors">
           <div className="flex items-start justify-between mb-4">
             <div className="bg-green-500/20 p-3 rounded-lg">
               <Target className="h-6 w-6 text-green-400" />
@@ -148,7 +151,7 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div>
         <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <Link
             href="/dashboard/plan/new"
             className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-primary-500 transition-all group"

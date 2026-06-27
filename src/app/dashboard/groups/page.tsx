@@ -181,7 +181,7 @@ function GroupEditModal({ group, onSave, onClose }: {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder="e.g., SUB 2:30"
               required
             />
@@ -195,7 +195,7 @@ function GroupEditModal({ group, onSave, onClose }: {
               type="text"
               value={marathonGoal}
               onChange={(e) => setMarathonGoal(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-xl"
+              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-xl"
               placeholder="2:30:00"
             />
             <p className="text-xs text-slate-500 mt-1">
@@ -245,7 +245,7 @@ function GroupEditModal({ group, onSave, onClose }: {
                 type="number"
                 value={paceOffsetSeconds}
                 onChange={(e) => setPaceOffsetSeconds(parseInt(e.target.value) || 0)}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500 text-center text-xl font-mono"
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500 text-center text-xl font-mono"
                 placeholder="0"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
@@ -489,8 +489,8 @@ export default function GroupsPage() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
           <div className="flex items-center gap-3">
             <div className="bg-purple-500/20 p-2 rounded-lg">
               <Layers className="h-5 w-5 text-purple-400" />
@@ -501,7 +501,7 @@ export default function GroupsPage() {
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
           <div className="flex items-center gap-3">
             <div className="bg-primary-500/20 p-2 rounded-lg">
               <Users className="h-5 w-5 text-primary-400" />
@@ -514,7 +514,7 @@ export default function GroupsPage() {
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700 col-span-2 md:col-span-1">
           <div className="flex items-center gap-3">
             <div className="bg-green-500/20 p-2 rounded-lg">
               <Activity className="h-5 w-5 text-green-400" />
@@ -679,7 +679,7 @@ export default function GroupsPage() {
                   type="text"
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="e.g., SUB 2:30"
                   required
                 />
@@ -693,7 +693,7 @@ export default function GroupsPage() {
                   type="text"
                   value={newMarathonGoal}
                   onChange={(e) => setNewMarathonGoal(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-xl"
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-xl"
                   placeholder="2:30:00"
                 />
                 <p className="text-xs text-slate-500 mt-1">
@@ -743,7 +743,7 @@ export default function GroupsPage() {
                     type="number"
                     value={newGroupOffset}
                     onChange={(e) => setNewGroupOffset(parseInt(e.target.value) || 0)}
-                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500 text-center text-xl font-mono"
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500 text-center text-xl font-mono"
                     placeholder="0"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">

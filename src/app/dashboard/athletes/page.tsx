@@ -251,8 +251,8 @@ ${inviteLink}`;
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
           <div className="flex items-center gap-3">
             <div className="bg-green-500/20 p-2 rounded-lg">
               <CheckCircle2 className="h-5 w-5 text-green-400" />
@@ -263,7 +263,7 @@ ${inviteLink}`;
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
           <div className="flex items-center gap-3">
             <div className="bg-yellow-500/20 p-2 rounded-lg">
               <Clock className="h-5 w-5 text-yellow-400" />
@@ -274,7 +274,7 @@ ${inviteLink}`;
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
           <div className="flex items-center gap-3">
             <div className="bg-orange-500/20 p-2 rounded-lg">
               <PauseCircle className="h-5 w-5 text-orange-400" />
@@ -285,7 +285,7 @@ ${inviteLink}`;
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
           <div className="flex items-center gap-3">
             <div className="bg-primary-500/20 p-2 rounded-lg">
               <UsersIcon className="h-5 w-5 text-primary-400" />
@@ -324,19 +324,19 @@ ${inviteLink}`;
               value={inviteName}
               onChange={(e) => setInviteName(e.target.value)}
               placeholder="Athlete name"
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <input
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               placeholder="Email address"
               type="email"
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <select
               value={inviteGroup}
               onChange={(e) => setInviteGroup(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">No group (assign later)</option>
               {groups.map(g => (
@@ -431,93 +431,163 @@ ${inviteLink}`;
         )}
       </div>
 
-      {/* Athletes Table */}
+      {/* Athletes Table - Desktop */}
       {filteredAthletes.length > 0 ? (
-        <div className="bg-slate-800 rounded-xl border border-slate-700">
-          <div className="overflow-x-auto overflow-y-visible">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-700 bg-slate-700/50">
-                  <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Name</th>
-                  <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Email</th>
-                  <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Group</th>
-                  <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Status</th>
-                  <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Joined</th>
-                  <th className="text-right text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700">
-                {filteredAthletes.map((athlete) => (
-                  <tr key={athlete.id} className="hover:bg-slate-700/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-primary-500/20 w-10 h-10 rounded-full flex items-center justify-center">
-                          <span className="text-primary-400 font-semibold text-sm">
-                            {athlete.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                          </span>
-                        </div>
-                        <span className="font-medium">{athlete.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-300">{athlete.email}</td>
-                    <td className="px-6 py-4">
-                      {athlete.groupName ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-500/20 text-purple-400 text-xs font-medium">
-                          {athlete.groupName}
-                        </span>
-                      ) : (
-                        <span className="text-slate-500 text-sm">No group</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">{getStatusBadge(athlete.status)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-400">
-                      {new Date(athlete.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-right relative">
-                      <button
-                        onClick={() => setActiveMenu(activeMenu === athlete.id ? null : athlete.id)}
-                        className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-                      >
-                        <MoreVertical className="h-4 w-4 text-slate-400" />
-                      </button>
-                      {activeMenu === athlete.id && (
-                        <div className="absolute right-6 top-12 z-10 bg-slate-700 border border-slate-600 rounded-lg shadow-xl py-1 w-48">
-                          <button
-                            onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
-                          >
-                            <ArrowRightLeft className="h-4 w-4" /> Move to Group
-                          </button>
-                          {athlete.status === 'active' ? (
-                            <button
-                              onClick={() => updateAthleteStatus(athlete.id, 'paused')}
-                              className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
-                            >
-                              <PauseCircle className="h-4 w-4" /> Pause
-                            </button>
-                          ) : athlete.status === 'paused' ? (
-                            <button
-                              onClick={() => updateAthleteStatus(athlete.id, 'active')}
-                              className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
-                            >
-                              <PlayCircle className="h-4 w-4" /> Reactivate
-                            </button>
-                          ) : null}
-                          <button
-                            onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
-                          >
-                            <Trash2 className="h-4 w-4" /> Delete
-                          </button>
-                        </div>
-                      )}
-                    </td>
+        <>
+          <div className="hidden md:block bg-slate-800 rounded-xl border border-slate-700">
+            <div className="overflow-x-auto overflow-y-visible">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-700 bg-slate-700/50">
+                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Name</th>
+                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Email</th>
+                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Group</th>
+                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Status</th>
+                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Joined</th>
+                    <th className="text-right text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-700">
+                  {filteredAthletes.map((athlete) => (
+                    <tr key={athlete.id} className="hover:bg-slate-700/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-primary-500/20 w-10 h-10 rounded-full flex items-center justify-center">
+                            <span className="text-primary-400 font-semibold text-sm">
+                              {athlete.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </span>
+                          </div>
+                          <span className="font-medium">{athlete.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-300">{athlete.email}</td>
+                      <td className="px-6 py-4">
+                        {athlete.groupName ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-500/20 text-purple-400 text-xs font-medium">
+                            {athlete.groupName}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500 text-sm">No group</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">{getStatusBadge(athlete.status)}</td>
+                      <td className="px-6 py-4 text-sm text-slate-400">
+                        {new Date(athlete.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-right relative">
+                        <button
+                          onClick={() => setActiveMenu(activeMenu === athlete.id ? null : athlete.id)}
+                          className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                        >
+                          <MoreVertical className="h-4 w-4 text-slate-400" />
+                        </button>
+                        {activeMenu === athlete.id && (
+                          <div className="absolute right-6 top-12 z-10 bg-slate-700 border border-slate-600 rounded-lg shadow-xl py-1 w-48">
+                            <button
+                              onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
+                            >
+                              <ArrowRightLeft className="h-4 w-4" /> Move to Group
+                            </button>
+                            {athlete.status === 'active' ? (
+                              <button
+                                onClick={() => updateAthleteStatus(athlete.id, 'paused')}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
+                              >
+                                <PauseCircle className="h-4 w-4" /> Pause
+                              </button>
+                            ) : athlete.status === 'paused' ? (
+                              <button
+                                onClick={() => updateAthleteStatus(athlete.id, 'active')}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
+                              >
+                                <PlayCircle className="h-4 w-4" /> Reactivate
+                              </button>
+                            ) : null}
+                            <button
+                              onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
+                            >
+                              <Trash2 className="h-4 w-4" /> Delete
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Athletes Cards - Mobile */}
+          <div className="md:hidden space-y-3">
+            {filteredAthletes.map((athlete) => (
+              <div key={athlete.id} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="bg-primary-500/20 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-primary-400 font-semibold text-sm">
+                        {athlete.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{athlete.name}</div>
+                      <div className="text-sm text-slate-400 truncate">{athlete.email}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveMenu(activeMenu === athlete.id ? null : athlete.id)}
+                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
+                  >
+                    <MoreVertical className="h-4 w-4 text-slate-400" />
+                  </button>
+                  {activeMenu === athlete.id && (
+                    <div className="absolute right-4 mt-10 z-10 bg-slate-700 border border-slate-600 rounded-lg shadow-xl py-1 w-48">
+                      <button
+                        onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
+                      >
+                        <ArrowRightLeft className="h-4 w-4" /> Move to Group
+                      </button>
+                      {athlete.status === 'active' ? (
+                        <button
+                          onClick={() => updateAthleteStatus(athlete.id, 'paused')}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
+                        >
+                          <PauseCircle className="h-4 w-4" /> Pause
+                        </button>
+                      ) : athlete.status === 'paused' ? (
+                        <button
+                          onClick={() => updateAthleteStatus(athlete.id, 'active')}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
+                        >
+                          <PlayCircle className="h-4 w-4" /> Reactivate
+                        </button>
+                      ) : null}
+                      <button
+                        onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
+                      >
+                        <Trash2 className="h-4 w-4" /> Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {athlete.groupName ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-500/20 text-purple-400 text-xs font-medium">
+                      {athlete.groupName}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 text-xs">No group</span>
+                  )}
+                  {getStatusBadge(athlete.status)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
         <div className="bg-slate-800 rounded-xl border border-slate-700 text-center py-16">
           <div className="bg-slate-700/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
