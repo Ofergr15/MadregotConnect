@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   UserPlus, Copy, CheckCircle2, Wifi, WifiOff, Clock,
   Users as UsersIcon, Check, Mail, MoreVertical, Trash2,
-  PauseCircle, PlayCircle, ArrowRightLeft, X
+  PauseCircle, PlayCircle, ArrowRightLeft, X, MessageCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -139,6 +139,17 @@ export default function AthletesPage() {
     }
   };
 
+  const shareViaWhatsApp = () => {
+    if (inviteLink) {
+      const message = `היי! 🏃‍♂️
+הצטרף/י למדרגות After 2KM ב-Garmin Connect.
+לחץ/י על הלינק כדי לחבר את השעון שלך ולקבל את האימונים ישירות:
+${inviteLink}`;
+      const encodedMessage = encodeURIComponent(message);
+      window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+    }
+  };
+
   const filteredAthletes = athletes.filter(a => {
     if (filter === 'all') return true;
     return a.status === filter;
@@ -176,7 +187,7 @@ export default function AthletesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
       </div>
     );
   }
@@ -190,7 +201,7 @@ export default function AthletesPage() {
         </div>
         <button
           onClick={() => { setShowInvite(!showInvite); setInviteLink(null); }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
         >
           <UserPlus className="h-4 w-4" />
           Invite Athlete
@@ -234,8 +245,8 @@ export default function AthletesPage() {
         </div>
         <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-500/20 p-2 rounded-lg">
-              <UsersIcon className="h-5 w-5 text-blue-400" />
+            <div className="bg-primary-500/20 p-2 rounded-lg">
+              <UsersIcon className="h-5 w-5 text-primary-400" />
             </div>
             <div>
               <p className="text-2xl font-bold">{athletes.length}</p>
@@ -253,7 +264,7 @@ export default function AthletesPage() {
             onClick={() => setFilter(tab)}
             className={cn(
               'px-4 py-2 rounded-md text-sm font-medium transition-colors capitalize',
-              filter === tab ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              filter === tab ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
             )}
           >
             {tab} {tab !== 'all' && `(${athletes.filter(a => a.status === tab).length})`}
@@ -271,19 +282,19 @@ export default function AthletesPage() {
               value={inviteName}
               onChange={(e) => setInviteName(e.target.value)}
               placeholder="Athlete name"
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <input
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               placeholder="Email address"
               type="email"
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <select
               value={inviteGroup}
               onChange={(e) => setInviteGroup(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">No group (assign later)</option>
               {groups.map(g => (
@@ -294,7 +305,7 @@ export default function AthletesPage() {
           <button
             onClick={createInvite}
             disabled={submitting || !inviteName.trim() || !inviteEmail.trim()}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             <Mail className="h-4 w-4" />
             {submitting ? 'Creating...' : 'Generate Invite Link'}
@@ -315,6 +326,14 @@ export default function AthletesPage() {
                   )}
                 >
                   {copied ? <><Check className="h-4 w-4" />Copied!</> : <><Copy className="h-4 w-4" />Copy</>}
+                </button>
+                <button
+                  onClick={shareViaWhatsApp}
+                  className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA59] text-white"
+                  title="Share via WhatsApp"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
                 </button>
               </div>
             </div>
@@ -342,8 +361,8 @@ export default function AthletesPage() {
                   <tr key={athlete.id} className="hover:bg-slate-700/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="bg-blue-500/20 w-10 h-10 rounded-full flex items-center justify-center">
-                          <span className="text-blue-400 font-semibold text-sm">
+                        <div className="bg-primary-500/20 w-10 h-10 rounded-full flex items-center justify-center">
+                          <span className="text-primary-400 font-semibold text-sm">
                             {athlete.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                           </span>
                         </div>

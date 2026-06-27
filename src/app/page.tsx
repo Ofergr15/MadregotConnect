@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation';
 import {
-  Activity,
   Upload,
   Cpu,
   Send,
@@ -26,9 +25,18 @@ export default function LandingPage() {
       {/* Header */}
       <header className="border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="h-8 w-8 text-primary-500" />
-            <span className="text-xl font-bold text-white">MadregotConnect</span>
+          <div className="flex items-center gap-3">
+            <svg viewBox="0 0 40 40" className="h-8 w-8 text-primary-500" fill="currentColor">
+              <rect x="8" y="30" width="24" height="4"/>
+              <rect x="12" y="24" width="20" height="4"/>
+              <rect x="16" y="18" width="16" height="4"/>
+              <rect x="20" y="12" width="12" height="4"/>
+              <rect x="24" y="6" width="8" height="4"/>
+            </svg>
+            <div className="flex flex-col leading-tight">
+              <span className="text-lg font-bold text-white uppercase tracking-tight">MADREGOT</span>
+              <span className="text-[10px] text-primary-400 uppercase tracking-wide">After 2KM</span>
+            </div>
           </div>
           <button
             onClick={() => router.push('/login')}
@@ -51,13 +59,13 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
-            AI-Powered Workout Delivery <br className="hidden sm:block" />
-            for <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">Garmin</span>
+            <span className="text-primary-500 uppercase tracking-tight">MADREGOT</span> After 2KM <br className="hidden sm:block" />
+            <span className="bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">AI-Powered Training</span>
           </h1>
 
           <p className="text-lg sm:text-xl text-slate-400 max-w-3xl mx-auto mb-10">
-            Transform text and images into structured Garmin workouts with Claude AI.
-            Push training plans to all your athletes with one click.
+            Transform training plans into structured Garmin workouts with AI.
+            Push workouts to all your runners with one click.
           </p>
 
           <button
@@ -289,11 +297,20 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Activity className="h-6 w-6 text-primary-500" />
-              <span className="text-lg font-bold text-white">MadregotConnect</span>
+              <svg viewBox="0 0 40 40" className="h-6 w-6 text-primary-500" fill="currentColor">
+                <rect x="8" y="30" width="24" height="4"/>
+                <rect x="12" y="24" width="20" height="4"/>
+                <rect x="16" y="18" width="16" height="4"/>
+                <rect x="20" y="12" width="12" height="4"/>
+                <rect x="24" y="6" width="8" height="4"/>
+              </svg>
+              <div className="flex flex-col leading-tight">
+                <span className="text-base font-bold text-white uppercase tracking-tight">MADREGOT</span>
+                <span className="text-[9px] text-primary-400 uppercase tracking-wide">After 2KM</span>
+              </div>
             </div>
             <div className="text-slate-400 text-sm">
-              © 2026 MadregotConnect. AI-powered workout delivery for Garmin.
+              © 2026 MADREGOT After 2KM Running Club. EST. 2022
             </div>
           </div>
         </div>

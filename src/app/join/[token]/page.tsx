@@ -1,11 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Activity, CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users } from 'lucide-react';
+import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users } from 'lucide-react';
 
 interface Group {
   id: string;
   name: string;
+  paceOffsetSeconds: number;
+  level: 'fast' | 'medium' | 'slow';
+  marathonGoal?: string;
 }
 
 export default function JoinPage({ params }: { params: { token: string } }) {
@@ -78,9 +81,18 @@ export default function JoinPage({ params }: { params: { token: string } }) {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 sm:p-8 w-full max-w-md animate-fade-in">
           {/* Logo */}
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <Activity className="h-6 w-6 text-primary-500" />
-            <span className="text-lg font-bold text-white">MadregotConnect</span>
+          <div className="flex flex-col items-center justify-center mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <svg viewBox="0 0 40 40" className="h-6 w-6 text-primary-500" fill="currentColor">
+                <rect x="8" y="30" width="24" height="4"/>
+                <rect x="12" y="24" width="20" height="4"/>
+                <rect x="16" y="18" width="16" height="4"/>
+                <rect x="20" y="12" width="12" height="4"/>
+                <rect x="24" y="6" width="8" height="4"/>
+              </svg>
+              <span className="text-lg font-bold text-white uppercase tracking-tight">MADREGOT</span>
+            </div>
+            <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">After 2KM Running Club</span>
           </div>
 
           {/* Success Icon */}
@@ -150,9 +162,18 @@ export default function JoinPage({ params }: { params: { token: string } }) {
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 sm:p-8 w-full max-w-md">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <Activity className="h-6 w-6 text-primary-500" />
-          <span className="text-lg font-bold text-white">MadregotConnect</span>
+        <div className="flex flex-col items-center justify-center mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <svg viewBox="0 0 40 40" className="h-6 w-6 text-primary-500" fill="currentColor">
+              <rect x="8" y="30" width="24" height="4"/>
+              <rect x="12" y="24" width="20" height="4"/>
+              <rect x="16" y="18" width="16" height="4"/>
+              <rect x="20" y="12" width="12" height="4"/>
+              <rect x="24" y="6" width="8" height="4"/>
+            </svg>
+            <span className="text-lg font-bold text-white uppercase tracking-tight">MADREGOT</span>
+          </div>
+          <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">After 2KM Running Club</span>
         </div>
 
         {/* Header */}
@@ -200,23 +221,53 @@ export default function JoinPage({ params }: { params: { token: string } }) {
             </div>
             {groups.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
                   <Users className="inline h-4 w-4 mr-1" />
                   Your Pace Group
                 </label>
-                <select
-                  value={selectedGroup}
-                  onChange={(e) => setSelectedGroup(e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  required
-                >
-                  <option value="">Select your pace group</option>
-                  {groups.map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">
-                  Your coach will assign workouts based on your group&apos;s pace
+                <div className="space-y-2">
+                  {groups.map(g => {
+                    const isSelected = selectedGroup === g.id;
+                    const levelColors = {
+                      fast: 'border-green-500/50 bg-green-500/10 text-green-400',
+                      medium: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400',
+                      slow: 'border-orange-500/50 bg-orange-500/10 text-orange-400',
+                    };
+                    const levelLabels = {
+                      fast: 'SUB 2:30',
+                      medium: 'SUB 2:35',
+                      slow: 'SUB 2:45',
+                    };
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setSelectedGroup(g.id)}
+                        className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
+                          isSelected
+                            ? 'border-primary-500 bg-primary-500/10 ring-2 ring-primary-500/50'
+                            : 'border-slate-600 bg-slate-700 hover:border-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="font-medium text-white">{g.name}</div>
+                            {g.marathonGoal && (
+                              <div className="text-xs text-slate-400 mt-0.5">
+                                Marathon Goal: <span className="font-mono text-slate-300">{g.marathonGoal}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className={`px-2 py-1 rounded text-xs font-medium border ${levelColors[g.level]} ml-2`}>
+                            {levelLabels[g.level]}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  Your coach will assign workouts based on your group&apos;s pace offset
                 </p>
               </div>
             )}

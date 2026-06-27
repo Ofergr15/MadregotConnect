@@ -60,7 +60,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
       </div>
     );
   }
@@ -68,23 +68,36 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 to-blue-800 p-8 text-white">
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary-600 to-primary-800 p-8 text-white">
         <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-4">
+            <svg viewBox="0 0 40 40" className="h-8 w-8" fill="currentColor">
+              <rect x="8" y="30" width="24" height="4"/>
+              <rect x="12" y="24" width="20" height="4"/>
+              <rect x="16" y="18" width="16" height="4"/>
+              <rect x="20" y="12" width="12" height="4"/>
+              <rect x="24" y="6" width="8" height="4"/>
+            </svg>
+            <div className="flex flex-col leading-tight">
+              <span className="text-xl font-bold uppercase tracking-tight">MADREGOT</span>
+              <span className="text-xs text-primary-100 uppercase tracking-wide">After 2KM</span>
+            </div>
+          </div>
           <h1 className="text-3xl font-bold mb-2">Welcome back, {coachName}!</h1>
-          <p className="text-blue-100 text-lg">
+          <p className="text-primary-100 text-lg">
             Ready to push some workouts? You have {stats?.athleteCount || 0} active athletes waiting.
           </p>
         </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary-500/20 rounded-full blur-3xl"></div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Athletes */}
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-blue-500 transition-colors">
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-primary-500 transition-colors">
           <div className="flex items-start justify-between mb-4">
-            <div className="bg-blue-500/20 p-3 rounded-lg">
-              <Users className="h-6 w-6 text-blue-400" />
+            <div className="bg-primary-500/20 p-3 rounded-lg">
+              <Users className="h-6 w-6 text-primary-400" />
             </div>
             <div className="flex items-center gap-1 text-green-400 text-xs font-medium">
               <TrendingUp className="h-3 w-3" />
@@ -147,10 +160,10 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link
             href="/dashboard/plan/new"
-            className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-blue-500 transition-all group"
+            className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-primary-500 transition-all group"
           >
-            <div className="bg-blue-500/20 p-3 rounded-lg inline-block mb-4 group-hover:bg-blue-500/30 transition-colors">
-              <Calendar className="h-6 w-6 text-blue-400" />
+            <div className="bg-primary-500/20 p-3 rounded-lg inline-block mb-4 group-hover:bg-primary-500/30 transition-colors">
+              <Calendar className="h-6 w-6 text-primary-400" />
             </div>
             <h3 className="font-semibold mb-2 flex items-center gap-2">
               New Weekly Plan
@@ -200,7 +213,7 @@ export default function DashboardPage() {
         {/* Recent Activity */}
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
           <div className="flex items-center gap-2 mb-4">
-            <Activity className="h-5 w-5 text-blue-400" />
+            <Activity className="h-5 w-5 text-primary-400" />
             <h2 className="text-lg font-bold">Recent Activity</h2>
           </div>
           {stats?.recentActivity && stats.recentActivity.length > 0 ? (
@@ -212,11 +225,11 @@ export default function DashboardPage() {
                 >
                   <div className={cn(
                     "p-2 rounded-lg mt-0.5",
-                    activity.type === 'plan_pushed' && "bg-blue-500/20",
+                    activity.type === 'plan_pushed' && "bg-primary-500/20",
                     activity.type === 'athlete_joined' && "bg-green-500/20",
                     activity.type === 'athlete_invited' && "bg-yellow-500/20"
                   )}>
-                    {activity.type === 'plan_pushed' && <Calendar className="h-4 w-4 text-blue-400" />}
+                    {activity.type === 'plan_pushed' && <Calendar className="h-4 w-4 text-primary-400" />}
                     {activity.type === 'athlete_joined' && <CheckCircle2 className="h-4 w-4 text-green-400" />}
                     {activity.type === 'athlete_invited' && <Clock className="h-4 w-4 text-yellow-400" />}
                   </div>
@@ -288,7 +301,7 @@ export default function DashboardPage() {
               <p className="text-slate-400 text-sm mb-3">No plans yet</p>
               <Link
                 href="/dashboard/plan/new"
-                className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
+                className="inline-flex items-center gap-2 text-sm text-primary-400 hover:text-primary-300"
               >
                 Create your first plan
                 <ArrowRight className="h-3 w-3" />

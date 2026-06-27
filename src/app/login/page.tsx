@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Activity, LogIn, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { LogIn, ArrowLeft, ShieldAlert } from 'lucide-react';
 
 const ADMIN_EMAILS = ['grosfeldofer@gmail.com'];
 
@@ -39,12 +39,21 @@ export default function LoginPage() {
 
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="bg-primary-600/20 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Activity className="h-7 w-7 text-primary-400" />
+          <div className="bg-primary-600/20 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg viewBox="0 0 40 40" className="h-9 w-9 text-primary-400" fill="currentColor">
+              <rect x="8" y="30" width="24" height="4"/>
+              <rect x="12" y="24" width="20" height="4"/>
+              <rect x="16" y="18" width="16" height="4"/>
+              <rect x="20" y="12" width="12" height="4"/>
+              <rect x="24" y="6" width="8" height="4"/>
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">Welcome Back</h1>
-          <p className="text-slate-400 mt-2">
-            Sign in to your MadregotConnect coaching dashboard
+          <h1 className="text-2xl font-bold text-white uppercase tracking-tight">MADREGOT</h1>
+          <p className="text-primary-400 text-sm font-medium mt-1 uppercase tracking-wide">
+            After 2KM Running Club
+          </p>
+          <p className="text-slate-400 mt-3">
+            Sign in to your coaching dashboard
           </p>
         </div>
 

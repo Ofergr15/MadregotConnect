@@ -22,11 +22,36 @@ export async function GET(req: NextRequest) {
 
     const { data: groups } = await supabase
       .from('groups')
-      .select('id, name')
+      .select('id, name, pace_profile')
       .eq('coach_id', athlete.coach_id)
       .order('name');
 
-    return NextResponse.json({ groups: groups || [] });
+    // Transform to include pace offset info and marathon goal
+    const transformedGroups = groups?.map(group => {
+      const paceProfile = group.pace_profile as any;
+      const paceOffsetSeconds = typeof paceProfile === 'object' && paceProfile !== null
+        ? (paceProfile.offsetSeconds ?? 0)
+        : 0;
+
+      let level: 'fast' | 'medium' | 'slow' = 'medium';
+      if (paceOffsetSeconds <= 0) level = 'fast';
+      else if (paceOffsetSeconds <= 15) level = 'medium';
+      else level = 'slow';
+
+      if (paceProfile?.level) level = paceProfile.level;
+
+      const marathonGoal = paceProfile?.marathonGoal || '';
+
+      return {
+        id: group.id,
+        name: group.name,
+        paceOffsetSeconds,
+        level,
+        marathonGoal,
+      };
+    });
+
+    return NextResponse.json({ groups: transformedGroups || [] });
   } catch {
     return NextResponse.json({ groups: [] });
   }
