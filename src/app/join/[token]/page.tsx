@@ -24,7 +24,13 @@ export default function JoinPage({ params }: { params: { token: string } }) {
   useEffect(() => {
     fetch(`/api/join/groups?token=${params.token}`)
       .then(res => res.json())
-      .then(data => setGroups(data.groups || []))
+      .then(data => {
+        const fetchedGroups = data.groups || [];
+        setGroups(fetchedGroups);
+        if (fetchedGroups.length === 1) {
+          setSelectedGroup(fetchedGroups[0].id);
+        }
+      })
       .catch(() => {});
   }, [params.token]);
 
