@@ -125,7 +125,7 @@ export default function HomePage() {
                 Founded in 2022 by two friends looking for training partners, Madregot has grown into Israel&apos;s leading running community.
               </p>
               <p className="text-lg text-gray-600 leading-relaxed">
-                Today, Madregot brings together Israel&apos;s fastest amateur marathoners, elite athletes, and committed runners — creating a culture where performance, community, and ambition push each other forward.
+                Today, Madregot brings together Israel&apos;s fastest amateur marathoners, elite athletes, and committed runners, creating a culture where performance, community, and ambition push each other forward.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
