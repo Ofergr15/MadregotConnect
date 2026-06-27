@@ -76,11 +76,26 @@ If only one pace is given (no brackets notation), only set targetPaceMin/Max. Le
 ## Table/PDF Format with Numbered Groups
 
 In PDF training plans, the coach uses tables with 3 columns:
-- ❶ = fastest group (use these paces)
-- ❷ = middle group
-- ❸ = slowest group
+- ❶ = fastest group → use for targetPaceMinPerKm/targetPaceMaxPerKm
+- ❷ = middle group → use for group2Pace: { min, max }
+- ❸ = slowest group → use for group3Pace: { min, max }
 
-Always use the ❶ column paces. The ❶ column is typically on the RIGHT side of the table (Hebrew RTL layout).
+The ❶ column is typically on the RIGHT side of the table (Hebrew RTL layout).
+
+CRITICAL: You MUST extract paces from ALL 3 columns. Each step should have:
+- targetPaceMinPerKm/targetPaceMaxPerKm from column ❶
+- group2Pace from column ❷
+- group3Pace from column ❸
+
+Example from PDF table:
+  ❸: "4:10 שנ 45"  |  ❷: "4:00 שנ 45"  |  ❶: "3:50 שנ 45"
+→ { "durationType": "time", "durationValue": 45, "targetPaceMinPerKm": 230, "targetPaceMaxPerKm": 230, "group2Pace": {"min": 240, "max": 240}, "group3Pace": {"min": 250, "max": 250} }
+
+Example with ranges:
+  ❸: "4:36 ק״מ 6"  |  ❷: "4:24 ק״מ 6"  |  ❶: "4:15 ק״מ 6"
+→ { "durationType": "distance", "durationValue": 6000, "targetPaceMinPerKm": 255, "targetPaceMaxPerKm": 255, "group2Pace": {"min": 264, "max": 264}, "group3Pace": {"min": 276, "max": 276} }
+
+If all 3 columns have the SAME pace (e.g., easy runs, warmup at 5:00), set group2Pace and group3Pace to null.
 
 ## Hebrew Running Terminology
 
