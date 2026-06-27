@@ -154,26 +154,24 @@ function hasBracketNotation(notes: string | undefined): boolean {
   return /\([\d:]+/.test(notes) && /\(\([\d:]+/.test(notes);
 }
 
+function shouldApplyOffset(step: WorkoutStep): boolean {
+  return (
+    step.targetType === 'pace' &&
+    !!step.targetPaceMinPerKm &&
+    !step.group2Pace &&
+    !step.group3Pace &&
+    !hasBracketNotation(step.notes) &&
+    (step.type === 'interval' || step.type === 'active')
+  );
+}
+
 function splitWorkout(workout: ParsedWorkout, group: 1 | 2 | 3, offsets: { group2Offset: number; group3Offset: number }): ParsedWorkout {
   return {
     ...workout,
     steps: workout.steps.map(step => {
       let result = splitStep(step, group);
-      // Apply offset ONLY when:
-      // 1. Not group 1
-      // 2. Step has a pace target
-      // 3. No group2Pace/group3Pace fields existed
-      // 4. No bracket notation in notes (notes extraction didn't handle it)
-      // 5. Step type is interval/active (not warmup/rest)
-      if (
-        group !== 1 &&
-        step.targetType === 'pace' &&
-        step.targetPaceMinPerKm &&
-        !step.group2Pace &&
-        !step.group3Pace &&
-        !hasBracketNotation(step.notes) &&
-        (step.type === 'interval' || step.type === 'active')
-      ) {
+      // Only apply offset to top-level non-repeat steps
+      if (group !== 1 && !step.repeatCount && shouldApplyOffset(step)) {
         const offset = group === 2 ? offsets.group2Offset : offsets.group3Offset;
         result = applyPaceOffset(result, offset);
       }
