@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 const COACH_ID = 'a34a0d10-1a1c-4b80-a1ca-e0044aa06232';
 
 interface DeliveryStats {
