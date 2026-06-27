@@ -37,6 +37,7 @@ const zoneLabels: Record<string, string> = {
 };
 
 function formatDuration(step: WorkoutStep): string {
+  if (step.repeatCount) return '';
   if (step.durationType === 'open') return 'Lap button';
   if (step.durationType === 'distance') {
     const m = step.durationValue || 0;
@@ -44,6 +45,7 @@ function formatDuration(step: WorkoutStep): string {
   }
   if (step.durationType === 'time') {
     const s = step.durationValue || 0;
+    if (s === 0) return '';
     if (s >= 3600) {
       const h = Math.floor(s / 3600);
       const min = Math.floor((s % 3600) / 60);
