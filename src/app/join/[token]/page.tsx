@@ -11,7 +11,7 @@ interface Group {
   marathonGoal?: string;
 }
 
-const GARMIN_SSO_EMBED_URL = 'https://sso.garmin.com/sso/embed?clientId=GarminConnect&locale=en&id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso/embed&service=https://sso.garmin.com/sso/embed&source=https://sso.garmin.com/sso/embed&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&redirectAfterAccountCreationUrl=https://sso.garmin.com/sso/embed&createAccountShown=false&rememberMeShown=true&initialFocus=true&socialEnabled=false';
+const GARMIN_SSO_EMBED_URL = 'https://sso.garmin.com/sso/embed?clientId=MY_GARMIN&locale=en&id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso/embed&service=https://sso.garmin.com/sso/embed&source=https://sso.garmin.com/sso/embed&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&redirectAfterAccountCreationUrl=https://sso.garmin.com/sso/embed&createAccountShown=false&rememberMeShown=true&initialFocus=true&socialEnabled=false';
 
 export default function JoinPage({ params }: { params: { token: string } }) {
   const [name, setName] = useState('');
@@ -394,13 +394,18 @@ export default function JoinPage({ params }: { params: { token: string } }) {
                       </p>
                     </div>
 
-                    <div className="bg-white rounded-lg overflow-hidden border border-slate-600" style={{ height: '400px' }}>
+                    <div
+                      className="bg-white rounded-lg overflow-hidden border border-slate-600"
+                      style={{ height: '450px', WebkitOverflowScrolling: 'touch', overflowY: 'auto' }}
+                    >
                       <iframe
                         src={GARMIN_SSO_EMBED_URL}
-                        className="w-full h-full border-0"
+                        className="w-full border-0"
+                        style={{ height: '100%', minHeight: '450px' }}
                         title="Garmin Connect Login"
                         onLoad={handleIframeLoad}
-                        sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
+                        allow="clipboard-write"
+                        sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation"
                       />
                     </div>
 
