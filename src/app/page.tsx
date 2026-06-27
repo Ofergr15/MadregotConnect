@@ -49,50 +49,61 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#f0f0f0] text-black">
       {/* Hero Section */}
-      <section className="min-h-screen flex flex-col">
+      <section className="flex flex-col">
         {/* Nav */}
-        <nav className="flex items-center justify-between px-4 sm:px-8 lg:px-20 py-6">
+        <nav className="flex items-center justify-between px-4 sm:px-8 lg:px-20 py-4 sm:py-6">
           <div className="flex items-center gap-2">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-12 w-12 object-contain mix-blend-multiply" />
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 sm:h-12 sm:w-12 object-contain mix-blend-multiply" />
             <div className="flex flex-col leading-none">
-              <span className="text-base font-black uppercase tracking-tight">Madregot</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">After 2KM Running Club</span>
+              <span className="text-sm sm:text-base font-black uppercase tracking-tight">Madregot</span>
+              <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-gray-500">After 2KM Running Club</span>
             </div>
           </div>
           <button
             onClick={signIn}
             disabled={signingIn}
-            className="bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-6 py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
+            className="bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
           >
             {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign In'}
           </button>
         </nav>
 
+        {/* Mobile Hero Image */}
+        <div className="lg:hidden px-4 sm:px-8 pt-2 pb-6">
+          <div className="rounded-2xl overflow-hidden aspect-[16/9]">
+            <img
+              src="/images/hero-running.jpg"
+              alt="Madregot runners"
+              className="w-full h-full object-cover object-center"
+            />
+          </div>
+        </div>
+
         {/* Hero Content */}
-        <div className="flex-1 flex items-center px-4 sm:px-8 lg:px-20">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center w-full max-w-7xl mx-auto">
+        <div className="flex-1 flex items-center px-4 sm:px-8 lg:px-20 py-8 lg:py-0 lg:min-h-[70vh]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-20 items-center w-full max-w-7xl mx-auto">
             {/* Left - Text */}
             <div>
-              <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff]">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff]">
                 Redefining<br />
                 Running<br />
                 Culture
               </h1>
-              <div className="w-16 h-1.5 bg-[#4338ff] mt-8 mb-6"></div>
-              <p className="text-xl sm:text-2xl text-gray-700 font-light leading-relaxed">
+              <div className="w-12 sm:w-16 h-1.5 bg-[#4338ff] mt-6 sm:mt-8 mb-4 sm:mb-6"></div>
+              <p className="text-lg sm:text-xl md:text-2xl text-gray-700 font-light leading-relaxed">
                 Connecting Runners.<br />
                 Building Community.
               </p>
               <div
-                className="inline-flex items-center gap-3 bg-gray-300 text-gray-500 font-bold px-5 py-3 sm:px-8 sm:py-4 rounded-xl mt-10 text-base sm:text-lg cursor-not-allowed"
+                className="inline-flex items-center gap-2 sm:gap-3 bg-gray-300 text-gray-500 font-bold px-5 py-3 sm:px-8 sm:py-4 rounded-xl mt-8 sm:mt-10 text-sm sm:text-lg cursor-not-allowed"
               >
                 Join Us
-                <ArrowRight className="h-5 w-5" />
-                <span className="text-xs font-medium uppercase tracking-wide ml-1">Coming Soon</span>
+                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wide ml-1">Coming Soon</span>
               </div>
             </div>
 
-            {/* Right - Visual */}
+            {/* Right - Visual (desktop only) */}
             <div className="relative hidden lg:block">
               <div className="aspect-[3/4] rounded-2xl overflow-hidden">
                 <img
