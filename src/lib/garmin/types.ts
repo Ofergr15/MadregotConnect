@@ -25,6 +25,7 @@ export interface GarminWorkoutStep {
   targetType: { workoutTargetTypeId: number; workoutTargetTypeKey: string };
   targetValueOne?: number;
   targetValueTwo?: number;
+  description?: string;
   numberOfIterations?: number;
   workoutSteps?: GarminWorkoutStep[];
 }

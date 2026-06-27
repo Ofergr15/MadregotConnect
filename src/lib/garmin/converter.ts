@@ -14,7 +14,7 @@ const STEP_TYPE_MAP: Record<string, { stepTypeId: number; stepTypeKey: string }>
 const END_CONDITION_MAP: Record<string, { conditionTypeId: number; conditionTypeKey: string }> = {
   time: { conditionTypeId: 1, conditionTypeKey: 'time' },
   distance: { conditionTypeId: 2, conditionTypeKey: 'distance' },
-  open: { conditionTypeId: 7, conditionTypeKey: 'iterations' },
+  open: { conditionTypeId: 7, conditionTypeKey: 'lap.button' },
 };
 
 function convertStep(
@@ -48,6 +48,10 @@ function convertStep(
     garminStep.endConditionValue = step.durationValue;
   } else if (step.durationType === 'time' && step.durationValue) {
     garminStep.endConditionValue = step.durationValue;
+  }
+
+  if (step.notes) {
+    garminStep.description = step.notes;
   }
 
   if (step.targetType === 'pace') {

@@ -31,6 +31,29 @@ Return ONLY valid JSON matching this schema:
   ]
 }
 
+### Correct JSON examples for duration:
+
+"3 ק״מ 4:40" →
+{"durationType": "distance", "durationValue": 3000, "targetType": "pace", "targetPaceMinPerKm": 280, "targetPaceMaxPerKm": 280}
+
+"200 מ׳ 3:35" →
+{"durationType": "distance", "durationValue": 200, "targetType": "pace", "targetPaceMinPerKm": 215, "targetPaceMaxPerKm": 215}
+
+"2 דק׳ הליכה" →
+{"durationType": "time", "durationValue": 120, "targetType": "no_target", "notes": "הליכה"}
+
+"45 שנ׳ עליה" →
+{"durationType": "time", "durationValue": 45, "targetType": "no_target", "notes": "עליה"}
+
+"x 4: 20 ש׳ מתגברת + 40 ש׳ הליכה" →
+{"repeatCount": 4, "repeatSteps": [
+  {"type": "interval", "durationType": "time", "durationValue": 20, "targetType": "no_target", "notes": "מתגברת"},
+  {"type": "rest", "durationType": "time", "durationValue": 40, "targetType": "no_target", "notes": "הליכה"}
+]}
+
+"6 ק״מ 4:15" →
+{"durationType": "distance", "durationValue": 6000, "targetType": "pace", "targetPaceMinPerKm": 255, "targetPaceMaxPerKm": 255}
+
 ## Multi-Group Pace Notation
 
 Coaches often write paces for 3 groups in one message using this format:
@@ -98,10 +121,25 @@ Always use the ❶ column paces. The ❶ column is typically on the RIGHT side o
    - "cooldown" — easy running at end
    - "active" — steady-state running (tempo, easy runs, long runs)
 
-3. **Duration**:
-   - Distance in METERS (1km = 1000, 400m = 400)
-   - Time in SECONDS (1min = 60, 90sec = 90, 9min = 540)
-   - Use "open" for warmup/cooldown when "lap button" or no specific distance/time is given
+3. **Duration** — THIS IS CRITICAL, GET IT RIGHT:
+   - "distance" = METERS: 1km=1000, 3km=3000, 400m=400, 200m=200, 6km=6000
+   - "time" = SECONDS: 1min=60, 2min=120, 45sec=45, 20sec=20, 9min=540, 1:40:00=6000
+   - "open" = Lap Button Press (NO durationValue!) — ONLY use when there is truly no distance or time specified
+
+   ⚠️ COMMON MISTAKES TO AVOID:
+   - "3 ק״מ 4:40" → durationType:"distance", durationValue:3000 (NOT time:3000, which shows as 50:00!)
+   - "200 מ׳ 3:35" → durationType:"distance", durationValue:200 (NOT time:200, which shows as 3:20!)
+   - "2 דק׳ הליכה" → durationType:"time", durationValue:120 (NOT open!)
+   - "20 ש׳ מתגברת" → durationType:"time", durationValue:20 (NOT open!)
+   - "45 שנ׳ עליה" → durationType:"time", durationValue:45 (NOT open!)
+   - "40 ש׳ הליכה" → durationType:"time", durationValue:40 (NOT open!)
+   - "6 ק״מ 4:15" → durationType:"distance", durationValue:6000 (NOT time!)
+
+   ⚠️ INSIDE REPEAT BLOCKS: Sub-steps MUST also have correct durationType and durationValue!
+   - repeatSteps: [{durationType:"time", durationValue:20}, {durationType:"time", durationValue:40}]
+   - NOT: [{durationType:"open"}, {durationType:"open"}]
+
+   Rule: If the coach wrote ANY number with ק״מ/מ׳/קמ → "distance". If ANY number with דק׳/דקות/ש׳/שנ׳/שניות → "time". Only use "open" when NOTHING is specified.
 
 4. **Pace Targets**:
    - Paces are in min:sec per km format. Convert to seconds: 4:30/km = 270 seconds, 3:50 = 230 seconds
@@ -146,9 +184,12 @@ You MUST produce workouts that look identical to how the coach posts them on Gar
 2. **Easy/recovery runs**: ONE single step, durationType "open" (Lap Button Press). All info in notes:
    - notes: "60-80 דקות 4:40-5:15 כל 10 דקות גומי או 5-6 גרם פחמימה"
 
-3. **Warmup for interval/long sessions**: Exactly TWO warmup steps:
-   - Step 1: type "warmup", durationType "open" (Lap Button Press — no notes needed)
-   - Step 2: type "warmup", durationType "distance" — use the LONGER warmup distance only (e.g., if plan says "2km at 5:00 then 3km at 4:40", make ONE step: "3 km, 4:40"). Include nutrition notes if mentioned (e.g., "3 km, 4:40 אחרי 2 קמ ג׳ל ולשתות 500-600 מל כל שעה")
+3. **Warmup for interval/long sessions**: Keep ALL warmup segments the coach wrote:
+   - If the coach writes TWO separate warmup distances (e.g., "2 ק"מ 5:00" then "3 ק"מ 4:40"), create TWO warmup steps with distance:
+     - Step 1: type "warmup", durationType "distance", durationValue: 2000, notes: "5:00"
+     - Step 2: type "warmup", durationType "distance", durationValue: 3000, notes: "4:40"
+   - Include nutrition notes on the relevant step if mentioned (e.g., "4:40 אחרי 2 קמ ג׳ל ולשתות 500-600 מל כל שעה")
+   - Only use "open" (Lap Button Press) for warmup if the coach didn't specify a distance
 
 4. **ALL group paces in notes**: Always show bracket notation: "3:50 (4:00) ((4:10))". Use ❶ pace for targetPaceMin/Max, show all in notes.
 
@@ -181,16 +222,24 @@ You MUST produce workouts that look identical to how the coach posts them on Gar
 
 14. **"All out" / אול אאוט step**: Use durationType "time" with the specified duration (e.g., 120 for 2 min). Notes: "All out". NOT open/Lap Button Press.
 
-15. **Rest step notes**: Copy the coach's exact wording. "הליכה", "הליכה וג׳ל", "ג׳וג קל"
+15. **Rest step notes**: Copy the coach's EXACT wording character-for-character. Examples:
+    - "הליכה" (not "מנוחה")
+    - "הליכה וג׳ל"
+    - "ג׳וג קלקל בירידה" (not "ג׳וג קל")
+    - "מנוחה מוחלטת" (not "עמידה")
+    - "(השלמה ל5 דק׳ סה״כ)" — preserve supplementary notes in parentheses
+    - If the coach wrote something specific, reproduce it exactly — don't paraphrase
 
 16. **No warmup/cooldown for easy runs**: Easy runs are just 1 open step.
 
-17. **Warmup notes**: Keep concise. Just "3 km, 4:40" — don't add "(אחרי 2 קמ 5:00)" unless the coach explicitly wrote nutrition instructions for the warmup.
+17. **Warmup notes**: Keep concise. Just "4:40" or "5:00" — the distance is in durationValue, don't repeat it.
+
+18. **200m steps display as 0.2 km**: When the coach writes "200 מ׳", use durationValue: 200 (meters). The Garmin display will show "0.2 km". This is correct.
 
 ### EXACT Garmin output examples to replicate:
 
 Example 1 — Tuesday interval session (pyramid):
-Step 1. Warm Up — Lap Button Press
+Step 1. Warm Up — 2 km, 5:00
 Step 2. Warm Up — 3 km, 4:40
 Step 3. Rest — 2:00, הליכה וג׳ל
 Step 4. Run — 0:45, 3:50 (4:00) ((4:10))
@@ -218,14 +267,29 @@ Step 25. Run — 2:00, 4:10-4:00 (4:20-4:10) ((4:20-4:30))
 Step 26. Run — 2:00, All out
 Step 27. Run — 2 km, 5:00-5:30
 
-Example 2 — Friday long session:
-Step 1. Warm Up — Lap Button Press
+Example 2 — Friday long session (with hills + 3x6km):
+Step 1. Warm Up — 2 km, 5:00
 Step 2. Warm Up — 3 km, 4:40 אחרי 2 קמ ג׳ל ולשתות 500-600 מל כל שעה
-Step 3. Rest — 2:00
+Step 3. Rest — 2:00, הליכה
 Step 4. Run — 0.2 km, 3:35(3:45)((3:55))
 Step 5. Run — 0.2 km, 3:25(3:35)((3:45))
 Step 6. Run — 0.2 km, 3:15(3:25)((3:35))
-Step 7. Rest — 2:00
+Step 7. Rest — 2:00, הליכה
+Step 8. 4x: (Run 0:20, מתגברת)(Rest 0:40, הליכה)
+Step 9. 5x: (Run 0:45, עליה)(Rest Lap Button Press, ג׳וג קלקל בירידה)(Run 0:30, עליה)(Rest Lap Button Press, ג׳וג קלקל בירידה)(Run 0:15, עליה)(Rest Lap Button Press, הליכה בירידה)(Rest 2:00, מנוחה מוחלטת)
+Step 10. Rest — 3:00, מנוחה (השלמה ל5 דק׳ סה״כ)
+Step 11. Run — 6 km, 4:15 (4:24) ((4:36))
+Step 12. Run — 6 km, 4:04 (4:13) ((4:18)) ג׳ל בקילומטר השני
+Step 13. Run — 6 km, 3:53 (4:02) ((4:07)) ג׳ל אחרי 3
+
+Example 2b — Friday long session (single long run variant):
+Step 1. Warm Up — 2 km, 5:00
+Step 2. Warm Up — 3 km, 4:40 אחרי 2 קמ ג׳ל ולשתות 500-600 מל כל שעה
+Step 3. Rest — 2:00, הליכה
+Step 4. Run — 0.2 km, 3:35(3:45)((3:55))
+Step 5. Run — 0.2 km, 3:25(3:35)((3:45))
+Step 6. Run — 0.2 km, 3:15(3:25)((3:35))
+Step 7. Rest — 2:00, הליכה
 Step 8. 4x: (Run 0:20, מתגברת)(Rest 0:40, הליכה ג׳ל במנוחה אחרונה)
 Step 9. Run — 1:40:00, 4:15-4:25 (4:25-4:35) ((4:35-4:45)) ג׳ל בהתחלה וכל 30 דקות
 
@@ -243,4 +307,6 @@ Step 3. Run — 5:00, 4:45-5:15
 - Order steps sequentially starting from 1
 - Use Group ❶ pace for targetPaceMin/Max, but show ALL group paces in notes
 - Include nutrition instructions in notes (don't ignore them)
+- PRESERVE the coach's EXACT Hebrew wording in notes — do NOT paraphrase. "ג׳וג קלקל" stays "ג׳וג קלקל" (not "ג׳וג קל"). "מנוחה מוחלטת" stays "מנוחה מוחלטת" (not "עמידה"). Parenthetical instructions like "(השלמה ל5 דק׳ סה״כ)" MUST be included in notes.
+- NEVER drop warmup steps. If the coach specifies "2 ק"מ 5:00" followed by "3 ק"מ 4:40", output BOTH as separate warmup steps with distance.
 - Be generous in interpretation — coaches write in many styles`;

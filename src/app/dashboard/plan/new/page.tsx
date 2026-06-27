@@ -17,6 +17,11 @@ import {
   XCircle,
   RotateCcw,
   ArrowLeft,
+  Save,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  FolderOpen,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans } from '@/lib/ai/types';
@@ -27,6 +32,15 @@ const HARDCODED_COACH_ID = 'a34a0d10-1a1c-4b80-a1ca-e0044aa06232';
 
 type Stage = 'input' | 'review' | 'push';
 type PushTab = 'all' | 'groups' | 'athletes';
+
+interface SavedPlanSummary {
+  id: string;
+  week_start_date: string;
+  status: 'draft' | 'pushed' | 'partial';
+  created_at: string;
+  parsed_workouts: GroupedWeeklyPlans | ParsedWeeklyPlan;
+  original_input: string;
+}
 
 interface Athlete {
   id: string;
@@ -80,6 +94,12 @@ export default function NewPlanPage() {
   const [activeGroup, setActiveGroup] = useState<1 | 2 | 3>(1);
   const [editMode, setEditMode] = useState(false);
   const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
+
+  // --- Save state ---
+  const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [recentPlans, setRecentPlans] = useState<SavedPlanSummary[]>([]);
+  const [loadingRecentPlans, setLoadingRecentPlans] = useState(false);
 
   // --- Push stage ---
   const [pushTab, setPushTab] = useState<PushTab>('all');
@@ -147,6 +167,74 @@ export default function NewPlanPage() {
     };
     fetchData();
   }, [stage]);
+
+  // --- Fetch recent plans on input stage ---
+  useEffect(() => {
+    if (stage !== 'input') return;
+    const fetchRecentPlans = async () => {
+      setLoadingRecentPlans(true);
+      try {
+        const res = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`);
+        if (res.ok) {
+          const data = await res.json();
+          setRecentPlans((data.plans || []).slice(0, 5));
+        }
+      } catch {
+        // silent
+      } finally {
+        setLoadingRecentPlans(false);
+      }
+    };
+    fetchRecentPlans();
+  }, [stage]);
+
+  const loadSavedPlan = (plan: SavedPlanSummary) => {
+    const workouts = plan.parsed_workouts;
+    if ('group1' in workouts && 'group2' in workouts && 'group3' in workouts) {
+      setGroupedPlans(workouts as GroupedWeeklyPlans);
+      const g1 = (workouts as GroupedWeeklyPlans).group1;
+      setParsedPlan(g1);
+    } else {
+      const parsed = workouts as ParsedWeeklyPlan;
+      setParsedPlan(parsed);
+      setGroupedPlans(splitIntoGroups(parsed));
+    }
+    setWeekStartDate(plan.week_start_date);
+    setSavedPlanId(plan.id);
+    setLastSavedAt(new Date(plan.created_at));
+    setStage('review');
+  };
+
+  const saveDraft = async () => {
+    if (!groupedPlans) return;
+    setSaving(true);
+    setError(null);
+    try {
+      if (savedPlanId) {
+        const res = await fetch('/api/plans', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan_id: savedPlanId,
+            parsed_workouts: groupedPlans,
+            status: 'draft',
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to save');
+        }
+      } else {
+        const id = await savePlanAndGetId();
+        setSavedPlanId(id);
+      }
+      setLastSavedAt(new Date());
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save draft');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // --- Handlers ---
 
@@ -538,6 +626,53 @@ export default function NewPlanPage() {
               <FileText className="h-5 w-5" />
               Parse Plan
             </button>
+
+            {/* Recent plans */}
+            {recentPlans.length > 0 && (
+              <div className="pt-4 border-t border-slate-700/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <FolderOpen className="h-4 w-4 text-slate-500" />
+                  <span className="text-sm text-slate-400 font-medium">Recent Plans</span>
+                </div>
+                <div className="space-y-2">
+                  {recentPlans.map((plan) => {
+                    const statusColors = {
+                      draft: 'text-yellow-400 bg-yellow-400/10',
+                      pushed: 'text-green-400 bg-green-400/10',
+                      partial: 'text-orange-400 bg-orange-400/10',
+                    };
+                    const StatusIcon = plan.status === 'pushed' ? CheckCircle2
+                      : plan.status === 'partial' ? AlertCircle : Clock;
+                    return (
+                      <button
+                        key={plan.id}
+                        onClick={() => loadSavedPlan(plan)}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-700 hover:border-slate-500 hover:bg-slate-800/50 transition-colors text-left"
+                      >
+                        <Calendar className="h-4 w-4 text-slate-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            Week of {new Date(plan.week_start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {plan.original_input ? plan.original_input.slice(0, 60) + (plan.original_input.length > 60 ? '...' : '') : 'No input saved'}
+                          </p>
+                        </div>
+                        <div className={cn('flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0', statusColors[plan.status])}>
+                          <StatusIcon className="h-3 w-3" />
+                          {plan.status}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {loadingRecentPlans && (
+              <div className="flex justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -671,7 +806,27 @@ export default function NewPlanPage() {
 
           {/* Bottom action bar */}
           <div className="border-t border-slate-700 bg-slate-900/80 backdrop-blur px-6 py-4 sticky bottom-0">
-            <div className="flex items-center justify-end max-w-7xl mx-auto">
+            <div className="flex items-center justify-between max-w-7xl mx-auto">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={saveDraft}
+                  disabled={saving}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {saving ? 'Saving...' : 'Save Draft'}
+                </button>
+                {lastSavedAt && (
+                  <span className="text-xs text-slate-500 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    Saved {lastSavedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => {
                   setError(null);
