@@ -260,7 +260,8 @@ export async function parseWorkoutPlan(input: {
 }): Promise<ParsedWeeklyPlan> {
   let textInput = input.text || '';
 
-  if (!textInput && input.imageBase64 && input.imageMediaType) {
+  // Only use OCR if no text was provided at all
+  if (!textInput.trim() && input.imageBase64 && input.imageMediaType) {
     textInput = await extractTextFromImage(input.imageBase64, input.imageMediaType);
     if (!textInput.trim()) {
       throw new Error('Could not extract text from image. Please paste the workout as text instead.');

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users } from 'lucide-react';
+import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users, Eye, EyeOff, HelpCircle } from 'lucide-react';
 
 interface Group {
   id: string;
@@ -18,6 +18,7 @@ export default function JoinPage({ params }: { params: { token: string } }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [garminEmail, setGarminEmail] = useState('');
   const [garminPassword, setGarminPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState<'info' | 'garmin' | 'connecting' | 'done'>('info');
   const [error, setError] = useState<string | null>(null);
 
@@ -296,6 +297,17 @@ export default function JoinPage({ params }: { params: { token: string } }) {
               </p>
             </div>
 
+            {/* Help box */}
+            <div className="bg-primary-500/10 border border-primary-500/20 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <HelpCircle className="h-4 w-4 text-primary-400" />
+                <span className="text-xs font-medium text-primary-300">Where do I find my credentials?</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Use the same email and password you use to log into the <span className="text-white font-medium">Garmin Connect</span> app or <span className="text-white font-medium">connect.garmin.com</span> website. This is the account linked to your Garmin watch.
+              </p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
                 Garmin Connect Email
@@ -314,14 +326,26 @@ export default function JoinPage({ params }: { params: { token: string } }) {
               <label className="block text-sm font-medium text-slate-300 mb-1">
                 Garmin Connect Password
               </label>
-              <input
-                type="password"
-                value={garminPassword}
-                onChange={(e) => setGarminPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={garminPassword}
+                  onChange={(e) => setGarminPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pr-12 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Tap the eye icon to verify your password before submitting
+              </p>
             </div>
 
             {error && (
