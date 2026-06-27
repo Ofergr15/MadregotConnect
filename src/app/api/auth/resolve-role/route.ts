@@ -26,13 +26,27 @@ export async function POST(req: NextRequest) {
     // Check if user is an athlete
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id, name, email, group_id, status')
+      .select('id, name, email, group_id, status, garmin_auth')
       .eq('email', lowerEmail)
       .eq('status', 'active')
       .single();
 
     if (athlete) {
-      return NextResponse.json({ role: 'runner', athlete });
+      const hasGarmin = !!athlete.garmin_auth;
+      return NextResponse.json({ role: 'runner', athlete: { ...athlete, garmin_auth: undefined }, hasGarmin });
+    }
+
+    // Check invited athletes (need onboarding)
+    const { data: invitedAthlete } = await supabase
+      .from('athletes')
+      .select('id, name, email, group_id, status, garmin_auth')
+      .eq('email', lowerEmail)
+      .eq('status', 'invited')
+      .single();
+
+    if (invitedAthlete) {
+      const hasGarmin = !!invitedAthlete.garmin_auth;
+      return NextResponse.json({ role: 'runner', athlete: { ...invitedAthlete, garmin_auth: undefined }, hasGarmin, needsOnboarding: !hasGarmin });
     }
 
     // User exists but has no role yet — viewer

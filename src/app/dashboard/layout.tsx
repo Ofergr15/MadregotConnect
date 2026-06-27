@@ -25,7 +25,7 @@ export default function DashboardLayout({
         if (coachEmail || athleteId) {
           setAuthorized(true);
         } else {
-          router.replace('/login');
+          router.replace('/');
         }
       }
     });
