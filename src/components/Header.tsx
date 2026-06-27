@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -28,6 +28,7 @@ export function Header() {
   const [isAthlete, setIsAthlete] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -77,11 +78,15 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href={isAthlete ? '/dashboard/program' : '/dashboard'} className="flex items-center gap-3 shrink-0">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-9 w-9 object-contain invert" />
-            <span className="text-lg font-bold tracking-tight uppercase hidden sm:block">Madregot After 2KM</span>
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 object-contain brightness-0 invert" />
+            <div className="flex flex-col leading-none hidden sm:flex">
+              <span className="text-lg font-bold tracking-tight">Madregot</span>
+              <span className="text-xs font-medium tracking-wide text-slate-400">After 2KM Running Club</span>
+            </div>
           </Link>
 
-          <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+          {/* Desktop navigation */}
+          <nav className="hidden md:flex items-center gap-1 overflow-x-auto scrollbar-hide">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -103,8 +108,8 @@ export function Header() {
             })}
           </nav>
 
-          {/* User info + logout */}
-          <div className="flex items-center gap-3 shrink-0 ml-4">
+          {/* Desktop user info + logout */}
+          <div className="hidden md:flex items-center gap-3 shrink-0 ml-4">
             <div className="hidden sm:block text-right">
               <div className="text-sm font-medium text-white leading-tight">{userName}</div>
               <div className="text-xs text-slate-400 leading-tight">{userEmail}</div>
@@ -118,6 +123,69 @@ export function Header() {
               title="Sign out"
             >
               <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Mobile hamburger button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
+        </div>
+
+        {/* Mobile menu */}
+        <div
+          className={cn(
+            'md:hidden overflow-hidden transition-all duration-300 ease-in-out',
+            mobileMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
+          )}
+        >
+          <nav className="py-4 space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 text-base font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary-600 text-white'
+                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Mobile user info + logout */}
+          <div className="border-t border-slate-700 py-4 px-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="bg-primary-600/30 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-primary-300">
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-white truncate">{userName}</div>
+                <div className="text-xs text-slate-400 truncate">{userEmail}</div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleLogout();
+              }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+            >
+              <LogOut className="h-5 w-5" />
+              <span className="font-medium">Sign Out</span>
             </button>
           </div>
         </div>

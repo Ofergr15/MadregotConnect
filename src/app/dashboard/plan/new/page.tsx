@@ -280,7 +280,7 @@ Thursday: Easy 6km
 Friday: Rest
 Saturday: Tempo 3km WU, 5km at threshold, 2km CD
 Sunday: Long run 18km`}
-              className="input w-full h-64 resize-none"
+              className="input w-full h-40 sm:h-64 resize-none"
             />
           </div>
 
@@ -294,7 +294,7 @@ Sunday: Long run 18km`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               className={cn(
-                'border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer h-64 flex flex-col items-center justify-center',
+                'border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer h-40 sm:h-64 flex flex-col items-center justify-center',
                 imagePreview
                   ? 'border-primary-500 bg-primary-500/5'
                   : 'border-slate-600 hover:border-slate-500'

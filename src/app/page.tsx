@@ -51,10 +51,13 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="min-h-screen flex flex-col">
         {/* Nav */}
-        <nav className="flex items-center justify-between px-6 sm:px-12 lg:px-20 py-6">
-          <div className="flex items-center gap-3">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 object-contain" />
-            <span className="text-lg font-bold uppercase tracking-tight">Madregot After 2KM</span>
+        <nav className="flex items-center justify-between px-4 sm:px-8 lg:px-20 py-6">
+          <div className="flex items-center gap-2">
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-12 w-12 object-contain mix-blend-multiply" />
+            <div className="flex flex-col leading-none">
+              <span className="text-base font-black uppercase tracking-tight">Madregot</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">After 2KM Running Club</span>
+            </div>
           </div>
           <button
             onClick={signIn}
@@ -66,11 +69,11 @@ export default function HomePage() {
         </nav>
 
         {/* Hero Content */}
-        <div className="flex-1 flex items-center px-6 sm:px-12 lg:px-20">
+        <div className="flex-1 flex items-center px-4 sm:px-8 lg:px-20">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center w-full max-w-7xl mx-auto">
             {/* Left - Text */}
             <div>
-              <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff]">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff]">
                 Redefining<br />
                 Running<br />
                 Culture
@@ -81,7 +84,7 @@ export default function HomePage() {
                 Building Community.
               </p>
               <div
-                className="inline-flex items-center gap-3 bg-gray-300 text-gray-500 font-bold px-8 py-4 rounded-xl mt-10 text-lg cursor-not-allowed"
+                className="inline-flex items-center gap-3 bg-gray-300 text-gray-500 font-bold px-5 py-3 sm:px-8 sm:py-4 rounded-xl mt-10 text-base sm:text-lg cursor-not-allowed"
               >
                 Join Us
                 <ArrowRight className="h-5 w-5" />
@@ -104,9 +107,9 @@ export default function HomePage() {
       </section>
 
       {/* Who We Are */}
-      <section className="py-24 lg:py-32 px-6 sm:px-12 lg:px-20">
+      <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-8">
+          <h2 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-8">
             Who<br />We Are
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
@@ -140,16 +143,16 @@ export default function HomePage() {
       </section>
 
       {/* Journey Timeline */}
-      <section className="py-24 lg:py-32 px-6 sm:px-12 lg:px-20 bg-white">
+      <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20 bg-white">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-16">
+          <h2 className="text-3xl sm:text-5xl md:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-16">
             Our<br />Journey
           </h2>
 
           {/* Timeline */}
           <div className="relative">
-            <div className="absolute top-8 left-0 right-0 h-0.5 bg-[#4338ff]"></div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
+            <div className="absolute top-8 left-0 right-0 h-0.5 bg-[#4338ff] hidden sm:block"></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               <div className="relative pt-12">
                 <div className="absolute top-6 left-0 w-3 h-3 rounded-full bg-[#4338ff]"></div>
                 <div className="text-2xl font-black">2022</div>
@@ -180,16 +183,16 @@ export default function HomePage() {
       </section>
 
       {/* More Than a Running Team */}
-      <section className="py-24 lg:py-32 px-6 sm:px-12 lg:px-20">
+      <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-6">
+          <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-6">
             More Than a<br />Running Team
           </h2>
           <p className="text-xl text-gray-600 mb-16 max-w-3xl">
             A complete support system designed to help every athlete perform at their highest level.
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-8">
             <div>
               <Trophy className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
               <h3 className="text-lg font-bold mb-2">Performance</h3>
@@ -240,9 +243,9 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="py-24 lg:py-32 px-6 sm:px-12 lg:px-20 bg-[#4338ff]">
+      <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20 bg-[#4338ff]">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-tight text-white mb-6">
+          <h2 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase tracking-tight text-white mb-6">
             Ready to Run?
           </h2>
           <p className="text-xl text-white/80 mb-10">
@@ -251,7 +254,7 @@ export default function HomePage() {
           <button
             onClick={signIn}
             disabled={signingIn}
-            className="inline-flex items-center gap-3 bg-white hover:bg-gray-100 text-[#4338ff] font-bold px-10 py-5 rounded-xl transition-all text-lg disabled:opacity-50"
+            className="inline-flex items-center gap-3 bg-white hover:bg-gray-100 text-[#4338ff] font-bold px-6 py-4 sm:px-10 sm:py-5 rounded-xl transition-all text-lg disabled:opacity-50"
           >
             {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Sign In to Get Started'}
             <ArrowRight className="h-6 w-6" />
@@ -260,11 +263,14 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-10 px-6 sm:px-12 lg:px-20 bg-black text-white">
+      <footer className="py-10 px-4 sm:px-8 lg:px-20 bg-black text-white">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain invert" />
-            <span className="font-bold uppercase tracking-tight">Madregot After 2KM</span>
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain brightness-0 invert" />
+            <div className="flex flex-col leading-tight">
+              <span className="text-base font-bold tracking-tight">Madregot</span>
+              <span className="text-xs font-medium tracking-wide text-gray-400">After 2KM Running Club</span>
+            </div>
           </div>
           <p className="text-gray-500 text-sm">
             © 2026 Madregot After 2KM Running Club. EST. 2022
