@@ -8,19 +8,45 @@ export default function AuthResolvePage() {
   const router = useRouter();
 
   useEffect(() => {
-    resolveRole();
+    const supabase = getSupabase();
+
+    // Listen for auth state change (handles token from URL fragment)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          await resolveRole(session.user);
+          subscription.unsubscribe();
+        }
+      }
+    );
+
+    // Also check if session already exists
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        resolveRole(session.user);
+        subscription.unsubscribe();
+      }
+    });
+
+    // Timeout fallback
+    const timeout = setTimeout(() => {
+      subscription.unsubscribe();
+      router.replace('/login');
+    }, 10000);
+
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
-  async function resolveRole() {
-    const supabase = getSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
+  async function resolveRole(user: any) {
+    const email = user.email?.toLowerCase();
 
-    if (!user?.email) {
+    if (!email) {
       router.replace('/login');
       return;
     }
-
-    const email = user.email.toLowerCase();
 
     const res = await fetch('/api/auth/resolve-role', {
       method: 'POST',
