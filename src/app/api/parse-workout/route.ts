@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
 
     const result = await parseWorkoutPlan({
       text,
-      imageBase64: text ? undefined : image,
-      imageMediaType: text ? undefined : (imageMediaType || 'image/png'),
+      imageBase64: image || undefined,
+      imageMediaType: image ? (imageMediaType || 'image/png') : undefined,
     });
 
     return NextResponse.json(result);
