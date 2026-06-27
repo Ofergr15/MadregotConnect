@@ -6,10 +6,10 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'][0]['content']): Promise<ParsedWeeklyPlan> {
+async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'][0]['content'], useVision = false): Promise<ParsedWeeklyPlan> {
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6-20250514',
-    max_tokens: 8000,
+    model: useVision ? 'claude-sonnet-4-6-20250514' : 'claude-haiku-4-5-20251001',
+    max_tokens: 4000,
     system: WORKOUT_PARSER_SYSTEM_PROMPT,
     messages: [
       {
@@ -73,7 +73,7 @@ export async function parseWorkoutPlan(input: {
         : 'Parse this training plan into structured workouts. Extract every day and every workout detail.',
     });
 
-    return parseWithClaude(content);
+    return parseWithClaude(content, true);
   }
 
   if (input.text?.trim()) {
@@ -84,7 +84,7 @@ export async function parseWorkoutPlan(input: {
       },
     ];
 
-    return parseWithClaude(content);
+    return parseWithClaude(content, false);
   }
 
   throw new Error('Either text or image must be provided');
