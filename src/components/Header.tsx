@@ -102,7 +102,7 @@ export function Header() {
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{item.label}</span>
+                  <span className="hidden lg:inline">{item.label}</span>
                 </Link>
               );
             })}
@@ -110,9 +110,9 @@ export function Header() {
 
           {/* Desktop user info + logout */}
           <div className="hidden md:flex items-center gap-3 shrink-0 ml-4">
-            <div className="hidden sm:block text-right">
+            <div className="hidden lg:block text-right">
               <div className="text-sm font-medium text-white leading-tight">{userName}</div>
-              <div className="text-xs text-slate-400 leading-tight">{userEmail}</div>
+              <div className="text-xs text-slate-400 leading-tight truncate max-w-[200px]">{userEmail}</div>
             </div>
             <div className="bg-primary-600/30 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-primary-300">
               {initials}

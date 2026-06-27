@@ -35,13 +35,13 @@ async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'
 // --- Regex parser (for simple text inputs, zero cost) ---
 
 const DAY_MAP: Record<string, number> = {
-  'ראשון': 6, 'יום ראשון': 6, 'sunday': 6,
-  'שני': 0, 'יום שני': 0, 'monday': 0,
-  'שלישי': 1, 'יום שלישי': 1, 'tuesday': 1,
-  'רביעי': 2, 'יום רביעי': 2, 'wednesday': 2,
-  'חמישי': 3, 'יום חמישי': 3, 'thursday': 3,
-  'שישי': 4, 'יום שישי': 4, 'friday': 4,
-  'שבת': 5, 'saturday': 5,
+  'ראשון': 0, 'יום ראשון': 0, 'sunday': 0,
+  'שני': 1, 'יום שני': 1, 'monday': 1,
+  'שלישי': 2, 'יום שלישי': 2, 'tuesday': 2,
+  'רביעי': 3, 'יום רביעי': 3, 'wednesday': 3,
+  'חמישי': 4, 'יום חמישי': 4, 'thursday': 4,
+  'שישי': 5, 'יום שישי': 5, 'friday': 5,
+  'שבת': 6, 'saturday': 6,
 };
 
 function parsePace(paceStr: string): number {
@@ -229,8 +229,8 @@ function splitIntoDays(text: string): { day: number; content: string }[] {
   }
 
   if (results.length === 0 && text.trim()) {
-    const today = new Date().getDay();
-    const dayOfWeek = today === 0 ? 6 : today - 1;
+    // Default to today's day (0=Sunday, 1=Monday, etc.)
+    const dayOfWeek = new Date().getDay();
     results.push({ day: dayOfWeek, content: text.trim() });
   }
 

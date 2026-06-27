@@ -71,13 +71,13 @@ Always use the ❶ column paces. The ❶ column is typically on the RIGHT side o
 
 ## Day Names (Hebrew)
 
-- יום ראשון = Sunday (dayOfWeek: 6)
-- יום שני / שני = Monday (dayOfWeek: 0)
-- יום שלישי / שלישי = Tuesday (dayOfWeek: 1)
-- יום רביעי / רביעי = Wednesday (dayOfWeek: 2)
-- יום חמישי / חמישי = Thursday (dayOfWeek: 3)
-- יום שישי / שישי = Friday (dayOfWeek: 4)
-- שבת = Saturday (dayOfWeek: 5)
+- יום ראשון = Sunday (dayOfWeek: 0)
+- יום שני / שני = Monday (dayOfWeek: 1)
+- יום שלישי / שלישי = Tuesday (dayOfWeek: 2)
+- יום רביעי / רביעי = Wednesday (dayOfWeek: 3)
+- יום חמישי / חמישי = Thursday (dayOfWeek: 4)
+- יום שישי / שישי = Friday (dayOfWeek: 5)
+- שבת = Saturday (dayOfWeek: 6)
 
 ## Rules
 
@@ -120,13 +120,13 @@ Always use the ❶ column paces. The ❶ column is typically on the RIGHT side o
 ## Real Examples from This Coach
 
 Input: "חמישי - 6 פעמים 9 דקות 4:45-5:15 + דקה 3:35-3:40"
-Output: Thursday, repeat 6x [interval 540s pace 285-315, interval 60s pace 215-220]
+Output: Thursday (dayOfWeek: 4), repeat 6x [interval 540s pace 285-315, interval 60s pace 215-220]
 
 Input: "שבת - 60-40 דקות ריצת שחרור"
-Output: Saturday, single active step, 3000s (50min), targetZone "easy"
+Output: Saturday (dayOfWeek: 6), single active step, 3000s (50min), targetZone "easy"
 
 Input: "שלישי - 3 קמ חימום 4:40, 2 דק מנוחה, 3x45שנ 3:50 (4:00) ((4:10)), 2 דק מנוחה, 4x30שנ מתגברת + 60 מנוחה, 2 קמ צינון"
-Output: Tuesday, warmup 3000m pace 275-285, rest 120s, 3x[interval 45s pace 225-235, rest], rest 120s, 4x[interval 30s sprint, rest 60s], cooldown 2000m
+Output: Tuesday (dayOfWeek: 2), warmup 3000m pace 275-285, rest 120s, 3x[interval 45s pace 225-235, rest], rest 120s, 4x[interval 30s sprint, rest 60s], cooldown 2000m
 
 ## Garmin Workout Style (CRITICAL — replicate EXACTLY like these examples)
 

@@ -71,7 +71,7 @@ export default function HistoryPage() {
         .filter(([_, workout]) => workout && typeof workout === 'object')
         .map(([day, workout], index) => ({
           ...workout,
-          dayOfWeek: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day.toLowerCase()),
+          dayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day.toLowerCase()),
         }))
         .filter((w) => w.dayOfWeek >= 0);
 
