@@ -10,8 +10,8 @@ const anthropic = new Anthropic({
 
 async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'][0]['content'], useVision = false): Promise<ParsedWeeklyPlan> {
   const response = await anthropic.messages.create({
-    model: useVision ? 'claude-sonnet-4-6-20250514' : 'claude-haiku-4-5-20251001',
-    max_tokens: 4000,
+    model: useVision ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
+    max_tokens: 16000,
     system: WORKOUT_PARSER_SYSTEM_PROMPT,
     messages: [{ role: 'user', content }],
   });
@@ -21,7 +21,9 @@ async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'
     .map((block) => block.text)
     .join('');
 
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  let cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const jsonStart = cleaned.indexOf('{');
+  if (jsonStart > 0) cleaned = cleaned.slice(jsonStart);
 
   const parsed = JSON.parse(cleaned);
   if (!parsed.workouts || !Array.isArray(parsed.workouts)) {
