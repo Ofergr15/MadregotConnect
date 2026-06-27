@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Users, CheckCircle2, Loader2 } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Group {
@@ -11,11 +11,52 @@ interface Group {
   marathonGoal?: string;
 }
 
+interface WeekProgram {
+  weekLabel: string;
+  dateRange: string;
+  training: string;
+  nutrition: string;
+}
+
+const WEEKS: WeekProgram[] = [
+  {
+    weekLabel: 'Week 5',
+    dateRange: '28.06 – 04.07',
+    training: '/plans/training-program/week-28-06-04-07-2026.pdf',
+    nutrition: '/plans/nutrition-plan/week-28-06-04-07-2026.pdf',
+  },
+  {
+    weekLabel: 'Week 4',
+    dateRange: '21.06 – 27.06',
+    training: '/plans/training-program/week-21-27-06-2026.pdf',
+    nutrition: '/plans/nutrition-plan/week-21-27-06-2026.pdf',
+  },
+  {
+    weekLabel: 'Week 3',
+    dateRange: '14.06 – 20.06',
+    training: '/plans/training-program/week-14-20-06-2026.pdf',
+    nutrition: '/plans/nutrition-plan/week-14-20-06-2026.pdf',
+  },
+  {
+    weekLabel: 'Week 2',
+    dateRange: '07.06 – 13.06',
+    training: '/plans/training-program/week-07-13-06-2026.pdf',
+    nutrition: '/plans/nutrition-plan/week-07-13-06-2026.pdf',
+  },
+  {
+    weekLabel: 'Week 1',
+    dateRange: '31.05 – 06.06',
+    training: '/plans/training-program/week-31-05-06-06-2026.pdf',
+    nutrition: '/plans/nutrition-plan/week-31-05-06-06-2026.pdf',
+  },
+];
+
 export default function ProfilePage() {
   const [athleteId, setAthleteId] = useState('');
   const [athleteName, setAthleteName] = useState('');
   const [athleteEmail, setAthleteEmail] = useState('');
   const [currentGroupId, setCurrentGroupId] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -29,6 +70,7 @@ export default function ProfilePage() {
     setAthleteName(name);
     setAthleteEmail(email);
     setCurrentGroupId(groupId);
+    setSelectedGroupId(groupId);
 
     fetch('/api/groups')
       .then(res => res.json())
@@ -36,8 +78,10 @@ export default function ProfilePage() {
       .catch(() => {});
   }, []);
 
-  const changeGroup = async (groupId: string) => {
-    if (!athleteId) return;
+  const hasChanges = selectedGroupId !== currentGroupId;
+
+  const saveGroup = async () => {
+    if (!athleteId || !hasChanges) return;
     setSaving(true);
     setSaved(false);
 
@@ -45,12 +89,12 @@ export default function ProfilePage() {
       const res = await fetch('/api/athletes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: athleteId, groupId }),
+        body: JSON.stringify({ id: athleteId, groupId: selectedGroupId }),
       });
 
       if (res.ok) {
-        setCurrentGroupId(groupId);
-        localStorage.setItem('athlete_group_id', groupId);
+        setCurrentGroupId(selectedGroupId);
+        localStorage.setItem('athlete_group_id', selectedGroupId);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       }
@@ -85,6 +129,8 @@ export default function ProfilePage() {
     slow: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
   };
 
+  const currentWeek = WEEKS[0];
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
@@ -107,6 +153,34 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* This Week's Program */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Dumbbell className="h-5 w-5 text-primary-400" />
+          <h2 className="font-semibold">This Week&apos;s Program</h2>
+          <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium ml-auto">
+            {currentWeek.weekLabel}
+          </span>
+        </div>
+
+        <div className="bg-slate-700/30 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-slate-400" />
+              <span className="text-sm font-medium text-white">Training Program</span>
+            </div>
+            <span className="text-xs text-slate-400">{currentWeek.dateRange}</span>
+          </div>
+          <a
+            href="/dashboard/program"
+            className="mt-3 inline-flex items-center gap-2 text-sm text-primary-400 hover:text-primary-300 transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            View full program
+          </a>
+        </div>
+      </div>
+
       {/* Group Selection */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
         <div className="flex items-center justify-between mb-4">
@@ -114,18 +188,17 @@ export default function ProfilePage() {
             <Users className="h-5 w-5 text-primary-400" />
             <h2 className="font-semibold">My Pace Group</h2>
           </div>
-          {saving && <Loader2 className="h-4 w-4 animate-spin text-primary-400" />}
           {saved && <CheckCircle2 className="h-4 w-4 text-green-400" />}
         </div>
 
         <div className="space-y-2">
           {groups.map(g => {
             const level = g.level || 'medium';
-            const isSelected = currentGroupId === g.id;
+            const isSelected = selectedGroupId === g.id;
             return (
               <button
                 key={g.id}
-                onClick={() => changeGroup(g.id)}
+                onClick={() => setSelectedGroupId(g.id)}
                 disabled={saving}
                 className={cn(
                   'w-full text-left px-4 py-4 rounded-lg border-2 transition-all flex items-center gap-3',
@@ -150,6 +223,27 @@ export default function ProfilePage() {
         <p className="text-xs text-slate-500 mt-3">
           Your coach will assign workouts based on your group&apos;s pace
         </p>
+
+        {/* Save button — only shows when group changed */}
+        {hasChanges && (
+          <button
+            onClick={saveGroup}
+            disabled={saving}
+            className="mt-4 w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Save Changes
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
