@@ -128,15 +128,17 @@ export default function HomePage() {
                 Today, Madregot brings together Israel&apos;s fastest amateur marathoners, elite athletes, and committed runners, creating a culture where performance, community, and ambition push each other forward.
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl overflow-hidden aspect-[3/4]">
-                <img src="/images/team-race.jpg" alt="Madregot race day" className="w-full h-full object-cover" />
+            <div className="space-y-4">
+              <div className="rounded-xl overflow-hidden aspect-[16/9]">
+                <img src="/images/team-race.jpg" alt="Madregot team running on track" className="w-full h-full object-cover" />
               </div>
-              <div className="rounded-xl overflow-hidden aspect-[3/4] mt-6">
-                <img src="/images/team-group.jpg" alt="Madregot team" className="w-full h-full object-cover" />
-              </div>
-              <div className="rounded-xl overflow-hidden aspect-[3/4] mt-12">
-                <img src="/images/runners-group.jpg" alt="Madregot training group" className="w-full h-full object-cover" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-xl overflow-hidden aspect-[3/4]">
+                  <img src="/images/team-group.jpg" alt="Madregot team at golden hour" className="w-full h-full object-cover" />
+                </div>
+                <div className="rounded-xl overflow-hidden aspect-[3/4]">
+                  <img src="/images/runners-group.jpg" alt="Athlete checking watch" className="w-full h-full object-cover" />
+                </div>
               </div>
             </div>
           </div>
