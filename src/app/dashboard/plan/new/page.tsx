@@ -534,7 +534,7 @@ export default function NewPlanPage() {
               </svg>
               {/* Center label */}
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-black text-slate-600 tracking-tight">300m</span>
+                <span className="text-lg font-black text-slate-600 tracking-tight">400m</span>
               </div>
             </div>
 
