@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Watch, Users, Calendar, Zap, Target, ArrowRight, ChevronRight } from 'lucide-react';
+import { ArrowRight, Trophy, Users, Zap, Heart, Camera } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 
 export default function HomePage() {
@@ -23,384 +23,270 @@ export default function HomePage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+      <div className="min-h-screen bg-[#f0f0f0] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4338ff]"></div>
       </div>
     );
   }
 
   return (
-    <>
-      <style jsx global>{`
-        @keyframes gradient-shift {
-          0%, 100% {
-            background-position: 0% 50%;
-          }
-          50% {
-            background-position: 100% 50%;
-          }
-        }
+    <div className="min-h-screen bg-[#f0f0f0] text-black">
+      {/* Hero Section */}
+      <section className="min-h-screen flex flex-col">
+        {/* Nav */}
+        <nav className="flex items-center justify-between px-6 sm:px-12 lg:px-20 py-6">
+          <div className="flex items-center gap-3">
+            <svg viewBox="0 0 40 40" className="h-8 w-8 text-black" fill="currentColor">
+              <rect x="8" y="30" width="24" height="4"/>
+              <rect x="12" y="24" width="20" height="4"/>
+              <rect x="16" y="18" width="16" height="4"/>
+              <rect x="20" y="12" width="12" height="4"/>
+              <rect x="24" y="6" width="8" height="4"/>
+            </svg>
+            <span className="text-lg font-bold uppercase tracking-tight">MADREGOT</span>
+          </div>
+          <Link
+            href="/login"
+            className="bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-6 py-2.5 rounded-lg transition-colors text-sm"
+          >
+            Sign In
+          </Link>
+        </nav>
 
-        @keyframes aurora {
-          0%, 100% {
-            opacity: 0.3;
-            transform: translate(0, 0) scale(1);
-          }
-          33% {
-            opacity: 0.5;
-            transform: translate(10%, -5%) scale(1.1);
-          }
-          66% {
-            opacity: 0.4;
-            transform: translate(-5%, 10%) scale(0.95);
-          }
-        }
+        {/* Hero Content */}
+        <div className="flex-1 flex items-center px-6 sm:px-12 lg:px-20">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center w-full max-w-7xl mx-auto">
+            {/* Left - Text */}
+            <div>
+              <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff]">
+                Redefining<br />
+                Running<br />
+                Culture
+              </h1>
+              <div className="w-16 h-1.5 bg-[#4338ff] mt-8 mb-6"></div>
+              <p className="text-xl sm:text-2xl text-gray-700 font-light leading-relaxed">
+                Connecting Runners.<br />
+                Building Community.
+              </p>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-3 bg-[#4338ff] hover:bg-[#3730d4] text-white font-bold px-8 py-4 rounded-xl transition-all mt-10 text-lg"
+              >
+                Join Us
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+            </div>
 
-        @keyframes glow-pulse {
-          0%, 100% {
-            box-shadow: 0 0 20px rgba(139, 92, 246, 0.3), 0 0 40px rgba(139, 92, 246, 0.2);
-          }
-          50% {
-            box-shadow: 0 0 30px rgba(139, 92, 246, 0.5), 0 0 60px rgba(139, 92, 246, 0.3);
-          }
-        }
-
-        @keyframes streak {
-          0% {
-            transform: translateX(-100%) translateY(-100%) rotate(-15deg);
-            opacity: 0;
-          }
-          50% {
-            opacity: 0.3;
-          }
-          100% {
-            transform: translateX(100vw) translateY(100vh) rotate(-15deg);
-            opacity: 0;
-          }
-        }
-
-        .animate-gradient {
-          background-size: 200% 200%;
-          animation: gradient-shift 8s ease infinite;
-        }
-
-        .animate-aurora {
-          animation: aurora 12s ease-in-out infinite;
-        }
-
-        .animate-glow-pulse {
-          animation: glow-pulse 3s ease-in-out infinite;
-        }
-
-        .streak-line {
-          animation: streak 10s linear infinite;
-        }
-
-        .bg-dot-pattern {
-          background-image: radial-gradient(circle, rgba(139, 92, 246, 0.15) 1px, transparent 1px);
-          background-size: 40px 40px;
-        }
-      `}</style>
-
-      <div className="min-h-screen bg-slate-950 text-white relative overflow-hidden">
-        {/* Animated Background Layers */}
-        <div className="fixed inset-0 pointer-events-none">
-          {/* Base gradient */}
-          <div
-            className="absolute inset-0 animate-gradient"
-            style={{
-              background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 25%, #312e81 50%, #1e1b4b 75%, #0f172a 100%)',
-            }}
-          />
-
-          {/* Aurora effect - multiple layers */}
-          <div
-            className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] animate-aurora"
-            style={{
-              background: 'radial-gradient(circle, rgba(139, 92, 246, 0.4) 0%, rgba(99, 102, 241, 0.2) 50%, transparent 100%)',
-            }}
-          />
-          <div
-            className="absolute bottom-1/4 right-1/4 w-[800px] h-[800px] rounded-full blur-[140px] animate-aurora"
-            style={{
-              background: 'radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.15) 50%, transparent 100%)',
-              animationDelay: '3s',
-              animationDuration: '15s',
-            }}
-          />
-
-          {/* Dot pattern overlay */}
-          <div className="absolute inset-0 bg-dot-pattern opacity-30" />
-
-          {/* Diagonal streaks */}
-          <div
-            className="absolute top-0 left-0 w-[2px] h-[400px] streak-line"
-            style={{
-              background: 'linear-gradient(to bottom, transparent, rgba(139, 92, 246, 0.5), transparent)',
-              animationDelay: '0s',
-            }}
-          />
-          <div
-            className="absolute top-0 left-0 w-[2px] h-[300px] streak-line"
-            style={{
-              background: 'linear-gradient(to bottom, transparent, rgba(99, 102, 241, 0.4), transparent)',
-              animationDelay: '4s',
-            }}
-          />
-
-          {/* Vignette effect */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: 'radial-gradient(circle at center, transparent 0%, rgba(15, 23, 42, 0.4) 100%)',
-            }}
-          />
+            {/* Right - Visual */}
+            <div className="relative hidden lg:block">
+              <div className="aspect-[4/5] rounded-2xl overflow-hidden bg-gray-300">
+                <div
+                  className="w-full h-full"
+                  style={{
+                    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+                  }}
+                >
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="text-center">
+                      <svg viewBox="0 0 40 40" className="h-24 w-24 text-white/80 mx-auto mb-4" fill="currentColor">
+                        <rect x="8" y="30" width="24" height="4"/>
+                        <rect x="12" y="24" width="20" height="4"/>
+                        <rect x="16" y="18" width="16" height="4"/>
+                        <rect x="20" y="12" width="12" height="4"/>
+                        <rect x="24" y="6" width="8" height="4"/>
+                      </svg>
+                      <p className="text-white/60 text-sm uppercase tracking-widest">After 2KM</p>
+                      <p className="text-white/40 text-xs mt-1">EST. 2022</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+      </section>
 
-        {/* Hero Section */}
-        <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
-          {/* Spotlight effect */}
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full blur-[160px] opacity-40"
-            style={{
-              background: 'radial-gradient(circle, rgba(139, 92, 246, 0.6) 0%, rgba(99, 102, 241, 0.3) 40%, transparent 70%)',
-            }}
-          />
-
-          <div className="max-w-6xl mx-auto text-center relative z-10">
-            {/* Main Headline - Massive & Bold */}
-            <h1 className="text-7xl sm:text-8xl md:text-9xl lg:text-[12rem] font-black mb-6 uppercase tracking-tighter leading-none">
-              <span className="block bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-slate-300">
-                MADRE
-              </span>
-              <span className="block bg-clip-text text-transparent bg-gradient-to-r from-primary-400 via-primary-500 to-violet-500 animate-gradient">
-                GOT
-              </span>
-            </h1>
-
-            {/* Subtitle */}
-            <p className="text-sm sm:text-base md:text-lg font-bold mb-8 uppercase tracking-[0.4em] text-primary-400/90">
-              After 2KM Running Club
-            </p>
-
-            {/* Tagline */}
-            <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-light text-slate-300 mb-16 max-w-4xl mx-auto leading-tight">
-              Marathon training,<br className="sm:hidden" /> delivered to your wrist
-            </p>
-
-            {/* CTA Button */}
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-3 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-bold px-12 py-5 rounded-2xl transition-all hover:scale-105 animate-glow-pulse text-xl shadow-2xl"
-            >
-              Sign In
-              <ArrowRight className="h-6 w-6" />
-            </Link>
-          </div>
-        </section>
-
-        {/* Features Section */}
-        <section className="relative py-32 px-4 sm:px-6 lg:px-8 border-t border-slate-800/50">
-          <div className="max-w-7xl mx-auto relative z-10">
-            <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-center mb-20 uppercase tracking-tight">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-                Built for Runners
-              </span>
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Feature 1 */}
-              <div className="group relative bg-slate-900/50 backdrop-blur-sm border border-slate-800 hover:border-primary-500/50 rounded-2xl p-8 transition-all hover:scale-105 hover:bg-slate-900/80">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative">
-                  <div className="bg-gradient-to-br from-primary-600 to-primary-500 w-14 h-14 rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-primary-500/30">
-                    <Watch className="h-7 w-7 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-3">Workouts on Watch</h3>
-                  <p className="text-slate-400 leading-relaxed">
-                    Coach pushes training directly to your Garmin. No manual entry needed.
-                  </p>
+      {/* Who We Are */}
+      <section className="py-24 lg:py-32 px-6 sm:px-12 lg:px-20">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-8">
+            Who<br />We Are
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
+            <div>
+              <h3 className="text-2xl sm:text-3xl font-bold text-black mb-6">
+                From Two Runners to Israel&apos;s Leading Running Community
+              </h3>
+              <div className="w-16 h-1.5 bg-[#4338ff] mb-8"></div>
+              <p className="text-lg text-gray-600 leading-relaxed mb-6">
+                Founded in 2022 by two friends looking for training partners, Madregot has grown into Israel&apos;s leading running community.
+              </p>
+              <p className="text-lg text-gray-600 leading-relaxed">
+                Today, Madregot brings together Israel&apos;s fastest amateur marathoners, elite athletes, and committed runners — creating a culture where performance, community, and ambition push each other forward.
+              </p>
+            </div>
+            <div className="flex items-center justify-center">
+              <div className="grid grid-cols-2 gap-6 w-full">
+                <div className="bg-white rounded-xl p-6 text-center shadow-sm">
+                  <div className="text-4xl font-black text-[#4338ff]">50+</div>
+                  <div className="text-sm text-gray-500 mt-1 font-medium">Athletes</div>
                 </div>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="group relative bg-slate-900/50 backdrop-blur-sm border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-8 transition-all hover:scale-105 hover:bg-slate-900/80">
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative">
-                  <div className="bg-gradient-to-br from-emerald-600 to-emerald-500 w-14 h-14 rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/30">
-                    <Users className="h-7 w-7 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-3">Pace Groups</h3>
-                  <p className="text-slate-400 leading-relaxed">
-                    Train with athletes at your level. SUB 2:30 to SUB 2:45 half-marathon targets.
-                  </p>
+                <div className="bg-white rounded-xl p-6 text-center shadow-sm">
+                  <div className="text-4xl font-black text-[#4338ff]">35</div>
+                  <div className="text-sm text-gray-500 mt-1 font-medium">Community</div>
                 </div>
-              </div>
-
-              {/* Feature 3 */}
-              <div className="group relative bg-slate-900/50 backdrop-blur-sm border border-slate-800 hover:border-primary-500/50 rounded-2xl p-8 transition-all hover:scale-105 hover:bg-slate-900/80">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative">
-                  <div className="bg-gradient-to-br from-primary-600 to-primary-500 w-14 h-14 rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-primary-500/30">
-                    <Calendar className="h-7 w-7 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-3">Weekly Programs</h3>
-                  <p className="text-slate-400 leading-relaxed">
-                    Structured training plans that progress with your fitness level.
-                  </p>
+                <div className="bg-white rounded-xl p-6 text-center shadow-sm">
+                  <div className="text-4xl font-black text-[#4338ff]">3</div>
+                  <div className="text-sm text-gray-500 mt-1 font-medium">Pace Groups</div>
                 </div>
-              </div>
-
-              {/* Feature 4 */}
-              <div className="group relative bg-slate-900/50 backdrop-blur-sm border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-8 transition-all hover:scale-105 hover:bg-slate-900/80">
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative">
-                  <div className="bg-gradient-to-br from-emerald-600 to-emerald-500 w-14 h-14 rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/30">
-                    <Zap className="h-7 w-7 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-3">Fully Automated</h3>
-                  <p className="text-slate-400 leading-relaxed">
-                    Connect once, receive workouts forever. Zero setup after joining.
-                  </p>
+                <div className="bg-white rounded-xl p-6 text-center shadow-sm">
+                  <div className="text-4xl font-black text-[#4338ff]">2022</div>
+                  <div className="text-sm text-gray-500 mt-1 font-medium">EST.</div>
                 </div>
               </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* How It Works */}
-        <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-slate-950/70 border-y border-slate-800/50">
-          <div className="max-w-6xl mx-auto relative z-10">
-            <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-center mb-24 uppercase tracking-tight">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-                How It Works
-              </span>
-            </h2>
+      {/* Journey Timeline */}
+      <section className="py-24 lg:py-32 px-6 sm:px-12 lg:px-20 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-16">
+            Our<br />Journey
+          </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16">
-              {/* Step 1 */}
-              <div className="relative text-center">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-primary-600 to-primary-500 text-white text-3xl font-black mb-8 shadow-xl shadow-primary-500/40">
-                  1
-                </div>
-                <h3 className="text-2xl font-bold mb-4">Join</h3>
-                <p className="text-slate-400 text-lg leading-relaxed">
-                  Choose the half-marathon target that matches your goals
-                </p>
-                {/* Connector line */}
-                <div className="hidden md:block absolute top-10 left-[60%] w-[80%] h-[2px] bg-gradient-to-r from-primary-500 to-transparent" />
+          {/* Timeline */}
+          <div className="relative">
+            <div className="absolute top-8 left-0 right-0 h-0.5 bg-[#4338ff]"></div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
+              <div className="relative pt-12">
+                <div className="absolute top-6 left-0 w-3 h-3 rounded-full bg-[#4338ff]"></div>
+                <div className="text-2xl font-black">2022</div>
+                <div className="text-sm font-bold mt-1">Founded</div>
+                <div className="text-sm text-gray-500 mt-2">Two runners. One shared goal.</div>
               </div>
-
-              {/* Step 2 */}
-              <div className="relative text-center">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-500 text-white text-3xl font-black mb-8 shadow-xl shadow-emerald-500/40">
-                  2
-                </div>
-                <h3 className="text-2xl font-bold mb-4">Connect Garmin</h3>
-                <p className="text-slate-400 text-lg leading-relaxed">
-                  One-time setup to link your Garmin watch
-                </p>
-                {/* Connector line */}
-                <div className="hidden md:block absolute top-10 left-[60%] w-[80%] h-[2px] bg-gradient-to-r from-emerald-500 to-transparent" />
+              <div className="relative pt-12">
+                <div className="absolute top-6 left-0 w-3 h-3 rounded-full bg-[#4338ff]"></div>
+                <div className="text-2xl font-black">2023</div>
+                <div className="text-sm font-bold mt-1">First Team</div>
+                <div className="text-sm text-gray-500 mt-2">First Valencia Marathon as a team.</div>
               </div>
-
-              {/* Step 3 */}
-              <div className="relative text-center">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-primary-600 to-primary-500 text-white text-3xl font-black mb-8 shadow-xl shadow-primary-500/40">
-                  3
-                </div>
-                <h3 className="text-2xl font-bold mb-4">Train</h3>
-                <p className="text-slate-400 text-lg leading-relaxed">
-                  Workouts appear on your watch. Just run.
-                </p>
+              <div className="relative pt-12">
+                <div className="absolute top-6 left-0 w-3 h-3 rounded-full bg-[#4338ff]"></div>
+                <div className="text-2xl font-black">2025</div>
+                <div className="text-sm font-bold mt-1">Historic Valencia</div>
+                <div className="text-sm text-gray-500 mt-2">Fastest amateur marathon team in Israeli history.</div>
+              </div>
+              <div className="relative pt-12">
+                <div className="absolute top-6 left-0 w-3 h-3 rounded-full bg-[#4338ff]"></div>
+                <div className="text-2xl font-black">2026</div>
+                <div className="text-sm font-bold mt-1">Next Level</div>
+                <div className="text-sm text-gray-500 mt-2">Academy launch. Elite coaching. National expansion.</div>
               </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Stats Bar */}
-        <section className="relative py-32 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-5xl mx-auto relative z-10">
-            <div className="relative bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-12 sm:p-16 overflow-hidden">
-              {/* Glow effect */}
-              <div
-                className="absolute inset-0 opacity-20"
-                style={{
-                  background: 'radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.3), transparent 70%)',
-                }}
-              />
+      {/* More Than a Running Team */}
+      <section className="py-24 lg:py-32 px-6 sm:px-12 lg:px-20">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-6">
+            More Than a<br />Running Team
+          </h2>
+          <p className="text-xl text-gray-600 mb-16 max-w-3xl">
+            A complete support system designed to help every athlete perform at their highest level.
+          </p>
 
-              <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-12 sm:divide-x divide-slate-700">
-                <div className="text-center">
-                  <div className="text-6xl lg:text-7xl font-black bg-clip-text text-transparent bg-gradient-to-br from-primary-400 to-primary-600 mb-3">
-                    3
-                  </div>
-                  <div className="text-slate-400 uppercase tracking-wider text-base font-semibold">
-                    Pace Groups
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-6xl lg:text-7xl font-black bg-clip-text text-transparent bg-gradient-to-br from-emerald-400 to-emerald-600 mb-3">
-                    5
-                  </div>
-                  <div className="text-slate-400 uppercase tracking-wider text-base font-semibold">
-                    Workouts / Week
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-6xl lg:text-7xl font-black bg-clip-text text-transparent bg-gradient-to-br from-primary-400 to-primary-600 mb-3">
-                    100%
-                  </div>
-                  <div className="text-slate-400 uppercase tracking-wider text-base font-semibold">
-                    Automated
-                  </div>
-                </div>
-              </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8">
+            <div>
+              <Trophy className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+              <h3 className="text-lg font-bold mb-2">Performance</h3>
+              <ul className="text-sm text-gray-500 space-y-1">
+                <li>Professional Coach</li>
+                <li>Gym Access</li>
+                <li>Personalized Programs</li>
+              </ul>
+            </div>
+            <div>
+              <Heart className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+              <h3 className="text-lg font-bold mb-2">Recovery</h3>
+              <ul className="text-sm text-gray-500 space-y-1">
+                <li>Physiotherapy</li>
+                <li>Orthopedic Care</li>
+                <li>Injury Prevention</li>
+              </ul>
+            </div>
+            <div>
+              <Zap className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+              <h3 className="text-lg font-bold mb-2">Nutrition</h3>
+              <ul className="text-sm text-gray-500 space-y-1">
+                <li>Sports Nutrition</li>
+                <li>Energy Products</li>
+                <li>Recovery Support</li>
+              </ul>
+            </div>
+            <div>
+              <Users className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+              <h3 className="text-lg font-bold mb-2">Community</h3>
+              <ul className="text-sm text-gray-500 space-y-1">
+                <li>Training Partners</li>
+                <li>Race Travel</li>
+                <li>Member Benefits</li>
+              </ul>
+            </div>
+            <div>
+              <Camera className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+              <h3 className="text-lg font-bold mb-2">Content</h3>
+              <ul className="text-sm text-gray-500 space-y-1">
+                <li>Professional Photography</li>
+                <li>Social Media</li>
+                <li>Race Coverage</li>
+              </ul>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Final CTA */}
-        <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-slate-950/70 border-t border-slate-800/50">
-          <div className="max-w-5xl mx-auto text-center relative z-10">
-            <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black mb-8 uppercase tracking-tight leading-tight">
-              <span className="block bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-                Ready to Train
-              </span>
-              <span className="block bg-clip-text text-transparent bg-gradient-to-r from-primary-400 via-primary-500 to-violet-500">
-                Like a Pro?
-              </span>
-            </h2>
-            <p className="text-xl sm:text-2xl text-slate-300 mb-12 leading-relaxed max-w-3xl mx-auto">
-              Join the team and get coached workouts delivered to your wrist.
-            </p>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-4 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-bold px-14 py-6 rounded-2xl transition-all hover:scale-105 animate-glow-pulse text-xl shadow-2xl"
-            >
-              Sign In to Get Started
-              <ArrowRight className="h-7 w-7" />
-            </Link>
-          </div>
-        </section>
+      {/* CTA */}
+      <section className="py-24 lg:py-32 px-6 sm:px-12 lg:px-20 bg-[#4338ff]">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-tight text-white mb-6">
+            Ready to Run?
+          </h2>
+          <p className="text-xl text-white/80 mb-10">
+            Join Israel&apos;s fastest growing running community.
+          </p>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-3 bg-white hover:bg-gray-100 text-[#4338ff] font-bold px-10 py-5 rounded-xl transition-all text-lg"
+          >
+            Sign In to Get Started
+            <ArrowRight className="h-6 w-6" />
+          </Link>
+        </div>
+      </section>
 
-        {/* Footer */}
-        <footer className="relative py-12 px-4 sm:px-6 lg:px-8 border-t border-slate-800/50">
-          <div className="max-w-7xl mx-auto text-center relative z-10">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="bg-gradient-to-br from-primary-600 to-primary-500 w-8 h-8 rounded-lg flex items-center justify-center">
-                <Target className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-2xl font-black uppercase tracking-tight">MADREGOT</span>
-              <span className="text-slate-700">•</span>
-              <span className="text-primary-400 text-sm font-bold uppercase tracking-wider">After 2KM</span>
-            </div>
-            <p className="text-slate-600 text-sm">
-              © 2026 MADREGOT. Marathon training, perfected.
-            </p>
+      {/* Footer */}
+      <footer className="py-10 px-6 sm:px-12 lg:px-20 bg-black text-white">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <svg viewBox="0 0 40 40" className="h-6 w-6 text-white" fill="currentColor">
+              <rect x="8" y="30" width="24" height="4"/>
+              <rect x="12" y="24" width="20" height="4"/>
+              <rect x="16" y="18" width="16" height="4"/>
+              <rect x="20" y="12" width="12" height="4"/>
+              <rect x="24" y="6" width="8" height="4"/>
+            </svg>
+            <span className="font-bold uppercase tracking-tight">MADREGOT</span>
+            <span className="text-gray-500 text-sm">After 2KM Running Club</span>
           </div>
-        </footer>
-      </div>
-    </>
+          <p className="text-gray-500 text-sm">
+            © 2026 MADREGOT. EST. 2022
+          </p>
+        </div>
+      </footer>
+    </div>
   );
 }
