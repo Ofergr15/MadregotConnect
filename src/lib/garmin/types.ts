@@ -1,0 +1,39 @@
+export interface GarminAuth {
+  email: string;
+  tokens: Record<string, unknown>;
+  lastAuth: string;
+}
+
+export interface GarminWorkout {
+  workoutName: string;
+  sportType: { sportTypeId: number; sportTypeKey: string };
+  workoutSegments: GarminWorkoutSegment[];
+}
+
+export interface GarminWorkoutSegment {
+  segmentOrder: number;
+  sportType: { sportTypeId: number; sportTypeKey: string };
+  workoutSteps: GarminWorkoutStep[];
+}
+
+export interface GarminWorkoutStep {
+  type: 'ExecutableStepDTO' | 'RepeatGroupDTO';
+  stepOrder: number;
+  stepType: { stepTypeId: number; stepTypeKey: string };
+  endCondition: { conditionTypeId: number; conditionTypeKey: string };
+  endConditionValue?: number;
+  targetType: { workoutTargetTypeId: number; workoutTargetTypeKey: string };
+  targetValueOne?: number;
+  targetValueTwo?: number;
+  numberOfIterations?: number;
+  workoutSteps?: GarminWorkoutStep[];
+}
+
+export interface PaceProfile {
+  easy: { min: number; max: number };
+  threshold: { min: number; max: number };
+  interval: { min: number; max: number };
+  tempo: { min: number; max: number };
+  sprint: { min: number; max: number };
+  marathon_pace: { min: number; max: number };
+}
