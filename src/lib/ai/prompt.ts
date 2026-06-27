@@ -20,6 +20,8 @@ Return ONLY valid JSON matching this schema:
           "targetZone": "easy|threshold|interval|tempo|sprint|marathon_pace",
           "targetPaceMinPerKm": null,
           "targetPaceMaxPerKm": null,
+          "group2Pace": { "min": null, "max": null },
+          "group3Pace": { "min": null, "max": null },
           "notes": null,
           "repeatCount": null,
           "repeatSteps": null
@@ -32,16 +34,21 @@ Return ONLY valid JSON matching this schema:
 ## Multi-Group Pace Notation
 
 Coaches often write paces for 3 groups in one message using this format:
-- No brackets = fastest group (Group A)
-- (single brackets) = middle group (Group B)
-- ((double brackets)) = slowest group (Group C)
+- No brackets = fastest group (Group ❶)
+- (single brackets) = middle group (Group ❷)
+- ((double brackets)) = slowest group (Group ❸)
 
 Example: "3:50 (4:00) ((4:10))" means:
-- Group A runs at 3:50/km
-- Group B runs at 4:00/km
-- Group C runs at 4:10/km
+- Group ❶ runs at 3:50/km → targetPaceMinPerKm/targetPaceMaxPerKm
+- Group ❷ runs at 4:00/km → group2Pace: { min, max }
+- Group ❸ runs at 4:10/km → group3Pace: { min, max }
 
-When you see this pattern, use the FIRST pace (no brackets) as the target. The system will adjust for other groups using their pace profiles.
+IMPORTANT: You MUST output ALL 3 group paces when present:
+- targetPaceMinPerKm/targetPaceMaxPerKm = Group ❶ (no brackets)
+- group2Pace = Group ❷ (single brackets)
+- group3Pace = Group ❸ (double brackets)
+
+If only one pace is given (no brackets notation), only set targetPaceMin/Max. Leave group2Pace and group3Pace as null.
 
 ## Table/PDF Format with Numbered Groups
 
