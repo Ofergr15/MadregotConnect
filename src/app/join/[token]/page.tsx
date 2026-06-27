@@ -132,17 +132,11 @@ export default function JoinPage({ params }: { params: { token: string } }) {
         <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 sm:p-8 w-full max-w-md animate-fade-in">
           {/* Logo */}
           <div className="flex flex-col items-center justify-center mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <svg viewBox="0 0 40 40" className="h-6 w-6 text-primary-500" fill="currentColor">
-                <rect x="8" y="30" width="24" height="4"/>
-                <rect x="12" y="24" width="20" height="4"/>
-                <rect x="16" y="18" width="16" height="4"/>
-                <rect x="20" y="12" width="12" height="4"/>
-                <rect x="24" y="6" width="8" height="4"/>
-              </svg>
-              <span className="text-lg font-bold text-white uppercase tracking-tight">MADREGOT</span>
+            <div className="flex items-center gap-3 mb-2">
+              <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain invert" />
+              <span className="text-lg font-bold text-white uppercase tracking-tight">Madregot After 2KM</span>
             </div>
-            <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">After 2KM Running Club</span>
+            <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">Running Club</span>
           </div>
 
           {/* Success Icon */}
@@ -223,17 +217,11 @@ export default function JoinPage({ params }: { params: { token: string } }) {
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 sm:p-8 w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center justify-center mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <svg viewBox="0 0 40 40" className="h-6 w-6 text-primary-500" fill="currentColor">
-              <rect x="8" y="30" width="24" height="4"/>
-              <rect x="12" y="24" width="20" height="4"/>
-              <rect x="16" y="18" width="16" height="4"/>
-              <rect x="20" y="12" width="12" height="4"/>
-              <rect x="24" y="6" width="8" height="4"/>
-            </svg>
-            <span className="text-lg font-bold text-white uppercase tracking-tight">MADREGOT</span>
+          <div className="flex items-center gap-3 mb-2">
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain invert" />
+            <span className="text-lg font-bold text-white uppercase tracking-tight">Madregot After 2KM</span>
           </div>
-          <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">After 2KM Running Club</span>
+          <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">Running Club</span>
         </div>
 
         {/* Header */}
