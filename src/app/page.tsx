@@ -68,38 +68,23 @@ export default function HomePage() {
                 Connecting Runners.<br />
                 Building Community.
               </p>
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-3 bg-[#4338ff] hover:bg-[#3730d4] text-white font-bold px-8 py-4 rounded-xl transition-all mt-10 text-lg"
+              <div
+                className="inline-flex items-center gap-3 bg-gray-300 text-gray-500 font-bold px-8 py-4 rounded-xl mt-10 text-lg cursor-not-allowed"
               >
                 Join Us
                 <ArrowRight className="h-5 w-5" />
-              </Link>
+                <span className="text-xs font-medium uppercase tracking-wide ml-1">Coming Soon</span>
+              </div>
             </div>
 
             {/* Right - Visual */}
             <div className="relative hidden lg:block">
-              <div className="aspect-[4/5] rounded-2xl overflow-hidden bg-gray-300">
-                <div
-                  className="w-full h-full"
-                  style={{
-                    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-                  }}
-                >
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <svg viewBox="0 0 40 40" className="h-24 w-24 text-white/80 mx-auto mb-4" fill="currentColor">
-                        <rect x="8" y="30" width="24" height="4"/>
-                        <rect x="12" y="24" width="20" height="4"/>
-                        <rect x="16" y="18" width="16" height="4"/>
-                        <rect x="20" y="12" width="12" height="4"/>
-                        <rect x="24" y="6" width="8" height="4"/>
-                      </svg>
-                      <p className="text-white/60 text-sm uppercase tracking-widest">After 2KM</p>
-                      <p className="text-white/40 text-xs mt-1">EST. 2022</p>
-                    </div>
-                  </div>
-                </div>
+              <div className="aspect-[4/5] rounded-2xl overflow-hidden">
+                <img
+                  src="/images/hero-running.jpg"
+                  alt="Madregot runners"
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
           </div>
@@ -125,24 +110,15 @@ export default function HomePage() {
                 Today, Madregot brings together Israel&apos;s fastest amateur marathoners, elite athletes, and committed runners — creating a culture where performance, community, and ambition push each other forward.
               </p>
             </div>
-            <div className="flex items-center justify-center">
-              <div className="grid grid-cols-2 gap-6 w-full">
-                <div className="bg-white rounded-xl p-6 text-center shadow-sm">
-                  <div className="text-4xl font-black text-[#4338ff]">50+</div>
-                  <div className="text-sm text-gray-500 mt-1 font-medium">Athletes</div>
-                </div>
-                <div className="bg-white rounded-xl p-6 text-center shadow-sm">
-                  <div className="text-4xl font-black text-[#4338ff]">35</div>
-                  <div className="text-sm text-gray-500 mt-1 font-medium">Community</div>
-                </div>
-                <div className="bg-white rounded-xl p-6 text-center shadow-sm">
-                  <div className="text-4xl font-black text-[#4338ff]">3</div>
-                  <div className="text-sm text-gray-500 mt-1 font-medium">Pace Groups</div>
-                </div>
-                <div className="bg-white rounded-xl p-6 text-center shadow-sm">
-                  <div className="text-4xl font-black text-[#4338ff]">2022</div>
-                  <div className="text-sm text-gray-500 mt-1 font-medium">EST.</div>
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl overflow-hidden aspect-[3/4]">
+                <img src="/images/team-race.jpg" alt="Madregot race day" className="w-full h-full object-cover" />
+              </div>
+              <div className="rounded-xl overflow-hidden aspect-[3/4] mt-8">
+                <img src="/images/team-group.jpg" alt="Madregot team" className="w-full h-full object-cover" />
+              </div>
+              <div className="rounded-xl overflow-hidden aspect-[3/2] col-span-2">
+                <img src="/images/runners-group.jpg" alt="Madregot training group" className="w-full h-full object-cover" />
               </div>
             </div>
           </div>
