@@ -31,7 +31,7 @@ export default function AuthResolvePage() {
     // Timeout fallback
     const timeout = setTimeout(() => {
       subscription.unsubscribe();
-      router.replace('/login');
+      router.replace('/');
     }, 10000);
 
     return () => {
@@ -44,7 +44,7 @@ export default function AuthResolvePage() {
     const email = user.email?.toLowerCase();
 
     if (!email) {
-      router.replace('/login');
+      router.replace('/');
       return;
     }
 

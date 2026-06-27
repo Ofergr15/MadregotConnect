@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const origin = req.nextUrl.origin;
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=no_code`);
+    return NextResponse.redirect(`${origin}/?error=no_code`);
   }
 
   const supabase = createClient(
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(`${origin}/login?error=auth_failed`);
+    return NextResponse.redirect(`${origin}/?error=auth_failed`);
   }
 
   return NextResponse.redirect(`${origin}/auth/resolve`);
