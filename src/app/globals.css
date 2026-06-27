@@ -60,3 +60,62 @@
     transform: scale(1);
   }
 }
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.2s ease-out;
+}
+
+@keyframes runner {
+  0% { left: -10%; }
+  100% { left: 100%; }
+}
+
+@keyframes runnerDust {
+  0% { left: -15%; opacity: 1; }
+  100% { left: 95%; opacity: 0; }
+}
+
+@keyframes progressIndeterminate {
+  0% { width: 0%; margin-left: 0%; }
+  50% { width: 60%; margin-left: 20%; }
+  100% { width: 0%; margin-left: 100%; }
+}
+
+.animate-runner {
+  animation: runner 2.5s ease-in-out infinite;
+}
+
+.animate-runner-dust {
+  animation: runnerDust 2.5s ease-in-out infinite;
+}
+
+.animate-progress-indeterminate {
+  animation: progressIndeterminate 2s ease-in-out infinite;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.3);
+  border-radius: 2px;
+}
