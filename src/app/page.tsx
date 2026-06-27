@@ -32,14 +32,16 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
-        <div className="absolute inset-0 bg-gradient-to-b from-primary-600/5 via-transparent to-transparent pointer-events-none" />
+      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
+        {/* Background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary-600/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/4 right-1/4 w-[300px] h-[300px] bg-primary-500/5 rounded-full blur-[80px] pointer-events-none" />
 
         <div className="max-w-5xl mx-auto text-center relative">
           {/* Logo */}
-          <div className="mb-8">
-            <div className="bg-primary-600/20 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <svg viewBox="0 0 40 40" className="h-12 w-12 text-primary-400" fill="currentColor">
+          <div className="mb-10">
+            <div className="bg-slate-800/80 backdrop-blur-sm w-24 h-24 rounded-3xl flex items-center justify-center mx-auto border border-slate-700/50 shadow-2xl shadow-primary-600/10">
+              <svg viewBox="0 0 40 40" className="h-14 w-14 text-primary-400" fill="currentColor">
                 <rect x="8" y="30" width="24" height="4"/>
                 <rect x="12" y="24" width="20" height="4"/>
                 <rect x="16" y="18" width="16" height="4"/>
@@ -50,34 +52,31 @@ export default function HomePage() {
           </div>
 
           {/* Headline */}
-          <h1 className="text-6xl sm:text-7xl lg:text-8xl font-bold mb-4 uppercase tracking-tight">
-            <span className="bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600 bg-clip-text text-transparent">
-              MADREGOT
-            </span>
+          <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black mb-4 uppercase tracking-tighter">
+            <span className="text-white">MADRE</span><span className="text-primary-400">GOT</span>
           </h1>
-          <p className="text-primary-400 text-lg sm:text-xl font-semibold mb-8 uppercase tracking-wide">
+          <p className="text-primary-400/80 text-base sm:text-lg font-semibold mb-10 uppercase tracking-[0.3em]">
             After 2KM Running Club
           </p>
 
-          <p className="text-2xl sm:text-3xl lg:text-4xl font-light text-slate-300 mb-12 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-xl sm:text-2xl lg:text-3xl font-light text-slate-400 mb-14 max-w-2xl mx-auto">
             Marathon training, delivered to your wrist
           </p>
 
           {/* CTA */}
           <Link
             href="/login"
-            className="inline-flex items-center gap-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold px-8 py-4 rounded-xl transition-all hover:scale-105 shadow-lg shadow-primary-600/30"
+            className="inline-flex items-center gap-3 bg-primary-600 hover:bg-primary-500 text-white font-semibold px-10 py-4 rounded-xl transition-all hover:scale-105 shadow-xl shadow-primary-600/25 text-lg"
           >
             Sign In
             <ArrowRight className="h-5 w-5" />
           </Link>
 
-          {/* Scroll indicator */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-            <div className="animate-bounce">
-              <div className="w-6 h-10 border-2 border-slate-600 rounded-full flex items-start justify-center p-2">
-                <div className="w-1 h-3 bg-slate-500 rounded-full"></div>
-              </div>
+          {/* Subtle scroll hint */}
+          <div className="mt-20">
+            <div className="flex flex-col items-center gap-2 text-slate-600">
+              <span className="text-xs uppercase tracking-widest">Scroll</span>
+              <div className="w-px h-8 bg-gradient-to-b from-slate-600 to-transparent"></div>
             </div>
           </div>
         </div>
