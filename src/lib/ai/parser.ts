@@ -8,6 +8,50 @@ const anthropic = new Anthropic({
 
 // --- Claude AI parser (for images/PDFs, or complex text fallback) ---
 
+function validateAndFixStep(step: WorkoutStep): WorkoutStep {
+  const fixed = { ...step };
+
+  if (fixed.durationType === 'time' && fixed.durationValue) {
+    // If "time" value >= 1000, it's almost certainly meters (distance), not seconds
+    // 1000 seconds = 16+ minutes is possible, but 1000m warmup is far more common
+    // Check context: warmup steps with high "time" values are always distance
+    if (fixed.durationValue >= 1000 && (fixed.type === 'warmup' || fixed.type === 'active' || fixed.type === 'interval')) {
+      fixed.durationType = 'distance';
+    }
+  }
+
+  if (fixed.durationType === 'time' && fixed.durationValue) {
+    // Values like 200, 400, 800 with a pace target are almost certainly distance (meters)
+    if ([200, 400, 800].includes(fixed.durationValue) && fixed.targetType === 'pace') {
+      fixed.durationType = 'distance';
+    }
+  }
+
+  if (fixed.durationType === 'open' && fixed.durationValue) {
+    // If there's a durationValue but type is "open", fix it
+    if (fixed.durationValue >= 1000) {
+      fixed.durationType = 'distance';
+    } else {
+      fixed.durationType = 'time';
+    }
+  }
+
+  if (fixed.repeatSteps) {
+    fixed.repeatSteps = fixed.repeatSteps.map(validateAndFixStep);
+  }
+
+  return fixed;
+}
+
+function validatePlan(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
+  return {
+    workouts: plan.workouts.map(workout => ({
+      ...workout,
+      steps: workout.steps.map(validateAndFixStep),
+    })),
+  };
+}
+
 async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'][0]['content'], useVision = false): Promise<ParsedWeeklyPlan> {
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -29,7 +73,7 @@ async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'
   if (!parsed.workouts || !Array.isArray(parsed.workouts)) {
     throw new Error('Invalid response structure');
   }
-  return parsed as ParsedWeeklyPlan;
+  return validatePlan(parsed as ParsedWeeklyPlan);
 }
 
 // --- Regex parser (for simple text inputs, zero cost) ---

@@ -92,26 +92,37 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * PUT /api/plans - Update a plan's status
- * Body: { plan_id, status }
+ * PUT /api/plans - Update a plan's status and/or workouts
+ * Body: { plan_id, status?, parsed_workouts? }
  */
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { plan_id, status } = body;
+    const { plan_id, status, parsed_workouts } = body;
 
-    if (!plan_id || !status) {
+    if (!plan_id) {
       return NextResponse.json(
-        { error: 'plan_id and status are required' },
+        { error: 'plan_id is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!status && !parsed_workouts) {
+      return NextResponse.json(
+        { error: 'At least one of status or parsed_workouts is required' },
         { status: 400 }
       );
     }
 
     const supabase = createServerClient();
 
+    const updates: Record<string, unknown> = {};
+    if (status) updates.status = status;
+    if (parsed_workouts) updates.parsed_workouts = parsed_workouts;
+
     const { data, error } = await supabase
       .from('weekly_plans')
-      .update({ status })
+      .update(updates)
       .eq('id', plan_id)
       .select()
       .single();
