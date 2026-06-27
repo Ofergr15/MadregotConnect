@@ -25,11 +25,9 @@ export default function NewPlanPage() {
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [weekStartDate, setWeekStartDate] = useState(() => {
     const now = new Date();
-    const sunday = new Date(now);
-    // In Israel, week starts on Sunday. Get current or previous Sunday.
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    sunday.setDate(now.getDate() - dayOfWeek);
-    return sunday.toISOString().split('T')[0];
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
   });
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
