@@ -65,7 +65,7 @@ export function Header() {
     localStorage.removeItem('athlete_email');
     localStorage.removeItem('athlete_group_id');
     localStorage.removeItem('coach_email');
-    router.push('/login');
+    router.push('/');
   };
 
   const initials = userName

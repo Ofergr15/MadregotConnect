@@ -64,6 +64,10 @@ export default function AuthResolvePage() {
       localStorage.removeItem('athlete_group_id');
       router.replace('/dashboard');
     } else if (data.role === 'runner' && data.athlete) {
+      if (data.needsOnboarding) {
+        router.replace(`/join/onboard?email=${encodeURIComponent(email)}`);
+        return;
+      }
       localStorage.setItem('athlete_id', data.athlete.id);
       localStorage.setItem('athlete_name', data.athlete.name || '');
       localStorage.setItem('athlete_email', data.athlete.email || email);

@@ -2,13 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowRight, Trophy, Users, Zap, Heart, Camera } from 'lucide-react';
+import { ArrowRight, Trophy, Users, Zap, Heart, Camera, Loader2 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
+
+function useGoogleLogin() {
+  const [loading, setLoading] = useState(false);
+
+  const signIn = async () => {
+    setLoading(true);
+    const supabase = getSupabase();
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/resolve`,
+      },
+    });
+  };
+
+  return { signIn, loading };
+}
 
 export default function HomePage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+  const { signIn, loading: signingIn } = useGoogleLogin();
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -45,12 +62,13 @@ export default function HomePage() {
             </svg>
             <span className="text-lg font-bold uppercase tracking-tight">MADREGOT</span>
           </div>
-          <Link
-            href="/login"
-            className="bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-6 py-2.5 rounded-lg transition-colors text-sm"
+          <button
+            onClick={signIn}
+            disabled={signingIn}
+            className="bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-6 py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
           >
-            Sign In
-          </Link>
+            {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign In'}
+          </button>
         </nav>
 
         {/* Hero Content */}
@@ -234,13 +252,14 @@ export default function HomePage() {
           <p className="text-xl text-white/80 mb-10">
             Join Israel&apos;s fastest growing running community.
           </p>
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-3 bg-white hover:bg-gray-100 text-[#4338ff] font-bold px-10 py-5 rounded-xl transition-all text-lg"
+          <button
+            onClick={signIn}
+            disabled={signingIn}
+            className="inline-flex items-center gap-3 bg-white hover:bg-gray-100 text-[#4338ff] font-bold px-10 py-5 rounded-xl transition-all text-lg disabled:opacity-50"
           >
-            Sign In to Get Started
+            {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Sign In to Get Started'}
             <ArrowRight className="h-6 w-6" />
-          </Link>
+          </button>
         </div>
       </section>
 
