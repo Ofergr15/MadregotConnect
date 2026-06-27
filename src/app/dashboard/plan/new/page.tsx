@@ -19,7 +19,8 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
-import { ParsedWorkout, ParsedWeeklyPlan } from '@/lib/ai/types';
+import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans } from '@/lib/ai/types';
+import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import { cn } from '@/lib/utils';
 
 const HARDCODED_COACH_ID = 'a34a0d10-1a1c-4b80-a1ca-e0044aa06232';
@@ -38,7 +39,11 @@ interface Athlete {
 interface Group {
   id: string;
   name: string;
+  level?: string;
+  marathonGoal?: string;
+  paceOffsetSeconds?: number;
   athlete_count?: number;
+  athleteCount?: number;
 }
 
 interface PushResultItem {
@@ -71,6 +76,8 @@ export default function NewPlanPage() {
 
   // --- Review stage ---
   const [parsedPlan, setParsedPlan] = useState<ParsedWeeklyPlan | null>(null);
+  const [groupedPlans, setGroupedPlans] = useState<GroupedWeeklyPlans | null>(null);
+  const [activeGroup, setActiveGroup] = useState<1 | 2 | 3>(1);
   const [editMode, setEditMode] = useState(false);
   const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
 
@@ -212,6 +219,7 @@ export default function NewPlanPage() {
 
       const data: ParsedWeeklyPlan = await res.json();
       setParsedPlan(data);
+      setGroupedPlans(splitIntoGroups(data));
       setStage('review');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -221,10 +229,15 @@ export default function NewPlanPage() {
   };
 
   const handleWorkoutChange = (index: number, workout: ParsedWorkout) => {
-    if (!parsedPlan) return;
-    const newWorkouts = [...parsedPlan.workouts];
+    if (!groupedPlans) return;
+    const groupKey = `group${activeGroup}` as keyof GroupedWeeklyPlans;
+    const currentPlan = groupedPlans[groupKey];
+    const newWorkouts = [...currentPlan.workouts];
     newWorkouts[index] = workout;
-    setParsedPlan({ workouts: newWorkouts });
+    setGroupedPlans({
+      ...groupedPlans,
+      [groupKey]: { workouts: newWorkouts },
+    });
   };
 
   const savePlanAndGetId = async (): Promise<string> => {
@@ -238,7 +251,7 @@ export default function NewPlanPage() {
         week_start_date: weekStartDate,
         original_input:
           inputText || (imageFile ? `[Image: ${imageFile.name}]` : ''),
-        parsed_workouts: { workouts: parsedPlan!.workouts },
+        parsed_workouts: groupedPlans || { workouts: parsedPlan!.workouts },
         status: 'draft',
       }),
     });
@@ -255,7 +268,7 @@ export default function NewPlanPage() {
   };
 
   const executePush = async () => {
-    if (!parsedPlan) return;
+    if (!groupedPlans) return;
     setPushing(true);
     setError(null);
     setPushResults(null);
@@ -263,45 +276,74 @@ export default function NewPlanPage() {
     try {
       const planId = await savePlanAndGetId();
 
-      let athleteIds: string[] = [];
+      let targetAthletes: Athlete[] = [];
       if (pushTab === 'all') {
-        athleteIds = activeAthletes.map((a) => a.id);
+        targetAthletes = activeAthletes;
       } else if (pushTab === 'groups') {
-        athleteIds = activeAthletes
-          .filter((a) => a.group_id && selectedGroupIds.includes(a.group_id))
-          .map((a) => a.id);
+        targetAthletes = activeAthletes.filter(
+          (a) => a.group_id && selectedGroupIds.includes(a.group_id)
+        );
       } else {
-        athleteIds = selectedAthleteIds;
+        targetAthletes = activeAthletes.filter((a) => selectedAthleteIds.includes(a.id));
       }
 
-      if (athleteIds.length === 0) {
+      if (targetAthletes.length === 0) {
         throw new Error('No athletes selected');
       }
 
-      const res = await fetch('/api/garmin/push-workouts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId,
-          workouts: parsedPlan.workouts,
-          athleteIds,
-          weekStartDate,
-        }),
+      // Sort groups by marathon goal (fastest first) and assign pace group 1, 2, 3
+      const sortedGroups = [...groups].sort((a, b) => {
+        const aGoal = a.marathonGoal ? parseFloat(a.marathonGoal) : 999;
+        const bGoal = b.marathonGoal ? parseFloat(b.marathonGoal) : 999;
+        return aGoal - bGoal;
+      });
+      const groupLevelMap: Record<string, keyof GroupedWeeklyPlans> = {};
+      sortedGroups.forEach((g, i) => {
+        if (i === 0) groupLevelMap[g.id] = 'group1';
+        else if (i === 1) groupLevelMap[g.id] = 'group2';
+        else groupLevelMap[g.id] = 'group3';
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to push workouts');
+      // Push per pace group
+      const allResults: PushResultItem[] = [];
+      const athletesByPaceGroup: Record<string, string[]> = { group1: [], group2: [], group3: [] };
+
+      for (const athlete of targetAthletes) {
+        const paceGroup = athlete.group_id ? (groupLevelMap[athlete.group_id] || 'group2') : 'group2';
+        athletesByPaceGroup[paceGroup].push(athlete.id);
       }
 
-      const data = await res.json();
-      setPushResults(data.results || []);
+      for (const [paceGroup, ids] of Object.entries(athletesByPaceGroup)) {
+        if (ids.length === 0) continue;
+        const plan = groupedPlans[paceGroup as keyof GroupedWeeklyPlans];
+
+        const res = await fetch('/api/garmin/push-workouts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId,
+            workouts: plan.workouts,
+            athleteIds: ids,
+            weekStartDate,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to push workouts');
+        }
+
+        const data = await res.json();
+        allResults.push(...(data.results || []));
+      }
+
+      setPushResults(allResults);
 
       // Update plan status
-      const allSuccess = data.results?.every(
+      const allSuccess = allResults.every(
         (r: PushResultItem) => r.status === 'success'
       );
-      const anySuccess = data.results?.some(
+      const anySuccess = allResults.some(
         (r: PushResultItem) => r.status === 'success'
       );
       const newStatus = allSuccess
@@ -375,6 +417,8 @@ export default function NewPlanPage() {
     setImageFile(null);
     setImagePreview(null);
     setParsedPlan(null);
+    setGroupedPlans(null);
+    setActiveGroup(1);
     setEditMode(false);
     setSavedPlanId(null);
     setError(null);
@@ -596,6 +640,34 @@ export default function NewPlanPage() {
             </div>
           </div>
 
+          {/* Group tabs */}
+          <div className="border-b border-slate-700 px-6">
+            <div className="flex gap-0 max-w-7xl mx-auto">
+              {([1, 2, 3] as const).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setActiveGroup(g)}
+                  className={cn(
+                    'px-5 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                    activeGroup === g
+                      ? 'border-primary-500 text-white'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  )}
+                >
+                  <span className={cn(
+                    'inline-block w-5 h-5 rounded-full text-[10px] font-bold leading-5 text-center mr-2',
+                    g === 1 ? 'bg-red-500/20 text-red-400' :
+                    g === 2 ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-indigo-500/20 text-indigo-400'
+                  )}>
+                    {g}
+                  </span>
+                  Group {g}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Week view - hero */}
           <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full">
             {error && (
@@ -605,7 +677,7 @@ export default function NewPlanPage() {
             )}
 
             <WeekView
-              workouts={parsedPlan.workouts}
+              workouts={groupedPlans ? groupedPlans[`group${activeGroup}` as keyof GroupedWeeklyPlans].workouts : []}
               editable={editMode}
               onWorkoutChange={handleWorkoutChange}
             />
