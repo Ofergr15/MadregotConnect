@@ -121,6 +121,9 @@ function StepRow({
             {step.repeatCount}x
           </span>
         )}
+        {step.notes && (
+          <span className="text-[10px] text-slate-500 truncate max-w-[120px]">{step.notes}</span>
+        )}
         {expanded ? <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-500 shrink-0" />}
       </div>
 
@@ -235,6 +238,17 @@ function StepRow({
             </div>
           )}
 
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Notes</label>
+            <input
+              type="text"
+              value={step.notes || ''}
+              onChange={(e) => onChange({ ...step, notes: e.target.value || undefined })}
+              placeholder="e.g. ג׳ל, הליכה..."
+              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
+            />
+          </div>
+
           <div className="flex items-center gap-1 pt-1">
             <button onClick={onMoveUp} disabled={index === 0} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
             <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
@@ -293,7 +307,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex justify-end" onClick={onClose}>
       <div
-        className="w-full max-w-md bg-slate-900 border-l border-slate-700 h-full overflow-hidden flex flex-col animate-slide-in-right"
+        className="w-full max-w-lg bg-slate-900 border-l border-slate-700 h-full overflow-hidden flex flex-col animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

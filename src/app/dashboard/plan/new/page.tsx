@@ -502,16 +502,39 @@ export default function NewPlanPage() {
       {stage === 'input' && parsing && (
         <div className="flex-1 flex items-center justify-center px-4 py-12">
           <div className="w-full max-w-sm text-center space-y-8">
-            {/* Animated runner */}
-            <div className="relative w-48 h-48 mx-auto">
-              {/* Track circle */}
-              <svg className="w-full h-full animate-spin-slow" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="1" className="text-slate-700" />
-                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="66 198" className="text-primary-500" />
+            {/* Oval track with runner */}
+            <div className="relative w-64 h-40 mx-auto">
+              {/* Track oval */}
+              <svg className="w-full h-full" viewBox="0 0 240 140">
+                {/* Track surface */}
+                <ellipse cx="120" cy="70" rx="100" ry="50" fill="none" stroke="currentColor" strokeWidth="12" className="text-slate-800" />
+                {/* Lane lines */}
+                <ellipse cx="120" cy="70" rx="100" ry="50" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-slate-600" />
+                <ellipse cx="120" cy="70" rx="88" ry="44" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-slate-600" />
+                {/* Group 1 - fastest (red) */}
+                <circle r="6" fill="#ef4444">
+                  <animateMotion dur="2.8s" repeatCount="indefinite">
+                    <mpath href="#trackPath" />
+                  </animateMotion>
+                </circle>
+                {/* Group 2 - middle (yellow) */}
+                <circle r="5" fill="#eab308">
+                  <animateMotion dur="3.2s" repeatCount="indefinite" begin="-1s">
+                    <mpath href="#trackPath" />
+                  </animateMotion>
+                </circle>
+                {/* Group 3 - slowest (blue) */}
+                <circle r="4" fill="#6366f1">
+                  <animateMotion dur="3.6s" repeatCount="indefinite" begin="-2s">
+                    <mpath href="#trackPath" />
+                  </animateMotion>
+                </circle>
+                {/* Hidden path for motion */}
+                <path id="trackPath" d="M 20,70 A 100,50 0 1,1 20,69.99 Z" fill="none" />
               </svg>
-              {/* Runner emoji in center */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-5xl animate-bounce-gentle">🏃</span>
+              {/* Center label */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-lg font-black text-slate-600 tracking-tight">300m</span>
               </div>
             </div>
 
