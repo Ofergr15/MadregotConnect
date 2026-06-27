@@ -4,7 +4,7 @@ import { ParsedWorkout } from '@/lib/ai/types';
 import { WorkoutPreview } from './WorkoutPreview';
 import { WorkoutEditor } from './WorkoutEditor';
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 interface WeekViewProps {
   workouts: ParsedWorkout[];
