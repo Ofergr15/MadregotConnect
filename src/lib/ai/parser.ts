@@ -1,3 +1,4 @@
+import Tesseract from 'tesseract.js';
 import { ParsedWeeklyPlan, ParsedWorkout, WorkoutStep } from './types';
 
 const DAY_MAP: Record<string, number> = {
@@ -246,16 +247,31 @@ function splitIntoDays(text: string): { day: number; content: string }[] {
   return results;
 }
 
+async function extractTextFromImage(base64: string, mediaType: string): Promise<string> {
+  const buffer = Buffer.from(base64, 'base64');
+  const { data: { text } } = await Tesseract.recognize(buffer, 'heb+eng');
+  return text;
+}
+
 export async function parseWorkoutPlan(input: {
   text?: string;
   imageBase64?: string;
   imageMediaType?: string;
 }): Promise<ParsedWeeklyPlan> {
-  if (!input.text) {
-    throw new Error('Text input is required for parsing. Image-only parsing requires an AI provider.');
+  let textInput = input.text || '';
+
+  if (!textInput && input.imageBase64 && input.imageMediaType) {
+    textInput = await extractTextFromImage(input.imageBase64, input.imageMediaType);
+    if (!textInput.trim()) {
+      throw new Error('Could not extract text from image. Please paste the workout as text instead.');
+    }
   }
 
-  const text = input.text.trim();
+  if (!textInput.trim()) {
+    throw new Error('Either text or image must be provided');
+  }
+
+  const text = textInput.trim();
   const days = splitIntoDays(text);
   const workouts: ParsedWorkout[] = [];
 
