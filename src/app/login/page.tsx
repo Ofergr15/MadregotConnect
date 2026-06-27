@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogIn, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { LogIn, ArrowLeft, ShieldAlert, Loader2 } from 'lucide-react';
 
 const ADMIN_EMAILS = ['grosfeldofer@gmail.com'];
 
@@ -17,14 +17,44 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    if (!ADMIN_EMAILS.includes(email.toLowerCase())) {
-      setError('Access denied. Only authorized coaches can sign in.');
-      setLoading(false);
+    const lowerEmail = email.toLowerCase();
+
+    // Coach login
+    if (ADMIN_EMAILS.includes(lowerEmail)) {
+      localStorage.setItem('coach_email', lowerEmail);
+      localStorage.removeItem('athlete_id');
+      localStorage.removeItem('athlete_name');
+      localStorage.removeItem('athlete_email');
+      localStorage.removeItem('athlete_group_id');
+      router.push('/dashboard');
       return;
     }
 
-    localStorage.setItem('coach_email', email.toLowerCase());
-    router.push('/dashboard');
+    // Try athlete login - check if email exists in athletes table
+    try {
+      const res = await fetch('/api/auth/athlete-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: lowerEmail }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      localStorage.setItem('athlete_id', data.athlete.id);
+      localStorage.setItem('athlete_name', data.athlete.name);
+      localStorage.setItem('athlete_email', data.athlete.email);
+      if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
+      localStorage.removeItem('coach_email');
+
+      router.push('/dashboard/program');
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
   };
 
   return (
@@ -53,21 +83,21 @@ export default function LoginPage() {
             After 2KM Running Club
           </p>
           <p className="text-slate-400 mt-3">
-            Sign in to your coaching dashboard
+            Sign in with your email
           </p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Coach Email
+              Email
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="coach@example.com"
-              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="your@email.com"
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white text-base placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
               required
               autoFocus
             />
@@ -86,22 +116,17 @@ export default function LoginPage() {
             className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? (
-              <>
-                <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Signing in...
-              </>
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <LogIn className="h-4 w-4" />
-                Sign In
-              </>
+              <LogIn className="h-4 w-4" />
             )}
+            Sign In
           </button>
         </form>
 
         <div className="mt-6 pt-6 border-t border-slate-700">
           <p className="text-xs text-slate-500 text-center">
-            Only authorized coaches can access the dashboard. Contact admin to get access.
+            Athletes: use the email you registered with when joining your team
           </p>
         </div>
       </div>

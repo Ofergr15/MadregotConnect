@@ -104,6 +104,14 @@ export default function JoinPage({ params }: { params: { token: string } }) {
       throw new Error(err.error || 'Failed to save connection');
     }
 
+    const data = await saveRes.json();
+    if (data.athlete) {
+      localStorage.setItem('athlete_id', data.athlete.id);
+      localStorage.setItem('athlete_name', data.athlete.name || name);
+      localStorage.setItem('athlete_email', data.athlete.email || email);
+      if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
+    }
+
     setStep('done');
   };
 
@@ -208,8 +216,18 @@ export default function JoinPage({ params }: { params: { token: string } }) {
             </div>
           </div>
 
+          {/* Go to Dashboard */}
+          <div className="mt-6">
+            <a
+              href="/dashboard/program"
+              className="block w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center"
+            >
+              View Training Program
+            </a>
+          </div>
+
           {/* Footer Note */}
-          <div className="mt-6 pt-6 border-t border-slate-700">
+          <div className="mt-4 pt-4 border-t border-slate-700">
             <p className="text-xs text-slate-500 text-center">
               Make sure Garmin Connect Mobile is running with Bluetooth enabled for automatic syncing
             </p>
