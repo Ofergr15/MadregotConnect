@@ -5,8 +5,13 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Madregot After 2KM',
-  description: 'AI-powered workout uploader for Garmin Connect',
+  title: 'Madregot After 2KM Running Club',
+  description: "Israel's leading running community. Redefining running culture since 2022.",
+  openGraph: {
+    title: 'Madregot After 2KM Running Club',
+    description: "Israel's leading running community. Redefining running culture since 2022.",
+    siteName: 'Madregot After 2KM',
+  },
 };
 
 export default function RootLayout({
