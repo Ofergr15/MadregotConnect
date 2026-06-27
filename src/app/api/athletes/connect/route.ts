@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
     const updateData: Record<string, any> = {
       garmin_auth: typeof garminAuth === 'string' ? garminAuth : encrypt(garminAuth),
       status: 'active',
-      invite_token: null,
     };
 
     if (name) updateData.name = name;
