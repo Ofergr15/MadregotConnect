@@ -546,40 +546,28 @@ export default function NewPlanPage() {
       {stage === 'input' && parsing && (
         <div className="flex-1 flex items-center justify-center px-4 py-12">
           <div className="w-full max-w-sm text-center space-y-8">
-            {/* Oval track with runner */}
-            <div className="relative w-64 h-40 mx-auto">
-              {/* Track oval */}
-              <svg className="w-full h-full" viewBox="0 0 240 140">
-                {/* Track surface */}
-                <ellipse cx="120" cy="70" rx="100" ry="50" fill="none" stroke="currentColor" strokeWidth="12" className="text-slate-800" />
-                {/* Lane lines */}
-                <ellipse cx="120" cy="70" rx="100" ry="50" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-slate-600" />
-                <ellipse cx="120" cy="70" rx="88" ry="44" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-slate-600" />
-                {/* Group 1 - fastest (red) */}
-                <circle r="6" fill="#ef4444">
-                  <animateMotion dur="2.8s" repeatCount="indefinite">
-                    <mpath href="#trackPath" />
-                  </animateMotion>
-                </circle>
-                {/* Group 2 - middle (yellow) */}
-                <circle r="5" fill="#eab308">
-                  <animateMotion dur="3.2s" repeatCount="indefinite" begin="-1s">
-                    <mpath href="#trackPath" />
-                  </animateMotion>
-                </circle>
-                {/* Group 3 - slowest (blue) */}
-                <circle r="4" fill="#6366f1">
-                  <animateMotion dur="3.6s" repeatCount="indefinite" begin="-2s">
-                    <mpath href="#trackPath" />
-                  </animateMotion>
-                </circle>
-                {/* Hidden path for motion */}
-                <path id="trackPath" d="M 20,70 A 100,50 0 1,1 20,69.99 Z" fill="none" />
+            {/* Animated running figure */}
+            <div className="flex items-center justify-center">
+              <svg width="120" height="120" viewBox="0 0 100 100" className="text-primary-400">
+                <style>{`
+                  .leg-l { transform-origin: 52px 55px; animation: legSwing 0.5s ease-in-out infinite; }
+                  .leg-r { transform-origin: 48px 55px; animation: legSwing 0.5s ease-in-out infinite -0.25s; }
+                  .arm-l { transform-origin: 52px 35px; animation: armSwing 0.5s ease-in-out infinite; }
+                  .arm-r { transform-origin: 48px 35px; animation: armSwing 0.5s ease-in-out infinite -0.25s; }
+                  @keyframes legSwing { 0%,100%{transform:rotate(-25deg)} 50%{transform:rotate(25deg)} }
+                  @keyframes armSwing { 0%,100%{transform:rotate(25deg)} 50%{transform:rotate(-25deg)} }
+                `}</style>
+                {/* Head */}
+                <circle cx="50" cy="18" r="9" fill="currentColor" />
+                {/* Body */}
+                <line x1="50" y1="27" x2="50" y2="55" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                {/* Arms */}
+                <line className="arm-l" x1="50" y1="35" x2="65" y2="48" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                <line className="arm-r" x1="50" y1="35" x2="35" y2="48" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                {/* Legs */}
+                <line className="leg-l" x1="50" y1="55" x2="62" y2="82" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                <line className="leg-r" x1="50" y1="55" x2="38" y2="82" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
               </svg>
-              {/* Center label */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-black text-slate-600 tracking-tight">400m</span>
-              </div>
             </div>
 
             {/* Text */}
@@ -590,11 +578,9 @@ export default function NewPlanPage() {
               </p>
             </div>
 
-            {/* Progress dots */}
-            <div className="flex items-center justify-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
-              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse [animation-delay:200ms]" />
-              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse [animation-delay:400ms]" />
+            {/* Progress bar */}
+            <div className="w-48 mx-auto h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-indigo-500 rounded-full animate-progress-indeterminate" />
             </div>
           </div>
         </div>
