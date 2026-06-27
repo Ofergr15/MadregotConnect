@@ -575,6 +575,66 @@ describe('splitIntoGroups', () => {
     expect(grouped.group3.workouts[0].steps[0].notes).toBe('הליכה וג׳ל');
   });
 
+  it('extracts group paces from notes when structured fields are missing', () => {
+    const plan: ParsedWeeklyPlan = {
+      workouts: [
+        {
+          dayOfWeek: 2,
+          name: 'שלישי',
+          steps: [
+            {
+              order: 1,
+              type: 'interval',
+              durationType: 'time',
+              durationValue: 45,
+              targetType: 'pace',
+              targetPaceMinPerKm: 230, // 3:50
+              targetPaceMaxPerKm: 230,
+              // NO group2Pace or group3Pace fields — but notes have bracket notation
+              notes: '3:50 (4:00) ((4:10))',
+            },
+            {
+              order: 2,
+              type: 'active',
+              durationType: 'time',
+              durationValue: 120,
+              targetType: 'pace',
+              targetPaceMinPerKm: 250, // 4:10
+              targetPaceMaxPerKm: 240, // 4:00
+              notes: '4:00-4:10 (4:10-4:20) ((4:20-4:30))',
+            },
+          ],
+        },
+      ],
+    };
+
+    const grouped = splitIntoGroups(plan);
+
+    // Group 1 keeps original
+    expect(grouped.group1.workouts[0].steps[0].targetPaceMinPerKm).toBe(230);
+
+    // Group 2 extracted from notes "(4:00)" = 240
+    expect(grouped.group2.workouts[0].steps[0].targetPaceMinPerKm).toBe(240);
+    expect(grouped.group2.workouts[0].steps[0].targetPaceMaxPerKm).toBe(240);
+
+    // Group 3 extracted from notes "((4:10))" = 250
+    expect(grouped.group3.workouts[0].steps[0].targetPaceMinPerKm).toBe(250);
+    expect(grouped.group3.workouts[0].steps[0].targetPaceMaxPerKm).toBe(250);
+
+    // Range: Group 2 from "(4:10-4:20)" = min 250, max 260
+    expect(grouped.group2.workouts[0].steps[1].targetPaceMinPerKm).toBe(250);
+    expect(grouped.group2.workouts[0].steps[1].targetPaceMaxPerKm).toBe(260);
+
+    // Range: Group 3 from "((4:20-4:30))" = min 260, max 270
+    expect(grouped.group3.workouts[0].steps[1].targetPaceMinPerKm).toBe(260);
+    expect(grouped.group3.workouts[0].steps[1].targetPaceMaxPerKm).toBe(270);
+
+    // Notes rewritten per group
+    expect(grouped.group1.workouts[0].steps[0].notes).toBe('3:50');
+    expect(grouped.group2.workouts[0].steps[0].notes).toBe('4:00');
+    expect(grouped.group3.workouts[0].steps[0].notes).toBe('4:10');
+  });
+
   it('falls back to group1 pace if group2/group3 pace is null', () => {
     const plan: ParsedWeeklyPlan = {
       workouts: [
