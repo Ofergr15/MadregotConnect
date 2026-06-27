@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users, Eye, EyeOff, HelpCircle, LogIn, KeyRound } from 'lucide-react';
+import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users, Eye, EyeOff } from 'lucide-react';
 
 interface Group {
   id: string;
@@ -9,12 +9,6 @@ interface Group {
   paceOffsetSeconds: number;
   level: 'fast' | 'medium' | 'slow';
   marathonGoal?: string;
-}
-
-function getGarminSSOUrl() {
-  const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://madregot-connect.vercel.app';
-  const serviceUrl = `${appUrl}/api/garmin/sso-callback`;
-  return `https://sso.garmin.com/sso/signin?clientId=GarminConnect&locale=en&service=${encodeURIComponent(serviceUrl)}&webhost=https://connect.garmin.com&gateway=true&generateExtraServiceTicket=true&generateTwoExtraServiceTickets=true&generateNoServiceTicket=false&cssUrl=https://static.garmincdn.com/com.garmin.connect/ui/css/gauth-custom-v1.2-min.css`;
 }
 
 export default function JoinPage({ params }: { params: { token: string } }) {
@@ -25,7 +19,6 @@ export default function JoinPage({ params }: { params: { token: string } }) {
   const [garminEmail, setGarminEmail] = useState('');
   const [garminPassword, setGarminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [authMode, setAuthMode] = useState<'sso' | 'manual'>('sso');
   const [step, setStep] = useState<'info' | 'garmin' | 'connecting' | 'done'>('info');
   const [error, setError] = useState<string | null>(null);
 
@@ -42,57 +35,6 @@ export default function JoinPage({ params }: { params: { token: string } }) {
       .catch(() => {});
   }, [params.token]);
 
-  // Listen for messages from Garmin SSO popup
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data?.type === 'garmin-ticket' && event.data?.ticket) {
-        await handleTicketAuth(event.data.ticket);
-      }
-    };
-    window.addEventListener('message', handleMessage);
-
-    // Check for stored ticket (mobile flow where popup becomes new tab)
-    const storedTicket = localStorage.getItem('garmin_ticket');
-    if (storedTicket) {
-      localStorage.removeItem('garmin_ticket');
-      handleTicketAuth(storedTicket);
-    }
-
-    return () => window.removeEventListener('message', handleMessage);
-  }, [name, email, selectedGroup]);
-
-  const openGarminSSO = () => {
-    const url = getGarminSSOUrl();
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    window.open(url, 'garmin-sso', `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`);
-  };
-
-  const handleTicketAuth = async (ticket: string) => {
-    setStep('connecting');
-    setError(null);
-
-    try {
-      const authRes = await fetch('/api/garmin/ticket-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticket }),
-      });
-
-      if (!authRes.ok) {
-        const err = await authRes.json();
-        throw new Error(err.error || 'Failed to connect to Garmin');
-      }
-
-      const { auth } = await authRes.json();
-      await saveConnection(auth);
-    } catch (err: any) {
-      setError(err.message);
-      setStep('garmin');
-    }
-  };
 
   const saveConnection = async (auth: string) => {
     const saveRes = await fetch('/api/athletes/connect', {
@@ -125,6 +67,7 @@ export default function JoinPage({ params }: { params: { token: string } }) {
 
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!garminEmail) setGarminEmail(email);
     setStep('garmin');
   };
 
@@ -367,145 +310,85 @@ export default function JoinPage({ params }: { params: { token: string } }) {
           </form>
         )}
 
-        {/* Step 2: Garmin login */}
+        {/* Step 2: Garmin credentials */}
         {(step === 'garmin' || step === 'connecting') && (
-          <div className="space-y-4">
-            {step === 'connecting' && (
-              <div className="flex items-center justify-center gap-2 py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-primary-400" />
-                <span className="text-slate-300">Connecting to Garmin...</span>
+          <form onSubmit={handleGarminSubmit} className="space-y-4">
+            <div className="bg-slate-700/50 rounded-lg p-3 flex items-start gap-2">
+              <Shield className="h-4 w-4 text-primary-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-slate-400">
+                Enter your Garmin Connect credentials — the same email and password you use in the <span className="text-white font-medium">Garmin Connect</span> app on your phone.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Garmin Connect Email
+              </label>
+              <input
+                type="email"
+                value={garminEmail}
+                onChange={(e) => setGarminEmail(e.target.value)}
+                placeholder="your-garmin@email.com"
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Garmin Connect Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={garminPassword}
+                  onChange={(e) => setGarminPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pr-12 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1.5"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-1.5">
+                Tap the eye to show your password and verify it
+              </p>
+            </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+                {error}
               </div>
             )}
 
-            {step === 'garmin' && (
-              <>
-                {/* Auth mode toggle */}
-                <div className="flex gap-1 bg-slate-700/50 rounded-lg p-1">
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode('sso')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      authMode === 'sso'
-                        ? 'bg-primary-600 text-white'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <LogIn className="h-4 w-4" />
-                    Sign in to Garmin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode('manual')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      authMode === 'manual'
-                        ? 'bg-primary-600 text-white'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <KeyRound className="h-4 w-4" />
-                    Enter Credentials
-                  </button>
-                </div>
+            <button
+              type="submit"
+              disabled={step === 'connecting'}
+              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {step === 'connecting' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Connecting to Garmin...
+                </>
+              ) : (
+                'Connect Garmin Account'
+              )}
+            </button>
 
-                {/* SSO Mode - Garmin popup login */}
-                {authMode === 'sso' && (
-                  <div className="space-y-4">
-                    <div className="bg-slate-700/50 rounded-lg p-3 flex items-start gap-2">
-                      <Shield className="h-4 w-4 text-primary-400 mt-0.5 shrink-0" />
-                      <p className="text-xs text-slate-400">
-                        A Garmin login window will open. Sign in there and you&apos;ll be connected automatically. Your password goes directly to Garmin — not to us.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={openGarminSSO}
-                      className="w-full bg-[#007CC3] hover:bg-[#006AAD] text-white font-medium px-4 py-4 rounded-lg transition-colors flex items-center justify-center gap-3"
-                    >
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
-                      </svg>
-                      Sign in with Garmin Connect
-                    </button>
-
-                    <p className="text-xs text-slate-500 text-center">
-                      A popup will open with Garmin&apos;s login page. Allow popups if prompted.
-                    </p>
-                  </div>
-                )}
-
-                {/* Manual Mode - email/password form */}
-                {authMode === 'manual' && (
-                  <form onSubmit={handleGarminSubmit} className="space-y-4">
-                    <div className="bg-slate-700/50 rounded-lg p-3 flex items-start gap-2">
-                      <Shield className="h-4 w-4 text-primary-400 mt-0.5 shrink-0" />
-                      <p className="text-xs text-slate-400">
-                        Use the same email and password you use for the Garmin Connect app or connect.garmin.com
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1">
-                        Garmin Connect Email
-                      </label>
-                      <input
-                        type="email"
-                        value={garminEmail}
-                        onChange={(e) => setGarminEmail(e.target.value)}
-                        placeholder="your-garmin@email.com"
-                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1">
-                        Garmin Connect Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={garminPassword}
-                          onChange={(e) => setGarminPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pr-12 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1"
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      Connect Garmin Account
-                    </button>
-                  </form>
-                )}
-
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setStep('info')}
-                  className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
-                >
-                  Back
-                </button>
-              </>
-            )}
-          </div>
+            <button
+              type="button"
+              onClick={() => setStep('info')}
+              className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
+            >
+              Back
+            </button>
+          </form>
         )}
       </div>
     </div>
