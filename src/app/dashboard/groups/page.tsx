@@ -596,6 +596,28 @@ export default function GroupsPage() {
         </div>
       </div>
 
+      {/* Quick Setup Banner - show when groups exist but aren't the 3 defaults */}
+      {groups.length > 0 && groups.length < 3 && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-yellow-500/20 p-2 rounded-lg">
+              <Layers className="h-5 w-5 text-yellow-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-yellow-300 text-sm">Setup Madregot Groups</h3>
+              <p className="text-xs text-slate-400">Create the 3 pace groups (SUB 2:30, SUB 2:35, SUB 2:45) for your athletes to choose from</p>
+            </div>
+          </div>
+          <button
+            onClick={createDefaultGroups}
+            disabled={submitting}
+            className="bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 border border-yellow-500/30 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
+          >
+            {submitting ? 'Creating...' : 'Create SUB 2:30 / 2:35 / 2:45'}
+          </button>
+        </div>
+      )}
+
       {/* Groups Grid */}
       {groups.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -623,7 +645,7 @@ export default function GroupsPage() {
             className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-2"
           >
             <Layers className="h-4 w-4" />
-            {submitting ? 'Creating...' : 'Create Default Groups (A, B, C)'}
+            {submitting ? 'Creating...' : 'Create Default Groups (SUB 2:30, SUB 2:35, SUB 2:45)'}
           </button>
         </div>
       )}
