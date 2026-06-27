@@ -22,6 +22,8 @@ interface Athlete {
 interface Group {
   id: string;
   name: string;
+  level?: 'fast' | 'medium' | 'slow';
+  marathonGoal?: string;
 }
 
 export default function AthletesPage() {
@@ -541,20 +543,43 @@ ${inviteLink}`;
             <div className="space-y-2">
               <button
                 onClick={() => updateAthleteGroup(moveModal.athleteId, null)}
-                className="w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 text-slate-300 transition-colors"
+                className="w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 border border-slate-600 text-slate-300 transition-colors"
               >
                 No group
               </button>
-              {groups.map(g => (
-                <button
-                  key={g.id}
-                  onClick={() => updateAthleteGroup(moveModal.athleteId, g.id)}
-                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 text-white transition-colors flex items-center gap-2"
-                >
-                  <UsersIcon className="h-4 w-4 text-purple-400" />
-                  {g.name}
-                </button>
-              ))}
+              {groups.map(g => {
+                const levelStyles = {
+                  fast: 'border-green-500/40 bg-green-500/10 hover:bg-green-500/20',
+                  medium: 'border-yellow-500/40 bg-yellow-500/10 hover:bg-yellow-500/20',
+                  slow: 'border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/20',
+                };
+                const iconColors = {
+                  fast: 'text-green-400',
+                  medium: 'text-yellow-400',
+                  slow: 'text-orange-400',
+                };
+                const badgeStyles = {
+                  fast: 'bg-green-500/20 text-green-400 border-green-500/30',
+                  medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+                  slow: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+                };
+                const level = g.level || 'medium';
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => updateAthleteGroup(moveModal.athleteId, g.id)}
+                    className={`w-full text-left px-4 py-3 rounded-lg border text-white transition-colors flex items-center gap-3 ${levelStyles[level]}`}
+                  >
+                    <UsersIcon className={`h-5 w-5 ${iconColors[level]}`} />
+                    <span className="flex-1 font-medium">{g.name}</span>
+                    {g.marathonGoal && (
+                      <span className={`text-xs px-2 py-0.5 rounded border font-medium ${badgeStyles[level]}`}>
+                        {g.marathonGoal}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
