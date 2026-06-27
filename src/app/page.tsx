@@ -97,11 +97,11 @@ export default function HomePage() {
 
             {/* Right - Visual */}
             <div className="relative hidden lg:block">
-              <div className="aspect-[4/5] rounded-2xl overflow-hidden">
+              <div className="aspect-[3/4] rounded-2xl overflow-hidden">
                 <img
                   src="/images/hero-running.jpg"
                   alt="Madregot runners"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-center"
                 />
               </div>
             </div>
