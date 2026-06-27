@@ -18,6 +18,7 @@ export interface WorkoutStep {
   targetZone?: string; // "easy", "threshold", "interval", "tempo", "sprint", "marathon_pace"
   targetPaceMinPerKm?: number; // seconds per km (faster limit)
   targetPaceMaxPerKm?: number; // seconds per km (slower limit)
+  notes?: string;
   repeatCount?: number;
   repeatSteps?: WorkoutStep[];
 }
