@@ -5,7 +5,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'MadregotConnect',
+  title: 'Madregot After 2KM',
   description: 'AI-powered workout uploader for Garmin Connect',
 };
 

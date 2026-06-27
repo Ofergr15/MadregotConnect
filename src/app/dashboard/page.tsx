@@ -70,18 +70,9 @@ export default function DashboardPage() {
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary-600 to-primary-800 p-8 text-white">
         <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-4">
-            <svg viewBox="0 0 40 40" className="h-8 w-8" fill="currentColor">
-              <rect x="8" y="30" width="24" height="4"/>
-              <rect x="12" y="24" width="20" height="4"/>
-              <rect x="16" y="18" width="16" height="4"/>
-              <rect x="20" y="12" width="12" height="4"/>
-              <rect x="24" y="6" width="8" height="4"/>
-            </svg>
-            <div className="flex flex-col leading-tight">
-              <span className="text-xl font-bold uppercase tracking-tight">MADREGOT</span>
-              <span className="text-xs text-primary-100 uppercase tracking-wide">After 2KM</span>
-            </div>
+          <div className="flex items-center gap-3 mb-4">
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 object-contain invert" />
+            <span className="text-xl font-bold uppercase tracking-tight">Madregot After 2KM</span>
           </div>
           <h1 className="text-3xl font-bold mb-2">Welcome back, {coachName}!</h1>
           <p className="text-primary-100 text-lg">

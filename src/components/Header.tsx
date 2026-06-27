@@ -77,19 +77,8 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href={isAthlete ? '/dashboard/program' : '/dashboard'} className="flex items-center gap-3 shrink-0">
-            <div className="text-primary-500">
-              <svg viewBox="0 0 40 40" className="h-8 w-8" fill="currentColor">
-                <rect x="8" y="30" width="24" height="4"/>
-                <rect x="12" y="24" width="20" height="4"/>
-                <rect x="16" y="18" width="16" height="4"/>
-                <rect x="20" y="12" width="12" height="4"/>
-                <rect x="24" y="6" width="8" height="4"/>
-              </svg>
-            </div>
-            <div className="flex flex-col leading-tight hidden sm:flex">
-              <span className="text-lg font-bold tracking-tight uppercase">MADREGOT</span>
-              <span className="text-[10px] text-slate-400 uppercase tracking-wide">After 2KM</span>
-            </div>
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-9 w-9 object-contain invert" />
+            <span className="text-lg font-bold tracking-tight uppercase hidden sm:block">Madregot After 2KM</span>
           </Link>
 
           <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide">

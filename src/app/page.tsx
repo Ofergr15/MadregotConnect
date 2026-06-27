@@ -53,14 +53,8 @@ export default function HomePage() {
         {/* Nav */}
         <nav className="flex items-center justify-between px-6 sm:px-12 lg:px-20 py-6">
           <div className="flex items-center gap-3">
-            <svg viewBox="0 0 40 40" className="h-8 w-8 text-black" fill="currentColor">
-              <rect x="8" y="30" width="24" height="4"/>
-              <rect x="12" y="24" width="20" height="4"/>
-              <rect x="16" y="18" width="16" height="4"/>
-              <rect x="20" y="12" width="12" height="4"/>
-              <rect x="24" y="6" width="8" height="4"/>
-            </svg>
-            <span className="text-lg font-bold uppercase tracking-tight">MADREGOT</span>
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 object-contain" />
+            <span className="text-lg font-bold uppercase tracking-tight">Madregot After 2KM</span>
           </div>
           <button
             onClick={signIn}
@@ -269,18 +263,11 @@ export default function HomePage() {
       <footer className="py-10 px-6 sm:px-12 lg:px-20 bg-black text-white">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <svg viewBox="0 0 40 40" className="h-6 w-6 text-white" fill="currentColor">
-              <rect x="8" y="30" width="24" height="4"/>
-              <rect x="12" y="24" width="20" height="4"/>
-              <rect x="16" y="18" width="16" height="4"/>
-              <rect x="20" y="12" width="12" height="4"/>
-              <rect x="24" y="6" width="8" height="4"/>
-            </svg>
-            <span className="font-bold uppercase tracking-tight">MADREGOT</span>
-            <span className="text-gray-500 text-sm">After 2KM Running Club</span>
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain invert" />
+            <span className="font-bold uppercase tracking-tight">Madregot After 2KM</span>
           </div>
           <p className="text-gray-500 text-sm">
-            © 2026 MADREGOT. EST. 2022
+            © 2026 Madregot After 2KM Running Club. EST. 2022
           </p>
         </div>
       </footer>
