@@ -454,6 +454,7 @@ describe('splitIntoGroups', () => {
               targetPaceMaxPerKm: 255,
               group2Pace: { min: 264, max: 264 }, // Group 2: 4:24
               group3Pace: { min: 276, max: 276 }, // Group 3: 4:36
+              notes: '4:15 (4:24) ((4:36))',
             },
           ],
         },
@@ -481,7 +482,73 @@ describe('splitIntoGroups', () => {
     expect(grouped.group3.workouts[0].steps[0].group3Pace).toBeUndefined();
   });
 
-  it('preserves notes in all groups', () => {
+  it('rewrites notes to show only relevant group pace', () => {
+    const plan: ParsedWeeklyPlan = {
+      workouts: [
+        {
+          dayOfWeek: 5,
+          name: 'שישי',
+          steps: [
+            {
+              order: 1,
+              type: 'active',
+              durationType: 'distance',
+              durationValue: 6000,
+              targetType: 'pace',
+              targetPaceMinPerKm: 255,
+              targetPaceMaxPerKm: 255,
+              group2Pace: { min: 264, max: 264 },
+              group3Pace: { min: 276, max: 276 },
+              notes: '4:15 (4:24) ((4:36))',
+            },
+            {
+              order: 2,
+              type: 'interval',
+              durationType: 'distance',
+              durationValue: 200,
+              targetType: 'pace',
+              targetPaceMinPerKm: 215,
+              targetPaceMaxPerKm: 215,
+              group2Pace: { min: 225, max: 225 },
+              group3Pace: { min: 235, max: 235 },
+              notes: '3:35(3:45)((3:55))',
+            },
+            {
+              order: 3,
+              type: 'active',
+              durationType: 'distance',
+              durationValue: 6000,
+              targetType: 'pace',
+              targetPaceMinPerKm: 244,
+              targetPaceMaxPerKm: 244,
+              group2Pace: { min: 253, max: 253 },
+              group3Pace: { min: 258, max: 258 },
+              notes: '4:04 (4:13) ((4:18)) ג׳ל בקילומטר השני',
+            },
+          ],
+        },
+      ],
+    };
+
+    const grouped = splitIntoGroups(plan);
+
+    // Group 1: shows only g1 pace
+    expect(grouped.group1.workouts[0].steps[0].notes).toBe('4:15');
+    expect(grouped.group1.workouts[0].steps[1].notes).toBe('3:35');
+    expect(grouped.group1.workouts[0].steps[2].notes).toBe('4:04 ג׳ל בקילומטר השני');
+
+    // Group 2: shows only g2 pace
+    expect(grouped.group2.workouts[0].steps[0].notes).toBe('4:24');
+    expect(grouped.group2.workouts[0].steps[1].notes).toBe('3:45');
+    expect(grouped.group2.workouts[0].steps[2].notes).toBe('4:13 ג׳ל בקילומטר השני');
+
+    // Group 3: shows only g3 pace
+    expect(grouped.group3.workouts[0].steps[0].notes).toBe('4:36');
+    expect(grouped.group3.workouts[0].steps[1].notes).toBe('3:55');
+    expect(grouped.group3.workouts[0].steps[2].notes).toBe('4:18 ג׳ל בקילומטר השני');
+  });
+
+  it('preserves notes without bracket notation in all groups', () => {
     const plan: ParsedWeeklyPlan = {
       workouts: [
         {
@@ -523,7 +590,6 @@ describe('splitIntoGroups', () => {
               targetType: 'pace',
               targetPaceMinPerKm: 300,
               targetPaceMaxPerKm: 300,
-              // No group2Pace or group3Pace
             },
           ],
         },

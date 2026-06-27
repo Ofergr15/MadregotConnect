@@ -59,12 +59,14 @@ function StepLine({ step }: { step: WorkoutStep }) {
   }
 
   const target = fmtTarget(step);
+  const note = step.notes && !target ? step.notes : '';
   return (
     <div className="flex items-center gap-1.5 py-0.5 min-w-0">
       <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', stepDot[step.type] || 'bg-slate-400')} />
       <span className="text-[11px] text-slate-300 truncate flex-1 min-w-0">
         {fmtDuration(step)}
         {target && <span className="text-slate-500"> {target}</span>}
+        {note && <span className="text-slate-500"> {note}</span>}
       </span>
     </div>
   );
