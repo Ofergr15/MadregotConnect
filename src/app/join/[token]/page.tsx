@@ -11,7 +11,11 @@ interface Group {
   marathonGoal?: string;
 }
 
-const GARMIN_SSO_EMBED_URL = 'https://sso.garmin.com/sso/embed?clientId=MY_GARMIN&locale=en&id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso/embed&service=https://sso.garmin.com/sso/embed&source=https://sso.garmin.com/sso/embed&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&redirectAfterAccountCreationUrl=https://sso.garmin.com/sso/embed&createAccountShown=false&rememberMeShown=true&initialFocus=true&socialEnabled=false';
+function getGarminSSOUrl() {
+  const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://madregot-connect.vercel.app';
+  const serviceUrl = `${appUrl}/api/garmin/sso-callback`;
+  return `https://sso.garmin.com/sso/signin?clientId=GarminConnect&locale=en&service=${encodeURIComponent(serviceUrl)}&webhost=https://connect.garmin.com&gateway=true&generateExtraServiceTicket=true&generateTwoExtraServiceTickets=true&generateNoServiceTicket=false&cssUrl=https://static.garmincdn.com/com.garmin.connect/ui/css/gauth-custom-v1.2-min.css`;
+}
 
 export default function JoinPage({ params }: { params: { token: string } }) {
   const [name, setName] = useState('');
@@ -49,20 +53,13 @@ export default function JoinPage({ params }: { params: { token: string } }) {
     return () => window.removeEventListener('message', handleMessage);
   }, [name, email, selectedGroup]);
 
-  // Poll iframe for ticket in URL (Garmin redirects with ?ticket=xxx)
-  const handleIframeLoad = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
-    try {
-      const iframe = e.currentTarget;
-      const url = iframe.contentWindow?.location.href;
-      if (url) {
-        const ticketMatch = url.match(/ticket=([^&"]+)/);
-        if (ticketMatch) {
-          handleTicketAuth(ticketMatch[1]);
-        }
-      }
-    } catch {
-      // Cross-origin - can't access iframe URL, that's expected
-    }
+  const openGarminSSO = () => {
+    const url = getGarminSSOUrl();
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    window.open(url, 'garmin-sso', `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`);
   };
 
   const handleTicketAuth = async (ticket: string) => {
@@ -384,33 +381,29 @@ export default function JoinPage({ params }: { params: { token: string } }) {
                   </button>
                 </div>
 
-                {/* SSO Mode - Garmin iframe login */}
+                {/* SSO Mode - Garmin popup login */}
                 {authMode === 'sso' && (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div className="bg-slate-700/50 rounded-lg p-3 flex items-start gap-2">
                       <Shield className="h-4 w-4 text-primary-400 mt-0.5 shrink-0" />
                       <p className="text-xs text-slate-400">
-                        Sign in directly with Garmin below. This is Garmin&apos;s official login page — your credentials go directly to Garmin.
+                        A Garmin login window will open. Sign in there and you&apos;ll be connected automatically. Your password goes directly to Garmin — not to us.
                       </p>
                     </div>
 
-                    <div
-                      className="bg-white rounded-lg overflow-hidden border border-slate-600"
-                      style={{ height: '450px', WebkitOverflowScrolling: 'touch', overflowY: 'auto' }}
+                    <button
+                      type="button"
+                      onClick={openGarminSSO}
+                      className="w-full bg-[#007CC3] hover:bg-[#006AAD] text-white font-medium px-4 py-4 rounded-lg transition-colors flex items-center justify-center gap-3"
                     >
-                      <iframe
-                        src={GARMIN_SSO_EMBED_URL}
-                        className="w-full border-0"
-                        style={{ height: '100%', minHeight: '450px' }}
-                        title="Garmin Connect Login"
-                        onLoad={handleIframeLoad}
-                        allow="clipboard-write"
-                        sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation"
-                      />
-                    </div>
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+                      </svg>
+                      Sign in with Garmin Connect
+                    </button>
 
                     <p className="text-xs text-slate-500 text-center">
-                      After signing in, the connection will happen automatically
+                      A popup will open with Garmin&apos;s login page. Allow popups if prompted.
                     </p>
                   </div>
                 )}
