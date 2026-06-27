@@ -501,49 +501,33 @@ export default function NewPlanPage() {
       {/* ──── PARSING LOADING STATE ──── */}
       {stage === 'input' && parsing && (
         <div className="flex-1 flex items-center justify-center px-4 py-12">
-          <div className="w-full max-w-lg text-center space-y-8">
-            {/* Track */}
-            <div className="relative h-24 overflow-hidden">
-              {/* Track lines */}
-              <div className="absolute bottom-6 left-0 right-0 h-px bg-slate-700" />
-              <div className="absolute bottom-6 left-0 right-0">
-                <div className="flex justify-between px-4">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="w-px h-3 bg-slate-700" />
-                  ))}
-                </div>
-              </div>
-
-              {/* Runner */}
-              <div className="absolute bottom-8 animate-runner">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="text-primary-400">
-                  <circle cx="14" cy="4" r="2.5" fill="currentColor" />
-                  <path d="M7 22l3-7 3 1.5V22M17 22l-2-5-3-1 1-4 4 2 1 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M11 12l-2 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </div>
-
-              {/* Dust particles */}
-              <div className="absolute bottom-7 animate-runner-dust">
-                <div className="flex gap-1">
-                  <div className="w-1 h-1 rounded-full bg-slate-600 animate-pulse" />
-                  <div className="w-0.5 h-0.5 rounded-full bg-slate-700 animate-pulse delay-75" />
-                  <div className="w-1 h-1 rounded-full bg-slate-600 animate-pulse delay-150" />
-                </div>
+          <div className="w-full max-w-sm text-center space-y-8">
+            {/* Animated runner */}
+            <div className="relative w-48 h-48 mx-auto">
+              {/* Track circle */}
+              <svg className="w-full h-full animate-spin-slow" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="1" className="text-slate-700" />
+                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="66 198" className="text-primary-500" />
+              </svg>
+              {/* Runner emoji in center */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-5xl animate-bounce-gentle">🏃</span>
               </div>
             </div>
 
             {/* Text */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               <h2 className="text-xl font-semibold text-white">Parsing your plan...</h2>
-              <p className="text-sm text-slate-400 animate-pulse">
+              <p className="text-sm text-slate-400">
                 Reading workouts and building your week
               </p>
             </div>
 
-            {/* Progress bar */}
-            <div className="w-64 mx-auto h-1 bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-primary-500 rounded-full animate-progress-indeterminate" />
+            {/* Progress dots */}
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse [animation-delay:200ms]" />
+              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse [animation-delay:400ms]" />
             </div>
           </div>
         </div>

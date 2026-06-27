@@ -90,16 +90,22 @@
   100% { width: 0%; margin-left: 100%; }
 }
 
-.animate-runner {
-  animation: runner 2.5s ease-in-out infinite;
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.animate-runner-dust {
-  animation: runnerDust 2.5s ease-in-out infinite;
+@keyframes bounceGentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
-.animate-progress-indeterminate {
-  animation: progressIndeterminate 2s ease-in-out infinite;
+.animate-spin-slow {
+  animation: spinSlow 3s linear infinite;
+}
+
+.animate-bounce-gentle {
+  animation: bounceGentle 1s ease-in-out infinite;
 }
 
 .scrollbar-thin {
