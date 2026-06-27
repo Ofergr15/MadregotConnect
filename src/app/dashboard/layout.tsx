@@ -15,11 +15,14 @@ export default function DashboardLayout({
   const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    const email = localStorage.getItem('coach_email');
-    if (!email || !ADMIN_EMAILS.includes(email.toLowerCase())) {
-      router.replace('/login');
-    } else {
+    const coachEmail = localStorage.getItem('coach_email');
+    const athleteId = localStorage.getItem('athlete_id');
+    if (athleteId) {
       setAuthorized(true);
+    } else if (coachEmail && ADMIN_EMAILS.includes(coachEmail.toLowerCase())) {
+      setAuthorized(true);
+    } else {
+      router.replace('/login');
     }
   }, [router]);
 

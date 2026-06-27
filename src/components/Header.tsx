@@ -63,7 +63,7 @@ export function Header() {
               <span className="text-[10px] text-slate-400 uppercase tracking-wide">After 2KM</span>
             </div>
           </Link>
-          <nav className="flex items-center gap-1">
+          <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -72,7 +72,7 @@ export function Header() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0',
                     isActive
                       ? 'bg-primary-600 text-white'
                       : 'text-slate-300 hover:bg-slate-700 hover:text-white'
@@ -86,7 +86,7 @@ export function Header() {
             {isAthlete && (
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-700 transition-colors ml-2"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-700 transition-colors ml-2 shrink-0"
               >
                 <LogOut className="h-4 w-4" />
               </button>
