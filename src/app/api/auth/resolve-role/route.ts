@@ -49,20 +49,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ role: 'runner', athlete: { ...invitedAthlete, garmin_auth: undefined }, hasGarmin, needsOnboarding: !hasGarmin });
     }
 
-    // New user — find the public invite token so they can onboard
-    const { data: publicInvite } = await supabase
-      .from('athletes')
-      .select('invite_token')
-      .like('email', 'public-%@invite.madregot.app')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
+    // New user — redirect to onboard
     return NextResponse.json({
       role: 'viewer',
       email: lowerEmail,
       name,
-      joinToken: publicInvite?.invite_token || null,
+      needsOnboarding: true,
     });
   } catch (error: any) {
     return NextResponse.json(
