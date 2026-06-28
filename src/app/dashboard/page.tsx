@@ -100,9 +100,13 @@ function summarizeSteps(steps: any[]): any[] {
 
   for (const step of steps) {
     if (step.repeatCount && step.repeatSteps) {
-      // If the parent step has duration info that looks like a warmup (e.g., "15 דקות 4:30-5:30"),
-      // extract it as a separate warmup phase before the repeat block
-      if (step.notes && /דקות|דק/.test(step.notes) && /\d:\d\d/.test(step.notes) && step.durationValue && step.durationValue >= 300) {
+      // Check if repeat substeps are effort-based (no pace numbers in notes)
+      const subsAreEffortBased = step.repeatSteps.every((sub: any) =>
+        !sub.notes || !/\d:\d\d/.test(sub.notes)
+      );
+      // If parent has warmup-like duration+pace and substeps are effort-only,
+      // extract the warmup as a separate phase
+      if (subsAreEffortBased && step.notes && /דקות|דק/.test(step.notes) && /\d:\d\d/.test(step.notes) && step.durationValue && step.durationValue >= 300) {
         summary.push({
           type: 'phase',
           phase: 'warmup',
@@ -112,7 +116,6 @@ function summarizeSteps(steps: any[]): any[] {
             durationValue: step.durationValue,
             targetPaceMinPerKm: step.targetPaceMinPerKm,
             targetPaceMaxPerKm: step.targetPaceMaxPerKm,
-            notes: step.notes,
           }],
         });
       }
