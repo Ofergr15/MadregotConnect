@@ -492,7 +492,25 @@ export default function DashboardPage() {
           <>
             <div className="h-48 sm:h-60 outline-none" style={{ outline: 'none' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weekly!.dailyDistances} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
+                <BarChart
+                  data={weekly!.dailyDistances}
+                  margin={{ top: 4, right: 0, bottom: 0, left: -20 }}
+                  onMouseMove={(state: any) => {
+                    if (state && state.activeTooltipIndex != null) {
+                      setHoveredBar(state.activeTooltipIndex);
+                    }
+                  }}
+                  onMouseLeave={() => setHoveredBar(null)}
+                  onClick={(state: any) => {
+                    if (!state || !weekly || state.activeTooltipIndex == null) return;
+                    const idx = state.activeTooltipIndex;
+                    const entry = weekly.dailyDistances[idx];
+                    if (entry) {
+                      const session = weekly.keySessions.find(s => s.dayOfWeek === entry.dayOfWeek);
+                      if (session) setSelectedSession(session);
+                    }
+                  }}
+                >
                   <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} dy={8} />
                   <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={40} tickFormatter={v => `${v}`} />
                   <Tooltip
@@ -506,17 +524,7 @@ export default function DashboardPage() {
                     }}
                     cursor={false}
                   />
-                  <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44}
-                    onClick={(data: any, index: number) => {
-                      if (!data || !weekly) return;
-                      const session = weekly.keySessions.find(s => s.dayOfWeek === data.dayOfWeek);
-                      if (session) setSelectedSession(session);
-                    }}
-                    onMouseMove={(_data: any, index: number) => {
-                      if (hoveredBar !== index) setHoveredBar(index);
-                    }}
-                    onMouseLeave={() => setHoveredBar(null)}
-                  >
+                  <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44}>
                     {weekly!.dailyDistances.map((e, i) => {
                       const hasSession = weekly!.keySessions.some(s => s.dayOfWeek === e.dayOfWeek);
                       const isHovered = hoveredBar === i;
