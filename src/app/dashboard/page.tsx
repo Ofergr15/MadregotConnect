@@ -117,18 +117,36 @@ function summarizeSteps(steps: any[]): any[] {
   return summary;
 }
 
+function formatStepDuration(step: any): string {
+  if (step.durationType === 'distance' && step.durationValue) {
+    return step.durationValue >= 1000 ? `${step.durationValue / 1000} km` : `${step.durationValue}m`;
+  }
+  if (step.durationType === 'time' && step.durationValue) {
+    return formatDuration(step.durationValue);
+  }
+  return '';
+}
+
+function formatStepPace(step: any): string {
+  if (step.targetPaceMinPerKm && step.targetPaceMaxPerKm) {
+    return `${formatPace(step.targetPaceMinPerKm)}–${formatPace(step.targetPaceMaxPerKm)}`;
+  }
+  if (step.targetPaceMinPerKm) return formatPace(step.targetPaceMinPerKm);
+  return '';
+}
+
 function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () => void }) {
   const blocks = summarizeSteps(session.steps || []);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 px-5 py-4 flex items-center justify-between z-10">
+        <div className="px-5 py-4 flex items-start justify-between">
           <div>
             <p className="text-xs font-bold text-[#4338ff] uppercase tracking-wider">{session.day}</p>
             <h3 className="text-lg font-bold text-white mt-1">{session.name}</h3>
-            <div className="flex items-center gap-3 mt-2">
+            <div className="flex items-center gap-3 mt-1">
               <span className="text-sm font-bold text-white">{session.totalKm} km</span>
               {session.highlight && (
                 <code className="text-xs font-bold text-[#4338ff] bg-[#4338ff]/10 px-2 py-0.5 rounded">{session.highlight}</code>
@@ -140,59 +158,52 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
           </button>
         </div>
 
-        {/* Content */}
-        <div className="px-5 py-4 overflow-y-auto max-h-[calc(85vh-120px)] space-y-2">
+        {/* Compact Workout Structure */}
+        <div className="px-5 pb-5 overflow-y-auto max-h-[calc(80vh-100px)] space-y-2">
           {blocks.map((block, i) => {
             if (block.type === 'phase') {
               const totalDist = block.steps.reduce((sum: number, s: any) => {
                 if (s.durationType === 'distance' && s.durationValue) return sum + s.durationValue;
                 return sum;
               }, 0);
-              const pace = block.steps[0]?.targetPaceMinPerKm;
+              const pace = formatStepPace(block.steps[0]);
+              const distLabel = totalDist > 0 ? (totalDist >= 1000 ? `${totalDist / 1000} km` : `${totalDist}m`) : '';
               return (
-                <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
-                  <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm">{block.phase === 'warmup' ? '🔥' : '❄️'}</span>
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-sm font-semibold text-white">{block.phase === 'warmup' ? 'Warmup' : 'Cooldown'}</span>
-                    <span className="text-sm text-slate-400 ml-2">
-                      {totalDist > 0 ? `${totalDist >= 1000 ? (totalDist / 1000) + ' km' : totalDist + 'm'}` : 'Open'}
-                    </span>
-                  </div>
-                  {pace && <span className="text-sm text-slate-400 tabular-nums">{formatPace(pace)}/km</span>}
+                <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-slate-800/40">
+                  <div className="w-1 h-5 rounded-full bg-amber-500 flex-shrink-0" />
+                  <span className="text-sm text-white font-medium">{block.phase === 'warmup' ? 'Warmup' : 'Cooldown'}</span>
+                  {distLabel && <span className="text-sm text-slate-400">{distLabel}</span>}
+                  {pace && <span className="text-xs text-slate-500 ml-auto tabular-nums">{pace}</span>}
                 </div>
               );
             }
 
             if (block.type === 'repeat') {
+              const substeps = block.substeps || [];
+              const summary = substeps.map((sub: any) => {
+                const dur = formatStepDuration(sub);
+                const label = getStepLabel(sub);
+                const pace = formatStepPace(sub);
+                return { dur, label, pace, isRest: sub.type === 'rest' || sub.type === 'recovery', step: sub };
+              });
+
               return (
-                <div key={i} className="rounded-xl border border-[#4338ff]/20 bg-[#4338ff]/5 overflow-hidden">
-                  <div className="px-4 py-3 flex items-center gap-2 border-b border-[#4338ff]/10">
-                    <Repeat className="h-4 w-4 text-[#4338ff]" />
+                <div key={i} className="rounded-lg border border-[#4338ff]/20 bg-[#4338ff]/5 px-3 py-2.5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Repeat className="h-3.5 w-3.5 text-[#4338ff]" />
                     <span className="text-sm font-bold text-white">{block.count}x</span>
                   </div>
-                  <div className="px-4 py-2 space-y-1">
-                    {block.substeps.map((sub: any, j: number) => {
-                      const dur = sub.durationType === 'distance' && sub.durationValue
-                        ? `${sub.durationValue >= 1000 ? (sub.durationValue / 1000) + ' km' : sub.durationValue + 'm'}`
-                        : sub.durationType === 'time' && sub.durationValue
-                          ? formatDuration(sub.durationValue)
-                          : '';
-                      const label = getStepLabel(sub);
-                      const isRest = sub.type === 'rest' || sub.type === 'recovery';
-                      const pace = sub.targetPaceMinPerKm && sub.targetPaceMaxPerKm
-                        ? `${formatPace(sub.targetPaceMinPerKm)}–${formatPace(sub.targetPaceMaxPerKm)}`
-                        : sub.targetPaceMinPerKm ? formatPace(sub.targetPaceMinPerKm) : '';
-                      return (
-                        <div key={j} dir="ltr" className={cn("flex items-center gap-3 py-2.5 px-3 rounded-lg", isRest ? "bg-slate-800/30" : "bg-slate-800/50")}>
-                          <div className="w-1.5 h-6 rounded-full flex-shrink-0" style={{ background: getStepColor(sub) }} />
-                          <span className={cn("text-sm font-semibold flex-shrink-0", isRest ? "text-slate-400" : "text-white")}>{dur}</span>
-                          <span className="text-sm text-slate-400 flex-1 text-right" dir="rtl">{label}</span>
-                          {pace && <span className="text-xs text-slate-500 tabular-nums flex-shrink-0">{pace}</span>}
-                        </div>
-                      );
-                    })}
+                  <div className="space-y-1">
+                    {summary.map((s: any, j: number) => (
+                      <div key={j} dir="ltr" className="flex items-center gap-2 text-sm">
+                        <div className="w-1 h-4 rounded-full flex-shrink-0" style={{ background: getStepColor(s.step) }} />
+                        <span className={cn("font-medium flex-shrink-0", s.isRest ? "text-slate-500" : "text-white")}>
+                          {s.dur}
+                        </span>
+                        <span className="text-slate-400 truncate flex-1 text-right" dir="rtl">{s.label}</span>
+                        {s.pace && <span className="text-xs text-slate-500 tabular-nums flex-shrink-0">{s.pace}</span>}
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
@@ -200,34 +211,26 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
 
             if (block.type === 'rest') {
               const s = block.step;
-              const dur = s.durationType === 'time' && s.durationValue ? formatDuration(s.durationValue) : 'Open';
+              const dur = formatStepDuration(s) || 'Open';
               return (
-                <div key={i} className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-800/30">
-                  <div className="w-1.5 h-5 rounded-full bg-slate-600" />
-                  <span className="text-sm text-slate-400">{s.notes || 'Recovery'}</span>
-                  <span className="text-sm text-slate-500 ml-auto">{dur}</span>
+                <div key={i} className="flex items-center gap-2 py-1.5 px-3 text-sm text-slate-500">
+                  <div className="w-1 h-4 rounded-full bg-slate-600" />
+                  <span>{s.notes || 'Recovery'}</span>
+                  <span className="ml-auto">{dur}</span>
                 </div>
               );
             }
 
-            // Regular step
             const s = block.step;
-            const dur = s.durationType === 'distance' && s.durationValue
-              ? `${s.durationValue >= 1000 ? (s.durationValue / 1000) + ' km' : s.durationValue + 'm'}`
-              : s.durationType === 'time' && s.durationValue
-                ? formatDuration(s.durationValue)
-                : 'Open';
+            const dur = formatStepDuration(s) || 'Open';
             const label = getStepLabel(s);
+            const pace = formatStepPace(s);
             return (
-              <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50">
-                <div className="w-1.5 h-6 rounded-full" style={{ background: getStepColor(s) }} />
-                <div className="flex-1">
-                  <span className="text-sm font-semibold text-white">{label}</span>
-                  <span className="text-sm text-slate-400 ml-2">{dur}</span>
-                </div>
-                {s.targetPaceMinPerKm && (
-                  <span className="text-sm text-slate-400 tabular-nums">{formatPace(s.targetPaceMinPerKm)}/km</span>
-                )}
+              <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-slate-800/40 text-sm">
+                <div className="w-1 h-5 rounded-full flex-shrink-0" style={{ background: getStepColor(s) }} />
+                <span className="font-medium text-white">{label}</span>
+                <span className="text-slate-400">{dur}</span>
+                {pace && <span className="text-xs text-slate-500 ml-auto tabular-nums">{pace}</span>}
               </div>
             );
           })}
