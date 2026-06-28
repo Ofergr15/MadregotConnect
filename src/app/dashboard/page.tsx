@@ -289,7 +289,7 @@ export default function DashboardPage() {
           <div className="space-y-0.5">
             {weather.length > 0 ? weather.map((day, i) => {
               const isToday = new Date(day.date).getDay() === todayDow;
-              const heatLevel = day.tempMax >= 30 ? 'Hot' : day.tempMax >= 26 ? 'Warm' : day.tempMax >= 20 ? 'Nice' : 'Cool';
+              const heatLevel = day.tempMax >= 30 ? '🥵 Hot' : day.tempMax >= 26 ? '🌡️ Warm' : day.tempMax >= 20 ? '👌 Nice' : '❄️ Cool';
               const heatColor = day.tempMax >= 30 ? 'text-red-400' : day.tempMax >= 26 ? 'text-orange-400' : day.tempMax >= 20 ? 'text-green-400' : 'text-cyan-400';
               return (
                 <div key={i} className={cn(
@@ -313,10 +313,10 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-700/50">
             <span className="text-[9px] text-slate-500">Legend:</span>
-            <span className="text-[9px] text-cyan-400">Cool &lt;20°</span>
-            <span className="text-[9px] text-green-400">Nice 20-25°</span>
-            <span className="text-[9px] text-orange-400">Warm 26-29°</span>
-            <span className="text-[9px] text-red-400">Hot 30°+</span>
+            <span className="text-[9px] text-cyan-400">❄️ &lt;20°</span>
+            <span className="text-[9px] text-green-400">👌 20-25°</span>
+            <span className="text-[9px] text-orange-400">🌡️ 26-29°</span>
+            <span className="text-[9px] text-red-400">🥵 30°+</span>
           </div>
         </div>
       </div>
