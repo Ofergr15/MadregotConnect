@@ -73,33 +73,55 @@ export function Header() {
     : userEmail ? userEmail[0].toUpperCase() : '?';
 
   return (
-    <header className="bg-slate-800 border-b border-slate-700">
+    <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Row 1: Logo + User info */}
+        {/* Single consolidated row: Logo + Nav + User */}
         <div className="flex items-center justify-between h-14">
-          <Link href={isAthlete ? '/dashboard/program' : '/dashboard'} className="flex items-center gap-3 shrink-0">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-9 w-9 object-contain brightness-0 invert" />
-            <div className="flex flex-col leading-none hidden sm:flex">
-              <span className="text-lg font-bold tracking-tight">Madregot</span>
-              <span className="text-[11px] font-medium tracking-wide text-slate-400">After 2KM Running Club</span>
-            </div>
-          </Link>
+          <div className="flex items-center gap-6">
+            <Link href={isAthlete ? '/dashboard/program' : '/dashboard'} className="flex items-center gap-2.5 shrink-0">
+              <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain brightness-0 invert" />
+              <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
+            </Link>
+
+            {/* Desktop navigation - inline with logo */}
+            <nav className="hidden md:flex items-center gap-0.5">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors whitespace-nowrap',
+                      isActive
+                        ? 'bg-primary-600/90 text-white shadow-sm shadow-primary-600/20'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
 
           {/* Desktop user info + logout */}
-          <div className="hidden md:flex items-center gap-3 shrink-0">
+          <div className="hidden md:flex items-center gap-2.5 shrink-0">
             <div className="text-right">
               <div className="text-sm font-medium text-white leading-tight">{userName}</div>
-              <div className="text-xs text-slate-400 leading-tight truncate max-w-[200px]">{userEmail}</div>
+              <div className="text-[11px] text-slate-500 leading-tight truncate max-w-[160px]">{userEmail}</div>
             </div>
-            <div className="bg-primary-600/30 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-primary-300">
+            <div className="bg-primary-600/20 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-primary-300 ring-1 ring-primary-500/20">
               {initials}
             </div>
             <button
               onClick={handleLogout}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
               title="Sign out"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
 
@@ -112,29 +134,6 @@ export function Header() {
             {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
-
-        {/* Row 2: Navigation tabs */}
-        <nav className="hidden md:flex items-center gap-1 -mb-px pb-2 overflow-x-auto scrollbar-hide">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0',
-                  isActive
-                    ? 'bg-primary-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
 
         {/* Mobile menu */}
         <div
