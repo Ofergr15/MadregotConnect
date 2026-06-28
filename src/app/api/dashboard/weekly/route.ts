@@ -81,10 +81,17 @@ export async function GET() {
       .gte('week_start_date', startDate)
       .order('week_start_date', { ascending: true });
 
-    const currentPlan = plans?.find(p => p.week_start_date === currentWeekStart);
+    // Use current week's plan, or fall back to the most recent plan
+    let currentPlan = plans?.find(p => p.week_start_date === currentWeekStart);
+    if (!currentPlan && plans && plans.length > 0) {
+      currentPlan = plans[plans.length - 1];
+    }
     const previousWeekStart = new Date(now);
     previousWeekStart.setDate(previousWeekStart.getDate() - 7);
-    const prevPlan = plans?.find(p => p.week_start_date === getWeekStart(previousWeekStart));
+    let prevPlan = plans?.find(p => p.week_start_date === getWeekStart(previousWeekStart));
+    if (!prevPlan && plans && plans.length >= 2) {
+      prevPlan = plans[plans.length - 2];
+    }
 
     // Compute daily distances for current week
     const dailyDistances: Array<{ day: string; dayOfWeek: number; min: number; max: number; type: string }> = [];

@@ -29,9 +29,9 @@ import {
   AreaChart, Area, LineChart, Line, PieChart, Pie, Cell,
 } from 'recharts';
 
-// Valencia Marathon: December 7, 2025
-const RACE_DATE = new Date('2025-12-07T09:00:00');
-const TRAINING_BLOCK_START = new Date('2025-08-10T00:00:00');
+// Valencia Marathon: December 6, 2026
+const RACE_DATE = new Date('2026-12-06T09:00:00');
+const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
 
 interface DashboardStats {
   athleteCount: number;
