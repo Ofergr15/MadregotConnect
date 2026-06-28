@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 type UserRole = 'admin' | 'coach' | 'runner' | 'viewer';
 
 interface User {
@@ -18,7 +21,7 @@ export async function GET(request: Request) {
 
     const { data: coaches, error: coachesError } = await supabase
       .from('coaches')
-      .select('id, email, name')
+      .select('id, email, name, role')
       .order('email');
 
     if (coachesError) throw coachesError;
@@ -30,11 +33,11 @@ export async function GET(request: Request) {
 
     if (athletesError) throw athletesError;
 
-    const coachUsers: User[] = (coaches || []).map(coach => ({
+    const coachUsers: User[] = (coaches || []).map((coach: any) => ({
       id: coach.id,
       email: coach.email,
       name: coach.name,
-      role: (coach.id === COACH_ID ? 'admin' : 'coach') as UserRole,
+      role: (coach.role === 'admin' ? 'admin' : 'coach') as UserRole,
     }));
 
     const athleteUsers: User[] = (athletes || []).map(athlete => ({
@@ -102,10 +105,16 @@ export async function PUT(request: Request) {
     const userName = existingCoach?.name || existingAthlete?.name || 'Unknown';
 
     if (role === 'admin' || role === 'coach') {
-      if (!existingCoach) {
+      if (existingCoach) {
+        const { error: updateError } = await supabase
+          .from('coaches')
+          .update({ role })
+          .eq('id', existingCoach.id);
+        if (updateError) throw updateError;
+      } else {
         const { error: insertError } = await supabase
           .from('coaches')
-          .insert({ email, name: userName });
+          .insert({ email, name: userName, role });
         if (insertError) throw insertError;
       }
 

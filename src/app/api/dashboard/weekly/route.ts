@@ -3,6 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 
+export const dynamic = 'force-dynamic';
+
 function getWeekStart(date: Date): string {
   const d = new Date(date);
   const day = d.getDay();
