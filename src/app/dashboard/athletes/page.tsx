@@ -26,6 +26,17 @@ interface Group {
   marathonGoal?: string;
 }
 
+const groupColors: Record<string, { bg: string; text: string; border: string }> = {
+  'Group 1': { bg: 'bg-red-500/15', text: 'text-red-400', border: 'border-red-500/20' },
+  'Group 2': { bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/20' },
+  'Group 3': { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/20' },
+};
+
+function getGroupStyle(name: string | null) {
+  if (!name) return null;
+  return groupColors[name] || { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/20' };
+}
+
 export default function AthletesPage() {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -464,7 +475,7 @@ ${inviteLink}`;
                       <td className="px-6 py-4 text-sm text-slate-300">{athlete.email}</td>
                       <td className="px-6 py-4">
                         {athlete.groupName ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-500/20 text-purple-400 text-xs font-medium">
+                          <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium", getGroupStyle(athlete.groupName)?.bg, getGroupStyle(athlete.groupName)?.text, getGroupStyle(athlete.groupName)?.border)}>
                             {athlete.groupName}
                           </span>
                         ) : (
