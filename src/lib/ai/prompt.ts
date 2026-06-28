@@ -10,6 +10,8 @@ Return ONLY valid JSON matching this schema:
       "dayOfWeek": 0,
       "name": "Interval Session",
       "description": "Optional notes for the athlete",
+      "distanceMinKm": 12,
+      "distanceMaxKm": 14,
       "steps": [
         {
           "order": 1,
@@ -127,6 +129,8 @@ If all 3 columns have the SAME pace (e.g., easy runs, warmup at 5:00), set group
 ## Rules
 
 1. **Days**: Map Hebrew or English day references to dayOfWeek. If days aren't specified, distribute workouts logically.
+
+   **CRITICAL — distanceMinKm/distanceMaxKm**: The coach's PDF shows a km range in each day's header (e.g., "יום ראשון; 12 - 14 ק"מ"). You MUST extract these into distanceMinKm and distanceMaxKm fields. This is the coach-specified total distance for the workout. If the header says "97 – 137 ק"מ" as the weekly total, and individual days show "12 - 14", "11 - 18", etc., extract each day's range.
 
 2. **Step Types**:
    - "warmup" — easy running at start

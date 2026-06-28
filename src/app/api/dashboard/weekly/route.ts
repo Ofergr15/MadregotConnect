@@ -160,12 +160,22 @@ export async function GET() {
       for (let d = 0; d < 7; d++) {
         const workout = currentWorkouts.find(w => w.dayOfWeek === d);
         if (workout) {
-          const dist = computeWorkoutDistance(workout);
+          // Prefer coach-specified km range from PDF header
+          const hasCoachKm = (workout as any).distanceMinKm || (workout as any).distanceMaxKm;
+          let minKm: number, maxKm: number;
+          if (hasCoachKm) {
+            minKm = (workout as any).distanceMinKm || (workout as any).distanceMaxKm || 0;
+            maxKm = (workout as any).distanceMaxKm || (workout as any).distanceMinKm || 0;
+          } else {
+            const dist = computeWorkoutDistance(workout);
+            minKm = Math.round(dist.min / 1000 * 10) / 10;
+            maxKm = Math.round(dist.max / 1000 * 10) / 10;
+          }
           dailyDistances.push({
             day: dayNames[d],
             dayOfWeek: d,
-            min: Math.round(dist.min / 1000 * 10) / 10,
-            max: Math.round(dist.max / 1000 * 10) / 10,
+            min: minKm,
+            max: maxKm,
             type: getWorkoutType(workout),
           });
         } else {
@@ -181,15 +191,26 @@ export async function GET() {
     const weekTotalMin = dailyDistances.reduce((sum, d) => sum + d.min, 0);
     const weekTotalMax = dailyDistances.reduce((sum, d) => sum + d.max, 0);
 
+    function getWorkoutKm(w: ParsedWorkout): { min: number; max: number } {
+      const hasCoachKm = (w as any).distanceMinKm || (w as any).distanceMaxKm;
+      if (hasCoachKm) {
+        return {
+          min: (w as any).distanceMinKm || (w as any).distanceMaxKm || 0,
+          max: (w as any).distanceMaxKm || (w as any).distanceMinKm || 0,
+        };
+      }
+      const dist = computeWorkoutDistance(w);
+      return { min: Math.round(dist.min / 1000 * 10) / 10, max: Math.round(dist.max / 1000 * 10) / 10 };
+    }
+
     // Previous week volume
     let prevWeekTotal = 0;
     const prevWorkouts = extractWorkouts(prevPlan?.parsed_workouts);
     if (prevWorkouts.length > 0) {
       for (const w of prevWorkouts) {
-        const dist = computeWorkoutDistance(w);
-        prevWeekTotal += (dist.min + dist.max) / 2;
+        const km = getWorkoutKm(w);
+        prevWeekTotal += (km.min + km.max) / 2;
       }
-      prevWeekTotal = Math.round(prevWeekTotal / 1000 * 10) / 10;
     }
 
     // Weekly volume history
@@ -199,12 +220,12 @@ export async function GET() {
       if (workouts.length === 0) continue;
       let vol = 0;
       for (const w of workouts) {
-        const dist = computeWorkoutDistance(w);
-        vol += (dist.min + dist.max) / 2;
+        const km = getWorkoutKm(w);
+        vol += (km.min + km.max) / 2;
       }
       weeklyVolumes.push({
         week: plan.week_start_date,
-        volume: Math.round(vol / 1000 * 10) / 10,
+        volume: Math.round(vol * 10) / 10,
         weekNum: weeklyVolumes.length + 1,
       });
     }
@@ -216,13 +237,13 @@ export async function GET() {
       if (workouts.length === 0) continue;
       let maxDist = 0;
       for (const w of workouts) {
-        const dist = computeWorkoutDistance(w);
-        const avg = (dist.min + dist.max) / 2;
+        const km = getWorkoutKm(w);
+        const avg = (km.min + km.max) / 2;
         if (avg > maxDist) maxDist = avg;
       }
       longRunProgression.push({
         week: plan.week_start_date,
-        distance: Math.round(maxDist / 1000 * 10) / 10,
+        distance: Math.round(maxDist * 10) / 10,
       });
     }
 
@@ -231,8 +252,8 @@ export async function GET() {
     for (const w of currentWorkouts) {
       const wType = getWorkoutType(w);
       if (wType !== 'easy' && wType !== 'rest') {
-        const dist = computeWorkoutDistance(w);
-        const avgKm = Math.round(((dist.min + dist.max) / 2) / 1000 * 10) / 10;
+        const km = getWorkoutKm(w);
+        const avgKm = Math.round(((km.min + km.max) / 2) * 10) / 10;
         let highlight = '';
         const intervalStep = w.steps.find(s => s.repeatCount);
         if (intervalStep && intervalStep.repeatSteps?.[0]) {
@@ -263,8 +284,8 @@ export async function GET() {
     const typeDistribution: Record<string, number> = {};
     for (const w of currentWorkouts) {
       const t = getWorkoutType(w);
-      const dist = computeWorkoutDistance(w);
-      typeDistribution[t] = (typeDistribution[t] || 0) + Math.round(((dist.min + dist.max) / 2) / 1000);
+      const km = getWorkoutKm(w);
+      typeDistribution[t] = (typeDistribution[t] || 0) + Math.round((km.min + km.max) / 2);
     }
 
     // Week-over-week delta

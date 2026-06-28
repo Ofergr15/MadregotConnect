@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { COACH_ID } from '@/lib/constants';
 
 type UserRole = 'admin' | 'runner' | 'viewer';
 
@@ -106,11 +107,12 @@ export async function PUT(request: Request) {
       .eq('email', email)
       .maybeSingle();
 
-    const { data: existingAthlete } = await supabase
+    const { data: existingAthletes } = await supabase
       .from('athletes')
       .select('id, name, coach_id, group_id, invite_token')
-      .eq('email', email)
-      .maybeSingle();
+      .eq('email', email);
+
+    const existingAthlete = existingAthletes?.[0] || null;
 
     if (!existingCoach && !existingAthlete) {
       return NextResponse.json(
@@ -135,12 +137,12 @@ export async function PUT(request: Request) {
         if (insertError) throw insertError;
       }
 
-      // Remove from athletes if present
-      if (existingAthlete) {
+      // Remove ALL athlete entries for this email
+      if (existingAthletes && existingAthletes.length > 0) {
         const { error: deleteError } = await supabase
           .from('athletes')
           .delete()
-          .eq('id', existingAthlete.id);
+          .eq('email', email);
 
         if (deleteError) throw deleteError;
       }
@@ -179,7 +181,7 @@ export async function PUT(request: Request) {
             email,
             name: userName,
             status: 'active',
-            coach_id: null, // Will need to be assigned
+            coach_id: COACH_ID,
           });
 
         if (insertError) throw insertError;
@@ -219,7 +221,7 @@ export async function PUT(request: Request) {
             email,
             name: userName,
             status: 'invited',
-            coach_id: null, // Will need to be assigned
+            coach_id: COACH_ID,
           });
 
         if (insertError) throw insertError;
