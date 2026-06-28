@@ -14,6 +14,8 @@ interface Group {
 
 export default function OnboardPage() {
   const searchParams = useSearchParams();
+  const skipGroup = searchParams.get('skipGroup') === '1';
+  const skipGarmin = searchParams.get('skipGarmin') === '1';
   const [name, setName] = useState(searchParams.get('name') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [selectedGroup, setSelectedGroup] = useState('');
@@ -25,22 +27,54 @@ export default function OnboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/groups')
-      .then(res => res.json())
-      .then(data => {
-        const fetchedGroups = data.groups || [];
-        setGroups(fetchedGroups);
-        if (fetchedGroups.length === 1) {
-          setSelectedGroup(fetchedGroups[0].id);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (!skipGroup) {
+      fetch('/api/groups')
+        .then(res => res.json())
+        .then(data => {
+          const fetchedGroups = data.groups || [];
+          setGroups(fetchedGroups);
+          if (fetchedGroups.length === 1) {
+            setSelectedGroup(fetchedGroups[0].id);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [skipGroup]);
 
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!garminEmail) setGarminEmail(email);
-    setStep('garmin');
+    if (skipGarmin) {
+      handleSaveGroupOnly();
+    } else {
+      setStep('garmin');
+    }
+  };
+
+  const handleSaveGroupOnly = async () => {
+    setStep('connecting');
+    try {
+      const saveRes = await fetch('/api/athletes/update-group', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, groupId: selectedGroup }),
+      });
+      if (!saveRes.ok) {
+        const err = await saveRes.json();
+        throw new Error(err.error || 'Failed to save');
+      }
+      const data = await saveRes.json();
+      if (data.athlete) {
+        localStorage.setItem('athlete_id', data.athlete.id);
+        localStorage.setItem('athlete_name', data.athlete.name || name);
+        localStorage.setItem('athlete_email', data.athlete.email || email);
+        if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
+      }
+      setStep('done');
+    } catch (err: any) {
+      setError(err.message);
+      setStep('info');
+    }
   };
 
   const handleGarminSubmit = async (e: React.FormEvent) => {
