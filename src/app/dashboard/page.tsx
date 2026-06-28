@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Calendar, Users, ArrowRight, TrendingUp, TrendingDown,
-  Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind,
+  Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat, Timer, Route,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
@@ -30,7 +30,7 @@ interface WeeklyData {
   prevWeekTotal: number;
   weeklyVolumes: Array<{ week: string; volume: number; weekNum: number }>;
   longRunProgression: Array<{ week: string; distance: number }>;
-  keySessions: Array<{ day: string; dayOfWeek: number; name: string; type: string; totalKm: number; highlight: string }>;
+  keySessions: Array<{ day: string; dayOfWeek: number; name: string; type: string; totalKm: number; highlight: string; steps: any[] }>;
   typeDistribution: Record<string, number>;
   trainingDays: number;
   currentWeekStart: string;
@@ -65,6 +65,116 @@ function heatLevel(temp: number): { emoji: string; label: string; color: string 
   return { emoji: '❄️', label: 'Cool', color: 'text-cyan-400' };
 }
 
+function formatPace(secPerKm: number): string {
+  const min = Math.floor(secPerKm / 60);
+  const sec = Math.round(secPerKm % 60);
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds >= 60) {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return sec > 0 ? `${min}:${String(sec).padStart(2, '0')} min` : `${min} min`;
+  }
+  return `${seconds}s`;
+}
+
+function StepRow({ step, depth = 0 }: { step: any; depth?: number }) {
+  const stepTypeIcons: Record<string, string> = {
+    warmup: '🔥', cooldown: '❄️', interval: '⚡', active: '🏃', rest: '💤', recovery: '💤',
+  };
+
+  const stepTypeLabels: Record<string, string> = {
+    warmup: 'Warmup', cooldown: 'Cooldown', interval: 'Interval',
+    active: 'Active', rest: 'Rest', recovery: 'Recovery',
+  };
+
+  if (step.repeatCount && step.repeatSteps) {
+    return (
+      <div className={cn("border-l-2 border-[#4338ff]/30 pl-3 sm:pl-4 my-2", depth > 0 && "ml-3")}>
+        <div className="flex items-center gap-2 mb-2">
+          <Repeat className="h-4 w-4 text-[#4338ff]" />
+          <span className="text-sm font-bold text-white">{step.repeatCount}x</span>
+          {step.notes && <span className="text-xs text-slate-400">{step.notes}</span>}
+        </div>
+        {step.repeatSteps.map((sub: any, i: number) => (
+          <StepRow key={i} step={sub} depth={depth + 1} />
+        ))}
+      </div>
+    );
+  }
+
+  const duration = step.durationType === 'distance' && step.durationValue
+    ? `${step.durationValue >= 1000 ? (step.durationValue / 1000) + ' km' : step.durationValue + 'm'}`
+    : step.durationType === 'time' && step.durationValue
+      ? formatDuration(step.durationValue)
+      : 'Open';
+
+  const pace = step.targetPaceMinPerKm && step.targetPaceMaxPerKm
+    ? `${formatPace(step.targetPaceMinPerKm)}–${formatPace(step.targetPaceMaxPerKm)}/km`
+    : step.targetPaceMinPerKm
+      ? `${formatPace(step.targetPaceMinPerKm)}/km`
+      : step.targetZone || '';
+
+  return (
+    <div className={cn("flex items-center gap-3 py-2 px-3 rounded-lg", depth > 0 ? "bg-slate-800/30" : "bg-slate-800/50", "mb-1")}>
+      <span className="text-base">{stepTypeIcons[step.type] || '🏃'}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-white">{stepTypeLabels[step.type] || step.type}</span>
+          <span className="text-sm text-slate-300">{duration}</span>
+        </div>
+        {pace && <p className="text-xs text-slate-400 mt-0.5">{pace}</p>}
+      </div>
+      {step.notes && <span className="text-xs text-slate-500 truncate max-w-[120px]">{step.notes}</span>}
+    </div>
+  );
+}
+
+function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="sticky top-0 bg-slate-900 border-b border-slate-800 px-5 py-4 flex items-center justify-between z-10">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase">{session.day}</p>
+            <h3 className="text-lg font-bold text-white mt-0.5">{session.name}</h3>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 overflow-y-auto max-h-[calc(85vh-80px)]">
+          <div className="flex items-center gap-4 mb-5">
+            <div className="flex items-center gap-2">
+              <Route className="h-4 w-4 text-slate-400" />
+              <span className="text-sm font-semibold text-white">{session.totalKm} km</span>
+            </div>
+            {session.highlight && (
+              <code className="text-sm font-bold text-[#4338ff] bg-[#4338ff]/10 px-2.5 py-0.5 rounded-md">{session.highlight}</code>
+            )}
+            <div className="px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: `${typeColors[session.type]}20`, color: typeColors[session.type] }}>
+              {typeLabels[session.type] || session.type}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            {session.steps?.map((step: any, i: number) => (
+              <StepRow key={i} step={step} />
+            ))}
+          </div>
+
+          {(!session.steps || session.steps.length === 0) && (
+            <p className="text-sm text-slate-500 text-center py-8">No step details available</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
@@ -72,6 +182,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState({ d: 0, h: 0, m: 0, s: 0 });
   const [week, setWeek] = useState(0);
+  const [selectedSession, setSelectedSession] = useState<any>(null);
 
   useEffect(() => {
     const tick = () => {
@@ -352,7 +463,7 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {weekly.keySessions.map((s, i) => (
-              <div key={i} className="relative p-5 rounded-2xl bg-slate-800/50 border border-slate-700/30 hover:border-slate-600/50 transition-all">
+              <div key={i} onClick={() => setSelectedSession(s)} className="relative p-5 rounded-2xl bg-slate-800/50 border border-slate-700/30 hover:border-[#4338ff]/40 hover:bg-slate-800/70 transition-all cursor-pointer group">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-bold text-slate-300 uppercase">{s.day}</span>
                   <div className="w-3 h-3 rounded-full" style={{ background: typeColors[s.type] || '#6366f1' }} />
@@ -364,10 +475,15 @@ export default function DashboardPage() {
                     <code className="text-sm font-bold text-[#4338ff] bg-[#4338ff]/10 px-2.5 py-0.5 rounded-md">{s.highlight}</code>
                   )}
                 </div>
+                <p className="text-xs text-slate-500 mt-2 group-hover:text-slate-400 transition-colors">Tap to view full workout</p>
               </div>
             ))}
           </div>
         </section>
+      )}
+
+      {selectedSession && (
+        <WorkoutDetailModal session={selectedSession} onClose={() => setSelectedSession(null)} />
       )}
 
       {/* ═══ WEATHER FORECAST ═══ */}

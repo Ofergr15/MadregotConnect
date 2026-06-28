@@ -254,7 +254,7 @@ export async function GET() {
     }
 
     // Key sessions this week (deduplicated by day)
-    const keySessions: Array<{ day: string; dayOfWeek: number; name: string; type: string; totalKm: number; highlight: string }> = [];
+    const keySessions: Array<{ day: string; dayOfWeek: number; name: string; type: string; totalKm: number; highlight: string; steps: any[] }> = [];
     const seenDays = new Set<number>();
     for (const w of currentWorkouts) {
       if (seenDays.has(w.dayOfWeek)) continue;
@@ -264,10 +264,8 @@ export async function GET() {
         const km = getWorkoutKm(w);
         const avgKm = Math.round(((km.min + km.max) / 2) * 10) / 10;
 
-        // Use description as display name if available
         const displayName = (w as any).description || w.name;
 
-        // Build meaningful highlight
         let highlight = '';
         if (wType === 'long_run') {
           highlight = `${km.min}–${km.max}km`;
@@ -296,6 +294,7 @@ export async function GET() {
           type: wType,
           totalKm: avgKm,
           highlight,
+          steps: w.steps,
         });
       }
     }
