@@ -185,17 +185,14 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
         <div className="px-5 pb-5 overflow-y-auto max-h-[calc(80vh-100px)] space-y-2">
           {blocks.map((block, i) => {
             if (block.type === 'phase') {
-              const totalDist = block.steps.reduce((sum: number, s: any) => {
-                if (s.durationType === 'distance' && s.durationValue) return sum + s.durationValue;
-                return sum;
-              }, 0);
-              const pace = formatStepPace(block.steps[0]);
-              const distLabel = totalDist > 0 ? (totalDist >= 1000 ? `${totalDist / 1000} km` : `${totalDist}m`) : '';
+              const step0 = block.steps[0];
+              const durLabel = formatStepDuration(step0);
+              const pace = formatStepPace(step0);
               return (
                 <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-slate-800/40">
                   <div className="w-1 h-5 rounded-full bg-amber-500 flex-shrink-0" />
                   <span className="text-sm text-white font-medium">{block.phase === 'warmup' ? 'Warmup' : 'Cooldown'}</span>
-                  {distLabel && <span className="text-sm text-slate-400">{distLabel}</span>}
+                  {durLabel && <span className="text-sm text-slate-400">{durLabel}</span>}
                   {pace && <span className="text-xs text-slate-500 ml-auto tabular-nums">{pace}</span>}
                 </div>
               );
