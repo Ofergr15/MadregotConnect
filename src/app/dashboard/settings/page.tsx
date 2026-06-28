@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Shield, Loader2, CheckCircle2, ChevronDown } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface User {
@@ -77,12 +77,72 @@ function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (r
   );
 }
 
+interface ConfirmDialogProps {
+  user: User;
+  newRole: Role;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmDialog({ user, newRole, onConfirm, onCancel }: ConfirmDialogProps) {
+  const oldConfig = roleConfig[user.role];
+  const newConfig = roleConfig[newRole];
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <AlertTriangle className="w-5 h-5 text-amber-400" />
+          <h3 className="text-lg font-semibold text-white">Change Role</h3>
+          <button onClick={onCancel} className="ml-auto text-slate-400 hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <p className="text-slate-300 text-sm mb-4">
+          Change <span className="font-medium text-white">{user.name}</span> from{' '}
+          <span className={cn('font-medium', oldConfig.text)}>{oldConfig.label}</span>{' '}
+          to{' '}
+          <span className={cn('font-medium', newConfig.text)}>{newConfig.label}</span>?
+        </p>
+
+        {(newRole === 'admin' || newRole === 'coach') && user.role !== 'admin' && user.role !== 'coach' && (
+          <p className="text-amber-400/80 text-xs mb-4">
+            This will remove the user from the athletes list and add them as a coach.
+          </p>
+        )}
+        {(newRole === 'runner' || newRole === 'viewer') && (user.role === 'admin' || user.role === 'coach') && (
+          <p className="text-amber-400/80 text-xs mb-4">
+            This will remove the user from the coaches list and add them as an athlete.
+          </p>
+        )}
+
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-sm text-white bg-[#4338ff] hover:bg-[#3730d4] rounded-lg transition-colors font-medium"
+          >
+            Confirm Change
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingUsers, setUpdatingUsers] = useState<Set<string>>(new Set());
   const [savedUsers, setSavedUsers] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [pendingChange, setPendingChange] = useState<{ user: User; newRole: Role } | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -103,30 +163,41 @@ export default function SettingsPage() {
     }
   };
 
-  const updateUserRole = async (userId: string, email: string, role: Role) => {
-    setUpdatingUsers(prev => new Set(prev).add(userId));
-    setSavedUsers(prev => { const s = new Set(prev); s.delete(userId); return s; });
+  const handleRoleSelect = (user: User, newRole: Role) => {
+    if (newRole === user.role) return;
+    setPendingChange({ user, newRole });
+  };
+
+  const confirmRoleChange = async () => {
+    if (!pendingChange) return;
+    const { user, newRole } = pendingChange;
+    setPendingChange(null);
+
+    setUpdatingUsers(prev => new Set(prev).add(user.id));
+    setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
 
     try {
       const response = await fetch('/api/admin/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, role }),
+        body: JSON.stringify({ email: user.email, role: newRole }),
       });
 
-      if (!response.ok) throw new Error('Failed to update user role');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update user role');
+      }
 
-      // Refetch to get accurate state after role change
       await fetchUsers();
-      setSavedUsers(prev => new Set(prev).add(userId));
+      setSavedUsers(prev => new Set(prev).add(user.id));
       setTimeout(() => {
-        setSavedUsers(prev => { const s = new Set(prev); s.delete(userId); return s; });
+        setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
       }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user');
       fetchUsers();
     } finally {
-      setUpdatingUsers(prev => { const s = new Set(prev); s.delete(userId); return s; });
+      setUpdatingUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
     }
   };
 
@@ -140,7 +211,15 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Header */}
+      {pendingChange && (
+        <ConfirmDialog
+          user={pendingChange.user}
+          newRole={pendingChange.newRole}
+          onConfirm={confirmRoleChange}
+          onCancel={() => setPendingChange(null)}
+        />
+      )}
+
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Settings className="w-7 h-7 text-slate-400" />
@@ -155,7 +234,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Users Table */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-700">
           <div className="flex items-center gap-2">
@@ -174,7 +252,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2">
                 <RoleDropdown
                   value={user.role}
-                  onChange={(role) => updateUserRole(user.id, user.email, role)}
+                  onChange={(role) => handleRoleSelect(user, role)}
                   disabled={updatingUsers.has(user.id)}
                 />
                 {updatingUsers.has(user.id) && (

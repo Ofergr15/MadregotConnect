@@ -324,7 +324,7 @@ export default function DashboardPage() {
                 <p className={cn("text-sm font-bold tabular-nums mt-0.5", d.max > 0 ? "text-white" : "text-slate-700")}>
                   {d.max > 0 ? `${d.max}` : '—'}
                 </p>
-                <p className="text-[9px] text-slate-600 mt-0.5">{d.max > 0 ? typeLabels[d.type]?.slice(0, 4) || d.type : 'Rest'}</p>
+                <p className="text-[9px] text-slate-600 mt-0.5 truncate">{d.max > 0 ? typeLabels[d.type] || d.type : 'Rest'}</p>
               </div>
             ))}
           </div>

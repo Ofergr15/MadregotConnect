@@ -12,25 +12,17 @@ interface User {
   groupId?: string | null;
 }
 
-/**
- * GET - List all users with their roles
- *
- * Returns a combined list of coaches (admin role) and athletes (runner/viewer roles).
- * Athletes with status='active' are runners, status='invited' are viewers.
- */
 export async function GET(request: Request) {
   try {
     const supabase = createServerClient();
 
-    // Fetch all coaches (admins)
     const { data: coaches, error: coachesError } = await supabase
       .from('coaches')
-      .select('id, email, name')
+      .select('id, email, name, role')
       .order('email');
 
     if (coachesError) throw coachesError;
 
-    // Fetch all athletes (runners and viewers)
     const { data: athletes, error: athletesError } = await supabase
       .from('athletes')
       .select('id, email, name, status, group_id')
@@ -38,15 +30,13 @@ export async function GET(request: Request) {
 
     if (athletesError) throw athletesError;
 
-    // Transform coaches to user format (first coach = admin, others = coach)
-    const coachUsers: User[] = (coaches || []).map((coach, i) => ({
+    const coachUsers: User[] = (coaches || []).map(coach => ({
       id: coach.id,
       email: coach.email,
       name: coach.name,
-      role: (coach.id === COACH_ID ? 'admin' : 'coach') as UserRole,
+      role: (coach.role === 'admin' ? 'admin' : 'coach') as UserRole,
     }));
 
-    // Transform athletes to user format
     const athleteUsers: User[] = (athletes || []).map(athlete => ({
       id: athlete.id,
       email: athlete.email,
@@ -55,7 +45,6 @@ export async function GET(request: Request) {
       groupId: athlete.group_id,
     }));
 
-    // Combine and sort by email
     const users = [...coachUsers, ...athleteUsers].sort((a, b) =>
       a.email.localeCompare(b.email)
     );
@@ -70,16 +59,6 @@ export async function GET(request: Request) {
   }
 }
 
-/**
- * PUT - Update a user's role
- *
- * Body: { email, role } where role is 'admin' | 'runner' | 'viewer'
- *
- * Logic:
- * - Changing to 'admin': add to coaches table (if not exists), remove from athletes
- * - Changing to 'runner': update athletes status to 'active'
- * - Changing to 'viewer': update athletes status to 'invited' (or create if not exists)
- */
 export async function PUT(request: Request) {
   try {
     const supabase = createServerClient();
@@ -95,12 +74,11 @@ export async function PUT(request: Request) {
 
     if (!['admin', 'coach', 'runner', 'viewer'].includes(role)) {
       return NextResponse.json(
-        { error: 'Invalid role. Must be admin, runner, or viewer' },
+        { error: 'Invalid role. Must be admin, coach, runner, or viewer' },
         { status: 400 }
       );
     }
 
-    // Find existing user in both tables
     const { data: existingCoach } = await supabase
       .from('coaches')
       .select('id, name')
@@ -123,58 +101,54 @@ export async function PUT(request: Request) {
 
     const userName = existingCoach?.name || existingAthlete?.name || 'Unknown';
 
-    // Handle role change to 'admin' or 'coach'
     if (role === 'admin' || role === 'coach') {
-      // Add to coaches if not already there
       if (!existingCoach) {
         const { error: insertError } = await supabase
           .from('coaches')
           .insert({
             email,
             name: userName,
+            role,
           });
-
         if (insertError) throw insertError;
+      } else {
+        const { error: updateError } = await supabase
+          .from('coaches')
+          .update({ role })
+          .eq('id', existingCoach.id);
+        if (updateError) throw updateError;
       }
 
-      // Remove ALL athlete entries for this email
       if (existingAthletes && existingAthletes.length > 0) {
         const { error: deleteError } = await supabase
           .from('athletes')
           .delete()
           .eq('email', email);
-
         if (deleteError) throw deleteError;
       }
 
       return NextResponse.json({
         success: true,
-        user: { email, role: 'admin' },
+        user: { email, role },
       });
     }
 
-    // Handle role change to 'runner'
     if (role === 'runner') {
-      // Remove from coaches if present
       if (existingCoach) {
         const { error: deleteError } = await supabase
           .from('coaches')
           .delete()
           .eq('id', existingCoach.id);
-
         if (deleteError) throw deleteError;
       }
 
-      // Update athlete status to 'active' or create new athlete
       if (existingAthlete) {
         const { error: updateError } = await supabase
           .from('athletes')
           .update({ status: 'active' })
           .eq('id', existingAthlete.id);
-
         if (updateError) throw updateError;
       } else {
-        // Create new athlete with active status
         const { error: insertError } = await supabase
           .from('athletes')
           .insert({
@@ -183,7 +157,6 @@ export async function PUT(request: Request) {
             status: 'active',
             coach_id: COACH_ID,
           });
-
         if (insertError) throw insertError;
       }
 
@@ -193,28 +166,22 @@ export async function PUT(request: Request) {
       });
     }
 
-    // Handle role change to 'viewer'
     if (role === 'viewer') {
-      // Remove from coaches if present
       if (existingCoach) {
         const { error: deleteError } = await supabase
           .from('coaches')
           .delete()
           .eq('id', existingCoach.id);
-
         if (deleteError) throw deleteError;
       }
 
-      // Update athlete status to 'invited' or create new athlete
       if (existingAthlete) {
         const { error: updateError } = await supabase
           .from('athletes')
           .update({ status: 'invited' })
           .eq('id', existingAthlete.id);
-
         if (updateError) throw updateError;
       } else {
-        // Create new athlete with invited status
         const { error: insertError } = await supabase
           .from('athletes')
           .insert({
@@ -223,7 +190,6 @@ export async function PUT(request: Request) {
             status: 'invited',
             coach_id: COACH_ID,
           });
-
         if (insertError) throw insertError;
       }
 
