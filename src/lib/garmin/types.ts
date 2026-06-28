@@ -38,3 +38,20 @@ export interface PaceProfile {
   sprint: { min: number; max: number };
   marathon_pace: { min: number; max: number };
 }
+
+export interface GarminActivity {
+  activityId: number;
+  activityName: string;
+  activityType: string;
+  startTimeLocal: string;
+  distance: number;
+  duration: number;
+  averageSpeed: number;
+  maxSpeed: number;
+  averageHR: number | null;
+  maxHR: number | null;
+  calories: number;
+  elevationGain: number | null;
+  averageRunningCadence: number | null;
+  steps: number | null;
+}
