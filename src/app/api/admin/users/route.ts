@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 
-type UserRole = 'admin' | 'runner' | 'viewer';
+type UserRole = 'admin' | 'coach' | 'runner' | 'viewer';
 
 interface User {
   id: string;
@@ -38,12 +38,12 @@ export async function GET(request: Request) {
 
     if (athletesError) throw athletesError;
 
-    // Transform coaches to user format
-    const coachUsers: User[] = (coaches || []).map(coach => ({
+    // Transform coaches to user format (first coach = admin, others = coach)
+    const coachUsers: User[] = (coaches || []).map((coach, i) => ({
       id: coach.id,
       email: coach.email,
       name: coach.name,
-      role: 'admin' as UserRole,
+      role: (coach.id === COACH_ID ? 'admin' : 'coach') as UserRole,
     }));
 
     // Transform athletes to user format
@@ -93,7 +93,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    if (!['admin', 'runner', 'viewer'].includes(role)) {
+    if (!['admin', 'coach', 'runner', 'viewer'].includes(role)) {
       return NextResponse.json(
         { error: 'Invalid role. Must be admin, runner, or viewer' },
         { status: 400 }
@@ -123,8 +123,8 @@ export async function PUT(request: Request) {
 
     const userName = existingCoach?.name || existingAthlete?.name || 'Unknown';
 
-    // Handle role change to 'admin'
-    if (role === 'admin') {
+    // Handle role change to 'admin' or 'coach'
+    if (role === 'admin' || role === 'coach') {
       // Add to coaches if not already there
       if (!existingCoach) {
         const { error: insertError } = await supabase

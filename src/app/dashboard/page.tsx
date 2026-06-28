@@ -289,7 +289,8 @@ export default function DashboardPage() {
                   labelStyle={{ fontWeight: 700, color: '#fff', marginBottom: 4 }}
                   formatter={(v: any, name: any, props: any) => {
                     const entry = props?.payload;
-                    return [`${v} km · ${typeLabels[entry?.type] || entry?.type || ''}`];
+                    const range = entry?.min && entry.min !== entry.max ? `${entry.min}–${entry.max}` : `${v}`;
+                    return [`${range} km · ${typeLabels[entry?.type] || entry?.type || ''}`];
                   }}
                   cursor={false}
                 />

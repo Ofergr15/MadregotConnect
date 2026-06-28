@@ -99,18 +99,21 @@ function computeWorkoutDistance(workout: ParsedWorkout): { min: number; max: num
 
 function getWorkoutType(workout: ParsedWorkout): string {
   const name = workout.name.toLowerCase();
-  if (/interval|אינטרוול/.test(name)) return 'intervals';
-  if (/long|ארוכה/.test(name)) return 'long_run';
-  if (/tempo|טמפו/.test(name)) return 'tempo';
-  if (/easy|שחרור|recovery/.test(name)) return 'easy';
-  if (/fartlek|פרטלק/.test(name)) return 'fartlek';
-  if (/progressive|מתגברת/.test(name)) return 'progressive';
+  const desc = ((workout as any).description || '').toLowerCase();
+  const text = `${name} ${desc}`;
 
-  const hasIntervals = workout.steps.some(s => s.repeatCount || s.type === 'interval');
-  if (hasIntervals) return 'intervals';
+  if (/fartlek|פרטלק/.test(text)) return 'fartlek';
+  if (/long run|ארוכה/.test(text)) return 'long_run';
+  if (/interval|אינטרוול|pyramid/.test(text)) return 'intervals';
+  if (/tempo|טמפו/.test(text)) return 'tempo';
+  if (/easy|שחרור|recovery/.test(text)) return 'easy';
+  if (/progressive|מתגברת/.test(text)) return 'progressive';
 
   // Only 1 step with open duration = easy run
   if (workout.steps.length === 1 && workout.steps[0].durationType === 'open') return 'easy';
+
+  const hasIntervals = workout.steps.some(s => s.repeatCount || s.type === 'interval');
+  if (hasIntervals) return 'intervals';
 
   return 'easy';
 }
@@ -158,6 +161,7 @@ export async function GET() {
 
     if (currentWorkouts.length > 0) {
       for (let d = 0; d < 7; d++) {
+        // Use first workout for each day (skip group variants)
         const workout = currentWorkouts.find(w => w.dayOfWeek === d);
         if (workout) {
           // Prefer coach-specified km range from PDF header
@@ -247,32 +251,46 @@ export async function GET() {
       });
     }
 
-    // Key sessions this week
+    // Key sessions this week (deduplicated by day)
     const keySessions: Array<{ day: string; dayOfWeek: number; name: string; type: string; totalKm: number; highlight: string }> = [];
+    const seenDays = new Set<number>();
     for (const w of currentWorkouts) {
+      if (seenDays.has(w.dayOfWeek)) continue;
       const wType = getWorkoutType(w);
       if (wType !== 'easy' && wType !== 'rest') {
+        seenDays.add(w.dayOfWeek);
         const km = getWorkoutKm(w);
         const avgKm = Math.round(((km.min + km.max) / 2) * 10) / 10;
+
+        // Use description as display name if available
+        const displayName = (w as any).description || w.name;
+
+        // Build meaningful highlight
         let highlight = '';
-        const intervalStep = w.steps.find(s => s.repeatCount);
-        if (intervalStep && intervalStep.repeatSteps?.[0]) {
-          const rep = intervalStep.repeatSteps[0];
-          const repDist = rep.durationType === 'distance' ? `${rep.durationValue}m` :
-            rep.durationType === 'time' ? `${Math.round((rep.durationValue || 0) / 60)}min` : '';
-          highlight = `${intervalStep.repeatCount}x${repDist}`;
+        if (wType === 'long_run') {
+          highlight = `${km.min}–${km.max}km`;
+        } else if (wType === 'fartlek') {
+          const mainRepeat = w.steps.find(s => s.repeatCount && s.repeatCount > 2);
+          if (mainRepeat && mainRepeat.repeatSteps?.[0]) {
+            const rep = mainRepeat.repeatSteps[0];
+            const dur = rep.durationType === 'distance' ? `${rep.durationValue}m` :
+              rep.durationType === 'time' && rep.durationValue ? `${Math.round(rep.durationValue / 60)}min` : '';
+            if (dur) highlight = `${mainRepeat.repeatCount}x${dur}`;
+          }
         } else {
-          const activeStep = w.steps.find(s => s.type === 'active' && s.durationValue);
-          if (activeStep) {
-            const km = activeStep.durationType === 'distance' ? `${(activeStep.durationValue || 0) / 1000}km` :
-              activeStep.durationType === 'time' ? `${Math.round((activeStep.durationValue || 0) / 60)}min` : '';
-            highlight = km;
+          const intervalStep = w.steps.find(s => s.repeatCount && s.repeatSteps?.[0]?.durationValue);
+          if (intervalStep && intervalStep.repeatSteps?.[0]) {
+            const rep = intervalStep.repeatSteps[0];
+            const dur = rep.durationType === 'distance' ? `${rep.durationValue}m` :
+              rep.durationType === 'time' && rep.durationValue ? `${Math.round(rep.durationValue / 60)}min` : '';
+            if (dur) highlight = `${intervalStep.repeatCount}x${dur}`;
           }
         }
+
         keySessions.push({
           day: dayNames[w.dayOfWeek],
           dayOfWeek: w.dayOfWeek,
-          name: w.name,
+          name: displayName,
           type: wType,
           totalKm: avgKm,
           highlight,
