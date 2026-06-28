@@ -197,7 +197,7 @@ export default function DashboardPage() {
         {/* Bar chart */}
         <div className="lg:col-span-3 bg-slate-800 rounded-lg p-4 border border-slate-700">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[13px] font-semibold">This Week's Plan</h3>
+            <h3 className="text-[13px] font-semibold">This Week&apos;s Plan</h3>
             <span className="text-[10px] text-slate-500">km</span>
           </div>
           {hasData ? (
