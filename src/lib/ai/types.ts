@@ -6,6 +6,8 @@ export interface ParsedWorkout {
   dayOfWeek: number; // 0=Sunday, 6=Saturday
   name: string;
   description?: string;
+  distanceMinKm?: number;
+  distanceMaxKm?: number;
   steps: WorkoutStep[];
 }
 
