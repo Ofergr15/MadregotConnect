@@ -69,16 +69,11 @@ export async function GET() {
     const now = new Date();
     const currentWeekStart = getWeekStart(now);
 
-    // Get current week and last 12 weeks of plans
-    const twelveWeeksAgo = new Date(now);
-    twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
-    const startDate = twelveWeeksAgo.toISOString().split('T')[0];
-
+    // Get all plans (no date filter - show most recent regardless)
     const { data: plans } = await supabase
       .from('weekly_plans')
       .select('id, week_start_date, parsed_workouts, status, created_at')
       .eq('coach_id', COACH_ID)
-      .gte('week_start_date', startDate)
       .order('week_start_date', { ascending: true });
 
     // Use current week's plan, or fall back to the most recent plan
