@@ -4,7 +4,9 @@ import { COACH_ID } from '@/lib/constants';
 
 const DEMO_COACH_ID = COACH_ID;
 
-// GET - List all groups for the coach with athlete counts
+export const dynamic = 'force-dynamic';
+
+// GET - List all groups for the coach with athlete details
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -19,32 +21,29 @@ export async function GET(request: Request) {
         name,
         pace_profile,
         created_at,
-        athletes:athletes(count)
+        athletes:athletes(id, name, email, status)
       `)
       .eq('coach_id', coachId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
 
     if (error) throw error;
 
-    // Transform data to include athlete count and extract pace offset
     const transformedGroups = groups?.map(group => {
-      // Handle both old pace_profile format and new offset format
       const paceProfile = group.pace_profile as any;
       const paceOffsetSeconds = typeof paceProfile === 'object' && paceProfile !== null
         ? (paceProfile.offsetSeconds ?? 0)
         : 0;
 
-      // Determine level based on offset (for backwards compatibility)
       let level: 'fast' | 'medium' | 'slow' = 'medium';
       if (paceOffsetSeconds <= 0) level = 'fast';
       else if (paceOffsetSeconds <= 15) level = 'medium';
       else level = 'slow';
 
-      // Override with explicit level if stored
       if (paceProfile?.level) level = paceProfile.level;
 
-      // Extract marathon goal
       const marathonGoal = paceProfile?.marathonGoal || '';
+
+      const athletes = Array.isArray(group.athletes) ? group.athletes : [];
 
       return {
         id: group.id,
@@ -52,8 +51,9 @@ export async function GET(request: Request) {
         paceOffsetSeconds,
         level,
         marathonGoal,
-        athleteCount: group.athletes?.[0]?.count || 0,
-        athlete_count: group.athletes?.[0]?.count || 0, // Also include snake_case for compatibility
+        athleteCount: athletes.length,
+        athlete_count: athletes.length,
+        athletes,
         createdAt: group.created_at,
       };
     });
