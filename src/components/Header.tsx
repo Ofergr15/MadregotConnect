@@ -45,7 +45,6 @@ export function Header() {
       setUserEmail(coachEmail);
     }
 
-    // Try to get name from Supabase session
     const supabase = getSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -76,41 +75,19 @@ export function Header() {
   return (
     <header className="bg-slate-800 border-b border-slate-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        {/* Row 1: Logo + User info */}
+        <div className="flex items-center justify-between h-14">
           <Link href={isAthlete ? '/dashboard/program' : '/dashboard'} className="flex items-center gap-3 shrink-0">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 object-contain brightness-0 invert" />
+            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-9 w-9 object-contain brightness-0 invert" />
             <div className="flex flex-col leading-none hidden sm:flex">
               <span className="text-lg font-bold tracking-tight">Madregot</span>
-              <span className="text-xs font-medium tracking-wide text-slate-400">After 2KM Running Club</span>
+              <span className="text-[11px] font-medium tracking-wide text-slate-400">After 2KM Running Club</span>
             </div>
           </Link>
 
-          {/* Desktop navigation */}
-          <nav className="hidden md:flex items-center gap-1 overflow-x-auto scrollbar-hide">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0',
-                    isActive
-                      ? 'bg-primary-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden lg:inline">{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
           {/* Desktop user info + logout */}
-          <div className="hidden md:flex items-center gap-3 shrink-0 ml-4">
-            <div className="hidden lg:block text-right">
+          <div className="hidden md:flex items-center gap-3 shrink-0">
+            <div className="text-right">
               <div className="text-sm font-medium text-white leading-tight">{userName}</div>
               <div className="text-xs text-slate-400 leading-tight truncate max-w-[200px]">{userEmail}</div>
             </div>
@@ -135,6 +112,29 @@ export function Header() {
             {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
+
+        {/* Row 2: Navigation tabs */}
+        <nav className="hidden md:flex items-center gap-1 -mb-px pb-2 overflow-x-auto scrollbar-hide">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0',
+                  isActive
+                    ? 'bg-primary-600 text-white'
+                    : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
         {/* Mobile menu */}
         <div
