@@ -70,7 +70,28 @@ CREATE TABLE workout_deliveries (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Athlete activities table (synced from Garmin)
+CREATE TABLE athlete_activities (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  athlete_id UUID NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+  garmin_activity_id BIGINT NOT NULL,
+  activity_name TEXT NOT NULL,
+  activity_type TEXT NOT NULL DEFAULT 'running',
+  start_time TIMESTAMPTZ NOT NULL,
+  distance NUMERIC NOT NULL DEFAULT 0,
+  duration NUMERIC NOT NULL DEFAULT 0,
+  average_pace NUMERIC,
+  average_hr NUMERIC,
+  max_hr NUMERIC,
+  calories NUMERIC,
+  elevation_gain NUMERIC,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(athlete_id, garmin_activity_id)
+);
+
 -- Indexes
+CREATE INDEX idx_athlete_activities_athlete ON athlete_activities(athlete_id);
+CREATE INDEX idx_athlete_activities_start ON athlete_activities(start_time DESC);
 CREATE INDEX idx_athletes_invite_token ON athletes(invite_token) WHERE invite_token IS NOT NULL;
 CREATE INDEX idx_athletes_coach_id ON athletes(coach_id);
 CREATE INDEX idx_groups_coach_id ON groups(coach_id);
@@ -103,6 +124,14 @@ CREATE POLICY "Coaches can manage own plans"
 
 CREATE POLICY "Coaches can manage own deliveries"
   ON workout_deliveries FOR ALL
+  USING (
+    athlete_id IN (SELECT id FROM athletes WHERE coach_id = auth.uid())
+  );
+
+ALTER TABLE athlete_activities ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Coaches can manage own athlete activities"
+  ON athlete_activities FOR ALL
   USING (
     athlete_id IN (SELECT id FROM athletes WHERE coach_id = auth.uid())
   );

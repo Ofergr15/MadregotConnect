@@ -1,5 +1,5 @@
 import { GarminConnect } from 'garmin-connect';
-import { GarminAuth, GarminWorkout } from './types';
+import { GarminAuth, GarminWorkout, GarminActivity } from './types';
 import { decrypt } from '../encryption';
 
 export class GarminClient {
@@ -73,6 +73,27 @@ export class GarminClient {
   async deleteWorkout(workoutId: string): Promise<void> {
     await this.restoreSession();
     await this.gc.deleteWorkout({ workoutId });
+  }
+
+  async getActivities(start = 0, limit = 20): Promise<GarminActivity[]> {
+    await this.restoreSession();
+    const raw = await this.gc.getActivities(start, limit) as any[];
+    return raw.map(a => ({
+      activityId: a.activityId,
+      activityName: a.activityName || '',
+      activityType: a.activityType?.typeKey || 'unknown',
+      startTimeLocal: a.startTimeLocal || '',
+      distance: a.distance || 0,
+      duration: a.duration || 0,
+      averageSpeed: a.averageSpeed || 0,
+      maxSpeed: a.maxSpeed || 0,
+      averageHR: a.averageHR || null,
+      maxHR: a.maxHR || null,
+      calories: a.calories || 0,
+      elevationGain: a.elevationGain || null,
+      averageRunningCadence: a.averageRunningCadence || null,
+      steps: a.steps || null,
+    }));
   }
 
   async testConnection(): Promise<boolean> {

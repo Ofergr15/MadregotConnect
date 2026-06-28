@@ -141,6 +141,26 @@ export interface WorkoutDelivery {
 }
 
 /**
+ * Represents a completed activity fetched from Garmin Connect.
+ */
+export interface AthleteActivity {
+  id: string; // uuid
+  athlete_id: string; // FK to athletes
+  garmin_activity_id: number;
+  activity_name: string;
+  activity_type: string;
+  start_time: string; // timestamp
+  distance: number; // meters
+  duration: number; // seconds
+  average_pace: number | null; // sec/km
+  average_hr: number | null;
+  max_hr: number | null;
+  calories: number | null;
+  elevation_gain: number | null;
+  created_at: string; // timestamp
+}
+
+/**
  * Database schema definition for use with Supabase client.
  */
 export interface Database {
@@ -193,6 +213,19 @@ export interface Database {
           error_message?: string | null;
         };
         Update: Partial<Omit<WorkoutDelivery, 'id' | 'created_at'>>;
+      };
+      athlete_activities: {
+        Row: AthleteActivity;
+        Insert: Omit<AthleteActivity, 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+          average_pace?: number | null;
+          average_hr?: number | null;
+          max_hr?: number | null;
+          calories?: number | null;
+          elevation_gain?: number | null;
+        };
+        Update: Partial<Omit<AthleteActivity, 'id' | 'created_at'>>;
       };
     };
     Views: Record<string, never>;
