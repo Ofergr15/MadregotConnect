@@ -10,28 +10,23 @@ import {
   TrendingUp,
   TrendingDown,
   Target,
-  UserPlus,
-  LayoutGrid,
   Activity,
-  CheckCircle2,
-  Clock,
   Sun,
   Cloud,
   CloudRain,
   Wind,
   Zap,
-  Timer,
-  AlertTriangle,
   MapPin,
   Flame,
+  AlertTriangle,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  AreaChart, Area, LineChart, Line, PieChart, Pie, Cell,
+  AreaChart, Area, LineChart, Line, Cell,
 } from 'recharts';
 
-// Valencia Marathon: December 6, 2026
 const RACE_DATE = new Date('2026-12-06T09:00:00');
 const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
 
@@ -65,6 +60,7 @@ interface WeatherDay {
   tempMax: number;
   precipitation: number;
   windSpeed: number;
+  humidity: number;
   code: number;
 }
 
@@ -78,18 +74,6 @@ const workoutTypeColors: Record<string, string> = {
   rest: '#475569',
 };
 
-const workoutTypeLabels: Record<string, string> = {
-  intervals: 'Intervals',
-  long_run: 'Long Run',
-  tempo: 'Tempo',
-  fartlek: 'Fartlek',
-  progressive: 'Progressive',
-  easy: 'Easy',
-  rest: 'Rest',
-};
-
-const pieColors = ['#ef4444', '#8b5cf6', '#f97316', '#22c55e', '#ec4899', '#14b8a6'];
-
 function getWeatherIcon(code: number, className = "h-4 w-4") {
   if (code === 0 || code === 1) return <Sun className={cn(className, "text-yellow-400")} />;
   if (code <= 3) return <Cloud className={cn(className, "text-slate-400")} />;
@@ -102,31 +86,29 @@ export default function DashboardPage() {
   const [weeklyData, setWeeklyData] = useState<WeeklyData | null>(null);
   const [weather, setWeather] = useState<WeatherDay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0 });
+  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [trainingWeek, setTrainingWeek] = useState(0);
-  const [totalTrainingWeeks] = useState(17);
+  const [showMore, setShowMore] = useState(false);
+  const totalTrainingWeeks = 17;
 
   useEffect(() => {
     function updateCountdown() {
       const now = new Date();
       const diff = RACE_DATE.getTime() - now.getTime();
-      if (diff <= 0) {
-        setCountdown({ days: 0, hours: 0, minutes: 0 });
-        return;
-      }
+      if (diff <= 0) { setCountdown({ days: 0, hours: 0, minutes: 0, seconds: 0 }); return; }
       setCountdown({
         days: Math.floor(diff / (1000 * 60 * 60 * 24)),
         hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
         minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+        seconds: Math.floor((diff % (1000 * 60)) / 1000),
       });
-
       const weeksSinceStart = Math.floor((now.getTime() - TRAINING_BLOCK_START.getTime()) / (7 * 24 * 60 * 60 * 1000));
       setTrainingWeek(Math.max(0, Math.min(weeksSinceStart + 1, totalTrainingWeeks)));
     }
     updateCountdown();
-    const interval = setInterval(updateCountdown, 60000);
+    const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [totalTrainingWeeks]);
+  }, []);
 
   useEffect(() => {
     async function fetchAll() {
@@ -135,39 +117,36 @@ export default function DashboardPage() {
           fetch('/api/dashboard/stats'),
           fetch('/api/dashboard/weekly'),
         ]);
-        const [statsData, weeklyDataRes] = await Promise.all([
-          statsRes.json(),
-          weeklyRes.json(),
-        ]);
+        const [statsData, weeklyDataRes] = await Promise.all([statsRes.json(), weeklyRes.json()]);
         setStats(statsData);
         setWeeklyData(weeklyDataRes);
 
         try {
           const weatherRes = await fetch(
-            'https://api.open-meteo.com/v1/forecast?latitude=32.08&longitude=34.78&hourly=temperature_2m,precipitation,windspeed_10m,weathercode&timezone=Asia/Jerusalem&forecast_days=7'
+            'https://api.open-meteo.com/v1/forecast?latitude=32.08&longitude=34.78&hourly=temperature_2m,relativehumidity_2m,precipitation,windspeed_10m,weathercode&timezone=Asia/Jerusalem&forecast_days=7'
           );
           const weatherData = await weatherRes.json();
           if (weatherData.hourly) {
             const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const dayMap: Record<string, { temps: number[]; precip: number[]; wind: number[]; codes: number[] }> = {};
-
+            const dayMap: Record<string, { temps: number[]; humidity: number[]; precip: number[]; wind: number[]; codes: number[] }> = {};
             weatherData.hourly.time.forEach((time: string, i: number) => {
               const hour = new Date(time).getHours();
               if (hour >= 5 && hour <= 8) {
                 const dateKey = time.split('T')[0];
-                if (!dayMap[dateKey]) dayMap[dateKey] = { temps: [], precip: [], wind: [], codes: [] };
+                if (!dayMap[dateKey]) dayMap[dateKey] = { temps: [], humidity: [], precip: [], wind: [], codes: [] };
                 dayMap[dateKey].temps.push(weatherData.hourly.temperature_2m[i]);
+                dayMap[dateKey].humidity.push(weatherData.hourly.relativehumidity_2m?.[i] ?? 0);
                 dayMap[dateKey].precip.push(weatherData.hourly.precipitation[i]);
                 dayMap[dateKey].wind.push(weatherData.hourly.windspeed_10m[i]);
                 dayMap[dateKey].codes.push(weatherData.hourly.weathercode[i]);
               }
             });
-
             const days: WeatherDay[] = Object.entries(dayMap).map(([date, data]) => ({
               date,
               day: dayNames[new Date(date).getDay()],
               tempMin: Math.round(Math.min(...data.temps)),
               tempMax: Math.round(Math.max(...data.temps)),
+              humidity: Math.round(data.humidity.reduce((a, b) => a + b, 0) / data.humidity.length),
               precipitation: Math.round(data.precip.reduce((a, b) => a + b, 0) * 10) / 10,
               windSpeed: Math.round(Math.max(...data.wind)),
               code: data.codes.sort((a, b) => b - a)[0],
@@ -186,8 +165,8 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      <div className="flex items-center justify-center min-h-[300px]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500"></div>
       </div>
     );
   }
@@ -196,165 +175,103 @@ export default function DashboardPage() {
     Math.abs(weeklyData.weekDelta) <= 10 ? 'text-green-400' :
     Math.abs(weeklyData.weekDelta) <= 15 ? 'text-yellow-400' : 'text-red-400';
 
-  const pieData = weeklyData?.typeDistribution
-    ? Object.entries(weeklyData.typeDistribution).map(([name, value]) => ({ name, value }))
-    : [];
-
   const todayDow = new Date().getDay();
 
   return (
-    <div className="space-y-5 pb-8">
-      {/* Row 1: Marathon Countdown Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-orange-950/40 p-6 md:p-8 border border-slate-700/50">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="flex-1">
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="bg-orange-500/20 p-2 rounded-lg">
-                <MapPin className="h-5 w-5 text-orange-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Valencia Marathon 2026</h2>
-                <p className="text-xs text-slate-400">December 6, 2026</p>
-              </div>
-            </div>
-            <div className="flex items-baseline gap-4 md:gap-8 mt-4">
-              <div className="text-center">
-                <span className="text-4xl md:text-5xl font-black text-white tabular-nums">{countdown.days}</span>
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider mt-1">Days</p>
-              </div>
-              <span className="text-2xl text-slate-600 font-light">:</span>
-              <div className="text-center">
-                <span className="text-3xl md:text-4xl font-bold text-slate-200 tabular-nums">{countdown.hours}</span>
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider mt-1">Hours</p>
-              </div>
-              <span className="text-2xl text-slate-600 font-light">:</span>
-              <div className="text-center">
-                <span className="text-3xl md:text-4xl font-bold text-slate-200 tabular-nums">{countdown.minutes}</span>
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider mt-1">Min</p>
-              </div>
-            </div>
+    <div className="space-y-4 pb-6">
+      {/* Row 1: Compact countdown + inline stats */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+        {/* Countdown */}
+        <div className="md:col-span-5 relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-orange-950/20 p-4 border border-slate-700/50">
+          <div className="flex items-center gap-2 mb-2">
+            <MapPin className="h-4 w-4 text-orange-400" />
+            <span className="text-xs font-semibold text-orange-400">Valencia 2026</span>
+            <span className="text-[10px] text-slate-500 ml-auto">Dec 6</span>
           </div>
-
-          {/* Training Block Progress */}
-          <div className="md:text-right">
-            <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-1">Training Block</p>
-            <p className="text-3xl font-bold text-white">
-              {trainingWeek > 0 ? `Week ${trainingWeek}` : 'Pre-season'}
-              {trainingWeek > 0 && <span className="text-base text-slate-500 ml-1">/ {totalTrainingWeeks}</span>}
-            </p>
-            <div className="w-48 h-2.5 bg-slate-700/80 rounded-full mt-3 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-orange-600 to-orange-400 rounded-full transition-all duration-1000"
-                style={{ width: `${Math.max(2, (trainingWeek / totalTrainingWeeks) * 100)}%` }}
-              />
+          <div className="flex items-baseline gap-3">
+            <span className="text-4xl font-black text-white tabular-nums">{countdown.days}</span>
+            <span className="text-xs text-slate-500">days</span>
+            <span className="text-xl font-bold text-slate-300 tabular-nums">{countdown.hours}h</span>
+            <span className="text-xl font-bold text-slate-400 tabular-nums">{countdown.minutes}m</span>
+            <span className="text-xl font-bold text-slate-500 tabular-nums animate-pulse">{countdown.seconds.toString().padStart(2, '0')}s</span>
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-orange-600 to-orange-400 rounded-full" style={{ width: `${Math.max(2, (trainingWeek / totalTrainingWeeks) * 100)}%` }} />
             </div>
-            <p className="text-[10px] text-slate-500 mt-1.5">
-              {totalTrainingWeeks - trainingWeek} weeks remaining
-            </p>
+            <span className="text-[10px] text-slate-400 shrink-0">
+              {trainingWeek > 0 ? `Wk ${trainingWeek}/${totalTrainingWeeks}` : 'Pre-season'}
+            </span>
           </div>
         </div>
-        <div className="absolute -top-20 -right-20 w-60 h-60 bg-orange-500/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-primary-500/5 rounded-full blur-3xl" />
-      </div>
 
-      {/* Row 2: Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-slate-800/80 backdrop-blur rounded-xl p-4 border border-slate-700/50 hover:border-primary-500/50 transition-all">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="bg-primary-500/15 p-1.5 rounded-md">
-              <Flame className="h-4 w-4 text-primary-400" />
-            </div>
-            <span className="text-[11px] text-slate-400 uppercase tracking-wide">Volume</span>
+        {/* Volume card */}
+        <div className="md:col-span-3 rounded-xl bg-slate-800/80 p-4 border border-slate-700/50">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Flame className="h-3.5 w-3.5 text-primary-400" />
+            <span className="text-[10px] text-slate-400 uppercase tracking-wide">Week Volume</span>
           </div>
           <p className="text-2xl font-bold text-white">
-            {weeklyData ? `${Math.round(weeklyData.weekTotalMin)}-${Math.round(weeklyData.weekTotalMax)}` : '—'}
+            {weeklyData && weeklyData.weekTotalMax > 0 ? `${Math.round(weeklyData.weekTotalMin)}-${Math.round(weeklyData.weekTotalMax)}` : '—'}
+            <span className="text-xs text-slate-500 ml-1">km</span>
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">km this week</p>
           {weeklyData?.weekDelta !== undefined && weeklyData.weekDelta !== 0 && (
-            <div className="flex items-center gap-1 mt-2">
-              {weeklyData.weekDelta > 0 ? (
-                <TrendingUp className={cn('h-3 w-3', deltaColor)} />
-              ) : (
-                <TrendingDown className={cn('h-3 w-3', deltaColor)} />
-              )}
-              <span className={cn('text-[11px] font-medium', deltaColor)}>
-                {weeklyData.weekDelta > 0 ? '+' : ''}{weeklyData.weekDelta}%
-              </span>
+            <div className="flex items-center gap-1 mt-1.5">
+              {weeklyData.weekDelta > 0 ? <TrendingUp className={cn('h-3 w-3', deltaColor)} /> : <TrendingDown className={cn('h-3 w-3', deltaColor)} />}
+              <span className={cn('text-[11px] font-medium', deltaColor)}>{weeklyData.weekDelta > 0 ? '+' : ''}{weeklyData.weekDelta}%</span>
               {Math.abs(weeklyData.weekDelta) > 15 && <AlertTriangle className="h-3 w-3 text-red-400" />}
             </div>
           )}
         </div>
 
-        <div className="bg-slate-800/80 backdrop-blur rounded-xl p-4 border border-slate-700/50 hover:border-green-500/50 transition-all">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="bg-green-500/15 p-1.5 rounded-md">
-              <Users className="h-4 w-4 text-green-400" />
-            </div>
-            <span className="text-[11px] text-slate-400 uppercase tracking-wide">Athletes</span>
+        {/* Quick stats */}
+        <div className="md:col-span-4 grid grid-cols-3 gap-2">
+          <div className="rounded-xl bg-slate-800/80 p-3 border border-slate-700/50 text-center">
+            <Users className="h-4 w-4 text-green-400 mx-auto mb-1" />
+            <p className="text-lg font-bold">{stats?.athleteCount || 0}</p>
+            <p className="text-[9px] text-slate-500">Athletes</p>
           </div>
-          <p className="text-2xl font-bold text-white">{stats?.athleteCount || 0}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{stats?.totalAthletes || 0} total</p>
-        </div>
-
-        <div className="bg-slate-800/80 backdrop-blur rounded-xl p-4 border border-slate-700/50 hover:border-purple-500/50 transition-all">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="bg-purple-500/15 p-1.5 rounded-md">
-              <Layers className="h-4 w-4 text-purple-400" />
-            </div>
-            <span className="text-[11px] text-slate-400 uppercase tracking-wide">Groups</span>
+          <div className="rounded-xl bg-slate-800/80 p-3 border border-slate-700/50 text-center">
+            <Layers className="h-4 w-4 text-purple-400 mx-auto mb-1" />
+            <p className="text-lg font-bold">{stats?.groupCount || 0}</p>
+            <p className="text-[9px] text-slate-500">Groups</p>
           </div>
-          <p className="text-2xl font-bold text-white">{stats?.groupCount || 0}</p>
-          <p className="text-xs text-slate-500 mt-0.5">pace profiles</p>
-        </div>
-
-        <div className="bg-slate-800/80 backdrop-blur rounded-xl p-4 border border-slate-700/50 hover:border-orange-500/50 transition-all">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="bg-orange-500/15 p-1.5 rounded-md">
-              <Target className="h-4 w-4 text-orange-400" />
-            </div>
-            <span className="text-[11px] text-slate-400 uppercase tracking-wide">Delivery</span>
+          <div className="rounded-xl bg-slate-800/80 p-3 border border-slate-700/50 text-center">
+            <Target className="h-4 w-4 text-orange-400 mx-auto mb-1" />
+            <p className="text-lg font-bold">{stats?.deliverySuccessRate || 0}%</p>
+            <p className="text-[9px] text-slate-500">Push</p>
           </div>
-          <p className="text-2xl font-bold text-white">{stats?.deliverySuccessRate || 0}%</p>
-          <p className="text-xs text-slate-500 mt-0.5">success rate</p>
         </div>
       </div>
 
-      {/* Row 3: Daily Distance Chart + Weather */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Daily Distance Bar Chart */}
-        <div className="lg:col-span-3 rounded-2xl bg-slate-800/80 backdrop-blur p-5 border border-slate-700/50">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-sm font-semibold text-white">Weekly Training Plan</h3>
-            <span className="text-[10px] text-slate-500 bg-slate-700/50 px-2 py-0.5 rounded">km / day</span>
+      {/* Row 2: Bar Chart + Weather (side by side) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+        {/* Daily km chart */}
+        <div className="lg:col-span-7 rounded-xl bg-slate-800/80 p-4 border border-slate-700/50">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-white">Daily Plan</h3>
+            <span className="text-[10px] text-slate-500">km / day</span>
           </div>
-          <p className="text-xs text-slate-400 mb-4">Planned distances for each training day</p>
-          <div className="h-52">
+          <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyData?.dailyDistances || []} margin={{ top: 10, right: 0, bottom: 0, left: -15 }}>
-                <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: '#64748b' }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={40}
-                  tickFormatter={(v) => `${v}`}
-                />
+              <BarChart data={weeklyData?.dailyDistances || []} margin={{ top: 5, right: 0, bottom: 0, left: -20 }}>
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={35} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px', fontSize: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
-                  labelStyle={{ color: '#f1f5f9', fontWeight: 600, marginBottom: 4 }}
-                  formatter={(value: any, name: any) => [`${value} km`, name === 'max' ? 'Upper estimate' : 'Lower estimate']}
-                  cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
+                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '11px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
+                  labelStyle={{ color: '#f1f5f9', fontWeight: 600 }}
+                  formatter={(value: any, name: any) => [`${value} km`, name === 'max' ? 'Max' : 'Min']}
+                  cursor={{ fill: 'rgba(59, 130, 246, 0.04)' }}
                 />
-                <Bar dataKey="max" fill="url(#barGradient)" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="max" radius={[5, 5, 0, 0]} maxBarSize={36}>
+                  {(weeklyData?.dailyDistances || []).map((entry, index) => (
+                    <Cell key={index} fill={workoutTypeColors[entry.type] || '#3b82f6'} fillOpacity={0.8} />
+                  ))}
+                </Bar>
                 <defs>
                   <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.5} />
                   </linearGradient>
                 </defs>
               </BarChart>
@@ -362,296 +279,167 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Weather Forecast */}
-        <div className="lg:col-span-2 rounded-2xl bg-slate-800/80 backdrop-blur p-5 border border-slate-700/50">
-          <div className="flex items-center gap-2 mb-4">
+        {/* Weather */}
+        <div className="lg:col-span-5 rounded-xl bg-slate-800/80 p-4 border border-slate-700/50">
+          <div className="flex items-center gap-2 mb-3">
             <Sun className="h-4 w-4 text-yellow-400" />
             <h3 className="text-sm font-semibold text-white">Training Weather</h3>
-            <span className="text-[10px] text-slate-500 ml-auto">5-8am TLV</span>
+            <span className="text-[10px] text-slate-500 ml-auto">05:00-08:00 TLV</span>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-0.5">
             {weather.length > 0 ? weather.map((day, i) => {
               const isToday = new Date(day.date).getDay() === todayDow;
+              const heatLevel = day.tempMax >= 30 ? 'Hot' : day.tempMax >= 26 ? 'Warm' : day.tempMax >= 20 ? 'Nice' : 'Cool';
+              const heatColor = day.tempMax >= 30 ? 'text-red-400' : day.tempMax >= 26 ? 'text-orange-400' : day.tempMax >= 20 ? 'text-green-400' : 'text-cyan-400';
               return (
                 <div key={i} className={cn(
-                  "flex items-center justify-between py-2 px-2.5 rounded-lg transition-colors",
-                  isToday ? "bg-slate-700/60 ring-1 ring-primary-500/30" : "hover:bg-slate-700/30"
+                  "flex items-center gap-2 py-2 px-2.5 rounded-lg transition-colors",
+                  isToday ? "bg-primary-500/10 ring-1 ring-primary-500/20" : "hover:bg-slate-700/20"
                 )}>
-                  <div className="flex items-center gap-2.5">
-                    {getWeatherIcon(day.code)}
-                    <span className={cn("text-xs w-8", isToday ? "text-white font-semibold" : "text-slate-400")}>
-                      {isToday ? 'Today' : day.day}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {day.precipitation > 0 && (
-                      <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
-                        {day.precipitation}mm
-                      </span>
-                    )}
-                    {day.windSpeed > 25 && (
-                      <Wind className="h-3 w-3 text-cyan-400" />
-                    )}
-                    <span className="text-xs text-white font-medium tabular-nums w-14 text-right">
-                      {day.tempMin}° - {day.tempMax}°
-                    </span>
-                  </div>
+                  {getWeatherIcon(day.code, "h-4 w-4 shrink-0")}
+                  <span className={cn("text-[12px] w-10 shrink-0", isToday ? "text-white font-semibold" : "text-slate-400")}>
+                    {isToday ? 'Today' : day.day}
+                  </span>
+                  <span className={cn("text-[11px] font-medium w-12 shrink-0 tabular-nums", heatColor)}>
+                    {day.tempMin}-{day.tempMax}°
+                  </span>
+                  <span className="text-[10px] text-slate-500 w-10 shrink-0">{day.humidity}%</span>
+                  <span className={cn("text-[10px] font-medium ml-auto shrink-0", heatColor)}>{heatLevel}</span>
+                  {day.precipitation > 0 && <span className="text-[9px] text-blue-400 bg-blue-500/10 px-1 rounded shrink-0">{day.precipitation}mm</span>}
+                  {day.windSpeed > 20 && <Wind className="h-3 w-3 text-cyan-400 shrink-0" />}
                 </div>
               );
-            }) : (
-              <p className="text-xs text-slate-500 text-center py-8">Loading forecast...</p>
-            )}
+            }) : <p className="text-xs text-slate-500 text-center py-6">Loading...</p>}
+          </div>
+          <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-700/50">
+            <span className="text-[9px] text-slate-500">Legend:</span>
+            <span className="text-[9px] text-cyan-400">Cool &lt;20°</span>
+            <span className="text-[9px] text-green-400">Nice 20-25°</span>
+            <span className="text-[9px] text-orange-400">Warm 26-29°</span>
+            <span className="text-[9px] text-red-400">Hot 30°+</span>
           </div>
         </div>
       </div>
 
-      {/* Row 4: Key Sessions + Type Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      {/* Row 3: Key Sessions + Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         {/* Key Sessions */}
-        <div className="lg:col-span-3 rounded-2xl bg-slate-800/80 backdrop-blur p-5 border border-slate-700/50">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="bg-yellow-500/15 p-1.5 rounded-md">
-              <Zap className="h-4 w-4 text-yellow-400" />
-            </div>
-            <h3 className="text-sm font-semibold text-white">Key Sessions This Week</h3>
+        <div className="lg:col-span-8 rounded-xl bg-slate-800/80 p-4 border border-slate-700/50">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="h-4 w-4 text-yellow-400" />
+            <h3 className="text-sm font-semibold text-white">Key Sessions</h3>
           </div>
           {weeklyData?.keySessions && weeklyData.keySessions.length > 0 ? (
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {weeklyData.keySessions.map((session, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-slate-700/30 border border-slate-700/50 hover:border-slate-600/50 transition-colors">
-                  <div
-                    className="w-1 h-10 rounded-full shrink-0"
-                    style={{ backgroundColor: workoutTypeColors[session.type] || '#64748b' }}
-                  />
+                <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-slate-700/25 border border-slate-700/40">
+                  <div className="w-1 h-8 rounded-full shrink-0" style={{ backgroundColor: workoutTypeColors[session.type] || '#64748b' }} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-white">{session.name}</p>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-600/50 text-slate-400">
-                        {session.day}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{session.totalKm} km total</p>
+                    <p className="text-[13px] font-medium text-white">{session.name}</p>
+                    <p className="text-[11px] text-slate-500">{session.day} &middot; {session.totalKm} km</p>
                   </div>
                   {session.highlight && (
-                    <span className="text-xs font-mono bg-slate-900/60 text-primary-300 px-2.5 py-1 rounded-lg border border-slate-700/50">
-                      {session.highlight}
-                    </span>
+                    <span className="text-[11px] font-mono text-primary-300 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50">{session.highlight}</span>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-10">
-              <Calendar className="h-10 w-10 text-slate-700 mx-auto mb-2" />
-              <p className="text-sm text-slate-500">No plan loaded for this week</p>
-              <Link href="/dashboard/plan/new" className="text-xs text-primary-400 hover:text-primary-300 mt-1 inline-block">
-                Create a plan
-              </Link>
+            <div className="text-center py-8">
+              <p className="text-xs text-slate-500 mb-1">No plan for this week</p>
+              <Link href="/dashboard/plan/new" className="text-xs text-primary-400 hover:text-primary-300">Create plan &rarr;</Link>
             </div>
           )}
         </div>
 
-        {/* Type Distribution */}
-        <div className="lg:col-span-2 rounded-2xl bg-slate-800/80 backdrop-blur p-5 border border-slate-700/50">
-          <h3 className="text-sm font-semibold text-white mb-4">Volume by Type</h3>
-          {pieData.length > 0 ? (
-            <>
-              <div className="h-36 mb-3">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={30}
-                      outerRadius={55}
-                      dataKey="value"
-                      paddingAngle={3}
-                      strokeWidth={0}
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={index} fill={workoutTypeColors[entry.name] || pieColors[index % pieColors.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px', fontSize: '11px' }}
-                      formatter={(value: any) => [`${value} km`]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {pieData.map((entry, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: workoutTypeColors[entry.name] || pieColors[i % pieColors.length] }} />
-                    <span className="text-[11px] text-slate-400">{workoutTypeLabels[entry.name] || entry.name}</span>
-                    <span className="text-[11px] text-slate-500 ml-auto">{entry.value}km</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-10">
-              <Activity className="h-8 w-8 text-slate-700 mx-auto mb-2" />
-              <p className="text-xs text-slate-500">No workout data yet</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Row 5: Training Load + Long Run */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Training Load Curve */}
-        <div className="rounded-2xl bg-slate-800/80 backdrop-blur p-5 border border-slate-700/50">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white">Training Load</h3>
-            <span className="text-[10px] text-slate-500 bg-slate-700/50 px-2 py-0.5 rounded">Weekly km</span>
-          </div>
-          {weeklyData?.weeklyVolumes && weeklyData.weeklyVolumes.length > 0 ? (
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyData.weeklyVolumes} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
-                  <XAxis dataKey="weekNum" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={35} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px', fontSize: '11px' }}
-                    formatter={(value: any) => [`${value} km`, 'Volume']}
-                    labelFormatter={(label) => `Week ${label}`}
-                  />
-                  <defs>
-                    <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area type="monotone" dataKey="volume" stroke="#3b82f6" fill="url(#areaGradient)" strokeWidth={2.5} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500 text-center py-12">Training history builds over time</p>
-          )}
-        </div>
-
-        {/* Long Run Progression */}
-        <div className="rounded-2xl bg-slate-800/80 backdrop-blur p-5 border border-slate-700/50">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white">Long Run Progression</h3>
-            <span className="text-[10px] text-slate-500 bg-slate-700/50 px-2 py-0.5 rounded">Peak km</span>
-          </div>
-          {weeklyData?.longRunProgression && weeklyData.longRunProgression.length > 0 ? (
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={weeklyData.longRunProgression} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
-                  <XAxis
-                    dataKey="week"
-                    tick={{ fontSize: 9, fill: '#64748b' }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => { const d = new Date(v); return `${d.getDate()}/${d.getMonth() + 1}`; }}
-                  />
-                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={35} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px', fontSize: '11px' }}
-                    formatter={(value: any) => [`${value} km`, 'Longest Run']}
-                    labelFormatter={(label) => `Week of ${label}`}
-                  />
-                  <Line type="monotone" dataKey="distance" stroke="#8b5cf6" strokeWidth={2.5} dot={{ fill: '#8b5cf6', r: 3, strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500 text-center py-12">Long run data builds over time</p>
-          )}
-        </div>
-      </div>
-
-      {/* Row 6: Quick Actions + Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Quick Actions */}
-        <div className="rounded-2xl bg-slate-800/80 backdrop-blur p-5 border border-slate-700/50">
-          <h3 className="text-sm font-semibold text-white mb-4">Quick Actions</h3>
-          <div className="space-y-2">
-            <Link
-              href="/dashboard/plan/new"
-              className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-700/40 border border-transparent hover:border-slate-600/50 transition-all group"
-            >
-              <div className="bg-primary-500/15 p-2 rounded-lg group-hover:bg-primary-500/25 transition-colors">
-                <Calendar className="h-4 w-4 text-primary-400" />
-              </div>
-              <div className="flex-1">
-                <span className="text-sm text-white font-medium">New Weekly Plan</span>
-                <p className="text-[10px] text-slate-500">Create & push workouts</p>
-              </div>
-              <ArrowRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-slate-400 transition-colors" />
+        <div className="lg:col-span-4 rounded-xl bg-slate-800/80 p-4 border border-slate-700/50">
+          <h3 className="text-sm font-semibold text-white mb-3">Actions</h3>
+          <div className="space-y-1.5">
+            <Link href="/dashboard/plan/new" className="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-700/40 transition-colors group">
+              <Calendar className="h-4 w-4 text-primary-400" />
+              <span className="text-[13px] text-slate-300 group-hover:text-white">New Plan</span>
+              <ArrowRight className="h-3 w-3 text-slate-600 ml-auto group-hover:text-slate-400" />
             </Link>
-            <Link
-              href="/dashboard/athletes"
-              className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-700/40 border border-transparent hover:border-slate-600/50 transition-all group"
-            >
-              <div className="bg-green-500/15 p-2 rounded-lg group-hover:bg-green-500/25 transition-colors">
-                <UserPlus className="h-4 w-4 text-green-400" />
-              </div>
-              <div className="flex-1">
-                <span className="text-sm text-white font-medium">Invite Athlete</span>
-                <p className="text-[10px] text-slate-500">Add to your roster</p>
-              </div>
-              <ArrowRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-slate-400 transition-colors" />
+            <Link href="/dashboard/athletes" className="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-700/40 transition-colors group">
+              <Users className="h-4 w-4 text-green-400" />
+              <span className="text-[13px] text-slate-300 group-hover:text-white">Athletes</span>
+              <ArrowRight className="h-3 w-3 text-slate-600 ml-auto group-hover:text-slate-400" />
             </Link>
-            <Link
-              href="/dashboard/groups"
-              className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-700/40 border border-transparent hover:border-slate-600/50 transition-all group"
-            >
-              <div className="bg-purple-500/15 p-2 rounded-lg group-hover:bg-purple-500/25 transition-colors">
-                <LayoutGrid className="h-4 w-4 text-purple-400" />
-              </div>
-              <div className="flex-1">
-                <span className="text-sm text-white font-medium">Manage Groups</span>
-                <p className="text-[10px] text-slate-500">Pace profiles & levels</p>
-              </div>
-              <ArrowRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-slate-400 transition-colors" />
+            <Link href="/dashboard/groups" className="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-700/40 transition-colors group">
+              <Layers className="h-4 w-4 text-purple-400" />
+              <span className="text-[13px] text-slate-300 group-hover:text-white">Groups</span>
+              <ArrowRight className="h-3 w-3 text-slate-600 ml-auto group-hover:text-slate-400" />
+            </Link>
+            <Link href="/dashboard/history" className="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-700/40 transition-colors group">
+              <Activity className="h-4 w-4 text-orange-400" />
+              <span className="text-[13px] text-slate-300 group-hover:text-white">History</span>
+              <ArrowRight className="h-3 w-3 text-slate-600 ml-auto group-hover:text-slate-400" />
             </Link>
           </div>
         </div>
+      </div>
 
-        {/* Recent Activity */}
-        <div className="lg:col-span-2 rounded-2xl bg-slate-800/80 backdrop-blur p-5 border border-slate-700/50">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="bg-primary-500/15 p-1.5 rounded-md">
-              <Activity className="h-4 w-4 text-primary-400" />
-            </div>
-            <h3 className="text-sm font-semibold text-white">Recent Activity</h3>
-          </div>
-          {stats?.recentActivity && stats.recentActivity.length > 0 ? (
-            <div className="space-y-2">
-              {stats.recentActivity.map((activity, index) => (
-                <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-slate-700/20 hover:bg-slate-700/40 transition-colors">
-                  <div className={cn(
-                    "p-2 rounded-lg",
-                    activity.type === 'plan_pushed' && "bg-primary-500/15",
-                    activity.type === 'athlete_joined' && "bg-green-500/15",
-                    activity.type === 'athlete_invited' && "bg-yellow-500/15"
-                  )}>
-                    {activity.type === 'plan_pushed' && <Calendar className="h-3.5 w-3.5 text-primary-400" />}
-                    {activity.type === 'athlete_joined' && <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />}
-                    {activity.type === 'athlete_invited' && <Clock className="h-3.5 w-3.5 text-yellow-400" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-300">{activity.description}</p>
-                  </div>
-                  <p className="text-[10px] text-slate-500 shrink-0">
-                    {new Date(activity.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </p>
+      {/* Expandable: Training Progression */}
+      <div>
+        <button
+          onClick={() => setShowMore(!showMore)}
+          className="flex items-center gap-2 text-xs text-slate-400 hover:text-slate-300 transition-colors mx-auto"
+        >
+          <span>{showMore ? 'Less' : 'Training Progression'}</span>
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showMore && "rotate-180")} />
+        </button>
+
+        {showMore && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
+            {/* Training Load */}
+            <div className="rounded-xl bg-slate-800/80 p-4 border border-slate-700/50">
+              <h3 className="text-sm font-semibold text-white mb-3">Weekly Volume</h3>
+              {weeklyData?.weeklyVolumes && weeklyData.weeklyVolumes.length > 0 ? (
+                <div className="h-36">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={weeklyData.weeklyVolumes} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
+                      <XAxis dataKey="weekNum" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={30} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '11px' }}
+                        formatter={(value: any) => [`${value} km`]}
+                        labelFormatter={(l) => `Week ${l}`}
+                      />
+                      <defs>
+                        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <Area type="monotone" dataKey="volume" stroke="#3b82f6" fill="url(#areaGrad)" strokeWidth={2} dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
+              ) : <p className="text-xs text-slate-500 text-center py-10">Builds over time</p>}
             </div>
-          ) : (
-            <div className="text-center py-10">
-              <Activity className="h-8 w-8 text-slate-700 mx-auto mb-2" />
-              <p className="text-xs text-slate-500">No recent activity</p>
+
+            {/* Long Run */}
+            <div className="rounded-xl bg-slate-800/80 p-4 border border-slate-700/50">
+              <h3 className="text-sm font-semibold text-white mb-3">Long Run Peak</h3>
+              {weeklyData?.longRunProgression && weeklyData.longRunProgression.length > 0 ? (
+                <div className="h-36">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={weeklyData.longRunProgression} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
+                      <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => { const d = new Date(v); return `${d.getDate()}/${d.getMonth() + 1}`; }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={30} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '11px' }}
+                        formatter={(value: any) => [`${value} km`]}
+                      />
+                      <Line type="monotone" dataKey="distance" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6', r: 3, strokeWidth: 0 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <p className="text-xs text-slate-500 text-center py-10">Builds over time</p>}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
