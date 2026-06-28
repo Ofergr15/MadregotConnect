@@ -315,10 +315,17 @@ Step 9. Run — 1:40:00, 4:15-4:25 (4:25-4:35) ((4:35-4:45)) ג׳ל בהתחלה
 Example 3 — Easy/recovery day:
 Step 1. Run — Lap Button Press, 60-80 דקות 4:40-5:15 כל 10 דקות גומי או 5-6 גרם פחמימה
 
-Example 4 — Fartlek (Thursday):
+Example 4 — Fartlek with pace (Thursday):
 Step 1. Warm Up — Lap Button Press
 Step 2. 7x: (Run 9:00, 4:45-5:15)(Run 1:00, 3:35 (3:45) ((3:55)))
 Step 3. Run — 5:00, 4:45-5:15
+
+Example 5 — Effort-based Fartlek (Sunday) "15 דקות 4:30-5:30 x15 / 1 דק׳ קל מתון - נוח / 1 דק׳ מתון - בינוני / 1 דק׳ בינוני - קשה":
+Step 1. Warm Up — 15:00, 4:30-5:30
+Step 2. 15x: (Run 1:00, קל מתון)(Run 1:00, מתון בינוני)(Run 1:00, בינוני קשה)
+
+CRITICAL: When the coach specifies effort levels (קל/מתון/בינוני/קשה) WITHOUT specific pace numbers, these are EFFORT-BASED fartleks. Do NOT assign pace targets to the repeat steps. Use targetType "no_target" and put the effort description in notes only.
+The warmup pace (e.g., 4:30-5:30) belongs ONLY to the warmup step — NEVER propagate it to the fartlek intervals.
 
 ## Important
 - Return ONLY the JSON, no markdown code blocks, no explanation
