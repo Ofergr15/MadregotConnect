@@ -8,14 +8,15 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'runner' | 'viewer';
+  role: 'admin' | 'coach' | 'runner' | 'viewer';
   groupId?: string;
 }
 
-type Role = 'admin' | 'runner' | 'viewer';
+type Role = 'admin' | 'coach' | 'runner' | 'viewer';
 
 const roleConfig = {
   admin: { label: 'Admin', bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30', dot: 'bg-purple-400' },
+  coach: { label: 'Coach', bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30', dot: 'bg-blue-400' },
   runner: { label: 'Runner', bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', dot: 'bg-green-400' },
   viewer: { label: 'Viewer', bg: 'bg-slate-500/20', text: 'text-slate-400', border: 'border-slate-500/30', dot: 'bg-slate-400' },
 };
@@ -52,7 +53,7 @@ function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (r
 
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 bg-slate-800 border border-slate-600 rounded-lg shadow-xl overflow-hidden min-w-[140px]">
-          {(['admin', 'runner', 'viewer'] as Role[]).map(role => {
+          {(['admin', 'coach', 'runner', 'viewer'] as Role[]).map(role => {
             const rc = roleConfig[role];
             const isSelected = role === value;
             return (
@@ -102,9 +103,9 @@ export default function SettingsPage() {
     }
   };
 
-  const updateUserRole = async (email: string, role: Role) => {
-    setUpdatingUsers(prev => new Set(prev).add(email));
-    setSavedUsers(prev => { const s = new Set(prev); s.delete(email); return s; });
+  const updateUserRole = async (userId: string, email: string, role: Role) => {
+    setUpdatingUsers(prev => new Set(prev).add(userId));
+    setSavedUsers(prev => { const s = new Set(prev); s.delete(userId); return s; });
 
     try {
       const response = await fetch('/api/admin/users', {
@@ -115,16 +116,17 @@ export default function SettingsPage() {
 
       if (!response.ok) throw new Error('Failed to update user role');
 
-      setUsers(prev => prev.map(u => u.email === email ? { ...u, role } : u));
-      setSavedUsers(prev => new Set(prev).add(email));
+      // Refetch to get accurate state after role change
+      await fetchUsers();
+      setSavedUsers(prev => new Set(prev).add(userId));
       setTimeout(() => {
-        setSavedUsers(prev => { const s = new Set(prev); s.delete(email); return s; });
+        setSavedUsers(prev => { const s = new Set(prev); s.delete(userId); return s; });
       }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user');
       fetchUsers();
     } finally {
-      setUpdatingUsers(prev => { const s = new Set(prev); s.delete(email); return s; });
+      setUpdatingUsers(prev => { const s = new Set(prev); s.delete(userId); return s; });
     }
   };
 
@@ -172,13 +174,13 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2">
                 <RoleDropdown
                   value={user.role}
-                  onChange={(role) => updateUserRole(user.email, role)}
-                  disabled={updatingUsers.has(user.email)}
+                  onChange={(role) => updateUserRole(user.id, user.email, role)}
+                  disabled={updatingUsers.has(user.id)}
                 />
-                {updatingUsers.has(user.email) && (
+                {updatingUsers.has(user.id) && (
                   <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
                 )}
-                {savedUsers.has(user.email) && (
+                {savedUsers.has(user.id) && (
                   <CheckCircle2 className="w-4 h-4 text-green-400" />
                 )}
               </div>
