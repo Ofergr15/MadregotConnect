@@ -505,7 +505,13 @@ export default function DashboardPage() {
                     }}
                     cursor={false}
                   />
-                  <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                  <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44} cursor="pointer"
+                    onClick={(data: any) => {
+                      if (!data || !weekly) return;
+                      const session = weekly.keySessions.find(s => s.dayOfWeek === data.dayOfWeek);
+                      if (session) setSelectedSession(session);
+                    }}
+                  >
                     {weekly!.dailyDistances.map((e, i) => (
                       <Cell key={i} fill={typeColors[e.type] || '#6366f1'} fillOpacity={e.dayOfWeek === todayDow ? 1 : 0.7} />
                     ))}
@@ -516,9 +522,12 @@ export default function DashboardPage() {
 
             {/* Daily breakdown cards */}
             <div className="mt-4 grid grid-cols-7 gap-1 sm:gap-2">
-              {weekly!.dailyDistances.map((d) => (
-                <div key={d.dayOfWeek} className={cn(
+              {weekly!.dailyDistances.map((d) => {
+                const session = weekly!.keySessions.find(s => s.dayOfWeek === d.dayOfWeek);
+                return (
+                <div key={d.dayOfWeek} onClick={() => session && setSelectedSession(session)} className={cn(
                   "text-center py-2.5 sm:py-3 rounded-xl transition-all",
+                  session ? "cursor-pointer hover:bg-slate-700/60" : "",
                   d.dayOfWeek === todayDow ? "bg-[#4338ff]/15 ring-1 ring-[#4338ff]/40" : "bg-slate-800/40"
                 )}>
                   <p className={cn("text-[11px] sm:text-xs font-bold uppercase", d.dayOfWeek === todayDow ? "text-[#4338ff]" : "text-slate-400")}>{d.day}</p>
@@ -529,7 +538,7 @@ export default function DashboardPage() {
                     {d.max > 0 ? typeLabels[d.type] || d.type : 'Rest'}
                   </p>
                 </div>
-              ))}
+              ); })}
             </div>
           </>
         ) : (
