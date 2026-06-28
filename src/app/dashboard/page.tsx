@@ -275,6 +275,7 @@ export default function DashboardPage() {
   const [countdown, setCountdown] = useState({ d: 0, h: 0, m: 0, s: 0 });
   const [week, setWeek] = useState(0);
   const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [hoveredBar, setHoveredBar] = useState<number | null>(null);
 
   useEffect(() => {
     const tick = () => {
@@ -505,16 +506,31 @@ export default function DashboardPage() {
                     }}
                     cursor={false}
                   />
-                  <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44} cursor="pointer"
-                    onClick={(data: any) => {
+                  <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44}
+                    onClick={(data: any, index: number) => {
                       if (!data || !weekly) return;
                       const session = weekly.keySessions.find(s => s.dayOfWeek === data.dayOfWeek);
                       if (session) setSelectedSession(session);
                     }}
+                    onMouseMove={(_data: any, index: number) => {
+                      if (hoveredBar !== index) setHoveredBar(index);
+                    }}
+                    onMouseLeave={() => setHoveredBar(null)}
                   >
-                    {weekly!.dailyDistances.map((e, i) => (
-                      <Cell key={i} fill={typeColors[e.type] || '#6366f1'} fillOpacity={e.dayOfWeek === todayDow ? 1 : 0.7} />
-                    ))}
+                    {weekly!.dailyDistances.map((e, i) => {
+                      const hasSession = weekly!.keySessions.some(s => s.dayOfWeek === e.dayOfWeek);
+                      const isHovered = hoveredBar === i;
+                      const baseOpacity = e.dayOfWeek === todayDow ? 1 : 0.7;
+                      const opacity = hoveredBar === null ? baseOpacity : isHovered ? 1 : 0.3;
+                      return (
+                        <Cell
+                          key={i}
+                          fill={typeColors[e.type] || '#6366f1'}
+                          fillOpacity={opacity}
+                          className={hasSession ? 'cursor-pointer' : ''}
+                        />
+                      );
+                    })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
