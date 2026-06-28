@@ -285,12 +285,13 @@ export default function DashboardPage() {
                 <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} dy={8} />
                 <YAxis tick={{ fontSize: 11, fill: '#334155' }} axisLine={false} tickLine={false} width={40} tickFormatter={v => `${v}`} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', fontSize: '13px', padding: '8px 14px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
+                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', fontSize: '13px', padding: '8px 14px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', color: '#fff' }}
                   labelStyle={{ fontWeight: 700, color: '#fff', marginBottom: 4 }}
+                  itemStyle={{ color: '#e2e8f0' }}
                   formatter={(v: any, name: any, props: any) => {
                     const entry = props?.payload;
                     const range = entry?.min && entry.min !== entry.max ? `${entry.min}–${entry.max}` : `${v}`;
-                    return [`${range} km · ${typeLabels[entry?.type] || entry?.type || ''}`];
+                    return [`${range} km · ${typeLabels[entry?.type] || entry?.type || ''}`, ''];
                   }}
                   cursor={false}
                 />

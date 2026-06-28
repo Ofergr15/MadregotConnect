@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
     const { data: coaches, error: coachesError } = await supabase
       .from('coaches')
-      .select('id, email, name, role')
+      .select('id, email, name')
       .order('email');
 
     if (coachesError) throw coachesError;
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       id: coach.id,
       email: coach.email,
       name: coach.name,
-      role: (coach.role === 'admin' ? 'admin' : 'coach') as UserRole,
+      role: (coach.id === COACH_ID ? 'admin' : 'coach') as UserRole,
     }));
 
     const athleteUsers: User[] = (athletes || []).map(athlete => ({
@@ -74,20 +74,20 @@ export async function PUT(request: Request) {
 
     if (!['admin', 'coach', 'runner', 'viewer'].includes(role)) {
       return NextResponse.json(
-        { error: 'Invalid role. Must be admin, coach, runner, or viewer' },
+        { error: 'Invalid role' },
         { status: 400 }
       );
     }
 
     const { data: existingCoach } = await supabase
       .from('coaches')
-      .select('id, name')
+      .select('id, name, email')
       .eq('email', email)
       .maybeSingle();
 
     const { data: existingAthletes } = await supabase
       .from('athletes')
-      .select('id, name, coach_id, group_id, invite_token')
+      .select('id, name, coach_id, group_id')
       .eq('email', email);
 
     const existingAthlete = existingAthletes?.[0] || null;
@@ -105,18 +105,8 @@ export async function PUT(request: Request) {
       if (!existingCoach) {
         const { error: insertError } = await supabase
           .from('coaches')
-          .insert({
-            email,
-            name: userName,
-            role,
-          });
+          .insert({ email, name: userName });
         if (insertError) throw insertError;
-      } else {
-        const { error: updateError } = await supabase
-          .from('coaches')
-          .update({ role })
-          .eq('id', existingCoach.id);
-        if (updateError) throw updateError;
       }
 
       if (existingAthletes && existingAthletes.length > 0) {
@@ -127,10 +117,7 @@ export async function PUT(request: Request) {
         if (deleteError) throw deleteError;
       }
 
-      return NextResponse.json({
-        success: true,
-        user: { email, role },
-      });
+      return NextResponse.json({ success: true, user: { email, role } });
     }
 
     if (role === 'runner') {
@@ -151,19 +138,11 @@ export async function PUT(request: Request) {
       } else {
         const { error: insertError } = await supabase
           .from('athletes')
-          .insert({
-            email,
-            name: userName,
-            status: 'active',
-            coach_id: COACH_ID,
-          });
+          .insert({ email, name: userName, status: 'active', coach_id: COACH_ID });
         if (insertError) throw insertError;
       }
 
-      return NextResponse.json({
-        success: true,
-        user: { email, role: 'runner' },
-      });
+      return NextResponse.json({ success: true, user: { email, role: 'runner' } });
     }
 
     if (role === 'viewer') {
@@ -184,25 +163,14 @@ export async function PUT(request: Request) {
       } else {
         const { error: insertError } = await supabase
           .from('athletes')
-          .insert({
-            email,
-            name: userName,
-            status: 'invited',
-            coach_id: COACH_ID,
-          });
+          .insert({ email, name: userName, status: 'invited', coach_id: COACH_ID });
         if (insertError) throw insertError;
       }
 
-      return NextResponse.json({
-        success: true,
-        user: { email, role: 'viewer' },
-      });
+      return NextResponse.json({ success: true, user: { email, role: 'viewer' } });
     }
 
-    return NextResponse.json(
-      { error: 'Invalid role' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
   } catch (error) {
     console.error('Failed to update user role:', error);
     return NextResponse.json(
