@@ -171,7 +171,6 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
                   <div className="px-4 py-3 flex items-center gap-2 border-b border-[#4338ff]/10">
                     <Repeat className="h-4 w-4 text-[#4338ff]" />
                     <span className="text-sm font-bold text-white">{block.count}x</span>
-                    {block.notes && <span className="text-sm text-slate-300 ml-1">{block.notes}</span>}
                   </div>
                   <div className="px-4 py-2 space-y-1">
                     {block.substeps.map((sub: any, j: number) => {
@@ -179,19 +178,18 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
                         ? `${sub.durationValue >= 1000 ? (sub.durationValue / 1000) + ' km' : sub.durationValue + 'm'}`
                         : sub.durationType === 'time' && sub.durationValue
                           ? formatDuration(sub.durationValue)
-                          : 'Open';
+                          : '';
                       const label = getStepLabel(sub);
                       const isRest = sub.type === 'rest' || sub.type === 'recovery';
+                      const pace = sub.targetPaceMinPerKm && sub.targetPaceMaxPerKm
+                        ? `${formatPace(sub.targetPaceMinPerKm)}–${formatPace(sub.targetPaceMaxPerKm)}`
+                        : sub.targetPaceMinPerKm ? formatPace(sub.targetPaceMinPerKm) : '';
                       return (
-                        <div key={j} className={cn("flex items-center gap-3 py-2 px-3 rounded-lg", isRest ? "bg-slate-800/30" : "bg-slate-800/50")}>
-                          <div className="w-1.5 h-6 rounded-full" style={{ background: getStepColor(sub) }} />
-                          <div className="flex-1">
-                            <span className={cn("text-sm font-medium", isRest ? "text-slate-400" : "text-white")}>{label}</span>
-                            <span className="text-sm text-slate-400 ml-2">{dur}</span>
-                          </div>
-                          {sub.targetPaceMinPerKm && (
-                            <span className="text-xs text-slate-400 tabular-nums">{formatPace(sub.targetPaceMinPerKm)}</span>
-                          )}
+                        <div key={j} dir="ltr" className={cn("flex items-center gap-3 py-2.5 px-3 rounded-lg", isRest ? "bg-slate-800/30" : "bg-slate-800/50")}>
+                          <div className="w-1.5 h-6 rounded-full flex-shrink-0" style={{ background: getStepColor(sub) }} />
+                          <span className={cn("text-sm font-semibold flex-shrink-0", isRest ? "text-slate-400" : "text-white")}>{dur}</span>
+                          <span className="text-sm text-slate-400 flex-1 text-right" dir="rtl">{label}</span>
+                          {pace && <span className="text-xs text-slate-500 tabular-nums flex-shrink-0">{pace}</span>}
                         </div>
                       );
                     })}
