@@ -681,27 +681,40 @@ export default function NewPlanPage() {
       {stage === 'input' && parsing && (
         <div className="flex-1 flex items-center justify-center px-4 py-12">
           <div className="w-full max-w-sm text-center space-y-8">
-            {/* Animated running figure */}
+            {/* Madregot stairs animation */}
             <div className="flex items-center justify-center">
-              <svg width="120" height="120" viewBox="0 0 100 100" className="text-primary-400">
+              <svg width="140" height="120" viewBox="0 0 140 120" fill="none">
                 <style>{`
-                  .leg-l { transform-origin: 52px 55px; animation: legSwing 0.5s ease-in-out infinite; }
-                  .leg-r { transform-origin: 48px 55px; animation: legSwing 0.5s ease-in-out infinite -0.25s; }
-                  .arm-l { transform-origin: 52px 35px; animation: armSwing 0.5s ease-in-out infinite; }
-                  .arm-r { transform-origin: 48px 35px; animation: armSwing 0.5s ease-in-out infinite -0.25s; }
-                  @keyframes legSwing { 0%,100%{transform:rotate(-25deg)} 50%{transform:rotate(25deg)} }
-                  @keyframes armSwing { 0%,100%{transform:rotate(25deg)} 50%{transform:rotate(-25deg)} }
+                  .stair { opacity: 0.2; animation: stairLight 2.4s ease-in-out infinite; }
+                  .stair-1 { animation-delay: 0s; }
+                  .stair-2 { animation-delay: 0.4s; }
+                  .stair-3 { animation-delay: 0.8s; }
+                  .stair-4 { animation-delay: 1.2s; }
+                  .stair-5 { animation-delay: 1.6s; }
+                  @keyframes stairLight { 0%,100%{opacity:0.2} 30%{opacity:1} 60%{opacity:0.4} }
+                  .runner-dot { animation: climbStairs 2.4s ease-in-out infinite; }
+                  @keyframes climbStairs {
+                    0% { transform: translate(15px, 92px); }
+                    20% { transform: translate(38px, 74px); }
+                    40% { transform: translate(61px, 56px); }
+                    60% { transform: translate(84px, 38px); }
+                    80% { transform: translate(107px, 20px); }
+                    100% { transform: translate(15px, 92px); }
+                  }
                 `}</style>
-                {/* Head */}
-                <circle cx="50" cy="18" r="9" fill="currentColor" />
-                {/* Body */}
-                <line x1="50" y1="27" x2="50" y2="55" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                {/* Arms */}
-                <line className="arm-l" x1="50" y1="35" x2="65" y2="48" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                <line className="arm-r" x1="50" y1="35" x2="35" y2="48" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                {/* Legs */}
-                <line className="leg-l" x1="50" y1="55" x2="62" y2="82" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                <line className="leg-r" x1="50" y1="55" x2="38" y2="82" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                {/* Stairs */}
+                <rect className="stair stair-1" x="10" y="95" width="24" height="6" rx="2" fill="#4338ff" />
+                <rect className="stair stair-2" x="33" y="77" width="24" height="6" rx="2" fill="#4338ff" />
+                <rect className="stair stair-3" x="56" y="59" width="24" height="6" rx="2" fill="#4338ff" />
+                <rect className="stair stair-4" x="79" y="41" width="24" height="6" rx="2" fill="#4338ff" />
+                <rect className="stair stair-5" x="102" y="23" width="24" height="6" rx="2" fill="#4338ff" />
+                {/* Vertical connectors */}
+                <rect x="33" y="83" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
+                <rect x="56" y="65" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
+                <rect x="79" y="47" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
+                <rect x="102" y="29" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
+                {/* Runner dot climbing */}
+                <circle className="runner-dot" cx="0" cy="0" r="5" fill="#4338ff" />
               </svg>
             </div>
 
@@ -715,7 +728,7 @@ export default function NewPlanPage() {
 
             {/* Progress bar */}
             <div className="w-48 mx-auto h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-indigo-500 rounded-full animate-progress-indeterminate" />
+              <div className="h-full bg-gradient-to-r from-[#4338ff] via-purple-500 to-[#4338ff] rounded-full animate-progress-indeterminate" />
             </div>
           </div>
         </div>
