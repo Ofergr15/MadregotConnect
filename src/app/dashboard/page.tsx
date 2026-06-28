@@ -490,7 +490,7 @@ export default function DashboardPage() {
 
         {hasData ? (
           <>
-            <div className="h-48 sm:h-60">
+            <div className="h-48 sm:h-60 outline-none" style={{ outline: 'none' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={weekly!.dailyDistances} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
                   <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} dy={8} />
