@@ -177,7 +177,11 @@ export default function AthletesPage() {
 
   const copyPublicLink = () => {
     if (publicLink) {
-      navigator.clipboard.writeText(publicLink);
+      const message = `היי! 🏃‍♂️
+הצטרפו למדרגות After 2KM ב-Garmin Connect!
+חברו את השעון שלכם וקבלו את האימונים ישירות:
+${publicLink}`;
+      navigator.clipboard.writeText(message);
       setPublicLinkCopied(true);
       setTimeout(() => setPublicLinkCopied(false), 2000);
     }
