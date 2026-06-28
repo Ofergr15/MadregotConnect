@@ -49,8 +49,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ role: 'runner', athlete: { ...invitedAthlete, garmin_auth: undefined }, hasGarmin, needsOnboarding: !hasGarmin });
     }
 
-    // User exists but has no role yet — viewer
-    return NextResponse.json({ role: 'viewer', email: lowerEmail, name });
+    // New user — find the public invite token so they can onboard
+    const { data: publicInvite } = await supabase
+      .from('athletes')
+      .select('invite_token')
+      .like('email', 'public-%@invite.madregot.app')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    return NextResponse.json({
+      role: 'viewer',
+      email: lowerEmail,
+      name,
+      joinToken: publicInvite?.invite_token || null,
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Failed to resolve role' },

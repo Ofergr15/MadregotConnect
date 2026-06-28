@@ -75,12 +75,17 @@ export default function AuthResolvePage() {
       localStorage.removeItem('coach_email');
       router.replace('/dashboard/program');
     } else {
-      localStorage.setItem('user_email', email);
-      localStorage.setItem('user_name', user.user_metadata?.full_name || '');
-      localStorage.setItem('user_role', data.role || 'viewer');
-      localStorage.removeItem('coach_email');
-      localStorage.removeItem('athlete_id');
-      router.replace('/dashboard/program');
+      // New user (viewer) — redirect to join flow for onboarding
+      if (data.joinToken) {
+        router.replace(`/join/${data.joinToken}`);
+      } else {
+        localStorage.setItem('user_email', email);
+        localStorage.setItem('user_name', user.user_metadata?.full_name || '');
+        localStorage.setItem('user_role', data.role || 'viewer');
+        localStorage.removeItem('coach_email');
+        localStorage.removeItem('athlete_id');
+        router.replace('/dashboard/program');
+      }
     }
   }
 
