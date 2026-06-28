@@ -75,8 +75,13 @@ export default function AuthResolvePage() {
       localStorage.removeItem('coach_email');
       router.replace('/dashboard/program');
     } else {
-      // New user — redirect to onboard page
-      router.replace(`/join/onboard?email=${encodeURIComponent(email)}&name=${encodeURIComponent(user.user_metadata?.full_name || '')}`);
+      const params = new URLSearchParams({
+        email,
+        name: user.user_metadata?.full_name || '',
+      });
+      if (data.missingGroup === false) params.set('skipGroup', '1');
+      if (data.missingGarmin === false) params.set('skipGarmin', '1');
+      router.replace(`/join/onboard?${params.toString()}`);
     }
   }
 

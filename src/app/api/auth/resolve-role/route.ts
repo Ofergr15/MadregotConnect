@@ -49,12 +49,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ role: 'runner', athlete: { ...invitedAthlete, garmin_auth: undefined }, hasGarmin, needsOnboarding: !hasGarmin });
     }
 
-    // New user — redirect to onboard
+    // Check if athlete exists with any status (could be missing garmin/group)
+    const { data: anyAthlete } = await supabase
+      .from('athletes')
+      .select('id, name, email, group_id, status, garmin_auth')
+      .eq('email', lowerEmail)
+      .maybeSingle();
+
+    if (anyAthlete) {
+      const hasGarmin = !!anyAthlete.garmin_auth;
+      const hasGroup = !!anyAthlete.group_id;
+      if (hasGarmin && hasGroup) {
+        if (anyAthlete.status !== 'active') {
+          await supabase.from('athletes').update({ status: 'active' }).eq('id', anyAthlete.id);
+        }
+        return NextResponse.json({ role: 'runner', athlete: { ...anyAthlete, garmin_auth: undefined }, hasGarmin });
+      }
+      // Missing group or garmin — needs onboarding
+      return NextResponse.json({
+        role: 'viewer',
+        email: lowerEmail,
+        name: anyAthlete.name || name,
+        needsOnboarding: true,
+        missingGroup: !hasGroup,
+        missingGarmin: !hasGarmin,
+      });
+    }
+
+    // Completely new user
     return NextResponse.json({
       role: 'viewer',
       email: lowerEmail,
       name,
       needsOnboarding: true,
+      missingGroup: true,
+      missingGarmin: true,
     });
   } catch (error: any) {
     return NextResponse.json(
