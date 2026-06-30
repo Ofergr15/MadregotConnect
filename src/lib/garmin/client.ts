@@ -114,59 +114,23 @@ export class GarminClient {
 
   async getActivityDetails(activityId: number): Promise<any> {
     await this.restoreSession();
-    const tokens = this.gc.exportToken() as any;
-    const accessToken = tokens.oauth2?.access_token;
-    if (!accessToken) throw new Error('No access token available');
-
-    // Try connectapi.garmin.com first
-    let res = await fetch(
-      `https://connectapi.garmin.com/activity-service/activity/${activityId}/details?maxChartSize=2000&maxPolylineSize=2000`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'NK': 'NT',
-          'DI-Backend': 'connectapi.garmin.com',
-        },
-      }
+    // Use the library's internal HTTP client which handles auth properly
+    return (this.gc as any).client.get(
+      `https://connectapi.garmin.com/activity-service/activity/${activityId}/details`,
+      { params: { maxChartSize: 2000, maxPolylineSize: 2000 } }
     );
-
-    // Fallback to connect.garmin.com/modern/proxy
-    if (!res.ok) {
-      res = await fetch(
-        `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/details?maxChartSize=2000&maxPolylineSize=2000`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'NK': 'NT',
-          },
-        }
-      );
-    }
-
-    if (!res.ok) throw new Error(`Failed to fetch activity details: ${res.status}`);
-    return res.json();
   }
 
   async getActivitySplits(activityId: number): Promise<any[]> {
     await this.restoreSession();
-    const tokens = this.gc.exportToken() as any;
-    const accessToken = tokens.oauth2?.access_token;
-    if (!accessToken) throw new Error('No access token available');
-
-    const res = await fetch(
-      `https://connectapi.garmin.com/activity-service/activity/${activityId}/splits`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'NK': 'NT',
-          'DI-Backend': 'connectapi.garmin.com',
-        },
-      }
-    );
-
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.lapDTOs || data.splits || [];
+    try {
+      const data = await (this.gc as any).client.get(
+        `https://connectapi.garmin.com/activity-service/activity/${activityId}/splits`
+      );
+      return data?.lapDTOs || data?.splits || [];
+    } catch {
+      return [];
+    }
   }
 
   async testConnection(): Promise<boolean> {
