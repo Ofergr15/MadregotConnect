@@ -190,8 +190,8 @@ function RouteMap({ points, height = 300, splits }: {
   if (points.length < 2) return null;
 
   return (
-    <div className="relative">
-      <div ref={mapRef} style={{ height: `${height}px` }} className="w-full rounded-xl" />
+    <div className="relative" style={{ zIndex: 0 }}>
+      <div ref={mapRef} style={{ height: `${height}px`, position: 'relative', zIndex: 0 }} className="w-full rounded-xl" />
       {splits && splits.length > 1 && (
         <button
           onClick={() => setColorByPace(!colorByPace)}
