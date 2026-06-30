@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import {
   Calendar, Users, ArrowRight, TrendingUp, TrendingDown,
@@ -276,6 +276,8 @@ export default function DashboardPage() {
   const [week, setWeek] = useState(0);
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
+  const [selectedBar, setSelectedBar] = useState<number | null>(null);
+  const lastClickRef = useRef<{ index: number; time: number } | null>(null);
 
   useEffect(() => {
     const tick = () => {
@@ -500,14 +502,21 @@ export default function DashboardPage() {
                       setHoveredBar(state.activeTooltipIndex);
                     }
                   }}
-                  onMouseLeave={() => setHoveredBar(null)}
+                  onMouseLeave={() => { setHoveredBar(null); }}
                   onClick={(state: any) => {
                     if (!state || !weekly || state.activeTooltipIndex == null) return;
                     const idx = state.activeTooltipIndex;
-                    const entry = weekly.dailyDistances[idx];
-                    if (entry) {
-                      const session = weekly.keySessions.find(s => s.dayOfWeek === entry.dayOfWeek);
-                      if (session) setSelectedSession(session);
+                    const now = Date.now();
+                    if (lastClickRef.current && lastClickRef.current.index === idx && now - lastClickRef.current.time < 400) {
+                      const entry = weekly.dailyDistances[idx];
+                      if (entry) {
+                        const session = weekly.keySessions.find(s => s.dayOfWeek === entry.dayOfWeek);
+                        if (session) setSelectedSession(session);
+                      }
+                      lastClickRef.current = null;
+                    } else {
+                      setSelectedBar(idx);
+                      lastClickRef.current = { index: idx, time: now };
                     }
                   }}
                 >
@@ -527,14 +536,17 @@ export default function DashboardPage() {
                   <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44}>
                     {weekly!.dailyDistances.map((e, i) => {
                       const hasSession = weekly!.keySessions.some(s => s.dayOfWeek === e.dayOfWeek);
-                      const isHovered = hoveredBar === i;
+                      const isActive = hoveredBar === i || selectedBar === i;
+                      const hasHighlight = hoveredBar !== null || selectedBar !== null;
                       const baseOpacity = e.dayOfWeek === todayDow ? 1 : 0.7;
-                      const opacity = hoveredBar === null ? baseOpacity : isHovered ? 1 : 0.3;
+                      const opacity = hasHighlight ? (isActive ? 1 : 0.3) : baseOpacity;
                       return (
                         <Cell
                           key={i}
                           fill={typeColors[e.type] || '#6366f1'}
                           fillOpacity={opacity}
+                          stroke={isActive ? '#fff' : 'none'}
+                          strokeWidth={isActive ? 2 : 0}
                           className={hasSession ? 'cursor-pointer' : ''}
                         />
                       );
