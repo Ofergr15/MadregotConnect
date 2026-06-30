@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Activity, Heart, Timer, Route, TrendingUp,
   MapPin, ChevronDown, ChevronUp, Zap, Footprints, Mountain,
-  Flame, RefreshCw, Clock,
+  Flame, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -863,63 +863,6 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
   );
 }
 
-// ─── Weekly Grouping ──────────────────────────────────────────────────────────
-
-function getWeekKey(dateStr: string): string {
-  const d = new Date(dateStr);
-  const sunday = new Date(d);
-  sunday.setDate(d.getDate() - d.getDay());
-  return sunday.toISOString().split('T')[0];
-}
-
-function getWeekLabel(weekKey: string): string {
-  const start = new Date(weekKey);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return `${fmt(start)} – ${fmt(end)}`;
-}
-
-function WeekSummary({ activities }: { activities: ActivityEntry[] }) {
-  const totalKm = activities.reduce((s, a) => s + a.distance / 1000, 0);
-  const totalRuns = activities.length;
-  const totalDuration = activities.reduce((s, a) => s + a.duration, 0);
-  const avgPace = totalKm > 0 ? Math.round(totalDuration / totalKm) : null;
-  const totalCalories = activities.reduce((s, a) => s + (a.calories || 0), 0);
-  const avgHR = activities.filter(a => a.average_hr).length > 0
-    ? Math.round(activities.reduce((s, a) => s + (a.average_hr || 0), 0) / activities.filter(a => a.average_hr).length)
-    : null;
-
-  return (
-    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 px-4 py-3 bg-slate-800/30 rounded-xl border border-slate-700/20 mb-3">
-      <div className="text-center">
-        <p className="text-lg font-black text-white tabular-nums">{totalKm.toFixed(1)}</p>
-        <p className="text-[10px] text-slate-500 font-medium">KM</p>
-      </div>
-      <div className="text-center">
-        <p className="text-lg font-black text-white tabular-nums">{totalRuns}</p>
-        <p className="text-[10px] text-slate-500 font-medium">RUNS</p>
-      </div>
-      <div className="text-center">
-        <p className="text-lg font-black text-white tabular-nums">{formatDuration(totalDuration)}</p>
-        <p className="text-[10px] text-slate-500 font-medium">TIME</p>
-      </div>
-      <div className="text-center hidden sm:block">
-        <p className="text-lg font-black text-white tabular-nums">{avgPace ? formatPace(avgPace) : '—'}</p>
-        <p className="text-[10px] text-slate-500 font-medium">AVG PACE</p>
-      </div>
-      <div className="text-center hidden sm:block">
-        <p className="text-lg font-black text-white tabular-nums">{avgHR || '—'}</p>
-        <p className="text-[10px] text-slate-500 font-medium">AVG HR</p>
-      </div>
-      <div className="text-center hidden sm:block">
-        <p className="text-lg font-black text-white tabular-nums">{totalCalories.toLocaleString()}</p>
-        <p className="text-[10px] text-slate-500 font-medium">KCAL</p>
-      </div>
-    </div>
-  );
-}
-
 // ─── Activity Feed (exported) ──────────────────────────────────────────────────
 
 interface ActivityFeedProps {
@@ -929,82 +872,21 @@ interface ActivityFeedProps {
   onSync: () => void;
 }
 
-export function ActivityFeed({ activities, syncing, lastSyncTime, onSync }: ActivityFeedProps) {
-  const [activeWeek, setActiveWeek] = useState(0);
-
-  const weeks = (() => {
-    const map = new Map<string, ActivityEntry[]>();
-    for (const act of activities) {
-      const key = getWeekKey(act.start_time);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(act);
-    }
-    return Array.from(map.entries())
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([key, acts]) => ({ key, label: getWeekLabel(key), activities: acts }));
-  })();
-
-  const currentWeek = weeks[activeWeek] || null;
+export function ActivityFeed({ activities, syncing }: ActivityFeedProps) {
+  if (activities.length === 0 && !syncing) {
+    return (
+      <div className="bg-slate-800/30 rounded-xl border border-slate-700/20 p-8 text-center">
+        <Activity className="h-8 w-8 text-slate-600 mx-auto mb-3" />
+        <p className="text-sm text-slate-400">No activities this week.</p>
+      </div>
+    );
+  }
 
   return (
-    <section>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-[#4338ff]" />
-          <h2 className="text-sm sm:text-base font-bold text-white">Activities</h2>
-          {lastSyncTime && <span className="text-xs text-slate-500 ml-2">Synced {lastSyncTime}</span>}
-        </div>
-        <button
-          onClick={onSync}
-          disabled={syncing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
-          {syncing ? 'Syncing...' : 'Sync'}
-        </button>
-      </div>
-
-      {activities.length === 0 && !syncing && (
-        <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-8 text-center">
-          <Activity className="h-8 w-8 text-slate-600 mx-auto mb-3" />
-          <p className="text-sm text-slate-400">No activities yet. Connect athletes to Garmin to see their runs here.</p>
-        </div>
-      )}
-
-      {weeks.length > 0 && (
-        <>
-          {/* Week Tabs */}
-          <div className="flex gap-1 overflow-x-auto pb-2 mb-3 scrollbar-hide">
-            {weeks.map((week, i) => (
-              <button
-                key={week.key}
-                onClick={() => setActiveWeek(i)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors',
-                  i === activeWeek
-                    ? 'bg-[#4338ff] text-white'
-                    : 'bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-700/60 border border-slate-700/40'
-                )}
-              >
-                {week.label}
-                <span className="ml-1.5 text-[10px] opacity-70">({week.activities.length})</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Week Summary */}
-          {currentWeek && <WeekSummary activities={currentWeek.activities} />}
-
-          {/* Activities for selected week */}
-          {currentWeek && (
-            <div className="space-y-3">
-              {currentWeek.activities.map(act => (
-                <ActivityCard key={act.id} activity={act} />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </section>
+    <div className="space-y-3">
+      {activities.map(act => (
+        <ActivityCard key={act.id} activity={act} />
+      ))}
+    </div>
   );
 }
