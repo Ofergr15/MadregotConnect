@@ -492,92 +492,106 @@ export default function DashboardPage() {
 
         {hasData ? (
           <>
-            <div className="h-48 sm:h-60" tabIndex={-1} style={{ outline: 'none', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={weekly!.dailyDistances}
-                  margin={{ top: 4, right: 0, bottom: 0, left: -20 }}
-                  onMouseMove={(state: any) => {
-                    if (state?.isTooltipActive && state.activeTooltipIndex != null) {
-                      setHoveredBar(state.activeTooltipIndex);
-                    } else {
-                      setHoveredBar(null);
-                    }
-                  }}
-                  onMouseLeave={() => { setHoveredBar(null); setSelectedBar(null); }}
-                  onClick={(state: any) => {
-                    if (!state || !weekly || state.activeTooltipIndex == null) return;
-                    const idx = state.activeTooltipIndex;
-                    const now = Date.now();
-                    setSelectedBar(idx);
-                    if (lastClickRef.current && lastClickRef.current.index === idx && now - lastClickRef.current.time < 400) {
-                      const entry = weekly.dailyDistances[idx];
-                      if (entry) {
-                        const session = weekly.keySessions.find(s => s.dayOfWeek === entry.dayOfWeek);
-                        if (session) setSelectedSession(session);
-                      }
-                      lastClickRef.current = null;
-                    } else {
-                      lastClickRef.current = { index: idx, time: now };
-                    }
-                  }}
-                >
-                  <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} dy={8} />
-                  <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={40} tickFormatter={v => `${v}`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px', fontSize: '14px', padding: '10px 16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', color: '#f1f5f9' }}
-                    labelStyle={{ fontWeight: 700, color: '#fff', marginBottom: 4, fontSize: '14px' }}
-                    itemStyle={{ color: '#e2e8f0' }}
-                    formatter={(v: any, name: any, props: any) => {
-                      const entry = props?.payload;
-                      const range = entry?.min && entry.min !== entry.max ? `${entry.min}–${entry.max}` : `${v}`;
-                      return [`${range} km · ${typeLabels[entry?.type] || entry?.type || ''}`, ''];
-                    }}
-                    cursor={false}
-                  />
-                  <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44} cursor="pointer">
-                    {weekly!.dailyDistances.map((e, i) => {
-                      const isHovered = hoveredBar === i;
-                      const isSelected = selectedBar === i;
-                      const isActive = isHovered || isSelected;
-                      const someActive = hoveredBar !== null || selectedBar !== null;
-                      const baseOpacity = e.dayOfWeek === todayDow ? 1 : 0.75;
-                      const opacity = someActive ? (isActive ? 1 : 0.35) : baseOpacity;
-                      return (
-                        <Cell
-                          key={i}
-                          fill={typeColors[e.type] || '#6366f1'}
-                          fillOpacity={opacity}
-                          stroke={isActive ? typeColors[e.type] || '#6366f1' : 'none'}
-                          strokeWidth={isActive ? 3 : 0}
-                          style={{ filter: isActive ? 'brightness(1.3)' : 'none', transition: 'all 0.15s ease' }}
-                        />
-                      );
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Daily breakdown cards */}
-            <div className="mt-4 grid grid-cols-7 gap-1 sm:gap-2">
-              {weekly!.dailyDistances.map((d) => {
-                const session = weekly!.keySessions.find(s => s.dayOfWeek === d.dayOfWeek);
-                return (
-                <div key={d.dayOfWeek} onClick={() => session && setSelectedSession(session)} className={cn(
-                  "text-center py-2.5 sm:py-3 rounded-xl transition-all",
-                  session ? "cursor-pointer hover:bg-slate-700/60" : "",
-                  d.dayOfWeek === todayDow ? "bg-[#4338ff]/15 ring-1 ring-[#4338ff]/40" : "bg-slate-800/40"
-                )}>
-                  <p className={cn("text-[11px] sm:text-xs font-bold uppercase", d.dayOfWeek === todayDow ? "text-[#4338ff]" : "text-slate-400")}>{d.day}</p>
-                  <p className={cn("text-base sm:text-lg font-black tabular-nums mt-1", d.max > 0 ? "text-white" : "text-slate-600")}>
-                    {d.max > 0 ? d.max : '—'}
-                  </p>
-                  <p className={cn("text-[10px] sm:text-xs mt-0.5 font-medium", d.max > 0 ? "text-slate-400" : "text-slate-600")}>
-                    {d.max > 0 ? typeLabels[d.type] || d.type : 'Rest'}
-                  </p>
+            {/* Custom Bar Chart */}
+            <div className="relative" onMouseLeave={() => { setHoveredBar(null); setSelectedBar(null); }}>
+              {/* Y-axis labels */}
+              <div className="flex">
+                <div className="w-8 flex flex-col justify-between py-1 pr-2 h-48 sm:h-60">
+                  {(() => {
+                    const maxVal = Math.max(...weekly!.dailyDistances.map(d => d.max), 1);
+                    const topTick = Math.ceil(maxVal / 8) * 8;
+                    return [topTick, Math.round(topTick * 0.75), Math.round(topTick * 0.5), Math.round(topTick * 0.25), 0].map(v => (
+                      <span key={v} className="text-[11px] text-slate-600 text-right leading-none">{v}</span>
+                    ));
+                  })()}
                 </div>
-              ); })}
+
+                {/* Bars */}
+                <div className="flex-1 flex items-end gap-1 sm:gap-2 h-48 sm:h-60">
+                  {weekly!.dailyDistances.map((d, i) => {
+                    const maxVal = Math.max(...weekly!.dailyDistances.map(x => x.max), 1);
+                    const topTick = Math.ceil(maxVal / 8) * 8;
+                    const heightPct = d.max > 0 ? (d.max / topTick) * 100 : 0;
+                    const session = weekly!.keySessions.find(s => s.dayOfWeek === d.dayOfWeek);
+                    const isActive = hoveredBar === i || selectedBar === i;
+                    const someActive = hoveredBar !== null || selectedBar !== null;
+
+                    return (
+                      <div
+                        key={d.dayOfWeek}
+                        className="flex-1 flex flex-col items-center justify-end h-full cursor-pointer group relative"
+                        onMouseEnter={() => setHoveredBar(i)}
+                        onClick={() => {
+                          const now = Date.now();
+                          setSelectedBar(i);
+                          if (lastClickRef.current && lastClickRef.current.index === i && now - lastClickRef.current.time < 400) {
+                            if (session) setSelectedSession(session);
+                            lastClickRef.current = null;
+                          } else {
+                            lastClickRef.current = { index: i, time: now };
+                          }
+                        }}
+                      >
+                        {/* Tooltip on hover */}
+                        {isActive && d.max > 0 && (
+                          <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 shadow-xl whitespace-nowrap pointer-events-none">
+                            <p className="text-xs font-bold text-white">{d.day}</p>
+                            <p className="text-[11px] text-slate-300">
+                              {d.min && d.min !== d.max ? `${d.min}–${d.max}` : d.max} km · {typeLabels[d.type] || d.type}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* The bar */}
+                        <div
+                          className={cn(
+                            'w-full max-w-[44px] rounded-t-lg transition-all duration-150',
+                            isActive && 'ring-2 ring-white/60 scale-105',
+                          )}
+                          style={{
+                            height: `${heightPct}%`,
+                            minHeight: d.max > 0 ? '4px' : '0px',
+                            backgroundColor: typeColors[d.type] || '#6366f1',
+                            opacity: someActive ? (isActive ? 1 : 0.3) : (d.dayOfWeek === todayDow ? 1 : 0.75),
+                            filter: isActive ? 'brightness(1.2)' : 'none',
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* X-axis labels + day cards */}
+              <div className="flex mt-3 ml-8">
+                <div className="flex-1 grid grid-cols-7 gap-1 sm:gap-2">
+                  {weekly!.dailyDistances.map((d, i) => {
+                    const session = weekly!.keySessions.find(s => s.dayOfWeek === d.dayOfWeek);
+                    const isActive = hoveredBar === i || selectedBar === i;
+                    return (
+                      <div
+                        key={d.dayOfWeek}
+                        onClick={() => session && setSelectedSession(session)}
+                        className={cn(
+                          "text-center py-2.5 sm:py-3 rounded-xl transition-all",
+                          session ? "cursor-pointer" : "",
+                          isActive ? "bg-slate-700/60 ring-1 ring-white/20" :
+                            d.dayOfWeek === todayDow ? "bg-[#4338ff]/15 ring-1 ring-[#4338ff]/40" : "bg-slate-800/40 hover:bg-slate-700/40"
+                        )}
+                        onMouseEnter={() => setHoveredBar(i)}
+                      >
+                        <p className={cn("text-[11px] sm:text-xs font-bold uppercase", d.dayOfWeek === todayDow ? "text-[#4338ff]" : "text-slate-400")}>{d.day}</p>
+                        <p className={cn("text-base sm:text-lg font-black tabular-nums mt-1", d.max > 0 ? "text-white" : "text-slate-600")}>
+                          {d.max > 0 ? d.max : '—'}
+                        </p>
+                        <p className={cn("text-[10px] sm:text-xs mt-0.5 font-medium", d.max > 0 ? "text-slate-400" : "text-slate-600")}>
+                          {d.max > 0 ? typeLabels[d.type] || d.type : 'Rest'}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </>
         ) : (
