@@ -274,10 +274,22 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
   );
 }
 
+interface RecentActivity {
+  id: string;
+  athlete_name: string;
+  activity_name: string;
+  start_time: string;
+  distance: number;
+  duration: number;
+  average_pace: number | null;
+  average_hr: number | null;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
   const [weather, setWeather] = useState<WeatherDay[]>([]);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState({ d: 0, h: 0, m: 0, s: 0 });
   const [week, setWeek] = useState(0);
@@ -341,6 +353,11 @@ export default function DashboardPage() {
             windSpeed: Math.round(Math.max(...d.w)),
             code: d.c.sort((a, b) => b - a)[0],
           })));
+        }
+        const actRes = await fetch('/api/garmin/sync-activities');
+        if (actRes.ok) {
+          const actData = await actRes.json();
+          setRecentActivities((actData.activities || []).slice(0, 3));
         }
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
@@ -651,33 +668,41 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ═══ KEY SESSIONS ═══ */}
-      {weekly?.keySessions && weekly.keySessions.length > 0 && (
+      {/* ═══ RECENT RUNS ═══ */}
+      {recentActivities.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-amber-400" />
-              <h2 className="text-sm sm:text-base font-bold text-white">Key Sessions</h2>
+              <h2 className="text-sm sm:text-base font-bold text-white">Recent Runs</h2>
             </div>
-            <span className="text-sm text-slate-400">{weekly.keySessions.length} quality</span>
+            <Link href="/dashboard/activities" className="text-sm font-semibold text-[#4338ff] hover:text-[#5b54ff] inline-flex items-center gap-1">
+              All <ChevronRight className="h-4 w-4" />
+            </Link>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {weekly.keySessions.map((s, i) => (
-              <div key={i} onClick={() => setSelectedSession(s)} className="relative p-5 rounded-2xl bg-slate-800/50 border border-slate-700/30 hover:border-[#4338ff]/40 hover:bg-slate-800/70 transition-all cursor-pointer group">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-bold text-slate-300 uppercase">{s.day}</span>
-                  <div className="w-3 h-3 rounded-full" style={{ background: typeColors[s.type] || '#6366f1' }} />
-                </div>
-                <p className="text-base font-bold text-white leading-snug">{s.name}</p>
-                <div className="flex items-center gap-3 mt-3">
-                  <span className="text-lg font-black text-white tabular-nums">{s.totalKm} <span className="text-sm font-medium text-slate-400">km</span></span>
-                  {s.highlight && (
-                    <code className="text-sm font-bold text-[#4338ff] bg-[#4338ff]/10 px-2.5 py-0.5 rounded-md">{s.highlight}</code>
-                  )}
-                </div>
-                <p className="text-xs text-slate-500 mt-2 group-hover:text-slate-400 transition-colors">Tap to view full workout</p>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {recentActivities.map((a) => {
+              const km = (a.distance / 1000).toFixed(1);
+              const pace = a.average_pace ? formatPace(a.average_pace) : null;
+              const date = new Date(a.start_time);
+              const hebrewDays = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
+              const dayLabel = hebrewDays[date.getDay()];
+              const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              return (
+                <Link key={a.id} href="/dashboard/activities" className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/30 hover:border-[#4338ff]/30 hover:bg-slate-800/70 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-400">{dateLabel}</span>
+                    <span className="text-xs text-slate-500">{a.athlete_name}</span>
+                  </div>
+                  <p className="text-sm font-bold text-white mb-2">{dayLabel}</p>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xl font-black text-white tabular-nums">{km}<span className="text-xs text-slate-400 ml-0.5">km</span></span>
+                    {pace && <span className="text-sm font-bold text-emerald-400 tabular-nums">{pace}<span className="text-xs text-slate-500">/km</span></span>}
+                    {a.average_hr && <span className="text-sm font-bold text-red-400 tabular-nums">{a.average_hr}<span className="text-xs text-slate-500">bpm</span></span>}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}
