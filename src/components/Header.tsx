@@ -9,7 +9,7 @@ import { getSupabase } from '@/lib/supabase/client';
 
 const allNavItems = [
   { href: '/dashboard', tab: 'dashboard', label: 'Dashboard', icon: Activity },
-  { href: '/dashboard/plan/new', tab: 'plan/new', label: 'New Plan', icon: Calendar },
+  { href: '/dashboard/plan/new', tab: 'plan/new', label: 'Weekly Planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', label: 'Athletes', icon: Users },
   { href: '/dashboard/groups', tab: 'groups', label: 'Groups', icon: Layers },
   { href: '/dashboard/program', tab: 'program', label: 'Program', icon: ClipboardList },

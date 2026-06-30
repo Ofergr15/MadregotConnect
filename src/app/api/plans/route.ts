@@ -92,6 +92,47 @@ export async function GET(req: NextRequest) {
 }
 
 /**
+ * DELETE /api/plans - Delete a plan
+ * Body: { plan_id }
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { plan_id } = body;
+
+    if (!plan_id) {
+      return NextResponse.json(
+        { error: 'plan_id is required' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createServerClient();
+
+    const { error } = await supabase
+      .from('weekly_plans')
+      .delete()
+      .eq('id', plan_id);
+
+    if (error) {
+      console.error('Error deleting plan:', error);
+      return NextResponse.json(
+        { error: 'Failed to delete plan', details: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Delete plan error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to delete plan' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * PUT /api/plans - Update a plan's status and/or workouts
  * Body: { plan_id, status?, parsed_workouts? }
  */

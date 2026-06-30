@@ -98,14 +98,21 @@ export async function GET() {
       .select(`
         id, athlete_id, garmin_activity_id, activity_name, activity_type,
         start_time, distance, duration, average_pace, average_hr, max_hr,
-        calories, elevation_gain, created_at
+        calories, elevation_gain, created_at,
+        athletes (name)
       `)
       .order('start_time', { ascending: false })
-      .limit(100);
+      .limit(50);
 
     if (error) throw error;
 
-    return NextResponse.json({ activities: activities || [] });
+    const enriched = (activities || []).map((a: any) => ({
+      ...a,
+      athlete_name: a.athletes?.name || 'Unknown',
+      athletes: undefined,
+    }));
+
+    return NextResponse.json({ activities: enriched });
   } catch (error: any) {
     console.error('Fetch activities error:', error);
     return NextResponse.json({ error: error.message || 'Failed to fetch' }, { status: 500 });
