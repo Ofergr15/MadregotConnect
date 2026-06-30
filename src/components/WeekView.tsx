@@ -59,17 +59,24 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                 isToday && 'ring-2 ring-primary-500/25 rounded-xl p-1'
               )}>
                 {dayWorkouts.length > 0 ? (
-                  dayWorkouts.map((workout) => {
+                  dayWorkouts.map((workout, sessionIdx) => {
                     const globalIdx = workouts.indexOf(workout);
                     return (
                       <div
                         key={globalIdx}
                         onDoubleClick={() => { if (editable) setEditingIdx(globalIdx); }}
                         className={cn(
-                          'flex-1',
+                          'flex-1 relative',
                           editable && 'cursor-pointer hover:ring-2 hover:ring-primary-500/40 rounded-xl transition-all'
                         )}
                       >
+                        {sessionIdx > 0 && (
+                          <div className="absolute -top-1 right-2 z-10">
+                            <span className="text-[9px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded-full">
+                              2nd
+                            </span>
+                          </div>
+                        )}
                         <WorkoutPreview workout={workout} />
                       </div>
                     );
