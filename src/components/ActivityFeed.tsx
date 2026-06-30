@@ -82,15 +82,32 @@ function getHRZone(hr: number, maxHR = 190): { zone: number; label: string; colo
   return { zone: 5, label: 'VO2max', color: 'text-red-400', bgColor: '#f87171' };
 }
 
+// ─── Pace color helper ─────────────────────────────────────────────────────────
+
+function getPaceColor(pace: number, minPace: number, maxPace: number): string {
+  const range = maxPace - minPace || 1;
+  const ratio = (pace - minPace) / range;
+  // Green (fast) → Yellow → Orange → Red (slow)
+  if (ratio < 0.25) return '#22c55e';
+  if (ratio < 0.5) return '#eab308';
+  if (ratio < 0.75) return '#f97316';
+  return '#ef4444';
+}
+
 // ─── Leaflet Map (loaded from CDN) ─────────────────────────────────────────────
 
-function RouteMap({ points, height = 240 }: { points: Array<{ lat: number; lng: number }>; height?: number }) {
+function RouteMap({ points, height = 240, splits }: {
+  points: Array<{ lat: number; lng: number }>;
+  height?: number;
+  splits?: Split[];
+}) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
+  const layersRef = useRef<any[]>([]);
+  const [colorByPace, setColorByPace] = useState(false);
 
   useEffect(() => {
     if (!mapRef.current || points.length < 2) return;
-    if (mapInstance.current) return;
 
     // Load Leaflet CSS
     if (!document.getElementById('leaflet-css')) {
@@ -101,16 +118,20 @@ function RouteMap({ points, height = 240 }: { points: Array<{ lat: number; lng: 
       document.head.appendChild(link);
     }
 
-    // Load Leaflet JS
     const initMap = () => {
       const L = (window as any).L;
       if (!L || !mapRef.current) return;
 
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+
       const map = L.map(mapRef.current, {
-        zoomControl: false,
+        zoomControl: true,
         attributionControl: false,
         dragging: true,
-        scrollWheelZoom: false,
+        scrollWheelZoom: true,
       });
 
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -119,21 +140,44 @@ function RouteMap({ points, height = 240 }: { points: Array<{ lat: number; lng: 
 
       const latlngs = points.map(p => [p.lat, p.lng]);
 
-      // Route polyline
-      L.polyline(latlngs, {
-        color: '#4338ff',
-        weight: 4,
-        opacity: 0.9,
-        smoothFactor: 1,
-      }).addTo(map);
+      if (colorByPace && splits && splits.length > 1) {
+        // Color segments by pace
+        const paces = splits.map(s => s.averagePace);
+        const minPace = Math.min(...paces);
+        const maxPace = Math.max(...paces);
+        const pointsPerSplit = Math.floor(points.length / splits.length);
 
-      // Glow effect
-      L.polyline(latlngs, {
-        color: '#4338ff',
-        weight: 8,
-        opacity: 0.2,
-        smoothFactor: 1,
-      }).addTo(map);
+        for (let i = 0; i < splits.length; i++) {
+          const start = i * pointsPerSplit;
+          const end = i === splits.length - 1 ? points.length : (i + 1) * pointsPerSplit + 1;
+          const segment = latlngs.slice(start, end);
+          if (segment.length < 2) continue;
+
+          const color = getPaceColor(splits[i].averagePace, minPace, maxPace);
+
+          L.polyline(segment, {
+            color,
+            weight: 5,
+            opacity: 0.9,
+            smoothFactor: 1,
+          }).addTo(map);
+        }
+      } else {
+        // Single color
+        L.polyline(latlngs, {
+          color: '#4338ff',
+          weight: 4,
+          opacity: 0.9,
+          smoothFactor: 1,
+        }).addTo(map);
+
+        L.polyline(latlngs, {
+          color: '#4338ff',
+          weight: 8,
+          opacity: 0.2,
+          smoothFactor: 1,
+        }).addTo(map);
+      }
 
       // Start marker
       L.circleMarker(latlngs[0], {
@@ -172,11 +216,42 @@ function RouteMap({ points, height = 240 }: { points: Array<{ lat: number; lng: 
         mapInstance.current = null;
       }
     };
-  }, [points]);
+  }, [points, colorByPace, splits]);
 
   if (points.length < 2) return null;
 
-  return <div ref={mapRef} style={{ height: `${height}px` }} className="w-full rounded-xl" />;
+  return (
+    <div className="relative">
+      <div ref={mapRef} style={{ height: `${height}px` }} className="w-full rounded-xl" />
+      {/* Pace color toggle */}
+      {splits && splits.length > 1 && (
+        <button
+          onClick={() => setColorByPace(!colorByPace)}
+          className={cn(
+            'absolute top-3 right-3 z-[1000] px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-lg',
+            colorByPace
+              ? 'bg-white text-slate-900'
+              : 'bg-slate-800/90 text-slate-300 hover:text-white border border-slate-600'
+          )}
+        >
+          {colorByPace ? '● Pace Colors' : '○ Color by Pace'}
+        </button>
+      )}
+      {/* Legend when pace colors active */}
+      {colorByPace && splits && splits.length > 1 && (
+        <div className="absolute bottom-3 left-3 z-[1000] bg-slate-800/90 rounded-lg px-3 py-2 flex items-center gap-2 text-[10px] font-medium shadow-lg">
+          <span className="text-slate-400">Fast</span>
+          <div className="flex gap-0.5">
+            <div className="w-4 h-2 rounded-sm bg-[#22c55e]" />
+            <div className="w-4 h-2 rounded-sm bg-[#eab308]" />
+            <div className="w-4 h-2 rounded-sm bg-[#f97316]" />
+            <div className="w-4 h-2 rounded-sm bg-[#ef4444]" />
+          </div>
+          <span className="text-slate-400">Slow</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── SVG Route (mini sparkline for card) ───────────────────────────────────────
@@ -683,7 +758,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
                 )}
               </h4>
               <div className="rounded-xl overflow-hidden border border-slate-700/30">
-                <RouteMap points={details.gpsPoints} height={280} />
+                <RouteMap points={details.gpsPoints} height={300} splits={splits} />
               </div>
             </div>
           )}
