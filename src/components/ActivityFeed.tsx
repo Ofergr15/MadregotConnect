@@ -41,6 +41,15 @@ interface Split {
   averagePace: number;
   averageHR: number | null;
   elevationGain: number | null;
+  elevationLoss?: number | null;
+}
+
+interface PlannedStep {
+  type: string;
+  duration?: number;
+  distance?: number;
+  targetPace?: number;
+  label?: string;
 }
 
 interface ActivityDetailsData {
@@ -219,23 +228,45 @@ function RouteMap({ points, height = 300, splits }: {
   );
 }
 
+// ─── Interactive Chart Tooltip Hook ────────────────────────────────────────────
+
+function useChartHover(pointCount: number) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>, padLeft: number, chartW: number) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const relX = (x / rect.width) * 1000;
+    const idx = Math.round(((relX - padLeft) / chartW) * (pointCount - 1));
+    if (idx >= 0 && idx < pointCount) setHoverIdx(idx);
+    else setHoverIdx(null);
+  };
+
+  const handleMouseLeave = () => setHoverIdx(null);
+
+  return { hoverIdx, svgRef, handleMouseMove, handleMouseLeave };
+}
+
 // ─── Full-Width Pace Chart ─────────────────────────────────────────────────────
 
-function PaceChart({ splits }: { splits: Split[] }) {
+function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep[] }) {
   if (splits.length < 2) return null;
 
   const width = 1000;
-  const height = 200;
-  const pad = { top: 20, right: 40, bottom: 36, left: 56 };
+  const height = 220;
+  const pad = { top: 24, right: 40, bottom: 36, left: 56 };
   const chartW = width - pad.left - pad.right;
   const chartH = height - pad.top - pad.bottom;
 
   const paces = splits.map(s => s.averagePace);
   const maxPace = Math.max(...paces);
   const minPace = Math.min(...paces);
-  const range = maxPace - minPace || 30;
-  const viewMin = minPace - range * 0.15;
-  const viewMax = maxPace + range * 0.15;
+  const dataRange = maxPace - minPace;
+  const padding = Math.max(dataRange * 0.1, 15);
+  const viewMin = minPace - padding;
+  const viewMax = maxPace + padding;
 
   const toX = (km: number) => pad.left + ((km - 1) / (splits.length - 1)) * chartW;
   const toY = (pace: number) => pad.top + chartH - ((viewMax - pace) / (viewMax - viewMin)) * chartH;
@@ -244,23 +275,47 @@ function PaceChart({ splits }: { splits: Split[] }) {
   const linePath = catmullRom(points);
   const areaPath = linePath + ` L ${points[points.length - 1].x.toFixed(1)} ${pad.top + chartH} L ${points[0].x.toFixed(1)} ${pad.top + chartH} Z`;
 
-  const ySteps = 4;
+  const ySteps = 5;
   const yLabels = Array.from({ length: ySteps }, (_, i) => {
     const pace = viewMax - (viewMax - viewMin) * (i / (ySteps - 1));
     return { pace, y: toY(pace) };
   });
 
   const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
+  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
+
+  // Build planned pace overlay
+  let plannedPoints: Array<{ x: number; y: number }> | null = null;
+  if (planned && planned.length > 0) {
+    const plannedPaces: number[] = [];
+    for (const step of planned) {
+      if (step.targetPace) {
+        const km = step.distance ? Math.round(step.distance / 1000) : 1;
+        for (let i = 0; i < km; i++) plannedPaces.push(step.targetPace);
+      }
+    }
+    if (plannedPaces.length > 0) {
+      plannedPoints = plannedPaces.slice(0, splits.length).map((p, i) => ({ x: toX(i + 1), y: toY(p) }));
+    }
+  }
 
   return (
     <div>
       <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Timer className="h-3 w-3" /> Pace per KM
+        {planned && <span className="text-[9px] text-slate-600 ml-2">— dashed = planned</span>}
       </h4>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: '200px' }}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full"
+        style={{ height: '220px' }}
+        onMouseMove={e => handleMouseMove(e, pad.left, chartW)}
+        onMouseLeave={handleMouseLeave}
+      >
         <defs>
           <linearGradient id="paceGradFW" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#4338ff" stopOpacity={0.35} />
+            <stop offset="0%" stopColor="#4338ff" stopOpacity={0.3} />
             <stop offset="100%" stopColor="#4338ff" stopOpacity={0.02} />
           </linearGradient>
         </defs>
@@ -268,10 +323,25 @@ function PaceChart({ splits }: { splits: Split[] }) {
           <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
         ))}
         <path d={areaPath} fill="url(#paceGradFW)" />
+        {plannedPoints && (
+          <path d={catmullRom(plannedPoints)} fill="none" stroke="#22c55e" strokeWidth="2" strokeDasharray="8 4" opacity={0.7} />
+        )}
         <path d={linePath} fill="none" stroke="#4338ff" strokeWidth="3" strokeLinecap="round" />
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="4" fill="#4338ff" stroke="#1e1b4b" strokeWidth="2" />
+          <circle key={i} cx={p.x} cy={p.y} r={hoverIdx === i ? 6 : 3.5} fill="#4338ff" stroke="#1e1b4b" strokeWidth="2" className="transition-all" />
         ))}
+        {hoverIdx !== null && (
+          <g>
+            <line x1={points[hoverIdx].x} x2={points[hoverIdx].x} y1={pad.top} y2={pad.top + chartH} stroke="#4338ff" strokeWidth="1" opacity={0.4} strokeDasharray="3 3" />
+            <rect x={points[hoverIdx].x - 40} y={points[hoverIdx].y - 28} width="80" height="22" rx="4" fill="#1e293b" stroke="#4338ff" strokeWidth="1" />
+            <text x={points[hoverIdx].x} y={points[hoverIdx].y - 14} textAnchor="middle" className="fill-white" fontSize="12" fontWeight="700">
+              {formatPace(paces[hoverIdx])} /km
+            </text>
+            <text x={points[hoverIdx].x} y={pad.top + chartH + 14} textAnchor="middle" className="fill-slate-300" fontSize="10" fontWeight="600">
+              KM {hoverIdx + 1}
+            </text>
+          </g>
+        )}
         <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
         {splits.map((_, i) => {
           const km = i + 1;
@@ -294,17 +364,19 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
   if (valid.length < 2) return null;
 
   const width = 1000;
-  const height = 180;
-  const pad = { top: 20, right: 40, bottom: 36, left: 56 };
+  const height = 200;
+  const pad = { top: 24, right: 40, bottom: 36, left: 56 };
   const chartW = width - pad.left - pad.right;
   const chartH = height - pad.top - pad.bottom;
 
   const hrs = splits.map(s => s.averageHR || 0);
-  const maxVal = Math.max(...hrs, maxHR * 0.9);
-  const minVal = Math.min(...hrs.filter(h => h > 0), maxHR * 0.5);
-  const range = maxVal - minVal || 30;
-  const viewMin = Math.max(0, minVal - range * 0.1);
-  const viewMax = maxVal + range * 0.1;
+  const validHrs = hrs.filter(h => h > 0);
+  const maxVal = Math.max(...validHrs);
+  const minVal = Math.min(...validHrs);
+  const dataRange = maxVal - minVal;
+  const padding = Math.max(dataRange * 0.15, 10);
+  const viewMin = Math.max(0, minVal - padding);
+  const viewMax = maxVal + padding;
 
   const toX = (km: number) => pad.left + ((km - 1) / (splits.length - 1)) * chartW;
   const toY = (hr: number) => pad.top + chartH - ((hr - viewMin) / (viewMax - viewMin)) * chartH;
@@ -321,24 +393,32 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
     { min: maxHR * 0.9, max: maxHR * 1.1, color: '#f87171' },
   ];
 
-  const ySteps = 4;
+  const ySteps = 5;
   const yLabels = Array.from({ length: ySteps }, (_, i) => {
     const hr = viewMin + (viewMax - viewMin) * (i / (ySteps - 1));
     return { hr: Math.round(hr), y: toY(hr) };
   }).reverse();
 
   const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
+  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
 
   return (
     <div>
       <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Heart className="h-3 w-3" /> Heart Rate
       </h4>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: '180px' }}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full"
+        style={{ height: '200px' }}
+        onMouseMove={e => handleMouseMove(e, pad.left, chartW)}
+        onMouseLeave={handleMouseLeave}
+      >
         <defs>
           <linearGradient id="hrGradFW" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f87171" stopOpacity={0.35} />
-            <stop offset="50%" stopColor="#fb923c" stopOpacity={0.15} />
+            <stop offset="0%" stopColor="#f87171" stopOpacity={0.3} />
+            <stop offset="50%" stopColor="#fb923c" stopOpacity={0.12} />
             <stop offset="100%" stopColor="#fb923c" stopOpacity={0.02} />
           </linearGradient>
         </defs>
@@ -346,7 +426,7 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
           const y1 = Math.max(toY(z.max), pad.top);
           const y2 = Math.min(toY(z.min), pad.top + chartH);
           if (y2 <= y1) return null;
-          return <rect key={i} x={pad.left} y={y1} width={chartW} height={y2 - y1} fill={z.color} opacity={0.06} />;
+          return <rect key={i} x={pad.left} y={y1} width={chartW} height={y2 - y1} fill={z.color} opacity={0.05} />;
         })}
         {yLabels.map((l, i) => (
           <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
@@ -355,8 +435,20 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
         <path d={linePath} fill="none" stroke="#f87171" strokeWidth="3" strokeLinecap="round" />
         {points.map((p, i) => {
           const zone = getHRZone(p.hr, maxHR);
-          return <circle key={i} cx={p.x} cy={p.y} r="4" fill={zone.bgColor} stroke="#1e1b4b" strokeWidth="2" />;
+          return <circle key={i} cx={p.x} cy={p.y} r={hoverIdx === i ? 6 : 3.5} fill={zone.bgColor} stroke="#1e1b4b" strokeWidth="2" className="transition-all" />;
         })}
+        {hoverIdx !== null && hrs[hoverIdx] > 0 && (
+          <g>
+            <line x1={points[hoverIdx].x} x2={points[hoverIdx].x} y1={pad.top} y2={pad.top + chartH} stroke="#f87171" strokeWidth="1" opacity={0.4} strokeDasharray="3 3" />
+            <rect x={points[hoverIdx].x - 42} y={points[hoverIdx].y - 28} width="84" height="22" rx="4" fill="#1e293b" stroke="#f87171" strokeWidth="1" />
+            <text x={points[hoverIdx].x} y={points[hoverIdx].y - 14} textAnchor="middle" className="fill-white" fontSize="12" fontWeight="700">
+              {hrs[hoverIdx]} bpm
+            </text>
+            <text x={points[hoverIdx].x} y={pad.top + chartH + 14} textAnchor="middle" className="fill-slate-300" fontSize="10" fontWeight="600">
+              KM {hoverIdx + 1}
+            </text>
+          </g>
+        )}
         <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
         {splits.map((_, i) => {
           const km = i + 1;
@@ -372,67 +464,100 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
   );
 }
 
-// ─── Full-Width Elevation Chart ────────────────────────────────────────────────
+// ─── Full-Width Elevation Chart (Gain + Loss per KM) ──────────────────────────
 
 function ElevationChart({ splits }: { splits: Split[] }) {
   if (splits.length < 2) return null;
 
   const width = 1000;
-  const height = 160;
-  const pad = { top: 20, right: 40, bottom: 36, left: 56 };
+  const height = 180;
+  const pad = { top: 24, right: 40, bottom: 36, left: 56 };
   const chartW = width - pad.left - pad.right;
   const chartH = height - pad.top - pad.bottom;
 
-  let cum = 0;
-  const elevs = [0, ...splits.map(s => { cum += s.elevationGain || 0; return cum; })];
-  const maxE = Math.max(...elevs, 1);
-  const minE = Math.min(...elevs, 0);
-  const range = maxE - minE || 1;
-  const viewMin = minE - range * 0.1;
-  const viewMax = maxE + range * 0.1;
+  const gains = splits.map(s => s.elevationGain || 0);
+  const losses = splits.map(s => s.elevationLoss || 0);
+  const maxGain = Math.max(...gains, 1);
+  const maxLoss = Math.max(...losses, 0);
+  const maxVal = Math.max(maxGain, maxLoss);
 
-  const toX = (i: number) => pad.left + (i / splits.length) * chartW;
-  const toY = (e: number) => pad.top + chartH - ((e - viewMin) / (viewMax - viewMin)) * chartH;
+  const barW = Math.min(chartW / splits.length * 0.7, 24);
+  const gap = chartW / splits.length;
+  const midY = pad.top + chartH * 0.5;
+  const halfH = chartH * 0.45;
 
-  const points = elevs.map((e, i) => ({ x: toX(i), y: toY(e) }));
-  const linePath = catmullRom(points);
-  const areaPath = linePath + ` L ${points[points.length - 1].x.toFixed(1)} ${pad.top + chartH} L ${points[0].x.toFixed(1)} ${pad.top + chartH} Z`;
-
-  const ySteps = 4;
-  const yLabels = Array.from({ length: ySteps }, (_, i) => {
-    const e = viewMin + (viewMax - viewMin) * (i / (ySteps - 1));
-    return { elev: Math.round(e), y: toY(e) };
-  }).reverse();
+  const toX = (i: number) => pad.left + (i + 0.5) * gap;
+  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
 
   const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
 
   return (
     <div>
       <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
-        <Mountain className="h-3 w-3" /> Elevation Profile
+        <Mountain className="h-3 w-3" /> Elevation per KM
+        <span className="ml-2 flex items-center gap-2 text-[9px]">
+          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500/80" /> gain</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-400/80" /> loss</span>
+        </span>
       </h4>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: '160px' }}>
-        <defs>
-          <linearGradient id="elevGradFW" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22c55e" stopOpacity={0.35} />
-            <stop offset="100%" stopColor="#22c55e" stopOpacity={0.02} />
-          </linearGradient>
-        </defs>
-        {yLabels.map((l, i) => (
-          <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
-        ))}
-        <path d={areaPath} fill="url(#elevGradFW)" />
-        <path d={linePath} fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" />
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full"
+        style={{ height: '180px' }}
+        onMouseMove={e => handleMouseMove(e, pad.left, chartW)}
+        onMouseLeave={handleMouseLeave}
+      >
+        <line x1={pad.left} x2={width - pad.right} y1={midY} y2={midY} stroke="#475569" strokeWidth="1" />
+        {[0.25, 0.5, 0.75, 1].map((frac, i) => {
+          const val = Math.round(maxVal * frac);
+          const yUp = midY - (frac * halfH);
+          const yDown = midY + (frac * halfH);
+          return (
+            <g key={i}>
+              <line x1={pad.left} x2={width - pad.right} y1={yUp} y2={yUp} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
+              {frac === 0.5 || frac === 1 ? (
+                <>
+                  <text x={pad.left - 8} y={yUp + 4} textAnchor="end" className="fill-green-400/70" fontSize="10">+{val}m</text>
+                  <text x={pad.left - 8} y={yDown + 4} textAnchor="end" className="fill-red-400/70" fontSize="10">-{val}m</text>
+                </>
+              ) : null}
+              <line x1={pad.left} x2={width - pad.right} y1={yDown} y2={yDown} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
+            </g>
+          );
+        })}
+        {splits.map((_, i) => {
+          const x = toX(i);
+          const gainH = maxVal > 0 ? (gains[i] / maxVal) * halfH : 0;
+          const lossH = maxVal > 0 ? (losses[i] / maxVal) * halfH : 0;
+          const isHover = hoverIdx === i;
+          return (
+            <g key={i}>
+              {gainH > 0 && (
+                <rect x={x - barW / 2} y={midY - gainH} width={barW} height={gainH} rx="2"
+                  fill={isHover ? '#22c55e' : '#22c55e'} opacity={isHover ? 0.9 : 0.6} className="transition-opacity" />
+              )}
+              {lossH > 0 && (
+                <rect x={x - barW / 2} y={midY} width={barW} height={lossH} rx="2"
+                  fill={isHover ? '#f87171' : '#f87171'} opacity={isHover ? 0.9 : 0.5} className="transition-opacity" />
+              )}
+            </g>
+          );
+        })}
+        {hoverIdx !== null && (
+          <g>
+            <rect x={toX(hoverIdx) - 50} y={pad.top} width="100" height="22" rx="4" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+            <text x={toX(hoverIdx)} y={pad.top + 15} textAnchor="middle" className="fill-white" fontSize="11" fontWeight="700">
+              +{Math.round(gains[hoverIdx])}m / -{Math.round(losses[hoverIdx])}m
+            </text>
+          </g>
+        )}
         <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
         {splits.map((_, i) => {
           const km = i + 1;
           if (km % xInterval !== 0 && km !== splits.length) return null;
-          return <text key={i} x={toX(km)} y={height - 12} textAnchor="middle" className="fill-slate-400" fontSize="11" fontWeight="500">{km}</text>;
+          return <text key={i} x={toX(i)} y={height - 12} textAnchor="middle" className="fill-slate-400" fontSize="11" fontWeight="500">{km}</text>;
         })}
-        <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
-        {yLabels.map((l, i) => (
-          <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-slate-400" fontSize="11">{l.elev}m</text>
-        ))}
       </svg>
     </div>
   );
@@ -484,7 +609,9 @@ function SplitsTable({ splits }: { splits: Split[] }) {
               </div>
               <span className="col-span-3 text-slate-300 tabular-nums">{formatDuration(split.duration)}</span>
               <span className="col-span-2 text-slate-400 tabular-nums">{split.averageHR || '—'}</span>
-              <span className="col-span-2 text-slate-400 tabular-nums">{split.elevationGain != null ? `+${Math.round(split.elevationGain)}` : '—'}</span>
+              <span className="col-span-2 text-slate-400 tabular-nums">
+                {split.elevationGain != null ? <><span className="text-green-400">+{Math.round(split.elevationGain)}</span>{split.elevationLoss ? <span className="text-red-400 ml-1">-{Math.round(split.elevationLoss)}</span> : null}</> : '—'}
+              </span>
             </div>
           );
         })}
@@ -734,6 +861,63 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
   );
 }
 
+// ─── Weekly Grouping ──────────────────────────────────────────────────────────
+
+function getWeekKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay());
+  return sunday.toISOString().split('T')[0];
+}
+
+function getWeekLabel(weekKey: string): string {
+  const start = new Date(weekKey);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+function WeekSummary({ activities }: { activities: ActivityEntry[] }) {
+  const totalKm = activities.reduce((s, a) => s + a.distance / 1000, 0);
+  const totalRuns = activities.length;
+  const totalDuration = activities.reduce((s, a) => s + a.duration, 0);
+  const avgPace = totalKm > 0 ? Math.round(totalDuration / totalKm) : null;
+  const totalCalories = activities.reduce((s, a) => s + (a.calories || 0), 0);
+  const avgHR = activities.filter(a => a.average_hr).length > 0
+    ? Math.round(activities.reduce((s, a) => s + (a.average_hr || 0), 0) / activities.filter(a => a.average_hr).length)
+    : null;
+
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 px-4 py-3 bg-slate-800/30 rounded-xl border border-slate-700/20 mb-3">
+      <div className="text-center">
+        <p className="text-lg font-black text-white tabular-nums">{totalKm.toFixed(1)}</p>
+        <p className="text-[10px] text-slate-500 font-medium">KM</p>
+      </div>
+      <div className="text-center">
+        <p className="text-lg font-black text-white tabular-nums">{totalRuns}</p>
+        <p className="text-[10px] text-slate-500 font-medium">RUNS</p>
+      </div>
+      <div className="text-center">
+        <p className="text-lg font-black text-white tabular-nums">{formatDuration(totalDuration)}</p>
+        <p className="text-[10px] text-slate-500 font-medium">TIME</p>
+      </div>
+      <div className="text-center hidden sm:block">
+        <p className="text-lg font-black text-white tabular-nums">{avgPace ? formatPace(avgPace) : '—'}</p>
+        <p className="text-[10px] text-slate-500 font-medium">AVG PACE</p>
+      </div>
+      <div className="text-center hidden sm:block">
+        <p className="text-lg font-black text-white tabular-nums">{avgHR || '—'}</p>
+        <p className="text-[10px] text-slate-500 font-medium">AVG HR</p>
+      </div>
+      <div className="text-center hidden sm:block">
+        <p className="text-lg font-black text-white tabular-nums">{totalCalories.toLocaleString()}</p>
+        <p className="text-[10px] text-slate-500 font-medium">KCAL</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Activity Feed (exported) ──────────────────────────────────────────────────
 
 interface ActivityFeedProps {
@@ -744,12 +928,28 @@ interface ActivityFeedProps {
 }
 
 export function ActivityFeed({ activities, syncing, lastSyncTime, onSync }: ActivityFeedProps) {
+  const [activeWeek, setActiveWeek] = useState(0);
+
+  const weeks = (() => {
+    const map = new Map<string, ActivityEntry[]>();
+    for (const act of activities) {
+      const key = getWeekKey(act.start_time);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(act);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, acts]) => ({ key, label: getWeekLabel(key), activities: acts }));
+  })();
+
+  const currentWeek = weeks[activeWeek] || null;
+
   return (
     <section>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-[#4338ff]" />
-          <h2 className="text-sm sm:text-base font-bold text-white">Recent Activities</h2>
+          <h2 className="text-sm sm:text-base font-bold text-white">Activities</h2>
           {lastSyncTime && <span className="text-xs text-slate-500 ml-2">Synced {lastSyncTime}</span>}
         </div>
         <button
@@ -769,12 +969,39 @@ export function ActivityFeed({ activities, syncing, lastSyncTime, onSync }: Acti
         </div>
       )}
 
-      {activities.length > 0 && (
-        <div className="space-y-3">
-          {activities.map(act => (
-            <ActivityCard key={act.id} activity={act} />
-          ))}
-        </div>
+      {weeks.length > 0 && (
+        <>
+          {/* Week Tabs */}
+          <div className="flex gap-1 overflow-x-auto pb-2 mb-3 scrollbar-hide">
+            {weeks.map((week, i) => (
+              <button
+                key={week.key}
+                onClick={() => setActiveWeek(i)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors',
+                  i === activeWeek
+                    ? 'bg-[#4338ff] text-white'
+                    : 'bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-700/60 border border-slate-700/40'
+                )}
+              >
+                {week.label}
+                <span className="ml-1.5 text-[10px] opacity-70">({week.activities.length})</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Week Summary */}
+          {currentWeek && <WeekSummary activities={currentWeek.activities} />}
+
+          {/* Activities for selected week */}
+          {currentWeek && (
+            <div className="space-y-3">
+              {currentWeek.activities.map(act => (
+                <ActivityCard key={act.id} activity={act} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </section>
   );
