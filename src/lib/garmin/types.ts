@@ -46,12 +46,23 @@ export interface GarminActivity {
   startTimeLocal: string;
   distance: number;
   duration: number;
+  movingDuration: number;
   averageSpeed: number;
   maxSpeed: number;
   averageHR: number | null;
   maxHR: number | null;
   calories: number;
   elevationGain: number | null;
+  elevationLoss: number | null;
   averageRunningCadence: number | null;
+  avgStrideLength: number | null;
+  vO2MaxValue: number | null;
+  lapCount: number | null;
+  locationName: string | null;
+  startLatitude: number | null;
+  startLongitude: number | null;
+  endLatitude: number | null;
+  endLongitude: number | null;
+  hasPolyline: boolean;
   steps: number | null;
 }

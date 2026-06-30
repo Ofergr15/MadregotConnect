@@ -85,15 +85,69 @@ export class GarminClient {
       startTimeLocal: a.startTimeLocal || '',
       distance: a.distance || 0,
       duration: a.duration || 0,
+      movingDuration: a.movingDuration || a.duration || 0,
       averageSpeed: a.averageSpeed || 0,
       maxSpeed: a.maxSpeed || 0,
       averageHR: a.averageHR || null,
       maxHR: a.maxHR || null,
       calories: a.calories || 0,
       elevationGain: a.elevationGain || null,
-      averageRunningCadence: a.averageRunningCadence || null,
+      elevationLoss: a.elevationLoss || null,
+      averageRunningCadence: a.averageRunningCadenceInStepsPerMinute || a.averageRunningCadence || null,
+      avgStrideLength: a.avgStrideLength || null,
+      vO2MaxValue: a.vO2MaxValue || null,
+      lapCount: a.lapCount || null,
+      locationName: a.locationName || null,
+      startLatitude: a.startLatitude || null,
+      startLongitude: a.startLongitude || null,
+      endLatitude: a.endLatitude || null,
+      endLongitude: a.endLongitude || null,
+      hasPolyline: a.hasPolyline || false,
       steps: a.steps || null,
     }));
+  }
+
+  async getActivityDetails(activityId: number): Promise<any> {
+    await this.restoreSession();
+    const tokens = this.gc.exportToken() as any;
+    const accessToken = tokens.oauth2?.access_token;
+    if (!accessToken) throw new Error('No access token available');
+
+    const res = await fetch(
+      `https://connectapi.garmin.com/activity-service/activity/${activityId}/details?maxChartSize=1000&maxPolylineSize=1000`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'NK': 'NT',
+          'DI-Backend': 'connectapi.garmin.com',
+        },
+      }
+    );
+
+    if (!res.ok) throw new Error(`Failed to fetch activity details: ${res.status}`);
+    return res.json();
+  }
+
+  async getActivitySplits(activityId: number): Promise<any[]> {
+    await this.restoreSession();
+    const tokens = this.gc.exportToken() as any;
+    const accessToken = tokens.oauth2?.access_token;
+    if (!accessToken) throw new Error('No access token available');
+
+    const res = await fetch(
+      `https://connectapi.garmin.com/activity-service/activity/${activityId}/splits`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'NK': 'NT',
+          'DI-Backend': 'connectapi.garmin.com',
+        },
+      }
+    );
+
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.lapDTOs || data.splits || [];
   }
 
   async testConnection(): Promise<boolean> {

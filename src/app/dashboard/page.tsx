@@ -5,7 +5,6 @@ import Link from 'next/link';
 import {
   Calendar, Users, ArrowRight, TrendingUp, TrendingDown,
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
-  Activity, RefreshCw, Heart, Timer, Route,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
@@ -268,23 +267,6 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
   );
 }
 
-interface ActivityEntry {
-  id: string;
-  athlete_id: string;
-  garmin_activity_id: number;
-  activity_name: string;
-  activity_type: string;
-  start_time: string;
-  distance: number;
-  duration: number;
-  average_pace: number | null;
-  average_hr: number | null;
-  max_hr: number | null;
-  calories: number | null;
-  elevation_gain: number | null;
-  athlete_name?: string;
-}
-
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
@@ -296,9 +278,6 @@ export default function DashboardPage() {
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [selectedBar, setSelectedBar] = useState<number | null>(null);
   const lastClickRef = useRef<{ index: number; time: number } | null>(null);
-  const [activities, setActivities] = useState<ActivityEntry[]>([]);
-  const [syncing, setSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
   useEffect(() => {
     const tick = () => {
@@ -360,22 +339,7 @@ export default function DashboardPage() {
       finally { setLoading(false); }
     }
     load();
-    syncAndFetchActivities();
   }, []);
-
-  const syncAndFetchActivities = async () => {
-    setSyncing(true);
-    try {
-      await fetch('/api/garmin/sync-activities', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      const res = await fetch('/api/garmin/sync-activities');
-      if (res.ok) {
-        const data = await res.json();
-        setActivities(data.activities || []);
-      }
-      setLastSyncTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-    } catch { /* silent */ }
-    finally { setSyncing(false); }
-  };
 
   if (loading) return (
     <div className="flex items-center justify-center h-[60vh]">
@@ -736,81 +700,6 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-
-      {/* ═══ ACTIVITY FEED ═══ */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-[#4338ff]" />
-            <h2 className="text-sm sm:text-base font-bold text-white">Recent Activities</h2>
-            {lastSyncTime && <span className="text-xs text-slate-500 ml-2">Synced {lastSyncTime}</span>}
-          </div>
-          <button
-            onClick={syncAndFetchActivities}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
-            {syncing ? 'Syncing...' : 'Sync'}
-          </button>
-        </div>
-
-        {activities.length === 0 && !syncing && (
-          <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-8 text-center">
-            <Activity className="h-8 w-8 text-slate-600 mx-auto mb-3" />
-            <p className="text-sm text-slate-400">No activities yet. Connect athletes to Garmin to see their runs here.</p>
-          </div>
-        )}
-
-        {activities.length > 0 && (
-          <div className="space-y-2">
-            {activities.slice(0, 15).map((act) => {
-              const distKm = (act.distance / 1000).toFixed(1);
-              const paceStr = act.average_pace ? `${Math.floor(act.average_pace / 60)}:${String(Math.round(act.average_pace % 60)).padStart(2, '0')}` : null;
-              const durMin = Math.round(act.duration / 60);
-              const dateStr = new Date(act.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-              const timeStr = new Date(act.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-              return (
-                <div key={act.id} className="flex items-center gap-4 p-3 sm:p-4 rounded-xl bg-slate-800/40 border border-slate-700/20 hover:border-slate-600/40 transition-colors">
-                  <div className="w-10 h-10 rounded-full bg-[#4338ff]/10 flex items-center justify-center shrink-0">
-                    <Route className="h-4 w-4 text-[#4338ff]" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white truncate">{act.athlete_name}</span>
-                      <span className="text-xs text-slate-500">{dateStr} · {timeStr}</span>
-                    </div>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">{act.activity_name}</p>
-                  </div>
-
-                  <div className="flex items-center gap-4 shrink-0 text-right">
-                    <div>
-                      <p className="text-sm font-bold text-white tabular-nums">{distKm} km</p>
-                      <p className="text-[10px] text-slate-500">{durMin} min</p>
-                    </div>
-                    {paceStr && (
-                      <div>
-                        <p className="text-sm font-semibold text-slate-300 tabular-nums">{paceStr}</p>
-                        <p className="text-[10px] text-slate-500">/km</p>
-                      </div>
-                    )}
-                    {act.average_hr && (
-                      <div className="hidden sm:block">
-                        <p className="text-sm font-semibold text-red-400 tabular-nums flex items-center gap-1">
-                          <Heart className="h-3 w-3" />{act.average_hr}
-                        </p>
-                        <p className="text-[10px] text-slate-500">bpm</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
 
       {/* ═══ QUICK LINKS ═══ */}
       <section className="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-800/50">
