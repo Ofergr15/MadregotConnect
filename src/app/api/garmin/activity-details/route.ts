@@ -37,6 +37,7 @@ export async function GET(request: Request) {
       averageHR: number | null;
       maxHR: number | null;
       elevationGain: number | null;
+      elevationLoss: number | null;
       cadence: number | null;
       strideLength: number | null;
     }> = [];
@@ -60,6 +61,7 @@ export async function GET(request: Request) {
             averageHR: split.averageHR || null,
             maxHR: split.maxHR || null,
             elevationGain: split.elevationGain || null,
+            elevationLoss: split.elevationLoss || null,
             cadence: split.averageRunCadence || null,
             strideLength: split.strideLength || null,
           });
@@ -81,6 +83,7 @@ export async function GET(request: Request) {
               averageHR: lap.averageHR || null,
               maxHR: lap.maxHR || null,
               elevationGain: lap.elevationGain || null,
+              elevationLoss: lap.elevationLoss || null,
               cadence: lap.averageRunCadence || null,
               strideLength: lap.strideLength || null,
             });
@@ -108,6 +111,7 @@ export async function GET(request: Request) {
                 averageHR: split.averageHR || null,
                 maxHR: split.maxHR || null,
                 elevationGain: split.elevationGain || null,
+                elevationLoss: split.elevationLoss || null,
                 cadence: split.averageRunCadence || null,
                 strideLength: split.strideLength || null,
               });
