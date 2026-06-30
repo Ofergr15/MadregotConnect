@@ -69,19 +69,20 @@ export async function POST(request: Request) {
           for (const a of newActivities) {
             let enriched: any = {};
             try {
-              const detail = await client.getActivitySummary(a.activityId);
+              const detail = await client.getActivityFull(a.activityId);
+              const summ = detail?.summaryDTO || {};
               enriched = {
                 start_lat: detail.startLatitude || null,
                 start_lng: detail.startLongitude || null,
-                end_lat: detail.endLatitude || null,
-                end_lng: detail.endLongitude || null,
-                avg_cadence: detail.averageRunningCadenceInStepsPerMinute || detail.averageRunCadence || null,
-                avg_stride_length: detail.avgStrideLength || null,
+                end_lat: summ.endLatitude || detail.endLatitude || null,
+                end_lng: summ.endLongitude || detail.endLongitude || null,
+                avg_cadence: summ.averageRunCadence || null,
+                avg_stride_length: summ.strideLength ? Math.round(summ.strideLength * 100) : null,
                 vo2max: detail.vO2MaxValue || null,
                 lap_count: detail.lapCount || null,
                 location_name: detail.locationName || null,
                 has_polyline: detail.hasPolyline || false,
-                moving_duration: detail.movingDuration ? Math.round(detail.movingDuration) : Math.round(a.movingDuration),
+                moving_duration: summ.movingDuration ? Math.round(summ.movingDuration) : Math.round(a.movingDuration),
               };
             } catch {
               enriched = {
@@ -175,20 +176,20 @@ export async function PATCH(request: Request) {
       if (!client) continue;
 
       try {
-        const detail = await client.getActivitySummary(act.garmin_activity_id);
+        const detail = await client.getActivityFull(act.garmin_activity_id);
+        const summ = detail?.summaryDTO || {};
         const update: any = {};
         if (detail.startLatitude) update.start_lat = detail.startLatitude;
         if (detail.startLongitude) update.start_lng = detail.startLongitude;
-        if (detail.endLatitude) update.end_lat = detail.endLatitude;
-        if (detail.endLongitude) update.end_lng = detail.endLongitude;
-        if (detail.averageRunningCadenceInStepsPerMinute) update.avg_cadence = detail.averageRunningCadenceInStepsPerMinute;
-        else if (detail.averageRunCadence) update.avg_cadence = detail.averageRunCadence;
-        if (detail.avgStrideLength) update.avg_stride_length = detail.avgStrideLength;
+        if (summ.endLatitude || detail.endLatitude) update.end_lat = summ.endLatitude || detail.endLatitude;
+        if (summ.endLongitude || detail.endLongitude) update.end_lng = summ.endLongitude || detail.endLongitude;
+        if (summ.averageRunCadence) update.avg_cadence = summ.averageRunCadence;
+        if (summ.strideLength) update.avg_stride_length = Math.round(summ.strideLength * 100);
         if (detail.vO2MaxValue) update.vo2max = detail.vO2MaxValue;
         if (detail.lapCount) update.lap_count = detail.lapCount;
         if (detail.locationName) update.location_name = detail.locationName;
         if (detail.hasPolyline != null) update.has_polyline = detail.hasPolyline;
-        if (detail.movingDuration) update.moving_duration = Math.round(detail.movingDuration);
+        if (summ.movingDuration) update.moving_duration = Math.round(summ.movingDuration);
 
         if (Object.keys(update).length > 0) {
           await supabase
