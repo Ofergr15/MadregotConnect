@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Activity, Heart, Timer, Route, TrendingUp,
   MapPin, ChevronDown, ChevronUp, Zap, Footprints, Mountain,
@@ -82,34 +82,46 @@ function getHRZone(hr: number, maxHR = 190): { zone: number; label: string; colo
   return { zone: 5, label: 'VO2max', color: 'text-red-400', bgColor: '#f87171' };
 }
 
-// ─── Pace color helper ─────────────────────────────────────────────────────────
-
 function getPaceColor(pace: number, minPace: number, maxPace: number): string {
   const range = maxPace - minPace || 1;
   const ratio = (pace - minPace) / range;
-  // Green (fast) → Yellow → Orange → Red (slow)
   if (ratio < 0.25) return '#22c55e';
   if (ratio < 0.5) return '#eab308';
   if (ratio < 0.75) return '#f97316';
   return '#ef4444';
 }
 
-// ─── Leaflet Map (loaded from CDN) ─────────────────────────────────────────────
+function catmullRom(points: Array<{ x: number; y: number }>): string {
+  if (points.length < 2) return '';
+  let path = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    path += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return path;
+}
 
-function RouteMap({ points, height = 240, splits }: {
+// ─── Leaflet Map ───────────────────────────────────────────────────────────────
+
+function RouteMap({ points, height = 300, splits }: {
   points: Array<{ lat: number; lng: number }>;
   height?: number;
   splits?: Split[];
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
-  const layersRef = useRef<any[]>([]);
   const [colorByPace, setColorByPace] = useState(false);
 
   useEffect(() => {
     if (!mapRef.current || points.length < 2) return;
 
-    // Load Leaflet CSS
     if (!document.getElementById('leaflet-css')) {
       const link = document.createElement('link');
       link.id = 'leaflet-css';
@@ -141,81 +153,38 @@ function RouteMap({ points, height = 240, splits }: {
       const latlngs = points.map(p => [p.lat, p.lng]);
 
       if (colorByPace && splits && splits.length > 1) {
-        // Color segments by pace
         const paces = splits.map(s => s.averagePace);
-        const minPace = Math.min(...paces);
-        const maxPace = Math.max(...paces);
-        const pointsPerSplit = Math.floor(points.length / splits.length);
+        const minP = Math.min(...paces);
+        const maxP = Math.max(...paces);
+        const ptsPerSplit = Math.floor(points.length / splits.length);
 
         for (let i = 0; i < splits.length; i++) {
-          const start = i * pointsPerSplit;
-          const end = i === splits.length - 1 ? points.length : (i + 1) * pointsPerSplit + 1;
+          const start = i * ptsPerSplit;
+          const end = i === splits.length - 1 ? points.length : (i + 1) * ptsPerSplit + 1;
           const segment = latlngs.slice(start, end);
           if (segment.length < 2) continue;
-
-          const color = getPaceColor(splits[i].averagePace, minPace, maxPace);
-
-          L.polyline(segment, {
-            color,
-            weight: 5,
-            opacity: 0.9,
-            smoothFactor: 1,
-          }).addTo(map);
+          L.polyline(segment, { color: getPaceColor(splits[i].averagePace, minP, maxP), weight: 5, opacity: 0.9 }).addTo(map);
         }
       } else {
-        // Single color
-        L.polyline(latlngs, {
-          color: '#4338ff',
-          weight: 4,
-          opacity: 0.9,
-          smoothFactor: 1,
-        }).addTo(map);
-
-        L.polyline(latlngs, {
-          color: '#4338ff',
-          weight: 8,
-          opacity: 0.2,
-          smoothFactor: 1,
-        }).addTo(map);
+        L.polyline(latlngs, { color: '#4338ff', weight: 4, opacity: 0.9 }).addTo(map);
+        L.polyline(latlngs, { color: '#4338ff', weight: 8, opacity: 0.2 }).addTo(map);
       }
 
-      // Start marker
-      L.circleMarker(latlngs[0], {
-        radius: 7,
-        fillColor: '#22c55e',
-        color: '#fff',
-        weight: 2,
-        fillOpacity: 1,
-      }).addTo(map);
-
-      // End marker
-      L.circleMarker(latlngs[latlngs.length - 1], {
-        radius: 7,
-        fillColor: '#ef4444',
-        color: '#fff',
-        weight: 2,
-        fillOpacity: 1,
-      }).addTo(map);
-
+      L.circleMarker(latlngs[0], { radius: 7, fillColor: '#22c55e', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+      L.circleMarker(latlngs[latlngs.length - 1], { radius: 7, fillColor: '#ef4444', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
       map.fitBounds(L.latLngBounds(latlngs), { padding: [20, 20] });
       mapInstance.current = map;
     };
 
-    if ((window as any).L) {
-      initMap();
-    } else {
+    if ((window as any).L) { initMap(); }
+    else {
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.onload = initMap;
       document.head.appendChild(script);
     }
 
-    return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove();
-        mapInstance.current = null;
-      }
-    };
+    return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
   }, [points, colorByPace, splits]);
 
   if (points.length < 2) return null;
@@ -223,22 +192,18 @@ function RouteMap({ points, height = 240, splits }: {
   return (
     <div className="relative">
       <div ref={mapRef} style={{ height: `${height}px` }} className="w-full rounded-xl" />
-      {/* Pace color toggle */}
       {splits && splits.length > 1 && (
         <button
           onClick={() => setColorByPace(!colorByPace)}
           className={cn(
             'absolute top-3 right-3 z-[1000] px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-lg',
-            colorByPace
-              ? 'bg-white text-slate-900'
-              : 'bg-slate-800/90 text-slate-300 hover:text-white border border-slate-600'
+            colorByPace ? 'bg-white text-slate-900' : 'bg-slate-800/90 text-slate-300 hover:text-white border border-slate-600'
           )}
         >
           {colorByPace ? '● Pace Colors' : '○ Color by Pace'}
         </button>
       )}
-      {/* Legend when pace colors active */}
-      {colorByPace && splits && splits.length > 1 && (
+      {colorByPace && (
         <div className="absolute bottom-3 left-3 z-[1000] bg-slate-800/90 rounded-lg px-3 py-2 flex items-center gap-2 text-[10px] font-medium shadow-lg">
           <span className="text-slate-400">Fast</span>
           <div className="flex gap-0.5">
@@ -254,324 +219,222 @@ function RouteMap({ points, height = 240, splits }: {
   );
 }
 
-// ─── SVG Route (mini sparkline for card) ───────────────────────────────────────
-
-function RouteSparkline({ points }: { points: Array<{ lat: number; lng: number }> }) {
-  if (points.length < 2) return null;
-
-  const sampled = points.length > 80
-    ? points.filter((_, i) => i % Math.ceil(points.length / 60) === 0)
-    : points;
-
-  const minLat = Math.min(...sampled.map(p => p.lat));
-  const maxLat = Math.max(...sampled.map(p => p.lat));
-  const minLng = Math.min(...sampled.map(p => p.lng));
-  const maxLng = Math.max(...sampled.map(p => p.lng));
-
-  const padLat = (maxLat - minLat) * 0.12 || 0.001;
-  const padLng = (maxLng - minLng) * 0.12 || 0.001;
-  const width = 120;
-  const h = 80;
-
-  const toX = (lng: number) => ((lng - (minLng - padLng)) / ((maxLng + padLng) - (minLng - padLng))) * width;
-  const toY = (lat: number) => h - ((lat - (minLat - padLat)) / ((maxLat + padLat) - (minLat - padLat))) * h;
-
-  const pathData = sampled
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.lng).toFixed(1)} ${toY(p.lat).toFixed(1)}`)
-    .join(' ');
-
-  return (
-    <div className="w-full h-20 bg-slate-900/50 rounded-lg overflow-hidden">
-      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${h}`} preserveAspectRatio="xMidYMid meet">
-        <path d={pathData} fill="none" stroke="#4338ff" strokeWidth="2" strokeLinecap="round" opacity="0.8" />
-      </svg>
-    </div>
-  );
-}
-
-// ─── Elevation Profile Chart ───────────────────────────────────────────────────
-
-function ElevationChart({ splits }: { splits: Split[] }) {
-  if (splits.length < 2) return null;
-
-  const width = 600;
-  const height = 140;
-  const padding = { top: 10, right: 10, bottom: 24, left: 36 };
-
-  const elevations = splits.map((s, i) => ({
-    km: i + 1,
-    elevation: s.elevationGain || 0,
-  }));
-
-  let cumulative = 0;
-  const cumulativeElev = elevations.map(e => {
-    cumulative += e.elevation;
-    return cumulative;
-  });
-  cumulativeElev.unshift(0);
-
-  const maxElev = Math.max(...cumulativeElev, 1);
-  const minElev = Math.min(...cumulativeElev, 0);
-  const range = maxElev - minElev || 1;
-
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-
-  const toX = (km: number) => padding.left + (km / splits.length) * chartW;
-  const toY = (elev: number) => padding.top + chartH - ((elev - minElev) / range) * chartH;
-
-  const pathPoints = cumulativeElev.map((e, i) => ({ x: toX(i), y: toY(e) }));
-  const linePath = pathPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-  const areaPath = linePath + ` L ${pathPoints[pathPoints.length - 1].x.toFixed(1)} ${padding.top + chartH} L ${pathPoints[0].x.toFixed(1)} ${padding.top + chartH} Z`;
-
-  return (
-    <div>
-      <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
-        <Mountain className="h-3 w-3" /> Elevation Profile
-      </h4>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: '140px' }}>
-        <defs>
-          <linearGradient id="elevGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
-            <stop offset="100%" stopColor="#22c55e" stopOpacity={0.02} />
-          </linearGradient>
-        </defs>
-        {/* Grid lines */}
-        {[0.25, 0.5, 0.75].map(pct => (
-          <line key={pct} x1={padding.left} x2={width - padding.right}
-            y1={padding.top + chartH * (1 - pct)} y2={padding.top + chartH * (1 - pct)}
-            stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
-        ))}
-        <path d={areaPath} fill="url(#elevGrad)" />
-        <path d={linePath} fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" />
-        {/* X axis labels */}
-        {splits.map((_, i) => {
-          if (splits.length > 10 && i % 2 !== 0) return null;
-          return (
-            <text key={i} x={toX(i + 1)} y={height - 4} textAnchor="middle" className="fill-slate-500" fontSize="9">
-              {i + 1}
-            </text>
-          );
-        })}
-        {/* Y axis */}
-        <text x={padding.left - 4} y={padding.top + 4} textAnchor="end" className="fill-slate-500" fontSize="9">
-          {Math.round(maxElev)}m
-        </text>
-        <text x={padding.left - 4} y={padding.top + chartH} textAnchor="end" className="fill-slate-500" fontSize="9">
-          {Math.round(minElev)}m
-        </text>
-      </svg>
-    </div>
-  );
-}
-
-// ─── Pace Chart ────────────────────────────────────────────────────────────────
+// ─── Full-Width Pace Chart ─────────────────────────────────────────────────────
 
 function PaceChart({ splits }: { splits: Split[] }) {
   if (splits.length < 2) return null;
 
-  const width = 600;
-  const height = 140;
-  const padding = { top: 10, right: 10, bottom: 24, left: 42 };
+  const width = 1000;
+  const height = 200;
+  const pad = { top: 20, right: 40, bottom: 36, left: 56 };
+  const chartW = width - pad.left - pad.right;
+  const chartH = height - pad.top - pad.bottom;
 
   const paces = splits.map(s => s.averagePace);
   const maxPace = Math.max(...paces);
   const minPace = Math.min(...paces);
   const range = maxPace - minPace || 30;
-  const viewMin = minPace - range * 0.1;
-  const viewMax = maxPace + range * 0.1;
+  const viewMin = minPace - range * 0.15;
+  const viewMax = maxPace + range * 0.15;
 
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-
-  const toX = (km: number) => padding.left + ((km - 1) / (splits.length - 1)) * chartW;
-  // Invert Y: lower pace (faster) = higher on chart
-  const toY = (pace: number) => padding.top + ((pace - viewMin) / (viewMax - viewMin)) * chartH;
+  const toX = (km: number) => pad.left + ((km - 1) / (splits.length - 1)) * chartW;
+  const toY = (pace: number) => pad.top + chartH - ((viewMax - pace) / (viewMax - viewMin)) * chartH;
 
   const points = paces.map((p, i) => ({ x: toX(i + 1), y: toY(p) }));
+  const linePath = catmullRom(points);
+  const areaPath = linePath + ` L ${points[points.length - 1].x.toFixed(1)} ${pad.top + chartH} L ${points[0].x.toFixed(1)} ${pad.top + chartH} Z`;
 
-  // Smooth path with quadratic bezier
-  let path = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-  for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const midX = (prev.x + curr.x) / 2;
-    path += ` Q ${prev.x.toFixed(1)} ${prev.y.toFixed(1)}, ${midX.toFixed(1)} ${curr.y.toFixed(1)}`;
-  }
+  const ySteps = 4;
+  const yLabels = Array.from({ length: ySteps }, (_, i) => {
+    const pace = viewMax - (viewMax - viewMin) * (i / (ySteps - 1));
+    return { pace, y: toY(pace) };
+  });
 
-  const areaPath = path + ` L ${points[points.length - 1].x.toFixed(1)} ${padding.top + chartH} L ${points[0].x.toFixed(1)} ${padding.top + chartH} Z`;
+  const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
 
   return (
     <div>
       <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Timer className="h-3 w-3" /> Pace per KM
       </h4>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: '140px' }}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: '200px' }}>
         <defs>
-          <linearGradient id="paceGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#4338ff" stopOpacity={0.25} />
+          <linearGradient id="paceGradFW" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#4338ff" stopOpacity={0.35} />
             <stop offset="100%" stopColor="#4338ff" stopOpacity={0.02} />
           </linearGradient>
         </defs>
-        {/* Grid */}
-        {[0.25, 0.5, 0.75].map(pct => (
-          <line key={pct} x1={padding.left} x2={width - padding.right}
-            y1={padding.top + chartH * pct} y2={padding.top + chartH * pct}
-            stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
+        {yLabels.map((l, i) => (
+          <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
         ))}
-        <path d={areaPath} fill="url(#paceGrad)" />
-        <path d={path} fill="none" stroke="#4338ff" strokeWidth="2.5" strokeLinecap="round" />
-        {/* Data points */}
+        <path d={areaPath} fill="url(#paceGradFW)" />
+        <path d={linePath} fill="none" stroke="#4338ff" strokeWidth="3" strokeLinecap="round" />
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="3" fill="#4338ff" stroke="#1e1b4b" strokeWidth="1.5" />
+          <circle key={i} cx={p.x} cy={p.y} r="4" fill="#4338ff" stroke="#1e1b4b" strokeWidth="2" />
         ))}
-        {/* X axis */}
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
         {splits.map((_, i) => {
-          if (splits.length > 10 && i % 2 !== 0) return null;
-          return (
-            <text key={i} x={toX(i + 1)} y={height - 4} textAnchor="middle" className="fill-slate-500" fontSize="9">
-              {i + 1}
-            </text>
-          );
+          const km = i + 1;
+          if (km % xInterval !== 0 && km !== splits.length) return null;
+          return <text key={i} x={toX(km)} y={height - 12} textAnchor="middle" className="fill-slate-400" fontSize="11" fontWeight="500">{km}</text>;
         })}
-        {/* Y axis - pace labels (note: top = slower, bottom = faster for this chart) */}
-        <text x={padding.left - 4} y={padding.top + 6} textAnchor="end" className="fill-slate-500" fontSize="9">
-          {formatPace(viewMin)}
-        </text>
-        <text x={padding.left - 4} y={padding.top + chartH} textAnchor="end" className="fill-slate-500" fontSize="9">
-          {formatPace(viewMax)}
-        </text>
+        <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
+        {yLabels.map((l, i) => (
+          <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-slate-400" fontSize="11">{formatPace(l.pace)}</text>
+        ))}
       </svg>
     </div>
   );
 }
 
-// ─── Heart Rate Zone Chart ─────────────────────────────────────────────────────
+// ─── Full-Width Heart Rate Chart ───────────────────────────────────────────────
 
 function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
-  const hrSplits = splits.filter(s => s.averageHR);
-  if (hrSplits.length < 2) return null;
+  const valid = splits.filter(s => s.averageHR);
+  if (valid.length < 2) return null;
 
-  const width = 600;
-  const height = 140;
-  const padding = { top: 10, right: 10, bottom: 24, left: 36 };
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
+  const width = 1000;
+  const height = 180;
+  const pad = { top: 20, right: 40, bottom: 36, left: 56 };
+  const chartW = width - pad.left - pad.right;
+  const chartH = height - pad.top - pad.bottom;
 
   const hrs = splits.map(s => s.averageHR || 0);
-  const maxVal = Math.max(...hrs, maxHR * 0.95);
+  const maxVal = Math.max(...hrs, maxHR * 0.9);
   const minVal = Math.min(...hrs.filter(h => h > 0), maxHR * 0.5);
   const range = maxVal - minVal || 30;
-  const viewMin = minVal - range * 0.1;
+  const viewMin = Math.max(0, minVal - range * 0.1);
   const viewMax = maxVal + range * 0.1;
 
-  const toX = (km: number) => padding.left + ((km - 1) / (splits.length - 1)) * chartW;
-  const toY = (hr: number) => padding.top + chartH - ((hr - viewMin) / (viewMax - viewMin)) * chartH;
+  const toX = (km: number) => pad.left + ((km - 1) / (splits.length - 1)) * chartW;
+  const toY = (hr: number) => pad.top + chartH - ((hr - viewMin) / (viewMax - viewMin)) * chartH;
 
   const points = hrs.map((h, i) => ({ x: toX(i + 1), y: toY(h), hr: h }));
+  const linePath = catmullRom(points);
+  const areaPath = linePath + ` L ${points[points.length - 1].x.toFixed(1)} ${pad.top + chartH} L ${points[0].x.toFixed(1)} ${pad.top + chartH} Z`;
 
-  let path = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-  for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const midX = (prev.x + curr.x) / 2;
-    path += ` Q ${prev.x.toFixed(1)} ${prev.y.toFixed(1)}, ${midX.toFixed(1)} ${curr.y.toFixed(1)}`;
-  }
-
-  // Zone bands
   const zones = [
-    { min: 0, max: maxHR * 0.6, color: '#94a3b8', label: 'Z1' },
-    { min: maxHR * 0.6, max: maxHR * 0.7, color: '#60a5fa', label: 'Z2' },
-    { min: maxHR * 0.7, max: maxHR * 0.8, color: '#4ade80', label: 'Z3' },
-    { min: maxHR * 0.8, max: maxHR * 0.9, color: '#fb923c', label: 'Z4' },
-    { min: maxHR * 0.9, max: maxHR, color: '#f87171', label: 'Z5' },
+    { min: 0, max: maxHR * 0.6, color: '#94a3b8' },
+    { min: maxHR * 0.6, max: maxHR * 0.7, color: '#60a5fa' },
+    { min: maxHR * 0.7, max: maxHR * 0.8, color: '#4ade80' },
+    { min: maxHR * 0.8, max: maxHR * 0.9, color: '#fb923c' },
+    { min: maxHR * 0.9, max: maxHR * 1.1, color: '#f87171' },
   ];
+
+  const ySteps = 4;
+  const yLabels = Array.from({ length: ySteps }, (_, i) => {
+    const hr = viewMin + (viewMax - viewMin) * (i / (ySteps - 1));
+    return { hr: Math.round(hr), y: toY(hr) };
+  }).reverse();
+
+  const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
 
   return (
     <div>
       <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Heart className="h-3 w-3" /> Heart Rate
       </h4>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: '140px' }}>
-        {/* Zone background bands */}
-        {zones.map(zone => {
-          const y1 = Math.max(toY(zone.max), padding.top);
-          const y2 = Math.min(toY(zone.min), padding.top + chartH);
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: '180px' }}>
+        <defs>
+          <linearGradient id="hrGradFW" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f87171" stopOpacity={0.35} />
+            <stop offset="50%" stopColor="#fb923c" stopOpacity={0.15} />
+            <stop offset="100%" stopColor="#fb923c" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        {zones.map((z, i) => {
+          const y1 = Math.max(toY(z.max), pad.top);
+          const y2 = Math.min(toY(z.min), pad.top + chartH);
           if (y2 <= y1) return null;
-          return (
-            <rect key={zone.label} x={padding.left} y={y1} width={chartW} height={y2 - y1}
-              fill={zone.color} opacity={0.06} />
-          );
+          return <rect key={i} x={pad.left} y={y1} width={chartW} height={y2 - y1} fill={z.color} opacity={0.06} />;
         })}
-        {/* Line */}
-        <path d={path} fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" />
-        {/* Points with zone colors */}
+        {yLabels.map((l, i) => (
+          <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
+        ))}
+        <path d={areaPath} fill="url(#hrGradFW)" />
+        <path d={linePath} fill="none" stroke="#f87171" strokeWidth="3" strokeLinecap="round" />
         {points.map((p, i) => {
           const zone = getHRZone(p.hr, maxHR);
-          return (
-            <circle key={i} cx={p.x} cy={p.y} r="3" fill={zone.bgColor} stroke="#1e1b4b" strokeWidth="1.5" />
-          );
+          return <circle key={i} cx={p.x} cy={p.y} r="4" fill={zone.bgColor} stroke="#1e1b4b" strokeWidth="2" />;
         })}
-        {/* X axis */}
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
         {splits.map((_, i) => {
-          if (splits.length > 10 && i % 2 !== 0) return null;
-          return (
-            <text key={i} x={toX(i + 1)} y={height - 4} textAnchor="middle" className="fill-slate-500" fontSize="9">
-              {i + 1}
-            </text>
-          );
+          const km = i + 1;
+          if (km % xInterval !== 0 && km !== splits.length) return null;
+          return <text key={i} x={toX(km)} y={height - 12} textAnchor="middle" className="fill-slate-400" fontSize="11" fontWeight="500">{km}</text>;
         })}
-        {/* Y axis */}
-        <text x={padding.left - 4} y={padding.top + 6} textAnchor="end" className="fill-slate-500" fontSize="9">
-          {Math.round(viewMax)}
-        </text>
-        <text x={padding.left - 4} y={padding.top + chartH} textAnchor="end" className="fill-slate-500" fontSize="9">
-          {Math.round(viewMin)}
-        </text>
+        <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
+        {yLabels.map((l, i) => (
+          <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-slate-400" fontSize="11">{l.hr}</text>
+        ))}
       </svg>
     </div>
   );
 }
 
-// ─── Elevation Sparkline (for card preview) ────────────────────────────────────
+// ─── Full-Width Elevation Chart ────────────────────────────────────────────────
 
-function ElevationSparkline({ splits }: { splits: Split[] }) {
+function ElevationChart({ splits }: { splits: Split[] }) {
   if (splits.length < 2) return null;
 
-  let cumulative = 0;
-  const points = splits.map((s, i) => {
-    cumulative += s.elevationGain || 0;
-    return cumulative;
-  });
-  points.unshift(0);
+  const width = 1000;
+  const height = 160;
+  const pad = { top: 20, right: 40, bottom: 36, left: 56 };
+  const chartW = width - pad.left - pad.right;
+  const chartH = height - pad.top - pad.bottom;
 
-  const max = Math.max(...points, 1);
-  const min = Math.min(...points, 0);
-  const range = max - min || 1;
-  const width = 120;
-  const height = 20;
+  let cum = 0;
+  const elevs = [0, ...splits.map(s => { cum += s.elevationGain || 0; return cum; })];
+  const maxE = Math.max(...elevs, 1);
+  const minE = Math.min(...elevs, 0);
+  const range = maxE - minE || 1;
+  const viewMin = minE - range * 0.1;
+  const viewMax = maxE + range * 0.1;
 
-  const pathData = points
-    .map((p, i) => {
-      const x = (i / (points.length - 1)) * width;
-      const y = height - ((p - min) / range) * (height - 2);
-      return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(' ');
+  const toX = (i: number) => pad.left + (i / splits.length) * chartW;
+  const toY = (e: number) => pad.top + chartH - ((e - viewMin) / (viewMax - viewMin)) * chartH;
 
-  const areaPath = pathData + ` L ${width} ${height} L 0 ${height} Z`;
+  const points = elevs.map((e, i) => ({ x: toX(i), y: toY(e) }));
+  const linePath = catmullRom(points);
+  const areaPath = linePath + ` L ${points[points.length - 1].x.toFixed(1)} ${pad.top + chartH} L ${points[0].x.toFixed(1)} ${pad.top + chartH} Z`;
+
+  const ySteps = 4;
+  const yLabels = Array.from({ length: ySteps }, (_, i) => {
+    const e = viewMin + (viewMax - viewMin) * (i / (ySteps - 1));
+    return { elev: Math.round(e), y: toY(e) };
+  }).reverse();
+
+  const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-5 mt-1">
-      <defs>
-        <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
-          <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill="url(#sparkGrad)" />
-      <path d={pathData} fill="none" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
+    <div>
+      <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+        <Mountain className="h-3 w-3" /> Elevation Profile
+      </h4>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: '160px' }}>
+        <defs>
+          <linearGradient id="elevGradFW" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22c55e" stopOpacity={0.35} />
+            <stop offset="100%" stopColor="#22c55e" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        {yLabels.map((l, i) => (
+          <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
+        ))}
+        <path d={areaPath} fill="url(#elevGradFW)" />
+        <path d={linePath} fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" />
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
+        {splits.map((_, i) => {
+          const km = i + 1;
+          if (km % xInterval !== 0 && km !== splits.length) return null;
+          return <text key={i} x={toX(km)} y={height - 12} textAnchor="middle" className="fill-slate-400" fontSize="11" fontWeight="500">{km}</text>;
+        })}
+        <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
+        {yLabels.map((l, i) => (
+          <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-slate-400" fontSize="11">{l.elev}m</text>
+        ))}
+      </svg>
+    </div>
   );
 }
 
@@ -601,13 +464,11 @@ function SplitsTable({ splits }: { splits: Split[] }) {
           const isFastest = split.averagePace === fastest.averagePace;
           const isSlowest = split.averagePace === slowest.averagePace;
           const pacePos = 1 - ((split.averagePace - fastest.averagePace) / paceRange);
-
           return (
             <div key={i} className={cn(
               'grid grid-cols-12 gap-2 items-center px-3 py-2 rounded-lg text-sm',
               isFastest ? 'bg-green-500/10 border border-green-500/20' :
-              isSlowest ? 'bg-red-500/5 border border-red-500/10' :
-              'bg-slate-900/30'
+              isSlowest ? 'bg-red-500/5 border border-red-500/10' : 'bg-slate-900/30'
             )}>
               <span className="col-span-1 text-xs font-bold text-slate-400">{i + 1}</span>
               <div className="col-span-4 flex items-center gap-2">
@@ -623,9 +484,7 @@ function SplitsTable({ splits }: { splits: Split[] }) {
               </div>
               <span className="col-span-3 text-slate-300 tabular-nums">{formatDuration(split.duration)}</span>
               <span className="col-span-2 text-slate-400 tabular-nums">{split.averageHR || '—'}</span>
-              <span className="col-span-2 text-slate-400 tabular-nums">
-                {split.elevationGain != null ? `+${Math.round(split.elevationGain)}` : '—'}
-              </span>
+              <span className="col-span-2 text-slate-400 tabular-nums">{split.elevationGain != null ? `+${Math.round(split.elevationGain)}` : '—'}</span>
             </div>
           );
         })}
@@ -654,12 +513,8 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
     if (details || loadingDetails) return;
     setLoadingDetails(true);
     try {
-      const res = await fetch(
-        `/api/garmin/activity-details?activityId=${activity.garmin_activity_id}&athleteId=${activity.athlete_id}`
-      );
-      if (res.ok) {
-        setDetails(await res.json());
-      }
+      const res = await fetch(`/api/garmin/activity-details?activityId=${activity.garmin_activity_id}&athleteId=${activity.athlete_id}`);
+      if (res.ok) setDetails(await res.json());
     } catch { /* silent */ }
     finally { setLoadingDetails(false); }
   };
@@ -672,10 +527,9 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
   const splits = details?.splits || activity.splits || [];
 
   return (
-    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden transition-all">
+    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden">
       {/* Collapsed card */}
       <div className="p-4 sm:p-5 cursor-pointer hover:bg-slate-800/70 transition-colors" onClick={handleExpand}>
-        {/* Header row */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-[#4338ff]/15 flex items-center justify-center">
@@ -692,55 +546,43 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
           {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
         </div>
 
-        {/* Activity name */}
         <p className="text-base font-semibold text-white mb-3">{activity.activity_name}</p>
 
-        {/* Stats + optional mini map */}
-        <div className="flex items-end gap-4">
-          <div className="flex-1 grid grid-cols-3 sm:grid-cols-5 gap-3">
-            <div>
-              <p className="text-[10px] text-slate-500 font-medium">Distance</p>
-              <p className="text-lg font-black text-white tabular-nums">{distKm}<span className="text-xs text-slate-400 ml-0.5">km</span></p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-500 font-medium">Pace</p>
-              <p className="text-lg font-black text-white tabular-nums">{paceStr || '—'}<span className="text-xs text-slate-400 ml-0.5">/km</span></p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-500 font-medium">Time</p>
-              <p className="text-lg font-black text-white tabular-nums">{durationStr}</p>
-            </div>
-            {activity.average_hr && (
-              <div className="hidden sm:block">
-                <p className="text-[10px] text-slate-500 font-medium">Avg HR</p>
-                <p className={cn("text-lg font-black tabular-nums flex items-center gap-1", hrZone?.color)}>
-                  <Heart className="h-3.5 w-3.5" />{activity.average_hr}
-                </p>
-              </div>
-            )}
-            {activity.elevation_gain && activity.elevation_gain > 0 ? (
-              <div className="hidden sm:block">
-                <p className="text-[10px] text-slate-500 font-medium">Elevation</p>
-                <p className="text-lg font-black text-white tabular-nums flex items-center gap-1">
-                  <Mountain className="h-3.5 w-3.5 text-green-400" />{Math.round(activity.elevation_gain)}<span className="text-xs text-slate-400">m</span>
-                </p>
-              </div>
-            ) : null}
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+          <div>
+            <p className="text-[10px] text-slate-500 font-medium">Distance</p>
+            <p className="text-lg font-black text-white tabular-nums">{distKm}<span className="text-xs text-slate-400 ml-0.5">km</span></p>
           </div>
-
-          {/* Mini sparkline for elevation if splits available */}
-          {(activity.splits && activity.splits.length > 0) && (
-            <div className="hidden sm:block w-28 flex-shrink-0">
-              <ElevationSparkline splits={activity.splits} />
+          <div>
+            <p className="text-[10px] text-slate-500 font-medium">Pace</p>
+            <p className="text-lg font-black text-white tabular-nums">{paceStr || '—'}<span className="text-xs text-slate-400 ml-0.5">/km</span></p>
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-500 font-medium">Time</p>
+            <p className="text-lg font-black text-white tabular-nums">{durationStr}</p>
+          </div>
+          {activity.average_hr && (
+            <div className="hidden sm:block">
+              <p className="text-[10px] text-slate-500 font-medium">Avg HR</p>
+              <p className={cn("text-lg font-black tabular-nums flex items-center gap-1", hrZone?.color)}>
+                <Heart className="h-3.5 w-3.5" />{activity.average_hr}
+              </p>
             </div>
           )}
+          {activity.elevation_gain && activity.elevation_gain > 0 ? (
+            <div className="hidden sm:block">
+              <p className="text-[10px] text-slate-500 font-medium">Elevation</p>
+              <p className="text-lg font-black text-white tabular-nums flex items-center gap-1">
+                <Mountain className="h-3.5 w-3.5 text-green-400" />{Math.round(activity.elevation_gain)}<span className="text-xs text-slate-400">m</span>
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {/* Expanded detail view */}
+      {/* Expanded detail */}
       {expanded && (
         <div className="border-t border-slate-700/50 px-4 sm:px-5 py-5 space-y-5">
-          {/* Loading state */}
           {loadingDetails && !details && (
             <div className="flex items-center justify-center py-8">
               <RefreshCw className="h-5 w-5 text-slate-400 animate-spin" />
@@ -748,69 +590,137 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             </div>
           )}
 
-          {/* Route Map - show first for visual impact */}
+          {/* Map */}
           {details?.gpsPoints && details.gpsPoints.length > 2 && (
-            <div>
-              <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
-                <MapPin className="h-3 w-3" /> Route
-                {details.summary?.locationName && (
-                  <span className="text-slate-400 normal-case font-normal ml-1">· {details.summary.locationName}</span>
-                )}
-              </h4>
-              <div className="rounded-xl overflow-hidden border border-slate-700/30">
-                <RouteMap points={details.gpsPoints} height={300} splits={splits} />
-              </div>
+            <div className="rounded-xl overflow-hidden border border-slate-700/30">
+              <RouteMap points={details.gpsPoints} height={300} splits={splits} />
             </div>
           )}
 
-          {/* Stats grid - enriched with API summary data */}
+          {/* Key Stats Banner */}
+          <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-xl p-5 border border-slate-700/30">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+              <div>
+                <p className="text-xs text-slate-400 mb-1">Distance</p>
+                <p className="text-3xl font-black text-white tabular-nums">{distKm}<span className="text-sm text-slate-400 ml-1">km</span></p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 mb-1">Pace</p>
+                <p className="text-3xl font-black text-white tabular-nums">{paceStr || '—'}<span className="text-sm text-slate-400 ml-1">/km</span></p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 mb-1">Time</p>
+                <p className="text-3xl font-black text-white tabular-nums">{durationStr}</p>
+                {movingStr && movingStr !== durationStr && (
+                  <p className="text-[10px] text-slate-500 mt-0.5">{movingStr} moving</p>
+                )}
+              </div>
+              {activity.average_hr && (
+                <div className="hidden sm:block">
+                  <p className="text-xs text-slate-400 mb-1">Avg HR</p>
+                  <p className={cn("text-3xl font-black tabular-nums", hrZone?.color)}>{activity.average_hr}</p>
+                  {hrZone && <p className="text-[10px] text-slate-500 mt-0.5">Zone {hrZone.zone} · {hrZone.label}</p>}
+                </div>
+              )}
+              {activity.elevation_gain ? (
+                <div className="hidden sm:block">
+                  <p className="text-xs text-slate-400 mb-1">Elevation</p>
+                  <p className="text-3xl font-black text-white tabular-nums">{Math.round(activity.elevation_gain)}<span className="text-sm text-slate-400 ml-1">m</span></p>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Performance Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {movingStr && movingStr !== durationStr && (
-              <StatCard label="Moving Time" value={movingStr} icon={<Clock className="h-3 w-3 text-blue-400" />} />
-            )}
             {(activity.calories || details?.summary?.calories) && (
-              <StatCard label="Calories" value={`${activity.calories || details?.summary?.calories}`} icon={<Flame className="h-3 w-3 text-orange-400" />} />
+              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Flame className="h-3.5 w-3.5 text-orange-400" />
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Calories</p>
+                </div>
+                <p className="text-2xl font-black text-white tabular-nums">{activity.calories || details?.summary?.calories}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">kcal</p>
+              </div>
             )}
             {(activity.avg_cadence || details?.summary?.averageRunCadence) && (
-              <StatCard label="Cadence" value={`${Math.round(activity.avg_cadence || details?.summary?.averageRunCadence)} spm`} icon={<Footprints className="h-3 w-3 text-cyan-400" />} />
+              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Footprints className="h-3.5 w-3.5 text-cyan-400" />
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Cadence</p>
+                </div>
+                <p className="text-2xl font-black text-white tabular-nums">{Math.round(activity.avg_cadence || details?.summary?.averageRunCadence)}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">steps/min</p>
+              </div>
             )}
             {(activity.avg_stride_length || details?.summary?.strideLength) && (
-              <StatCard
-                label="Stride"
-                value={`${activity.avg_stride_length ? (activity.avg_stride_length / 100).toFixed(2) : details?.summary?.strideLength?.toFixed(2)} m`}
-                icon={<TrendingUp className="h-3 w-3 text-purple-400" />}
-              />
-            )}
-            {activity.max_hr && (
-              <StatCard label="Max HR" value={`${activity.max_hr} bpm`} icon={<Heart className="h-3 w-3 text-red-400" />} />
+              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <TrendingUp className="h-3.5 w-3.5 text-purple-400" />
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Stride</p>
+                </div>
+                <p className="text-2xl font-black text-white tabular-nums">
+                  {activity.avg_stride_length
+                    ? (activity.avg_stride_length > 10 ? (activity.avg_stride_length / 100).toFixed(2) : activity.avg_stride_length.toFixed(2))
+                    : details?.summary?.strideLength?.toFixed(2)}
+                </p>
+                <p className="text-[10px] text-slate-500 mt-0.5">meters</p>
+              </div>
             )}
             {(activity.vo2max || details?.summary?.vO2MaxValue) && (
-              <StatCard label="VO2 Max" value={`${activity.vo2max || details?.summary?.vO2MaxValue}`} icon={<Zap className="h-3 w-3 text-green-400" />} />
+              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Zap className="h-3.5 w-3.5 text-yellow-400" />
+                  <p className="text-[10px] font-bold uppercase text-slate-400">VO2 Max</p>
+                </div>
+                <p className="text-2xl font-black text-white tabular-nums">{activity.vo2max || details?.summary?.vO2MaxValue}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">ml/kg/min</p>
+              </div>
             )}
-            {activity.elevation_gain && (
-              <StatCard label="Elev Gain" value={`${Math.round(activity.elevation_gain)} m`} icon={<Mountain className="h-3 w-3 text-green-400" />} />
-            )}
-            {activity.lap_count && activity.lap_count > 1 && (
-              <StatCard label="Laps" value={`${activity.lap_count}`} icon={<Route className="h-3 w-3 text-[#4338ff]" />} />
+            {activity.max_hr && (
+              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Heart className="h-3.5 w-3.5 text-red-400" />
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Max HR</p>
+                </div>
+                <p className="text-2xl font-black text-white tabular-nums">{activity.max_hr}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">bpm</p>
+              </div>
             )}
             {details?.summary?.trainingEffect && (
-              <StatCard label="Aerobic TE" value={`${details.summary.trainingEffect.toFixed(1)}`} icon={<Activity className="h-3 w-3 text-blue-400" />} />
-            )}
-            {details?.summary?.anaerobicTrainingEffect && (
-              <StatCard label="Anaerobic TE" value={`${details.summary.anaerobicTrainingEffect.toFixed(1)}`} icon={<Activity className="h-3 w-3 text-orange-400" />} />
+              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Activity className="h-3.5 w-3.5 text-blue-400" />
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Training Effect</p>
+                </div>
+                <div className="flex items-baseline gap-3">
+                  <div>
+                    <p className="text-xl font-black text-blue-400 tabular-nums">{details.summary.trainingEffect.toFixed(1)}</p>
+                    <p className="text-[9px] text-slate-500">Aerobic</p>
+                  </div>
+                  {details.summary.anaerobicTrainingEffect && (
+                    <div>
+                      <p className="text-xl font-black text-orange-400 tabular-nums">{details.summary.anaerobicTrainingEffect.toFixed(1)}</p>
+                      <p className="text-[9px] text-slate-500">Anaerobic</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
-          {/* Charts */}
+          {/* Charts - Full Width Stacked */}
           {splits.length >= 2 && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="bg-slate-900/40 rounded-xl p-3 border border-slate-700/20">
+            <div className="space-y-4">
+              <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/20">
                 <PaceChart splits={splits} />
               </div>
-              <div className="bg-slate-900/40 rounded-xl p-3 border border-slate-700/20">
-                <HRChart splits={splits} maxHR={activity.max_hr || 190} />
-              </div>
-              <div className="bg-slate-900/40 rounded-xl p-3 border border-slate-700/20">
+              {splits.some(s => s.averageHR) && (
+                <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/20">
+                  <HRChart splits={splits} maxHR={activity.max_hr || 190} />
+                </div>
+              )}
+              <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/20">
                 <ElevationChart splits={splits} />
               </div>
             </div>
@@ -820,17 +730,6 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
           {splits.length > 0 && <SplitsTable splits={splits} />}
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Stat Card Helper ──────────────────────────────────────────────────────────
-
-function StatCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
-  return (
-    <div className="bg-slate-900/50 rounded-xl p-3">
-      <p className="text-[10px] font-semibold uppercase text-slate-500 flex items-center gap-1">{icon}{label}</p>
-      <p className="text-sm font-bold text-white tabular-nums mt-1">{value}</p>
     </div>
   );
 }
