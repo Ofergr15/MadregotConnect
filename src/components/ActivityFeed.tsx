@@ -633,8 +633,11 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
   const paceStr = activity.average_pace ? formatPace(activity.average_pace) : null;
   const durationStr = formatDuration(activity.duration);
   const movingStr = activity.moving_duration ? formatDuration(activity.moving_duration) : null;
-  const dateStr = new Date(activity.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const timeStr = new Date(activity.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const startDate = new Date(activity.start_time);
+  const dateStr = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const timeStr = startDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const hebrewDays = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
+  const dayLabel = hebrewDays[startDate.getDay()];
   const timeLabel = getTimeLabel(activity.start_time);
   const hrZone = activity.average_hr ? getHRZone(activity.average_hr) : null;
 
@@ -675,7 +678,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
           {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
         </div>
 
-        <p className="text-base font-semibold text-white mb-3">{activity.activity_name}</p>
+        <p className="text-base font-semibold text-white mb-3">{dayLabel}</p>
 
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
           <div>
