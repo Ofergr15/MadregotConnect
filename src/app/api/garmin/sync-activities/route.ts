@@ -65,31 +65,56 @@ export async function POST(request: Request) {
         const newActivities = runActivities.filter(a => !existingIds.has(a.activityId));
 
         if (newActivities.length > 0) {
-          const rows = newActivities.map(a => ({
-            athlete_id: athlete.id,
-            garmin_activity_id: a.activityId,
-            activity_name: a.activityName,
-            activity_type: a.activityType,
-            start_time: a.startTimeLocal,
-            distance: Math.round(a.distance),
-            duration: Math.round(a.duration),
-            moving_duration: Math.round(a.movingDuration),
-            average_pace: a.distance > 0 ? Math.round(a.duration / (a.distance / 1000)) : null,
-            average_hr: a.averageHR,
-            max_hr: a.maxHR,
-            calories: a.calories || null,
-            elevation_gain: a.elevationGain,
-            start_lat: a.startLatitude,
-            start_lng: a.startLongitude,
-            end_lat: a.endLatitude,
-            end_lng: a.endLongitude,
-            avg_cadence: a.averageRunningCadence,
-            avg_stride_length: a.avgStrideLength,
-            vo2max: a.vO2MaxValue,
-            lap_count: a.lapCount,
-            location_name: a.locationName,
-            has_polyline: a.hasPolyline,
-          }));
+          const rows = [];
+          for (const a of newActivities) {
+            let enriched: any = {};
+            try {
+              const detail = await client.getActivitySummary(a.activityId);
+              enriched = {
+                start_lat: detail.startLatitude || null,
+                start_lng: detail.startLongitude || null,
+                end_lat: detail.endLatitude || null,
+                end_lng: detail.endLongitude || null,
+                avg_cadence: detail.averageRunningCadenceInStepsPerMinute || detail.averageRunCadence || null,
+                avg_stride_length: detail.avgStrideLength || null,
+                vo2max: detail.vO2MaxValue || null,
+                lap_count: detail.lapCount || null,
+                location_name: detail.locationName || null,
+                has_polyline: detail.hasPolyline || false,
+                moving_duration: detail.movingDuration ? Math.round(detail.movingDuration) : Math.round(a.movingDuration),
+              };
+            } catch {
+              enriched = {
+                start_lat: a.startLatitude,
+                start_lng: a.startLongitude,
+                end_lat: a.endLatitude,
+                end_lng: a.endLongitude,
+                avg_cadence: a.averageRunningCadence,
+                avg_stride_length: a.avgStrideLength,
+                vo2max: a.vO2MaxValue,
+                lap_count: a.lapCount,
+                location_name: a.locationName,
+                has_polyline: a.hasPolyline,
+                moving_duration: Math.round(a.movingDuration),
+              };
+            }
+
+            rows.push({
+              athlete_id: athlete.id,
+              garmin_activity_id: a.activityId,
+              activity_name: a.activityName,
+              activity_type: a.activityType,
+              start_time: a.startTimeLocal,
+              distance: Math.round(a.distance),
+              duration: Math.round(a.duration),
+              average_pace: a.distance > 0 ? Math.round(a.duration / (a.distance / 1000)) : null,
+              average_hr: a.averageHR,
+              max_hr: a.maxHR,
+              calories: a.calories || null,
+              elevation_gain: a.elevationGain,
+              ...enriched,
+            });
+          }
 
           const { error: insertError } = await supabase
             .from('athlete_activities')
@@ -109,6 +134,77 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('Activity sync error:', error);
     return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const supabase = createServerClient();
+
+    const { data: activities } = await supabase
+      .from('athlete_activities')
+      .select('id, garmin_activity_id, athlete_id')
+      .is('avg_cadence', null)
+      .limit(20);
+
+    if (!activities || activities.length === 0) {
+      return NextResponse.json({ enriched: 0, message: 'All activities already enriched' });
+    }
+
+    const athleteIds = [...new Set(activities.map(a => a.athlete_id))];
+    const { data: athletes } = await supabase
+      .from('athletes')
+      .select('id, garmin_auth')
+      .in('id', athleteIds)
+      .not('garmin_auth', 'is', null);
+
+    if (!athletes || athletes.length === 0) {
+      return NextResponse.json({ error: 'No athletes with Garmin auth' }, { status: 404 });
+    }
+
+    const clientMap = new Map<string, GarminClient>();
+    for (const ath of athletes) {
+      clientMap.set(ath.id, new GarminClient(ath.garmin_auth as any));
+    }
+
+    let enriched = 0;
+    const errors: string[] = [];
+
+    for (const act of activities) {
+      const client = clientMap.get(act.athlete_id);
+      if (!client) continue;
+
+      try {
+        const detail = await client.getActivitySummary(act.garmin_activity_id);
+        const update: any = {};
+        if (detail.startLatitude) update.start_lat = detail.startLatitude;
+        if (detail.startLongitude) update.start_lng = detail.startLongitude;
+        if (detail.endLatitude) update.end_lat = detail.endLatitude;
+        if (detail.endLongitude) update.end_lng = detail.endLongitude;
+        if (detail.averageRunningCadenceInStepsPerMinute) update.avg_cadence = detail.averageRunningCadenceInStepsPerMinute;
+        else if (detail.averageRunCadence) update.avg_cadence = detail.averageRunCadence;
+        if (detail.avgStrideLength) update.avg_stride_length = detail.avgStrideLength;
+        if (detail.vO2MaxValue) update.vo2max = detail.vO2MaxValue;
+        if (detail.lapCount) update.lap_count = detail.lapCount;
+        if (detail.locationName) update.location_name = detail.locationName;
+        if (detail.hasPolyline != null) update.has_polyline = detail.hasPolyline;
+        if (detail.movingDuration) update.moving_duration = Math.round(detail.movingDuration);
+
+        if (Object.keys(update).length > 0) {
+          await supabase
+            .from('athlete_activities')
+            .update(update)
+            .eq('id', act.id);
+          enriched++;
+        }
+      } catch (e: any) {
+        errors.push(`${act.garmin_activity_id}: ${e.message}`);
+      }
+    }
+
+    return NextResponse.json({ enriched, total: activities.length, errors: errors.length > 0 ? errors : undefined });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
