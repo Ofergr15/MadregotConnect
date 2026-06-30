@@ -159,7 +159,9 @@ export async function GET() {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dailyDistances: Array<{ day: string; dayOfWeek: number; min: number; max: number; type: string; sessions: Array<{ min: number; max: number; type: string; name: string }> }> = [];
 
-    const currentWorkouts = extractWorkouts(currentPlan?.parsed_workouts);
+    const rawWorkouts = extractWorkouts(currentPlan?.parsed_workouts);
+    // Deduplicate: keep only the first workout per day (group variants share same dayOfWeek)
+    const currentWorkouts = rawWorkouts.filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
 
     if (currentWorkouts.length > 0) {
       for (let d = 0; d < 7; d++) {
@@ -217,7 +219,7 @@ export async function GET() {
 
     // Previous week volume
     let prevWeekTotal = 0;
-    const prevWorkouts = extractWorkouts(prevPlan?.parsed_workouts);
+    const prevWorkouts = extractWorkouts(prevPlan?.parsed_workouts).filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
     if (prevWorkouts.length > 0) {
       for (const w of prevWorkouts) {
         const km = getWorkoutKm(w);
@@ -228,7 +230,7 @@ export async function GET() {
     // Weekly volume history
     const weeklyVolumes: Array<{ week: string; volume: number; weekNum: number }> = [];
     for (const plan of uniquePlans) {
-      const workouts = extractWorkouts(plan.parsed_workouts);
+      const workouts = extractWorkouts(plan.parsed_workouts).filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
       if (workouts.length === 0) continue;
       let vol = 0;
       for (const w of workouts) {
@@ -245,7 +247,7 @@ export async function GET() {
     // Long run progression (longest workout each week)
     const longRunProgression: Array<{ week: string; distance: number }> = [];
     for (const plan of uniquePlans) {
-      const workouts = extractWorkouts(plan.parsed_workouts);
+      const workouts = extractWorkouts(plan.parsed_workouts).filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
       if (workouts.length === 0) continue;
       let maxDist = 0;
       for (const w of workouts) {

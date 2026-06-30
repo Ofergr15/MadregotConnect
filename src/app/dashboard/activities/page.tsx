@@ -268,82 +268,117 @@ export default function ActivitiesPage() {
       </div>
 
       {/* ═══ CONTENT ═══ */}
-      <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full space-y-6">
-        {/* Weekly Summary Stats */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-          {/* Summary Row */}
-          <div className="grid grid-cols-3 sm:grid-cols-7 divide-x divide-slate-700/40">
-            {[
-              { label: 'Distance', value: weekData.totalKm > 0 ? `${weekData.totalKm.toFixed(1)}` : '—', unit: 'km', icon: Route, color: 'text-[#4338ff]' },
-              { label: 'Runs', value: `${weekData.totalRuns}`, unit: '', icon: Activity, color: 'text-[#4338ff]' },
-              { label: 'Time', value: weekData.totalDuration > 0 ? formatDuration(weekData.totalDuration) : '—', unit: '', icon: Timer, color: 'text-slate-300' },
-              { label: 'Avg Pace', value: weekData.avgPace ? formatPace(weekData.avgPace) : '—', unit: '/km', icon: TrendingUp, color: 'text-emerald-400' },
-              { label: 'Avg HR', value: weekData.avgHR ? `${weekData.avgHR}` : '—', unit: 'bpm', icon: Heart, color: 'text-red-400' },
-              { label: 'Calories', value: weekData.totalCalories > 0 ? weekData.totalCalories.toLocaleString() : '—', unit: '', icon: Flame, color: 'text-orange-400' },
-              { label: 'Elevation', value: weekData.totalElevation > 0 ? `${Math.round(weekData.totalElevation)}` : '—', unit: 'm', icon: Mountain, color: 'text-green-400' },
-            ].map((stat, i) => (
-              <div key={i} className={cn("px-4 py-4 text-center", i > 2 && "hidden sm:block")}>
-                <stat.icon className={cn("h-4 w-4 mx-auto mb-1.5", stat.color)} />
-                <p className="text-lg font-black text-white tabular-nums leading-tight">
-                  {stat.value}
-                  {stat.unit && <span className="text-[10px] text-slate-500 ml-0.5 font-medium">{stat.unit}</span>}
-                </p>
-                <p className="text-[10px] text-slate-500 font-medium uppercase mt-1">{stat.label}</p>
-              </div>
-            ))}
-          </div>
+      <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full space-y-5">
 
-          {/* Daily Bar Chart */}
-          <div className="border-t border-slate-700/40 px-6 py-5">
-            <div className="flex items-end justify-between gap-3 h-20">
-              {weekData.daily.map((d, i) => {
-                const isToday = d.date === new Date().toISOString().split('T')[0];
-                const hasMultiple = d.perActivity.length > 1;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1.5 group relative h-full">
-                    {d.distance > 0 && (
-                      <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-700 text-white text-[10px] font-bold px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                        {d.distance.toFixed(1)}km{hasMultiple && ` (${d.perActivity.length})`}
-                      </div>
-                    )}
-                    <div className="flex-1 w-full flex items-end justify-center gap-0.5">
-                      {d.perActivity.length > 0 ? (
-                        d.perActivity.map((km, j) => {
-                          const barH = maxDist > 0 ? (km / maxDist) * 100 : 0;
+        {/* ─── Hero Stats ─── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-gradient-to-br from-[#4338ff]/10 to-slate-800/50 rounded-2xl p-5 border border-[#4338ff]/20">
+            <Route className="h-5 w-5 text-[#4338ff] mb-2" />
+            <p className="text-3xl font-black text-white tabular-nums leading-none">
+              {weekData.totalKm > 0 ? weekData.totalKm.toFixed(1) : '—'}
+              <span className="text-sm font-medium text-slate-400 ml-1">km</span>
+            </p>
+            <p className="text-xs text-slate-500 mt-1.5">Distance · {weekData.totalRuns} run{weekData.totalRuns !== 1 ? 's' : ''}</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
+            <Timer className="h-5 w-5 text-slate-400 mb-2" />
+            <p className="text-3xl font-black text-white tabular-nums leading-none">
+              {weekData.totalDuration > 0 ? formatDuration(weekData.totalDuration) : '—'}
+            </p>
+            <p className="text-xs text-slate-500 mt-1.5">Total Time</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
+            <TrendingUp className="h-5 w-5 text-emerald-400 mb-2" />
+            <p className="text-3xl font-black text-white tabular-nums leading-none">
+              {weekData.avgPace ? formatPace(weekData.avgPace) : '—'}
+              <span className="text-sm font-medium text-slate-400 ml-1">/km</span>
+            </p>
+            <p className="text-xs text-slate-500 mt-1.5">Avg Pace</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
+            <Heart className="h-5 w-5 text-red-400 mb-2" />
+            <p className="text-3xl font-black text-white tabular-nums leading-none">
+              {weekData.avgHR || '—'}
+              <span className="text-sm font-medium text-slate-400 ml-1">bpm</span>
+            </p>
+            <p className="text-xs text-slate-500 mt-1.5">Avg Heart Rate</p>
+          </div>
+        </div>
+
+        {/* ─── Daily Volume Chart ─── */}
+        <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-white">Daily Volume</h3>
+            <div className="flex items-center gap-4 text-[11px] text-slate-500">
+              {weekData.totalCalories > 0 && (
+                <span className="flex items-center gap-1"><Flame className="h-3 w-3 text-orange-400" />{weekData.totalCalories.toLocaleString()} cal</span>
+              )}
+              {weekData.totalElevation > 0 && (
+                <span className="flex items-center gap-1"><Mountain className="h-3 w-3 text-green-400" />{Math.round(weekData.totalElevation)}m</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-end gap-2 h-32">
+            {weekData.daily.map((d, i) => {
+              const isToday = d.date === new Date().toISOString().split('T')[0];
+              const hasMultiple = d.perActivity.length > 1;
+              const barH = maxDist > 0 ? (d.distance / maxDist) * 100 : 0;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center h-full group relative">
+                  {/* Tooltip */}
+                  {d.distance > 0 && (
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-lg">
+                      {d.distance.toFixed(1)} km{hasMultiple ? ` · ${d.perActivity.length} runs` : ''}
+                    </div>
+                  )}
+                  {/* Bar */}
+                  <div className="flex-1 w-full flex items-end justify-center">
+                    {hasMultiple ? (
+                      <div className="flex gap-0.5 items-end w-full max-w-[32px]" style={{ height: `${Math.max(barH, 8)}%` }}>
+                        {d.perActivity.map((km, j) => {
+                          const segH = d.distance > 0 ? (km / d.distance) * 100 : 0;
                           return (
                             <div
                               key={j}
                               className={cn(
-                                'rounded-md transition-all duration-200',
-                                j === 0 ? 'bg-[#4338ff]/60 group-hover:bg-[#4338ff]' : 'bg-amber-400/60 group-hover:bg-amber-400',
-                                isToday && 'ring-2 ring-[#4338ff]/30',
-                                hasMultiple ? 'flex-1 max-w-[11px]' : 'w-full max-w-[24px]'
+                                'flex-1 rounded-t-md transition-all',
+                                j === 0 ? 'bg-[#4338ff] group-hover:bg-[#5b54ff]' : 'bg-amber-400 group-hover:bg-amber-300',
                               )}
-                              style={{ height: `${Math.max(barH, 12)}%` }}
+                              style={{ height: `${Math.max(segH, 25)}%` }}
                             />
                           );
-                        })
-                      ) : (
-                        <div
-                          className="w-full max-w-[24px] rounded-md bg-slate-700/20"
-                          style={{ height: '3%' }}
-                        />
-                      )}
-                    </div>
-                    <span className={cn(
-                      'text-[10px] font-semibold',
-                      isToday ? 'text-[#4338ff]' : d.distance > 0 ? 'text-slate-300' : 'text-slate-600'
+                        })}
+                      </div>
+                    ) : (
+                      <div
+                        className={cn(
+                          'w-full max-w-[28px] rounded-t-lg transition-all',
+                          d.distance > 0 ? 'bg-[#4338ff]/70 group-hover:bg-[#4338ff]' : 'bg-slate-700/20',
+                          isToday && d.distance > 0 && 'ring-2 ring-[#4338ff]/40'
+                        )}
+                        style={{ height: `${Math.max(barH, d.distance > 0 ? 8 : 2)}%` }}
+                      />
+                    )}
+                  </div>
+                  {/* Label */}
+                  <div className="mt-2 text-center">
+                    <p className={cn(
+                      'text-[11px] font-bold',
+                      isToday ? 'text-[#4338ff]' : d.distance > 0 ? 'text-white' : 'text-slate-600'
                     )}>
                       {d.day}
-                    </span>
+                    </p>
+                    {d.distance > 0 && (
+                      <p className="text-[10px] text-slate-500 tabular-nums">{d.distance.toFixed(1)}</p>
+                    )}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Activity Feed */}
+        {/* ─── Activity Feed ─── */}
         <ActivityFeed
           activities={weekData.weekActivities}
           syncing={syncing}

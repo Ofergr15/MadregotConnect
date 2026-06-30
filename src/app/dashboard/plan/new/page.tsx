@@ -572,7 +572,7 @@ export default function WeeklyPlannerPage() {
     }
   };
 
-  const workoutCount = parsedPlan?.workouts.length ?? 0;
+  const workoutCount = parsedPlan ? new Set(parsedPlan.workouts.map(w => w.dayOfWeek)).size : 0;
 
   // ─────────────────────────────────────────────
   // RENDER
