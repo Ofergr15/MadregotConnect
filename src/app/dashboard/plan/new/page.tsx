@@ -27,7 +27,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
-import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans } from '@/lib/ai/types';
+import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import { cn } from '@/lib/utils';
 
@@ -826,20 +826,34 @@ export default function WeeklyPlannerPage() {
           </div>
 
           {/* Group tabs */}
-          <div className="border-b border-slate-700 px-6">
+          <div className="border-b border-slate-700/50 px-6 bg-slate-800/20">
             <div className="flex gap-1 max-w-7xl mx-auto py-2">
               {([1, 2, 3] as const).map((g) => {
+                const groupWorkouts = groupedPlans[`group${g}` as keyof GroupedWeeklyPlans].workouts;
+                const groupDist = groupWorkouts.reduce((s, w) => {
+                  let d = 0;
+                  const calc = (steps: WorkoutStep[]): number => {
+                    let t = 0;
+                    for (const step of steps) {
+                      if (step.repeatCount && step.repeatSteps) t += calc(step.repeatSteps) * step.repeatCount;
+                      else if (step.durationType === 'distance' && step.durationValue) t += step.durationValue;
+                    }
+                    return t;
+                  };
+                  d = calc(w.steps);
+                  return s + d;
+                }, 0);
                 const colors = g === 1
-                  ? { active: 'bg-green-500/15 border-green-500/40 text-green-400', badge: 'bg-green-500 text-white' }
+                  ? { active: 'bg-green-500/10 border-green-500/50 text-green-400', badge: 'bg-green-500 text-white', dot: 'bg-green-400' }
                   : g === 2
-                  ? { active: 'bg-yellow-500/15 border-yellow-500/40 text-yellow-400', badge: 'bg-yellow-500 text-white' }
-                  : { active: 'bg-orange-500/15 border-orange-500/40 text-orange-400', badge: 'bg-orange-500 text-white' };
+                  ? { active: 'bg-yellow-500/10 border-yellow-500/50 text-yellow-400', badge: 'bg-yellow-500 text-white', dot: 'bg-yellow-400' }
+                  : { active: 'bg-orange-500/10 border-orange-500/50 text-orange-400', badge: 'bg-orange-500 text-white', dot: 'bg-orange-400' };
                 return (
                   <button
                     key={g}
                     onClick={() => setActiveGroup(g)}
                     className={cn(
-                      'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border',
+                      'px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2.5 border',
                       activeGroup === g
                         ? colors.active
                         : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -851,7 +865,12 @@ export default function WeeklyPlannerPage() {
                     )}>
                       {g}
                     </span>
-                    Group {g}
+                    <span>Group {g}</span>
+                    {groupDist > 0 && (
+                      <span className="text-[10px] text-slate-500 font-normal ml-1">
+                        {(groupDist / 1000).toFixed(0)}km
+                      </span>
+                    )}
                   </button>
                 );
               })}
