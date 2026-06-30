@@ -37,8 +37,8 @@ const UPCOMING_RACES: Race[] = [
     type: 'half',
   },
   {
-    id: '4', name: 'מרוץ אילת', date: '2026-11-14',
-    location: 'אילת', lat: 29.5577, lng: 34.9519,
+    id: '4', name: 'מרוץ אייל', date: '2026-11-14',
+    location: 'אייל', lat: 32.1667, lng: 34.9500,
     distances: ['21.1km', '10km'], daysUntil: 0,
     type: 'half',
   },

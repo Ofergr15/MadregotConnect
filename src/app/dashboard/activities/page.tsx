@@ -271,7 +271,7 @@ export default function ActivitiesPage() {
       <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full space-y-5">
 
         {/* ─── Hero Stats ─── */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="relative overflow-hidden bg-gradient-to-br from-[#4338ff]/15 to-[#4338ff]/5 rounded-2xl p-5 border border-[#4338ff]/20">
             <div className="absolute -top-4 -right-4 w-20 h-20 bg-[#4338ff]/10 rounded-full blur-2xl" />
             <Route className="h-5 w-5 text-[#4338ff] mb-3" />
