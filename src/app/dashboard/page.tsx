@@ -297,6 +297,18 @@ export default function DashboardPage() {
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [selectedBar, setSelectedBar] = useState<number | null>(null);
   const lastClickRef = useRef<{ index: number; time: number } | null>(null);
+  const [isCoach, setIsCoach] = useState(false);
+  const [athleteId, setAthleteId] = useState<string | null>(null);
+  const [athleteName, setAthleteName] = useState<string>('');
+
+  useEffect(() => {
+    const coachEmail = localStorage.getItem('coach_email');
+    const storedAthleteId = localStorage.getItem('athlete_id');
+    const name = localStorage.getItem('athlete_name') || '';
+    setIsCoach(!!coachEmail);
+    setAthleteId(storedAthleteId);
+    setAthleteName(name);
+  }, []);
 
   useEffect(() => {
     const tick = () => {
@@ -357,7 +369,11 @@ export default function DashboardPage() {
         const actRes = await fetch('/api/garmin/sync-activities');
         if (actRes.ok) {
           const actData = await actRes.json();
-          setRecentActivities((actData.activities || []).slice(0, 3));
+          const allActs = actData.activities || [];
+          const myAthleteId = localStorage.getItem('athlete_id');
+          const myIsCoach = !!localStorage.getItem('coach_email');
+          const filtered = myIsCoach ? allActs : allActs.filter((a: any) => a.athlete_id === myAthleteId);
+          setRecentActivities(filtered.slice(0, 3));
         }
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
