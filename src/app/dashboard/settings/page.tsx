@@ -23,6 +23,7 @@ const roleConfig = {
 
 function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (role: Role) => void; disabled: boolean }) {
   const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,12 +34,22 @@ function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (r
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  const handleOpen = () => {
+    if (disabled) return;
+    if (!open && ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setOpenUp(spaceBelow < 200);
+    }
+    setOpen(!open);
+  };
+
   const config = roleConfig[value];
 
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => !disabled && setOpen(!open)}
+        onClick={handleOpen}
         disabled={disabled}
         className={cn(
           'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors',
@@ -52,7 +63,10 @@ function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (r
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-slate-800 border border-slate-600 rounded-lg shadow-xl overflow-hidden min-w-[140px]">
+        <div className={cn(
+          'absolute left-0 z-50 bg-slate-800 border border-slate-600 rounded-lg shadow-xl overflow-hidden min-w-[140px]',
+          openUp ? 'bottom-full mb-1' : 'top-full mt-1'
+        )}>
           {(['admin', 'coach', 'runner', 'viewer'] as Role[]).map(role => {
             const rc = roleConfig[role];
             const isSelected = role === value;
@@ -234,7 +248,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl">
         <div className="px-6 py-4 border-b border-slate-700">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-slate-400" />
