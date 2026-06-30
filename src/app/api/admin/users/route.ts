@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type UserRole = 'admin' | 'coach' | 'runner' | 'viewer';
+type UserRole = 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
 
 interface User {
   id: string;
@@ -56,7 +56,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    if (!['admin', 'coach', 'runner', 'viewer'].includes(role)) {
+    if (!['admin', 'coach', 'runner', 'core_runner', 'viewer'].includes(role)) {
       return NextResponse.json(
         { error: 'Invalid role' },
         { status: 400 }

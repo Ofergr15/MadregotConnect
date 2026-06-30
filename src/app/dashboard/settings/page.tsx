@@ -8,16 +8,17 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'coach' | 'runner' | 'viewer';
+  role: 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
   groupId?: string;
 }
 
-type Role = 'admin' | 'coach' | 'runner' | 'viewer';
+type Role = 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
 
 const roleConfig = {
   admin: { label: 'Admin', bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30', dot: 'bg-purple-400' },
   coach: { label: 'Coach', bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30', dot: 'bg-blue-400' },
   runner: { label: 'Runner', bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', dot: 'bg-green-400' },
+  core_runner: { label: 'Core Runner', bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', dot: 'bg-emerald-400' },
   viewer: { label: 'Viewer', bg: 'bg-slate-500/20', text: 'text-slate-400', border: 'border-slate-500/30', dot: 'bg-slate-400' },
 };
 
@@ -67,7 +68,7 @@ function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (r
           'absolute left-0 z-50 bg-slate-800 border border-slate-600 rounded-lg shadow-xl overflow-hidden min-w-[140px]',
           openUp ? 'bottom-full mb-1' : 'top-full mt-1'
         )}>
-          {(['admin', 'coach', 'runner', 'viewer'] as Role[]).map(role => {
+          {(['admin', 'coach', 'runner', 'core_runner', 'viewer'] as Role[]).map(role => {
             const rc = roleConfig[role];
             const isSelected = role === value;
             return (
@@ -125,7 +126,7 @@ function ConfirmDialog({ user, newRole, onConfirm, onCancel }: ConfirmDialogProp
             This will remove the user from the athletes list and add them as a coach.
           </p>
         )}
-        {(newRole === 'runner' || newRole === 'viewer') && (user.role === 'admin' || user.role === 'coach') && (
+        {(newRole === 'runner' || newRole === 'core_runner' || newRole === 'viewer') && (user.role === 'admin' || user.role === 'coach') && (
           <p className="text-amber-400/80 text-xs mb-4">
             This will remove the user from the coaches list and add them as an athlete.
           </p>
@@ -162,12 +163,13 @@ const allTabs = [
   { key: 'athletes', label: 'Athletes' },
   { key: 'groups', label: 'Groups' },
   { key: 'activities', label: 'Activities' },
+  { key: 'races', label: 'Races' },
   { key: 'program', label: 'Program' },
   { key: 'history', label: 'History' },
   { key: 'settings', label: 'Settings' },
 ];
 
-const allRoles: Role[] = ['admin', 'coach', 'runner', 'viewer'];
+const allRoles: Role[] = ['admin', 'coach', 'runner', 'core_runner', 'viewer'];
 
 type SettingsTab = 'users' | 'tabs';
 

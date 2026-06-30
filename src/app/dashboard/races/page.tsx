@@ -195,7 +195,7 @@ export default function RacesPage() {
       {/* Content */}
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* Map */}
-        <div className="lg:flex-1 h-[300px] lg:h-auto relative" style={{ zIndex: 0 }}>
+        <div className="lg:flex-1 h-[250px] sm:h-[350px] lg:h-auto relative" style={{ zIndex: 0 }}>
           <div ref={mapRef} className="absolute inset-0" style={{ zIndex: 0 }} />
           {/* Goal race overlay */}
           {goalRace && (
@@ -211,7 +211,7 @@ export default function RacesPage() {
         </div>
 
         {/* Race List */}
-        <div className="lg:w-[420px] border-t lg:border-t-0 lg:border-l border-slate-700 overflow-y-auto max-h-[calc(100vh-10rem)]">
+        <div className="lg:w-[380px] border-t lg:border-t-0 lg:border-l border-slate-700 overflow-y-auto max-h-[calc(100vh-10rem)]">
           <div className="p-4 space-y-2">
             {races.map((race) => {
               const style = typeColors[race.type] || typeColors['marathon'];

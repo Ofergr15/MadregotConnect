@@ -153,7 +153,7 @@ export function Header() {
             </div>
             <button
               onClick={handleLogout}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
               title="Sign out"
             >
               <LogOut className="h-3.5 w-3.5" />

@@ -1,12 +1,27 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#4338ff',
+};
+
 export const metadata: Metadata = {
   title: 'Madregot After 2KM',
   description: "Israel's leading running community. Redefining running culture since 2022.",
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Madregot',
+  },
   openGraph: {
     title: 'Madregot After 2KM',
     description: "Israel's leading running community. Redefining running culture since 2022.",
@@ -27,9 +42,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-      </head>
       <body className={inter.className}>{children}</body>
     </html>
   );
