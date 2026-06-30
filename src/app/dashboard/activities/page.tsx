@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { RefreshCw, Activity, TrendingUp, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain } from 'lucide-react';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { cn } from '@/lib/utils';
@@ -64,14 +65,31 @@ function formatDuration(seconds: number): string {
 }
 
 export default function ActivitiesPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [weekOffset, setWeekOffsetState] = useState(() => {
+    const w = searchParams.get('week');
+    return w ? parseInt(w, 10) : 0;
+  });
   const [isCoach, setIsCoach] = useState(false);
   const [athleteId, setAthleteId] = useState<string | null>(null);
+
+  const setWeekOffset = (val: number | ((prev: number) => number)) => {
+    setWeekOffsetState(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      const params = new URLSearchParams(window.location.search);
+      if (next === 0) params.delete('week');
+      else params.set('week', String(next));
+      const qs = params.toString();
+      router.replace(`/dashboard/activities${qs ? `?${qs}` : ''}`, { scroll: false });
+      return next;
+    });
+  };
 
   useEffect(() => {
     const coachEmail = localStorage.getItem('coach_email');
