@@ -33,7 +33,18 @@ export async function POST(request: Request) {
 
       try {
         const client = new GarminClient(athlete.garmin_auth as any);
-        const activities = await client.getActivities(0, 30);
+        let activities;
+        try {
+          activities = await client.getActivities(0, 30);
+        } catch (fetchErr: any) {
+          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: `Fetch failed: ${fetchErr.message}` });
+          continue;
+        }
+
+        if (!activities || activities.length === 0) {
+          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: 'No activities returned from Garmin' });
+          continue;
+        }
 
         const runTypes = ['running', 'trail_running', 'treadmill_running', 'track_running', 'street_running', 'indoor_running'];
         const runActivities = activities.filter(a =>
@@ -41,7 +52,7 @@ export async function POST(request: Request) {
         );
 
         if (runActivities.length === 0) {
-          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: `No runs found. Types: ${activities.slice(0, 5).map(a => a.activityType).join(', ')}` });
+          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: `No runs. Types found: ${activities.slice(0, 5).map(a => a.activityType).join(', ')}` });
           continue;
         }
 
