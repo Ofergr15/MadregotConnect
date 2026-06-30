@@ -490,7 +490,7 @@ export default function DashboardPage() {
 
         {hasData ? (
           <>
-            <div className="h-48 sm:h-60 outline-none" style={{ outline: 'none' }}>
+            <div className="h-48 sm:h-60" tabIndex={-1} style={{ outline: 'none', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={weekly!.dailyDistances}
