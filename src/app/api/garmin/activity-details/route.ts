@@ -87,8 +87,10 @@ export async function GET(request: Request) {
 
     // Try to get GPS polyline from the details endpoint
     let gpsPoints: Array<{ lat: number; lng: number }> = [];
+    let detailsError: string | null = null;
     try {
       const details = await client.getActivityDetails(Number(activityId));
+      // Try geoPolylineDTO first
       if (details?.geoPolylineDTO?.polyline) {
         for (const point of details.geoPolylineDTO.polyline) {
           if (point.lat && point.lon) {
@@ -96,7 +98,23 @@ export async function GET(request: Request) {
           }
         }
       }
-    } catch { /* GPS is optional */ }
+      // Try metricDescriptors + activityDetailMetrics for lat/lng
+      if (gpsPoints.length === 0 && details?.metricDescriptors && details?.activityDetailMetrics) {
+        const metrics = details.metricDescriptors as any[];
+        const latIdx = metrics.findIndex((m: any) => m.key === 'directLatitude');
+        const lngIdx = metrics.findIndex((m: any) => m.key === 'directLongitude');
+        if (latIdx >= 0 && lngIdx >= 0 && details.activityDetailMetrics) {
+          for (const metric of details.activityDetailMetrics) {
+            const vals = metric.metrics;
+            if (vals && vals[latIdx] != null && vals[lngIdx] != null && vals[latIdx] !== 0) {
+              gpsPoints.push({ lat: vals[latIdx], lng: vals[lngIdx] });
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      detailsError = e.message;
+    }
 
     // If no GPS from details, use start/end points from the activity
     if (gpsPoints.length === 0 && activity?.startLatitude && activity?.startLongitude) {
@@ -140,6 +158,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       gpsPoints,
       splits,
+      detailsError,
       summary: {
         startLatitude: activity?.startLatitude,
         startLongitude: activity?.startLongitude,

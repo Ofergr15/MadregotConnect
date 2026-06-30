@@ -118,7 +118,8 @@ export class GarminClient {
     const accessToken = tokens.oauth2?.access_token;
     if (!accessToken) throw new Error('No access token available');
 
-    const res = await fetch(
+    // Try connectapi.garmin.com first
+    let res = await fetch(
       `https://connectapi.garmin.com/activity-service/activity/${activityId}/details?maxChartSize=2000&maxPolylineSize=2000`,
       {
         headers: {
@@ -128,6 +129,19 @@ export class GarminClient {
         },
       }
     );
+
+    // Fallback to connect.garmin.com/modern/proxy
+    if (!res.ok) {
+      res = await fetch(
+        `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/details?maxChartSize=2000&maxPolylineSize=2000`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'NK': 'NT',
+          },
+        }
+      );
+    }
 
     if (!res.ok) throw new Error(`Failed to fetch activity details: ${res.status}`);
     return res.json();
