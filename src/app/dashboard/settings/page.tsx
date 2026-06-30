@@ -161,6 +161,7 @@ const allTabs = [
   { key: 'plan/new', label: 'Weekly Planner' },
   { key: 'athletes', label: 'Athletes' },
   { key: 'groups', label: 'Groups' },
+  { key: 'activities', label: 'Activities' },
   { key: 'program', label: 'Program' },
   { key: 'history', label: 'History' },
   { key: 'settings', label: 'Settings' },

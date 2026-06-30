@@ -61,11 +61,22 @@ export async function POST(request: Request) {
             start_time: a.startTimeLocal,
             distance: Math.round(a.distance),
             duration: Math.round(a.duration),
+            moving_duration: Math.round(a.movingDuration),
             average_pace: a.distance > 0 ? Math.round(a.duration / (a.distance / 1000)) : null,
             average_hr: a.averageHR,
             max_hr: a.maxHR,
             calories: a.calories || null,
             elevation_gain: a.elevationGain,
+            start_lat: a.startLatitude,
+            start_lng: a.startLongitude,
+            end_lat: a.endLatitude,
+            end_lng: a.endLongitude,
+            avg_cadence: a.averageRunningCadence,
+            avg_stride_length: a.avgStrideLength,
+            vo2max: a.vO2MaxValue,
+            lap_count: a.lapCount,
+            location_name: a.locationName,
+            has_polyline: a.hasPolyline,
           }));
 
           const { error: insertError } = await supabase
@@ -97,8 +108,10 @@ export async function GET() {
       .from('athlete_activities')
       .select(`
         id, athlete_id, garmin_activity_id, activity_name, activity_type,
-        start_time, distance, duration, average_pace, average_hr, max_hr,
-        calories, elevation_gain, created_at,
+        start_time, distance, duration, moving_duration, average_pace, average_hr, max_hr,
+        calories, elevation_gain, start_lat, start_lng, end_lat, end_lng,
+        avg_cadence, avg_stride_length, vo2max, lap_count, location_name,
+        has_polyline, splits, created_at,
         athletes (name)
       `)
       .order('start_time', { ascending: false })

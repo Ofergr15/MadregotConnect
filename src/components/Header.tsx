@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -12,6 +12,7 @@ const allNavItems = [
   { href: '/dashboard/plan/new', tab: 'plan/new', label: 'Weekly Planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', label: 'Athletes', icon: Users },
   { href: '/dashboard/groups', tab: 'groups', label: 'Groups', icon: Layers },
+  { href: '/dashboard/activities', tab: 'activities', label: 'Activities', icon: Route },
   { href: '/dashboard/program', tab: 'program', label: 'Program', icon: ClipboardList },
   { href: '/dashboard/history', tab: 'history', label: 'History', icon: Clock },
   { href: '/dashboard/settings', tab: 'settings', label: 'Settings', icon: Settings },
