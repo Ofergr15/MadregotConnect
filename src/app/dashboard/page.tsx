@@ -22,8 +22,15 @@ interface DashboardStats {
   recentActivity: Array<{ type: string; description: string; timestamp: string }>;
 }
 
+interface DaySession {
+  min: number;
+  max: number;
+  type: string;
+  name: string;
+}
+
 interface WeeklyData {
-  dailyDistances: Array<{ day: string; dayOfWeek: number; min: number; max: number; type: string }>;
+  dailyDistances: Array<{ day: string; dayOfWeek: number; min: number; max: number; type: string; sessions?: DaySession[] }>;
   weekTotalMin: number;
   weekTotalMax: number;
   weekDelta: number;
@@ -511,10 +518,11 @@ export default function DashboardPage() {
                   {weekly!.dailyDistances.map((d, i) => {
                     const maxVal = Math.max(...weekly!.dailyDistances.map(x => x.max), 1);
                     const topTick = Math.ceil(maxVal / 8) * 8;
-                    const heightPct = d.max > 0 ? (d.max / topTick) * 100 : 0;
                     const session = weekly!.keySessions.find(s => s.dayOfWeek === d.dayOfWeek);
                     const isActive = hoveredBar === i || selectedBar === i;
                     const someActive = hoveredBar !== null || selectedBar !== null;
+                    const sessions = d.sessions || [];
+                    const hasMultiple = sessions.length > 1;
 
                     return (
                       <div
@@ -535,27 +543,50 @@ export default function DashboardPage() {
                         {/* Tooltip on hover */}
                         {isActive && d.max > 0 && (
                           <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 shadow-xl whitespace-nowrap pointer-events-none">
-                            <p className="text-xs font-bold text-white">{d.day}</p>
+                            <p className="text-xs font-bold text-white">{d.day}{hasMultiple && ' (2 sessions)'}</p>
                             <p className="text-[11px] text-slate-300">
                               {d.min && d.min !== d.max ? `${d.min}–${d.max}` : d.max} km · {typeLabels[d.type] || d.type}
                             </p>
                           </div>
                         )}
 
-                        {/* The bar */}
-                        <div
-                          className={cn(
-                            'w-full max-w-[44px] rounded-t-lg transition-all duration-150',
-                            isActive && 'ring-2 ring-white/60 scale-105',
-                          )}
-                          style={{
-                            height: `${heightPct}%`,
-                            minHeight: d.max > 0 ? '4px' : '0px',
-                            backgroundColor: typeColors[d.type] || '#6366f1',
-                            opacity: someActive ? (isActive ? 1 : 0.3) : (d.dayOfWeek === todayDow ? 1 : 0.75),
-                            filter: isActive ? 'brightness(1.2)' : 'none',
-                          }}
-                        />
+                        {/* The bar(s) */}
+                        {hasMultiple ? (
+                          <div className={cn(
+                            'w-full max-w-[44px] flex gap-0.5 items-end transition-all duration-150',
+                            isActive && 'scale-105',
+                          )} style={{ height: `${(d.max / topTick) * 100}%`, minHeight: '4px' }}>
+                            {sessions.map((s, j) => {
+                              const segH = d.max > 0 ? (s.max / d.max) * 100 : 0;
+                              return (
+                                <div
+                                  key={j}
+                                  className={cn('flex-1 rounded-t-md', isActive && 'ring-1 ring-white/50')}
+                                  style={{
+                                    height: `${Math.max(segH, 20)}%`,
+                                    backgroundColor: typeColors[s.type] || '#6366f1',
+                                    opacity: someActive ? (isActive ? 1 : 0.3) : (d.dayOfWeek === todayDow ? 1 : 0.75),
+                                    filter: isActive ? 'brightness(1.2)' : 'none',
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div
+                            className={cn(
+                              'w-full max-w-[44px] rounded-t-lg transition-all duration-150',
+                              isActive && 'ring-2 ring-white/60 scale-105',
+                            )}
+                            style={{
+                              height: `${d.max > 0 ? (d.max / topTick) * 100 : 0}%`,
+                              minHeight: d.max > 0 ? '4px' : '0px',
+                              backgroundColor: typeColors[d.type] || '#6366f1',
+                              opacity: someActive ? (isActive ? 1 : 0.3) : (d.dayOfWeek === todayDow ? 1 : 0.75),
+                              filter: isActive ? 'brightness(1.2)' : 'none',
+                            }}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -568,25 +599,40 @@ export default function DashboardPage() {
                   {weekly!.dailyDistances.map((d, i) => {
                     const session = weekly!.keySessions.find(s => s.dayOfWeek === d.dayOfWeek);
                     const isActive = hoveredBar === i || selectedBar === i;
+                    const sessions = d.sessions || [];
+                    const hasMultiple = sessions.length > 1;
                     return (
                       <div
                         key={d.dayOfWeek}
                         onClick={() => session && setSelectedSession(session)}
                         className={cn(
-                          "text-center py-2.5 sm:py-3 rounded-xl transition-all",
+                          "text-center py-2.5 sm:py-3 rounded-xl transition-all relative",
                           session ? "cursor-pointer" : "",
                           isActive ? "bg-slate-700/60 ring-1 ring-white/20" :
                             d.dayOfWeek === todayDow ? "bg-[#4338ff]/15 ring-1 ring-[#4338ff]/40" : "bg-slate-800/40 hover:bg-slate-700/40"
                         )}
                         onMouseEnter={() => setHoveredBar(i)}
                       >
+                        {hasMultiple && (
+                          <span className="absolute -top-1.5 -right-1 text-[8px] font-bold text-amber-300 bg-amber-500/25 border border-amber-500/40 px-1 py-0 rounded-full">
+                            x{sessions.length}
+                          </span>
+                        )}
                         <p className={cn("text-[11px] sm:text-xs font-bold uppercase", d.dayOfWeek === todayDow ? "text-[#4338ff]" : "text-slate-400")}>{d.day}</p>
                         <p className={cn("text-base sm:text-lg font-black tabular-nums mt-1", d.max > 0 ? "text-white" : "text-slate-600")}>
                           {d.max > 0 ? d.max : '—'}
                         </p>
-                        <p className={cn("text-[10px] sm:text-xs mt-0.5 font-medium", d.max > 0 ? "text-slate-400" : "text-slate-600")}>
-                          {d.max > 0 ? typeLabels[d.type] || d.type : 'Rest'}
-                        </p>
+                        {hasMultiple ? (
+                          <div className="flex items-center justify-center gap-1 mt-0.5">
+                            {sessions.map((s, j) => (
+                              <div key={j} className="w-2 h-2 rounded-full" style={{ backgroundColor: typeColors[s.type] || '#6366f1' }} />
+                            ))}
+                          </div>
+                        ) : (
+                          <p className={cn("text-[10px] sm:text-xs mt-0.5 font-medium", d.max > 0 ? "text-slate-400" : "text-slate-600")}>
+                            {d.max > 0 ? typeLabels[d.type] || d.type : 'Rest'}
+                          </p>
+                        )}
                       </div>
                     );
                   })}

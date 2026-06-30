@@ -157,40 +157,46 @@ export async function GET() {
     }
 
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const dailyDistances: Array<{ day: string; dayOfWeek: number; min: number; max: number; type: string }> = [];
+    const dailyDistances: Array<{ day: string; dayOfWeek: number; min: number; max: number; type: string; sessions: Array<{ min: number; max: number; type: string; name: string }> }> = [];
 
     const currentWorkouts = extractWorkouts(currentPlan?.parsed_workouts);
 
     if (currentWorkouts.length > 0) {
       for (let d = 0; d < 7; d++) {
-        // Use first workout for each day (skip group variants)
-        const workout = currentWorkouts.find(w => w.dayOfWeek === d);
-        if (workout) {
-          // Prefer coach-specified km range from PDF header
-          const hasCoachKm = (workout as any).distanceMinKm || (workout as any).distanceMaxKm;
-          let minKm: number, maxKm: number;
-          if (hasCoachKm) {
-            minKm = (workout as any).distanceMinKm || (workout as any).distanceMaxKm || 0;
-            maxKm = (workout as any).distanceMaxKm || (workout as any).distanceMinKm || 0;
-          } else {
-            const dist = computeWorkoutDistance(workout);
-            minKm = Math.round(dist.min / 1000 * 10) / 10;
-            maxKm = Math.round(dist.max / 1000 * 10) / 10;
+        const dayWorkouts = currentWorkouts.filter(w => w.dayOfWeek === d);
+        if (dayWorkouts.length > 0) {
+          let totalMin = 0, totalMax = 0;
+          const sessions: Array<{ min: number; max: number; type: string; name: string }> = [];
+          for (const workout of dayWorkouts) {
+            const hasCoachKm = (workout as any).distanceMinKm || (workout as any).distanceMaxKm;
+            let minKm: number, maxKm: number;
+            if (hasCoachKm) {
+              minKm = (workout as any).distanceMinKm || (workout as any).distanceMaxKm || 0;
+              maxKm = (workout as any).distanceMaxKm || (workout as any).distanceMinKm || 0;
+            } else {
+              const dist = computeWorkoutDistance(workout);
+              minKm = Math.round(dist.min / 1000 * 10) / 10;
+              maxKm = Math.round(dist.max / 1000 * 10) / 10;
+            }
+            totalMin += minKm;
+            totalMax += maxKm;
+            sessions.push({ min: minKm, max: maxKm, type: getWorkoutType(workout), name: workout.name });
           }
           dailyDistances.push({
             day: dayNames[d],
             dayOfWeek: d,
-            min: minKm,
-            max: maxKm,
-            type: getWorkoutType(workout),
+            min: totalMin,
+            max: totalMax,
+            type: getWorkoutType(dayWorkouts[0]),
+            sessions,
           });
         } else {
-          dailyDistances.push({ day: dayNames[d], dayOfWeek: d, min: 0, max: 0, type: 'rest' });
+          dailyDistances.push({ day: dayNames[d], dayOfWeek: d, min: 0, max: 0, type: 'rest', sessions: [] });
         }
       }
     } else {
       for (let d = 0; d < 7; d++) {
-        dailyDistances.push({ day: dayNames[d], dayOfWeek: d, min: 0, max: 0, type: 'rest' });
+        dailyDistances.push({ day: dayNames[d], dayOfWeek: d, min: 0, max: 0, type: 'rest', sessions: [] });
       }
     }
 
