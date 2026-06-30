@@ -176,8 +176,9 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [pendingChange, setPendingChange] = useState<{ user: User; newRole: Role } | null>(null);
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
+  const [savedPermissions, setSavedPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
-  const [updatingPermission, setUpdatingPermission] = useState<string | null>(null);
+  const [savingPermissions, setSavingPermissions] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -191,6 +192,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error('Failed to fetch permissions');
       const data = await response.json();
       setPermissions(data.permissions || []);
+      setSavedPermissions(data.permissions || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load permissions');
     } finally {
@@ -198,24 +200,43 @@ export default function SettingsPage() {
     }
   };
 
-  const togglePermission = async (role: string, tab: string, currentEnabled: boolean) => {
-    const key = `${role}-${tab}`;
-    setUpdatingPermission(key);
+  const togglePermission = (role: string, tab: string, currentEnabled: boolean) => {
+    setPermissions(prev =>
+      prev.map(p => p.role === role && p.tab === tab ? { ...p, enabled: !currentEnabled } : p)
+    );
+  };
+
+  const hasPermissionChanges = permissions.some(p => {
+    const saved = savedPermissions.find(s => s.role === p.role && s.tab === p.tab);
+    return saved?.enabled !== p.enabled;
+  });
+
+  const savePermissions = async () => {
+    setSavingPermissions(true);
     try {
-      const response = await fetch('/api/admin/tab-permissions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, tab, enabled: !currentEnabled }),
+      const changed = permissions.filter(p => {
+        const saved = savedPermissions.find(s => s.role === p.role && s.tab === p.tab);
+        return saved?.enabled !== p.enabled;
       });
-      if (!response.ok) throw new Error('Failed to update permission');
-      setPermissions(prev =>
-        prev.map(p => p.role === role && p.tab === tab ? { ...p, enabled: !currentEnabled } : p)
+      await Promise.all(
+        changed.map(p =>
+          fetch('/api/admin/tab-permissions', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: p.role, tab: p.tab, enabled: p.enabled }),
+          })
+        )
       );
+      setSavedPermissions([...permissions]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update permission');
+      setError(err instanceof Error ? err.message : 'Failed to save permissions');
     } finally {
-      setUpdatingPermission(null);
+      setSavingPermissions(false);
     }
+  };
+
+  const discardPermissionChanges = () => {
+    setPermissions([...savedPermissions]);
   };
 
   const isTabEnabled = (role: string, tab: string) => {
@@ -376,19 +397,15 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {allTabs.map(tab => {
                       const enabled = isTabEnabled(role, tab.key);
-                      const key = `${role}-${tab.key}`;
-                      const isUpdating = updatingPermission === key;
                       return (
                         <button
                           key={tab.key}
                           onClick={() => togglePermission(role, tab.key, enabled)}
-                          disabled={isUpdating}
                           className={cn(
                             'flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm font-medium transition-all',
                             enabled
                               ? 'bg-primary-600/15 border-primary-500/40 text-white'
-                              : 'bg-slate-800/50 border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400',
-                            isUpdating && 'opacity-50 pointer-events-none'
+                              : 'bg-slate-800/50 border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400'
                           )}
                         >
                           <div className={cn(
@@ -397,11 +414,7 @@ export default function SettingsPage() {
                               ? 'bg-primary-600 border-primary-500'
                               : 'bg-slate-700 border-slate-600'
                           )}>
-                            {isUpdating ? (
-                              <Loader2 className="w-2.5 h-2.5 animate-spin text-white" />
-                            ) : enabled ? (
-                              <CheckCircle2 className="w-3 h-3 text-white" />
-                            ) : null}
+                            {enabled && <CheckCircle2 className="w-3 h-3 text-white" />}
                           </div>
                           {tab.label}
                         </button>
@@ -411,6 +424,28 @@ export default function SettingsPage() {
                 </div>
               );
             })}
+
+            {hasPermissionChanges && (
+              <div className="flex items-center justify-between p-4 bg-slate-900 border border-primary-500/30 rounded-xl">
+                <p className="text-sm text-slate-300">You have unsaved changes</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={discardPermissionChanges}
+                    className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    onClick={savePermissions}
+                    disabled={savingPermissions}
+                    className="px-4 py-2 text-sm text-white bg-[#4338ff] hover:bg-[#3730d4] rounded-lg transition-colors font-medium flex items-center gap-2"
+                  >
+                    {savingPermissions && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
