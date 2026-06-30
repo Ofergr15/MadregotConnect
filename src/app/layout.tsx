@@ -5,12 +5,18 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Madregot After 2KM Running Club',
+  title: 'Madregot After 2KM',
   description: "Israel's leading running community. Redefining running culture since 2022.",
   openGraph: {
-    title: 'Madregot After 2KM Running Club',
+    title: 'Madregot After 2KM',
     description: "Israel's leading running community. Redefining running culture since 2022.",
     siteName: 'Madregot After 2KM',
+  },
+  icons: {
+    icon: [
+      { url: '/images/logo.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: '/images/logo.png',
   },
 };
 
