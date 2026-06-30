@@ -35,12 +35,13 @@ export async function POST(request: Request) {
         const client = new GarminClient(athlete.garmin_auth as any);
         const activities = await client.getActivities(0, 30);
 
+        const runTypes = ['running', 'trail_running', 'treadmill_running', 'track_running', 'street_running', 'indoor_running'];
         const runActivities = activities.filter(a =>
-          ['running', 'trail_running', 'treadmill_running', 'track_running'].includes(a.activityType)
+          runTypes.includes(a.activityType) || a.activityType.includes('running')
         );
 
         if (runActivities.length === 0) {
-          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0 });
+          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: `No runs found. Types: ${activities.slice(0, 5).map(a => a.activityType).join(', ')}` });
           continue;
         }
 
