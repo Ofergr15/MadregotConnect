@@ -7,28 +7,34 @@ import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, 
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 
-const coachNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: Activity },
-  { href: '/dashboard/plan/new', label: 'New Plan', icon: Calendar },
-  { href: '/dashboard/athletes', label: 'Athletes', icon: Users },
-  { href: '/dashboard/groups', label: 'Groups', icon: Layers },
-  { href: '/dashboard/program', label: 'Program', icon: ClipboardList },
-  { href: '/dashboard/history', label: 'History', icon: Clock },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+const allNavItems = [
+  { href: '/dashboard', tab: 'dashboard', label: 'Dashboard', icon: Activity },
+  { href: '/dashboard/plan/new', tab: 'plan/new', label: 'New Plan', icon: Calendar },
+  { href: '/dashboard/athletes', tab: 'athletes', label: 'Athletes', icon: Users },
+  { href: '/dashboard/groups', tab: 'groups', label: 'Groups', icon: Layers },
+  { href: '/dashboard/program', tab: 'program', label: 'Program', icon: ClipboardList },
+  { href: '/dashboard/history', tab: 'history', label: 'History', icon: Clock },
+  { href: '/dashboard/settings', tab: 'settings', label: 'Settings', icon: Settings },
 ];
 
-const athleteNavItems = [
-  { href: '/dashboard/program', label: 'Program', icon: ClipboardList },
-  { href: '/dashboard/profile', label: 'My Profile', icon: User },
-];
+const profileNavItem = { href: '/dashboard/profile', tab: 'profile', label: 'My Profile', icon: User };
+
+interface TabPermission {
+  role: string;
+  tab: string;
+  enabled: boolean;
+}
 
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [isAthlete, setIsAthlete] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [permissions, setPermissions] = useState<TabPermission[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -53,9 +59,36 @@ export function Header() {
         if (session.user.email) setUserEmail(session.user.email);
       }
     });
+
+    fetch('/api/admin/tab-permissions')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.permissions) setPermissions(data.permissions);
+        setPermissionsLoaded(true);
+      })
+      .catch(() => setPermissionsLoaded(true));
   }, []);
 
-  const navItems = isAthlete ? athleteNavItems : coachNavItems;
+  useEffect(() => {
+    if (!userEmail) return;
+    fetch('/api/auth/me', { headers: { 'x-user-email': userEmail } })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.role) setUserRole(data.role); })
+      .catch(() => {});
+  }, [userEmail]);
+
+  const navItems = (() => {
+    if (!permissionsLoaded || !userRole) {
+      if (isAthlete) return [allNavItems.find(i => i.tab === 'program')!, profileNavItem];
+      return allNavItems;
+    }
+    const enabledTabs = permissions
+      .filter(p => p.role === userRole && p.enabled)
+      .map(p => p.tab);
+    const items = allNavItems.filter(item => enabledTabs.includes(item.tab));
+    if (isAthlete) items.push(profileNavItem);
+    return items.length > 0 ? items : [allNavItems.find(i => i.tab === 'program')!];
+  })();
 
   const handleLogout = async () => {
     const supabase = getSupabase();
