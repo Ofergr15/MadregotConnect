@@ -27,13 +27,12 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
         {DAYS.map((day, dayIndex) => {
           const dayWorkouts = workouts.filter((w) => w.dayOfWeek === dayIndex);
           const isToday = dayIndex === todayIdx;
+          const hasMultiple = dayWorkouts.length > 1;
 
           return (
             <div key={day} className="flex flex-col min-w-0">
               {/* Day Header */}
-              <div className={cn(
-                'flex items-center justify-between mb-2.5 px-1',
-              )}>
+              <div className="flex items-center justify-between mb-2.5 px-1">
                 <h4 className={cn(
                   'text-xs font-bold uppercase tracking-wide hidden lg:block',
                   isToday ? 'text-primary-400' : 'text-slate-400'
@@ -46,16 +45,23 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                 )}>
                   {DAYS_SHORT[dayIndex]}
                 </h4>
-                {isToday && (
-                  <span className="text-[9px] font-bold text-primary-400 bg-primary-500/15 px-2 py-0.5 rounded-full">
-                    TODAY
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {hasMultiple && (
+                    <span className="text-[9px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded-full">
+                      x{dayWorkouts.length}
+                    </span>
+                  )}
+                  {isToday && (
+                    <span className="text-[9px] font-bold text-primary-400 bg-primary-500/15 px-2 py-0.5 rounded-full">
+                      TODAY
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Workout Cards or Rest */}
               <div className={cn(
-                'flex-1 flex flex-col gap-2 min-h-[180px]',
+                'flex-1 flex flex-col gap-2',
                 isToday && 'ring-2 ring-primary-500/25 rounded-xl p-1'
               )}>
                 {dayWorkouts.length > 0 ? (
@@ -66,28 +72,20 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                         key={globalIdx}
                         onDoubleClick={() => { if (editable) setEditingIdx(globalIdx); }}
                         className={cn(
-                          'flex-1 relative',
                           editable && 'cursor-pointer hover:ring-2 hover:ring-primary-500/40 rounded-xl transition-all'
                         )}
                       >
-                        {sessionIdx > 0 && (
-                          <div className="absolute -top-1 right-2 z-10">
-                            <span className="text-[9px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded-full">
-                              2nd
-                            </span>
-                          </div>
-                        )}
-                        <WorkoutPreview workout={workout} />
+                        <WorkoutPreview workout={workout} compact={hasMultiple} />
                       </div>
                     );
                   })
                 ) : (
-                  <div className="flex-1 bg-slate-800/20 border border-slate-700/20 border-dashed rounded-xl flex items-center justify-center">
-                    <div className="text-center py-8">
-                      <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto mb-2">
-                        <span className="text-slate-600 text-lg">—</span>
+                  <div className="flex-1 min-h-[120px] bg-slate-800/20 border border-slate-700/20 border-dashed rounded-xl flex items-center justify-center">
+                    <div className="text-center py-6">
+                      <div className="w-7 h-7 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto mb-1.5">
+                        <span className="text-slate-600 text-sm">—</span>
                       </div>
-                      <p className="text-[11px] text-slate-600 font-medium">Rest</p>
+                      <p className="text-[10px] text-slate-600 font-medium">Rest</p>
                     </div>
                   </div>
                 )}

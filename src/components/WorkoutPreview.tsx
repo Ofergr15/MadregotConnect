@@ -15,14 +15,14 @@ const stepColors: Record<string, { dot: string; bg: string }> = {
   recovery: { dot: 'bg-green-300', bg: 'bg-green-300/10' },
 };
 
-const workoutTypeColors: Record<string, string> = {
-  intervals: 'border-l-red-400',
-  long_run: 'border-l-purple-400',
-  tempo: 'border-l-orange-400',
-  fartlek: 'border-l-pink-400',
-  progressive: 'border-l-teal-400',
-  easy: 'border-l-blue-400',
-  recovery: 'border-l-green-400',
+const workoutTypeColors: Record<string, { border: string; badge: string; badgeText: string }> = {
+  intervals: { border: 'border-l-red-400', badge: 'bg-red-400/15', badgeText: 'text-red-300' },
+  long_run: { border: 'border-l-purple-400', badge: 'bg-purple-400/15', badgeText: 'text-purple-300' },
+  tempo: { border: 'border-l-orange-400', badge: 'bg-orange-400/15', badgeText: 'text-orange-300' },
+  fartlek: { border: 'border-l-pink-400', badge: 'bg-pink-400/15', badgeText: 'text-pink-300' },
+  progressive: { border: 'border-l-teal-400', badge: 'bg-teal-400/15', badgeText: 'text-teal-300' },
+  easy: { border: 'border-l-blue-400', badge: 'bg-blue-400/15', badgeText: 'text-blue-300' },
+  recovery: { border: 'border-l-green-400', badge: 'bg-green-400/15', badgeText: 'text-green-300' },
 };
 
 function fmtDuration(step: WorkoutStep): string {
@@ -80,6 +80,21 @@ function estimateTime(steps: WorkoutStep[]): number {
   return total;
 }
 
+function inferType(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('interval') || n.includes('pyramid')) return 'intervals';
+  if (n.includes('long')) return 'long_run';
+  if (n.includes('tempo')) return 'tempo';
+  if (n.includes('fartlek')) return 'fartlek';
+  if (n.includes('progressive')) return 'progressive';
+  if (n.includes('recovery') || n.includes('easy')) return 'recovery';
+  return 'easy';
+}
+
+function formatTypeLabel(type: string): string {
+  return type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function StepLine({ step }: { step: WorkoutStep }) {
   const colors = stepColors[step.type] || { dot: 'bg-slate-400', bg: 'bg-slate-400/10' };
 
@@ -108,34 +123,76 @@ function StepLine({ step }: { step: WorkoutStep }) {
   );
 }
 
-export function WorkoutPreview({ workout }: { workout: ParsedWorkout }) {
+interface WorkoutPreviewProps {
+  workout: ParsedWorkout;
+  compact?: boolean;
+}
+
+export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps) {
   const [expanded, setExpanded] = useState(false);
-  const MAX_VISIBLE = 4;
   const steps = workout.steps;
-  const hasMore = steps.length > MAX_VISIBLE;
-  const visibleSteps = expanded ? steps : steps.slice(0, MAX_VISIBLE);
 
   const totalDist = estimateDistance(steps);
   const totalTime = estimateTime(steps);
 
-  const nameLower = workout.name.toLowerCase();
-  const inferredType = nameLower.includes('interval') || nameLower.includes('pyramid') ? 'intervals'
-    : nameLower.includes('long') ? 'long_run'
-    : nameLower.includes('tempo') ? 'tempo'
-    : nameLower.includes('fartlek') ? 'fartlek'
-    : nameLower.includes('progressive') ? 'progressive'
-    : nameLower.includes('recovery') || nameLower.includes('easy') ? 'recovery'
-    : 'easy';
-  const typeColor = workoutTypeColors[inferredType] || 'border-l-slate-500';
+  const type = inferType(workout.name);
+  const typeStyle = workoutTypeColors[type] || workoutTypeColors['easy'];
+
+  if (compact && !expanded) {
+    return (
+      <div
+        onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+        className={cn(
+          'bg-slate-800/90 border border-slate-700/50 rounded-xl overflow-hidden border-l-[4px] h-full cursor-pointer transition-all hover:bg-slate-800 hover:shadow-md hover:shadow-black/20',
+          typeStyle.border
+        )}
+      >
+        <div className="px-3 py-3">
+          <h3 className="font-bold text-[12px] text-white leading-snug truncate">{workout.name}</h3>
+          <div className="flex items-center gap-2 mt-2">
+            <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', typeStyle.badge, typeStyle.badgeText)}>
+              {formatTypeLabel(type)}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            {totalDist > 0 && (
+              <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
+                <Route className="h-2.5 w-2.5" />
+                {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)}km` : `${totalDist}m`}
+              </span>
+            )}
+            {totalTime > 0 && (
+              <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
+                <Timer className="h-2.5 w-2.5" />
+                {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
+              </span>
+            )}
+            {steps.length > 0 && (
+              <span className="text-[10px] text-slate-500">{steps.length} steps</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const MAX_VISIBLE = 4;
+  const hasMore = steps.length > MAX_VISIBLE;
+  const visibleSteps = expanded && !compact ? steps : steps.slice(0, MAX_VISIBLE);
 
   return (
     <div className={cn(
       'bg-slate-800/90 border border-slate-700/50 rounded-xl overflow-hidden border-l-[4px] transition-all hover:bg-slate-800 hover:shadow-lg hover:shadow-black/20 h-full flex flex-col',
-      typeColor
+      typeStyle.border
     )}>
       {/* Header */}
       <div className="px-4 pt-3.5 pb-2">
-        <h3 className="font-bold text-[13px] text-white leading-snug">{workout.name}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-bold text-[13px] text-white leading-snug flex-1 min-w-0 truncate">{workout.name}</h3>
+          <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0', typeStyle.badge, typeStyle.badgeText)}>
+            {formatTypeLabel(type)}
+          </span>
+        </div>
         {workout.description && (
           <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{workout.description}</p>
         )}
@@ -161,7 +218,7 @@ export function WorkoutPreview({ workout }: { workout: ParsedWorkout }) {
         </button>
       )}
 
-      {/* Footer with distance/time estimates */}
+      {/* Footer */}
       {(totalDist > 0 || totalTime > 0) && (
         <div className="border-t border-slate-700/40 px-4 py-2.5 flex items-center gap-4 bg-slate-900/40">
           {totalDist > 0 && (
@@ -177,6 +234,15 @@ export function WorkoutPreview({ workout }: { workout: ParsedWorkout }) {
             </span>
           )}
         </div>
+      )}
+
+      {compact && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setExpanded(false); }}
+          className="flex items-center justify-center gap-1 text-[10px] text-slate-500 px-3 pb-2 hover:text-slate-300"
+        >
+          <ChevronUp className="h-3 w-3" /> Collapse
+        </button>
       )}
     </div>
   );
