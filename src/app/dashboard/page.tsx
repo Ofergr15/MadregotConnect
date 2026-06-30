@@ -53,6 +53,22 @@ const typeColors: Record<string, string> = {
   fartlek: '#ec4899', progressive: '#14b8a6', easy: '#6366f1', rest: '#1e293b',
 };
 
+function inferRunTypeFromActivity(distanceKm: number, avgPaceSec: number | null): { type: string; label: string; color: string; bg: string } {
+  const types: Record<string, { label: string; color: string; bg: string }> = {
+    long_run: { label: 'Long Run', color: 'text-purple-400', bg: 'bg-purple-500/15' },
+    tempo: { label: 'Tempo', color: 'text-orange-400', bg: 'bg-orange-500/15' },
+    intervals: { label: 'Intervals', color: 'text-red-400', bg: 'bg-red-500/15' },
+    easy: { label: 'Easy', color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
+    recovery: { label: 'Recovery', color: 'text-slate-400', bg: 'bg-slate-500/15' },
+  };
+
+  if (distanceKm >= 16) return { type: 'long_run', ...types.long_run };
+  if (avgPaceSec && avgPaceSec < 270 && distanceKm >= 8) return { type: 'tempo', ...types.tempo };
+  if (avgPaceSec && avgPaceSec < 290 && distanceKm >= 6 && distanceKm < 14) return { type: 'intervals', ...types.intervals };
+  if (distanceKm < 7 && avgPaceSec && avgPaceSec > 330) return { type: 'recovery', ...types.recovery };
+  return { type: 'easy', ...types.easy };
+}
+
 const typeLabels: Record<string, string> = {
   intervals: 'Intervals', long_run: 'Long Run', tempo: 'Tempo',
   fartlek: 'Fartlek', progressive: 'Progressive', easy: 'Easy', rest: 'Rest',
@@ -699,15 +715,22 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {recentActivities.map((a) => {
               const km = (a.distance / 1000).toFixed(1);
+              const kmNum = a.distance / 1000;
               const pace = a.average_pace ? formatPace(a.average_pace) : null;
               const date = new Date(a.start_time);
               const hebrewDays = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
               const dayLabel = hebrewDays[date.getDay()];
               const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const runType = inferRunTypeFromActivity(kmNum, a.average_pace);
               return (
                 <Link key={a.id} href="/dashboard/activities" className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/30 hover:border-[#4338ff]/30 hover:bg-slate-800/70 transition-all">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-400">{dateLabel}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-400">{dateLabel}</span>
+                      <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', runType.bg, runType.color)}>
+                        {runType.label}
+                      </span>
+                    </div>
                     <span className="text-xs text-slate-500">{a.athlete_name}</span>
                   </div>
                   <p className="text-sm font-bold text-white mb-2">{dayLabel}</p>
