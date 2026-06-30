@@ -61,7 +61,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
               )}>
                 {dayWorkout ? (
                   <div
-                    onClick={() => { if (editable) setEditingDay(dayIndex); }}
+                    onDoubleClick={() => { if (editable) setEditingDay(dayIndex); }}
                     className={cn(
                       'h-full',
                       editable && 'cursor-pointer hover:ring-2 hover:ring-primary-500/40 rounded-xl transition-all'

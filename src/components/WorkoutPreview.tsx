@@ -130,7 +130,7 @@ export function WorkoutPreview({ workout }: { workout: ParsedWorkout }) {
 
   return (
     <div className={cn(
-      'bg-slate-800/90 border border-slate-700/50 rounded-xl overflow-hidden border-l-[4px] transition-all hover:bg-slate-800 hover:shadow-lg hover:shadow-black/20',
+      'bg-slate-800/90 border border-slate-700/50 rounded-xl overflow-hidden border-l-[4px] transition-all hover:bg-slate-800 hover:shadow-lg hover:shadow-black/20 h-full flex flex-col',
       typeColor
     )}>
       {/* Header */}
@@ -142,7 +142,7 @@ export function WorkoutPreview({ workout }: { workout: ParsedWorkout }) {
       </div>
 
       {/* Steps */}
-      <div className="px-3 pb-3 space-y-1">
+      <div className="px-3 pb-3 space-y-1 flex-1">
         {visibleSteps.map((step, i) => (
           <StepLine key={i} step={step} />
         ))}
