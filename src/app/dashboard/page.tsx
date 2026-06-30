@@ -498,15 +498,18 @@ export default function DashboardPage() {
                   data={weekly!.dailyDistances}
                   margin={{ top: 4, right: 0, bottom: 0, left: -20 }}
                   onMouseMove={(state: any) => {
-                    if (state && state.activeTooltipIndex != null) {
+                    if (state?.isTooltipActive && state.activeTooltipIndex != null) {
                       setHoveredBar(state.activeTooltipIndex);
+                    } else {
+                      setHoveredBar(null);
                     }
                   }}
-                  onMouseLeave={() => { setHoveredBar(null); }}
+                  onMouseLeave={() => { setHoveredBar(null); setSelectedBar(null); }}
                   onClick={(state: any) => {
                     if (!state || !weekly || state.activeTooltipIndex == null) return;
                     const idx = state.activeTooltipIndex;
                     const now = Date.now();
+                    setSelectedBar(idx);
                     if (lastClickRef.current && lastClickRef.current.index === idx && now - lastClickRef.current.time < 400) {
                       const entry = weekly.dailyDistances[idx];
                       if (entry) {
@@ -515,7 +518,6 @@ export default function DashboardPage() {
                       }
                       lastClickRef.current = null;
                     } else {
-                      setSelectedBar(idx);
                       lastClickRef.current = { index: idx, time: now };
                     }
                   }}
@@ -533,21 +535,22 @@ export default function DashboardPage() {
                     }}
                     cursor={false}
                   />
-                  <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                  <Bar dataKey="max" radius={[6, 6, 0, 0]} maxBarSize={44} cursor="pointer">
                     {weekly!.dailyDistances.map((e, i) => {
-                      const hasSession = weekly!.keySessions.some(s => s.dayOfWeek === e.dayOfWeek);
-                      const isActive = hoveredBar === i || selectedBar === i;
-                      const hasHighlight = hoveredBar !== null || selectedBar !== null;
-                      const baseOpacity = e.dayOfWeek === todayDow ? 1 : 0.7;
-                      const opacity = hasHighlight ? (isActive ? 1 : 0.3) : baseOpacity;
+                      const isHovered = hoveredBar === i;
+                      const isSelected = selectedBar === i;
+                      const isActive = isHovered || isSelected;
+                      const someActive = hoveredBar !== null || selectedBar !== null;
+                      const baseOpacity = e.dayOfWeek === todayDow ? 1 : 0.75;
+                      const opacity = someActive ? (isActive ? 1 : 0.35) : baseOpacity;
                       return (
                         <Cell
                           key={i}
                           fill={typeColors[e.type] || '#6366f1'}
                           fillOpacity={opacity}
-                          stroke={isActive ? '#fff' : 'none'}
-                          strokeWidth={isActive ? 2 : 0}
-                          className={hasSession ? 'cursor-pointer' : ''}
+                          stroke={isActive ? typeColors[e.type] || '#6366f1' : 'none'}
+                          strokeWidth={isActive ? 3 : 0}
+                          style={{ filter: isActive ? 'brightness(1.3)' : 'none', transition: 'all 0.15s ease' }}
                         />
                       );
                     })}
