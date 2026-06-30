@@ -15,14 +15,14 @@ const stepColors: Record<string, { dot: string; bg: string }> = {
   recovery: { dot: 'bg-green-300', bg: 'bg-green-300/10' },
 };
 
-const workoutTypeColors: Record<string, { border: string; badge: string; badgeText: string }> = {
-  intervals: { border: 'border-l-red-400', badge: 'bg-red-400/15', badgeText: 'text-red-300' },
-  long_run: { border: 'border-l-purple-400', badge: 'bg-purple-400/15', badgeText: 'text-purple-300' },
-  tempo: { border: 'border-l-orange-400', badge: 'bg-orange-400/15', badgeText: 'text-orange-300' },
-  fartlek: { border: 'border-l-pink-400', badge: 'bg-pink-400/15', badgeText: 'text-pink-300' },
-  progressive: { border: 'border-l-teal-400', badge: 'bg-teal-400/15', badgeText: 'text-teal-300' },
-  easy: { border: 'border-l-blue-400', badge: 'bg-blue-400/15', badgeText: 'text-blue-300' },
-  recovery: { border: 'border-l-green-400', badge: 'bg-green-400/15', badgeText: 'text-green-300' },
+const workoutTypeStyles: Record<string, { border: string; color: string }> = {
+  intervals: { border: 'border-l-red-400', color: 'text-red-400' },
+  long_run: { border: 'border-l-purple-400', color: 'text-purple-400' },
+  tempo: { border: 'border-l-orange-400', color: 'text-orange-400' },
+  fartlek: { border: 'border-l-pink-400', color: 'text-pink-400' },
+  progressive: { border: 'border-l-teal-400', color: 'text-teal-400' },
+  easy: { border: 'border-l-blue-400', color: 'text-blue-400' },
+  recovery: { border: 'border-l-green-400', color: 'text-green-400' },
 };
 
 function fmtDuration(step: WorkoutStep): string {
@@ -80,19 +80,25 @@ function estimateTime(steps: WorkoutStep[]): number {
   return total;
 }
 
-function inferType(name: string): string {
-  const n = name.toLowerCase();
-  if (n.includes('interval') || n.includes('pyramid')) return 'intervals';
-  if (n.includes('long')) return 'long_run';
-  if (n.includes('tempo')) return 'tempo';
-  if (n.includes('fartlek')) return 'fartlek';
-  if (n.includes('progressive')) return 'progressive';
-  if (n.includes('recovery') || n.includes('easy')) return 'recovery';
-  return 'easy';
-}
+export function inferWorkoutType(workout: ParsedWorkout): string {
+  const name = workout.name.toLowerCase();
+  const desc = (workout.description || '').toLowerCase();
+  const text = `${name} ${desc}`;
 
-function formatTypeLabel(type: string): string {
-  return type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  if (/interval|אינטרוול|pyramid|פירמידה/.test(text)) return 'intervals';
+  if (/long|ארוכה|ארוך/.test(text)) return 'long_run';
+  if (/tempo|טמפו/.test(text)) return 'tempo';
+  if (/fartlek|פרטלק/.test(text)) return 'fartlek';
+  if (/progressive|מתגברת/.test(text)) return 'progressive';
+  if (/recovery|שחרור|easy|קל/.test(text)) return 'recovery';
+
+  const hasRepeats = workout.steps.some(s => s.repeatCount && s.repeatCount > 2);
+  if (hasRepeats) return 'intervals';
+
+  const totalDist = estimateDistance(workout.steps);
+  if (totalDist > 15000) return 'long_run';
+
+  return 'easy';
 }
 
 function StepLine({ step }: { step: WorkoutStep }) {
@@ -100,9 +106,9 @@ function StepLine({ step }: { step: WorkoutStep }) {
 
   if (step.repeatCount && step.repeatSteps) {
     return (
-      <div className="flex items-center gap-2 py-1 px-2 rounded-md bg-red-400/8 min-w-0">
-        <div className={cn('w-2 h-2 rounded-full shrink-0', stepColors['interval'].dot)} />
-        <span className="text-[12px] text-slate-200 font-bold">
+      <div className="flex items-center gap-2 py-1 px-2 rounded bg-red-400/8 min-w-0">
+        <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', stepColors['interval'].dot)} />
+        <span className="text-[11px] text-slate-200 font-bold">
           {step.repeatCount}x
         </span>
       </div>
@@ -110,15 +116,13 @@ function StepLine({ step }: { step: WorkoutStep }) {
   }
 
   const target = fmtTarget(step);
-  const note = step.notes && !target ? step.notes : '';
   return (
-    <div className={cn('flex items-center gap-2 py-1.5 px-2.5 rounded-md min-w-0', colors.bg)}>
-      <div className={cn('w-2 h-2 rounded-full shrink-0', colors.dot)} />
-      <span className="text-[12px] text-slate-200 truncate flex-1 min-w-0 font-semibold">
+    <div className={cn('flex items-center gap-1.5 py-1 px-2 rounded min-w-0', colors.bg)}>
+      <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', colors.dot)} />
+      <span className="text-[11px] text-slate-200 truncate flex-1 min-w-0 font-medium">
         {fmtDuration(step)}
       </span>
-      {target && <span className="text-[11px] text-slate-400 shrink-0 font-medium">{target}</span>}
-      {note && <span className="text-[11px] text-slate-500 truncate">{note}</span>}
+      {target && <span className="text-[10px] text-slate-400 shrink-0">{target}</span>}
     </div>
   );
 }
@@ -134,41 +138,28 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
 
   const totalDist = estimateDistance(steps);
   const totalTime = estimateTime(steps);
+  const type = inferWorkoutType(workout);
+  const style = workoutTypeStyles[type] || workoutTypeStyles['easy'];
 
-  const type = inferType(workout.name);
-  const typeStyle = workoutTypeColors[type] || workoutTypeColors['easy'];
-
-  if (compact && !expanded) {
+  // Compact: minimal card
+  if (compact) {
     return (
-      <div
-        onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
-        className={cn(
-          'bg-slate-800/90 border border-slate-700/50 rounded-xl overflow-hidden border-l-[4px] h-full cursor-pointer transition-all hover:bg-slate-800 hover:shadow-md hover:shadow-black/20',
-          typeStyle.border
-        )}
-      >
-        <div className="px-3 py-3">
-          <h3 className="font-bold text-[12px] text-white leading-snug truncate">{workout.name}</h3>
-          <div className="flex items-center gap-2 mt-2">
-            <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', typeStyle.badge, typeStyle.badgeText)}>
-              {formatTypeLabel(type)}
-            </span>
-          </div>
-          <div className="flex items-center gap-3 mt-2">
+      <div className={cn(
+        'bg-slate-800/80 border border-slate-700/40 rounded-lg overflow-hidden border-l-[3px] h-full',
+        style.border
+      )}>
+        <div className="px-3 py-2.5">
+          <p className="text-[11px] font-semibold text-white truncate">{workout.name}</p>
+          <div className="flex items-center gap-2 mt-1.5">
             {totalDist > 0 && (
-              <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
-                <Route className="h-2.5 w-2.5" />
+              <span className="text-[10px] text-slate-400">
                 {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)}km` : `${totalDist}m`}
               </span>
             )}
             {totalTime > 0 && (
-              <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
-                <Timer className="h-2.5 w-2.5" />
+              <span className="text-[10px] text-slate-400">
                 {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
               </span>
-            )}
-            {steps.length > 0 && (
-              <span className="text-[10px] text-slate-500">{steps.length} steps</span>
             )}
           </div>
         </div>
@@ -176,30 +167,26 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
     );
   }
 
-  const MAX_VISIBLE = 4;
+  // Full card
+  const MAX_VISIBLE = 3;
   const hasMore = steps.length > MAX_VISIBLE;
-  const visibleSteps = expanded && !compact ? steps : steps.slice(0, MAX_VISIBLE);
+  const visibleSteps = expanded ? steps : steps.slice(0, MAX_VISIBLE);
 
   return (
     <div className={cn(
-      'bg-slate-800/90 border border-slate-700/50 rounded-xl overflow-hidden border-l-[4px] transition-all hover:bg-slate-800 hover:shadow-lg hover:shadow-black/20 h-full flex flex-col',
-      typeStyle.border
+      'bg-slate-800/80 border border-slate-700/40 rounded-lg overflow-hidden border-l-[3px] transition-all hover:bg-slate-800 h-full flex flex-col',
+      style.border
     )}>
       {/* Header */}
-      <div className="px-4 pt-3.5 pb-2">
-        <div className="flex items-center gap-2">
-          <h3 className="font-bold text-[13px] text-white leading-snug flex-1 min-w-0 truncate">{workout.name}</h3>
-          <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0', typeStyle.badge, typeStyle.badgeText)}>
-            {formatTypeLabel(type)}
-          </span>
-        </div>
+      <div className="px-3 pt-3 pb-1.5">
+        <h3 className="font-semibold text-[12px] text-white leading-snug truncate">{workout.name}</h3>
         {workout.description && (
-          <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{workout.description}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5 truncate">{workout.description}</p>
         )}
       </div>
 
       {/* Steps */}
-      <div className="px-3 pb-3 space-y-1 flex-1">
+      <div className="px-2.5 pb-2 space-y-0.5 flex-1">
         {visibleSteps.map((step, i) => (
           <StepLine key={i} step={step} />
         ))}
@@ -208,41 +195,32 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
       {hasMore && (
         <button
           onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-          className="flex items-center gap-1 text-[11px] text-primary-400 px-4 pb-3 hover:text-primary-300 font-semibold"
+          className="flex items-center gap-0.5 text-[10px] text-primary-400 px-3 pb-2 hover:text-primary-300 font-medium"
         >
           {expanded ? (
-            <><ChevronUp className="h-3.5 w-3.5" /> Show less</>
+            <><ChevronUp className="h-3 w-3" /> less</>
           ) : (
-            <><ChevronDown className="h-3.5 w-3.5" /> +{steps.length - MAX_VISIBLE} more</>
+            <><ChevronDown className="h-3 w-3" /> +{steps.length - MAX_VISIBLE} more</>
           )}
         </button>
       )}
 
       {/* Footer */}
       {(totalDist > 0 || totalTime > 0) && (
-        <div className="border-t border-slate-700/40 px-4 py-2.5 flex items-center gap-4 bg-slate-900/40">
+        <div className="border-t border-slate-700/30 px-3 py-1.5 flex items-center gap-3 bg-slate-900/30">
           {totalDist > 0 && (
-            <span className="flex items-center gap-1.5 text-[11px] text-slate-300 font-medium">
-              <Route className="h-3 w-3 text-slate-500" />
+            <span className="flex items-center gap-1 text-[10px] text-slate-400">
+              <Route className="h-2.5 w-2.5" />
               {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)}km` : `${totalDist}m`}
             </span>
           )}
           {totalTime > 0 && (
-            <span className="flex items-center gap-1.5 text-[11px] text-slate-300 font-medium">
-              <Timer className="h-3 w-3 text-slate-500" />
+            <span className="flex items-center gap-1 text-[10px] text-slate-400">
+              <Timer className="h-2.5 w-2.5" />
               {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
             </span>
           )}
         </div>
-      )}
-
-      {compact && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setExpanded(false); }}
-          className="flex items-center justify-center gap-1 text-[10px] text-slate-500 px-3 pb-2 hover:text-slate-300"
-        >
-          <ChevronUp className="h-3 w-3" /> Collapse
-        </button>
       )}
     </div>
   );
