@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface User {
@@ -150,6 +150,24 @@ function ConfirmDialog({ user, newRole, onConfirm, onCancel }: ConfirmDialogProp
   );
 }
 
+interface TabPermission {
+  role: string;
+  tab: string;
+  enabled: boolean;
+}
+
+const allTabs = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'plan/new', label: 'New Plan' },
+  { key: 'athletes', label: 'Athletes' },
+  { key: 'groups', label: 'Groups' },
+  { key: 'program', label: 'Program' },
+  { key: 'history', label: 'History' },
+  { key: 'settings', label: 'Settings' },
+];
+
+const allRoles: Role[] = ['admin', 'coach', 'runner', 'viewer'];
+
 export default function SettingsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,10 +175,53 @@ export default function SettingsPage() {
   const [savedUsers, setSavedUsers] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [pendingChange, setPendingChange] = useState<{ user: User; newRole: Role } | null>(null);
+  const [permissions, setPermissions] = useState<TabPermission[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [updatingPermission, setUpdatingPermission] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
+    fetchPermissions();
   }, []);
+
+  const fetchPermissions = async () => {
+    try {
+      setPermissionsLoading(true);
+      const response = await fetch('/api/admin/tab-permissions');
+      if (!response.ok) throw new Error('Failed to fetch permissions');
+      const data = await response.json();
+      setPermissions(data.permissions || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load permissions');
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
+  const togglePermission = async (role: string, tab: string, currentEnabled: boolean) => {
+    const key = `${role}-${tab}`;
+    setUpdatingPermission(key);
+    try {
+      const response = await fetch('/api/admin/tab-permissions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, tab, enabled: !currentEnabled }),
+      });
+      if (!response.ok) throw new Error('Failed to update permission');
+      setPermissions(prev =>
+        prev.map(p => p.role === role && p.tab === tab ? { ...p, enabled: !currentEnabled } : p)
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update permission');
+    } finally {
+      setUpdatingPermission(null);
+    }
+  };
+
+  const isTabEnabled = (role: string, tab: string) => {
+    const perm = permissions.find(p => p.role === role && p.tab === tab);
+    return perm?.enabled ?? false;
+  };
 
   const fetchUsers = async () => {
     try {
@@ -284,6 +345,76 @@ export default function SettingsPage() {
           <div className="px-6 py-12 text-center">
             <Users className="w-12 h-12 text-slate-600 mx-auto mb-3" />
             <p className="text-slate-400">No users found</p>
+          </div>
+        )}
+      </div>
+
+      {/* Tab Permissions Section */}
+      <div className="mt-8 bg-slate-800 border border-slate-700 rounded-xl">
+        <div className="px-6 py-4 border-b border-slate-700">
+          <div className="flex items-center gap-2">
+            <Layout className="w-4 h-4 text-slate-400" />
+            <h2 className="text-sm font-semibold text-white">Tab Permissions</h2>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">Configure which tabs each role can access</p>
+        </div>
+
+        {permissionsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-700/50">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Tab</th>
+                  {allRoles.map(role => (
+                    <th key={role} className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                      <span className={cn('inline-flex items-center gap-1.5', roleConfig[role].text)}>
+                        <span className={cn('w-2 h-2 rounded-full', roleConfig[role].dot)}></span>
+                        {roleConfig[role].label}
+                      </span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700/50">
+                {allTabs.map(tab => (
+                  <tr key={tab.key} className="hover:bg-slate-700/20 transition-colors">
+                    <td className="px-6 py-3 text-sm text-white font-medium">{tab.label}</td>
+                    {allRoles.map(role => {
+                      const enabled = isTabEnabled(role, tab.key);
+                      const key = `${role}-${tab.key}`;
+                      const isUpdating = updatingPermission === key;
+                      return (
+                        <td key={role} className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => togglePermission(role, tab.key, enabled)}
+                            disabled={isUpdating}
+                            className={cn(
+                              'w-8 h-8 rounded-lg border transition-all inline-flex items-center justify-center',
+                              enabled
+                                ? 'bg-primary-600/30 border-primary-500/50 text-primary-400'
+                                : 'bg-slate-700/30 border-slate-600 text-slate-600 hover:border-slate-500',
+                              isUpdating && 'opacity-50'
+                            )}
+                          >
+                            {isUpdating ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : enabled ? (
+                              <CheckCircle2 className="w-4 h-4" />
+                            ) : (
+                              <X className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
