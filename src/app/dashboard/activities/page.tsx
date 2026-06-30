@@ -130,23 +130,23 @@ function WeeklyBarChart({ daily, totalKm, totalRuns, totalHours, avgPace, totalC
       {/* Bar chart */}
       <div className="flex items-end justify-between gap-2 h-32 mb-3 px-1">
         {daily.map((d, i) => {
-          const height = maxDist > 0 ? (d.distance / maxDist) * 100 : 0;
+          const barHeight = maxDist > 0 ? (d.distance / maxDist) * 100 : 0;
           const isToday = d.date === new Date().toISOString().split('T')[0];
           return (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+            <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative h-full">
               {d.distance > 0 && (
                 <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-700 text-white text-[10px] font-bold px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                   {d.distance.toFixed(1)}km · {d.runs} run{d.runs > 1 ? 's' : ''}
                 </div>
               )}
-              <div className="w-full flex items-end justify-center h-full">
+              <div className="flex-1 w-full flex items-end justify-center">
                 <div
                   className={cn(
                     'w-full max-w-[32px] rounded-t-md transition-all group-hover:opacity-100',
                     d.distance > 0 ? 'bg-[#4338ff]/75 group-hover:bg-[#4338ff]' : 'bg-slate-700/30',
                     isToday && d.distance > 0 && 'ring-1 ring-[#4338ff]/50'
                   )}
-                  style={{ height: `${Math.max(height, d.distance > 0 ? 8 : 2)}%` }}
+                  style={{ height: `${Math.max(barHeight, d.distance > 0 ? 8 : 2)}%` }}
                 />
               </div>
               <span className={cn('text-[10px] font-medium', isToday ? 'text-white' : 'text-slate-500')}>{d.day}</span>

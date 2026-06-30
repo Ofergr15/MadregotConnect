@@ -107,25 +107,9 @@ export class GarminClient {
     }));
   }
 
-  async getActivitySummary(activityId: number): Promise<any> {
+  async getActivityFull(activityId: number): Promise<any> {
     await this.restoreSession();
-    const tokens = this.gc.exportToken() as any;
-    const accessToken = tokens.oauth2?.access_token;
-    if (!accessToken) throw new Error('No access token available');
-
-    const res = await fetch(
-      `https://connectapi.garmin.com/activity-service/activity/${activityId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'NK': 'NT',
-          'DI-Backend': 'connectapi.garmin.com',
-        },
-      }
-    );
-
-    if (!res.ok) throw new Error(`Failed to fetch activity summary: ${res.status}`);
-    return res.json();
+    return this.gc.getActivity({ activityId });
   }
 
   async getActivityDetails(activityId: number): Promise<any> {
@@ -135,7 +119,7 @@ export class GarminClient {
     if (!accessToken) throw new Error('No access token available');
 
     const res = await fetch(
-      `https://connectapi.garmin.com/activity-service/activity/${activityId}/details?maxChartSize=1000&maxPolylineSize=1000`,
+      `https://connectapi.garmin.com/activity-service/activity/${activityId}/details?maxChartSize=2000&maxPolylineSize=2000`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,

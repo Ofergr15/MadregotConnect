@@ -588,25 +588,44 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             </div>
           )}
 
-          {/* Stats grid */}
+          {/* Route Map - show first for visual impact */}
+          {details?.gpsPoints && details.gpsPoints.length > 2 && (
+            <div>
+              <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+                <MapPin className="h-3 w-3" /> Route
+                {details.summary?.locationName && (
+                  <span className="text-slate-400 normal-case font-normal ml-1">· {details.summary.locationName}</span>
+                )}
+              </h4>
+              <div className="rounded-xl overflow-hidden border border-slate-700/30" style={{ height: '240px' }}>
+                <RouteMap points={details.gpsPoints} height={240} />
+              </div>
+            </div>
+          )}
+
+          {/* Stats grid - enriched with API summary data */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {movingStr && movingStr !== durationStr && (
               <StatCard label="Moving Time" value={movingStr} icon={<Clock className="h-3 w-3 text-blue-400" />} />
             )}
-            {activity.calories && (
-              <StatCard label="Calories" value={`${activity.calories}`} icon={<Flame className="h-3 w-3 text-orange-400" />} />
+            {(activity.calories || details?.summary?.calories) && (
+              <StatCard label="Calories" value={`${activity.calories || details?.summary?.calories}`} icon={<Flame className="h-3 w-3 text-orange-400" />} />
             )}
-            {activity.avg_cadence && (
-              <StatCard label="Cadence" value={`${Math.round(activity.avg_cadence)} spm`} icon={<Footprints className="h-3 w-3 text-cyan-400" />} />
+            {(activity.avg_cadence || details?.summary?.averageRunCadence) && (
+              <StatCard label="Cadence" value={`${Math.round(activity.avg_cadence || details?.summary?.averageRunCadence)} spm`} icon={<Footprints className="h-3 w-3 text-cyan-400" />} />
             )}
-            {activity.avg_stride_length && (
-              <StatCard label="Stride" value={`${(activity.avg_stride_length / 100).toFixed(2)} m`} icon={<TrendingUp className="h-3 w-3 text-purple-400" />} />
+            {(activity.avg_stride_length || details?.summary?.strideLength) && (
+              <StatCard
+                label="Stride"
+                value={`${activity.avg_stride_length ? (activity.avg_stride_length / 100).toFixed(2) : details?.summary?.strideLength?.toFixed(2)} m`}
+                icon={<TrendingUp className="h-3 w-3 text-purple-400" />}
+              />
             )}
             {activity.max_hr && (
               <StatCard label="Max HR" value={`${activity.max_hr} bpm`} icon={<Heart className="h-3 w-3 text-red-400" />} />
             )}
-            {activity.vo2max && (
-              <StatCard label="VO2 Max" value={`${activity.vo2max}`} icon={<Zap className="h-3 w-3 text-green-400" />} />
+            {(activity.vo2max || details?.summary?.vO2MaxValue) && (
+              <StatCard label="VO2 Max" value={`${activity.vo2max || details?.summary?.vO2MaxValue}`} icon={<Zap className="h-3 w-3 text-green-400" />} />
             )}
             {activity.elevation_gain && (
               <StatCard label="Elev Gain" value={`${Math.round(activity.elevation_gain)} m`} icon={<Mountain className="h-3 w-3 text-green-400" />} />
@@ -614,19 +633,13 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             {activity.lap_count && activity.lap_count > 1 && (
               <StatCard label="Laps" value={`${activity.lap_count}`} icon={<Route className="h-3 w-3 text-[#4338ff]" />} />
             )}
+            {details?.summary?.trainingEffect && (
+              <StatCard label="Aerobic TE" value={`${details.summary.trainingEffect.toFixed(1)}`} icon={<Activity className="h-3 w-3 text-blue-400" />} />
+            )}
+            {details?.summary?.anaerobicTrainingEffect && (
+              <StatCard label="Anaerobic TE" value={`${details.summary.anaerobicTrainingEffect.toFixed(1)}`} icon={<Activity className="h-3 w-3 text-orange-400" />} />
+            )}
           </div>
-
-          {/* Route Map */}
-          {details?.gpsPoints && details.gpsPoints.length > 2 && (
-            <div>
-              <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
-                <MapPin className="h-3 w-3" /> Route
-              </h4>
-              <div className="rounded-xl overflow-hidden border border-slate-700/30" style={{ height: '220px' }}>
-                <RouteMap points={details.gpsPoints} height={220} />
-              </div>
-            </div>
-          )}
 
           {/* Charts */}
           {splits.length >= 2 && (
