@@ -85,9 +85,9 @@ function StepLine({ step }: { step: WorkoutStep }) {
 
   if (step.repeatCount && step.repeatSteps) {
     return (
-      <div className="flex items-center gap-1.5 py-0.5 min-w-0">
-        <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', stepColors['interval'].dot)} />
-        <span className="text-[11px] text-slate-200 font-medium truncate">
+      <div className="flex items-center gap-2 py-1 px-2 rounded-md bg-red-400/8 min-w-0">
+        <div className={cn('w-2 h-2 rounded-full shrink-0', stepColors['interval'].dot)} />
+        <span className="text-[12px] text-slate-200 font-bold">
           {step.repeatCount}x
         </span>
       </div>
@@ -97,13 +97,13 @@ function StepLine({ step }: { step: WorkoutStep }) {
   const target = fmtTarget(step);
   const note = step.notes && !target ? step.notes : '';
   return (
-    <div className={cn('flex items-center gap-1.5 py-[3px] px-1.5 rounded min-w-0', colors.bg)}>
-      <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', colors.dot)} />
-      <span className="text-[11px] text-slate-200 truncate flex-1 min-w-0 font-medium">
+    <div className={cn('flex items-center gap-2 py-1.5 px-2.5 rounded-md min-w-0', colors.bg)}>
+      <div className={cn('w-2 h-2 rounded-full shrink-0', colors.dot)} />
+      <span className="text-[12px] text-slate-200 truncate flex-1 min-w-0 font-semibold">
         {fmtDuration(step)}
       </span>
-      {target && <span className="text-[10px] text-slate-400 shrink-0">{target}</span>}
-      {note && <span className="text-[10px] text-slate-500 truncate">{note}</span>}
+      {target && <span className="text-[11px] text-slate-400 shrink-0 font-medium">{target}</span>}
+      {note && <span className="text-[11px] text-slate-500 truncate">{note}</span>}
     </div>
   );
 }
@@ -130,19 +130,19 @@ export function WorkoutPreview({ workout }: { workout: ParsedWorkout }) {
 
   return (
     <div className={cn(
-      'bg-slate-800/80 border border-slate-700/60 rounded-lg overflow-hidden border-l-[3px] transition-all hover:border-slate-600/80',
+      'bg-slate-800/90 border border-slate-700/50 rounded-xl overflow-hidden border-l-[4px] transition-all hover:bg-slate-800 hover:shadow-lg hover:shadow-black/20',
       typeColor
     )}>
       {/* Header */}
-      <div className="px-3 pt-2.5 pb-1.5">
-        <h3 className="font-semibold text-[12px] text-white leading-tight truncate">{workout.name}</h3>
+      <div className="px-4 pt-3.5 pb-2">
+        <h3 className="font-bold text-[13px] text-white leading-snug">{workout.name}</h3>
         {workout.description && (
-          <p className="text-[10px] text-slate-400 truncate mt-0.5">{workout.description}</p>
+          <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{workout.description}</p>
         )}
       </div>
 
       {/* Steps */}
-      <div className="px-2.5 pb-2 space-y-[2px]">
+      <div className="px-3 pb-3 space-y-1">
         {visibleSteps.map((step, i) => (
           <StepLine key={i} step={step} />
         ))}
@@ -151,28 +151,28 @@ export function WorkoutPreview({ workout }: { workout: ParsedWorkout }) {
       {hasMore && (
         <button
           onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-          className="flex items-center gap-0.5 text-[10px] text-primary-400 px-3 pb-2 hover:text-primary-300 font-medium"
+          className="flex items-center gap-1 text-[11px] text-primary-400 px-4 pb-3 hover:text-primary-300 font-semibold"
         >
           {expanded ? (
-            <><ChevronUp className="h-3 w-3" /> less</>
+            <><ChevronUp className="h-3.5 w-3.5" /> Show less</>
           ) : (
-            <><ChevronDown className="h-3 w-3" /> +{steps.length - MAX_VISIBLE} more</>
+            <><ChevronDown className="h-3.5 w-3.5" /> +{steps.length - MAX_VISIBLE} more</>
           )}
         </button>
       )}
 
       {/* Footer with distance/time estimates */}
       {(totalDist > 0 || totalTime > 0) && (
-        <div className="border-t border-slate-700/40 px-3 py-1.5 flex items-center gap-3 bg-slate-900/30">
+        <div className="border-t border-slate-700/40 px-4 py-2.5 flex items-center gap-4 bg-slate-900/40">
           {totalDist > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-slate-400">
-              <Route className="h-2.5 w-2.5" />
+            <span className="flex items-center gap-1.5 text-[11px] text-slate-300 font-medium">
+              <Route className="h-3 w-3 text-slate-500" />
               {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)}km` : `${totalDist}m`}
             </span>
           )}
           {totalTime > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-slate-400">
-              <Timer className="h-2.5 w-2.5" />
+            <span className="flex items-center gap-1.5 text-[11px] text-slate-300 font-medium">
+              <Timer className="h-3 w-3 text-slate-500" />
               {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
             </span>
           )}
