@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Activity, Heart, Timer, Route, TrendingUp,
   MapPin, ChevronDown, ChevronUp, Zap, Footprints, Mountain,
@@ -82,13 +82,110 @@ function getHRZone(hr: number, maxHR = 190): { zone: number; label: string; colo
   return { zone: 5, label: 'VO2max', color: 'text-red-400', bgColor: '#f87171' };
 }
 
-// ─── SVG Route Map ─────────────────────────────────────────────────────────────
+// ─── Leaflet Map (loaded from CDN) ─────────────────────────────────────────────
 
-function RouteMap({ points, height = 200, mini = false }: { points: Array<{ lat: number; lng: number }>; height?: number; mini?: boolean }) {
+function RouteMap({ points, height = 240 }: { points: Array<{ lat: number; lng: number }>; height?: number }) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+
+  useEffect(() => {
+    if (!mapRef.current || points.length < 2) return;
+    if (mapInstance.current) return;
+
+    // Load Leaflet CSS
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    // Load Leaflet JS
+    const initMap = () => {
+      const L = (window as any).L;
+      if (!L || !mapRef.current) return;
+
+      const map = L.map(mapRef.current, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: true,
+        scrollWheelZoom: false,
+      });
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+
+      const latlngs = points.map(p => [p.lat, p.lng]);
+
+      // Route polyline
+      L.polyline(latlngs, {
+        color: '#4338ff',
+        weight: 4,
+        opacity: 0.9,
+        smoothFactor: 1,
+      }).addTo(map);
+
+      // Glow effect
+      L.polyline(latlngs, {
+        color: '#4338ff',
+        weight: 8,
+        opacity: 0.2,
+        smoothFactor: 1,
+      }).addTo(map);
+
+      // Start marker
+      L.circleMarker(latlngs[0], {
+        radius: 7,
+        fillColor: '#22c55e',
+        color: '#fff',
+        weight: 2,
+        fillOpacity: 1,
+      }).addTo(map);
+
+      // End marker
+      L.circleMarker(latlngs[latlngs.length - 1], {
+        radius: 7,
+        fillColor: '#ef4444',
+        color: '#fff',
+        weight: 2,
+        fillOpacity: 1,
+      }).addTo(map);
+
+      map.fitBounds(L.latLngBounds(latlngs), { padding: [20, 20] });
+      mapInstance.current = map;
+    };
+
+    if ((window as any).L) {
+      initMap();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = initMap;
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
+  }, [points]);
+
   if (points.length < 2) return null;
 
-  const sampled = mini && points.length > 100
-    ? points.filter((_, i) => i % Math.ceil(points.length / 80) === 0)
+  return <div ref={mapRef} style={{ height: `${height}px` }} className="w-full rounded-xl" />;
+}
+
+// ─── SVG Route (mini sparkline for card) ───────────────────────────────────────
+
+function RouteSparkline({ points }: { points: Array<{ lat: number; lng: number }> }) {
+  if (points.length < 2) return null;
+
+  const sampled = points.length > 80
+    ? points.filter((_, i) => i % Math.ceil(points.length / 60) === 0)
     : points;
 
   const minLat = Math.min(...sampled.map(p => p.lat));
@@ -98,32 +195,20 @@ function RouteMap({ points, height = 200, mini = false }: { points: Array<{ lat:
 
   const padLat = (maxLat - minLat) * 0.12 || 0.001;
   const padLng = (maxLng - minLng) * 0.12 || 0.001;
+  const width = 120;
+  const h = 80;
 
-  const vMinLat = minLat - padLat;
-  const vMaxLat = maxLat + padLat;
-  const vMinLng = minLng - padLng;
-  const vMaxLng = maxLng + padLng;
-
-  const width = mini ? 300 : 800;
-  const h = mini ? 80 : height;
-
-  const toX = (lng: number) => ((lng - vMinLng) / (vMaxLng - vMinLng)) * width;
-  const toY = (lat: number) => h - ((lat - vMinLat) / (vMaxLat - vMinLat)) * h;
+  const toX = (lng: number) => ((lng - (minLng - padLng)) / ((maxLng + padLng) - (minLng - padLng))) * width;
+  const toY = (lat: number) => h - ((lat - (minLat - padLat)) / ((maxLat + padLat) - (minLat - padLat))) * h;
 
   const pathData = sampled
     .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.lng).toFixed(1)} ${toY(p.lat).toFixed(1)}`)
     .join(' ');
 
-  const start = sampled[0];
-  const end = sampled[sampled.length - 1];
-
   return (
-    <div className={cn('w-full bg-slate-900/80 rounded-xl overflow-hidden', mini ? 'h-20' : '')}>
+    <div className="w-full h-20 bg-slate-900/50 rounded-lg overflow-hidden">
       <svg width="100%" height="100%" viewBox={`0 0 ${width} ${h}`} preserveAspectRatio="xMidYMid meet">
-        <path d={pathData} fill="none" stroke="#4338ff" strokeWidth={mini ? 2 : 3} strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
-        <path d={pathData} fill="none" stroke="#4338ff" strokeWidth={mini ? 4 : 6} strokeLinecap="round" strokeLinejoin="round" opacity="0.15" />
-        <circle cx={toX(start.lng)} cy={toY(start.lat)} r={mini ? 4 : 6} fill="#22c55e" stroke="#fff" strokeWidth={mini ? 1 : 2} />
-        <circle cx={toX(end.lng)} cy={toY(end.lat)} r={mini ? 4 : 6} fill="#ef4444" stroke="#fff" strokeWidth={mini ? 1 : 2} />
+        <path d={pathData} fill="none" stroke="#4338ff" strokeWidth="2" strokeLinecap="round" opacity="0.8" />
       </svg>
     </div>
   );
@@ -597,8 +682,8 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
                   <span className="text-slate-400 normal-case font-normal ml-1">· {details.summary.locationName}</span>
                 )}
               </h4>
-              <div className="rounded-xl overflow-hidden border border-slate-700/30" style={{ height: '240px' }}>
-                <RouteMap points={details.gpsPoints} height={240} />
+              <div className="rounded-xl overflow-hidden border border-slate-700/30">
+                <RouteMap points={details.gpsPoints} height={280} />
               </div>
             </div>
           )}
