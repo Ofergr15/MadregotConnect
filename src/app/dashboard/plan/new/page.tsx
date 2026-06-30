@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Upload,
   FileText,
@@ -94,8 +95,27 @@ function getWeekLabel(dateStr: string): string {
 }
 
 export default function WeeklyPlannerPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   // --- Week navigation ---
-  const [weekOffset, setWeekOffset] = useState(getDefaultOffset);
+  const [weekOffset, setWeekOffsetState] = useState(() => {
+    const w = searchParams.get('week');
+    return w ? parseInt(w, 10) : getDefaultOffset();
+  });
+
+  const setWeekOffset = (val: number | ((prev: number) => number)) => {
+    setWeekOffsetState(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      const params = new URLSearchParams(window.location.search);
+      if (next === getDefaultOffset()) params.delete('week');
+      else params.set('week', String(next));
+      const qs = params.toString();
+      router.replace(`/dashboard/plan/new${qs ? `?${qs}` : ''}`, { scroll: false });
+      return next;
+    });
+  };
+
   const weekStartDate = getCurrentWeekSunday(weekOffset);
   const weekLabel = getWeekLabel(weekStartDate);
 
