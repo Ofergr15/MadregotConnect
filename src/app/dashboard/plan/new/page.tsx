@@ -886,7 +886,7 @@ export default function WeeklyPlannerPage() {
             )}
 
             <WeekView
-              workouts={groupedPlans[`group${activeGroup}` as keyof GroupedWeeklyPlans].workouts}
+              workouts={groupedPlans[`group${activeGroup}` as keyof GroupedWeeklyPlans].workouts.filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i)}
               editable={editMode}
               onWorkoutChange={handleWorkoutChange}
             />
