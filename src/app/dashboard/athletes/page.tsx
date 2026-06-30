@@ -27,9 +27,9 @@ interface Group {
 }
 
 const groupColors: Record<string, { bg: string; text: string; border: string }> = {
-  'Group 1': { bg: 'bg-red-500/15', text: 'text-red-400', border: 'border-red-500/20' },
-  'Group 2': { bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/20' },
-  'Group 3': { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/20' },
+  'Group 1': { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/20' },
+  'Group 2': { bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/20' },
+  'Group 3': { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/20' },
 };
 
 function getGroupStyle(name: string | null) {
