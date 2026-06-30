@@ -252,6 +252,8 @@ function useChartHover(pointCount: number) {
 // ─── Full-Width Pace Chart ─────────────────────────────────────────────────────
 
 function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep[] }) {
+  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
+
   if (splits.length < 2) return null;
 
   const width = 1000;
@@ -282,7 +284,6 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep
   });
 
   const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
-  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
 
   // Build planned pace overlay
   let plannedPoints: Array<{ x: number; y: number }> | null = null;
@@ -360,6 +361,7 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep
 // ─── Full-Width Heart Rate Chart ───────────────────────────────────────────────
 
 function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
+  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
   const valid = splits.filter(s => s.averageHR);
   if (valid.length < 2) return null;
 
@@ -400,7 +402,6 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
   }).reverse();
 
   const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
-  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
 
   return (
     <div>
@@ -467,6 +468,8 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
 // ─── Full-Width Elevation Chart (Gain + Loss per KM) ──────────────────────────
 
 function ElevationChart({ splits }: { splits: Split[] }) {
+  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
+
   if (splits.length < 2) return null;
 
   const width = 1000;
@@ -487,7 +490,6 @@ function ElevationChart({ splits }: { splits: Split[] }) {
   const halfH = chartH * 0.45;
 
   const toX = (i: number) => pad.left + (i + 0.5) * gap;
-  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
 
   const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
 
