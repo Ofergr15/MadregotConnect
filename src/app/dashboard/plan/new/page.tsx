@@ -807,29 +807,34 @@ export default function WeeklyPlannerPage() {
 
           {/* Group tabs */}
           <div className="border-b border-slate-700 px-6">
-            <div className="flex gap-0 max-w-7xl mx-auto">
-              {([1, 2, 3] as const).map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setActiveGroup(g)}
-                  className={cn(
-                    'px-5 py-2.5 text-sm font-medium border-b-2 transition-colors',
-                    activeGroup === g
-                      ? 'border-primary-500 text-white'
-                      : 'border-transparent text-slate-400 hover:text-slate-200'
-                  )}
-                >
-                  <span className={cn(
-                    'inline-block w-5 h-5 rounded-full text-[10px] font-bold leading-5 text-center mr-2',
-                    g === 1 ? 'bg-red-500/20 text-red-400' :
-                    g === 2 ? 'bg-yellow-500/20 text-yellow-400' :
-                    'bg-indigo-500/20 text-indigo-400'
-                  )}>
-                    {g}
-                  </span>
-                  Group {g}
-                </button>
-              ))}
+            <div className="flex gap-1 max-w-7xl mx-auto py-2">
+              {([1, 2, 3] as const).map((g) => {
+                const colors = g === 1
+                  ? { active: 'bg-green-500/15 border-green-500/40 text-green-400', badge: 'bg-green-500 text-white' }
+                  : g === 2
+                  ? { active: 'bg-yellow-500/15 border-yellow-500/40 text-yellow-400', badge: 'bg-yellow-500 text-white' }
+                  : { active: 'bg-orange-500/15 border-orange-500/40 text-orange-400', badge: 'bg-orange-500 text-white' };
+                return (
+                  <button
+                    key={g}
+                    onClick={() => setActiveGroup(g)}
+                    className={cn(
+                      'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border',
+                      activeGroup === g
+                        ? colors.active
+                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    )}
+                  >
+                    <span className={cn(
+                      'inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold',
+                      activeGroup === g ? colors.badge : 'bg-slate-700 text-slate-300'
+                    )}>
+                      {g}
+                    </span>
+                    Group {g}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
