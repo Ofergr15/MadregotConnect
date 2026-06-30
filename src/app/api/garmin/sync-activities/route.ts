@@ -112,6 +112,44 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const supabase = createServerClient();
+    const { data: athletes } = await supabase
+      .from('athletes')
+      .select('id, name, garmin_auth')
+      .eq('coach_id', COACH_ID)
+      .not('garmin_auth', 'is', null)
+      .limit(1);
+
+    if (!athletes || athletes.length === 0) {
+      return NextResponse.json({ error: 'No athletes' }, { status: 404 });
+    }
+
+    const client = new GarminClient(athletes[0].garmin_auth as any);
+    const raw = await (client as any).gc.getActivities(0, 2) as any[];
+    const sample = raw[0];
+    const keys = Object.keys(sample || {});
+    const relevant = {
+      startLatitude: sample?.startLatitude,
+      startLongitude: sample?.startLongitude,
+      endLatitude: sample?.endLatitude,
+      endLongitude: sample?.endLongitude,
+      hasPolyline: sample?.hasPolyline,
+      lapCount: sample?.lapCount,
+      locationName: sample?.locationName,
+      vO2MaxValue: sample?.vO2MaxValue,
+      avgStrideLength: sample?.avgStrideLength,
+      averageRunningCadenceInStepsPerMinute: sample?.averageRunningCadenceInStepsPerMinute,
+      movingDuration: sample?.movingDuration,
+      steps: sample?.steps,
+    };
+    return NextResponse.json({ keys, relevant, raw: sample });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 export async function GET() {
   try {
     const supabase = createServerClient();
