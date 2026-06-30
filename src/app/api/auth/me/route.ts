@@ -16,6 +16,17 @@ export async function GET(request: Request) {
 
     const lowerEmail = email.toLowerCase();
 
+    const { data: athlete } = await supabase
+      .from('athletes')
+      .select('id, role')
+      .eq('email', lowerEmail)
+      .maybeSingle();
+
+    if (athlete) {
+      return NextResponse.json({ role: athlete.role || 'runner' });
+    }
+
+    // Fallback: check coaches table for backwards compatibility
     const { data: coach } = await supabase
       .from('coaches')
       .select('id, role')
@@ -24,16 +35,6 @@ export async function GET(request: Request) {
 
     if (coach) {
       return NextResponse.json({ role: coach.role || 'coach' });
-    }
-
-    const { data: athlete } = await supabase
-      .from('athletes')
-      .select('id, status')
-      .eq('email', lowerEmail)
-      .maybeSingle();
-
-    if (athlete) {
-      return NextResponse.json({ role: athlete.status === 'active' ? 'runner' : 'viewer' });
     }
 
     return NextResponse.json({ role: 'viewer' });

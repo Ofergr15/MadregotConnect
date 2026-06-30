@@ -158,7 +158,7 @@ interface TabPermission {
 
 const allTabs = [
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'plan/new', label: 'New Plan' },
+  { key: 'plan/new', label: 'Weekly Planner' },
   { key: 'athletes', label: 'Athletes' },
   { key: 'groups', label: 'Groups' },
   { key: 'program', label: 'Program' },

@@ -16,12 +16,14 @@ import {
   CheckCircle,
   XCircle,
   RotateCcw,
-  ArrowLeft,
   Save,
   Clock,
   CheckCircle2,
   AlertCircle,
-  FolderOpen,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans } from '@/lib/ai/types';
@@ -30,7 +32,6 @@ import { cn } from '@/lib/utils';
 
 const HARDCODED_COACH_ID = 'a34a0d10-1a1c-4b80-a1ca-e0044aa06232';
 
-type Stage = 'input' | 'review' | 'push';
 type PushTab = 'all' | 'groups' | 'athletes';
 
 interface SavedPlanSummary {
@@ -67,41 +68,71 @@ interface PushResultItem {
   error?: string;
 }
 
-function getNextSunday(): string {
+function getCurrentWeekSunday(offset: number = 0): string {
   const now = new Date();
   const dayOfWeek = now.getDay();
-  const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
   const sunday = new Date(now);
-  sunday.setDate(now.getDate() + daysUntilSunday);
+  sunday.setDate(now.getDate() - dayOfWeek + offset * 7);
   return sunday.toISOString().split('T')[0];
 }
 
-export default function NewPlanPage() {
-  // --- Stage ---
-  const [stage, setStage] = useState<Stage>('input');
+function isSaturday(): boolean {
+  return new Date().getDay() === 6;
+}
 
-  // --- Input stage ---
+function getDefaultOffset(): number {
+  return isSaturday() ? 1 : 0;
+}
+
+function getWeekLabel(dateStr: string): string {
+  const date = new Date(dateStr + 'T00:00:00');
+  const endDate = new Date(date);
+  endDate.setDate(date.getDate() + 6);
+  const startLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endLabel = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${startLabel} – ${endLabel}`;
+}
+
+export default function WeeklyPlannerPage() {
+  // --- Week navigation ---
+  const [weekOffset, setWeekOffset] = useState(getDefaultOffset);
+  const weekStartDate = getCurrentWeekSunday(weekOffset);
+  const weekLabel = getWeekLabel(weekStartDate);
+
+  // --- Plans data ---
+  const [allPlans, setAllPlans] = useState<SavedPlanSummary[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+
+  // --- Current week plan ---
+  const currentPlan = useMemo(
+    () => allPlans.find((p) => p.week_start_date === weekStartDate) || null,
+    [allPlans, weekStartDate]
+  );
+
+  // --- Create mode (only when no plan exists; auto-open on Saturday for next week) ---
+  const [showCreate, setShowCreate] = useState(() => isSaturday());
   const [inputText, setInputText] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [weekStartDate, setWeekStartDate] = useState(getNextSunday);
   const [parsing, setParsing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  // --- Review stage ---
-  const [parsedPlan, setParsedPlan] = useState<ParsedWeeklyPlan | null>(null);
+  // --- Review/Edit mode ---
+  const [editMode, setEditMode] = useState(false);
   const [groupedPlans, setGroupedPlans] = useState<GroupedWeeklyPlans | null>(null);
   const [activeGroup, setActiveGroup] = useState<1 | 2 | 3>(1);
-  const [editMode, setEditMode] = useState(false);
-  const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
+  const [parsedPlan, setParsedPlan] = useState<ParsedWeeklyPlan | null>(null);
 
   // --- Save state ---
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  const [recentPlans, setRecentPlans] = useState<SavedPlanSummary[]>([]);
-  const [loadingRecentPlans, setLoadingRecentPlans] = useState(false);
+  const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
 
-  // --- Push stage ---
+  // --- Delete ---
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // --- Push ---
+  const [showPush, setShowPush] = useState(false);
   const [pushTab, setPushTab] = useState<PushTab>('all');
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -112,9 +143,11 @@ export default function NewPlanPage() {
   const [pushing, setPushing] = useState(false);
   const [pushResults, setPushResults] = useState<PushResultItem[] | null>(null);
 
+  // --- Error ---
+  const [error, setError] = useState<string | null>(null);
+
   // --- Derived ---
   const hasInput = inputText.trim().length > 0 || imageFile !== null;
-  const workoutCount = parsedPlan?.workouts.length ?? 0;
 
   const activeAthletes = useMemo(
     () => athletes.filter((a) => a.status === 'active'),
@@ -141,9 +174,59 @@ export default function NewPlanPage() {
     return selectedAthleteIds.length;
   }, [pushTab, activeAthletes, selectedGroupIds, selectedAthleteIds]);
 
-  // --- Fetch athletes & groups when push modal opens ---
+  // --- Reset create mode when navigating weeks ---
   useEffect(() => {
-    if (stage !== 'push') return;
+    setShowCreate(isSaturday() && weekOffset === 1);
+    setError(null);
+  }, [weekOffset]);
+
+  // --- Fetch all plans ---
+  useEffect(() => {
+    const fetchPlans = async () => {
+      setLoadingPlans(true);
+      try {
+        const res = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAllPlans(data.plans || []);
+        }
+      } catch {
+        // silent
+      } finally {
+        setLoadingPlans(false);
+      }
+    };
+    fetchPlans();
+  }, []);
+
+  // --- Load plan into editor when current plan changes ---
+  useEffect(() => {
+    if (currentPlan) {
+      const workouts = currentPlan.parsed_workouts;
+      if ('group1' in workouts && 'group2' in workouts && 'group3' in workouts) {
+        setGroupedPlans(workouts as GroupedWeeklyPlans);
+        setParsedPlan((workouts as GroupedWeeklyPlans).group1);
+      } else {
+        const parsed = workouts as ParsedWeeklyPlan;
+        setParsedPlan(parsed);
+        setGroupedPlans(splitIntoGroups(parsed));
+      }
+      setSavedPlanId(currentPlan.id);
+      setLastSavedAt(new Date(currentPlan.created_at));
+      setShowCreate(false);
+      setEditMode(false);
+    } else {
+      setGroupedPlans(null);
+      setParsedPlan(null);
+      setSavedPlanId(null);
+      setLastSavedAt(null);
+      setEditMode(false);
+    }
+  }, [currentPlan]);
+
+  // --- Fetch athletes when push modal opens ---
+  useEffect(() => {
+    if (!showPush) return;
     const fetchData = async () => {
       setLoadingAthletes(true);
       try {
@@ -160,81 +243,13 @@ export default function NewPlanPage() {
           setGroups(data.groups || []);
         }
       } catch {
-        // silently handle — user will see empty lists
+        // silent
       } finally {
         setLoadingAthletes(false);
       }
     };
     fetchData();
-  }, [stage]);
-
-  // --- Fetch recent plans on input stage ---
-  useEffect(() => {
-    if (stage !== 'input') return;
-    const fetchRecentPlans = async () => {
-      setLoadingRecentPlans(true);
-      try {
-        const res = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRecentPlans((data.plans || []).slice(0, 5));
-        }
-      } catch {
-        // silent
-      } finally {
-        setLoadingRecentPlans(false);
-      }
-    };
-    fetchRecentPlans();
-  }, [stage]);
-
-  const loadSavedPlan = (plan: SavedPlanSummary) => {
-    const workouts = plan.parsed_workouts;
-    if ('group1' in workouts && 'group2' in workouts && 'group3' in workouts) {
-      setGroupedPlans(workouts as GroupedWeeklyPlans);
-      const g1 = (workouts as GroupedWeeklyPlans).group1;
-      setParsedPlan(g1);
-    } else {
-      const parsed = workouts as ParsedWeeklyPlan;
-      setParsedPlan(parsed);
-      setGroupedPlans(splitIntoGroups(parsed));
-    }
-    setWeekStartDate(plan.week_start_date);
-    setSavedPlanId(plan.id);
-    setLastSavedAt(new Date(plan.created_at));
-    setStage('review');
-  };
-
-  const saveDraft = async () => {
-    if (!groupedPlans) return;
-    setSaving(true);
-    setError(null);
-    try {
-      if (savedPlanId) {
-        const res = await fetch('/api/plans', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            plan_id: savedPlanId,
-            parsed_workouts: groupedPlans,
-            status: 'draft',
-          }),
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to save');
-        }
-      } else {
-        const id = await savePlanAndGetId();
-        setSavedPlanId(id);
-      }
-      setLastSavedAt(new Date());
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save draft');
-    } finally {
-      setSaving(false);
-    }
-  };
+  }, [showPush]);
 
   // --- Handlers ---
 
@@ -307,8 +322,33 @@ export default function NewPlanPage() {
 
       const data: ParsedWeeklyPlan = await res.json();
       setParsedPlan(data);
-      setGroupedPlans(splitIntoGroups(data));
-      setStage('review');
+      const grouped = splitIntoGroups(data);
+      setGroupedPlans(grouped);
+
+      // Save immediately
+      const saveRes = await fetch('/api/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          coach_id: HARDCODED_COACH_ID,
+          week_start_date: weekStartDate,
+          original_input: inputText || (imageFile ? `[Image: ${imageFile.name}]` : ''),
+          parsed_workouts: grouped,
+          status: 'draft',
+        }),
+      });
+
+      if (saveRes.ok) {
+        const saveData = await saveRes.json();
+        setSavedPlanId(saveData.plan.id);
+        setLastSavedAt(new Date());
+        setAllPlans((prev) => [saveData.plan, ...prev]);
+      }
+
+      setShowCreate(false);
+      setInputText('');
+      setImageFile(null);
+      setImagePreview(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
@@ -319,8 +359,8 @@ export default function NewPlanPage() {
   const handleWorkoutChange = (index: number, workout: ParsedWorkout) => {
     if (!groupedPlans) return;
     const groupKey = `group${activeGroup}` as keyof GroupedWeeklyPlans;
-    const currentPlan = groupedPlans[groupKey];
-    const newWorkouts = [...currentPlan.workouts];
+    const currentGroupPlan = groupedPlans[groupKey];
+    const newWorkouts = [...currentGroupPlan.workouts];
     newWorkouts[index] = workout;
     setGroupedPlans({
       ...groupedPlans,
@@ -328,42 +368,64 @@ export default function NewPlanPage() {
     });
   };
 
-  const savePlanAndGetId = async (): Promise<string> => {
-    if (savedPlanId) return savedPlanId;
-
-    const res = await fetch('/api/plans', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        coach_id: HARDCODED_COACH_ID,
-        week_start_date: weekStartDate,
-        original_input:
-          inputText || (imageFile ? `[Image: ${imageFile.name}]` : ''),
-        parsed_workouts: groupedPlans || { workouts: parsedPlan!.workouts },
-        status: 'draft',
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to save plan');
+  const saveDraft = async () => {
+    if (!groupedPlans || !savedPlanId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/plans', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan_id: savedPlanId,
+          parsed_workouts: groupedPlans,
+          status: 'draft',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to save');
+      }
+      setLastSavedAt(new Date());
+      setAllPlans((prev) =>
+        prev.map((p) => (p.id === savedPlanId ? { ...p, parsed_workouts: groupedPlans } : p))
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save draft');
+    } finally {
+      setSaving(false);
     }
+  };
 
-    const data = await res.json();
-    const id = data.plan.id;
-    setSavedPlanId(id);
-    return id;
+  const deletePlan = async () => {
+    if (!savedPlanId) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/plans', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_id: savedPlanId }),
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      setAllPlans((prev) => prev.filter((p) => p.id !== savedPlanId));
+      setSavedPlanId(null);
+      setGroupedPlans(null);
+      setParsedPlan(null);
+      setConfirmDelete(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete plan');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const executePush = async () => {
-    if (!groupedPlans) return;
+    if (!groupedPlans || !savedPlanId) return;
     setPushing(true);
     setError(null);
     setPushResults(null);
 
     try {
-      const planId = await savePlanAndGetId();
-
       let targetAthletes: Athlete[] = [];
       if (pushTab === 'all') {
         targetAthletes = activeAthletes;
@@ -379,7 +441,6 @@ export default function NewPlanPage() {
         throw new Error('No athletes selected');
       }
 
-      // Sort groups by marathon goal (fastest first) and assign pace group 1, 2, 3
       const sortedGroups = [...groups].sort((a, b) => {
         const aGoal = a.marathonGoal ? parseFloat(a.marathonGoal) : 999;
         const bGoal = b.marathonGoal ? parseFloat(b.marathonGoal) : 999;
@@ -392,7 +453,6 @@ export default function NewPlanPage() {
         else groupLevelMap[g.id] = 'group3';
       });
 
-      // Push per pace group
       const allResults: PushResultItem[] = [];
       const athletesByPaceGroup: Record<string, string[]> = { group1: [], group2: [], group3: [] };
 
@@ -409,7 +469,7 @@ export default function NewPlanPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            planId,
+            planId: savedPlanId,
             workouts: plan.workouts,
             athleteIds: ids,
             weekStartDate,
@@ -427,24 +487,19 @@ export default function NewPlanPage() {
 
       setPushResults(allResults);
 
-      // Update plan status
-      const allSuccess = allResults.every(
-        (r: PushResultItem) => r.status === 'success'
-      );
-      const anySuccess = allResults.some(
-        (r: PushResultItem) => r.status === 'success'
-      );
-      const newStatus = allSuccess
-        ? 'pushed'
-        : anySuccess
-          ? 'partial'
-          : 'draft';
+      const allSuccess = allResults.every((r) => r.status === 'success');
+      const anySuccess = allResults.some((r) => r.status === 'success');
+      const newStatus = allSuccess ? 'pushed' : anySuccess ? 'partial' : 'draft';
 
       await fetch('/api/plans', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan_id: planId, status: newStatus }),
+        body: JSON.stringify({ plan_id: savedPlanId, status: newStatus }),
       });
+
+      setAllPlans((prev) =>
+        prev.map((p) => (p.id === savedPlanId ? { ...p, status: newStatus as 'draft' | 'pushed' | 'partial' } : p))
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Push failed');
     } finally {
@@ -453,7 +508,7 @@ export default function NewPlanPage() {
   };
 
   const retryFailed = async () => {
-    if (!pushResults || !parsedPlan) return;
+    if (!pushResults || !groupedPlans || !savedPlanId) return;
     const failedIds = pushResults
       .filter((r) => r.status === 'failed')
       .map((r) => r.athleteId);
@@ -464,13 +519,12 @@ export default function NewPlanPage() {
     setError(null);
 
     try {
-      const planId = savedPlanId!;
       const res = await fetch('/api/garmin/push-workouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planId,
-          workouts: parsedPlan.workouts,
+          planId: savedPlanId,
+          workouts: groupedPlans.group1.workouts,
           athleteIds: failedIds,
           weekStartDate,
         }),
@@ -484,7 +538,6 @@ export default function NewPlanPage() {
       const data = await res.json();
       const retryResults: PushResultItem[] = data.results || [];
 
-      // Merge: keep previous successes, replace failed with new results
       const merged = pushResults.map((prev) => {
         if (prev.status === 'success') return prev;
         const retried = retryResults.find((r) => r.athleteId === prev.athleteId);
@@ -499,29 +552,7 @@ export default function NewPlanPage() {
     }
   };
 
-  const startOver = () => {
-    setStage('input');
-    setInputText('');
-    setImageFile(null);
-    setImagePreview(null);
-    setParsedPlan(null);
-    setGroupedPlans(null);
-    setActiveGroup(1);
-    setEditMode(false);
-    setSavedPlanId(null);
-    setError(null);
-    setPushResults(null);
-    setSelectedGroupIds([]);
-    setSelectedAthleteIds([]);
-    setAthleteSearch('');
-    setPushTab('all');
-    setWeekStartDate(getNextSunday());
-  };
-
-  const weekLabel = new Date(weekStartDate + 'T00:00:00').toLocaleDateString(
-    'en-US',
-    { month: 'short', day: 'numeric', year: 'numeric' }
-  );
+  const workoutCount = parsedPlan?.workouts.length ?? 0;
 
   // ─────────────────────────────────────────────
   // RENDER
@@ -529,35 +560,107 @@ export default function NewPlanPage() {
 
   return (
     <div className="min-h-[calc(100vh-6rem)] flex flex-col">
-      {/* ──── STAGE 1: INPUT ──── */}
-      {stage === 'input' && !parsing && (
-        <div className="flex-1 flex items-center justify-center px-4 py-12">
-          <div className="w-full max-w-2xl space-y-6">
-            <div className="text-center space-y-2">
-              <h1 className="text-3xl font-bold">Create Weekly Plan</h1>
-              <p className="text-slate-400">
-                Paste a training plan or upload an image to get started
+      {/* Week Navigation Header */}
+      <div className="border-b border-slate-700 bg-slate-900/50 px-6 py-4">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-4">
+            <Calendar className="h-5 w-5 text-primary-400" />
+            <h1 className="text-lg font-semibold text-white">Weekly Planner</h1>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setWeekOffset((o) => o - 1)}
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+
+            <div className="text-center min-w-[180px]">
+              <p className="text-sm font-medium text-white">{weekLabel}</p>
+              <p className="text-xs text-slate-500">
+                {weekOffset === 0 ? 'This week' : weekOffset === 1 ? 'Next week' : weekOffset === -1 ? 'Last week' : ''}
               </p>
             </div>
 
-            {/* Textarea */}
-            <div className="space-y-2">
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Paste your training plan from the coach..."
-                rows={8}
-                className="input w-full resize-none text-base leading-relaxed"
-              />
+            <button
+              onClick={() => setWeekOffset((o) => o + 1)}
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+
+            {weekOffset !== getDefaultOffset() && (
+              <button
+                onClick={() => setWeekOffset(getDefaultOffset())}
+                className="text-xs text-primary-400 hover:text-primary-300 ml-2"
+              >
+                Current
+              </button>
+            )}
+          </div>
+
+          <div className="w-[100px]" />
+        </div>
+      </div>
+
+      {/* Loading state */}
+      {loadingPlans && (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 text-slate-400 animate-spin" />
+        </div>
+      )}
+
+      {/* No plan for this week */}
+      {!loadingPlans && !currentPlan && !showCreate && !parsing && (
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center space-y-6 max-w-sm">
+            <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto">
+              <Calendar className="h-7 w-7 text-slate-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-white mb-2">No plan for this week</h2>
+              <p className="text-sm text-slate-400">
+                Upload a training plan image or paste text to create one for {weekLabel}.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="btn-primary flex items-center gap-2 mx-auto px-6 py-3"
+            >
+              <Plus className="h-5 w-5" />
+              Create Plan
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Create mode */}
+      {!loadingPlans && !currentPlan && showCreate && !parsing && (
+        <div className="flex-1 flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-2xl space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Create Plan for {weekLabel}</h2>
+              <button
+                onClick={() => { setShowCreate(false); setError(null); }}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            {/* Drop zone */}
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="Paste your training plan from the coach..."
+              rows={8}
+              className="input w-full resize-none text-base leading-relaxed"
+            />
+
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
-              onClick={() =>
-                document.getElementById('file-upload-input')?.click()
-              }
+              onClick={() => document.getElementById('file-upload-input')?.click()}
               className={cn(
                 'border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer',
                 imagePreview
@@ -576,17 +679,11 @@ export default function NewPlanPage() {
                   </div>
                 </div>
               ) : imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="Uploaded plan"
-                  className="max-h-24 mx-auto rounded"
-                />
+                <img src={imagePreview} alt="Uploaded plan" className="max-h-24 mx-auto rounded" />
               ) : (
                 <div className="flex flex-col items-center gap-2 py-2">
                   <Upload className="h-6 w-6 text-slate-500" />
-                  <p className="text-sm text-slate-400">
-                    Drop an image or PDF here, or click to browse
-                  </p>
+                  <p className="text-sm text-slate-400">Drop an image or PDF here, or click to browse</p>
                 </div>
               )}
               <input
@@ -598,26 +695,12 @@ export default function NewPlanPage() {
               />
             </div>
 
-            {/* Week start date */}
-            <div className="flex items-center gap-3">
-              <Calendar className="h-4 w-4 text-slate-400" />
-              <label className="text-sm text-slate-400">Week starting:</label>
-              <input
-                type="date"
-                value={weekStartDate}
-                onChange={(e) => setWeekStartDate(e.target.value)}
-                className="input text-sm"
-              />
-            </div>
-
-            {/* Error */}
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm">
                 {error}
               </div>
             )}
 
-            {/* Parse button */}
             <button
               onClick={parsePlan}
               disabled={!hasInput}
@@ -626,62 +709,14 @@ export default function NewPlanPage() {
               <FileText className="h-5 w-5" />
               Parse Plan
             </button>
-
-            {/* Recent plans */}
-            {recentPlans.length > 0 && (
-              <div className="pt-4 border-t border-slate-700/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <FolderOpen className="h-4 w-4 text-slate-500" />
-                  <span className="text-sm text-slate-400 font-medium">Recent Plans</span>
-                </div>
-                <div className="space-y-2">
-                  {recentPlans.map((plan) => {
-                    const statusColors = {
-                      draft: 'text-yellow-400 bg-yellow-400/10',
-                      pushed: 'text-green-400 bg-green-400/10',
-                      partial: 'text-orange-400 bg-orange-400/10',
-                    };
-                    const StatusIcon = plan.status === 'pushed' ? CheckCircle2
-                      : plan.status === 'partial' ? AlertCircle : Clock;
-                    return (
-                      <button
-                        key={plan.id}
-                        onClick={() => loadSavedPlan(plan)}
-                        className="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-700 hover:border-slate-500 hover:bg-slate-800/50 transition-colors text-left"
-                      >
-                        <Calendar className="h-4 w-4 text-slate-500 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            Week of {new Date(plan.week_start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </p>
-                          <p className="text-xs text-slate-500 truncate">
-                            {plan.original_input ? plan.original_input.slice(0, 60) + (plan.original_input.length > 60 ? '...' : '') : 'No input saved'}
-                          </p>
-                        </div>
-                        <div className={cn('flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0', statusColors[plan.status])}>
-                          <StatusIcon className="h-3 w-3" />
-                          {plan.status}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {loadingRecentPlans && (
-              <div className="flex justify-center py-3">
-                <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* ──── PARSING LOADING STATE ──── */}
-      {stage === 'input' && parsing && (
+      {/* Parsing animation */}
+      {parsing && (
         <div className="flex-1 flex items-center justify-center px-4 py-12">
           <div className="w-full max-w-sm text-center space-y-8">
-            {/* Madregot stairs animation */}
             <div className="flex items-center justify-center">
               <svg width="140" height="120" viewBox="0 0 140 120" fill="none">
                 <style>{`
@@ -702,31 +737,22 @@ export default function NewPlanPage() {
                     100% { transform: translate(15px, 92px); }
                   }
                 `}</style>
-                {/* Stairs */}
                 <rect className="stair stair-1" x="10" y="95" width="24" height="6" rx="2" fill="#4338ff" />
                 <rect className="stair stair-2" x="33" y="77" width="24" height="6" rx="2" fill="#4338ff" />
                 <rect className="stair stair-3" x="56" y="59" width="24" height="6" rx="2" fill="#4338ff" />
                 <rect className="stair stair-4" x="79" y="41" width="24" height="6" rx="2" fill="#4338ff" />
                 <rect className="stair stair-5" x="102" y="23" width="24" height="6" rx="2" fill="#4338ff" />
-                {/* Vertical connectors */}
                 <rect x="33" y="83" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
                 <rect x="56" y="65" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
                 <rect x="79" y="47" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
                 <rect x="102" y="29" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
-                {/* Runner dot climbing */}
                 <circle className="runner-dot" cx="0" cy="0" r="5" fill="#4338ff" />
               </svg>
             </div>
-
-            {/* Text */}
             <div className="space-y-2">
               <h2 className="text-xl font-semibold text-white">Parsing your plan...</h2>
-              <p className="text-sm text-slate-400">
-                Reading workouts and building your week
-              </p>
+              <p className="text-sm text-slate-400">Reading workouts and building your week</p>
             </div>
-
-            {/* Progress bar */}
             <div className="w-48 mx-auto h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-[#4338ff] via-purple-500 to-[#4338ff] rounded-full animate-progress-indeterminate" />
             </div>
@@ -734,22 +760,27 @@ export default function NewPlanPage() {
         </div>
       )}
 
-      {/* ──── STAGE 2: REVIEW ──── */}
-      {stage === 'review' && parsedPlan && (
+      {/* Plan exists - show it */}
+      {!loadingPlans && currentPlan && groupedPlans && parsedPlan && (
         <div className="flex-1 flex flex-col">
-          {/* Summary header */}
-          <div className="border-b border-slate-700 bg-slate-900/50 px-6 py-4">
+          {/* Status bar */}
+          <div className="px-6 py-3 border-b border-slate-700/50 bg-slate-800/30">
             <div className="flex items-center justify-between max-w-7xl mx-auto">
               <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-primary-400" />
-                <div>
-                  <h1 className="text-lg font-semibold">
-                    {workoutCount} workout{workoutCount !== 1 ? 's' : ''} parsed
-                  </h1>
-                  <p className="text-sm text-slate-400">
-                    Week of {weekLabel}
-                  </p>
-                </div>
+                <span className="text-sm text-slate-300">
+                  {workoutCount} workout{workoutCount !== 1 ? 's' : ''}
+                </span>
+                <span className={cn(
+                  'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium',
+                  currentPlan.status === 'pushed' ? 'text-green-400 bg-green-400/10' :
+                  currentPlan.status === 'partial' ? 'text-orange-400 bg-orange-400/10' :
+                  'text-yellow-400 bg-yellow-400/10'
+                )}>
+                  {currentPlan.status === 'pushed' ? <CheckCircle2 className="h-3 w-3" /> :
+                   currentPlan.status === 'partial' ? <AlertCircle className="h-3 w-3" /> :
+                   <Clock className="h-3 w-3" />}
+                  {currentPlan.status}
+                </span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -761,14 +792,14 @@ export default function NewPlanPage() {
                   )}
                 >
                   <Edit3 className="h-4 w-4" />
-                  {editMode ? 'Done Editing' : 'Edit'}
+                  {editMode ? 'Done' : 'Edit'}
                 </button>
                 <button
-                  onClick={startOver}
-                  className="btn-secondary flex items-center gap-2 text-sm text-slate-400"
+                  onClick={() => setConfirmDelete(true)}
+                  className="btn-secondary flex items-center gap-2 text-sm text-red-400 hover:text-red-300"
                 >
-                  <ArrowLeft className="h-4 w-4" />
-                  Start Over
+                  <Trash2 className="h-4 w-4" />
+                  Remove
                 </button>
               </div>
             </div>
@@ -802,7 +833,7 @@ export default function NewPlanPage() {
             </div>
           </div>
 
-          {/* Week view - hero */}
+          {/* Week view */}
           <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full">
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm mb-4">
@@ -811,7 +842,7 @@ export default function NewPlanPage() {
             )}
 
             <WeekView
-              workouts={groupedPlans ? groupedPlans[`group${activeGroup}` as keyof GroupedWeeklyPlans].workouts : []}
+              workouts={groupedPlans[`group${activeGroup}` as keyof GroupedWeeklyPlans].workouts}
               editable={editMode}
               onWorkoutChange={handleWorkoutChange}
             />
@@ -821,18 +852,16 @@ export default function NewPlanPage() {
           <div className="border-t border-slate-700 bg-slate-900/80 backdrop-blur px-6 py-4 sticky bottom-0">
             <div className="flex items-center justify-between max-w-7xl mx-auto">
               <div className="flex items-center gap-3">
-                <button
-                  onClick={saveDraft}
-                  disabled={saving}
-                  className="btn-secondary flex items-center gap-2 text-sm"
-                >
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {saving ? 'Saving...' : 'Save Draft'}
-                </button>
+                {editMode && (
+                  <button
+                    onClick={saveDraft}
+                    disabled={saving}
+                    className="btn-secondary flex items-center gap-2 text-sm"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                )}
                 {lastSavedAt && (
                   <span className="text-xs text-slate-500 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -843,7 +872,8 @@ export default function NewPlanPage() {
               <button
                 onClick={() => {
                   setError(null);
-                  setStage('push');
+                  setPushResults(null);
+                  setShowPush(true);
                 }}
                 className="btn-primary flex items-center gap-2 px-6 py-2.5"
               >
@@ -855,49 +885,70 @@ export default function NewPlanPage() {
         </div>
       )}
 
-      {/* ──── STAGE 3: PUSH MODAL ──── */}
-      {stage === 'push' && (
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Trash2 className="w-5 h-5 text-red-400" />
+              <h3 className="text-lg font-semibold text-white">Remove Plan</h3>
+            </div>
+            <p className="text-slate-300 text-sm mb-6">
+              Are you sure you want to remove the plan for <span className="font-medium text-white">{weekLabel}</span>? This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deletePlan}
+                disabled={deleting}
+                className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors font-medium flex items-center gap-2"
+              >
+                {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Push Modal */}
+      {showPush && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="card max-w-xl w-full max-h-[85vh] flex flex-col">
-            {/* Modal header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-700">
               <h2 className="text-lg font-semibold">Push to Athletes</h2>
               <button
-                onClick={() => {
-                  setStage('review');
-                  setPushResults(null);
-                  setError(null);
-                }}
+                onClick={() => { setShowPush(false); setPushResults(null); setError(null); }}
                 className="text-slate-400 hover:text-white transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Push results view */}
             {pushResults ? (
               <div className="flex-1 overflow-y-auto py-4 space-y-4">
-                {/* Summary counts */}
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2 text-green-400">
                     <CheckCircle className="h-5 w-5" />
                     <span className="font-medium">
-                      {pushResults.filter((r) => r.status === 'success').length}{' '}
-                      succeeded
+                      {pushResults.filter((r) => r.status === 'success').length} succeeded
                     </span>
                   </div>
                   {pushResults.some((r) => r.status === 'failed') && (
                     <div className="flex items-center gap-2 text-red-400">
                       <XCircle className="h-5 w-5" />
                       <span className="font-medium">
-                        {pushResults.filter((r) => r.status === 'failed').length}{' '}
-                        failed
+                        {pushResults.filter((r) => r.status === 'failed').length} failed
                       </span>
                     </div>
                   )}
                 </div>
 
-                {/* Result list */}
                 <div className="space-y-2">
                   {pushResults.map((r, i) => (
                     <div
@@ -916,21 +967,14 @@ export default function NewPlanPage() {
                           <XCircle className="h-4 w-4 text-red-400 shrink-0" />
                         )}
                         <div>
-                          <span className="text-sm font-medium">
-                            {r.athleteName}
-                          </span>
-                          {r.error && (
-                            <p className="text-xs text-red-400 mt-0.5">
-                              {r.error}
-                            </p>
-                          )}
+                          <span className="text-sm font-medium">{r.athleteName}</span>
+                          {r.error && <p className="text-xs text-red-400 mt-0.5">{r.error}</p>}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Actions */}
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-700">
                   {pushResults.some((r) => r.status === 'failed') && (
                     <button
@@ -938,22 +982,17 @@ export default function NewPlanPage() {
                       disabled={pushing}
                       className="btn-secondary flex items-center gap-2"
                     >
-                      {pushing ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RotateCcw className="h-4 w-4" />
-                      )}
+                      {pushing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                       Retry Failed
                     </button>
                   )}
-                  <button onClick={startOver} className="btn-primary">
-                    Create Another Plan
+                  <button onClick={() => { setShowPush(false); setPushResults(null); }} className="btn-primary">
+                    Done
                   </button>
                 </div>
               </div>
             ) : (
               <>
-                {/* Tabs */}
                 <div className="flex border-b border-slate-700 mt-4">
                   {([
                     { key: 'all', icon: Users, label: 'All Athletes' },
@@ -976,7 +1015,6 @@ export default function NewPlanPage() {
                   ))}
                 </div>
 
-                {/* Tab content */}
                 <div className="flex-1 overflow-y-auto py-4 min-h-[200px]">
                   {loadingAthletes ? (
                     <div className="flex items-center justify-center py-12">
@@ -984,18 +1022,15 @@ export default function NewPlanPage() {
                     </div>
                   ) : (
                     <>
-                      {/* All Athletes */}
                       {pushTab === 'all' && (
                         <div className="text-center py-8 space-y-4">
                           <Users className="h-12 w-12 text-slate-500 mx-auto" />
                           <div>
                             <p className="text-lg font-medium">
-                              {activeAthletes.length} active athlete
-                              {activeAthletes.length !== 1 ? 's' : ''}
+                              {activeAthletes.length} active athlete{activeAthletes.length !== 1 ? 's' : ''}
                             </p>
                             <p className="text-sm text-slate-400 mt-1">
-                              Push {workoutCount} workout
-                              {workoutCount !== 1 ? 's' : ''} to everyone
+                              Push {workoutCount} workout{workoutCount !== 1 ? 's' : ''} to everyone
                             </p>
                           </div>
                           <div className="bg-slate-800 rounded-lg p-3 text-left text-xs text-slate-400 max-w-xs mx-auto">
@@ -1009,25 +1044,18 @@ export default function NewPlanPage() {
                         </div>
                       )}
 
-                      {/* By Group */}
                       {pushTab === 'groups' && (
                         <div className="space-y-2">
                           {groups.length === 0 ? (
-                            <p className="text-sm text-slate-400 text-center py-8">
-                              No groups found
-                            </p>
+                            <p className="text-sm text-slate-400 text-center py-8">No groups found</p>
                           ) : (
                             [...groups].sort((a, b) => {
                               const aGoal = a.marathonGoal ? parseFloat(a.marathonGoal) : 999;
                               const bGoal = b.marathonGoal ? parseFloat(b.marathonGoal) : 999;
                               return aGoal - bGoal;
                             }).map((group, groupIdx) => {
-                              const count = activeAthletes.filter(
-                                (a) => a.group_id === group.id
-                              ).length;
-                              const isSelected = selectedGroupIds.includes(
-                                group.id
-                              );
+                              const count = activeAthletes.filter((a) => a.group_id === group.id).length;
+                              const isSelected = selectedGroupIds.includes(group.id);
                               const planLabel = groupIdx < 3 ? `Plan ${groupIdx + 1}` : 'Plan 3';
                               return (
                                 <label
@@ -1044,17 +1072,13 @@ export default function NewPlanPage() {
                                     checked={isSelected}
                                     onChange={() => {
                                       setSelectedGroupIds((prev) =>
-                                        isSelected
-                                          ? prev.filter((id) => id !== group.id)
-                                          : [...prev, group.id]
+                                        isSelected ? prev.filter((id) => id !== group.id) : [...prev, group.id]
                                       );
                                     }}
                                     className="rounded border-slate-600 text-primary-500 focus:ring-primary-500"
                                   />
                                   <div className="flex-1">
-                                    <span className="text-sm font-medium">
-                                      {group.name}
-                                    </span>
+                                    <span className="text-sm font-medium">{group.name}</span>
                                   </div>
                                   <span className={cn(
                                     'text-[10px] font-bold px-1.5 py-0.5 rounded',
@@ -1074,10 +1098,8 @@ export default function NewPlanPage() {
                         </div>
                       )}
 
-                      {/* Specific Athletes */}
                       {pushTab === 'athletes' && (
                         <div className="space-y-3">
-                          {/* Search */}
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <input
@@ -1091,22 +1113,17 @@ export default function NewPlanPage() {
 
                           <div className="space-y-1 max-h-[300px] overflow-y-auto">
                             {filteredAthletes.length === 0 ? (
-                              <p className="text-sm text-slate-400 text-center py-6">
-                                No athletes found
-                              </p>
+                              <p className="text-sm text-slate-400 text-center py-6">No athletes found</p>
                             ) : (
                               filteredAthletes.map((athlete) => {
-                                const isSelected =
-                                  selectedAthleteIds.includes(athlete.id);
-                                const athleteGroup = groups.find(g => g.id === athlete.group_id);
+                                const isSelected = selectedAthleteIds.includes(athlete.id);
+                                const athleteGroup = groups.find((g) => g.id === athlete.group_id);
                                 return (
                                   <label
                                     key={athlete.id}
                                     className={cn(
                                       'flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors',
-                                      isSelected
-                                        ? 'bg-primary-500/10'
-                                        : 'hover:bg-slate-800'
+                                      isSelected ? 'bg-primary-500/10' : 'hover:bg-slate-800'
                                     )}
                                   >
                                     <input
@@ -1114,24 +1131,16 @@ export default function NewPlanPage() {
                                       checked={isSelected}
                                       onChange={() => {
                                         setSelectedAthleteIds((prev) =>
-                                          isSelected
-                                            ? prev.filter(
-                                                (id) => id !== athlete.id
-                                              )
-                                            : [...prev, athlete.id]
+                                          isSelected ? prev.filter((id) => id !== athlete.id) : [...prev, athlete.id]
                                         );
                                       }}
                                       className="rounded border-slate-600 text-primary-500 focus:ring-primary-500"
                                     />
                                     <div className="flex-1 min-w-0">
-                                      <span className="text-sm">
-                                        {athlete.name}
-                                      </span>
+                                      <span className="text-sm">{athlete.name}</span>
                                     </div>
                                     {athleteGroup && (
-                                      <span className="text-[10px] text-slate-500 shrink-0">
-                                        {athleteGroup.name}
-                                      </span>
+                                      <span className="text-[10px] text-slate-500 shrink-0">{athleteGroup.name}</span>
                                     )}
                                   </label>
                                 );
@@ -1144,18 +1153,15 @@ export default function NewPlanPage() {
                   )}
                 </div>
 
-                {/* Error */}
                 {error && (
                   <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
                     {error}
                   </div>
                 )}
 
-                {/* Push action */}
                 <div className="flex items-center justify-between pt-4 border-t border-slate-700">
                   <span className="text-sm text-slate-400">
-                    {pushTargetCount} athlete
-                    {pushTargetCount !== 1 ? 's' : ''} selected
+                    {pushTargetCount} athlete{pushTargetCount !== 1 ? 's' : ''} selected
                   </span>
                   <button
                     onClick={executePush}
@@ -1165,8 +1171,7 @@ export default function NewPlanPage() {
                     {pushing ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Pushing to {pushTargetCount} athlete
-                        {pushTargetCount !== 1 ? 's' : ''}...
+                        Pushing to {pushTargetCount} athlete{pushTargetCount !== 1 ? 's' : ''}...
                       </>
                     ) : (
                       <>
