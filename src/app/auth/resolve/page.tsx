@@ -63,7 +63,7 @@ export default function AuthResolvePage() {
       localStorage.removeItem('athlete_email');
       localStorage.removeItem('athlete_group_id');
       router.replace('/dashboard');
-    } else if (data.role === 'runner' && data.athlete) {
+    } else if ((data.role === 'runner' || data.role === 'core_runner') && data.athlete) {
       if (data.needsOnboarding) {
         router.replace(`/join/onboard?email=${encodeURIComponent(email)}`);
         return;

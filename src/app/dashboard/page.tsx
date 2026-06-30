@@ -421,7 +421,7 @@ export default function DashboardPage() {
               <span className="text-sm text-slate-500">· Dec 6, 2026</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-6xl sm:text-8xl font-black text-white leading-none tracking-tight tabular-nums">{countdown.d}</span>
+              <span className="text-5xl sm:text-8xl font-black text-white leading-none tracking-tight tabular-nums">{countdown.d}</span>
               <span className="text-xl sm:text-2xl font-medium text-slate-400">days</span>
             </div>
             <div className="flex items-center gap-3 mt-2 tabular-nums text-base text-slate-300">
@@ -552,7 +552,7 @@ export default function DashboardPage() {
             <div className="relative" onMouseLeave={() => { setHoveredBar(null); setSelectedBar(null); }}>
               {/* Y-axis labels */}
               <div className="flex">
-                <div className="w-8 flex flex-col justify-between py-1 pr-2 h-48 sm:h-60">
+                <div className="w-6 sm:w-8 flex flex-col justify-between py-1 pr-2 h-48 sm:h-60">
                   {(() => {
                     const maxVal = Math.max(...weekly!.dailyDistances.map(d => d.max), 1);
                     const topTick = Math.ceil(maxVal / 8) * 8;
@@ -624,7 +624,7 @@ export default function DashboardPage() {
                         ) : (
                           <div
                             className={cn(
-                              'w-full max-w-[44px] rounded-t-lg transition-all duration-150',
+                              'w-full max-w-[32px] sm:max-w-[44px] rounded-t-lg transition-all duration-150',
                               isActive && 'ring-2 ring-white/60 scale-105',
                             )}
                             style={{
@@ -643,7 +643,7 @@ export default function DashboardPage() {
               </div>
 
               {/* X-axis labels + day cards */}
-              <div className="flex mt-3 ml-8">
+              <div className="flex mt-3 ml-6 sm:ml-8">
                 <div className="flex-1 grid grid-cols-7 gap-1 sm:gap-2">
                   {weekly!.dailyDistances.map((d, i) => {
                     const session = weekly!.keySessions.find(s => s.dayOfWeek === d.dayOfWeek);
@@ -667,7 +667,7 @@ export default function DashboardPage() {
                             x{sessions.length}
                           </span>
                         )}
-                        <p className={cn("text-[11px] sm:text-xs font-bold uppercase", d.dayOfWeek === todayDow ? "text-[#4338ff]" : "text-slate-400")}>{d.day}</p>
+                        <p className={cn("text-xs font-bold uppercase", d.dayOfWeek === todayDow ? "text-[#4338ff]" : "text-slate-400")}>{d.day}</p>
                         <p className={cn("text-base sm:text-lg font-black tabular-nums mt-1", d.max > 0 ? "text-white" : "text-slate-600")}>
                           {d.max > 0 ? d.max : '—'}
                         </p>
@@ -763,7 +763,7 @@ export default function DashboardPage() {
               const isToday = new Date(day.date).getDay() === todayDow;
               return (
                 <div key={i} className={cn(
-                  "flex-shrink-0 w-[72px] sm:w-auto text-center py-4 px-2 rounded-2xl transition-all",
+                  "flex-shrink-0 w-[80px] sm:w-auto text-center py-4 px-2 rounded-2xl transition-all",
                   isToday ? "bg-[#4338ff]/15 ring-1 ring-[#4338ff]/40" : "bg-slate-800/40"
                 )}>
                   <p className={cn("text-xs font-bold uppercase", isToday ? "text-[#4338ff]" : "text-slate-400")}>{isToday ? 'Today' : day.day}</p>

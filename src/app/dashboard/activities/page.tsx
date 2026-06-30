@@ -201,7 +201,7 @@ export default function ActivitiesPage() {
   return (
     <div className="min-h-[calc(100vh-6rem)] flex flex-col">
       {/* ═══ HEADER BAR - same pattern as Weekly Planner ═══ */}
-      <div className="border-b border-slate-700 bg-slate-900/50 px-6 py-4">
+      <div className="border-b border-slate-700 bg-slate-900/50 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
             <Activity className="h-5 w-5 text-primary-400" />
@@ -275,21 +275,21 @@ export default function ActivitiesPage() {
           <div className="relative overflow-hidden bg-gradient-to-br from-[#4338ff]/15 to-[#4338ff]/5 rounded-2xl p-5 border border-[#4338ff]/20">
             <div className="absolute -top-4 -right-4 w-20 h-20 bg-[#4338ff]/10 rounded-full blur-2xl" />
             <Route className="h-5 w-5 text-[#4338ff] mb-3" />
-            <p className="text-4xl font-black text-white tabular-nums leading-none">
+            <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
               {weekData.totalKm > 0 ? weekData.totalKm.toFixed(1) : '—'}
             </p>
             <p className="text-sm text-slate-400 mt-1 font-medium">km · {weekData.totalRuns} run{weekData.totalRuns !== 1 ? 's' : ''}</p>
           </div>
           <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
             <Timer className="h-5 w-5 text-cyan-400 mb-3" />
-            <p className="text-4xl font-black text-white tabular-nums leading-none">
+            <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
               {weekData.totalDuration > 0 ? formatDuration(weekData.totalDuration) : '—'}
             </p>
             <p className="text-sm text-slate-400 mt-1 font-medium">Total Time</p>
           </div>
           <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
             <TrendingUp className="h-5 w-5 text-emerald-400 mb-3" />
-            <p className="text-4xl font-black text-white tabular-nums leading-none">
+            <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
               {weekData.avgPace ? formatPace(weekData.avgPace) : '—'}
               <span className="text-lg font-medium text-slate-500 ml-0.5">/km</span>
             </p>
@@ -297,7 +297,7 @@ export default function ActivitiesPage() {
           </div>
           <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
             <Heart className="h-5 w-5 text-red-400 mb-3" />
-            <p className="text-4xl font-black text-white tabular-nums leading-none">
+            <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
               {weekData.avgHR || '—'}
               <span className="text-lg font-medium text-slate-500 ml-0.5">bpm</span>
             </p>
@@ -318,7 +318,7 @@ export default function ActivitiesPage() {
               )}
             </div>
           </div>
-          <div className="flex items-end gap-3 h-44">
+          <div className="flex items-end gap-1.5 sm:gap-3 h-36 sm:h-44">
             {weekData.daily.map((d, i) => {
               const isToday = d.date === new Date().toISOString().split('T')[0];
               const hasMultiple = d.perActivity.length > 1;
@@ -334,7 +334,7 @@ export default function ActivitiesPage() {
                   {/* Bar */}
                   <div className="flex-1 w-full flex items-end justify-center">
                     {hasMultiple ? (
-                      <div className="flex gap-0.5 items-end w-full max-w-[40px]" style={{ height: `${Math.max(barH, 8)}%` }}>
+                      <div className="flex gap-0.5 items-end w-full max-w-[28px] sm:max-w-[40px]" style={{ height: `${Math.max(barH, 8)}%` }}>
                         {d.perActivity.map((km, j) => {
                           const segH = d.distance > 0 ? (km / d.distance) * 100 : 0;
                           return (
@@ -352,7 +352,7 @@ export default function ActivitiesPage() {
                     ) : (
                       <div
                         className={cn(
-                          'w-full max-w-[36px] rounded-t-xl transition-all duration-200',
+                          'w-full max-w-[24px] sm:max-w-[36px] rounded-t-xl transition-all duration-200',
                           d.distance > 0 ? 'bg-[#4338ff]/80 group-hover:bg-[#4338ff] group-hover:shadow-lg group-hover:shadow-[#4338ff]/20' : 'bg-slate-700/30',
                           isToday && d.distance > 0 && 'ring-2 ring-[#4338ff]/50 bg-[#4338ff]'
                         )}

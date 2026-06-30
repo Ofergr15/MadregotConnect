@@ -703,7 +703,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
 
         <p className="text-base font-semibold text-white mb-3">{dayLabel}</p>
 
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div>
             <p className="text-[10px] text-slate-500 font-medium">Distance</p>
             <p className="text-lg font-black text-white tabular-nums">{distKm}<span className="text-xs text-slate-400 ml-0.5">km</span></p>
@@ -717,7 +717,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             <p className="text-lg font-black text-white tabular-nums">{durationStr}</p>
           </div>
           {activity.average_hr && (
-            <div className="hidden sm:block">
+            <div className="hidden lg:block">
               <p className="text-[10px] text-slate-500 font-medium">Avg HR</p>
               <p className={cn("text-lg font-black tabular-nums flex items-center gap-1", hrZone?.color)}>
                 <Heart className="h-3.5 w-3.5" />{activity.average_hr}
@@ -725,7 +725,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             </div>
           )}
           {activity.elevation_gain && activity.elevation_gain > 0 ? (
-            <div className="hidden sm:block">
+            <div className="hidden lg:block">
               <p className="text-[10px] text-slate-500 font-medium">Elevation</p>
               <p className="text-lg font-black text-white tabular-nums flex items-center gap-1">
                 <Mountain className="h-3.5 w-3.5 text-green-400" />{Math.round(activity.elevation_gain)}<span className="text-xs text-slate-400">m</span>
@@ -754,7 +754,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
 
           {/* Key Stats Banner */}
           <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-xl p-5 border border-slate-700/30">
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               <div>
                 <p className="text-xs text-slate-400 mb-1">Distance</p>
                 <p className="text-3xl font-black text-white tabular-nums">{distKm}<span className="text-sm text-slate-400 ml-1">km</span></p>
@@ -771,14 +771,14 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
                 )}
               </div>
               {activity.average_hr && (
-                <div className="hidden sm:block">
+                <div className="hidden lg:block">
                   <p className="text-xs text-slate-400 mb-1">Avg HR</p>
                   <p className={cn("text-3xl font-black tabular-nums", hrZone?.color)}>{activity.average_hr}</p>
                   {hrZone && <p className="text-[10px] text-slate-500 mt-0.5">Zone {hrZone.zone} · {hrZone.label}</p>}
                 </div>
               )}
               {activity.elevation_gain ? (
-                <div className="hidden sm:block">
+                <div className="hidden lg:block">
                   <p className="text-xs text-slate-400 mb-1">Elevation</p>
                   <p className="text-3xl font-black text-white tabular-nums">{Math.round(activity.elevation_gain)}<span className="text-sm text-slate-400 ml-1">m</span></p>
                 </div>
