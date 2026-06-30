@@ -16,17 +16,16 @@ interface WeekViewProps {
 }
 
 export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekViewProps) {
-  const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
-  const editingWorkout = editingDay !== null ? workouts.find(w => w.dayOfWeek === editingDay) : null;
-  const editingIndex = editingDay !== null ? workouts.findIndex(w => w.dayOfWeek === editingDay) : -1;
+  const editingWorkout = editingIdx !== null ? workouts[editingIdx] : null;
   const todayIdx = new Date().getDay();
 
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {DAYS.map((day, dayIndex) => {
-          const dayWorkout = workouts.find((w) => w.dayOfWeek === dayIndex);
+          const dayWorkouts = workouts.filter((w) => w.dayOfWeek === dayIndex);
           const isToday = dayIndex === todayIdx;
 
           return (
@@ -54,23 +53,29 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                 )}
               </div>
 
-              {/* Workout Card or Rest */}
+              {/* Workout Cards or Rest */}
               <div className={cn(
-                'flex-1 min-h-[180px]',
-                isToday && 'ring-2 ring-primary-500/25 rounded-xl'
+                'flex-1 flex flex-col gap-2 min-h-[180px]',
+                isToday && 'ring-2 ring-primary-500/25 rounded-xl p-1'
               )}>
-                {dayWorkout ? (
-                  <div
-                    onDoubleClick={() => { if (editable) setEditingDay(dayIndex); }}
-                    className={cn(
-                      'h-full',
-                      editable && 'cursor-pointer hover:ring-2 hover:ring-primary-500/40 rounded-xl transition-all'
-                    )}
-                  >
-                    <WorkoutPreview workout={dayWorkout} />
-                  </div>
+                {dayWorkouts.length > 0 ? (
+                  dayWorkouts.map((workout) => {
+                    const globalIdx = workouts.indexOf(workout);
+                    return (
+                      <div
+                        key={globalIdx}
+                        onDoubleClick={() => { if (editable) setEditingIdx(globalIdx); }}
+                        className={cn(
+                          'flex-1',
+                          editable && 'cursor-pointer hover:ring-2 hover:ring-primary-500/40 rounded-xl transition-all'
+                        )}
+                      >
+                        <WorkoutPreview workout={workout} />
+                      </div>
+                    );
+                  })
                 ) : (
-                  <div className="h-full bg-slate-800/20 border border-slate-700/20 border-dashed rounded-xl flex items-center justify-center">
+                  <div className="flex-1 bg-slate-800/20 border border-slate-700/20 border-dashed rounded-xl flex items-center justify-center">
                     <div className="text-center py-8">
                       <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto mb-2">
                         <span className="text-slate-600 text-lg">—</span>
@@ -85,12 +90,12 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
         })}
       </div>
 
-      {editable && editingWorkout && editingDay !== null && (
+      {editable && editingWorkout && editingIdx !== null && (
         <WorkoutEditorPanel
           workout={editingWorkout}
-          dayName={DAYS[editingDay]}
-          onChange={(w) => onWorkoutChange?.(editingIndex, w)}
-          onClose={() => setEditingDay(null)}
+          dayName={DAYS[editingWorkout.dayOfWeek]}
+          onChange={(w) => onWorkoutChange?.(editingIdx, w)}
+          onClose={() => setEditingIdx(null)}
         />
       )}
     </>
