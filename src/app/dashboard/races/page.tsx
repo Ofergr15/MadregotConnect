@@ -19,52 +19,34 @@ interface Race {
 
 const UPCOMING_RACES: Race[] = [
   {
-    id: '1', name: 'Valencia Marathon', date: '2026-12-06',
-    location: 'Valencia, Spain', lat: 39.47, lng: -0.376,
+    id: '1', name: '5 ק"מ הרצליה', date: '2026-09-03',
+    location: 'הרצליה', lat: 32.1628, lng: 34.7896,
+    distances: ['5km'], daysUntil: 0,
+    type: '5k',
+  },
+  {
+    id: '2', name: 'מרוץ פארק הירקון', date: '2026-10-09',
+    location: 'תל אביב, פארק הירקון', lat: 32.0971, lng: 34.8072,
+    distances: ['21.1km', '10km'], daysUntil: 0,
+    type: 'half',
+  },
+  {
+    id: '3', name: 'חצי שמק החולה', date: '2026-10-30',
+    location: 'עמק החולה', lat: 33.0667, lng: 35.6000,
+    distances: ['21.1km', '10km'], daysUntil: 0,
+    type: 'half',
+  },
+  {
+    id: '4', name: 'מרוץ אילת', date: '2026-11-14',
+    location: 'אילת', lat: 29.5577, lng: 34.9519,
+    distances: ['21.1km', '10km'], daysUntil: 0,
+    type: 'half',
+  },
+  {
+    id: '5', name: 'מרתון ולנסיה \'26', date: '2026-12-06',
+    location: 'Valencia, Spain', lat: 39.4699, lng: -0.3763,
     distances: ['42.2km', '21.1km', '10km'], daysUntil: 0,
     type: 'marathon', website: 'https://www.valenciaciudaddelrunning.com',
-  },
-  {
-    id: '2', name: 'מרתון תל אביב', date: '2027-02-26',
-    location: 'תל אביב', lat: 32.0853, lng: 34.7818,
-    distances: ['42.2km', '21.1km', '10km', '5km'], daysUntil: 0,
-    type: 'marathon',
-  },
-  {
-    id: '3', name: 'מרתון ירושלים', date: '2027-03-19',
-    location: 'ירושלים', lat: 31.7683, lng: 35.2137,
-    distances: ['42.2km', '21.1km', '10km'], daysUntil: 0,
-    type: 'marathon',
-  },
-  {
-    id: '4', name: 'מרוץ הגליל', date: '2027-04-02',
-    location: 'טבריה', lat: 32.7940, lng: 35.5310,
-    distances: ['21.1km', '10km'], daysUntil: 0,
-    type: 'half',
-  },
-  {
-    id: '5', name: 'מרוץ חיפה', date: '2027-01-15',
-    location: 'חיפה', lat: 32.7940, lng: 34.9896,
-    distances: ['21.1km', '10km', '5km'], daysUntil: 0,
-    type: 'half',
-  },
-  {
-    id: '6', name: 'עמק המעיינות אולטרה', date: '2027-03-05',
-    location: 'בית שאן', lat: 32.4972, lng: 35.4963,
-    distances: ['50km', '30km'], daysUntil: 0,
-    type: 'ultra',
-  },
-  {
-    id: '7', name: 'מרוץ הנגב', date: '2027-02-12',
-    location: 'באר שבע', lat: 31.2518, lng: 34.7913,
-    distances: ['21.1km', '10km'], daysUntil: 0,
-    type: 'half',
-  },
-  {
-    id: '8', name: 'מרוץ כנרת', date: '2027-01-30',
-    location: 'טבריה', lat: 32.7922, lng: 35.5312,
-    distances: ['42.2km', '21.1km'], daysUntil: 0,
-    type: 'marathon',
   },
 ];
 
@@ -96,7 +78,32 @@ export default function RacesPage() {
   const [selectedRace, setSelectedRace] = useState<string | null>(null);
   const [expandedRace, setExpandedRace] = useState<string | null>(null);
 
-  const races = UPCOMING_RACES.map(r => ({
+  const [dbRaces, setDbRaces] = useState<Race[] | null>(null);
+
+  useEffect(() => {
+    fetch('/api/races')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.races?.length > 0) {
+          setDbRaces(data.races.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            date: r.date,
+            location: r.location,
+            lat: r.lat,
+            lng: r.lng,
+            distances: r.distances || [],
+            daysUntil: 0,
+            type: r.type || 'half',
+            website: r.website,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const racesSource = dbRaces || UPCOMING_RACES;
+  const races = racesSource.map(r => ({
     ...r,
     daysUntil: computeDaysUntil(r.date),
   })).filter(r => r.daysUntil >= 0).sort((a, b) => a.daysUntil - b.daysUntil);
