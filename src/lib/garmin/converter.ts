@@ -12,9 +12,9 @@ const STEP_TYPE_MAP: Record<string, { stepTypeId: number; stepTypeKey: string }>
 };
 
 const END_CONDITION_MAP: Record<string, { conditionTypeId: number; conditionTypeKey: string }> = {
-  time: { conditionTypeId: 1, conditionTypeKey: 'time' },
-  distance: { conditionTypeId: 2, conditionTypeKey: 'distance' },
-  open: { conditionTypeId: 7, conditionTypeKey: 'lap.button' },
+  time: { conditionTypeId: 2, conditionTypeKey: 'time' },
+  distance: { conditionTypeId: 3, conditionTypeKey: 'distance' },
+  open: { conditionTypeId: 1, conditionTypeKey: 'lap.button' },
 };
 
 function convertStep(
