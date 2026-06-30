@@ -271,54 +271,54 @@ export default function ActivitiesPage() {
       <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full space-y-5">
 
         {/* ─── Hero Stats ─── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="bg-gradient-to-br from-[#4338ff]/10 to-slate-800/50 rounded-2xl p-5 border border-[#4338ff]/20">
-            <Route className="h-5 w-5 text-[#4338ff] mb-2" />
-            <p className="text-3xl font-black text-white tabular-nums leading-none">
+        <div className="grid grid-cols-4 gap-3">
+          <div className="relative overflow-hidden bg-gradient-to-br from-[#4338ff]/15 to-[#4338ff]/5 rounded-2xl p-5 border border-[#4338ff]/20">
+            <div className="absolute -top-4 -right-4 w-20 h-20 bg-[#4338ff]/10 rounded-full blur-2xl" />
+            <Route className="h-5 w-5 text-[#4338ff] mb-3" />
+            <p className="text-4xl font-black text-white tabular-nums leading-none">
               {weekData.totalKm > 0 ? weekData.totalKm.toFixed(1) : '—'}
-              <span className="text-sm font-medium text-slate-400 ml-1">km</span>
             </p>
-            <p className="text-xs text-slate-500 mt-1.5">Distance · {weekData.totalRuns} run{weekData.totalRuns !== 1 ? 's' : ''}</p>
+            <p className="text-sm text-slate-400 mt-1 font-medium">km · {weekData.totalRuns} run{weekData.totalRuns !== 1 ? 's' : ''}</p>
           </div>
-          <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
-            <Timer className="h-5 w-5 text-slate-400 mb-2" />
-            <p className="text-3xl font-black text-white tabular-nums leading-none">
+          <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
+            <Timer className="h-5 w-5 text-cyan-400 mb-3" />
+            <p className="text-4xl font-black text-white tabular-nums leading-none">
               {weekData.totalDuration > 0 ? formatDuration(weekData.totalDuration) : '—'}
             </p>
-            <p className="text-xs text-slate-500 mt-1.5">Total Time</p>
+            <p className="text-sm text-slate-400 mt-1 font-medium">Total Time</p>
           </div>
-          <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
-            <TrendingUp className="h-5 w-5 text-emerald-400 mb-2" />
-            <p className="text-3xl font-black text-white tabular-nums leading-none">
+          <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
+            <TrendingUp className="h-5 w-5 text-emerald-400 mb-3" />
+            <p className="text-4xl font-black text-white tabular-nums leading-none">
               {weekData.avgPace ? formatPace(weekData.avgPace) : '—'}
-              <span className="text-sm font-medium text-slate-400 ml-1">/km</span>
+              <span className="text-lg font-medium text-slate-500 ml-0.5">/km</span>
             </p>
-            <p className="text-xs text-slate-500 mt-1.5">Avg Pace</p>
+            <p className="text-sm text-slate-400 mt-1 font-medium">Avg Pace</p>
           </div>
-          <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
-            <Heart className="h-5 w-5 text-red-400 mb-2" />
-            <p className="text-3xl font-black text-white tabular-nums leading-none">
+          <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
+            <Heart className="h-5 w-5 text-red-400 mb-3" />
+            <p className="text-4xl font-black text-white tabular-nums leading-none">
               {weekData.avgHR || '—'}
-              <span className="text-sm font-medium text-slate-400 ml-1">bpm</span>
+              <span className="text-lg font-medium text-slate-500 ml-0.5">bpm</span>
             </p>
-            <p className="text-xs text-slate-500 mt-1.5">Avg Heart Rate</p>
+            <p className="text-sm text-slate-400 mt-1 font-medium">Avg Heart Rate</p>
           </div>
         </div>
 
         {/* ─── Daily Volume Chart ─── */}
         <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white">Daily Volume</h3>
-            <div className="flex items-center gap-4 text-[11px] text-slate-500">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-sm font-bold text-white">Daily Volume</h3>
+            <div className="flex items-center gap-4 text-xs text-slate-400">
               {weekData.totalCalories > 0 && (
-                <span className="flex items-center gap-1"><Flame className="h-3 w-3 text-orange-400" />{weekData.totalCalories.toLocaleString()} cal</span>
+                <span className="flex items-center gap-1.5"><Flame className="h-3.5 w-3.5 text-orange-400" />{weekData.totalCalories.toLocaleString()} cal</span>
               )}
               {weekData.totalElevation > 0 && (
-                <span className="flex items-center gap-1"><Mountain className="h-3 w-3 text-green-400" />{Math.round(weekData.totalElevation)}m</span>
+                <span className="flex items-center gap-1.5"><Mountain className="h-3.5 w-3.5 text-green-400" />{Math.round(weekData.totalElevation)}m</span>
               )}
             </div>
           </div>
-          <div className="flex items-end gap-2 h-32">
+          <div className="flex items-end gap-3 h-44">
             {weekData.daily.map((d, i) => {
               const isToday = d.date === new Date().toISOString().split('T')[0];
               const hasMultiple = d.perActivity.length > 1;
@@ -327,22 +327,22 @@ export default function ActivitiesPage() {
                 <div key={i} className="flex-1 flex flex-col items-center h-full group relative">
                   {/* Tooltip */}
                   {d.distance > 0 && (
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-lg">
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-xl">
                       {d.distance.toFixed(1)} km{hasMultiple ? ` · ${d.perActivity.length} runs` : ''}
                     </div>
                   )}
                   {/* Bar */}
                   <div className="flex-1 w-full flex items-end justify-center">
                     {hasMultiple ? (
-                      <div className="flex gap-0.5 items-end w-full max-w-[32px]" style={{ height: `${Math.max(barH, 8)}%` }}>
+                      <div className="flex gap-0.5 items-end w-full max-w-[40px]" style={{ height: `${Math.max(barH, 8)}%` }}>
                         {d.perActivity.map((km, j) => {
                           const segH = d.distance > 0 ? (km / d.distance) * 100 : 0;
                           return (
                             <div
                               key={j}
                               className={cn(
-                                'flex-1 rounded-t-md transition-all',
-                                j === 0 ? 'bg-[#4338ff] group-hover:bg-[#5b54ff]' : 'bg-amber-400 group-hover:bg-amber-300',
+                                'flex-1 rounded-t-lg transition-all duration-200',
+                                j === 0 ? 'bg-[#4338ff] group-hover:bg-[#5b54ff] group-hover:shadow-lg group-hover:shadow-[#4338ff]/20' : 'bg-amber-400 group-hover:bg-amber-300',
                               )}
                               style={{ height: `${Math.max(segH, 25)}%` }}
                             />
@@ -352,25 +352,28 @@ export default function ActivitiesPage() {
                     ) : (
                       <div
                         className={cn(
-                          'w-full max-w-[28px] rounded-t-lg transition-all',
-                          d.distance > 0 ? 'bg-[#4338ff]/70 group-hover:bg-[#4338ff]' : 'bg-slate-700/20',
-                          isToday && d.distance > 0 && 'ring-2 ring-[#4338ff]/40'
+                          'w-full max-w-[36px] rounded-t-xl transition-all duration-200',
+                          d.distance > 0 ? 'bg-[#4338ff]/80 group-hover:bg-[#4338ff] group-hover:shadow-lg group-hover:shadow-[#4338ff]/20' : 'bg-slate-700/30',
+                          isToday && d.distance > 0 && 'ring-2 ring-[#4338ff]/50 bg-[#4338ff]'
                         )}
-                        style={{ height: `${Math.max(barH, d.distance > 0 ? 8 : 2)}%` }}
+                        style={{ height: `${Math.max(barH, d.distance > 0 ? 10 : 3)}%` }}
                       />
                     )}
                   </div>
                   {/* Label */}
-                  <div className="mt-2 text-center">
+                  <div className="mt-3 text-center">
                     <p className={cn(
-                      'text-[11px] font-bold',
+                      'text-xs font-bold',
                       isToday ? 'text-[#4338ff]' : d.distance > 0 ? 'text-white' : 'text-slate-600'
                     )}>
                       {d.day}
                     </p>
-                    {d.distance > 0 && (
-                      <p className="text-[10px] text-slate-500 tabular-nums">{d.distance.toFixed(1)}</p>
-                    )}
+                    <p className={cn(
+                      'text-[11px] tabular-nums mt-0.5 font-medium',
+                      d.distance > 0 ? 'text-slate-400' : 'text-slate-700'
+                    )}>
+                      {d.distance > 0 ? d.distance.toFixed(1) : '—'}
+                    </p>
                   </div>
                 </div>
               );

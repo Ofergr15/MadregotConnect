@@ -82,6 +82,22 @@ function getTimeLabel(startTime: string): string {
   return 'Evening Run';
 }
 
+function inferRunTypeFromActivity(distanceKm: number, avgPaceSec: number | null): { type: string; label: string; color: string; bg: string } {
+  const types: Record<string, { label: string; color: string; bg: string }> = {
+    long_run: { label: 'Long Run', color: 'text-purple-400', bg: 'bg-purple-500/15' },
+    tempo: { label: 'Tempo', color: 'text-orange-400', bg: 'bg-orange-500/15' },
+    intervals: { label: 'Intervals', color: 'text-red-400', bg: 'bg-red-500/15' },
+    easy: { label: 'Easy', color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
+    recovery: { label: 'Recovery', color: 'text-slate-400', bg: 'bg-slate-500/15' },
+  };
+
+  if (distanceKm >= 16) return { type: 'long_run', ...types.long_run };
+  if (avgPaceSec && avgPaceSec < 270 && distanceKm >= 8) return { type: 'tempo', ...types.tempo };
+  if (avgPaceSec && avgPaceSec < 290 && distanceKm >= 6 && distanceKm < 14) return { type: 'intervals', ...types.intervals };
+  if (distanceKm < 7 && avgPaceSec && avgPaceSec > 330) return { type: 'recovery', ...types.recovery };
+  return { type: 'easy', ...types.easy };
+}
+
 function getHRZone(hr: number, maxHR = 190): { zone: number; label: string; color: string; bgColor: string } {
   const pct = hr / maxHR;
   if (pct < 0.6) return { zone: 1, label: 'Easy', color: 'text-slate-400', bgColor: '#94a3b8' };
@@ -630,6 +646,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   const distKm = (activity.distance / 1000).toFixed(1);
+  const distKmNum = activity.distance / 1000;
   const paceStr = activity.average_pace ? formatPace(activity.average_pace) : null;
   const durationStr = formatDuration(activity.duration);
   const movingStr = activity.moving_duration ? formatDuration(activity.moving_duration) : null;
@@ -640,6 +657,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
   const dayLabel = hebrewDays[startDate.getDay()];
   const timeLabel = getTimeLabel(activity.start_time);
   const hrZone = activity.average_hr ? getHRZone(activity.average_hr) : null;
+  const runType = inferRunTypeFromActivity(distKmNum, activity.average_pace);
 
   const loadDetails = async () => {
     if (details || loadingDetails) return;
@@ -675,7 +693,12 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
               <p className="text-xs text-slate-500">{timeLabel}{activity.location_name ? ` · ${activity.location_name}` : ''}</p>
             </div>
           </div>
-          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+          <div className="flex items-center gap-2">
+            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
+              {runType.label}
+            </span>
+            {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+          </div>
         </div>
 
         <p className="text-base font-semibold text-white mb-3">{dayLabel}</p>
