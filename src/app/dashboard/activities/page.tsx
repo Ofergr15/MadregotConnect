@@ -171,6 +171,7 @@ export default function ActivitiesPage() {
         distance: dayActs.reduce((s, a) => s + a.distance / 1000, 0),
         runs: dayActs.length,
         duration: dayActs.reduce((s, a) => s + a.duration, 0),
+        perActivity: dayActs.map(a => a.distance / 1000),
       };
     });
 
@@ -296,24 +297,38 @@ export default function ActivitiesPage() {
           <div className="border-t border-slate-700/40 px-6 py-5">
             <div className="flex items-end justify-between gap-3 h-20">
               {weekData.daily.map((d, i) => {
-                const barHeight = maxDist > 0 ? (d.distance / maxDist) * 100 : 0;
                 const isToday = d.date === new Date().toISOString().split('T')[0];
+                const hasMultiple = d.perActivity.length > 1;
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1.5 group relative h-full">
                     {d.distance > 0 && (
                       <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-700 text-white text-[10px] font-bold px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                        {d.distance.toFixed(1)}km
+                        {d.distance.toFixed(1)}km{hasMultiple && ` (${d.perActivity.length})`}
                       </div>
                     )}
-                    <div className="flex-1 w-full flex items-end justify-center">
-                      <div
-                        className={cn(
-                          'w-full max-w-[24px] rounded-md transition-all duration-200',
-                          d.distance > 0 ? 'bg-[#4338ff]/60 group-hover:bg-[#4338ff]' : 'bg-slate-700/20',
-                          isToday && d.distance > 0 && 'ring-2 ring-[#4338ff]/30'
-                        )}
-                        style={{ height: `${Math.max(barHeight, d.distance > 0 ? 12 : 3)}%` }}
-                      />
+                    <div className="flex-1 w-full flex items-end justify-center gap-0.5">
+                      {d.perActivity.length > 0 ? (
+                        d.perActivity.map((km, j) => {
+                          const barH = maxDist > 0 ? (km / maxDist) * 100 : 0;
+                          return (
+                            <div
+                              key={j}
+                              className={cn(
+                                'rounded-md transition-all duration-200',
+                                j === 0 ? 'bg-[#4338ff]/60 group-hover:bg-[#4338ff]' : 'bg-amber-400/60 group-hover:bg-amber-400',
+                                isToday && 'ring-2 ring-[#4338ff]/30',
+                                hasMultiple ? 'flex-1 max-w-[11px]' : 'w-full max-w-[24px]'
+                              )}
+                              style={{ height: `${Math.max(barH, 12)}%` }}
+                            />
+                          );
+                        })
+                      ) : (
+                        <div
+                          className="w-full max-w-[24px] rounded-md bg-slate-700/20"
+                          style={{ height: '3%' }}
+                        />
+                      )}
                     </div>
                     <span className={cn(
                       'text-[10px] font-semibold',
