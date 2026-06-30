@@ -41,29 +41,33 @@ export async function GET(request: Request) {
       strideLength: number | null;
     }> = [];
 
+    // Get per-KM splits from the details endpoint (has individual km data)
+    // The activity.splitSummaries has aggregated totals per type, not individual km splits.
+    // Per-km data comes from the details response splitSummaries.
+    // First, try from the activity's splitSummaries but only if they look like per-KM
     if (activity?.splitSummaries && Array.isArray(activity.splitSummaries)) {
-      const kmSplits = activity.splitSummaries.filter(
-        (s: any) => s.splitType === 'KM_SPLIT' || s.splitType === 'KILOMETER' || s.splitType === 'RUN_KM_SPLIT'
-      );
+      // Check if any split has noOfSplits > 1 — that means it's aggregated, not per-km
+      const isAggregated = activity.splitSummaries.some((s: any) => s.noOfSplits > 1);
 
-      const splitsToUse = kmSplits.length > 0 ? kmSplits : activity.splitSummaries;
-
-      for (const split of splitsToUse) {
-        if (!split.distance || split.distance < 100) continue;
-        splits.push({
-          distance: split.distance || 1000,
-          duration: split.duration || split.movingDuration || 0,
-          averagePace: split.distance > 0 ? Math.round((split.duration || split.movingDuration || 0) / (split.distance / 1000)) : 0,
-          averageHR: split.averageHR || null,
-          maxHR: split.maxHR || null,
-          elevationGain: split.elevationGain || null,
-          cadence: split.averageRunCadence || null,
-          strideLength: split.strideLength || null,
-        });
+      if (!isAggregated) {
+        // Each entry IS an individual split
+        for (const split of activity.splitSummaries) {
+          if (!split.distance || split.distance < 100) continue;
+          splits.push({
+            distance: split.distance || 1000,
+            duration: split.duration || split.movingDuration || 0,
+            averagePace: split.distance > 0 ? Math.round((split.duration || split.movingDuration || 0) / (split.distance / 1000)) : 0,
+            averageHR: split.averageHR || null,
+            maxHR: split.maxHR || null,
+            elevationGain: split.elevationGain || null,
+            cadence: split.averageRunCadence || null,
+            strideLength: split.strideLength || null,
+          });
+        }
       }
     }
 
-    // If no splits from activity, try the splits endpoint
+    // If no per-km splits yet, try the splits endpoint which returns individual laps
     if (splits.length === 0) {
       try {
         const lapData = await client.getActivitySplits(Number(activityId));
@@ -83,6 +87,38 @@ export async function GET(request: Request) {
           }
         }
       } catch { /* splits are optional */ }
+    }
+
+    // If we still only have aggregated splits (large distances like 15km),
+    // generate synthetic per-km splits from the overall activity data
+    if (splits.length > 0 && splits.length < 3 && activity?.distance > 3000) {
+      const totalKm = Math.floor(activity.distance / 1000);
+      if (totalKm > splits.length) {
+        // The splits we have are laps not km - keep them but also try details endpoint
+        const detailSplits: typeof splits = [];
+        try {
+          const detailData = await client.getActivityDetails(Number(activityId));
+          if (detailData?.splitSummaries && Array.isArray(detailData.splitSummaries)) {
+            for (const split of detailData.splitSummaries) {
+              if (!split.distance || split.distance < 100) continue;
+              detailSplits.push({
+                distance: split.distance || 1000,
+                duration: split.duration || split.movingDuration || 0,
+                averagePace: split.distance > 0 ? Math.round((split.duration || split.movingDuration || 0) / (split.distance / 1000)) : 0,
+                averageHR: split.averageHR || null,
+                maxHR: split.maxHR || null,
+                elevationGain: split.elevationGain || null,
+                cadence: split.averageRunCadence || null,
+                strideLength: split.strideLength || null,
+              });
+            }
+          }
+        } catch { /* silent */ }
+        if (detailSplits.length > splits.length) {
+          splits.length = 0;
+          splits.push(...detailSplits);
+        }
+      }
     }
 
     // Try to get GPS polyline from the details endpoint
