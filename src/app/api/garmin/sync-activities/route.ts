@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         const client = new GarminClient(athlete.garmin_auth as any);
         let activities;
         try {
-          activities = await client.getActivities(0, 30);
+          activities = await client.getActivities(0, 100);
         } catch (fetchErr: any) {
           results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: `Fetch failed: ${fetchErr.message}` });
           continue;
@@ -262,7 +262,7 @@ export async function GET() {
         athletes (name)
       `)
       .order('start_time', { ascending: false })
-      .limit(50);
+      .limit(200);
 
     if (error) throw error;
 

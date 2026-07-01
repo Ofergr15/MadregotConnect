@@ -389,6 +389,9 @@ export default function DashboardPage() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing');
   const [syncedCount, setSyncedCount] = useState(0);
   const [syncError, setSyncError] = useState<string | undefined>();
+  const [weeklyKm, setWeeklyKm] = useState(0);
+  const [weeklyRuns, setWeeklyRuns] = useState(0);
+  const [runnerWeeklyVolumes, setRunnerWeeklyVolumes] = useState<Array<{ week: string; km: number; runs: number }>>([]);
 
   useEffect(() => {
     const coachEmail = localStorage.getItem('coach_email');
@@ -493,6 +496,40 @@ export default function DashboardPage() {
           const allActs = actData.activities || [];
           const filtered = myIsCoach ? allActs : allActs.filter((a: any) => a.athlete_id === myAthleteId);
           setRecentActivities(filtered.slice(0, 3));
+
+          if (!myIsCoach && myAthleteId) {
+            const now = new Date();
+            const dayOfWeek = now.getDay();
+            const weekStart = new Date(now);
+            weekStart.setDate(now.getDate() - dayOfWeek);
+            weekStart.setHours(0, 0, 0, 0);
+
+            const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
+            const totalKm = thisWeekActs.reduce((sum: number, a: any) => sum + (a.distance || 0), 0) / 1000;
+            setWeeklyKm(Math.round(totalKm * 10) / 10);
+            setWeeklyRuns(thisWeekActs.length);
+
+            const weekMap: Record<string, { km: number; runs: number }> = {};
+            filtered.forEach((a: any) => {
+              const d = new Date(a.start_time);
+              const wStart = new Date(d);
+              wStart.setDate(d.getDate() - d.getDay());
+              const key = `${wStart.getDate().toString().padStart(2, '0')}/${(wStart.getMonth() + 1).toString().padStart(2, '0')}`;
+              if (!weekMap[key]) weekMap[key] = { km: 0, runs: 0 };
+              weekMap[key].km += (a.distance || 0) / 1000;
+              weekMap[key].runs += 1;
+            });
+
+            const sortedWeeks = Object.entries(weekMap)
+              .map(([week, data]) => ({ week, km: Math.round(data.km * 10) / 10, runs: data.runs }))
+              .sort((a, b) => {
+                const [dA, mA] = a.week.split('/').map(Number);
+                const [dB, mB] = b.week.split('/').map(Number);
+                return mA !== mB ? mA - mB : dA - dB;
+              })
+              .slice(-8);
+            setRunnerWeeklyVolumes(sortedWeeks);
+          }
         }
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
@@ -551,59 +588,69 @@ export default function DashboardPage() {
       </section>
 
       {/* ═══ STATS ROW ═══ */}
-      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
-          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-            {hasData ? `${Math.round(weekly!.weekTotalMin)}–${Math.round(weekly!.weekTotalMax)}` : '—'}
-            <span className="text-sm font-medium text-slate-500 ml-1">km</span>
-          </p>
-          {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
-            <div className="flex items-center gap-1 mt-2">
-              {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-green-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
-              <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-green-400' : 'text-amber-400')}>
-                {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
-          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500 ml-1">/7</span></p>
-          <p className="text-sm text-slate-500 mt-1">this week</p>
-        </div>
-
-        {isCoach ? (
-          <>
-            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Athletes</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.athleteCount || 0}</p>
-              <p className="text-sm text-slate-500 mt-1">{stats?.groupCount || 0} groups</p>
-            </div>
-
-            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivery</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ml-0.5">%</span></p>
-              <p className="text-sm text-slate-500 mt-1">success rate</p>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">My Runs</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{recentActivities.length}</p>
-              <p className="text-sm text-slate-500 mt-1">recent</p>
-            </div>
-
-            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Race Day</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{countdown.d}<span className="text-sm font-medium text-slate-500 ml-1">days</span></p>
-              <p className="text-sm text-slate-500 mt-1">to go</p>
-            </div>
-          </>
-        )}
-      </section>
+      {isCoach ? (
+        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+              {hasData ? `${Math.round(weekly!.weekTotalMin)}–${Math.round(weekly!.weekTotalMax)}` : '—'}
+              <span className="text-sm font-medium text-slate-500 ml-1">km</span>
+            </p>
+            {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
+              <div className="flex items-center gap-1 mt-2">
+                {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-green-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
+                <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-green-400' : 'text-amber-400')}>
+                  {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500 ml-1">/7</span></p>
+            <p className="text-sm text-slate-500 mt-1">this week</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Athletes</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.athleteCount || 0}</p>
+            <p className="text-sm text-slate-500 mt-1">{stats?.groupCount || 0} groups</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivery</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ml-0.5">%</span></p>
+            <p className="text-sm text-slate-500 mt-1">success rate</p>
+          </div>
+        </section>
+      ) : (
+        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">This Week</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+              {weeklyKm > 0 ? weeklyKm : '—'}
+              <span className="text-sm font-medium text-slate-500 ml-1">km</span>
+            </p>
+            <p className="text-sm text-slate-500 mt-1">{weeklyRuns} {weeklyRuns === 1 ? 'run' : 'runs'}</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Runs</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{recentActivities.length}</p>
+            <p className="text-sm text-slate-500 mt-1">synced</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Block</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+              {week > 0 ? week : '—'}
+              <span className="text-sm font-medium text-slate-500 ml-1">{week > 0 ? `/ ${TOTAL_WEEKS}` : ''}</span>
+            </p>
+            <p className="text-sm text-slate-500 mt-1">{week > 0 ? 'weeks' : 'Pre-season'}</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Race Day</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{countdown.d}<span className="text-sm font-medium text-slate-500 ml-1">days</span></p>
+            <p className="text-sm text-slate-500 mt-1">to go</p>
+          </div>
+        </section>
+      )}
 
       {/* ═══ PROGRAM CARD (Runners) ═══ */}
       {!isCoach && (
@@ -633,6 +680,38 @@ export default function DashboardPage() {
               </div>
             </div>
           </Link>
+        </section>
+      )}
+
+      {/* ═══ RUNNER WEEKLY VOLUME GRAPH ═══ */}
+      {!isCoach && runnerWeeklyVolumes.length > 1 && (
+        <section className="bg-slate-800/30 rounded-2xl p-4 sm:p-6 border border-slate-700/20">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm sm:text-base font-bold text-white">Weekly Kilometers</h2>
+            <span className="text-xs text-slate-500">Last {runnerWeeklyVolumes.length} weeks</span>
+          </div>
+          <div className="h-44 sm:h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={runnerWeeklyVolumes} margin={{ top: 8, right: 4, bottom: 0, left: -16 }}>
+                <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={36} tickFormatter={v => `${v}`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '13px', padding: '8px 12px', color: '#f1f5f9' }}
+                  labelStyle={{ color: '#fff', fontWeight: 700 }}
+                  formatter={(v: any) => [`${v} km`, 'Distance']}
+                  labelFormatter={l => `Week of ${l}`}
+                />
+                <Bar dataKey="km" radius={[6, 6, 0, 0]}>
+                  {runnerWeeklyVolumes.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={i === runnerWeeklyVolumes.length - 1 ? '#4338ff' : '#4338ff80'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </section>
       )}
 
