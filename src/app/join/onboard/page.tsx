@@ -330,8 +330,8 @@ function OnboardContent() {
                   type={showPassword ? 'text' : 'password'}
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pr-12 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="Enter your password"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   required
                 />
                 <button
