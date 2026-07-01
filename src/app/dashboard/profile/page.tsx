@@ -546,8 +546,13 @@ export default function ProfilePage() {
                   setTimeout(() => setSyncResult(null), 4000);
                 }
               }}
-              disabled={syncing}
-              className="w-full border border-slate-600 hover:border-[#4338ff]/50 hover:bg-[#4338ff]/5 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              disabled={syncing || hasActivities}
+              className={cn(
+                "w-full font-medium px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2",
+                hasActivities
+                  ? 'border border-slate-700/50 text-slate-500 cursor-not-allowed opacity-60'
+                  : 'border border-slate-600 hover:border-[#4338ff]/50 hover:bg-[#4338ff]/5 text-slate-300 hover:text-white disabled:opacity-50'
+              )}
             >
               {syncing ? (
                 <>
@@ -561,6 +566,9 @@ export default function ProfilePage() {
                 </>
               )}
             </button>
+            {hasActivities && (
+              <p className="text-xs mt-2 text-center text-slate-500">Activities sync automatically. Manual sync is only needed for the first time.</p>
+            )}
             {syncResult && (
               <p className={cn('text-xs mt-2 text-center', syncResult.includes('failed') ? 'text-red-400' : 'text-green-400')}>
                 {syncResult}
