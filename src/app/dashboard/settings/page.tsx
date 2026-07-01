@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface User {
@@ -189,6 +189,7 @@ export default function SettingsPage() {
   const [savedUsers, setSavedUsers] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [pendingChange, setPendingChange] = useState<{ user: User; newRole: Role } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<User | null>(null);
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [savedPermissions, setSavedPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
@@ -295,6 +296,22 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    const user = pendingDelete;
+    setPendingDelete(null);
+    setUpdatingUsers(prev => new Set(prev).add(user.id));
+    try {
+      const response = await fetch(`/api/admin/users?id=${user.id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete');
+      await fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setUpdatingUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+    }
+  };
+
   const handleRoleSelect = (user: User, newRole: Role) => {
     if (newRole === user.role) return;
     setPendingChange({ user, newRole });
@@ -350,6 +367,40 @@ export default function SettingsPage() {
           onConfirm={confirmRoleChange}
           onCancel={() => setPendingChange(null)}
         />
+      )}
+
+      {pendingDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Trash2 className="w-5 h-5 text-red-400" />
+              <h3 className="text-lg font-semibold text-white">Delete User</h3>
+              <button onClick={() => setPendingDelete(null)} className="ml-auto text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-slate-300 text-sm mb-2">
+              Delete <span className="font-medium text-white">{pendingDelete.name}</span> ({pendingDelete.email})?
+            </p>
+            <p className="text-slate-500 text-xs mb-4">
+              This will remove all their data including activities. They can register again as a new user.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setPendingDelete(null)}
+                className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors font-medium"
+              >
+                Delete User
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="mb-6">
@@ -475,6 +526,14 @@ export default function SettingsPage() {
                       {savedUsers.has(user.id) && (
                         <CheckCircle2 className="w-4 h-4 text-green-400" />
                       )}
+                      <button
+                        onClick={() => setPendingDelete(user)}
+                        disabled={updatingUsers.has(user.id)}
+                        className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                        title="Delete user"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>
