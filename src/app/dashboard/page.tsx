@@ -740,7 +740,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {targetMax > 0 && (
-                    <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax}</span>
+                    <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax} km</span>
                   )}
                   {trend !== 0 && (
                     <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
