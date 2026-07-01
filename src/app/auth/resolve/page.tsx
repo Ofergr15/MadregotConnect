@@ -63,9 +63,14 @@ export default function AuthResolvePage() {
       localStorage.removeItem('athlete_email');
       localStorage.removeItem('athlete_group_id');
       router.replace('/dashboard');
+    } else if ((data.role === 'runner' || data.role === 'core_runner') && data.needsOnboarding) {
+      const params = new URLSearchParams({ email, name: user.user_metadata?.full_name || '' });
+      if (data.missingGroup === false) params.set('skipGroup', '1');
+      if (data.missingGarmin === false) params.set('skipGarmin', '1');
+      router.replace(`/join/onboard?${params.toString()}`);
     } else if ((data.role === 'runner' || data.role === 'core_runner') && data.athlete) {
-      if (data.needsOnboarding) {
-        router.replace(`/join/onboard?email=${encodeURIComponent(email)}`);
+      if (data.pendingApproval) {
+        router.replace('/pending-approval');
         return;
       }
       localStorage.setItem('athlete_id', data.athlete.id);
@@ -74,15 +79,10 @@ export default function AuthResolvePage() {
       if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
       localStorage.removeItem('coach_email');
       router.replace('/dashboard');
-    } else if (data.pendingApproval && !data.missingGarmin) {
+    } else if (data.pendingApproval) {
       router.replace('/pending-approval');
     } else {
-      const params = new URLSearchParams({
-        email,
-        name: user.user_metadata?.full_name || '',
-      });
-      if (data.missingGroup === false) params.set('skipGroup', '1');
-      if (data.missingGarmin === false) params.set('skipGarmin', '1');
+      const params = new URLSearchParams({ email, name: user.user_metadata?.full_name || '' });
       router.replace(`/join/onboard?${params.toString()}`);
     }
   }

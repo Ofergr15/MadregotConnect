@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       }
       // Missing group or garmin — needs onboarding
       return NextResponse.json({
-        role: 'viewer',
+        role: 'runner',
         email: lowerEmail,
         name: anyAthlete.name || name,
         needsOnboarding: true,
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
         email: lowerEmail,
         name: name || lowerEmail.split('@')[0],
         status: 'invited',
-        role: 'viewer',
+        role: 'runner',
         onboarding_status: 'google_authed',
         google_authed_at: new Date().toISOString(),
         approved: false,
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      role: 'viewer',
+      role: 'runner',
       email: lowerEmail,
       name,
       needsOnboarding: true,
