@@ -64,6 +64,7 @@ export default function ProfilePage() {
   const [dataSource, setDataSource] = useState<'garmin' | 'strava' | null>(null);
   const [hasGarmin, setHasGarmin] = useState(false);
   const [hasStrava, setHasStrava] = useState(false);
+  const [stravaEnabled, setStravaEnabled] = useState(false);
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
@@ -93,6 +94,7 @@ export default function ProfilePage() {
             setDataSource(me.dataSource || 'garmin');
             setHasGarmin(me.hasGarmin);
             setHasStrava(me.hasStrava);
+            setStravaEnabled(me.stravaEnabled);
           }
         })
         .catch(() => {});
@@ -353,8 +355,8 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Connect Strava button (shown if not connected) */}
-        {!hasStrava && (
+        {/* Connect Strava button (shown if admin enabled and not yet connected) */}
+        {!hasStrava && stravaEnabled && (
           <button
             onClick={async () => {
               setConnectingStrava(true);

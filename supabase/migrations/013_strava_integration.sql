@@ -2,6 +2,7 @@
 ALTER TABLE athletes ADD COLUMN IF NOT EXISTS strava_auth JSONB;
 ALTER TABLE athletes ADD COLUMN IF NOT EXISTS data_source TEXT DEFAULT 'garmin';
 ALTER TABLE athletes ADD COLUMN IF NOT EXISTS strava_athlete_id BIGINT;
+ALTER TABLE athletes ADD COLUMN IF NOT EXISTS strava_enabled BOOLEAN DEFAULT false;
 
 -- Add source tracking to activities
 ALTER TABLE athlete_activities ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'garmin';
