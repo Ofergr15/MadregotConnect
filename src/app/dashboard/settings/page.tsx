@@ -13,6 +13,7 @@ interface User {
   onboardingStatus?: string;
   approved?: boolean;
   approvedAt?: string | null;
+  lastSeenAt?: string | null;
 }
 
 type Role = 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
@@ -457,8 +458,28 @@ export default function SettingsPage() {
                 { key: 'google', label: 'Google', completed: ['google_authed', 'garmin_authed', 'garmin_failed', 'active'].includes(status), active: status === 'google_authed', failed: false },
                 { key: 'garmin', label: 'Garmin', completed: ['garmin_authed', 'active'].includes(status), active: status === 'google_authed', failed: status === 'garmin_failed' },
                 { key: 'approval', label: 'Approved', completed: user.approved === true, active: user.approved === false && status === 'garmin_authed', failed: false },
-                { key: 'active', label: 'Active', completed: status === 'active' && user.approved === true, active: false, failed: false },
               ];
+
+              // Last seen logic
+              let lastSeenLabel = 'Never';
+              let lastSeenColor = 'text-slate-500';
+              let lastSeenDot = 'bg-slate-500';
+              if (user.lastSeenAt) {
+                const hoursAgo = (Date.now() - new Date(user.lastSeenAt).getTime()) / 3600000;
+                if (hoursAgo < 24) {
+                  lastSeenLabel = hoursAgo < 1 ? 'Just now' : `${Math.floor(hoursAgo)}h ago`;
+                  lastSeenColor = 'text-green-400';
+                  lastSeenDot = 'bg-green-400';
+                } else if (hoursAgo < 72) {
+                  lastSeenLabel = `${Math.floor(hoursAgo / 24)}d ago`;
+                  lastSeenColor = 'text-amber-400';
+                  lastSeenDot = 'bg-amber-400';
+                } else {
+                  lastSeenLabel = `${Math.floor(hoursAgo / 24)}d ago`;
+                  lastSeenColor = 'text-red-400';
+                  lastSeenDot = 'bg-red-400';
+                }
+              }
 
               return (
                 <div key={user.id} className="px-6 py-4 hover:bg-slate-700/20 transition-colors">
@@ -501,6 +522,14 @@ export default function SettingsPage() {
                           )}
                         </div>
                       ))}
+
+                      {/* Last Seen */}
+                      <div className="ml-4 flex flex-col items-center gap-0.5">
+                        <div className={cn('w-2 h-2 rounded-full', lastSeenDot)} />
+                        <span className={cn('text-[9px] font-medium', lastSeenColor)}>
+                          {lastSeenLabel}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Actions */}

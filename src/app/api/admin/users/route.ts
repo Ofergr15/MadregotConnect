@@ -15,6 +15,7 @@ interface User {
   onboardingStatus?: string;
   approved?: boolean;
   approvedAt?: string | null;
+  lastSeenAt?: string | null;
 }
 
 export async function GET() {
@@ -23,7 +24,7 @@ export async function GET() {
 
     const { data: athletes, error } = await supabase
       .from('athletes')
-      .select('id, email, name, role, group_id, onboarding_status, approved, approved_at')
+      .select('id, email, name, role, group_id, onboarding_status, approved, approved_at, last_seen_at')
       .order('email');
 
     if (error) throw error;
@@ -37,6 +38,7 @@ export async function GET() {
       onboardingStatus: a.onboarding_status || 'active',
       approved: a.approved ?? true,
       approvedAt: a.approved_at,
+      lastSeenAt: a.last_seen_at,
     }));
 
     return NextResponse.json({ users });
