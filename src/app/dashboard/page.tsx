@@ -851,23 +851,13 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-            <div className="h-52 sm:h-60">
+            <div className="h-44 sm:h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: -8 }} barCategoryGap="20%">
-                  <defs>
-                    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
-                      <stop offset="100%" stopColor="#4338ff" stopOpacity={0.8} />
-                    </linearGradient>
-                    <linearGradient id="barGradCurrent" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#a5b4fc" stopOpacity={1} />
-                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0.9} />
-                    </linearGradient>
-                  </defs>
+                <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 8, bottom: 0, left: -8 }} barCategoryGap="35%">
                   <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={32} domain={[0, yMax]} tickCount={5} />
                   <Tooltip
-                    cursor={{ fill: 'rgba(99, 102, 241, 0.08)', radius: 6 }}
+                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
                     contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '13px', padding: '8px 12px', color: '#f1f5f9' }}
                     labelStyle={{ color: '#fff', fontWeight: 700 }}
                     formatter={(v: any, _: any, props: any) => {
@@ -877,9 +867,9 @@ export default function DashboardPage() {
                     labelFormatter={l => `Week of ${l}`}
                     separator=""
                   />
-                  <Bar dataKey="km" radius={[8, 8, 0, 0]}>
+                  <Bar dataKey="km" radius={[4, 4, 0, 0]} maxBarSize={28}>
                     {runnerWeeklyVolumes.map((_, i) => (
-                      <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? 'url(#barGradCurrent)' : 'url(#barGrad)'} />
+                      <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#818cf8' : '#4f46e5'} opacity={i === runnerWeeklyVolumes.length - 1 ? 1 : 0.6} />
                     ))}
                   </Bar>
                 </BarChart>
