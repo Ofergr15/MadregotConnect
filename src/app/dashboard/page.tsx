@@ -845,15 +845,15 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-            <div className="h-44 sm:h-52">
+            <div className="h-44 sm:h-52 bg-slate-900/30 rounded-xl p-3">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 8, bottom: 0, left: -8 }} barCategoryGap="35%">
-                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={32} domain={[0, yMax]} tickCount={5} />
+                <BarChart data={runnerWeeklyVolumes} margin={{ top: 8, right: 12, bottom: 4, left: -4 }} barCategoryGap={runnerWeeklyVolumes.length <= 3 ? '20%' : '35%'}>
+                  <XAxis dataKey="week" tick={{ fontSize: 12, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} dy={6} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={34} domain={[0, yMax]} tickCount={4} />
                   <Tooltip
-                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
-                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '13px', padding: '8px 12px', color: '#f1f5f9' }}
-                    labelStyle={{ color: '#fff', fontWeight: 700 }}
+                    cursor={{ fill: 'rgba(99,102,241,0.08)', radius: 6 }}
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #4338ff', borderRadius: '12px', fontSize: '14px', padding: '10px 14px', color: '#f1f5f9', boxShadow: '0 4px 20px rgba(67,56,255,0.2)' }}
+                    labelStyle={{ color: '#fff', fontWeight: 700, marginBottom: '4px' }}
                     formatter={(v: any, _: any, props: any) => {
                       const runs = props?.payload?.runs;
                       return [`${v} km · ${runs || 0} runs`, ''];
@@ -861,7 +861,7 @@ export default function DashboardPage() {
                     labelFormatter={l => `Week of ${l}`}
                     separator=""
                   />
-                  <Bar dataKey="km" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                  <Bar dataKey="km" radius={[6, 6, 0, 0]} maxBarSize={runnerWeeklyVolumes.length <= 3 ? 48 : 28}>
                     {runnerWeeklyVolumes.map((_, i) => (
                       <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#a5b4fc' : '#6366f1'} />
                     ))}
