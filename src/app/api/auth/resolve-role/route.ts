@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       .from('coaches')
       .select('id')
       .limit(1)
-      .single();
+      .maybeSingle();
 
     const { data: newAthlete } = await supabase
       .from('athletes')
