@@ -68,6 +68,7 @@ export default function ProfilePage() {
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [hasActivities, setHasActivities] = useState(false);
 
   useEffect(() => {
     const id = localStorage.getItem('athlete_id') || '';
@@ -86,6 +87,15 @@ export default function ProfilePage() {
       .catch(() => {});
 
     if (id) {
+      fetch('/api/garmin/sync-activities')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          const acts = data?.activities || [];
+          const myActs = acts.filter((a: any) => a.athlete_id === id);
+          if (myActs.length > 0) setHasActivities(true);
+        })
+        .catch(() => {});
+
       fetch('/api/admin/athlete-source')
         .then(r => r.ok ? r.json() : null)
         .then(data => {
@@ -258,9 +268,10 @@ export default function ProfilePage() {
               <button
                 key={g.id}
                 onClick={() => setSelectedGroupId(g.id)}
-                disabled={saving}
+                disabled={saving || hasActivities}
                 className={cn(
                   'w-full text-left px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3',
+                  hasActivities && 'opacity-60 cursor-not-allowed',
                   isSelected
                     ? 'border-[#4338ff]/60 bg-[#4338ff]/5 shadow-sm shadow-[#4338ff]/10'
                     : 'border-slate-700/50 bg-slate-900/30 hover:bg-slate-700/30 hover:border-slate-600'
@@ -295,7 +306,11 @@ export default function ProfilePage() {
           })}
         </div>
 
-        {hasChanges && (
+        {hasActivities && (
+          <p className="text-xs text-slate-500 mt-3 text-center">Group is locked once you have synced activities. Contact your coach to change.</p>
+        )}
+
+        {hasChanges && !hasActivities && (
           <button
             onClick={saveGroup}
             disabled={saving}
