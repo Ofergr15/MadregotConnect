@@ -637,36 +637,82 @@ export default function DashboardPage() {
       </section>
 
       {/* ═══ RUNNER WEEKLY VOLUME GRAPH ═══ */}
-      {!isCoach && runnerWeeklyVolumes.length > 1 && (
-        <section className="bg-slate-800/30 rounded-2xl p-4 sm:p-6 border border-slate-700/20">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm sm:text-base font-bold text-white">Weekly Kilometers</h2>
-            <span className="text-xs text-slate-500">Last {runnerWeeklyVolumes.length} weeks</span>
-          </div>
-          <div className="h-44 sm:h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={runnerWeeklyVolumes} margin={{ top: 8, right: 4, bottom: 0, left: -16 }}>
-                <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={36} tickFormatter={v => `${v}`} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '13px', padding: '8px 12px', color: '#f1f5f9' }}
-                  labelStyle={{ color: '#fff', fontWeight: 700 }}
-                  formatter={(v: any) => [`${v} km`, 'Distance']}
-                  labelFormatter={l => `Week of ${l}`}
-                />
-                <Bar dataKey="km" radius={[6, 6, 0, 0]}>
-                  {runnerWeeklyVolumes.map((entry, i) => (
-                    <Cell
-                      key={i}
-                      fill={i === runnerWeeklyVolumes.length - 1 ? '#4338ff' : '#4338ff80'}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
+      {!isCoach && runnerWeeklyVolumes.length > 1 && (() => {
+        const maxKm = Math.max(...runnerWeeklyVolumes.map(w => w.km));
+        const avgKm = Math.round(runnerWeeklyVolumes.reduce((s, w) => s + w.km, 0) / runnerWeeklyVolumes.length * 10) / 10;
+        const lastWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 1];
+        const prevWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 2];
+        const trend = prevWeek && prevWeek.km > 0 ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100) : 0;
+        return (
+          <section className="bg-gradient-to-br from-slate-800/60 to-slate-900/40 rounded-2xl p-5 sm:p-6 border border-slate-700/30">
+            <div className="flex items-center justify-between mb-1">
+              <div>
+                <h2 className="text-base font-bold text-white">Weekly Volume</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Last {runnerWeeklyVolumes.length} weeks · avg {avgKm} km</p>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-1.5 justify-end">
+                  {trend !== 0 && (trend > 0 ? <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />)}
+                  <span className={cn('text-sm font-bold', trend > 0 ? 'text-emerald-400' : trend < 0 ? 'text-amber-400' : 'text-slate-400')}>
+                    {trend > 0 ? '+' : ''}{trend}%
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-0.5">vs last week</p>
+              </div>
+            </div>
+
+            <div className="h-48 sm:h-56 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={runnerWeeklyVolumes} margin={{ top: 12, right: 4, bottom: 0, left: -20 }} barCategoryGap="20%">
+                  <defs>
+                    <linearGradient id="barGradCurrent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#818cf8" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#4338ff" stopOpacity={1} />
+                    </linearGradient>
+                    <linearGradient id="barGradPast" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="#4338ff" stopOpacity={0.3} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="week"
+                    tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: '#475569' }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={32}
+                    tickFormatter={v => `${v}`}
+                    domain={[0, Math.ceil(maxKm * 1.15)]}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(99, 102, 241, 0.06)', radius: 8 }}
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #4338ff40', borderRadius: '12px', fontSize: '12px', padding: '10px 14px', color: '#f1f5f9', boxShadow: '0 8px 32px rgba(67, 56, 255, 0.15)' }}
+                    labelStyle={{ color: '#a5b4fc', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                    formatter={(v: any, _: any, props: any) => {
+                      const runs = props?.payload?.runs;
+                      return [`${v} km${runs ? ` · ${runs} run${runs > 1 ? 's' : ''}` : ''}`, ''];
+                    }}
+                    labelFormatter={l => `Week of ${l}`}
+                    separator=""
+                  />
+                  <Bar dataKey="km" radius={[8, 8, 3, 3]} maxBarSize={40}>
+                    {runnerWeeklyVolumes.map((_, i) => (
+                      <Cell
+                        key={i}
+                        fill={i === runnerWeeklyVolumes.length - 1 ? 'url(#barGradCurrent)' : 'url(#barGradPast)'}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* ═══ TODAY'S WORKOUT + WEATHER ═══ */}
       {(todayWorkout || todayWeather) && (
