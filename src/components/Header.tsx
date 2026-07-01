@@ -37,6 +37,8 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [groupName, setGroupName] = useState<string | null>(null);
+  const [groupColor, setGroupColor] = useState<string>('#6366f1');
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -69,6 +71,22 @@ export function Header() {
         setPermissionsLoaded(true);
       })
       .catch(() => setPermissionsLoaded(true));
+
+    const groupId = localStorage.getItem('athlete_group_id');
+    if (groupId && athleteId) {
+      const supabaseClient = getSupabase();
+      supabaseClient.from('groups').select('name').eq('id', groupId).single()
+        .then(({ data: g }) => {
+          if (g?.name) {
+            setGroupName(g.name);
+            const n = g.name.toLowerCase();
+            if (n.includes('group a') || n.includes('sub 2:30')) setGroupColor('#3b82f6');
+            else if (n.includes('group b') || n.includes('sub 2:35')) setGroupColor('#a855f7');
+            else if (n.includes('group c') || n.includes('sub 2:45')) setGroupColor('#14b8a6');
+            else setGroupColor('#6366f1');
+          }
+        });
+    }
   }, []);
 
   useEffect(() => {
@@ -153,7 +171,14 @@ export function Header() {
 
           {/* Desktop: User */}
           <div className="hidden md:flex items-center gap-3 shrink-0">
-            <span className="text-sm text-slate-400 font-medium hidden lg:inline">{userName}</span>
+            <div className="flex items-center gap-2 hidden lg:flex">
+              <span className="text-sm text-slate-400 font-medium">{userName}</span>
+              {groupName && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
+                  {groupName.replace(/^Group\s*/i, '').split(' - ')[0]}
+                </span>
+              )}
+            </div>
             <div className="bg-primary-600/20 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-primary-300 ring-1 ring-primary-500/20">
               {initials}
             </div>
@@ -212,7 +237,14 @@ export function Header() {
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white truncate">{userName}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-white truncate">{userName}</span>
+                  {groupName && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
+                      {groupName.replace(/^Group\s*/i, '').split(' - ')[0]}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-slate-400 truncate">{userEmail}</div>
               </div>
             </div>
