@@ -216,7 +216,7 @@ const statusConfig = {
 };
 
 const priorityConfig = {
-  low: { label: 'Low', bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30' },
+  low: { label: 'Low', bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30' },
   medium: { label: 'Medium', bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30' },
   high: { label: 'High', bg: 'bg-red-500/15', text: 'text-red-400', border: 'border-red-500/30' },
 };
@@ -738,7 +738,7 @@ export default function SettingsPage() {
                 <div className="px-6 py-5">
                   <div className="flex items-center gap-2 mb-4">
                     {(() => {
-                      const catConfig = categoryConfig[selectedFeedback.category];
+                      const catConfig = categoryConfig[selectedFeedback.category || 'general'];
                       const CatIcon = catConfig.icon;
                       return (
                         <span className={cn('flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border', catConfig.bg, catConfig.border, catConfig.color)}>
@@ -748,7 +748,7 @@ export default function SettingsPage() {
                       );
                     })()}
                     <span className="text-xs text-slate-500">
-                      {new Date(selectedFeedback.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {new Date(selectedFeedback.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <p className="text-base text-white leading-relaxed whitespace-pre-wrap mb-5">{selectedFeedback.message}</p>
@@ -760,11 +760,11 @@ export default function SettingsPage() {
                         <div className="flex flex-wrap gap-1.5">
                           {(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => {
                             const config = statusConfig[status];
-                            const isSelected = selectedFeedback.status === status;
+                            const isSelected = (selectedFeedback.status || 'new') === status;
                             return (
                               <button
                                 key={status}
-                                onClick={() => updateFeedbackStatus(selectedFeedback.id, status, selectedFeedback.priority)}
+                                onClick={() => updateFeedbackStatus(selectedFeedback.id, status, selectedFeedback.priority || 'medium')}
                                 disabled={updatingFeedback === selectedFeedback.id}
                                 className={cn(
                                   'text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border transition-all',
@@ -783,11 +783,11 @@ export default function SettingsPage() {
                         <div className="flex flex-wrap gap-1.5">
                           {(['low', 'medium', 'high'] as FeedbackPriority[]).map(priority => {
                             const config = priorityConfig[priority];
-                            const isSelected = selectedFeedback.priority === priority;
+                            const isSelected = (selectedFeedback.priority || 'medium') === priority;
                             return (
                               <button
                                 key={priority}
-                                onClick={() => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status, priority)}
+                                onClick={() => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status || 'new', priority)}
                                 disabled={updatingFeedback === selectedFeedback.id}
                                 className={cn(
                                   'text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border transition-all',
@@ -931,10 +931,10 @@ export default function SettingsPage() {
                     if (h < 48) return 'Yesterday';
                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                   })();
-                  const catConfig = categoryConfig[item.category];
+                  const catConfig = categoryConfig[item.category || 'general'];
                   const CatIcon = catConfig.icon;
-                  const statusCfg = statusConfig[item.status];
-                  const priorityCfg = priorityConfig[item.priority];
+                  const statusCfg = statusConfig[item.status || 'new'];
+                  const priorityCfg = priorityConfig[item.priority || 'medium'];
                   return (
                     <div
                       key={item.id}
