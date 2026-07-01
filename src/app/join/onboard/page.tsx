@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users, Eye, EyeOff } from 'lucide-react';
+import { getSupabase } from '@/lib/supabase/client';
 
 interface Group {
   id: string;
@@ -279,12 +280,17 @@ function OnboardContent() {
             >
               Continue
             </button>
-            <a
-              href="/"
-              className="block text-center text-sm text-slate-500 hover:text-slate-300 transition-colors mt-3"
+            <button
+              type="button"
+              onClick={async () => {
+                const supabase = getSupabase();
+                await supabase.auth.signOut();
+                window.location.href = '/';
+              }}
+              className="block w-full text-center text-sm text-slate-500 hover:text-slate-300 transition-colors mt-3"
             >
               ← Back to Home
-            </a>
+            </button>
           </form>
         )}
 
