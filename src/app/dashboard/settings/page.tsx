@@ -914,190 +914,113 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50">
-            <div className="px-5 py-4 border-b border-slate-700/50">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-slate-400" />
-                  <h2 className="text-sm font-semibold text-white">User Feedback ({filteredFeedback.length})</h2>
-                </div>
-              </div>
+          {/* Category filter */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <button
+              onClick={() => setFilterCategory('all')}
+              className={cn('text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all', filterCategory === 'all' ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-[#4338ff]' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400')}
+            >All</button>
+            {(['feature_request', 'bug_report', 'training_feedback', 'general'] as FeedbackCategory[]).map(cat => {
+              const config = categoryConfig[cat];
+              const CatIcon = config.icon;
+              return (
+                <button key={cat} onClick={() => setFilterCategory(cat)}
+                  className={cn('flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all', filterCategory === cat ? `${config.bg} ${config.border} ${config.color}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400')}
+                ><CatIcon className="w-3 h-3" />{config.label}</button>
+              );
+            })}
+          </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Filter className="w-3.5 h-3.5 text-slate-500" />
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setFilterCategory('all')}
-                    className={cn(
-                      'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
-                      filterCategory === 'all' ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-[#4338ff]' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
-                    )}
-                  >
-                    All
-                  </button>
-                  {(['feature_request', 'bug_report', 'training_feedback', 'general'] as FeedbackCategory[]).map(cat => {
-                    const config = categoryConfig[cat];
-                    const CatIcon = config.icon;
-                    return (
-                      <button
-                        key={cat}
-                        onClick={() => setFilterCategory(cat)}
-                        className={cn(
-                          'flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
-                          filterCategory === cat ? `${config.bg} ${config.border} ${config.color}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
-                        )}
-                      >
-                        <CatIcon className="w-3 h-3" />
-                        {config.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="h-4 w-px bg-slate-700" />
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setFilterStatus('all')}
-                    className={cn(
-                      'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
-                      filterStatus === 'all' ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-[#4338ff]' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
-                    )}
-                  >
-                    All Status
-                  </button>
-                  {(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => {
-                    const config = statusConfig[status];
-                    return (
-                      <button
-                        key={status}
-                        onClick={() => setFilterStatus(status)}
-                        className={cn(
-                          'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
-                          filterStatus === status ? `${config.bg} ${config.border} ${config.text}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
-                        )}
-                      >
-                        {config.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="h-4 w-px bg-slate-700" />
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setFilterPriority('all')}
-                    className={cn(
-                      'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
-                      filterPriority === 'all' ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-[#4338ff]' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
-                    )}
-                  >
-                    All Priority
-                  </button>
-                  {(['low', 'medium', 'high'] as FeedbackPriority[]).map(priority => {
-                    const config = priorityConfig[priority];
-                    return (
-                      <button
-                        key={priority}
-                        onClick={() => setFilterPriority(priority)}
-                        className={cn(
-                          'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
-                          filterPriority === priority ? `${config.bg} ${config.border} ${config.text}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
-                        )}
-                      >
-                        {config.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+          {/* Kanban Board */}
+          {feedbackLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
             </div>
-
-            {feedbackLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-              </div>
-            ) : filteredFeedback.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                <MessageSquare className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 text-sm">{feedbackItems.length === 0 ? 'No feedback yet' : 'No feedback matches filters'}</p>
-                <p className="text-slate-500 text-xs mt-1">{feedbackItems.length === 0 ? 'Athletes can submit feedback from the Review tab' : 'Try adjusting your filters'}</p>
-              </div>
-            ) : (
-              <div className="p-3 space-y-2 max-h-[600px] overflow-y-auto">
-                {filteredFeedback.map(item => {
-                  const date = new Date(item.created_at);
-                  const timeAgo = (() => {
-                    const h = (Date.now() - date.getTime()) / 3600000;
-                    if (h < 1) return 'Just now';
-                    if (h < 24) return `${Math.floor(h)}h ago`;
-                    if (h < 48) return 'Yesterday';
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                  })();
-                  const catConfig = categoryConfig[item.category || 'general'];
-                  const CatIcon = catConfig.icon;
-                  const statusCfg = statusConfig[item.status || 'new'];
-                  const priorityCfg = priorityConfig[item.priority || 'medium'];
-                  const sprintIndex = (item.status || 'new') === 'sprint'
-                    ? filteredFeedback.filter(f => (f.status || 'new') === 'sprint').indexOf(item) + 1
-                    : null;
-                  return (
-                    <div
-                      key={item.id}
-                      draggable
-                      onDragStart={() => setDraggedItem(item.id)}
-                      onDragOver={(e) => { e.preventDefault(); setDragOverItem(item.id); }}
-                      onDragEnd={() => { if (draggedItem && dragOverItem) handleDragEnd(draggedItem, dragOverItem); }}
-                      onClick={() => { setSelectedFeedback(item); setAdminNotes(item.admin_notes || ''); }}
-                      className={cn(
-                        "p-4 rounded-xl bg-slate-900/40 border cursor-pointer hover:border-[#4338ff]/30 hover:bg-slate-800/60 transition-all",
-                        dragOverItem === item.id ? 'border-[#4338ff]/50 bg-[#4338ff]/5' : 'border-slate-700/30',
-                        draggedItem === item.id && 'opacity-50'
-                      )}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <GripVertical className="w-4 h-4 text-slate-600 cursor-grab flex-shrink-0" />
-                          {sprintIndex && (
-                            <span className="w-6 h-6 rounded-md bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[10px] font-black text-amber-400 flex-shrink-0">
-                              {sprintIndex}
-                            </span>
-                          )}
-                          <div className="w-8 h-8 rounded-full bg-[#4338ff]/15 flex items-center justify-center">
-                            <span className="text-[10px] font-bold text-[#4338ff]">
-                              {item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-sm font-semibold text-white">{item.athlete_name}</span>
-                            {item.group_name && (
-                              <span className="text-[10px] text-slate-500 ml-2">{item.group_name}</span>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 overflow-x-auto">
+              {(['new', 'idea', 'sprint', 'done', 'denied'] as FeedbackStatus[]).map(status => {
+                const colConfig = statusConfig[status];
+                const colItems = feedbackItems.filter(item => {
+                  if ((item.status || 'new') !== status) return false;
+                  if (filterCategory !== 'all' && (item.category || 'general') !== filterCategory) return false;
+                  return true;
+                });
+                return (
+                  <div
+                    key={status}
+                    className="bg-slate-900/40 rounded-xl border border-slate-700/30 flex flex-col min-h-[300px]"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedItem) {
+                        updateFeedbackStatus(draggedItem, status, feedbackItems.find(f => f.id === draggedItem)?.priority || 'medium');
+                        setDraggedItem(null);
+                      }
+                    }}
+                  >
+                    {/* Column header */}
+                    <div className="px-3 py-2.5 border-b border-slate-700/30 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={cn('w-2 h-2 rounded-full', colConfig.bg.replace('/15', ''))} style={{ backgroundColor: status === 'new' ? '#3b82f6' : status === 'idea' ? '#a855f7' : status === 'sprint' ? '#f59e0b' : status === 'done' ? '#22c55e' : '#64748b' }} />
+                        <span className={cn('text-xs font-bold', colConfig.text)}>{colConfig.label}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">{colItems.length}</span>
+                    </div>
+                    {/* Cards */}
+                    <div className="p-2 space-y-2 flex-1 overflow-y-auto max-h-[500px]">
+                      {colItems.map(item => {
+                        const catCfg = categoryConfig[item.category || 'general'];
+                        const CatIcon = catCfg.icon;
+                        const priCfg = priorityConfig[item.priority || 'medium'];
+                        const date = new Date(item.created_at);
+                        const timeAgo = (() => {
+                          const h = (Date.now() - date.getTime()) / 3600000;
+                          if (h < 1) return 'Just now';
+                          if (h < 24) return `${Math.floor(h)}h ago`;
+                          if (h < 48) return 'Yesterday';
+                          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        })();
+                        return (
+                          <div
+                            key={item.id}
+                            draggable
+                            onDragStart={() => setDraggedItem(item.id)}
+                            onClick={() => { setSelectedFeedback(item); setAdminNotes(item.admin_notes || ''); }}
+                            className={cn(
+                              'p-3 rounded-lg bg-slate-800/60 border border-slate-700/40 cursor-pointer hover:border-[#4338ff]/40 hover:bg-slate-800 transition-all',
+                              draggedItem === item.id && 'opacity-50 scale-95'
+                            )}
+                          >
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <span className={cn('flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded border', catCfg.bg, catCfg.border, catCfg.color)}>
+                                <CatIcon className="w-2.5 h-2.5" />{catCfg.label}
+                              </span>
+                              <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded border', priCfg.bg, priCfg.border, priCfg.text)}>
+                                {priCfg.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-white leading-relaxed line-clamp-3 mb-2">{item.message}</p>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-500 font-medium">{item.athlete_name.split(' ')[0]}</span>
+                              <span className="text-[9px] text-slate-600">{timeAgo}</span>
+                            </div>
+                            {item.admin_notes && (
+                              <p className="text-[9px] text-slate-500 italic mt-1 border-t border-slate-700/30 pt-1">{item.admin_notes}</p>
                             )}
                           </div>
+                        );
+                      })}
+                      {colItems.length === 0 && (
+                        <div className="flex items-center justify-center h-20 text-[10px] text-slate-600">
+                          Drop items here
                         </div>
-                        <span className="text-[10px] text-slate-500">{timeAgo}</span>
-                      </div>
-                      <p className="text-sm text-slate-300 leading-relaxed line-clamp-2 mb-2">{item.message}</p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={cn('flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border', catConfig.bg, catConfig.border, catConfig.color)}>
-                          <CatIcon className="w-3 h-3" />
-                          {catConfig.label}
-                        </span>
-                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border', statusCfg.bg, statusCfg.border, statusCfg.text)}>
-                          {statusCfg.label}
-                        </span>
-                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border', priorityCfg.bg, priorityCfg.border, priorityCfg.text)}>
-                          {priorityCfg.label}
-                        </span>
-                        {item.admin_notes && (
-                          <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-700/50 border border-slate-600/50 text-slate-300 italic">
-                            {item.admin_notes}
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 
