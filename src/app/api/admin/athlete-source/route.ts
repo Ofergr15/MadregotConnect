@@ -43,7 +43,7 @@ export async function GET() {
 
     const result = await supabase
       .from('athletes')
-      .select('id, name, data_source, strava_auth, garmin_auth')
+      .select('id, name, data_source, strava_auth, strava_enabled, garmin_auth')
       .order('name');
 
     if (result.error) {
