@@ -181,9 +181,16 @@ function OnboardContent() {
           </div>
 
           <div className="mt-6">
-            <a href="/" className="block w-full bg-slate-700 hover:bg-slate-600 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center">
+            <button
+              onClick={async () => {
+                const supabase = getSupabase();
+                await supabase.auth.signOut();
+                window.location.href = '/';
+              }}
+              className="block w-full bg-slate-700 hover:bg-slate-600 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center"
+            >
               Back to Home
-            </a>
+            </button>
           </div>
         </div>
       </div>

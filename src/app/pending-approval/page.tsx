@@ -1,8 +1,15 @@
 'use client';
 
 import { Clock } from 'lucide-react';
+import { getSupabase } from '@/lib/supabase/client';
 
 export default function PendingApprovalPage() {
+  const handleBackHome = async () => {
+    const supabase = getSupabase();
+    await supabase.auth.signOut();
+    window.location.href = '/';
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8 w-full max-w-md text-center">
@@ -23,12 +30,12 @@ export default function PendingApprovalPage() {
           You&apos;ll receive an email once you&apos;re approved.
         </p>
 
-        <a
-          href="/"
+        <button
+          onClick={handleBackHome}
           className="inline-block mt-6 px-6 py-3 text-sm font-medium text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
         >
           Back to Home
-        </a>
+        </button>
       </div>
     </div>
   );
