@@ -1,12 +1,16 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'grosfeldofer@gmail.com';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Madregot <onboarding@resend.dev>';
 
+function getResend() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error('RESEND_API_KEY not configured');
+  return new Resend(key);
+}
+
 export async function notifyAdminNewUser(user: { name: string; email: string; onboardingStatus: string }) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: ADMIN_EMAIL,
     subject: `🏃 New user waiting for approval: ${user.name}`,
@@ -29,7 +33,7 @@ export async function notifyAdminNewUser(user: { name: string; email: string; on
 }
 
 export async function notifyUserApproved(user: { name: string; email: string }) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: user.email,
     subject: `✅ Welcome to Madregot! You're approved`,
@@ -53,7 +57,7 @@ export async function notifyUserApproved(user: { name: string; email: string }) 
 }
 
 export async function notifyAdminUserApproved(admin: { email: string }, user: { name: string; email: string }) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: admin.email,
     subject: `✅ User approved: ${user.name}`,
