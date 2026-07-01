@@ -50,7 +50,7 @@ export async function notifyUserApproved(user: { name: string; email: string }) 
           Your account has been approved. You can now access the full Madregot training platform.
         </p>
         <p style="margin-top: 20px;">
-          <a href="https://madregot-connect.vercel.app/dashboard/program" style="background: #4338ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="https://madregot-connect.vercel.app/dashboard" style="background: #4338ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Open Madregot →
           </a>
         </p>
