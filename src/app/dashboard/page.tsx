@@ -834,30 +834,40 @@ export default function DashboardPage() {
         const lastWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 1];
         const prevWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 2];
         const trend = prevWeek && prevWeek.km > 0 ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100) : 0;
-        const yMax = Math.ceil(maxKm / 10) * 10 + 10;
+        const yMax = Math.ceil(maxKm * 1.15 / 5) * 5;
         return (
-          <section>
-            <div className="flex items-center justify-between mb-4">
+          <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-5">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-white">Running Volume</h2>
-                <p className="text-xs text-slate-500 mt-0.5">avg {avgKm} km/week</p>
+                <p className="text-xs text-slate-500 mt-0.5">avg {avgKm} km/week · {runnerWeeklyVolumes.length} weeks</p>
               </div>
-              <div className="flex items-center gap-2">
-                {trend !== 0 && (
-                  <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full', trend > 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10')}>
+              {trend !== 0 && (
+                <div className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-lg', trend > 0 ? 'bg-emerald-500/10' : 'bg-amber-500/10')}>
+                  {trend > 0 ? <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
+                  <span className={cn('text-xs font-bold', trend > 0 ? 'text-emerald-400' : 'text-amber-400')}>
                     {trend > 0 ? '+' : ''}{trend}%
                   </span>
-                )}
-                <span className="text-xs text-slate-500">{runnerWeeklyVolumes.length}w</span>
-              </div>
+                </div>
+              )}
             </div>
-            <div className="h-48 sm:h-56 rounded-2xl bg-slate-800/30 border border-slate-700/20 p-4 pt-6">
+            <div className="h-52 sm:h-60">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={runnerWeeklyVolumes} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
+                <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: -8 }} barCategoryGap="20%">
+                  <defs>
+                    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#4338ff" stopOpacity={0.8} />
+                    </linearGradient>
+                    <linearGradient id="barGradCurrent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#a5b4fc" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0.9} />
+                    </linearGradient>
+                  </defs>
                   <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={36} domain={[0, yMax]} tickCount={6} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={32} domain={[0, yMax]} tickCount={5} />
                   <Tooltip
-                    cursor={{ fill: 'rgba(99, 102, 241, 0.06)' }}
+                    cursor={{ fill: 'rgba(99, 102, 241, 0.08)', radius: 6 }}
                     contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '13px', padding: '8px 12px', color: '#f1f5f9' }}
                     labelStyle={{ color: '#fff', fontWeight: 700 }}
                     formatter={(v: any, _: any, props: any) => {
@@ -867,9 +877,9 @@ export default function DashboardPage() {
                     labelFormatter={l => `Week of ${l}`}
                     separator=""
                   />
-                  <Bar dataKey="km" radius={[6, 6, 0, 0]}>
+                  <Bar dataKey="km" radius={[8, 8, 0, 0]}>
                     {runnerWeeklyVolumes.map((_, i) => (
-                      <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#818cf8' : '#4338ff99'} />
+                      <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? 'url(#barGradCurrent)' : 'url(#barGrad)'} />
                     ))}
                   </Bar>
                 </BarChart>

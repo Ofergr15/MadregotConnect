@@ -132,10 +132,10 @@ export default function ProfilePage() {
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-8">
       {/* Profile Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#4338ff]/20 via-slate-800 to-purple-900/20 border border-slate-700/50 p-6">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-[#4338ff]/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#4338ff]/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#4338ff]/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
         <div className="relative flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#4338ff] to-purple-600 flex items-center justify-center shadow-lg shadow-[#4338ff]/20">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#4338ff] to-[#3730d4] flex items-center justify-center shadow-lg shadow-[#4338ff]/20">
             <span className="text-xl font-bold text-white">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
@@ -194,8 +194,8 @@ export default function ProfilePage() {
       <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-purple-500/15 flex items-center justify-center">
-              <Users className="h-4.5 w-4.5 text-purple-400" />
+            <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
+              <Users className="h-4.5 w-4.5 text-[#4338ff]" />
             </div>
             <h2 className="font-semibold text-white">Pace Group</h2>
           </div>

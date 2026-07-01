@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
   try {
-    const { athleteId, athleteName, athleteEmail, groupName, message } = await request.json();
+    const { athleteId, athleteName, athleteEmail, groupName, message, category } = await request.json();
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       athlete_email: athleteEmail || null,
       group_name: groupName || null,
       message: message.trim(),
+      category: category || 'general',
     });
 
     if (error) throw error;
@@ -33,12 +34,38 @@ export async function GET() {
       .from('feedback')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (error) throw error;
     return NextResponse.json({ feedback: data || [] });
   } catch (error: any) {
     console.error('Feedback fetch error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const { id, status, priority } = await request.json();
+
+    if (!id) {
+      return NextResponse.json({ error: 'Feedback ID is required' }, { status: 400 });
+    }
+
+    const supabase = createServerClient();
+    const updateData: any = {};
+    if (status !== undefined) updateData.status = status;
+    if (priority !== undefined) updateData.priority = priority;
+
+    const { error } = await supabase
+      .from('feedback')
+      .update(updateData)
+      .eq('id', id);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Feedback update error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to update' }, { status: 500 });
   }
 }

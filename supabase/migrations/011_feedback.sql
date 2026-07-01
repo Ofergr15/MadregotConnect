@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS feedback (
   athlete_email TEXT,
   group_name TEXT,
   message TEXT NOT NULL,
+  category TEXT DEFAULT 'general',
+  status TEXT DEFAULT 'new',
+  priority TEXT DEFAULT 'medium',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -1,11 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Send, CheckCircle2, MessageSquare } from 'lucide-react';
+import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
+
+const categories = [
+  { value: 'feature_request' as FeedbackCategory, label: 'Feature Request', icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
+  { value: 'bug_report' as FeedbackCategory, label: 'Bug Report', icon: Bug, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' },
+  { value: 'training_feedback' as FeedbackCategory, label: 'Training Feedback', icon: Dumbbell, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
+  { value: 'general' as FeedbackCategory, label: 'General', icon: MessageCircle, color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/30' },
+];
 
 export default function ReviewPage() {
   const [message, setMessage] = useState('');
+  const [category, setCategory] = useState<FeedbackCategory>('general');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [athleteName, setAthleteName] = useState('');
@@ -43,11 +53,13 @@ export default function ReviewPage() {
           athleteEmail,
           groupName,
           message: message.trim(),
+          category,
         }),
       });
       if (res.ok) {
         setSent(true);
         setMessage('');
+        setCategory('general');
         setTimeout(() => setSent(false), 4000);
       }
     } catch {
@@ -69,6 +81,31 @@ export default function ReviewPage() {
       </div>
 
       <div className="bg-slate-800/40 rounded-2xl border border-slate-700/30 p-5 sm:p-6">
+        <div className="mb-4">
+          <label className="text-xs font-semibold text-slate-400 mb-2.5 block">Category</label>
+          <div className="grid grid-cols-2 gap-2">
+            {categories.map(cat => {
+              const Icon = cat.icon;
+              const isSelected = category === cat.value;
+              return (
+                <button
+                  key={cat.value}
+                  onClick={() => setCategory(cat.value)}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all',
+                    isSelected
+                      ? `${cat.bg} ${cat.border} ${cat.color}`
+                      : 'bg-slate-900/30 border-slate-700/30 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                  )}
+                >
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <textarea
           value={message}
           onChange={e => setMessage(e.target.value)}
