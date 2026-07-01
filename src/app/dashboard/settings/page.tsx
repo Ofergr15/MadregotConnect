@@ -199,6 +199,7 @@ interface FeedbackItem {
   priority: FeedbackPriority;
   admin_notes: string | null;
   sort_order: number | null;
+  image_url: string | null;
   created_at: string;
 }
 
@@ -813,7 +814,10 @@ export default function SettingsPage() {
                       {new Date(selectedFeedback.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-base text-white leading-relaxed whitespace-pre-wrap mb-5">{selectedFeedback.message}</p>
+                  <p className="text-base text-white leading-relaxed whitespace-pre-wrap mb-4">{selectedFeedback.message}</p>
+                  {selectedFeedback.image_url && (
+                    <img src={selectedFeedback.image_url} alt="Attached" className="max-h-48 rounded-lg border border-slate-700/50 mb-5" />
+                  )}
 
                   <div className="border-t border-slate-700/50 pt-4">
                     <div className="grid grid-cols-2 gap-3 mb-3">

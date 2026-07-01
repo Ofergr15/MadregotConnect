@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
   try {
-    const { athleteId, athleteName, athleteEmail, groupName, message, category } = await request.json();
+    const { athleteId, athleteName, athleteEmail, groupName, message, category, image } = await request.json();
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -17,6 +17,7 @@ export async function POST(request: Request) {
       group_name: groupName || null,
       message: message.trim(),
       category: category || 'general',
+      image_url: image || null,
     });
 
     if (error) throw error;
