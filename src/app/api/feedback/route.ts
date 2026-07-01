@@ -46,7 +46,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    const { id, status, priority } = await request.json();
+    const { id, status, priority, admin_notes } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: 'Feedback ID is required' }, { status: 400 });
@@ -56,6 +56,7 @@ export async function PATCH(request: Request) {
     const updateData: any = {};
     if (status !== undefined) updateData.status = status;
     if (priority !== undefined) updateData.priority = priority;
+    if (admin_notes !== undefined) updateData.admin_notes = admin_notes;
 
     const { error } = await supabase
       .from('feedback')
