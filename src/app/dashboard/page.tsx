@@ -706,14 +706,8 @@ export default function DashboardPage() {
                         className="flex-1 flex flex-col items-center justify-end h-full cursor-pointer group relative"
                         onMouseEnter={() => setHoveredBar(i)}
                         onClick={() => {
-                          const now = Date.now();
                           setSelectedBar(i);
-                          if (lastClickRef.current && lastClickRef.current.index === i && now - lastClickRef.current.time < 400) {
-                            if (session) setSelectedSession(session);
-                            lastClickRef.current = null;
-                          } else {
-                            lastClickRef.current = { index: i, time: now };
-                          }
+                          if (session) setSelectedSession(session);
                         }}
                       >
                         {/* Tooltip on hover */}
