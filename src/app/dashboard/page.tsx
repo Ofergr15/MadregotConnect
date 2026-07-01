@@ -743,28 +743,34 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-end justify-center gap-2 h-32 mt-2">
-                    {top3.length >= 2 && (
-                      <div className="flex flex-col items-center flex-1">
-                        <span className="text-xs font-bold text-slate-200 mb-1">{top3[1].distanceKm}</span>
-                        <div className="w-full rounded-t-lg bg-slate-500/40" style={{ height: '70%' }} />
-                        <span className="text-[11px] text-slate-300 mt-1.5 truncate max-w-full font-medium">{top3[1].name.split(' ')[0]}</span>
-                      </div>
-                    )}
+                  <div className="flex items-end justify-center gap-3 mt-2" style={{ height: '100px' }}>
+                    {top3.length >= 2 && (() => {
+                      const ratio = top3[0].distanceKm > 0 ? top3[1].distanceKm / top3[0].distanceKm : 0.7;
+                      return (
+                        <div className="flex flex-col items-center flex-1 h-full justify-end">
+                          <span className="text-xs font-bold text-slate-200 mb-1">{top3[1].distanceKm}</span>
+                          <div className="w-full rounded-t-lg bg-slate-400" style={{ height: `${Math.max(30, ratio * 100)}%` }} />
+                          <span className="text-[11px] text-slate-300 mt-1.5 truncate max-w-full font-medium">{top3[1].name.split(' ')[0]}</span>
+                        </div>
+                      );
+                    })()}
                     {top3.length >= 1 && (
-                      <div className="flex flex-col items-center flex-1">
+                      <div className="flex flex-col items-center flex-1 h-full justify-end">
                         <span className="text-xs font-bold text-yellow-400 mb-1">{top3[0].distanceKm}</span>
-                        <div className="w-full rounded-t-lg bg-yellow-500/30" style={{ height: '100%' }} />
+                        <div className="w-full rounded-t-lg bg-yellow-500" style={{ height: '100%' }} />
                         <span className="text-[11px] text-white font-bold mt-1.5 truncate max-w-full">{top3[0].name.split(' ')[0]}</span>
                       </div>
                     )}
-                    {top3.length >= 3 && (
-                      <div className="flex flex-col items-center flex-1">
-                        <span className="text-xs font-bold text-amber-500 mb-1">{top3[2].distanceKm}</span>
-                        <div className="w-full rounded-t-lg bg-amber-600/30" style={{ height: '50%' }} />
-                        <span className="text-[11px] text-slate-300 mt-1.5 truncate max-w-full font-medium">{top3[2].name.split(' ')[0]}</span>
-                      </div>
-                    )}
+                    {top3.length >= 3 && (() => {
+                      const ratio = top3[0].distanceKm > 0 ? top3[2].distanceKm / top3[0].distanceKm : 0.5;
+                      return (
+                        <div className="flex flex-col items-center flex-1 h-full justify-end">
+                          <span className="text-xs font-bold text-amber-500 mb-1">{top3[2].distanceKm}</span>
+                          <div className="w-full rounded-t-lg bg-amber-600" style={{ height: `${Math.max(20, ratio * 100)}%` }} />
+                          <span className="text-[11px] text-slate-300 mt-1.5 truncate max-w-full font-medium">{top3[2].name.split(' ')[0]}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                   {myRank > 3 && <p className="text-[10px] text-slate-500 text-center mt-2">You: #{myRank}</p>}
                 </div>
@@ -976,26 +982,21 @@ export default function DashboardPage() {
                   <p className="text-base font-black text-white">{avgKm} km</p>
                 </div>
               </div>
-              <div className="h-28">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barCategoryGap="20%">
-                    <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} dy={4} />
-                    <YAxis tick={{ fontSize: 8, fill: '#64748b' }} axisLine={false} tickLine={false} width={24} domain={[0, yMax]} tickCount={3} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px', fontSize: '11px', padding: '6px 10px', color: '#f1f5f9' }}
-                      labelStyle={{ color: '#fff', fontWeight: 700 }}
-                      formatter={(v: any, _: any, props: any) => [`${v} km · ${props?.payload?.runs || 0} runs`, '']}
-                      labelFormatter={l => `Week of ${l}`}
-                      separator=""
-                      cursor={{ fill: 'rgba(99, 102, 241, 0.08)' }}
-                    />
-                    <Bar dataKey="km" radius={[4, 4, 0, 0]}>
-                      {runnerWeeklyVolumes.map((_, i) => (
-                        <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#6366f1' : '#334155'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex items-end gap-1 h-20 mt-1">
+                {runnerWeeklyVolumes.map((w, i) => {
+                  const isLast = i === runnerWeeklyVolumes.length - 1;
+                  const heightPct = maxKm > 0 ? Math.max(8, (w.km / maxKm) * 100) : 8;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <span className={cn('text-[9px] font-bold tabular-nums', isLast ? 'text-white' : 'text-slate-500')}>{w.km}</span>
+                      <div
+                        className={cn('w-3 rounded-full transition-all', isLast ? 'bg-[#fc5200]' : 'bg-slate-600')}
+                        style={{ height: `${heightPct}%` }}
+                      />
+                      <span className="text-[8px] text-slate-500">{w.week}</span>
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
