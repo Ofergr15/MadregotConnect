@@ -588,75 +588,125 @@ export default function DashboardPage() {
       </section>
 
       {/* ═══ STATS ROW ═══ */}
-      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
-          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-            {isCoach
-              ? (hasData ? `${Math.round(weekly!.weekTotalMin)}–${Math.round(weekly!.weekTotalMax)}` : '—')
-              : (weeklyKm > 0 ? weeklyKm : '—')
-            }
-            <span className="text-sm font-medium text-slate-500 ml-1">km</span>
-          </p>
-          {isCoach && weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
-            <div className="flex items-center gap-1 mt-2">
-              {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-green-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
-              <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-green-400' : 'text-amber-400')}>
-                {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
-              </span>
-            </div>
-          )}
-          {!isCoach && hasData && (
-            <p className="text-sm text-slate-500 mt-1">Target: {Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)} km</p>
-          )}
-          {!isCoach && !hasData && <p className="text-sm text-slate-500 mt-1">{weeklyRuns} {weeklyRuns === 1 ? 'run' : 'runs'}</p>}
-        </div>
-
-        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
-          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-            {isCoach ? (weekly?.trainingDays || 0) : weeklyRuns}
-            <span className="text-sm font-medium text-slate-500 ml-1">/7</span>
-          </p>
-          <p className="text-sm text-slate-500 mt-1">this week</p>
-        </div>
-
-        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{isCoach ? 'Athletes' : 'Runs This Week'}</p>
-          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-            {isCoach ? (stats?.athleteCount || 0) : weeklyRuns}
-            {!isCoach && hasData && <span className="text-sm font-medium text-slate-500 ml-1">/ {weekly!.trainingDays || 0}</span>}
-          </p>
-          <p className="text-sm text-slate-500 mt-1">{isCoach ? `${stats?.groupCount || 0} groups` : 'this week'}</p>
-        </div>
-
-        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{isCoach ? 'Delivery' : 'Race Day'}</p>
-          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-            {isCoach
-              ? <>{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ml-0.5">%</span></>
-              : <>{countdown.d}<span className="text-sm font-medium text-slate-500 ml-1">days</span></>
-            }
-          </p>
-          <p className="text-sm text-slate-500 mt-1">{isCoach ? 'success rate' : 'to go'}</p>
-        </div>
-      </section>
-
-      {/* ═══ TODAY'S WORKOUT ═══ */}
-      {todayWorkout && todayWorkout.max > 0 && (
-        <section>
-          <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/40 rounded-2xl p-5 sm:p-6 border border-slate-700/30 max-w-md">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-300">Today&apos;s Workout</p>
-              <div className="px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: `${typeColors[todayWorkout.type]}20`, color: typeColors[todayWorkout.type] }}>
-                {typeLabels[todayWorkout.type] || todayWorkout.type}
-              </div>
-            </div>
-            <p className="text-4xl sm:text-5xl font-black text-white mt-3 tabular-nums">
-              {todayWorkout.min === todayWorkout.max ? todayWorkout.max : `${todayWorkout.min}–${todayWorkout.max}`}
-              <span className="text-xl text-slate-400 ml-1">km</span>
+      {isCoach ? (
+        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+              {hasData ? `${Math.round(weekly!.weekTotalMin)}–${Math.round(weekly!.weekTotalMax)}` : '—'}
+              <span className="text-sm font-medium text-slate-500 ml-1">km</span>
             </p>
+            {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
+              <div className="flex items-center gap-1 mt-2">
+                {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-green-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
+                <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-green-400' : 'text-amber-400')}>
+                  {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
+                </span>
+              </div>
+            )}
           </div>
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+              {weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500 ml-1">/7</span>
+            </p>
+            <p className="text-sm text-slate-500 mt-1">this week</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Athletes</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.athleteCount || 0}</p>
+            <p className="text-sm text-slate-500 mt-1">{stats?.groupCount || 0} groups</p>
+          </div>
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivery</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+              {stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ml-0.5">%</span>
+            </p>
+            <p className="text-sm text-slate-500 mt-1">success rate</p>
+          </div>
+        </section>
+      ) : (
+        <section className="space-y-3 sm:space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+                {weeklyKm > 0 ? weeklyKm : '—'}
+                <span className="text-sm font-medium text-slate-500 ml-1">km</span>
+              </p>
+              {hasData && (
+                <div className="mt-2">
+                  <p className="text-xs text-slate-500">Target: {Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)} km</p>
+                  <div className="w-full h-1.5 bg-slate-700 rounded-full mt-1.5 overflow-hidden">
+                    <div
+                      className={cn('h-full rounded-full transition-all', weeklyKm >= weekly!.weekTotalMin ? 'bg-emerald-400' : 'bg-[#4338ff]')}
+                      style={{ width: `${Math.min(100, (weeklyKm / weekly!.weekTotalMax) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {!hasData && <p className="text-sm text-slate-500 mt-1">{weeklyRuns} {weeklyRuns === 1 ? 'run' : 'runs'}</p>}
+            </div>
+
+            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+                {weeklyRuns}<span className="text-sm font-medium text-slate-500 ml-1">/ {hasData ? weekly!.trainingDays : 7}</span>
+              </p>
+              <p className="text-sm text-slate-500 mt-1">completed</p>
+            </div>
+          </div>
+
+          {hasData && (
+            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Distance Target</p>
+              <p className="text-2xl sm:text-3xl font-black text-white mt-2 tabular-nums">
+                {Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)}
+                <span className="text-base font-medium text-slate-500 ml-1">km</span>
+              </p>
+            </div>
+          )}
+
+          {todayWorkout && todayWorkout.max > 0 && (() => {
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayActs = recentActivities.filter(a => new Date(a.start_time) >= todayStart);
+            const todayKm = todayActs.reduce((sum, a) => sum + (a.distance || 0) / 1000, 0);
+            const isCompleted = todayKm >= todayWorkout.min;
+            return (
+              <div className={cn(
+                'rounded-2xl p-5 sm:p-6 border',
+                isCompleted
+                  ? 'bg-emerald-500/10 border-emerald-500/30'
+                  : 'bg-gradient-to-br from-slate-800/80 to-slate-800/40 border-slate-700/30'
+              )}>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-300">Today&apos;s Workout</p>
+                  <div className="flex items-center gap-2">
+                    {isCompleted && (
+                      <span className="text-xs font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Done
+                      </span>
+                    )}
+                    <div className="px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: `${typeColors[todayWorkout.type]}20`, color: typeColors[todayWorkout.type] }}>
+                      {typeLabels[todayWorkout.type] || todayWorkout.type}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-end justify-between mt-3">
+                  <p className="text-4xl sm:text-5xl font-black text-white tabular-nums">
+                    {todayWorkout.min === todayWorkout.max ? todayWorkout.max : `${todayWorkout.min}–${todayWorkout.max}`}
+                    <span className="text-xl text-slate-400 ml-1">km</span>
+                  </p>
+                  {todayKm > 0 && (
+                    <p className="text-sm font-semibold text-slate-300">
+                      {Math.round(todayKm * 10) / 10} km done
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </section>
       )}
 
