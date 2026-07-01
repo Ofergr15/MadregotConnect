@@ -962,9 +962,9 @@ export default function DashboardPage() {
               </div>
               <div className="h-28">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: -16 }} barCategoryGap="10%">
-                    <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#64748b' }} axisLine={false} tickLine={false} dy={4} />
-                    <YAxis tick={{ fontSize: 9, fill: '#475569' }} axisLine={false} tickLine={false} width={24} domain={[0, yMax]} tickCount={3} />
+                  <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barCategoryGap="5%">
+                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} dy={4} />
+                    <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={28} domain={[0, yMax]} tickCount={4} unit=" km" />
                     <Tooltip
                       cursor={{ fill: 'rgba(99,102,241,0.06)' }}
                       contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #4338ff', borderRadius: '10px', fontSize: '11px', padding: '6px 10px', color: '#f1f5f9' }}
@@ -973,9 +973,9 @@ export default function DashboardPage() {
                       labelFormatter={l => `Week of ${l}`}
                       separator=""
                     />
-                    <Bar dataKey="km" radius={[4, 4, 0, 0]} maxBarSize={24}>
+                    <Bar dataKey="km" radius={[4, 4, 0, 0]} maxBarSize={32}>
                       {runnerWeeklyVolumes.map((_, i) => (
-                        <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#818cf8' : '#4f46e5'} opacity={0.6 + (i / runnerWeeklyVolumes.length) * 0.4} />
+                        <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#818cf8' : '#6366f1'} />
                       ))}
                     </Bar>
                   </BarChart>
