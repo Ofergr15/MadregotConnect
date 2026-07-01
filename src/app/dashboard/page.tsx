@@ -712,7 +712,6 @@ export default function DashboardPage() {
       )}
 
       {/* ═══ DAILY KM BAR CHART ═══ */}
-      {(hasData || isCoach) && (
       <section className="bg-slate-800/30 rounded-2xl p-4 sm:p-6 border border-slate-700/20">
         <div className="flex items-center justify-between mb-4 sm:mb-5">
           <div>
@@ -884,7 +883,6 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
-      )}
 
       {/* ═══ RECENT RUNS ═══ */}
       {recentActivities.length > 0 && (
