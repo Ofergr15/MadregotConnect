@@ -646,7 +646,7 @@ export default function DashboardPage() {
         </section>
       ) : (
         <section className="space-y-3 sm:space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
               <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
@@ -675,60 +675,88 @@ export default function DashboardPage() {
               <p className="text-sm text-slate-500 mt-1">completed</p>
             </div>
 
-            {leaderboard.length > 0 && (() => {
-              const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
-              const top3 = filtered.slice(0, 3);
-              const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
-              const rankColors = ['text-yellow-400', 'text-slate-300', 'text-amber-600'];
-              return (
-                <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30 col-span-2 sm:col-span-1">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Trophy className="h-4 w-4 text-yellow-400" />
-                    <p className="text-sm font-bold uppercase tracking-wider text-slate-300">Top 3</p>
-                  </div>
-                  {groups.length > 1 && (
-                    <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+          </div>
+
+          {leaderboard.length > 0 && (() => {
+            const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
+            const top3 = filtered.slice(0, 3);
+            const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
+            const maxKmLb = top3[0]?.distanceKm || 1;
+            return (
+              <div className="bg-slate-800/50 rounded-2xl p-5 sm:p-6 border border-slate-700/30">
+                <div className="flex items-center gap-2 mb-4">
+                  <Trophy className="h-5 w-5 text-yellow-400" />
+                  <p className="text-sm font-bold uppercase tracking-wider text-slate-300">Top 3</p>
+                </div>
+                {groups.length > 1 && (
+                  <div className="flex items-center gap-1.5 mb-5 flex-wrap">
+                    <button
+                      onClick={() => setLeaderboardFilter('all')}
+                      className={cn(
+                        'text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all',
+                        leaderboardFilter === 'all'
+                          ? 'border-[#4338ff] text-white bg-[#4338ff]/10'
+                          : 'border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                      )}
+                    >All</button>
+                    {groups.map(g => (
                       <button
-                        onClick={() => setLeaderboardFilter('all')}
+                        key={g.id}
+                        onClick={() => setLeaderboardFilter(g.id)}
                         className={cn(
-                          'text-[11px] font-bold px-3 py-1 rounded-full border transition-all',
-                          leaderboardFilter === 'all'
+                          'text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all',
+                          leaderboardFilter === g.id
                             ? 'border-[#4338ff] text-white bg-[#4338ff]/10'
                             : 'border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300'
                         )}
-                      >All</button>
-                      {groups.map(g => (
-                        <button
-                          key={g.id}
-                          onClick={() => setLeaderboardFilter(g.id)}
-                          className={cn(
-                            'text-[11px] font-bold px-3 py-1 rounded-full border transition-all',
-                            leaderboardFilter === g.id
-                              ? 'border-[#4338ff] text-white bg-[#4338ff]/10'
-                              : 'border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300'
-                          )}
-                        >{g.name}</button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="space-y-2.5 mt-3">
-                    {top3.map((runner, i) => (
-                      <div key={runner.id} className="flex items-center gap-3">
-                        <span className={cn('text-base font-black w-5 tabular-nums', rankColors[i])}>
-                          {i + 1}
-                        </span>
-                        <span className="text-sm text-slate-200 flex-1 truncate">{runner.name.split(' ')[0]}</span>
-                        <span className="text-sm font-bold text-white tabular-nums">{runner.distanceKm} km</span>
-                      </div>
+                      >{g.name}</button>
                     ))}
                   </div>
-                  {myRank > 3 && (
-                    <p className="text-xs text-slate-500 mt-3 border-t border-slate-700/50 pt-2">You&apos;re #{myRank} · {filtered[myRank - 1]?.distanceKm} km</p>
+                )}
+                <div className="flex items-end justify-center gap-3 h-32 sm:h-36">
+                  {top3.length >= 2 && (
+                    <div className="flex flex-col items-center flex-1 max-w-[100px]">
+                      <span className="text-xs font-bold text-white mb-1">{top3[1].distanceKm} km</span>
+                      <div
+                        className="w-full rounded-t-lg bg-gradient-to-t from-slate-600/50 to-slate-500/30 border border-slate-500/30 flex items-end justify-center"
+                        style={{ height: `${Math.max(30, (top3[1].distanceKm / maxKmLb) * 100)}%` }}
+                      >
+                        <span className="text-2xl font-black text-slate-300 pb-2">2</span>
+                      </div>
+                      <span className="text-xs text-slate-400 mt-2 truncate max-w-full">{top3[1].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {top3.length >= 1 && (
+                    <div className="flex flex-col items-center flex-1 max-w-[100px]">
+                      <span className="text-xs font-bold text-yellow-400 mb-1">{top3[0].distanceKm} km</span>
+                      <div
+                        className="w-full rounded-t-lg bg-gradient-to-t from-yellow-500/20 to-yellow-400/10 border border-yellow-500/30 flex items-end justify-center"
+                        style={{ height: '100%' }}
+                      >
+                        <span className="text-2xl font-black text-yellow-400 pb-2">1</span>
+                      </div>
+                      <span className="text-xs text-white font-semibold mt-2 truncate max-w-full">{top3[0].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {top3.length >= 3 && (
+                    <div className="flex flex-col items-center flex-1 max-w-[100px]">
+                      <span className="text-xs font-bold text-white mb-1">{top3[2].distanceKm} km</span>
+                      <div
+                        className="w-full rounded-t-lg bg-gradient-to-t from-amber-700/20 to-amber-600/10 border border-amber-600/30 flex items-end justify-center"
+                        style={{ height: `${Math.max(25, (top3[2].distanceKm / maxKmLb) * 100)}%` }}
+                      >
+                        <span className="text-2xl font-black text-amber-600 pb-2">3</span>
+                      </div>
+                      <span className="text-xs text-slate-400 mt-2 truncate max-w-full">{top3[2].name.split(' ')[0]}</span>
+                    </div>
                   )}
                 </div>
-              );
-            })()}
-          </div>
+                {myRank > 3 && (
+                  <p className="text-xs text-slate-500 text-center mt-4 border-t border-slate-700/50 pt-3">You&apos;re #{myRank} · {filtered[myRank - 1]?.distanceKm} km</p>
+                )}
+              </div>
+            );
+          })()}
 
           {todayWorkout && todayWorkout.max > 0 && (() => {
             const todayStart = new Date();
