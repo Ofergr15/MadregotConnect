@@ -23,6 +23,8 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     if (athlete) {
+      // Update last_seen_at
+      await supabase.from('athletes').update({ last_seen_at: new Date().toISOString() }).eq('id', athlete.id);
       return NextResponse.json({ role: athlete.role || 'runner' });
     }
 
