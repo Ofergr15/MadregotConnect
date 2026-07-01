@@ -716,9 +716,25 @@ export default function SettingsPage() {
                           </span>
                         )}
                         {user.onboardingStatus === 'google_authed' && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">
-                            Google only
-                          </span>
+                          <>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                              Google only
+                            </span>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const res = await fetch(`/api/strava?athleteId=${user.id}`);
+                                const data = await res.json();
+                                if (data.authUrl) {
+                                  navigator.clipboard.writeText(data.authUrl);
+                                  alert('Strava connect link copied! Send it to the athlete.');
+                                }
+                              }}
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 border border-orange-500/20 hover:bg-orange-500/25 transition-colors cursor-pointer"
+                            >
+                              Send Strava Link
+                            </button>
+                          </>
                         )}
                         {user.approved === false && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">

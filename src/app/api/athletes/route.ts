@@ -13,24 +13,30 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
 
-    const { data: athletes, error } = await supabase
+    let athletes: any[] | null = null;
+    let error: any = null;
+
+    const result = await supabase
       .from('athletes')
       .select(`
-        id,
-        name,
-        email,
-        status,
-        created_at,
-        garmin_auth,
-        strava_auth,
-        data_source,
-        group_id,
-        groups (
-          name
-        )
+        id, name, email, status, created_at, garmin_auth, strava_auth, data_source, group_id,
+        groups (name)
       `)
       .eq('coach_id', coachId)
       .order('created_at', { ascending: false });
+
+    if (result.error) {
+      const fallback = await supabase
+        .from('athletes')
+        .select(`id, name, email, status, created_at, garmin_auth, group_id, groups (name)`)
+        .eq('coach_id', coachId)
+        .order('created_at', { ascending: false });
+      athletes = fallback.data;
+      error = fallback.error;
+    } else {
+      athletes = result.data;
+      error = null;
+    }
 
     if (error) throw error;
 
