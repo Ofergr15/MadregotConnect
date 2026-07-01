@@ -953,7 +953,7 @@ export default function DashboardPage() {
               </div>
               <div className="h-28">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: -16 }} barCategoryGap="30%">
+                  <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: -16 }} barCategoryGap="10%">
                     <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#64748b' }} axisLine={false} tickLine={false} dy={4} />
                     <YAxis tick={{ fontSize: 9, fill: '#475569' }} axisLine={false} tickLine={false} width={24} domain={[0, yMax]} tickCount={3} />
                     <Tooltip
