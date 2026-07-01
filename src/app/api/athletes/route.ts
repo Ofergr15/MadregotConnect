@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const result = await supabase
       .from('athletes')
       .select(`
-        id, name, email, status, created_at, garmin_auth, strava_auth, data_source, group_id,
+        id, name, email, status, created_at, garmin_auth, strava_auth, data_source, strava_enabled, group_id,
         groups (name)
       `)
       .eq('coach_id', coachId)
@@ -60,6 +60,7 @@ export async function GET(request: Request) {
       dataSource: (athlete as any).data_source || 'garmin',
       hasGarmin: !!athlete.garmin_auth,
       hasStrava: !!(athlete as any).strava_auth,
+      stravaEnabled: !!(athlete as any).strava_enabled,
       lastSynced: athlete.garmin_auth || (athlete as any).strava_auth ? new Date().toISOString() : null,
       createdAt: athlete.created_at,
     }));
