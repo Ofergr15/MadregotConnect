@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'grosfeldofer@gmail.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'madregot.club@gmail.com';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Madregot <onboarding@resend.dev>';
 
 function getResend() {

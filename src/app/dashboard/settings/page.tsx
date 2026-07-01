@@ -400,56 +400,86 @@ export default function SettingsPage() {
           </div>
 
           <div className="divide-y divide-slate-700/50">
-            {users.map(user => (
-              <div key={user.id} className="px-6 py-4 flex items-center justify-between gap-4 hover:bg-slate-700/20 transition-colors">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm font-medium text-white truncate">{user.name}</div>
-                    <span className={cn(
-                      'text-[10px] font-bold px-1.5 py-0.5 rounded',
-                      user.onboardingStatus === 'active' ? 'bg-green-500/15 text-green-400' :
-                      user.onboardingStatus === 'google_authed' ? 'bg-amber-500/15 text-amber-400' :
-                      user.onboardingStatus === 'garmin_authed' ? 'bg-cyan-500/15 text-cyan-400' :
-                      user.onboardingStatus === 'garmin_failed' ? 'bg-red-500/15 text-red-400' :
-                      'bg-slate-500/15 text-slate-400'
-                    )}>
-                      {user.onboardingStatus === 'active' ? 'Active ✓' :
-                       user.onboardingStatus === 'google_authed' ? 'Step 1: Google' :
-                       user.onboardingStatus === 'garmin_authed' ? 'Step 2: Garmin ✓' :
-                       user.onboardingStatus === 'garmin_failed' ? 'Garmin Failed' :
-                       user.onboardingStatus || 'Unknown'}
-                    </span>
-                    {user.approved === false && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400">
-                        Pending Approval
-                      </span>
-                    )}
+            {users.map(user => {
+              const status = user.onboardingStatus || 'pending';
+              const steps = [
+                { key: 'google', label: 'Google', completed: ['google_authed', 'garmin_authed', 'garmin_failed', 'active'].includes(status), active: status === 'google_authed', failed: false },
+                { key: 'garmin', label: 'Garmin', completed: ['garmin_authed', 'active'].includes(status), active: status === 'google_authed', failed: status === 'garmin_failed' },
+                { key: 'approval', label: 'Approved', completed: user.approved === true, active: user.approved === false && status === 'garmin_authed', failed: false },
+                { key: 'active', label: 'Active', completed: status === 'active' && user.approved === true, active: false, failed: false },
+              ];
+
+              return (
+                <div key={user.id} className="px-6 py-4 hover:bg-slate-700/20 transition-colors">
+                  <div className="flex items-center justify-between gap-4">
+                    {/* User info */}
+                    <div className="min-w-0 w-[160px] shrink-0">
+                      <div className="text-sm font-medium text-white truncate">{user.name}</div>
+                      <div className="text-xs text-slate-500 truncate">{user.email}</div>
+                    </div>
+
+                    {/* Journey Pipeline */}
+                    <div className="hidden sm:flex items-center gap-0.5 flex-1 justify-center">
+                      {steps.map((step, idx) => (
+                        <div key={step.key} className="flex items-center">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className={cn(
+                              'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all',
+                              step.completed ? 'bg-green-500/20 border-green-500 text-green-400' :
+                              step.active ? 'bg-amber-500/20 border-amber-500 text-amber-400 ring-2 ring-amber-500/20' :
+                              step.failed ? 'bg-red-500/20 border-red-500 text-red-400' :
+                              'bg-slate-800 border-slate-600 text-slate-500'
+                            )}>
+                              {step.failed ? '✕' : step.completed ? '✓' : idx + 1}
+                            </div>
+                            <span className={cn(
+                              'text-[8px] font-semibold uppercase tracking-wider',
+                              step.completed ? 'text-green-400' :
+                              step.active ? 'text-amber-400' :
+                              step.failed ? 'text-red-400' :
+                              'text-slate-600'
+                            )}>
+                              {step.label}
+                            </span>
+                          </div>
+                          {idx < steps.length - 1 && (
+                            <div className={cn(
+                              'w-5 h-0.5 mx-0.5 -mt-3',
+                              step.completed ? 'bg-green-500' : 'bg-slate-700'
+                            )} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {user.approved === false && (
+                        <button
+                          onClick={() => handleApprove(user)}
+                          disabled={updatingUsers.has(user.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-500 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Approve
+                        </button>
+                      )}
+                      <RoleDropdown
+                        value={user.role}
+                        onChange={(role) => handleRoleSelect(user, role)}
+                        disabled={updatingUsers.has(user.id)}
+                      />
+                      {updatingUsers.has(user.id) && (
+                        <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+                      )}
+                      {savedUsers.has(user.id) && (
+                        <CheckCircle2 className="w-4 h-4 text-green-400" />
+                      )}
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 truncate">{user.email}</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {user.approved === false && (
-                    <button
-                      onClick={() => handleApprove(user)}
-                      className="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-500 rounded-lg transition-colors"
-                    >
-                      Approve
-                    </button>
-                  )}
-                  <RoleDropdown
-                    value={user.role}
-                    onChange={(role) => handleRoleSelect(user, role)}
-                    disabled={updatingUsers.has(user.id)}
-                  />
-                  {updatingUsers.has(user.id) && (
-                    <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
-                  )}
-                  {savedUsers.has(user.id) && (
-                    <CheckCircle2 className="w-4 h-4 text-green-400" />
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {users.length === 0 && (
