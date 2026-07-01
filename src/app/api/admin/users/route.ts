@@ -113,15 +113,20 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'User id is required' }, { status: 400 });
     }
 
-    // Get the athlete email before deleting
+    // Get the athlete before deleting
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('email')
+      .select('email, role')
       .eq('id', id)
       .single();
 
     if (!athlete) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Never delete admin users
+    if (athlete.role === 'admin') {
+      return NextResponse.json({ error: 'Cannot delete admin users' }, { status: 403 });
     }
 
     // Delete all related data
