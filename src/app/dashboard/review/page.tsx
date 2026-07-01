@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle, ImagePlus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
@@ -22,6 +22,8 @@ export default function ReviewPage() {
   const [athleteEmail, setAthleteEmail] = useState('');
   const [athleteId, setAthleteId] = useState('');
   const [groupName, setGroupName] = useState('');
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setAthleteName(localStorage.getItem('athlete_name') || '');
@@ -54,12 +56,14 @@ export default function ReviewPage() {
           groupName,
           message: message.trim(),
           category,
+          image: imagePreview || undefined,
         }),
       });
       if (res.ok) {
         setSent(true);
         setMessage('');
         setCategory('general');
+        setImagePreview(null);
         setTimeout(() => setSent(false), 4000);
       }
     } catch {
@@ -114,11 +118,47 @@ export default function ReviewPage() {
           className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#4338ff]/50 focus:border-[#4338ff]/50 transition-all"
         />
 
+        {imagePreview && (
+          <div className="relative mt-3 inline-block">
+            <img src={imagePreview} alt="Attached" className="max-h-32 rounded-lg border border-slate-700/50" />
+            <button
+              onClick={() => setImagePreview(null)}
+              className="absolute -top-2 -right-2 w-5 h-5 bg-slate-700 hover:bg-red-500 rounded-full flex items-center justify-center transition-colors"
+            >
+              <X className="w-3 h-3 text-white" />
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mt-4">
-          <p className="text-xs text-slate-500">
-            Submitting as <span className="text-slate-300 font-medium">{athleteName || 'Anonymous'}</span>
-            {groupName && <span className="text-slate-500"> · {groupName}</span>}
-          </p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              <ImagePlus className="h-4 w-4" />
+              <span className="hidden sm:inline">{imagePreview ? 'Change' : 'Attach'}</span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => setImagePreview(reader.result as string);
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+            <p className="text-xs text-slate-500">
+              <span className="text-slate-300 font-medium">{athleteName || 'Anonymous'}</span>
+              {groupName && <span className="text-slate-500"> · {groupName}</span>}
+            </p>
+          </div>
           <button
             onClick={handleSubmit}
             disabled={!message.trim() || sending}
