@@ -839,7 +839,7 @@ export default function DashboardPage() {
           <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-6">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="text-sm sm:text-base font-bold text-white">Running Volume</h2>
+                <h2 className="text-sm sm:text-base font-bold text-white">Weekly KM</h2>
                 <p className="text-xs text-slate-500 mt-0.5">avg {avgKm} km/week · {runnerWeeklyVolumes.length} weeks</p>
               </div>
               {trend !== 0 && (
