@@ -84,9 +84,9 @@ export function Header() {
         .then(({ data: g }) => {
           if (g?.name) {
             const n = g.name.toLowerCase();
-            if (n.includes('group a') || n.includes('sub 2:30')) { setGroupName('Group 1'); setGroupColor('#3b82f6'); }
-            else if (n.includes('group b') || n.includes('sub 2:35')) { setGroupName('Group 2'); setGroupColor('#a855f7'); }
-            else if (n.includes('group c') || n.includes('sub 2:45')) { setGroupName('Group 3'); setGroupColor('#14b8a6'); }
+            if (n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30')) { setGroupName('Group 1'); setGroupColor('#3b82f6'); }
+            else if (n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35')) { setGroupName('Group 2'); setGroupColor('#a855f7'); }
+            else if (n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45')) { setGroupName('Group 3'); setGroupColor('#14b8a6'); }
             else { setGroupName(g.name); setGroupColor('#6366f1'); }
           }
         });
@@ -218,10 +218,14 @@ export function Header() {
                   <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[160px] z-50">
                     {availableGroups.map(g => {
                       const n = g.name.toLowerCase();
-                      const color = n.includes('group a') || n.includes('sub 2:30') ? '#3b82f6'
-                        : n.includes('group b') || n.includes('sub 2:35') ? '#a855f7'
-                        : n.includes('group c') || n.includes('sub 2:45') ? '#14b8a6'
+                      const color = n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30') ? '#3b82f6'
+                        : n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35') ? '#a855f7'
+                        : n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45') ? '#14b8a6'
                         : '#6366f1';
+                      const displayName = n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30') ? 'Group 1'
+                        : n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35') ? 'Group 2'
+                        : n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45') ? 'Group 3'
+                        : g.name;
                       return (
                         <button
                           key={g.id}
@@ -238,7 +242,7 @@ export function Header() {
                           className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-slate-700/50 transition-colors flex items-center gap-2"
                         >
                           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                          <span style={{ color }}>{g.name}</span>
+                          <span style={{ color }}>{displayName}</span>
                         </button>
                       );
                     })}

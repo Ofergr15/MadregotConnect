@@ -38,7 +38,15 @@ export async function GET(request: Request) {
       name: athlete.name,
       email: athlete.email,
       status: athlete.status,
-      groupName: (athlete.groups as any)?.name || null,
+      groupName: (() => {
+        const raw = (athlete.groups as any)?.name || null;
+        if (!raw) return null;
+        const n = raw.toLowerCase();
+        if (n.includes('group a') || n.includes('sub 2:30')) return 'Group 1';
+        if (n.includes('group b') || n.includes('sub 2:35')) return 'Group 2';
+        if (n.includes('group c') || n.includes('sub 2:45')) return 'Group 3';
+        return raw;
+      })(),
       groupId: athlete.group_id,
       group_id: athlete.group_id, // Also include snake_case for compatibility
       lastSynced: athlete.garmin_auth ? new Date().toISOString() : null,
