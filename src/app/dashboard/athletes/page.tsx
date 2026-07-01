@@ -562,12 +562,28 @@ ${inviteLink}`;
                                 <ArrowRightLeft className="h-4 w-4" /> Switch to {athlete.dataSource === 'strava' ? 'Garmin' : 'Strava'}
                               </button>
                             ) : (
-                              <button
-                                onClick={() => { connectStrava(athlete.id); setActiveMenu(null); }}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
-                              >
-                                <Wifi className="h-4 w-4" /> Connect Strava
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => { connectStrava(athlete.id); setActiveMenu(null); }}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
+                                >
+                                  <Wifi className="h-4 w-4" /> Connect Strava (redirect)
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    const res = await fetch(`/api/strava?athleteId=${athlete.id}`);
+                                    const data = await res.json();
+                                    if (data.authUrl) {
+                                      navigator.clipboard.writeText(data.authUrl);
+                                      setActiveMenu(null);
+                                      alert('Strava link copied! Send it to the athlete.');
+                                    }
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
+                                >
+                                  <Copy className="h-4 w-4" /> Copy Strava Link
+                                </button>
+                              </>
                             )}
                             <button
                               onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
