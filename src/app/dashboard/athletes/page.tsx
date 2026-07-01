@@ -19,6 +19,7 @@ interface Athlete {
   createdAt: string;
   dataSource?: 'garmin' | 'strava';
   hasStrava?: boolean;
+  stravaEnabled?: boolean;
 }
 
 interface Group {
@@ -514,11 +515,21 @@ ${inviteLink}`;
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {getStatusBadge(athlete.status)}
                           <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', athlete.dataSource === 'strava' ? 'bg-orange-500/15 text-orange-400' : 'bg-blue-500/15 text-blue-400')}>
                             {athlete.dataSource === 'strava' ? 'Strava' : 'Garmin'}
                           </span>
+                          {athlete.stravaEnabled && !athlete.hasStrava && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">
+                              Awaiting Strava
+                            </span>
+                          )}
+                          {athlete.hasStrava && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">
+                              Strava OK
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-400">
@@ -554,36 +565,28 @@ ${inviteLink}`;
                                 <PlayCircle className="h-4 w-4" /> Reactivate
                               </button>
                             ) : null}
-                            {athlete.hasStrava ? (
+                            <button
+                              onClick={async () => {
+                                const newEnabled = !athlete.stravaEnabled;
+                                await fetch('/api/admin/athlete-source', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ athleteId: athlete.id, stravaEnabled: newEnabled }),
+                                });
+                                fetchAthletes();
+                                setActiveMenu(null);
+                              }}
+                              className={cn('w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2', athlete.stravaEnabled ? 'text-slate-400' : 'text-orange-400')}
+                            >
+                              <Wifi className="h-4 w-4" /> {athlete.stravaEnabled ? 'Disable Strava' : 'Enable Strava'}
+                            </button>
+                            {athlete.hasStrava && (
                               <button
                                 onClick={() => { toggleDataSource(athlete.id, athlete.dataSource === 'strava' ? 'garmin' : 'strava'); setActiveMenu(null); }}
                                 className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
                               >
                                 <ArrowRightLeft className="h-4 w-4" /> Switch to {athlete.dataSource === 'strava' ? 'Garmin' : 'Strava'}
                               </button>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => { connectStrava(athlete.id); setActiveMenu(null); }}
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
-                                >
-                                  <Wifi className="h-4 w-4" /> Connect Strava (redirect)
-                                </button>
-                                <button
-                                  onClick={async () => {
-                                    const res = await fetch(`/api/strava?athleteId=${athlete.id}`);
-                                    const data = await res.json();
-                                    if (data.authUrl) {
-                                      navigator.clipboard.writeText(data.authUrl);
-                                      setActiveMenu(null);
-                                      alert('Strava link copied! Send it to the athlete.');
-                                    }
-                                  }}
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
-                                >
-                                  <Copy className="h-4 w-4" /> Copy Strava Link
-                                </button>
-                              </>
                             )}
                             <button
                               onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
