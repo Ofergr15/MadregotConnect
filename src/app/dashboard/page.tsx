@@ -667,78 +667,161 @@ export default function DashboardPage() {
               if (!todayW && !tomorrowW) return null;
               return (
                 <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30 flex flex-col justify-between">
-                  {todayW && (
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Today</p>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[todayW.type]}20`, color: typeColors[todayW.type] }}>
-                          {typeLabels[todayW.type] || todayW.type}
-                        </span>
+                  {todayW && (() => {
+                    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+                    const todayKm = recentActivities.filter(a => new Date(a.start_time) >= todayStart).reduce((s, a) => s + (a.distance || 0) / 1000, 0);
+                    const done = todayKm >= todayW.min;
+                    const sessionName = todayW.sessions?.[0]?.name || '';
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Today</p>
+                          <div className="flex items-center gap-1.5">
+                            {done && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[todayW.type]}20`, color: typeColors[todayW.type] }}>
+                              {typeLabels[todayW.type] || todayW.type}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-xl font-black text-white mt-1 tabular-nums">
+                          {todayW.min === todayW.max ? todayW.max : `${todayW.min}–${todayW.max}`}
+                          <span className="text-sm font-medium text-slate-500 ml-1">km</span>
+                          {todayKm > 0 && <span className="text-xs font-semibold text-emerald-400 ml-2">{Math.round(todayKm * 10) / 10} done</span>}
+                        </p>
+                        {sessionName && <p className="text-[11px] text-slate-500 mt-0.5">{sessionName}</p>}
                       </div>
-                      <p className="text-xl font-black text-white mt-1 tabular-nums">
-                        {todayW.min === todayW.max ? todayW.max : `${todayW.min}–${todayW.max}`}
-                        <span className="text-sm font-medium text-slate-500 ml-1">km</span>
-                      </p>
-                    </div>
-                  )}
-                  {tomorrowW && (
-                    <div className={todayW ? 'mt-3 pt-3 border-t border-slate-700/30' : ''}>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tomorrow</p>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[tomorrowW.type]}20`, color: typeColors[tomorrowW.type] }}>
-                          {typeLabels[tomorrowW.type] || tomorrowW.type}
-                        </span>
+                    );
+                  })()}
+                  {tomorrowW && (() => {
+                    const sessionName = tomorrowW.sessions?.[0]?.name || '';
+                    return (
+                      <div className={todayW ? 'mt-3 pt-3 border-t border-slate-700/30' : ''}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tomorrow</p>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[tomorrowW.type]}20`, color: typeColors[tomorrowW.type] }}>
+                            {typeLabels[tomorrowW.type] || tomorrowW.type}
+                          </span>
+                        </div>
+                        <p className="text-lg font-black text-white mt-1 tabular-nums">
+                          {tomorrowW.min === tomorrowW.max ? tomorrowW.max : `${tomorrowW.min}–${tomorrowW.max}`}
+                          <span className="text-sm font-medium text-slate-500 ml-1">km</span>
+                        </p>
+                        {sessionName && <p className="text-[11px] text-slate-500 mt-0.5">{sessionName}</p>}
                       </div>
-                      <p className="text-lg font-black text-white mt-1 tabular-nums">
-                        {tomorrowW.min === tomorrowW.max ? tomorrowW.max : `${tomorrowW.min}–${tomorrowW.max}`}
-                        <span className="text-sm font-medium text-slate-500 ml-1">km</span>
-                      </p>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               );
             })()}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {todayWorkout && todayWorkout.max > 0 && (() => {
-              const todayStart = new Date();
-              todayStart.setHours(0, 0, 0, 0);
-              const todayActs = recentActivities.filter(a => new Date(a.start_time) >= todayStart);
-              const todayKm = todayActs.reduce((sum, a) => sum + (a.distance || 0) / 1000, 0);
-              const isCompleted = todayKm >= todayWorkout.min;
-              return (
-                <div className={cn(
-                  'rounded-2xl p-4 border',
-                  isCompleted
-                    ? 'bg-emerald-500/10 border-emerald-500/30'
-                    : 'bg-slate-800/50 border-slate-700/30'
-                )}>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Today&apos;s Workout</p>
-                    <div className="flex items-center gap-1.5">
-                      {isCompleted && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />}
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[todayWorkout.type]}20`, color: typeColors[todayWorkout.type] }}>
-                        {typeLabels[todayWorkout.type] || todayWorkout.type}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-2xl sm:text-3xl font-black text-white tabular-nums">
-                      {todayWorkout.min === todayWorkout.max ? todayWorkout.max : `${todayWorkout.min}–${todayWorkout.max}`}
-                      <span className="text-sm text-slate-400 ml-1">km</span>
-                    </p>
-                    {todayKm > 0 && (
-                      <span className="text-xs font-semibold text-slate-400">{Math.round(todayKm * 10) / 10} done</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-          </div>
         </section>
       )}
+
+      {/* ═══ WEEKLY VOLUME + LEADERBOARD (side by side) ═══ */}
+      {!isCoach && runnerWeeklyVolumes.length > 1 && (() => {
+        const maxKm = Math.max(...runnerWeeklyVolumes.map(w => w.km));
+        const lastWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 1];
+        const prevWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 2];
+        const trend = prevWeek && prevWeek.km > 0 ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100) : 0;
+        const targetMin = hasData ? Math.round(weekly!.weekTotalMin) : 0;
+        const targetMax = hasData ? Math.round(weekly!.weekTotalMax) : 0;
+        const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
+        const top3 = filtered.slice(0, 3);
+        const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            {/* LEFT: Weekly Volume */}
+            <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-white tabular-nums">{weeklyKm}</span>
+                  <span className="text-xs text-slate-500">km this week</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {targetMax > 0 && (
+                    <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax}</span>
+                  )}
+                  {trend !== 0 && (
+                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
+                      {trend > 0 ? '+' : ''}{trend}%
+                    </span>
+                  )}
+                </div>
+              </div>
+              {targetMax > 0 && (
+                <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden mb-4">
+                  <div
+                    className={cn('h-full rounded-full transition-all', weeklyKm >= targetMin ? 'bg-emerald-400' : 'bg-[#fc5200]')}
+                    style={{ width: `${Math.min(100, (weeklyKm / targetMax) * 100)}%` }}
+                  />
+                </div>
+              )}
+              <div className="flex items-end justify-between" style={{ height: '90px' }}>
+                {runnerWeeklyVolumes.map((w, i) => {
+                  const isLast = i === runnerWeeklyVolumes.length - 1;
+                  const barH = maxKm > 0 ? Math.max(8, Math.round((w.km / maxKm) * 70)) : 8;
+                  return (
+                    <div key={i} className="flex flex-col items-center justify-end" style={{ height: '90px', flex: 1 }}>
+                      <span className={cn('text-[10px] font-bold mb-0.5 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-slate-400')}>{w.km}</span>
+                      <div
+                        className={cn('rounded-full', isLast ? 'bg-[#fc5200]' : 'bg-slate-500/50')}
+                        style={{ height: `${barH}px`, width: '14px' }}
+                      />
+                      <span className={cn('text-[9px] mt-1.5', isLast ? 'text-slate-300' : 'text-slate-600')}>{w.week}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* RIGHT: Leaderboard */}
+            {leaderboard.length > 0 && (
+              <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <Trophy className="h-3.5 w-3.5 text-yellow-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 3</span>
+                  </div>
+                  {groups.length > 1 && (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setLeaderboardFilter('all')} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}>All</button>
+                      {groups.map(g => (
+                        <button key={g.id} onClick={() => setLeaderboardFilter(g.id)} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}>{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-end justify-center gap-5 px-2" style={{ height: '100px' }}>
+                  {top3.length >= 2 && (
+                    <div className="flex flex-col items-center" style={{ width: '56px' }}>
+                      <span className="text-[11px] font-bold text-slate-300 mb-1 tabular-nums">{top3[1].distanceKm}</span>
+                      <div className="w-6 rounded-t bg-slate-400/80" style={{ height: '50px' }} />
+                      <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[1].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {top3.length >= 1 && (
+                    <div className="flex flex-col items-center" style={{ width: '56px' }}>
+                      <span className="text-sm mb-0.5">👑</span>
+                      <span className="text-xs font-black text-yellow-400 mb-1 tabular-nums">{top3[0].distanceKm}</span>
+                      <div className="w-6 rounded-t bg-yellow-500" style={{ height: '70px' }} />
+                      <span className="text-[11px] text-white font-bold mt-1.5 whitespace-nowrap">{top3[0].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {top3.length >= 3 && (
+                    <div className="flex flex-col items-center" style={{ width: '56px' }}>
+                      <span className="text-[11px] font-bold text-amber-500 mb-1 tabular-nums">{top3[2].distanceKm}</span>
+                      <div className="w-6 rounded-t bg-amber-600/80" style={{ height: '35px' }} />
+                      <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[2].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                </div>
+                {myRank > 3 && <p className="text-[10px] text-slate-500 text-center mt-2">You: #{myRank}</p>}
+              </section>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ═══ DAILY KM BAR CHART ═══ */}
       <section className="bg-slate-800/30 rounded-2xl p-4 sm:p-6 border border-slate-700/20">
@@ -907,110 +990,6 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ═══ WEEKLY VOLUME + LEADERBOARD (side by side) ═══ */}
-      {!isCoach && runnerWeeklyVolumes.length > 1 && (() => {
-        const maxKm = Math.max(...runnerWeeklyVolumes.map(w => w.km));
-        const lastWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 1];
-        const prevWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 2];
-        const trend = prevWeek && prevWeek.km > 0 ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100) : 0;
-        const targetMin = hasData ? Math.round(weekly!.weekTotalMin) : 0;
-        const targetMax = hasData ? Math.round(weekly!.weekTotalMax) : 0;
-        const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
-        const top3 = filtered.slice(0, 3);
-        const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
-        return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {/* LEFT: Weekly Volume */}
-            <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-black text-white tabular-nums">{weeklyKm}</span>
-                  <span className="text-xs text-slate-500">km this week</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {targetMax > 0 && (
-                    <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax}</span>
-                  )}
-                  {trend !== 0 && (
-                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
-                      {trend > 0 ? '+' : ''}{trend}%
-                    </span>
-                  )}
-                </div>
-              </div>
-              {targetMax > 0 && (
-                <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden mb-4">
-                  <div
-                    className={cn('h-full rounded-full transition-all', weeklyKm >= targetMin ? 'bg-emerald-400' : 'bg-[#fc5200]')}
-                    style={{ width: `${Math.min(100, (weeklyKm / targetMax) * 100)}%` }}
-                  />
-                </div>
-              )}
-              <div className="flex items-end justify-between" style={{ height: '90px' }}>
-                {runnerWeeklyVolumes.map((w, i) => {
-                  const isLast = i === runnerWeeklyVolumes.length - 1;
-                  const barH = maxKm > 0 ? Math.max(8, Math.round((w.km / maxKm) * 70)) : 8;
-                  return (
-                    <div key={i} className="flex flex-col items-center justify-end" style={{ height: '90px', flex: 1 }}>
-                      <span className={cn('text-[10px] font-bold mb-0.5 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-slate-400')}>{w.km}</span>
-                      <div
-                        className={cn('rounded-full', isLast ? 'bg-[#fc5200]' : 'bg-slate-500/50')}
-                        style={{ height: `${barH}px`, width: '14px' }}
-                      />
-                      <span className={cn('text-[9px] mt-1.5', isLast ? 'text-slate-300' : 'text-slate-600')}>{w.week}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* RIGHT: Leaderboard */}
-            {leaderboard.length > 0 && (
-              <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-1.5">
-                    <Trophy className="h-3.5 w-3.5 text-yellow-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 3</span>
-                  </div>
-                  {groups.length > 1 && (
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => setLeaderboardFilter('all')} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}>All</button>
-                      {groups.map(g => (
-                        <button key={g.id} onClick={() => setLeaderboardFilter(g.id)} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}>{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-end justify-center gap-5 px-2" style={{ height: '100px' }}>
-                  {top3.length >= 2 && (
-                    <div className="flex flex-col items-center" style={{ width: '56px' }}>
-                      <span className="text-[11px] font-bold text-slate-300 mb-1 tabular-nums">{top3[1].distanceKm}</span>
-                      <div className="w-6 rounded-t bg-slate-400/80" style={{ height: '50px' }} />
-                      <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[1].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                  {top3.length >= 1 && (
-                    <div className="flex flex-col items-center" style={{ width: '56px' }}>
-                      <span className="text-sm mb-0.5">👑</span>
-                      <span className="text-xs font-black text-yellow-400 mb-1 tabular-nums">{top3[0].distanceKm}</span>
-                      <div className="w-6 rounded-t bg-yellow-500" style={{ height: '70px' }} />
-                      <span className="text-[11px] text-white font-bold mt-1.5 whitespace-nowrap">{top3[0].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                  {top3.length >= 3 && (
-                    <div className="flex flex-col items-center" style={{ width: '56px' }}>
-                      <span className="text-[11px] font-bold text-amber-500 mb-1 tabular-nums">{top3[2].distanceKm}</span>
-                      <div className="w-6 rounded-t bg-amber-600/80" style={{ height: '35px' }} />
-                      <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[2].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                </div>
-                {myRank > 3 && <p className="text-[10px] text-slate-500 text-center mt-2">You: #{myRank}</p>}
-              </section>
-            )}
-          </div>
-        );
-      })()}
 
 
       {/* ═══ RECENT ACTIVITIES (Strava-style cards) ═══ */}
