@@ -66,7 +66,6 @@ export async function POST(req: NextRequest) {
       .from('athletes')
       .select('id')
       .eq('email', email.toLowerCase())
-      .eq('coach_id', COACH_ID)
       .maybeSingle();
 
     if (existing) {
