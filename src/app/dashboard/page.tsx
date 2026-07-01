@@ -650,38 +650,13 @@ export default function DashboardPage() {
         </section>
       ) : (
         <section className="space-y-3 sm:space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-                {weeklyKm > 0 ? weeklyKm : '—'}
-                <span className="text-sm font-medium text-slate-500 ml-1">km</span>
-              </p>
-              {hasData && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">Target</span>
-                    <span className="text-sm font-black text-[#4338ff]">{Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)} km</span>
-                  </div>
-                  <div className="w-full h-2.5 bg-slate-700/60 rounded-full overflow-hidden">
-                    <div
-                      className={cn('h-full rounded-full transition-all', weeklyKm >= weekly!.weekTotalMin ? 'bg-emerald-400' : 'bg-[#4338ff]')}
-                      style={{ width: `${Math.min(100, (weeklyKm / weekly!.weekTotalMax) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-              {!hasData && <p className="text-sm text-slate-500 mt-1">{weeklyRuns} {weeklyRuns === 1 ? 'run' : 'runs'}</p>}
-            </div>
-
-            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-                {weeklyRuns}<span className="text-sm font-medium text-slate-500 ml-1">/ {hasData ? weekly!.trainingDays : 7}</span>
-              </p>
-              <p className="text-sm text-slate-500 mt-1">completed</p>
-            </div>
-
+          {/* Training Days only - weekly volume moved to Strava chart below */}
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+              {weeklyRuns}<span className="text-sm font-medium text-slate-500 ml-1">/ {hasData ? weekly!.trainingDays : 7}</span>
+            </p>
+            <p className="text-sm text-slate-500 mt-1">completed</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -985,24 +960,24 @@ export default function DashboardPage() {
               </div>
             )}
             {/* Strava-style bar chart */}
-            <div className="flex items-end gap-[3px] h-16">
+            <div className="flex items-end gap-[3px]" style={{ height: '64px' }}>
               {runnerWeeklyVolumes.map((w, i) => {
                 const isLast = i === runnerWeeklyVolumes.length - 1;
-                const heightPct = maxKm > 0 ? Math.max(6, (w.km / maxKm) * 100) : 6;
+                const barH = maxKm > 0 ? Math.max(4, Math.round((w.km / maxKm) * 60)) : 4;
                 return (
-                  <div key={i} className="flex-1 flex flex-col items-center h-full justify-end">
+                  <div key={i} className="flex-1 flex justify-center items-end" style={{ height: '64px' }}>
                     <div
-                      className={cn('w-full rounded-t transition-all', isLast ? 'bg-[#fc5200]' : 'bg-slate-600/80')}
-                      style={{ height: `${heightPct}%`, maxWidth: '32px', margin: '0 auto' }}
+                      className={cn('rounded-t-sm transition-all', isLast ? 'bg-[#fc5200]' : 'bg-slate-500/60')}
+                      style={{ height: `${barH}px`, width: '70%', maxWidth: '28px' }}
                     />
                   </div>
                 );
               })}
             </div>
-            <div className="flex gap-[3px] mt-1">
+            <div className="flex gap-[3px] mt-1.5">
               {runnerWeeklyVolumes.map((w, i) => (
                 <div key={i} className="flex-1 text-center">
-                  <span className="text-[8px] text-slate-500">{w.week}</span>
+                  <span className="text-[9px] text-slate-500 font-medium">{w.week}</span>
                 </div>
               ))}
             </div>
