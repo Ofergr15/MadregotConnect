@@ -1108,9 +1108,9 @@ export default function WeeklyPlannerPage() {
                           <div className="bg-slate-800 rounded-lg p-3 text-left text-xs text-slate-400 max-w-xs mx-auto">
                             <p className="font-medium text-slate-300 mb-1">Each athlete gets their group&apos;s plan:</p>
                             <div className="space-y-1">
-                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500" /> Group 1 — fastest paces</div>
+                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" /> Group 1 — fastest paces</div>
                               <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-500" /> Group 2 — middle paces</div>
-                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500" /> Group 3 — adjusted paces</div>
+                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-orange-500" /> Group 3 — adjusted paces</div>
                             </div>
                           </div>
                         </div>

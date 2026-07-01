@@ -84,9 +84,9 @@ export function Header() {
         .then(({ data: g }) => {
           if (g?.name) {
             const n = g.name.toLowerCase();
-            if (n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30')) { setGroupName('Group 1'); setGroupColor('#3b82f6'); }
-            else if (n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35')) { setGroupName('Group 2'); setGroupColor('#a855f7'); }
-            else if (n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45')) { setGroupName('Group 3'); setGroupColor('#14b8a6'); }
+            if (n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30')) { setGroupName('Group 1'); setGroupColor('#22c55e'); }
+            else if (n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35')) { setGroupName('Group 2'); setGroupColor('#eab308'); }
+            else if (n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45')) { setGroupName('Group 3'); setGroupColor('#f97316'); }
             else { setGroupName(g.name); setGroupColor('#6366f1'); }
           }
         });
