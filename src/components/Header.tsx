@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route, Trophy } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route, Trophy, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 
 const allNavItems = [
   { href: '/dashboard', tab: 'dashboard', label: 'Dashboard', icon: Activity },
+  { href: '/dashboard/review', tab: 'review', label: 'Review', icon: MessageSquare },
   { href: '/dashboard/plan/new', tab: 'plan/new', label: 'Planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', label: 'Athletes', icon: Users },
   { href: '/dashboard/groups', tab: 'groups', label: 'Groups', icon: Layers },
