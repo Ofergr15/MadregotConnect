@@ -74,6 +74,8 @@ export default function AuthResolvePage() {
       if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
       localStorage.removeItem('coach_email');
       router.replace('/dashboard/program');
+    } else if (data.pendingApproval && !data.missingGarmin) {
+      router.replace('/pending-approval');
     } else {
       const params = new URLSearchParams({
         email,

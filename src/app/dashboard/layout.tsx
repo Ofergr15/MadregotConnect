@@ -19,7 +19,6 @@ export default function DashboardLayout({
       if (session) {
         setAuthorized(true);
       } else {
-        // Fallback: check localStorage for legacy sessions
         const coachEmail = localStorage.getItem('coach_email');
         const athleteId = localStorage.getItem('athlete_id');
         if (coachEmail || athleteId) {
