@@ -946,27 +946,21 @@ export default function DashboardPage() {
                   />
                 </div>
               )}
-              <div className="flex items-end gap-1" style={{ height: '80px' }}>
+              <div className="flex items-end justify-between" style={{ height: '90px' }}>
                 {runnerWeeklyVolumes.map((w, i) => {
                   const isLast = i === runnerWeeklyVolumes.length - 1;
-                  const barH = maxKm > 0 ? Math.max(6, Math.round((w.km / maxKm) * 72)) : 6;
+                  const barH = maxKm > 0 ? Math.max(8, Math.round((w.km / maxKm) * 70)) : 8;
                   return (
-                    <div key={i} className="flex-1 flex flex-col items-center justify-end" style={{ height: '80px' }}>
-                      <span className={cn('text-[9px] font-semibold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-slate-500')}>{w.km}</span>
+                    <div key={i} className="flex flex-col items-center justify-end" style={{ height: '90px', flex: 1 }}>
+                      <span className={cn('text-[10px] font-bold mb-0.5 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-slate-400')}>{w.km}</span>
                       <div
-                        className={cn('w-full rounded-t', isLast ? 'bg-[#fc5200]' : 'bg-slate-600/70')}
-                        style={{ height: `${barH}px` }}
+                        className={cn('rounded-full', isLast ? 'bg-[#fc5200]' : 'bg-slate-500/50')}
+                        style={{ height: `${barH}px`, width: '14px' }}
                       />
+                      <span className={cn('text-[9px] mt-1.5', isLast ? 'text-slate-300' : 'text-slate-600')}>{w.week}</span>
                     </div>
                   );
                 })}
-              </div>
-              <div className="flex gap-1 mt-1 border-t border-slate-700/20 pt-1.5">
-                {runnerWeeklyVolumes.map((w, i) => (
-                  <div key={i} className="flex-1 text-center">
-                    <span className="text-[9px] text-slate-500">{w.week}</span>
-                  </div>
-                ))}
               </div>
             </section>
 
