@@ -66,6 +66,10 @@ export default function ProfilePage() {
   const [hasStrava, setHasStrava] = useState(false);
   const [stravaEnabled, setStravaEnabled] = useState(false);
   const [connectingStrava, setConnectingStrava] = useState(false);
+  const [connectingGarmin, setConnectingGarmin] = useState(false);
+  const [garminEmail, setGarminEmail] = useState('');
+  const [garminPassword, setGarminPassword] = useState('');
+  const [garminError, setGarminError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [hasActivities, setHasActivities] = useState(false);
@@ -343,18 +347,87 @@ export default function ProfilePage() {
         <div className="space-y-3">
           {/* Garmin status */}
           <div className={cn(
-            'flex items-center justify-between px-4 py-3 rounded-xl border',
+            'rounded-xl border overflow-hidden',
             hasGarmin ? 'border-green-500/30 bg-green-500/5' : 'border-slate-700/50 bg-slate-900/30'
           )}>
-            <div className="flex items-center gap-3">
-              <Watch className={cn('h-5 w-5', hasGarmin ? 'text-green-400' : 'text-slate-500')} />
-              <div>
-                <p className={cn('text-sm font-medium', hasGarmin ? 'text-white' : 'text-slate-400')}>Garmin Connect</p>
-                <p className="text-[11px] text-slate-500">{hasGarmin ? 'Connected' : 'Not connected'}</p>
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-3">
+                <Watch className={cn('h-5 w-5', hasGarmin ? 'text-green-400' : 'text-slate-500')} />
+                <div>
+                  <p className={cn('text-sm font-medium', hasGarmin ? 'text-white' : 'text-slate-400')}>Garmin Connect</p>
+                  <p className="text-[11px] text-slate-500">{hasGarmin ? 'Connected' : 'Not connected'}</p>
+                </div>
               </div>
+              {hasGarmin ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Connected</span>
+              ) : (
+                <button
+                  onClick={() => setConnectingGarmin(!connectingGarmin)}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#4338ff]/10 text-[#4338ff] hover:bg-[#4338ff]/20 transition-colors"
+                >
+                  Connect
+                </button>
+              )}
             </div>
-            {dataSource === 'garmin' && hasGarmin && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Active</span>
+            {connectingGarmin && !hasGarmin && (
+              <div className="px-4 pb-4 space-y-3 border-t border-slate-700/30 pt-3">
+                <input
+                  type="email"
+                  placeholder="Garmin email"
+                  value={garminEmail}
+                  onChange={e => setGarminEmail(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4338ff]/50"
+                />
+                <input
+                  type="password"
+                  placeholder="Garmin password"
+                  value={garminPassword}
+                  onChange={e => setGarminPassword(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4338ff]/50"
+                />
+                {garminError && (
+                  <p className="text-xs text-red-400">{garminError}</p>
+                )}
+                <button
+                  onClick={async () => {
+                    if (!garminEmail || !garminPassword) return;
+                    setGarminError(null);
+                    setConnectingGarmin(true);
+                    try {
+                      const authRes = await fetch('/api/garmin/authenticate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: garminEmail, password: garminPassword }),
+                      });
+                      const authData = await authRes.json();
+                      if (!authRes.ok) {
+                        setGarminError(authData.error || 'Authentication failed');
+                        return;
+                      }
+                      const connectRes = await fetch('/api/athletes/connect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ garminAuth: authData.auth, name: athleteName, email: athleteEmail }),
+                      });
+                      if (connectRes.ok) {
+                        setHasGarmin(true);
+                        setConnectingGarmin(false);
+                        setGarminEmail('');
+                        setGarminPassword('');
+                      } else {
+                        setGarminError('Failed to save connection');
+                      }
+                    } catch {
+                      setGarminError('Connection failed. Try again.');
+                    }
+                  }}
+                  disabled={!garminEmail || !garminPassword}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                >
+                  <Watch className="h-4 w-4" />
+                  Connect Garmin
+                </button>
+              </div>
             )}
           </div>
 
@@ -430,7 +503,7 @@ export default function ProfilePage() {
         {!hasGarmin && !hasStrava && (
           <div className="mt-4 flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
             <WifiOff className="h-4 w-4 shrink-0" />
-            <span>No data source connected. Connect Strava to sync your activities.</span>
+            <span>No data source connected. Connect Garmin or Strava to sync your activities.</span>
           </div>
         )}
 
