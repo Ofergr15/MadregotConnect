@@ -23,6 +23,7 @@ export default function ReviewPage() {
   const [athleteId, setAthleteId] = useState('');
   const [groupName, setGroupName] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,6 +42,20 @@ export default function ReviewPage() {
         .catch(() => {});
     }
   }, []);
+
+  const handleFile = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
 
   const handleSubmit = async () => {
     if (!message.trim()) return;
@@ -130,14 +145,22 @@ export default function ReviewPage() {
           </div>
         )}
 
-        <button
-          type="button"
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="mt-4 w-full flex items-center justify-center gap-3 px-5 py-5 rounded-xl border-2 border-dashed border-slate-500/60 hover:border-[#4338ff] text-lg font-semibold text-slate-200 hover:text-[#4338ff] transition-all bg-slate-800/40 hover:bg-[#4338ff]/5"
+          className={cn(
+            'mt-4 w-full flex flex-col items-center justify-center gap-2 px-5 py-6 rounded-xl border-2 border-dashed cursor-pointer transition-all',
+            dragging
+              ? 'border-[#4338ff] bg-[#4338ff]/10 text-[#4338ff]'
+              : 'border-slate-500/60 hover:border-[#4338ff] text-slate-200 hover:text-[#4338ff] bg-slate-800/40 hover:bg-[#4338ff]/5'
+          )}
         >
-          <Camera className="h-7 w-7" />
-          <span>{imagePreview ? 'Change Screenshot' : 'Attach a Screenshot'}</span>
-        </button>
+          <Camera className="h-8 w-8" />
+          <span className="text-lg font-semibold">{imagePreview ? 'Change Screenshot' : 'Attach a Screenshot'}</span>
+          <span className="text-xs text-slate-500">Drag & drop an image here or tap to browse</span>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -145,10 +168,7 @@ export default function ReviewPage() {
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => setImagePreview(reader.result as string);
-            reader.readAsDataURL(file);
+            if (file) handleFile(file);
             e.target.value = '';
           }}
         />
