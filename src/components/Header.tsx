@@ -110,15 +110,15 @@ export function Header() {
   return (
     <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-12">
+        <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <Link href={isAthlete ? '/dashboard/program' : '/dashboard'} className="flex items-center gap-2 shrink-0">
-            <img src="/images/logo.png" alt="Madregot" className="h-7 w-7 object-contain brightness-0 invert" />
-            <span className="text-sm font-bold tracking-tight hidden sm:inline">Madregot</span>
+          <Link href={isAthlete ? '/dashboard/program' : '/dashboard'} className="flex items-center gap-2.5 shrink-0">
+            <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0 invert" />
+            <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
           </Link>
 
           {/* Desktop: Icon-only navigation with tooltips */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -127,14 +127,14 @@ export function Header() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'relative group flex items-center justify-center w-9 h-9 rounded-xl transition-all',
+                    'relative group flex items-center justify-center w-11 h-11 rounded-xl transition-all',
                     isActive
                       ? 'bg-primary-600 text-white shadow-md shadow-primary-600/25'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   )}
                 >
-                  <Icon className="h-[18px] w-[18px]" />
-                  <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[11px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                  <Icon className="h-5 w-5" />
+                  <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-slate-800 border border-slate-600 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
                     {item.label}
                   </span>
                 </Link>
@@ -143,17 +143,17 @@ export function Header() {
           </nav>
 
           {/* Desktop: User */}
-          <div className="hidden md:flex items-center gap-2 shrink-0">
-            <span className="text-xs text-slate-400 font-medium hidden lg:inline">{userName}</span>
-            <div className="bg-primary-600/20 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-primary-300 ring-1 ring-primary-500/20">
+          <div className="hidden md:flex items-center gap-3 shrink-0">
+            <span className="text-sm text-slate-400 font-medium hidden lg:inline">{userName}</span>
+            <div className="bg-primary-600/20 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-primary-300 ring-1 ring-primary-500/20">
               {initials}
             </div>
             <button
               onClick={handleLogout}
-              className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
               title="Sign out"
             >
-              <LogOut className="h-3.5 w-3.5" />
+              <LogOut className="h-4 w-4" />
             </button>
           </div>
 
