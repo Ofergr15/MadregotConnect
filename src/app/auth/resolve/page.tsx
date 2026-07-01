@@ -73,7 +73,7 @@ export default function AuthResolvePage() {
       localStorage.setItem('athlete_email', data.athlete.email || email);
       if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
       localStorage.removeItem('coach_email');
-      router.replace('/dashboard/program');
+      router.replace('/dashboard');
     } else if (data.pendingApproval && !data.missingGarmin) {
       router.replace('/pending-approval');
     } else {
