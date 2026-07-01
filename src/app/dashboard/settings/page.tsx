@@ -215,6 +215,7 @@ export default function SettingsPage() {
   const [savingPermissions, setSavingPermissions] = useState(false);
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -652,64 +653,99 @@ export default function SettingsPage() {
 
       {/* Feedback Tab */}
       {activeTab === 'feedback' && (
-        <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50">
-          <div className="px-5 py-4 border-b border-slate-700/50">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-white">User Feedback ({feedbackItems.length})</h2>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">Feedback and suggestions from athletes</p>
-          </div>
-
-          {feedbackLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-            </div>
-          ) : feedbackItems.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <MessageSquare className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-              <p className="text-slate-400 text-sm">No feedback yet</p>
-              <p className="text-slate-500 text-xs mt-1">Athletes can submit feedback from the Review tab</p>
-            </div>
-          ) : (
-            <div className="p-3 space-y-2 max-h-[600px] overflow-y-auto">
-              {feedbackItems.map(item => {
-                const date = new Date(item.created_at);
-                const timeAgo = (() => {
-                  const h = (Date.now() - date.getTime()) / 3600000;
-                  if (h < 1) return 'Just now';
-                  if (h < 24) return `${Math.floor(h)}h ago`;
-                  if (h < 48) return 'Yesterday';
-                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                })();
-                return (
-                  <div key={item.id} className="p-4 rounded-xl bg-slate-900/40 border border-slate-700/30">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-[#4338ff]/15 flex items-center justify-center">
-                          <span className="text-[10px] font-bold text-[#4338ff]">
-                            {item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold text-white">{item.athlete_name}</span>
-                          {item.group_name && (
-                            <span className="text-[10px] text-slate-500 ml-2">{item.group_name}</span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-[10px] text-slate-500">{timeAgo}</span>
+        <>
+          {selectedFeedback && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setSelectedFeedback(null)}>
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="px-6 py-5 border-b border-slate-700/50 flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-full bg-[#4338ff]/15 flex items-center justify-center">
+                      <span className="text-sm font-bold text-[#4338ff]">
+                        {selectedFeedback.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </span>
                     </div>
-                    <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{item.message}</p>
-                    {item.athlete_email && (
-                      <p className="text-[10px] text-slate-600 mt-2">{item.athlete_email}</p>
-                    )}
+                    <div>
+                      <p className="text-base font-bold text-white">{selectedFeedback.athlete_name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {selectedFeedback.athlete_email && <span className="text-xs text-slate-400">{selectedFeedback.athlete_email}</span>}
+                        {selectedFeedback.group_name && <span className="text-xs text-slate-500">· {selectedFeedback.group_name}</span>}
+                      </div>
+                    </div>
                   </div>
-                );
-              })}
+                  <button onClick={() => setSelectedFeedback(null)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="px-6 py-5">
+                  <p className="text-xs text-slate-500 mb-3">
+                    {new Date(selectedFeedback.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  <p className="text-base text-white leading-relaxed whitespace-pre-wrap">{selectedFeedback.message}</p>
+                </div>
+              </div>
             </div>
           )}
-        </div>
+
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50">
+            <div className="px-5 py-4 border-b border-slate-700/50">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-slate-400" />
+                <h2 className="text-sm font-semibold text-white">User Feedback ({feedbackItems.length})</h2>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">Click a feedback to expand</p>
+            </div>
+
+            {feedbackLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+              </div>
+            ) : feedbackItems.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <MessageSquare className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 text-sm">No feedback yet</p>
+                <p className="text-slate-500 text-xs mt-1">Athletes can submit feedback from the Review tab</p>
+              </div>
+            ) : (
+              <div className="p-3 space-y-2 max-h-[600px] overflow-y-auto">
+                {feedbackItems.map(item => {
+                  const date = new Date(item.created_at);
+                  const timeAgo = (() => {
+                    const h = (Date.now() - date.getTime()) / 3600000;
+                    if (h < 1) return 'Just now';
+                    if (h < 24) return `${Math.floor(h)}h ago`;
+                    if (h < 48) return 'Yesterday';
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  })();
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedFeedback(item)}
+                      className="p-4 rounded-xl bg-slate-900/40 border border-slate-700/30 cursor-pointer hover:border-[#4338ff]/30 hover:bg-slate-800/60 transition-all"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-[#4338ff]/15 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-[#4338ff]">
+                              {item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-sm font-semibold text-white">{item.athlete_name}</span>
+                            {item.group_name && (
+                              <span className="text-[10px] text-slate-500 ml-2">{item.group_name}</span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-500">{timeAgo}</span>
+                      </div>
+                      <p className="text-sm text-slate-300 leading-relaxed line-clamp-2">{item.message}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Tab Manager Tab */}
