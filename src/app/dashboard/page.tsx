@@ -636,46 +636,21 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* ═══ TODAY'S WORKOUT + WEATHER ═══ */}
-      {(todayWorkout || todayWeather) && (
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          {todayWorkout && todayWorkout.max > 0 && (
-            <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/40 rounded-2xl p-5 sm:p-6 border border-slate-700/30">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-300">Today&apos;s Workout</p>
-                <div className="px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: `${typeColors[todayWorkout.type]}20`, color: typeColors[todayWorkout.type] }}>
-                  {typeLabels[todayWorkout.type] || todayWorkout.type}
-                </div>
-              </div>
-              <p className="text-4xl sm:text-5xl font-black text-white mt-3 tabular-nums">
-                {todayWorkout.min === todayWorkout.max ? todayWorkout.max : `${todayWorkout.min}–${todayWorkout.max}`}
-                <span className="text-xl text-slate-400 ml-1">km</span>
-              </p>
-            </div>
-          )}
-          {todayWeather && (
-            <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/40 rounded-2xl p-5 sm:p-6 border border-slate-700/30">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-300">Training Weather</p>
-                <span className="text-xs text-slate-500">5–8am</span>
-              </div>
-              <div className="flex items-center gap-4 mt-3">
-                <WeatherIcon code={todayWeather.code} className="h-10 w-10" />
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black text-white tabular-nums">{todayWeather.tempMax}°</span>
-                    <span className={cn("text-lg font-bold", heatLevel(todayWeather.tempMax).color)}>
-                      {heatLevel(todayWeather.tempMax).label}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 text-sm text-slate-400">
-                    <span className="flex items-center gap-1"><Droplets className="h-3.5 w-3.5" />{todayWeather.humidity}%</span>
-                    <span className="flex items-center gap-1"><Wind className="h-3.5 w-3.5" />{todayWeather.windSpeed} km/h</span>
-                  </div>
-                </div>
+      {/* ═══ TODAY'S WORKOUT ═══ */}
+      {todayWorkout && todayWorkout.max > 0 && (
+        <section>
+          <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/40 rounded-2xl p-5 sm:p-6 border border-slate-700/30 max-w-md">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-300">Today&apos;s Workout</p>
+              <div className="px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: `${typeColors[todayWorkout.type]}20`, color: typeColors[todayWorkout.type] }}>
+                {typeLabels[todayWorkout.type] || todayWorkout.type}
               </div>
             </div>
-          )}
+            <p className="text-4xl sm:text-5xl font-black text-white mt-3 tabular-nums">
+              {todayWorkout.min === todayWorkout.max ? todayWorkout.max : `${todayWorkout.min}–${todayWorkout.max}`}
+              <span className="text-xl text-slate-400 ml-1">km</span>
+            </p>
+          </div>
         </section>
       )}
 
@@ -859,6 +834,7 @@ export default function DashboardPage() {
         const lastWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 1];
         const prevWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 2];
         const trend = prevWeek && prevWeek.km > 0 ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100) : 0;
+        const yMax = Math.ceil(maxKm / 10) * 10 + 10;
         return (
           <section>
             <div className="flex items-center justify-between mb-4">
@@ -877,16 +853,11 @@ export default function DashboardPage() {
             </div>
             <div className="h-48 sm:h-56 rounded-2xl bg-slate-800/30 border border-slate-700/20 p-4 pt-6">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <defs>
-                    <linearGradient id="runVolGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#4338ff" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                <BarChart data={runnerWeeklyVolumes} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
                   <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: '#475569' }} axisLine={false} tickLine={false} width={32} domain={[0, Math.ceil(maxKm * 1.2)]} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={36} domain={[0, yMax]} tickCount={6} />
                   <Tooltip
+                    cursor={{ fill: 'rgba(99, 102, 241, 0.06)' }}
                     contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '13px', padding: '8px 12px', color: '#f1f5f9' }}
                     labelStyle={{ color: '#fff', fontWeight: 700 }}
                     formatter={(v: any, _: any, props: any) => {
@@ -896,8 +867,12 @@ export default function DashboardPage() {
                     labelFormatter={l => `Week of ${l}`}
                     separator=""
                   />
-                  <Area type="monotone" dataKey="km" stroke="#818cf8" fill="url(#runVolGrad)" strokeWidth={2.5} dot={{ r: 4, fill: '#818cf8', strokeWidth: 0 }} activeDot={{ r: 6, fill: '#a5b4fc', strokeWidth: 2, stroke: '#4338ff' }} />
-                </AreaChart>
+                  <Bar dataKey="km" radius={[6, 6, 0, 0]}>
+                    {runnerWeeklyVolumes.map((_, i) => (
+                      <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#818cf8' : '#4338ff99'} />
+                    ))}
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </section>
