@@ -680,6 +680,7 @@ export default function DashboardPage() {
       )}
 
       {/* ═══ DAILY KM BAR CHART ═══ */}
+      {(hasData || isCoach) && (
       <section className="bg-slate-800/30 rounded-2xl p-4 sm:p-6 border border-slate-700/20">
         <div className="flex items-center justify-between mb-4 sm:mb-5">
           <div>
@@ -845,16 +846,13 @@ export default function DashboardPage() {
           <div className="h-52 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700/60">
             <Calendar className="h-10 w-10 text-slate-600 mb-3" />
             <p className="text-base text-slate-400">No plan loaded this week</p>
-            {isCoach ? (
-              <Link href="/dashboard/plan/new" className="mt-3 text-sm font-bold text-[#4338ff] hover:text-[#5b54ff] inline-flex items-center gap-1">
-                Upload a plan <ArrowRight className="h-4 w-4" />
-              </Link>
-            ) : (
-              <p className="mt-2 text-sm text-slate-500">Your coach will push a plan soon</p>
-            )}
+            <Link href="/dashboard/plan/new" className="mt-3 text-sm font-bold text-[#4338ff] hover:text-[#5b54ff] inline-flex items-center gap-1">
+              Upload a plan <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         )}
       </section>
+      )}
 
       {/* ═══ RECENT RUNS ═══ */}
       {recentActivities.length > 0 && (
