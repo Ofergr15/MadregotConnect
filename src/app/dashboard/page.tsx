@@ -588,100 +588,53 @@ export default function DashboardPage() {
       </section>
 
       {/* ═══ STATS ROW ═══ */}
-      {isCoach ? (
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {hasData ? `${Math.round(weekly!.weekTotalMin)}–${Math.round(weekly!.weekTotalMax)}` : '—'}
-              <span className="text-sm font-medium text-slate-500 ml-1">km</span>
-            </p>
-            {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
-              <div className="flex items-center gap-1 mt-2">
-                {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-green-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
-                <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-green-400' : 'text-amber-400')}>
-                  {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500 ml-1">/7</span></p>
-            <p className="text-sm text-slate-500 mt-1">this week</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Athletes</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.athleteCount || 0}</p>
-            <p className="text-sm text-slate-500 mt-1">{stats?.groupCount || 0} groups</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivery</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ml-0.5">%</span></p>
-            <p className="text-sm text-slate-500 mt-1">success rate</p>
-          </div>
-        </section>
-      ) : (
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">This Week</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {weeklyKm > 0 ? weeklyKm : '—'}
-              <span className="text-sm font-medium text-slate-500 ml-1">km</span>
-            </p>
-            <p className="text-sm text-slate-500 mt-1">{weeklyRuns} {weeklyRuns === 1 ? 'run' : 'runs'}</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Runs</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{recentActivities.length}</p>
-            <p className="text-sm text-slate-500 mt-1">synced</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Block</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {week > 0 ? week : '—'}
-              <span className="text-sm font-medium text-slate-500 ml-1">{week > 0 ? `/ ${TOTAL_WEEKS}` : ''}</span>
-            </p>
-            <p className="text-sm text-slate-500 mt-1">{week > 0 ? 'weeks' : 'Pre-season'}</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Race Day</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{countdown.d}<span className="text-sm font-medium text-slate-500 ml-1">days</span></p>
-            <p className="text-sm text-slate-500 mt-1">to go</p>
-          </div>
-        </section>
-      )}
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
+          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+            {isCoach
+              ? (hasData ? `${Math.round(weekly!.weekTotalMin)}–${Math.round(weekly!.weekTotalMax)}` : '—')
+              : (weeklyKm > 0 ? weeklyKm : '—')
+            }
+            <span className="text-sm font-medium text-slate-500 ml-1">km</span>
+          </p>
+          {isCoach && weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
+            <div className="flex items-center gap-1 mt-2">
+              {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-green-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
+              <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-green-400' : 'text-amber-400')}>
+                {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
+              </span>
+            </div>
+          )}
+          {!isCoach && <p className="text-sm text-slate-500 mt-1">{weeklyRuns} {weeklyRuns === 1 ? 'run' : 'runs'}</p>}
+        </div>
 
-      {/* ═══ PROGRAM CARD (Runners) ═══ */}
-      {!isCoach && (
-        <section>
-          <Link href="/dashboard/program" className="block bg-gradient-to-r from-[#4338ff]/10 to-purple-600/10 rounded-2xl p-5 sm:p-6 border border-[#4338ff]/20 hover:border-[#4338ff]/40 transition-all group">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-[#4338ff]/20 w-10 h-10 rounded-xl flex items-center justify-center">
-                  <Dumbbell className="h-5 w-5 text-[#4338ff]" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">Weekly Program</h3>
-                  <p className="text-sm text-slate-400">Training & Nutrition Plans</p>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-[#4338ff] transition-colors" />
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-slate-300 font-medium">
-                  {week > 0 ? `Week ${week} of ${TOTAL_WEEKS}` : 'Pre-season'}
-                </span>
-                <span className="text-slate-500">{week > 0 ? `${Math.round((week / TOTAL_WEEKS) * 100)}%` : 'Starting Aug 9'}</span>
-              </div>
-              <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-[#4338ff] to-purple-500 rounded-full transition-all duration-1000" style={{ width: `${Math.max(4, (week / TOTAL_WEEKS) * 100)}%` }} />
-              </div>
-            </div>
-          </Link>
-        </section>
-      )}
+        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
+          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+            {isCoach ? (weekly?.trainingDays || 0) : weeklyRuns}
+            <span className="text-sm font-medium text-slate-500 ml-1">/7</span>
+          </p>
+          <p className="text-sm text-slate-500 mt-1">this week</p>
+        </div>
+
+        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{isCoach ? 'Athletes' : 'Total Runs'}</p>
+          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{isCoach ? (stats?.athleteCount || 0) : recentActivities.length}</p>
+          <p className="text-sm text-slate-500 mt-1">{isCoach ? `${stats?.groupCount || 0} groups` : 'synced'}</p>
+        </div>
+
+        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{isCoach ? 'Delivery' : 'Race Day'}</p>
+          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+            {isCoach
+              ? <>{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ml-0.5">%</span></>
+              : <>{countdown.d}<span className="text-sm font-medium text-slate-500 ml-1">days</span></>
+            }
+          </p>
+          <p className="text-sm text-slate-500 mt-1">{isCoach ? 'success rate' : 'to go'}</p>
+        </div>
+      </section>
 
       {/* ═══ RUNNER WEEKLY VOLUME GRAPH ═══ */}
       {!isCoach && runnerWeeklyVolumes.length > 1 && (
@@ -1058,6 +1011,9 @@ export default function DashboardPage() {
         <Link href="/dashboard/program" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-[#4338ff] hover:bg-[#3730d4] transition-colors">
           <Dumbbell className="h-4 w-4" /> Program
         </Link>
+        <Link href="/dashboard/activities" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors">
+          <Zap className="h-4 w-4" /> Activities
+        </Link>
         {isCoach && (
           <Link href="/dashboard/plan/new" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors">
             <Calendar className="h-4 w-4" /> Weekly Planner
@@ -1068,9 +1024,6 @@ export default function DashboardPage() {
             <Users className="h-4 w-4" /> Athletes
           </Link>
         )}
-        <Link href="/dashboard/history" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors">
-          <ChevronRight className="h-4 w-4" /> History
-        </Link>
       </section>
 
     </div>
