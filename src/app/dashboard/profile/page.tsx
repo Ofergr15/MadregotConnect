@@ -421,18 +421,30 @@ export default function ProfilePage() {
                 setSyncing(true);
                 setSyncResult(null);
                 try {
-                  const endpoint = dataSource === 'strava' ? '/api/strava/sync-activities' : '/api/garmin/sync-activities';
-                  const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ athleteId }),
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    setSyncResult(`Synced ${data.synced || 0} new activities`);
-                  } else {
-                    setSyncResult('Sync failed. Try again later.');
+                  const fetches: Promise<Response>[] = [];
+                  if (hasGarmin) {
+                    fetches.push(fetch('/api/garmin/sync-activities', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ athleteId }),
+                    }));
                   }
+                  if (hasStrava) {
+                    fetches.push(fetch('/api/strava/sync-activities', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ athleteId }),
+                    }));
+                  }
+                  const results = await Promise.allSettled(fetches);
+                  let totalSynced = 0;
+                  for (const r of results) {
+                    if (r.status === 'fulfilled' && r.value.ok) {
+                      const d = await r.value.json();
+                      totalSynced += d.synced || 0;
+                    }
+                  }
+                  setSyncResult(`Synced ${totalSynced} new activities`);
                 } catch {
                   setSyncResult('Sync failed. Try again later.');
                 } finally {
