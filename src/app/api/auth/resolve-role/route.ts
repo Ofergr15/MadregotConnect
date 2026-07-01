@@ -36,14 +36,17 @@ export async function POST(req: NextRequest) {
     // Check if user is an athlete
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth')
+      .select('id, name, email, group_id, status, garmin_auth, approved')
       .eq('email', lowerEmail)
       .eq('status', 'active')
       .single();
 
     if (athlete) {
+      if (athlete.approved === false) {
+        return NextResponse.json({ pendingApproval: true, missingGarmin: false });
+      }
       const hasGarmin = !!athlete.garmin_auth;
-      return NextResponse.json({ role: 'runner', athlete: { ...athlete, garmin_auth: undefined }, hasGarmin });
+      return NextResponse.json({ role: 'runner', athlete: { ...athlete, garmin_auth: undefined, approved: undefined }, hasGarmin });
     }
 
     // Check invited athletes (need onboarding)
