@@ -215,25 +215,33 @@ export function Header() {
                   {groupName}
                 </button>
                 {showGroupPicker && availableGroups.length > 0 && (
-                  <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[140px] z-50">
-                    {availableGroups.map(g => (
-                      <button
-                        key={g.id}
-                        onClick={async () => {
-                          localStorage.setItem('athlete_group_id', g.id);
-                          const supabaseClient = getSupabase();
-                          const athleteId = localStorage.getItem('athlete_id');
-                          if (athleteId) {
-                            await supabaseClient.from('athletes').update({ group_id: g.id }).eq('id', athleteId);
-                          }
-                          setShowGroupPicker(false);
-                          window.location.reload();
-                        }}
-                        className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-                      >
-                        {g.name}
-                      </button>
-                    ))}
+                  <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[160px] z-50">
+                    {availableGroups.map(g => {
+                      const n = g.name.toLowerCase();
+                      const color = n.includes('group a') || n.includes('sub 2:30') ? '#3b82f6'
+                        : n.includes('group b') || n.includes('sub 2:35') ? '#a855f7'
+                        : n.includes('group c') || n.includes('sub 2:45') ? '#14b8a6'
+                        : '#6366f1';
+                      return (
+                        <button
+                          key={g.id}
+                          onClick={async () => {
+                            localStorage.setItem('athlete_group_id', g.id);
+                            const supabaseClient = getSupabase();
+                            const athleteId = localStorage.getItem('athlete_id');
+                            if (athleteId) {
+                              await supabaseClient.from('athletes').update({ group_id: g.id }).eq('id', athleteId);
+                            }
+                            setShowGroupPicker(false);
+                            window.location.reload();
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                          <span style={{ color }}>{g.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
