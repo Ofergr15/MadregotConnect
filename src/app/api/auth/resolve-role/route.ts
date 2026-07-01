@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
 
     const { data: newAthlete } = await supabase
       .from('athletes')
-      .insert({
+      .upsert({
         email: lowerEmail,
         name: name || lowerEmail.split('@')[0],
         status: 'invited',
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
         google_authed_at: new Date().toISOString(),
         approved: false,
         ...(defaultCoach ? { coach_id: defaultCoach.id } : {}),
-      })
+      }, { onConflict: 'email', ignoreDuplicates: true })
       .select('id')
       .single();
 
