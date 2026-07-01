@@ -1002,20 +1002,57 @@ export default function DashboardPage() {
                     const date = new Date(a.start_time);
                     const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     const runType = inferRunTypeFromActivity(kmNum, a.average_pace);
+                    const durationMin = Math.round(a.duration / 60);
+                    const isExpanded = selectedBar === parseInt(a.id.slice(-4), 16) % 1000;
                     return (
-                      <Link key={a.id} href="/dashboard/activities" className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/40 border border-slate-700/20 hover:border-[#4338ff]/30 transition-all">
-                        <div className="flex items-center gap-2.5">
-                          <div className={cn('w-2 h-2 rounded-full', runType.bg)} style={{ backgroundColor: runType.color.includes('#') ? runType.color : undefined }} />
-                          <div>
-                            <p className="text-xs font-semibold text-white">{km} km</p>
-                            <p className="text-[10px] text-slate-500">{dateLabel}</p>
+                      <div key={a.id}>
+                        <button
+                          onClick={() => setSelectedBar(isExpanded ? null : parseInt(a.id.slice(-4), 16) % 1000)}
+                          className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900/40 border border-slate-700/20 hover:border-[#4338ff]/30 transition-all text-left"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={cn('w-2 h-2 rounded-full', runType.bg)} style={{ backgroundColor: runType.color.includes('#') ? runType.color : undefined }} />
+                            <div>
+                              <p className="text-xs font-semibold text-white">{km} km</p>
+                              <p className="text-[10px] text-slate-500">{dateLabel}</p>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {pace && <span className="text-[11px] font-bold text-emerald-400 tabular-nums">{pace}</span>}
-                          <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', runType.bg, runType.color)}>{runType.label}</span>
-                        </div>
-                      </Link>
+                          <div className="flex items-center gap-2">
+                            {pace && <span className="text-[11px] font-bold text-emerald-400 tabular-nums">{pace}</span>}
+                            <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', runType.bg, runType.color)}>{runType.label}</span>
+                          </div>
+                        </button>
+                        {isExpanded && (
+                          <div className="mt-1 mx-2 p-3 rounded-lg bg-slate-900/60 border border-slate-700/30 space-y-2">
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div>
+                                <p className="text-[10px] text-slate-500">Distance</p>
+                                <p className="text-sm font-bold text-white">{km} km</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500">Duration</p>
+                                <p className="text-sm font-bold text-white">{durationMin} min</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500">Pace</p>
+                                <p className="text-sm font-bold text-emerald-400">{pace || '—'}</p>
+                              </div>
+                            </div>
+                            {a.average_hr && (
+                              <div className="text-center">
+                                <p className="text-[10px] text-slate-500">Avg HR</p>
+                                <p className="text-sm font-bold text-red-400">{a.average_hr} bpm</p>
+                              </div>
+                            )}
+                            <Link
+                              href="/dashboard/activities"
+                              className="block w-full text-center text-[11px] font-bold text-[#4338ff] bg-[#4338ff]/10 border border-[#4338ff]/30 rounded-lg py-2 hover:bg-[#4338ff]/20 transition-colors mt-2"
+                            >
+                              View in Activities →
+                            </Link>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
