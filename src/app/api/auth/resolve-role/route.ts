@@ -106,7 +106,8 @@ export async function POST(req: NextRequest) {
         role: 'runner',
         onboarding_status: 'google_authed',
         google_authed_at: new Date().toISOString(),
-        approved: false,
+        approved: true,
+        approved_at: new Date().toISOString(),
         ...(defaultCoach ? { coach_id: defaultCoach.id } : {}),
       }, { onConflict: 'email', ignoreDuplicates: true })
       .select('id')
@@ -127,7 +128,6 @@ export async function POST(req: NextRequest) {
       needsOnboarding: true,
       missingGroup: true,
       missingGarmin: true,
-      pendingApproval: true,
     });
   } catch (error: any) {
     return NextResponse.json(
