@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface User {
@@ -184,14 +184,42 @@ const settingsTabs = [
   { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare },
 ];
 
+type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
+type FeedbackStatus = 'new' | 'idea' | 'sprint' | 'denied' | 'done';
+type FeedbackPriority = 'low' | 'medium' | 'high';
+
 interface FeedbackItem {
   id: string;
   athlete_name: string;
   athlete_email: string | null;
   group_name: string | null;
   message: string;
+  category: FeedbackCategory;
+  status: FeedbackStatus;
+  priority: FeedbackPriority;
   created_at: string;
 }
+
+const categoryConfig = {
+  feature_request: { label: 'Feature Request', icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
+  bug_report: { label: 'Bug Report', icon: Bug, color: 'text-red-400', bg: 'bg-red-500/15', border: 'border-red-500/30' },
+  training_feedback: { label: 'Training Feedback', icon: Dumbbell, color: 'text-blue-400', bg: 'bg-blue-500/15', border: 'border-blue-500/30' },
+  general: { label: 'General', icon: MessageCircle, color: 'text-slate-400', bg: 'bg-slate-500/15', border: 'border-slate-500/30' },
+};
+
+const statusConfig = {
+  new: { label: 'New', bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30' },
+  idea: { label: 'Idea', bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30' },
+  sprint: { label: 'Sprint', bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
+  denied: { label: 'Denied', bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30' },
+  done: { label: 'Done', bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30' },
+};
+
+const priorityConfig = {
+  low: { label: 'Low', bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30' },
+  medium: { label: 'Medium', bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30' },
+  high: { label: 'High', bg: 'bg-red-500/15', text: 'text-red-400', border: 'border-red-500/30' },
+};
 
 function getOnboardingStep(status: string | undefined, approved: boolean | undefined): { step: number; label: string; color: string } {
   if (approved === true) return { step: 3, label: 'Active', color: 'text-green-400' };
@@ -216,6 +244,10 @@ export default function SettingsPage() {
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
+  const [filterCategory, setFilterCategory] = useState<FeedbackCategory | 'all'>('all');
+  const [filterStatus, setFilterStatus] = useState<FeedbackStatus | 'all'>('all');
+  const [filterPriority, setFilterPriority] = useState<FeedbackPriority | 'all'>('all');
+  const [updatingFeedback, setUpdatingFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -250,6 +282,33 @@ export default function SettingsPage() {
       setFeedbackLoading(false);
     }
   };
+
+  const updateFeedbackStatus = async (id: string, status: FeedbackStatus, priority: FeedbackPriority) => {
+    setUpdatingFeedback(id);
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status, priority }),
+      });
+      if (res.ok) {
+        await fetchFeedback();
+        if (selectedFeedback && selectedFeedback.id === id) {
+          setSelectedFeedback({ ...selectedFeedback, status, priority });
+        }
+      }
+    } catch {
+    } finally {
+      setUpdatingFeedback(null);
+    }
+  };
+
+  const filteredFeedback = feedbackItems.filter(item => {
+    if (filterCategory !== 'all' && item.category !== filterCategory) return false;
+    if (filterStatus !== 'all' && item.status !== filterStatus) return false;
+    if (filterPriority !== 'all' && item.priority !== filterPriority) return false;
+    return true;
+  });
 
   const togglePermission = (role: string, tab: string, currentEnabled: boolean) => {
     setPermissions(prev =>
@@ -677,10 +736,79 @@ export default function SettingsPage() {
                   </button>
                 </div>
                 <div className="px-6 py-5">
-                  <p className="text-xs text-slate-500 mb-3">
-                    {new Date(selectedFeedback.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                  <p className="text-base text-white leading-relaxed whitespace-pre-wrap">{selectedFeedback.message}</p>
+                  <div className="flex items-center gap-2 mb-4">
+                    {(() => {
+                      const catConfig = categoryConfig[selectedFeedback.category];
+                      const CatIcon = catConfig.icon;
+                      return (
+                        <span className={cn('flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border', catConfig.bg, catConfig.border, catConfig.color)}>
+                          <CatIcon className="w-3.5 h-3.5" />
+                          {catConfig.label}
+                        </span>
+                      );
+                    })()}
+                    <span className="text-xs text-slate-500">
+                      {new Date(selectedFeedback.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-base text-white leading-relaxed whitespace-pre-wrap mb-5">{selectedFeedback.message}</p>
+
+                  <div className="border-t border-slate-700/50 pt-4">
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-400 mb-2 block">Status</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => {
+                            const config = statusConfig[status];
+                            const isSelected = selectedFeedback.status === status;
+                            return (
+                              <button
+                                key={status}
+                                onClick={() => updateFeedbackStatus(selectedFeedback.id, status, selectedFeedback.priority)}
+                                disabled={updatingFeedback === selectedFeedback.id}
+                                className={cn(
+                                  'text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border transition-all',
+                                  isSelected ? `${config.bg} ${config.border} ${config.text}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:border-slate-500 hover:text-slate-400',
+                                  updatingFeedback === selectedFeedback.id && 'opacity-50 cursor-not-allowed'
+                                )}
+                              >
+                                {config.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-400 mb-2 block">Priority</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(['low', 'medium', 'high'] as FeedbackPriority[]).map(priority => {
+                            const config = priorityConfig[priority];
+                            const isSelected = selectedFeedback.priority === priority;
+                            return (
+                              <button
+                                key={priority}
+                                onClick={() => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status, priority)}
+                                disabled={updatingFeedback === selectedFeedback.id}
+                                className={cn(
+                                  'text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border transition-all',
+                                  isSelected ? `${config.bg} ${config.border} ${config.text}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:border-slate-500 hover:text-slate-400',
+                                  updatingFeedback === selectedFeedback.id && 'opacity-50 cursor-not-allowed'
+                                )}
+                              >
+                                {config.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    {updatingFeedback === selectedFeedback.id && (
+                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Updating...
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -688,26 +816,113 @@ export default function SettingsPage() {
 
           <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50">
             <div className="px-5 py-4 border-b border-slate-700/50">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-slate-400" />
-                <h2 className="text-sm font-semibold text-white">User Feedback ({feedbackItems.length})</h2>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-slate-400" />
+                  <h2 className="text-sm font-semibold text-white">User Feedback ({filteredFeedback.length})</h2>
+                </div>
               </div>
-              <p className="text-xs text-slate-500 mt-1">Click a feedback to expand</p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Filter className="w-3.5 h-3.5 text-slate-500" />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setFilterCategory('all')}
+                    className={cn(
+                      'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
+                      filterCategory === 'all' ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-[#4338ff]' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
+                    )}
+                  >
+                    All
+                  </button>
+                  {(['feature_request', 'bug_report', 'training_feedback', 'general'] as FeedbackCategory[]).map(cat => {
+                    const config = categoryConfig[cat];
+                    const CatIcon = config.icon;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setFilterCategory(cat)}
+                        className={cn(
+                          'flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
+                          filterCategory === cat ? `${config.bg} ${config.border} ${config.color}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
+                        )}
+                      >
+                        <CatIcon className="w-3 h-3" />
+                        {config.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="h-4 w-px bg-slate-700" />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setFilterStatus('all')}
+                    className={cn(
+                      'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
+                      filterStatus === 'all' ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-[#4338ff]' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
+                    )}
+                  >
+                    All Status
+                  </button>
+                  {(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => {
+                    const config = statusConfig[status];
+                    return (
+                      <button
+                        key={status}
+                        onClick={() => setFilterStatus(status)}
+                        className={cn(
+                          'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
+                          filterStatus === status ? `${config.bg} ${config.border} ${config.text}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
+                        )}
+                      >
+                        {config.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="h-4 w-px bg-slate-700" />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setFilterPriority('all')}
+                    className={cn(
+                      'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
+                      filterPriority === 'all' ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-[#4338ff]' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
+                    )}
+                  >
+                    All Priority
+                  </button>
+                  {(['low', 'medium', 'high'] as FeedbackPriority[]).map(priority => {
+                    const config = priorityConfig[priority];
+                    return (
+                      <button
+                        key={priority}
+                        onClick={() => setFilterPriority(priority)}
+                        className={cn(
+                          'text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all',
+                          filterPriority === priority ? `${config.bg} ${config.border} ${config.text}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400'
+                        )}
+                      >
+                        {config.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {feedbackLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
               </div>
-            ) : feedbackItems.length === 0 ? (
+            ) : filteredFeedback.length === 0 ? (
               <div className="px-6 py-12 text-center">
                 <MessageSquare className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 text-sm">No feedback yet</p>
-                <p className="text-slate-500 text-xs mt-1">Athletes can submit feedback from the Review tab</p>
+                <p className="text-slate-400 text-sm">{feedbackItems.length === 0 ? 'No feedback yet' : 'No feedback matches filters'}</p>
+                <p className="text-slate-500 text-xs mt-1">{feedbackItems.length === 0 ? 'Athletes can submit feedback from the Review tab' : 'Try adjusting your filters'}</p>
               </div>
             ) : (
               <div className="p-3 space-y-2 max-h-[600px] overflow-y-auto">
-                {feedbackItems.map(item => {
+                {filteredFeedback.map(item => {
                   const date = new Date(item.created_at);
                   const timeAgo = (() => {
                     const h = (Date.now() - date.getTime()) / 3600000;
@@ -716,6 +931,10 @@ export default function SettingsPage() {
                     if (h < 48) return 'Yesterday';
                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                   })();
+                  const catConfig = categoryConfig[item.category];
+                  const CatIcon = catConfig.icon;
+                  const statusCfg = statusConfig[item.status];
+                  const priorityCfg = priorityConfig[item.priority];
                   return (
                     <div
                       key={item.id}
@@ -738,7 +957,19 @@ export default function SettingsPage() {
                         </div>
                         <span className="text-[10px] text-slate-500">{timeAgo}</span>
                       </div>
-                      <p className="text-sm text-slate-300 leading-relaxed line-clamp-2">{item.message}</p>
+                      <p className="text-sm text-slate-300 leading-relaxed line-clamp-2 mb-2">{item.message}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn('flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border', catConfig.bg, catConfig.border, catConfig.color)}>
+                          <CatIcon className="w-3 h-3" />
+                          {catConfig.label}
+                        </span>
+                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border', statusCfg.bg, statusCfg.border, statusCfg.text)}>
+                          {statusCfg.label}
+                        </span>
+                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border', priorityCfg.bg, priorityCfg.border, priorityCfg.text)}>
+                          {priorityCfg.label}
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
