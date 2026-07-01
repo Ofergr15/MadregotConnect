@@ -197,6 +197,7 @@ interface FeedbackItem {
   category: FeedbackCategory;
   status: FeedbackStatus;
   priority: FeedbackPriority;
+  admin_notes: string | null;
   created_at: string;
 }
 
@@ -248,6 +249,7 @@ export default function SettingsPage() {
   const [filterStatus, setFilterStatus] = useState<FeedbackStatus | 'all'>('all');
   const [filterPriority, setFilterPriority] = useState<FeedbackPriority | 'all'>('all');
   const [updatingFeedback, setUpdatingFeedback] = useState<string | null>(null);
+  const [adminNotes, setAdminNotes] = useState<string>('');
 
   useEffect(() => {
     fetchUsers();
@@ -283,18 +285,20 @@ export default function SettingsPage() {
     }
   };
 
-  const updateFeedbackStatus = async (id: string, status: FeedbackStatus, priority: FeedbackPriority) => {
+  const updateFeedbackStatus = async (id: string, status: FeedbackStatus, priority: FeedbackPriority, notes?: string) => {
     setUpdatingFeedback(id);
     try {
+      const body: any = { id, status, priority };
+      if (notes !== undefined) body.admin_notes = notes;
       const res = await fetch('/api/feedback', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, priority }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         await fetchFeedback();
         if (selectedFeedback && selectedFeedback.id === id) {
-          setSelectedFeedback({ ...selectedFeedback, status, priority });
+          setSelectedFeedback({ ...selectedFeedback, status, priority, admin_notes: notes ?? selectedFeedback.admin_notes });
         }
       }
     } catch {
@@ -808,6 +812,29 @@ export default function SettingsPage() {
                         Updating...
                       </div>
                     )}
+
+                    <div className="mt-4 pt-3 border-t border-slate-700/50">
+                      <label className="text-xs font-semibold text-slate-400 mb-2 block">Admin Notes</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={adminNotes}
+                          onChange={e => setAdminNotes(e.target.value)}
+                          placeholder="Add a tag or note..."
+                          className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#4338ff]/50"
+                        />
+                        <button
+                          onClick={() => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status || 'new', selectedFeedback.priority || 'medium', adminNotes)}
+                          disabled={updatingFeedback === selectedFeedback.id}
+                          className="px-3 py-2 rounded-lg bg-[#4338ff] hover:bg-[#3730d4] text-white text-xs font-bold transition-colors disabled:opacity-50"
+                        >
+                          Save
+                        </button>
+                      </div>
+                      {selectedFeedback.admin_notes && adminNotes !== selectedFeedback.admin_notes && (
+                        <p className="text-[10px] text-slate-500 mt-1.5">Current: {selectedFeedback.admin_notes}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -938,7 +965,7 @@ export default function SettingsPage() {
                   return (
                     <div
                       key={item.id}
-                      onClick={() => setSelectedFeedback(item)}
+                      onClick={() => { setSelectedFeedback(item); setAdminNotes(item.admin_notes || ''); }}
                       className="p-4 rounded-xl bg-slate-900/40 border border-slate-700/30 cursor-pointer hover:border-[#4338ff]/30 hover:bg-slate-800/60 transition-all"
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -969,6 +996,11 @@ export default function SettingsPage() {
                         <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border', priorityCfg.bg, priorityCfg.border, priorityCfg.text)}>
                           {priorityCfg.label}
                         </span>
+                        {item.admin_notes && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-700/50 border border-slate-600/50 text-slate-300 italic">
+                            {item.admin_notes}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
