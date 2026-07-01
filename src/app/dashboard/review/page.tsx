@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle, ImagePlus, X } from 'lucide-react';
+import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
@@ -10,7 +10,7 @@ const categories = [
   { value: 'feature_request' as FeedbackCategory, label: 'Feature Request', icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
   { value: 'bug_report' as FeedbackCategory, label: 'Bug Report', icon: Bug, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' },
   { value: 'training_feedback' as FeedbackCategory, label: 'Training Feedback', icon: Dumbbell, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
-  { value: 'general' as FeedbackCategory, label: 'General', icon: MessageCircle, color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/30' },
+  { value: 'general' as FeedbackCategory, label: 'General', icon: MessageCircle, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30' },
 ];
 
 export default function ReviewPage() {
@@ -130,30 +130,31 @@ export default function ReviewPage() {
           </div>
         )}
 
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="mt-4 w-full flex items-center justify-center gap-3 px-5 py-5 rounded-xl border-2 border-dashed border-slate-500/60 hover:border-[#4338ff] text-lg font-semibold text-slate-200 hover:text-[#4338ff] transition-all bg-slate-800/40 hover:bg-[#4338ff]/5"
+        >
+          <Camera className="h-7 w-7" />
+          <span>{imagePreview ? 'Change Screenshot' : 'Attach a Screenshot'}</span>
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => setImagePreview(reader.result as string);
+            reader.readAsDataURL(file);
+            e.target.value = '';
+          }}
+        />
+
         <div className="flex items-center justify-between mt-4">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
-            >
-              <ImagePlus className="h-4 w-4" />
-              <span className="hidden sm:inline">{imagePreview ? 'Change' : 'Attach'}</span>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => setImagePreview(reader.result as string);
-                reader.readAsDataURL(file);
-                e.target.value = '';
-              }}
-            />
             <p className="text-xs text-slate-500">
               <span className="text-slate-300 font-medium">{athleteName || 'Anonymous'}</span>
               {groupName && <span className="text-slate-500"> · {groupName}</span>}
