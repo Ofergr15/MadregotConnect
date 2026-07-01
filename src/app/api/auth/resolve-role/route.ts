@@ -77,6 +77,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Completely new user — create record and track onboarding
+    // Get a default coach for the foreign key constraint
+    const { data: defaultCoach } = await supabase
+      .from('coaches')
+      .select('id')
+      .limit(1)
+      .single();
+
     const { data: newAthlete } = await supabase
       .from('athletes')
       .insert({
@@ -87,6 +94,7 @@ export async function POST(req: NextRequest) {
         onboarding_status: 'google_authed',
         google_authed_at: new Date().toISOString(),
         approved: false,
+        ...(defaultCoach ? { coach_id: defaultCoach.id } : {}),
       })
       .select('id')
       .single();
