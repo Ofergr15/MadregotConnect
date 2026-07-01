@@ -497,8 +497,8 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Manual Sync button */}
-        {(hasGarmin || hasStrava) && (
+        {/* Manual Sync button - only for Strava if Garmin already has activities */}
+        {(hasStrava || (hasGarmin && !hasActivities)) && (
           <div className="mt-4 pt-4 border-t border-slate-700/30">
             <button
               onClick={async () => {
@@ -506,7 +506,7 @@ export default function ProfilePage() {
                 setSyncResult(null);
                 try {
                   const fetches: Promise<Response>[] = [];
-                  if (hasGarmin) {
+                  if (hasGarmin && !hasActivities) {
                     fetches.push(fetch('/api/garmin/sync-activities', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -536,13 +536,8 @@ export default function ProfilePage() {
                   setTimeout(() => setSyncResult(null), 4000);
                 }
               }}
-              disabled={syncing || hasActivities}
-              className={cn(
-                "w-full font-medium px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2",
-                hasActivities
-                  ? 'border border-slate-700/50 text-slate-500 cursor-not-allowed opacity-60'
-                  : 'border border-slate-600 hover:border-[#4338ff]/50 hover:bg-[#4338ff]/5 text-slate-300 hover:text-white disabled:opacity-50'
-              )}
+              disabled={syncing}
+              className="w-full border border-slate-600 hover:border-[#4338ff]/50 hover:bg-[#4338ff]/5 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {syncing ? (
                 <>
@@ -552,13 +547,10 @@ export default function ProfilePage() {
               ) : (
                 <>
                   <Activity className="h-4 w-4" />
-                  Sync Activities Now
+                  {hasStrava && hasActivities ? 'Sync Strava Activities' : 'Sync Activities Now'}
                 </>
               )}
             </button>
-            {hasActivities && (
-              <p className="text-xs mt-2 text-center text-slate-500">Activities sync automatically. Manual sync is only needed for the first time.</p>
-            )}
             {syncResult && (
               <p className={cn('text-xs mt-2 text-center', syncResult.includes('failed') ? 'text-red-400' : 'text-green-400')}>
                 {syncResult}
