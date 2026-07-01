@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Trophy, Users, Zap, Heart, Camera, Loader2 } from 'lucide-react';
+import { ArrowRight, Trophy, Users, Zap, Heart, Camera, Loader2, Shield } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 
 function useGoogleLogin() {
@@ -26,6 +26,11 @@ export default function HomePage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
   const { signIn, loading: signingIn } = useGoogleLogin();
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminError, setAdminError] = useState('');
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -37,6 +42,31 @@ export default function HomePage() {
       }
     });
   }, [router]);
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminLoading(true);
+    setAdminError('');
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Login failed');
+      localStorage.setItem('coach_email', data.email);
+      localStorage.setItem('admin_session', 'true');
+      localStorage.removeItem('athlete_id');
+      localStorage.removeItem('athlete_name');
+      localStorage.removeItem('athlete_email');
+      router.push('/dashboard');
+    } catch (err: any) {
+      setAdminError(err.message);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
 
   if (checking) {
     return (
@@ -51,7 +81,7 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="flex flex-col">
         {/* Nav */}
-        <nav className="flex items-center justify-between px-4 sm:px-8 lg:px-20 py-4 sm:py-6">
+        <nav className="relative flex items-center justify-between px-4 sm:px-8 lg:px-20 py-4 sm:py-6">
           <div className="flex items-center gap-2">
             <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 sm:h-12 sm:w-12 object-contain mix-blend-multiply" />
             <div className="flex flex-col leading-none">
@@ -59,14 +89,62 @@ export default function HomePage() {
               <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-gray-500">After 2KM Running Club</span>
             </div>
           </div>
-          <button
-            onClick={signIn}
-            disabled={signingIn}
-            className="bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
-          >
-            {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign In'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={signIn}
+              disabled={signingIn}
+              className="bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
+            >
+              {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign In'}
+            </button>
+            <button
+              onClick={() => setShowAdminLogin(!showAdminLogin)}
+              className="p-2 text-gray-400 hover:text-[#4338ff] transition-colors rounded-lg hover:bg-gray-200"
+              title="Admin Login"
+            >
+              <Shield className="h-5 w-5" />
+            </button>
+          </div>
         </nav>
+
+        {/* Admin Login Dropdown */}
+        {showAdminLogin && (
+          <div className="absolute top-16 right-4 sm:right-8 lg:right-20 z-50 bg-white rounded-xl shadow-2xl border border-gray-200 p-5 w-80">
+            <div className="flex items-center gap-2 mb-4">
+              <Shield className="h-4 w-4 text-[#4338ff]" />
+              <span className="text-sm font-bold text-gray-800">Admin Login</span>
+            </div>
+            <form onSubmit={handleAdminLogin} className="space-y-3">
+              <input
+                type="email"
+                value={adminEmail}
+                onChange={e => setAdminEmail(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
+                placeholder="admin@madregot.club"
+                required
+              />
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={e => setAdminPassword(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
+                placeholder="Password"
+                required
+              />
+              {adminError && (
+                <p className="text-xs text-red-500">{adminError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={adminLoading}
+                className="w-full bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-2 rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {adminLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                {adminLoading ? 'Signing in...' : 'Sign In as Admin'}
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* Mobile Hero Image */}
         <div className="lg:hidden px-4 sm:px-8 pt-2 pb-6">
