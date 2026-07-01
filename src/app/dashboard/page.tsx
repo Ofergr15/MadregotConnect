@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import {
-  Calendar, Users, ArrowRight, TrendingUp, TrendingDown,
+  Calendar, Users, ArrowRight, TrendingUp, TrendingDown, Heart,
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
   Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
 } from 'lucide-react';
@@ -293,6 +293,7 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
 
 interface RecentActivity {
   id: string;
+  athlete_id: string;
   athlete_name: string;
   activity_name: string;
   start_time: string;
@@ -300,6 +301,9 @@ interface RecentActivity {
   duration: number;
   average_pace: number | null;
   average_hr: number | null;
+  elevation_gain: number | null;
+  has_polyline?: boolean;
+  garmin_activity_id?: number;
 }
 
 type SyncStatus = 'syncing' | 'done' | 'error';
@@ -743,34 +747,32 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-end justify-center gap-3 mt-2" style={{ height: '100px' }}>
-                    {top3.length >= 2 && (() => {
-                      const ratio = top3[0].distanceKm > 0 ? top3[1].distanceKm / top3[0].distanceKm : 0.7;
-                      return (
-                        <div className="flex flex-col items-center flex-1 h-full justify-end">
-                          <span className="text-xs font-bold text-slate-200 mb-1">{top3[1].distanceKm}</span>
-                          <div className="w-full rounded-t-lg bg-slate-400" style={{ height: `${Math.max(30, ratio * 100)}%` }} />
-                          <span className="text-[11px] text-slate-300 mt-1.5 truncate max-w-full font-medium">{top3[1].name.split(' ')[0]}</span>
-                        </div>
-                      );
-                    })()}
-                    {top3.length >= 1 && (
-                      <div className="flex flex-col items-center flex-1 h-full justify-end">
-                        <span className="text-xs font-bold text-yellow-400 mb-1">{top3[0].distanceKm}</span>
-                        <div className="w-full rounded-t-lg bg-yellow-500" style={{ height: '100%' }} />
-                        <span className="text-[11px] text-white font-bold mt-1.5 truncate max-w-full">{top3[0].name.split(' ')[0]}</span>
+                  <div className="flex items-end justify-center gap-6 mt-3 px-2" style={{ height: '100px' }}>
+                    {/* 2nd place */}
+                    {top3.length >= 2 && (
+                      <div className="flex flex-col items-center" style={{ width: '50px' }}>
+                        <span className="text-[11px] font-bold text-slate-300 mb-1 tabular-nums">{top3[1].distanceKm}</span>
+                        <div className="w-5 rounded-t bg-slate-400/80" style={{ height: '50px' }} />
+                        <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[1].name.split(' ')[0]}</span>
                       </div>
                     )}
-                    {top3.length >= 3 && (() => {
-                      const ratio = top3[0].distanceKm > 0 ? top3[2].distanceKm / top3[0].distanceKm : 0.5;
-                      return (
-                        <div className="flex flex-col items-center flex-1 h-full justify-end">
-                          <span className="text-xs font-bold text-amber-500 mb-1">{top3[2].distanceKm}</span>
-                          <div className="w-full rounded-t-lg bg-amber-600" style={{ height: `${Math.max(20, ratio * 100)}%` }} />
-                          <span className="text-[11px] text-slate-300 mt-1.5 truncate max-w-full font-medium">{top3[2].name.split(' ')[0]}</span>
-                        </div>
-                      );
-                    })()}
+                    {/* 1st place - winner */}
+                    {top3.length >= 1 && (
+                      <div className="flex flex-col items-center" style={{ width: '50px' }}>
+                        <span className="text-base mb-0.5">👑</span>
+                        <span className="text-xs font-black text-yellow-400 mb-1 tabular-nums">{top3[0].distanceKm}</span>
+                        <div className="w-5 rounded-t bg-yellow-500" style={{ height: '70px' }} />
+                        <span className="text-[11px] text-white font-bold mt-1.5 whitespace-nowrap">{top3[0].name.split(' ')[0]}</span>
+                      </div>
+                    )}
+                    {/* 3rd place */}
+                    {top3.length >= 3 && (
+                      <div className="flex flex-col items-center" style={{ width: '50px' }}>
+                        <span className="text-[11px] font-bold text-amber-500 mb-1 tabular-nums">{top3[2].distanceKm}</span>
+                        <div className="w-5 rounded-t bg-amber-600/80" style={{ height: '35px' }} />
+                        <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[2].name.split(' ')[0]}</span>
+                      </div>
+                    )}
                   </div>
                   {myRank > 3 && <p className="text-[10px] text-slate-500 text-center mt-2">You: #{myRank}</p>}
                 </div>
@@ -947,138 +949,203 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ═══ RUNNER WEEKLY VOLUME + RECENT RUNS ═══ */}
+      {/* ═══ RUNNER WEEKLY VOLUME (Strava-style) ═══ */}
       {!isCoach && runnerWeeklyVolumes.length > 1 && (() => {
         const maxKm = Math.max(...runnerWeeklyVolumes.map(w => w.km));
-        const avgKm = Math.round(runnerWeeklyVolumes.reduce((s, w) => s + w.km, 0) / runnerWeeklyVolumes.length * 10) / 10;
         const lastWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 1];
         const prevWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 2];
         const trend = prevWeek && prevWeek.km > 0 ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100) : 0;
-        const yMax = Math.ceil(maxKm * 1.2 / 5) * 5 || 10;
+        const targetMin = hasData ? Math.round(weekly!.weekTotalMin) : 0;
+        const targetMax = hasData ? Math.round(weekly!.weekTotalMax) : 0;
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-bold text-white">Weekly KM</h2>
-                {trend !== 0 && (
-                  <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
-                    {trend > 0 ? '+' : ''}{trend}%
-                  </span>
-                )}
+          <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-white">This Week</h2>
+              {trend !== 0 && (
+                <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
+                  {trend > 0 ? '+' : ''}{trend}%
+                </span>
+              )}
+            </div>
+            {/* Big distance + target */}
+            <div className="flex items-baseline gap-3 mb-1">
+              <span className="text-3xl font-black text-white tabular-nums">{weeklyKm}</span>
+              <span className="text-sm text-slate-500">km</span>
+              {targetMax > 0 && (
+                <span className="text-sm font-bold text-white/80 ml-auto">/ {targetMin}–{targetMax} km</span>
+              )}
+            </div>
+            {/* Progress bar toward target */}
+            {targetMax > 0 && (
+              <div className="w-full h-2 bg-slate-700/60 rounded-full overflow-hidden mb-4">
+                <div
+                  className={cn('h-full rounded-full transition-all', weeklyKm >= targetMin ? 'bg-[#fc5200]' : 'bg-[#fc5200]/60')}
+                  style={{ width: `${Math.min(100, (weeklyKm / targetMax) * 100)}%` }}
+                />
               </div>
-              <div className="flex items-center gap-4 mb-3">
-                <div>
-                  <p className="text-[10px] text-slate-500">Distance</p>
-                  <p className="text-base font-black text-white">{lastWeek.km} km</p>
-                </div>
-                <div className="w-px h-6 bg-slate-700" />
-                <div>
-                  <p className="text-[10px] text-slate-500">Runs</p>
-                  <p className="text-base font-black text-white">{lastWeek.runs}</p>
-                </div>
-                <div className="w-px h-6 bg-slate-700" />
-                <div>
-                  <p className="text-[10px] text-slate-500">Avg</p>
-                  <p className="text-base font-black text-white">{avgKm} km</p>
-                </div>
-              </div>
-              <div className="flex items-end gap-1 h-20 mt-1">
-                {runnerWeeklyVolumes.map((w, i) => {
-                  const isLast = i === runnerWeeklyVolumes.length - 1;
-                  const heightPct = maxKm > 0 ? Math.max(8, (w.km / maxKm) * 100) : 8;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <span className={cn('text-[9px] font-bold tabular-nums', isLast ? 'text-white' : 'text-slate-500')}>{w.km}</span>
-                      <div
-                        className={cn('w-3 rounded-full transition-all', isLast ? 'bg-[#fc5200]' : 'bg-slate-600')}
-                        style={{ height: `${heightPct}%` }}
-                      />
-                      <span className="text-[8px] text-slate-500">{w.week}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {recentActivities.length > 0 && (
-              <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-amber-400" />
-                    <h2 className="text-sm font-bold text-white">Recent Runs</h2>
-                  </div>
-                  <Link href="/dashboard/activities" className="text-[11px] font-semibold text-[#4338ff] hover:text-[#5b54ff] inline-flex items-center gap-0.5">
-                    All <ChevronRight className="h-3 w-3" />
-                  </Link>
-                </div>
-                <div className="space-y-2">
-                  {recentActivities.slice(0, 3).map((a) => {
-                    const km = (a.distance / 1000).toFixed(1);
-                    const kmNum = a.distance / 1000;
-                    const pace = a.average_pace ? formatPace(a.average_pace) : null;
-                    const date = new Date(a.start_time);
-                    const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    const runType = inferRunTypeFromActivity(kmNum, a.average_pace);
-                    const durationMin = Math.round(a.duration / 60);
-                    const isExpanded = selectedBar === parseInt(a.id.slice(-4), 16) % 1000;
-                    return (
-                      <div key={a.id}>
-                        <button
-                          onClick={() => setSelectedBar(isExpanded ? null : parseInt(a.id.slice(-4), 16) % 1000)}
-                          className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900/40 border border-slate-700/20 hover:border-[#4338ff]/30 transition-all text-left"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className={cn('w-2 h-2 rounded-full', runType.bg)} style={{ backgroundColor: runType.color.includes('#') ? runType.color : undefined }} />
-                            <div>
-                              <p className="text-xs font-semibold text-white">{km} km</p>
-                              <p className="text-[10px] text-slate-500">{dateLabel}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {pace && <span className="text-[11px] font-bold text-emerald-400 tabular-nums">{pace}</span>}
-                            <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', runType.bg, runType.color)}>{runType.label}</span>
-                          </div>
-                        </button>
-                        {isExpanded && (
-                          <div className="mt-1 mx-2 p-3 rounded-lg bg-slate-900/60 border border-slate-700/30 space-y-2">
-                            <div className="grid grid-cols-3 gap-2 text-center">
-                              <div>
-                                <p className="text-[10px] text-slate-500">Distance</p>
-                                <p className="text-sm font-bold text-white">{km} km</p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-slate-500">Duration</p>
-                                <p className="text-sm font-bold text-white">{durationMin} min</p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-slate-500">Pace</p>
-                                <p className="text-sm font-bold text-emerald-400">{pace || '—'}</p>
-                              </div>
-                            </div>
-                            {a.average_hr && (
-                              <div className="text-center">
-                                <p className="text-[10px] text-slate-500">Avg HR</p>
-                                <p className="text-sm font-bold text-red-400">{a.average_hr} bpm</p>
-                              </div>
-                            )}
-                            <Link
-                              href="/dashboard/activities"
-                              className="block w-full text-center text-[11px] font-bold text-[#4338ff] bg-[#4338ff]/10 border border-[#4338ff]/30 rounded-lg py-2 hover:bg-[#4338ff]/20 transition-colors mt-2"
-                            >
-                              View in Activities →
-                            </Link>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
             )}
-          </div>
+            {/* Strava-style bar chart */}
+            <div className="flex items-end gap-[3px] h-16">
+              {runnerWeeklyVolumes.map((w, i) => {
+                const isLast = i === runnerWeeklyVolumes.length - 1;
+                const heightPct = maxKm > 0 ? Math.max(6, (w.km / maxKm) * 100) : 6;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center h-full justify-end">
+                    <div
+                      className={cn('w-full rounded-t transition-all', isLast ? 'bg-[#fc5200]' : 'bg-slate-600/80')}
+                      style={{ height: `${heightPct}%`, maxWidth: '32px', margin: '0 auto' }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-[3px] mt-1">
+              {runnerWeeklyVolumes.map((w, i) => (
+                <div key={i} className="flex-1 text-center">
+                  <span className="text-[8px] text-slate-500">{w.week}</span>
+                </div>
+              ))}
+            </div>
+            {/* Stats row */}
+            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-700/30">
+              <div>
+                <p className="text-[10px] text-slate-500">Runs</p>
+                <p className="text-sm font-bold text-white">{lastWeek.runs}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500">This week</p>
+                <p className="text-sm font-bold text-white">{lastWeek.km} km</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500">Prev week</p>
+                <p className="text-sm font-bold text-slate-400">{prevWeek?.km || 0} km</p>
+              </div>
+            </div>
+          </section>
         );
       })()}
 
+
+      {/* ═══ RECENT ACTIVITIES (Strava-style cards) ═══ */}
+      {!isCoach && recentActivities.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-white">Recent Activities</h2>
+            <Link href="/dashboard/activities" className="text-[11px] font-semibold text-[#fc5200] hover:text-[#ff7433] inline-flex items-center gap-0.5">
+              View All <ChevronRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {recentActivities.slice(0, 3).map((a) => {
+              const km = (a.distance / 1000).toFixed(2);
+              const pace = a.average_pace ? formatPace(a.average_pace) : null;
+              const date = new Date(a.start_time);
+              const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+              const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+              const hrs = Math.floor(a.duration / 3600);
+              const mins = Math.round((a.duration % 3600) / 60);
+              const durationStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+              const isExpanded = selectedBar === parseInt(a.id.slice(-4), 16) % 1000;
+              return (
+                <div key={a.id} className="bg-slate-800/40 rounded-xl border border-slate-700/20 overflow-hidden">
+                  <button
+                    onClick={() => setSelectedBar(isExpanded ? null : parseInt(a.id.slice(-4), 16) % 1000)}
+                    className="w-full p-4 text-left hover:bg-slate-800/60 transition-colors"
+                  >
+                    {/* Header: name + date */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-sm font-bold text-white">{a.activity_name || 'Run'}</p>
+                        <p className="text-[11px] text-slate-500">{dateStr} at {timeStr}</p>
+                      </div>
+                      <ChevronRight className={cn('h-4 w-4 text-slate-500 transition-transform', isExpanded && 'rotate-90')} />
+                    </div>
+                    {/* Stats row - Strava style */}
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Distance</p>
+                        <p className="text-lg font-black text-white tabular-nums">{km} <span className="text-xs font-medium text-slate-500">km</span></p>
+                      </div>
+                      {pace && (
+                        <div>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-wide">Pace</p>
+                          <p className="text-lg font-black text-white tabular-nums">{pace} <span className="text-xs font-medium text-slate-500">/km</span></p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Time</p>
+                        <p className="text-lg font-black text-white tabular-nums">{durationStr}</p>
+                      </div>
+                      {a.elevation_gain && a.elevation_gain > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-wide">Elev Gain</p>
+                          <p className="text-lg font-black text-white tabular-nums">{Math.round(a.elevation_gain)} <span className="text-xs font-medium text-slate-500">m</span></p>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                  {/* Expanded: Map + extra stats */}
+                  {isExpanded && (
+                    <div className="border-t border-slate-700/30 p-4 space-y-3">
+                      {a.has_polyline && a.garmin_activity_id && (
+                        <div className="rounded-lg overflow-hidden border border-slate-700/30 h-[200px]" id={`map-${a.id}`} ref={(el) => {
+                          if (el && !el.dataset.loaded) {
+                            el.dataset.loaded = '1';
+                            fetch(`/api/garmin/activity-details?activityId=${a.garmin_activity_id}&athleteId=${a.athlete_id}`)
+                              .then(r => r.ok ? r.json() : null)
+                              .then(data => {
+                                if (!data?.gpsPoints?.length) return;
+                                const initMap = () => {
+                                  const L = (window as any).L;
+                                  if (!L) return;
+                                  const map = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false });
+                                  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+                                  const latlngs = data.gpsPoints.map((p: any) => [p.lat, p.lng]);
+                                  L.polyline(latlngs, { color: '#fc5200', weight: 3, opacity: 0.9 }).addTo(map);
+                                  L.circleMarker(latlngs[0], { radius: 5, fillColor: '#22c55e', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+                                  L.circleMarker(latlngs[latlngs.length - 1], { radius: 5, fillColor: '#ef4444', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+                                  map.fitBounds(L.latLngBounds(latlngs), { padding: [15, 15] });
+                                };
+                                if ((window as any).L) initMap();
+                                else {
+                                  if (!document.getElementById('leaflet-css')) {
+                                    const link = document.createElement('link');
+                                    link.id = 'leaflet-css'; link.rel = 'stylesheet';
+                                    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                                    document.head.appendChild(link);
+                                  }
+                                  const s = document.createElement('script');
+                                  s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                                  s.onload = initMap;
+                                  document.head.appendChild(s);
+                                }
+                              });
+                          }
+                        }} />
+                      )}
+                      {a.average_hr && (
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-1.5">
+                            <Heart className="h-3.5 w-3.5 text-red-400" />
+                            <span className="text-slate-400">Avg HR</span>
+                            <span className="font-bold text-white">{a.average_hr} bpm</span>
+                          </div>
+                        </div>
+                      )}
+                      <Link
+                        href="/dashboard/activities"
+                        className="block w-full text-center text-xs font-bold text-[#fc5200] bg-[#fc5200]/10 border border-[#fc5200]/30 rounded-lg py-2.5 hover:bg-[#fc5200]/20 transition-colors"
+                      >
+                        View Full Activity →
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {showSyncModal && (
         <FirstSyncModal
