@@ -120,19 +120,29 @@ export async function DELETE(request: Request) {
       .eq('id', id)
       .single();
 
+    if (!athlete) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     // Delete all related data
     await supabase.from('athlete_activities').delete().eq('athlete_id', id);
     await supabase.from('workout_deliveries').delete().eq('athlete_id', id);
-    await supabase.from('weekly_plans').delete().eq('athlete_id', id);
+
+    // If user was a coach, delete their weekly plans too
+    const { data: coachRecord } = await supabase
+      .from('coaches')
+      .select('id')
+      .eq('email', athlete.email)
+      .maybeSingle();
+
+    if (coachRecord) {
+      await supabase.from('weekly_plans').delete().eq('coach_id', coachRecord.id);
+      await supabase.from('coaches').delete().eq('id', coachRecord.id);
+    }
 
     // Delete the athlete record
     const { error } = await supabase.from('athletes').delete().eq('id', id);
     if (error) throw error;
-
-    // Remove from coaches table so they start from scratch on next sign-in
-    if (athlete?.email) {
-      await supabase.from('coaches').delete().eq('email', athlete.email);
-    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
