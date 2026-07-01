@@ -9,7 +9,7 @@ import { getSupabase } from '@/lib/supabase/client';
 
 const allNavItems = [
   { href: '/dashboard', tab: 'dashboard', label: 'Dashboard', icon: Activity },
-  { href: '/dashboard/plan/new', tab: 'plan/new', label: 'Weekly Planner', icon: Calendar },
+  { href: '/dashboard/plan/new', tab: 'plan/new', label: 'Planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', label: 'Athletes', icon: Users },
   { href: '/dashboard/groups', tab: 'groups', label: 'Groups', icon: Layers },
   { href: '/dashboard/activities', tab: 'activities', label: 'Activities', icon: Route },
@@ -19,7 +19,7 @@ const allNavItems = [
   { href: '/dashboard/settings', tab: 'settings', label: 'Settings', icon: Settings },
 ];
 
-const profileNavItem = { href: '/dashboard/profile', tab: 'profile', label: 'My Profile', icon: User };
+const profileNavItem = { href: '/dashboard/profile', tab: 'profile', label: 'Profile', icon: User };
 
 interface TabPermission {
   role: string;
@@ -110,60 +110,57 @@ export function Header() {
   return (
     <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Single consolidated row: Logo + Nav + User */}
-        <div className="flex items-center justify-between h-14">
-          <div className="flex items-center gap-6">
-            <Link href={isAthlete ? '/dashboard/program' : '/dashboard'} className="flex items-center gap-2.5 shrink-0">
-              <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain brightness-0 invert" />
-              <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
-            </Link>
+        <div className="flex items-center justify-between h-12">
+          {/* Logo */}
+          <Link href={isAthlete ? '/dashboard/program' : '/dashboard'} className="flex items-center gap-2 shrink-0">
+            <img src="/images/logo.png" alt="Madregot" className="h-7 w-7 object-contain brightness-0 invert" />
+            <span className="text-sm font-bold tracking-tight hidden sm:inline">Madregot</span>
+          </Link>
 
-            {/* Desktop navigation - inline with logo */}
-            <nav className="hidden md:flex items-center gap-0.5">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors whitespace-nowrap',
-                      isActive
-                        ? 'bg-primary-600/90 text-white shadow-sm shadow-primary-600/20'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+          {/* Desktop: Icon-only navigation with tooltips */}
+          <nav className="hidden md:flex items-center gap-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'relative group flex items-center justify-center w-9 h-9 rounded-xl transition-all',
+                    isActive
+                      ? 'bg-primary-600 text-white shadow-md shadow-primary-600/25'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  )}
+                >
+                  <Icon className="h-[18px] w-[18px]" />
+                  <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[11px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
 
-          {/* Desktop user info + logout */}
-          <div className="hidden md:flex items-center gap-2.5 shrink-0">
-            <div className="text-right">
-              <div className="text-sm font-medium text-white leading-tight">{userName}</div>
-              <div className="text-[11px] text-slate-500 leading-tight truncate max-w-[160px]">{userEmail}</div>
-            </div>
+          {/* Desktop: User */}
+          <div className="hidden md:flex items-center gap-2 shrink-0">
+            <span className="text-xs text-slate-400 font-medium hidden lg:inline">{userName}</span>
             <div className="bg-primary-600/20 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-primary-300 ring-1 ring-primary-500/20">
               {initials}
             </div>
             <button
               onClick={handleLogout}
-              className="p-2.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
               title="Sign out"
             >
               <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          {/* Mobile hamburger button */}
+          {/* Mobile hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+            className="md:hidden p-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -177,7 +174,7 @@ export function Header() {
             mobileMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
           )}
         >
-          <nav className="py-4 space-y-1">
+          <nav className="py-3 space-y-0.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -187,7 +184,7 @@ export function Header() {
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    'flex items-center gap-3 px-4 py-3 text-base font-medium transition-colors',
+                    'flex items-center gap-3 px-4 py-3 text-base font-medium rounded-lg transition-colors',
                     isActive
                       ? 'bg-primary-600 text-white'
                       : 'text-slate-300 hover:bg-slate-700 hover:text-white'
@@ -200,7 +197,6 @@ export function Header() {
             })}
           </nav>
 
-          {/* Mobile user info + logout */}
           <div className="border-t border-slate-700 py-4 px-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="bg-primary-600/30 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-primary-300">
@@ -212,10 +208,7 @@ export function Header() {
               </div>
             </div>
             <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                handleLogout();
-              }}
+              onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
             >
               <LogOut className="h-5 w-5" />
