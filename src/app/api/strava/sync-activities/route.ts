@@ -110,12 +110,18 @@ export async function POST(request: Request) {
 
         const { data: existing } = await supabase
           .from('athlete_activities')
-          .select('strava_activity_id')
-          .eq('athlete_id', athlete.id)
-          .not('strava_activity_id', 'is', null);
+          .select('strava_activity_id, start_time, distance')
+          .eq('athlete_id', athlete.id);
 
-        const existingIds = new Set((existing || []).map((e: any) => e.strava_activity_id));
-        const newActivities = runActivities.filter((a: any) => !existingIds.has(a.id));
+        const existingStravaIds = new Set((existing || []).filter((e: any) => e.strava_activity_id).map((e: any) => e.strava_activity_id));
+        const existingTimes = new Set((existing || []).map((e: any) => new Date(e.start_time).getTime()));
+
+        const newActivities = runActivities.filter((a: any) => {
+          if (existingStravaIds.has(a.id)) return false;
+          const actTime = new Date(a.start_date_local).getTime();
+          if (existingTimes.has(actTime)) return false;
+          return true;
+        });
 
         if (newActivities.length > 0) {
           const rows = newActivities.map((a: any) => {
