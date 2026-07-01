@@ -31,7 +31,7 @@ import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from
 import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import { cn } from '@/lib/utils';
 
-const HARDCODED_COACH_ID = 'a34a0d10-1a1c-4b80-a1ca-e0044aa06232';
+const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
 
 type PushTab = 'all' | 'groups' | 'athletes';
 
@@ -644,13 +644,41 @@ export default function WeeklyPlannerPage() {
                 Upload a training plan image or paste text to create one for {weekLabel}.
               </p>
             </div>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="btn-primary flex items-center gap-2 mx-auto px-6 py-3"
-            >
-              <Plus className="h-5 w-5" />
-              Create Plan
-            </button>
+            <div className="flex flex-col gap-3 items-center">
+              <button
+                onClick={() => setShowCreate(true)}
+                className="btn-primary flex items-center gap-2 px-6 py-3"
+              >
+                <Plus className="h-5 w-5" />
+                Create Plan
+              </button>
+              <button
+                onClick={async () => {
+                  setParsing(true);
+                  setError(null);
+                  try {
+                    const res = await fetch('/api/plans/import-program', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.results?.some((r: any) => r.status === 'imported')) {
+                      const plansRes = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`);
+                      if (plansRes.ok) {
+                        const plansData = await plansRes.json();
+                        setAllPlans(plansData.plans || []);
+                      }
+                    } else {
+                      setError(data.results?.map((r: any) => `${r.week}: ${r.status}`).join(', ') || 'No plans imported');
+                    }
+                  } catch (err: any) {
+                    setError(err.message || 'Import failed');
+                  } finally {
+                    setParsing(false);
+                  }
+                }}
+                className="text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg border border-slate-700/50 transition-colors"
+              >
+                Import from Program PDFs
+              </button>
+            </div>
           </div>
         </div>
       )}

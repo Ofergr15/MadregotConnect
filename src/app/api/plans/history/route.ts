@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-const COACH_ID = 'a34a0d10-1a1c-4b80-a1ca-e0044aa06232';
+const COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
 
 interface DeliveryStats {
   total: number;
