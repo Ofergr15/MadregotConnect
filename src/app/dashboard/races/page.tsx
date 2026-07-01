@@ -19,7 +19,7 @@ interface Race {
 
 const UPCOMING_RACES: Race[] = [
   {
-    id: '1', name: '5 ק"מ הרצליה', date: '2026-09-03',
+    id: '1', name: '5 ק"מ הרצליה', date: '2026-09-04',
     location: 'הרצליה', lat: 32.1628, lng: 34.7896,
     distances: ['5km'], daysUntil: 0,
     type: '5k',
@@ -31,7 +31,7 @@ const UPCOMING_RACES: Race[] = [
     type: 'half',
   },
   {
-    id: '3', name: 'חצי שמק החולה', date: '2026-10-30',
+    id: '3', name: 'חצי מרתון עמק החולה', date: '2026-10-30',
     location: 'עמק החולה', lat: 33.0667, lng: 35.6000,
     distances: ['21.1km', '10km'], daysUntil: 0,
     type: 'half',
