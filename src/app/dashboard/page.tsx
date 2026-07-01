@@ -740,7 +740,7 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-end justify-center gap-2 h-20 mt-2">
+                  <div className="flex items-end justify-center gap-3 h-28 mt-2">
                     {top3.length >= 2 && (
                       <div className="flex flex-col items-center flex-1">
                         <span className="text-[10px] font-bold text-slate-300 mb-0.5">{top3[1].distanceKm}</span>
