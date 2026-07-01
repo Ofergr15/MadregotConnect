@@ -279,6 +279,12 @@ function OnboardContent() {
             >
               Continue
             </button>
+            <a
+              href="/"
+              className="block text-center text-sm text-slate-500 hover:text-slate-300 transition-colors mt-3"
+            >
+              ← Back to Home
+            </a>
           </form>
         )}
 
