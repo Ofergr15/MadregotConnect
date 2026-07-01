@@ -477,14 +477,23 @@ export default function DashboardPage() {
 
         if (isFirstVisit && myAthleteId && !myIsCoach) {
           try {
-            const syncRes = await fetch('/api/garmin/sync-activities', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ athleteId: myAthleteId }),
-            });
-            if (syncRes.ok) {
-              const syncData = await syncRes.json();
-              setSyncedCount(syncData.synced || 0);
+            const [syncRes, stravaSyncRes] = await Promise.allSettled([
+              fetch('/api/garmin/sync-activities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ athleteId: myAthleteId }),
+              }),
+              fetch('/api/strava/sync-activities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ athleteId: myAthleteId }),
+              }),
+            ]);
+            const garminResult = syncRes.status === 'fulfilled' && syncRes.value.ok ? await syncRes.value.json() : null;
+            const stravaResult = stravaSyncRes.status === 'fulfilled' && stravaSyncRes.value.ok ? await stravaSyncRes.value.json() : null;
+            const totalSynced = (garminResult?.synced || 0) + (stravaResult?.synced || 0);
+            if (totalSynced >= 0) {
+              setSyncedCount(totalSynced);
               setSyncStatus('done');
             } else {
               setSyncStatus('done');
