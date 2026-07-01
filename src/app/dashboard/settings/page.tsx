@@ -10,6 +10,9 @@ interface User {
   name: string;
   role: 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
   groupId?: string;
+  onboardingStatus?: string;
+  approved?: boolean;
+  approvedAt?: string | null;
 }
 
 type Role = 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
@@ -270,6 +273,28 @@ export default function SettingsPage() {
     }
   };
 
+  const handleApprove = async (user: User) => {
+    setUpdatingUsers(prev => new Set(prev).add(user.id));
+    try {
+      const approverEmail = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
+      const response = await fetch('/api/admin/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athleteId: user.id, approverEmail }),
+      });
+      if (!response.ok) throw new Error('Failed to approve');
+      await fetchUsers();
+      setSavedUsers(prev => new Set(prev).add(user.id));
+      setTimeout(() => {
+        setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to approve user');
+    } finally {
+      setUpdatingUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+    }
+  };
+
   const handleRoleSelect = (user: User, newRole: Role) => {
     if (newRole === user.role) return;
     setPendingChange({ user, newRole });
@@ -378,10 +403,39 @@ export default function SettingsPage() {
             {users.map(user => (
               <div key={user.id} className="px-6 py-4 flex items-center justify-between gap-4 hover:bg-slate-700/20 transition-colors">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">{user.name}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium text-white truncate">{user.name}</div>
+                    {user.onboardingStatus && user.onboardingStatus !== 'active' && (
+                      <span className={cn(
+                        'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                        user.onboardingStatus === 'google_authed' ? 'bg-amber-500/15 text-amber-400' :
+                        user.onboardingStatus === 'garmin_authed' ? 'bg-cyan-500/15 text-cyan-400' :
+                        user.onboardingStatus === 'garmin_failed' ? 'bg-red-500/15 text-red-400' :
+                        'bg-slate-500/15 text-slate-400'
+                      )}>
+                        {user.onboardingStatus === 'google_authed' ? 'Step 1: Google' :
+                         user.onboardingStatus === 'garmin_authed' ? 'Step 2: Garmin ✓' :
+                         user.onboardingStatus === 'garmin_failed' ? 'Garmin Failed' :
+                         user.onboardingStatus}
+                      </span>
+                    )}
+                    {user.approved === false && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400">
+                        Pending Approval
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-slate-500 truncate">{user.email}</div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {user.approved === false && (
+                    <button
+                      onClick={() => handleApprove(user)}
+                      className="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-500 rounded-lg transition-colors"
+                    >
+                      Approve
+                    </button>
+                  )}
                   <RoleDropdown
                     value={user.role}
                     onChange={(role) => handleRoleSelect(user, role)}

@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
       const updateData: Record<string, any> = {
         garmin_auth: encryptedAuth,
         status: 'active',
+        onboarding_status: 'garmin_authed',
+        garmin_authed_at: new Date().toISOString(),
       };
       if (name) updateData.name = name;
       if (email) updateData.email = email;
@@ -74,6 +76,8 @@ export async function POST(req: NextRequest) {
           garmin_auth: encryptedAuth,
           status: 'active',
           name,
+          onboarding_status: 'garmin_authed',
+          garmin_authed_at: new Date().toISOString(),
           ...(groupId ? { group_id: groupId } : {}),
         })
         .eq('id', existing.id)
@@ -95,6 +99,8 @@ export async function POST(req: NextRequest) {
         email: email.toLowerCase(),
         garmin_auth: encryptedAuth,
         status: 'active',
+        onboarding_status: 'garmin_authed',
+        garmin_authed_at: new Date().toISOString(),
         ...(groupId ? { group_id: groupId } : {}),
       })
       .select('id, name, email, group_id')

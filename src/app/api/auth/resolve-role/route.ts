@@ -76,7 +76,27 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Completely new user
+    // Completely new user — create record and track onboarding
+    const { data: newAthlete } = await supabase
+      .from('athletes')
+      .insert({
+        email: lowerEmail,
+        name: name || lowerEmail.split('@')[0],
+        status: 'invited',
+        role: 'viewer',
+        onboarding_status: 'google_authed',
+        google_authed_at: new Date().toISOString(),
+        approved: false,
+      })
+      .select('id')
+      .single();
+
+    // Notify admin of new user
+    try {
+      const { notifyAdminNewUser } = await import('@/lib/email');
+      await notifyAdminNewUser({ name: name || lowerEmail, email: lowerEmail, onboardingStatus: 'google_authed' });
+    } catch {}
+
     return NextResponse.json({
       role: 'viewer',
       email: lowerEmail,
@@ -84,6 +104,7 @@ export async function POST(req: NextRequest) {
       needsOnboarding: true,
       missingGroup: true,
       missingGarmin: true,
+      pendingApproval: true,
     });
   } catch (error: any) {
     return NextResponse.json(

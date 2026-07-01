@@ -12,6 +12,9 @@ interface User {
   name: string;
   role: UserRole;
   groupId?: string | null;
+  onboardingStatus?: string;
+  approved?: boolean;
+  approvedAt?: string | null;
 }
 
 export async function GET() {
@@ -20,7 +23,7 @@ export async function GET() {
 
     const { data: athletes, error } = await supabase
       .from('athletes')
-      .select('id, email, name, role, group_id')
+      .select('id, email, name, role, group_id, onboarding_status, approved, approved_at')
       .order('email');
 
     if (error) throw error;
@@ -31,6 +34,9 @@ export async function GET() {
       name: a.name,
       role: (a.role || 'runner') as UserRole,
       groupId: a.group_id,
+      onboardingStatus: a.onboarding_status || 'active',
+      approved: a.approved ?? true,
+      approvedAt: a.approved_at,
     }));
 
     return NextResponse.json({ users });

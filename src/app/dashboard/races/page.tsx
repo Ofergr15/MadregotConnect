@@ -20,7 +20,7 @@ interface Race {
 const UPCOMING_RACES: Race[] = [
   {
     id: '1', name: '5 ק"מ הרצליה', date: '2026-09-04',
-    location: 'הרצליה', lat: 32.1628, lng: 34.7896,
+    location: 'הרצליה פארק', lat: 32.1600, lng: 34.8100,
     distances: ['5km'], daysUntil: 0,
     type: '5k',
   },
@@ -38,7 +38,7 @@ const UPCOMING_RACES: Race[] = [
   },
   {
     id: '4', name: 'מרוץ אייל', date: '2026-11-14',
-    location: 'קיבוץ אייל, מרכז', lat: 32.2100, lng: 34.9797,
+    location: 'אזור אייל, שרון', lat: 32.2100, lng: 34.9500,
     distances: ['21.1km', '10km'], daysUntil: 0,
     type: 'half',
   },
