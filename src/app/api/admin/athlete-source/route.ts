@@ -40,7 +40,7 @@ export async function GET() {
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('athletes')
-      .select('id, name, data_source, strava_auth, garmin_auth, strava_enabled')
+      .select('id, name, data_source, strava_auth, garmin_auth')
       .order('name');
 
     if (error) throw error;
@@ -51,7 +51,7 @@ export async function GET() {
       dataSource: (a as any).data_source || 'garmin',
       hasGarmin: !!a.garmin_auth,
       hasStrava: !!(a as any).strava_auth,
-      stravaEnabled: !!(a as any).strava_enabled,
+      stravaEnabled: !!(a as any).strava_enabled || !!(a as any).strava_auth,
     }));
 
     return NextResponse.json({ athletes });

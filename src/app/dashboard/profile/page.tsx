@@ -95,9 +95,15 @@ export default function ProfilePage() {
             setHasGarmin(me.hasGarmin);
             setHasStrava(me.hasStrava);
             setStravaEnabled(me.stravaEnabled);
+          } else {
+            setHasGarmin(true);
+            setDataSource('garmin');
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          setHasGarmin(true);
+          setDataSource('garmin');
+        });
     }
   }, []);
 
