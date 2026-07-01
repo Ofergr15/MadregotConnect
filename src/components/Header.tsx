@@ -79,12 +79,11 @@ export function Header() {
       supabaseClient.from('groups').select('name').eq('id', groupId).single()
         .then(({ data: g }) => {
           if (g?.name) {
-            setGroupName(g.name);
             const n = g.name.toLowerCase();
-            if (n.includes('group a') || n.includes('sub 2:30')) setGroupColor('#3b82f6');
-            else if (n.includes('group b') || n.includes('sub 2:35')) setGroupColor('#a855f7');
-            else if (n.includes('group c') || n.includes('sub 2:45')) setGroupColor('#14b8a6');
-            else setGroupColor('#6366f1');
+            if (n.includes('group a') || n.includes('sub 2:30')) { setGroupName('Group 1'); setGroupColor('#3b82f6'); }
+            else if (n.includes('group b') || n.includes('sub 2:35')) { setGroupName('Group 2'); setGroupColor('#a855f7'); }
+            else if (n.includes('group c') || n.includes('sub 2:45')) { setGroupName('Group 3'); setGroupColor('#14b8a6'); }
+            else { setGroupName(g.name); setGroupColor('#6366f1'); }
           }
         });
     }
@@ -193,8 +192,8 @@ export function Header() {
             <div className="flex items-center gap-2 hidden lg:flex">
               <span className="text-sm text-slate-400 font-medium">{userName}</span>
               {groupName && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
-                  {groupName.replace(/^Group\s*/i, '').split(' - ')[0]}
+                <span className="text-xs font-bold px-2.5 py-1 rounded-lg border" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
+                  {groupName}
                 </span>
               )}
             </div>
@@ -264,8 +263,8 @@ export function Header() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-white truncate">{userName}</span>
                   {groupName && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
-                      {groupName.replace(/^Group\s*/i, '').split(' - ')[0]}
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg border flex-shrink-0" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
+                      {groupName}
                     </span>
                   )}
                 </div>
