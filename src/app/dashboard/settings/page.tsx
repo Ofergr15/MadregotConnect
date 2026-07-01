@@ -714,17 +714,17 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-xs text-slate-500 truncate">{user.email}</span>
                         <span className={cn('text-[10px] font-medium', lastSeenColor)}>{lastSeenLabel}</span>
-                        {!isAdmin && user.onboardingStatus === 'garmin_authed' && (
+                        {user.onboardingStatus === 'garmin_authed' && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/20 flex items-center gap-1">
                             <Watch className="w-2.5 h-2.5" />Garmin
                           </span>
                         )}
-                        {!isAdmin && user.onboardingStatus === 'google_authed' && (
+                        {user.onboardingStatus === 'google_authed' && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">
                             Google only
                           </span>
                         )}
-                        {!isAdmin && user.approved === false && (
+                        {user.approved === false && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
                             Pending
                           </span>

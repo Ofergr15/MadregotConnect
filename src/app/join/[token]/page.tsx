@@ -91,7 +91,8 @@ export default function JoinPage({ params }: { params: { token: string } }) {
 
       if (!authRes.ok) {
         const err = await authRes.json();
-        throw new Error(err.error || 'Failed to connect to Garmin');
+        const detail = err.detail ? ` (${err.detail})` : '';
+        throw new Error((err.error || 'Failed to connect to Garmin') + detail);
       }
 
       const { auth } = await authRes.json();
