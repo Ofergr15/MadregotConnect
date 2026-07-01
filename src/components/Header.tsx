@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route, Trophy, MessageSquare } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route, Trophy, MessageSquare, Watch, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -40,6 +40,7 @@ export function Header() {
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [groupName, setGroupName] = useState<string | null>(null);
   const [groupColor, setGroupColor] = useState<string>('#6366f1');
+  const [hasGarmin, setHasGarmin] = useState<boolean | null>(null);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -86,6 +87,12 @@ export function Header() {
             else { setGroupName(g.name); setGroupColor('#6366f1'); }
           }
         });
+    }
+
+    if (athleteId) {
+      const supabaseClient = getSupabase();
+      supabaseClient.from('athletes').select('garmin_auth').eq('id', athleteId).single()
+        .then(({ data }) => { setHasGarmin(!!data?.garmin_auth); });
     }
   }, []);
 
@@ -189,7 +196,7 @@ export function Header() {
           </nav>
 
           {/* Desktop: User */}
-          <div className="hidden md:flex items-center gap-3 shrink-0">
+          <div className="hidden md:flex items-center gap-2.5 shrink-0">
             <div className="flex items-center gap-2 hidden lg:flex">
               <span className="text-sm text-slate-400 font-medium">{userName}</span>
               {groupName && (
@@ -198,6 +205,14 @@ export function Header() {
                 </span>
               )}
             </div>
+            {isAthlete && hasGarmin !== null && (
+              <div className={cn('p-2 rounded-lg', hasGarmin ? 'text-emerald-400' : 'text-red-400')} title={hasGarmin ? 'Garmin Connected' : 'Garmin Not Connected'}>
+                <Watch className="h-4.5 w-4.5" />
+              </div>
+            )}
+            <button className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" title="Notifications">
+              <Bell className="h-4.5 w-4.5" />
+            </button>
             <div className="bg-primary-600/20 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-primary-300 ring-1 ring-primary-500/20">
               {initials}
             </div>
