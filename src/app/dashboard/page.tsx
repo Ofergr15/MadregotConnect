@@ -646,7 +646,7 @@ export default function DashboardPage() {
         </section>
       ) : (
         <section className="space-y-3 sm:space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
               <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
@@ -674,68 +674,50 @@ export default function DashboardPage() {
               </p>
               <p className="text-sm text-slate-500 mt-1">completed</p>
             </div>
-          </div>
 
-          {leaderboard.length > 0 && (() => {
-            const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
-            const top3 = filtered.slice(0, 3);
-            const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
-            const podiumColors = ['text-yellow-400', 'text-slate-300', 'text-amber-600'];
-            const podiumBg = ['bg-yellow-500/10 border-yellow-500/30', 'bg-slate-500/10 border-slate-500/30', 'bg-amber-600/10 border-amber-600/30'];
-            const podiumHeights = ['h-20', 'h-14', 'h-10'];
-            return (
-              <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Trophy className="h-4 w-4 text-yellow-400" />
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top Runners This Week</p>
+            {leaderboard.length > 0 && (() => {
+              const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
+              const top3 = filtered.slice(0, 3);
+              const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
+              return (
+                <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30 col-span-2 sm:col-span-1">
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <Trophy className="h-3.5 w-3.5 text-yellow-400" />
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 3</p>
                   </div>
                   {groups.length > 1 && (
-                    <select
-                      value={leaderboardFilter}
-                      onChange={(e) => setLeaderboardFilter(e.target.value)}
-                      className="text-xs bg-slate-900/50 border border-slate-700/50 rounded-lg px-2 py-1 text-slate-300 focus:outline-none"
-                    >
-                      <option value="all">All Groups</option>
-                      {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                    </select>
+                    <div className="flex items-center gap-1 mb-3 flex-wrap">
+                      <button
+                        onClick={() => setLeaderboardFilter('all')}
+                        className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full transition-all', leaderboardFilter === 'all' ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-400 hover:text-slate-200')}
+                      >All</button>
+                      {groups.map(g => (
+                        <button
+                          key={g.id}
+                          onClick={() => setLeaderboardFilter(g.id)}
+                          className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full transition-all', leaderboardFilter === g.id ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-400 hover:text-slate-200')}
+                        >{g.name}</button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    {top3.map((runner, i) => (
+                      <div key={runner.id} className="flex items-center gap-2">
+                        <span className={cn('text-xs font-black w-4', i === 0 ? 'text-yellow-400' : i === 1 ? 'text-slate-300' : 'text-amber-600')}>
+                          {i + 1}
+                        </span>
+                        <span className="text-xs text-slate-300 flex-1 truncate">{runner.name.split(' ')[0]}</span>
+                        <span className="text-xs font-bold text-white tabular-nums">{runner.distanceKm} km</span>
+                      </div>
+                    ))}
+                  </div>
+                  {myRank > 3 && (
+                    <p className="text-[10px] text-slate-500 mt-2">You: #{myRank}</p>
                   )}
                 </div>
-                <div className="flex items-end justify-center gap-3 sm:gap-4">
-                  {top3.length >= 2 && (
-                    <div className="flex flex-col items-center gap-1.5 flex-1">
-                      <div className={cn('w-full rounded-t-lg border-t border-x flex items-end justify-center', podiumBg[1], podiumHeights[1])}>
-                        <span className="text-lg font-black text-white pb-1">{top3[1].distanceKm}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-300">2nd</span>
-                      <span className="text-xs text-slate-400 truncate max-w-full">{top3[1].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                  {top3.length >= 1 && (
-                    <div className="flex flex-col items-center gap-1.5 flex-1">
-                      <div className={cn('w-full rounded-t-lg border-t border-x flex items-end justify-center', podiumBg[0], podiumHeights[0])}>
-                        <span className="text-xl font-black text-white pb-1">{top3[0].distanceKm}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-yellow-400">1st</span>
-                      <span className="text-xs text-slate-300 font-semibold truncate max-w-full">{top3[0].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                  {top3.length >= 3 && (
-                    <div className="flex flex-col items-center gap-1.5 flex-1">
-                      <div className={cn('w-full rounded-t-lg border-t border-x flex items-end justify-center', podiumBg[2], podiumHeights[2])}>
-                        <span className="text-lg font-black text-white pb-1">{top3[2].distanceKm}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-amber-600">3rd</span>
-                      <span className="text-xs text-slate-400 truncate max-w-full">{top3[2].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                </div>
-                {myRank > 3 && (
-                  <p className="text-xs text-slate-500 text-center mt-3">You&apos;re #{myRank} with {filtered[myRank - 1]?.distanceKm} km</p>
-                )}
-              </div>
-            );
-          })()}
+              );
+            })()}
+          </div>
 
           {todayWorkout && todayWorkout.max > 0 && (() => {
             const todayStart = new Date();
