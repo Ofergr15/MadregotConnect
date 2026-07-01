@@ -863,7 +863,7 @@ export default function DashboardPage() {
                   />
                   <Bar dataKey="km" radius={[4, 4, 0, 0]} maxBarSize={28}>
                     {runnerWeeklyVolumes.map((_, i) => (
-                      <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#818cf8' : '#4f46e5'} opacity={i === runnerWeeklyVolumes.length - 1 ? 1 : 0.6} />
+                      <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#a5b4fc' : '#6366f1'} />
                     ))}
                   </Bar>
                 </BarChart>
