@@ -32,9 +32,9 @@ interface LeaderboardEntry {
 }
 
 const GROUP_COLORS: Record<number, { bg: string; border: string; text: string; badge: string; dot: string }> = {
-  0: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', badge: 'bg-red-500/20', dot: 'bg-red-400' },
-  1: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400', badge: 'bg-blue-500/20', dot: 'bg-blue-400' },
-  2: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', badge: 'bg-green-500/20', dot: 'bg-green-400' },
+  0: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', badge: 'bg-green-500/20', dot: 'bg-green-400' },
+  1: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', text: 'text-yellow-400', badge: 'bg-yellow-500/20', dot: 'bg-yellow-400' },
+  2: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-400', badge: 'bg-orange-500/20', dot: 'bg-orange-400' },
 };
 
 function getGroupColors(index: number) {

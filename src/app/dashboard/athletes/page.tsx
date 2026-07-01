@@ -18,6 +18,7 @@ interface Athlete {
   lastSynced: string | null;
   createdAt: string;
   dataSource?: 'garmin' | 'strava';
+  hasGarmin?: boolean;
   hasStrava?: boolean;
   stravaEnabled?: boolean;
 }
@@ -517,19 +518,12 @@ ${inviteLink}`;
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2 flex-wrap">
                           {getStatusBadge(athlete.status)}
-                          <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', athlete.dataSource === 'strava' ? 'bg-orange-500/15 text-orange-400' : 'bg-blue-500/15 text-blue-400')}>
-                            {athlete.dataSource === 'strava' ? 'Strava' : 'Garmin'}
+                          <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', athlete.hasGarmin ? 'bg-green-500/15 text-green-400' : 'bg-slate-500/15 text-slate-500')}>
+                            Garmin
                           </span>
-                          {athlete.stravaEnabled && !athlete.hasStrava && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">
-                              Awaiting Strava
-                            </span>
-                          )}
-                          {athlete.hasStrava && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">
-                              Strava OK
-                            </span>
-                          )}
+                          <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', athlete.hasStrava ? 'bg-orange-500/15 text-orange-400' : athlete.stravaEnabled ? 'bg-amber-500/15 text-amber-400 animate-pulse' : 'hidden')}>
+                            {athlete.hasStrava ? 'Strava' : 'Awaiting Strava'}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-400">
