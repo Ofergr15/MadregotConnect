@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   Calendar, Users, ArrowRight, TrendingUp, TrendingDown,
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
-  Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell,
+  Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
@@ -392,6 +392,9 @@ export default function DashboardPage() {
   const [weeklyKm, setWeeklyKm] = useState(0);
   const [weeklyRuns, setWeeklyRuns] = useState(0);
   const [runnerWeeklyVolumes, setRunnerWeeklyVolumes] = useState<Array<{ week: string; km: number; runs: number }>>([]);
+  const [leaderboard, setLeaderboard] = useState<Array<{ id: string; name: string; groupId: string; distanceKm: number; runs: number }>>([]);
+  const [leaderboardFilter, setLeaderboardFilter] = useState<'all' | string>('all');
+  const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
 
   useEffect(() => {
     const coachEmail = localStorage.getItem('coach_email');
@@ -531,6 +534,22 @@ export default function DashboardPage() {
             setRunnerWeeklyVolumes(sortedWeeks);
           }
         }
+        if (!myIsCoach) {
+          try {
+            const [lbRes, grpRes] = await Promise.all([
+              fetch('/api/groups/leaderboard'),
+              fetch('/api/groups'),
+            ]);
+            if (lbRes.ok) {
+              const lbData = await lbRes.json();
+              setLeaderboard(lbData.leaderboard || []);
+            }
+            if (grpRes.ok) {
+              const grpData = await grpRes.json();
+              setGroups(grpData.groups || grpData || []);
+            }
+          } catch {}
+        }
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     }
@@ -657,15 +676,66 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {hasData && (
-            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Distance Target</p>
-              <p className="text-2xl sm:text-3xl font-black text-white mt-2 tabular-nums">
-                {Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)}
-                <span className="text-base font-medium text-slate-500 ml-1">km</span>
-              </p>
-            </div>
-          )}
+          {leaderboard.length > 0 && (() => {
+            const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
+            const top3 = filtered.slice(0, 3);
+            const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
+            const podiumColors = ['text-yellow-400', 'text-slate-300', 'text-amber-600'];
+            const podiumBg = ['bg-yellow-500/10 border-yellow-500/30', 'bg-slate-500/10 border-slate-500/30', 'bg-amber-600/10 border-amber-600/30'];
+            const podiumHeights = ['h-20', 'h-14', 'h-10'];
+            return (
+              <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-yellow-400" />
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top Runners This Week</p>
+                  </div>
+                  {groups.length > 1 && (
+                    <select
+                      value={leaderboardFilter}
+                      onChange={(e) => setLeaderboardFilter(e.target.value)}
+                      className="text-xs bg-slate-900/50 border border-slate-700/50 rounded-lg px-2 py-1 text-slate-300 focus:outline-none"
+                    >
+                      <option value="all">All Groups</option>
+                      {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  )}
+                </div>
+                <div className="flex items-end justify-center gap-3 sm:gap-4">
+                  {top3.length >= 2 && (
+                    <div className="flex flex-col items-center gap-1.5 flex-1">
+                      <div className={cn('w-full rounded-t-lg border-t border-x flex items-end justify-center', podiumBg[1], podiumHeights[1])}>
+                        <span className="text-lg font-black text-white pb-1">{top3[1].distanceKm}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-300">2nd</span>
+                      <span className="text-xs text-slate-400 truncate max-w-full">{top3[1].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {top3.length >= 1 && (
+                    <div className="flex flex-col items-center gap-1.5 flex-1">
+                      <div className={cn('w-full rounded-t-lg border-t border-x flex items-end justify-center', podiumBg[0], podiumHeights[0])}>
+                        <span className="text-xl font-black text-white pb-1">{top3[0].distanceKm}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-yellow-400">1st</span>
+                      <span className="text-xs text-slate-300 font-semibold truncate max-w-full">{top3[0].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {top3.length >= 3 && (
+                    <div className="flex flex-col items-center gap-1.5 flex-1">
+                      <div className={cn('w-full rounded-t-lg border-t border-x flex items-end justify-center', podiumBg[2], podiumHeights[2])}>
+                        <span className="text-lg font-black text-white pb-1">{top3[2].distanceKm}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-600">3rd</span>
+                      <span className="text-xs text-slate-400 truncate max-w-full">{top3[2].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                </div>
+                {myRank > 3 && (
+                  <p className="text-xs text-slate-500 text-center mt-3">You&apos;re #{myRank} with {filtered[myRank - 1]?.distanceKm} km</p>
+                )}
+              </div>
+            );
+          })()}
 
           {todayWorkout && todayWorkout.max > 0 && (() => {
             const todayStart = new Date();
@@ -877,103 +947,93 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ═══ RUNNER WEEKLY VOLUME GRAPH ═══ */}
+      {/* ═══ RUNNER WEEKLY VOLUME + RECENT RUNS ═══ */}
       {!isCoach && runnerWeeklyVolumes.length > 1 && (() => {
         const maxKm = Math.max(...runnerWeeklyVolumes.map(w => w.km));
         const avgKm = Math.round(runnerWeeklyVolumes.reduce((s, w) => s + w.km, 0) / runnerWeeklyVolumes.length * 10) / 10;
         const lastWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 1];
         const prevWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 2];
         const trend = prevWeek && prevWeek.km > 0 ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100) : 0;
-        const yMax = Math.ceil(maxKm * 1.15 / 5) * 5;
+        const yMax = Math.ceil(maxKm * 1.2 / 5) * 5 || 10;
         return (
-          <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="text-sm sm:text-base font-bold text-white">Weekly KM</h2>
-                <p className="text-xs text-slate-500 mt-0.5">avg {avgKm} km/week · {runnerWeeklyVolumes.length} weeks</p>
-              </div>
-              {trend !== 0 && (
-                <div className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-lg', trend > 0 ? 'bg-emerald-500/10' : 'bg-amber-500/10')}>
-                  {trend > 0 ? <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
-                  <span className={cn('text-xs font-bold', trend > 0 ? 'text-emerald-400' : 'text-amber-400')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-white">Weekly KM</h2>
+                  <span className="text-[10px] text-slate-500">{avgKm} avg · {runnerWeeklyVolumes.length}w</span>
+                </div>
+                {trend !== 0 && (
+                  <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
                     {trend > 0 ? '+' : ''}{trend}%
                   </span>
+                )}
+              </div>
+              <div className="h-28">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: -16 }} barCategoryGap="30%">
+                    <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#64748b' }} axisLine={false} tickLine={false} dy={4} />
+                    <YAxis tick={{ fontSize: 9, fill: '#475569' }} axisLine={false} tickLine={false} width={24} domain={[0, yMax]} tickCount={3} />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(99,102,241,0.06)' }}
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #4338ff', borderRadius: '10px', fontSize: '11px', padding: '6px 10px', color: '#f1f5f9' }}
+                      labelStyle={{ color: '#fff', fontWeight: 700 }}
+                      formatter={(v: any, _: any, props: any) => [`${v} km · ${props?.payload?.runs || 0} runs`, '']}
+                      labelFormatter={l => `Week of ${l}`}
+                      separator=""
+                    />
+                    <Bar dataKey="km" radius={[4, 4, 0, 0]} maxBarSize={24}>
+                      {runnerWeeklyVolumes.map((_, i) => (
+                        <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#818cf8' : '#4f46e5'} opacity={0.6 + (i / runnerWeeklyVolumes.length) * 0.4} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            {recentActivities.length > 0 && (
+              <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-amber-400" />
+                    <h2 className="text-sm font-bold text-white">Recent Runs</h2>
+                  </div>
+                  <Link href="/dashboard/activities" className="text-[11px] font-semibold text-[#4338ff] hover:text-[#5b54ff] inline-flex items-center gap-0.5">
+                    All <ChevronRight className="h-3 w-3" />
+                  </Link>
                 </div>
-              )}
-            </div>
-            <div className="h-44 sm:h-52 bg-slate-900/30 rounded-xl p-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={runnerWeeklyVolumes} margin={{ top: 8, right: 12, bottom: 4, left: -4 }} barCategoryGap={runnerWeeklyVolumes.length <= 3 ? '20%' : '35%'}>
-                  <XAxis dataKey="week" tick={{ fontSize: 12, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} dy={6} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={34} domain={[0, yMax]} tickCount={4} />
-                  <Tooltip
-                    cursor={{ fill: 'rgba(99,102,241,0.08)', radius: 6 }}
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #4338ff', borderRadius: '12px', fontSize: '14px', padding: '10px 14px', color: '#f1f5f9', boxShadow: '0 4px 20px rgba(67,56,255,0.2)' }}
-                    labelStyle={{ color: '#fff', fontWeight: 700, marginBottom: '4px' }}
-                    formatter={(v: any, _: any, props: any) => {
-                      const runs = props?.payload?.runs;
-                      return [`${v} km · ${runs || 0} runs`, ''];
-                    }}
-                    labelFormatter={l => `Week of ${l}`}
-                    separator=""
-                  />
-                  <Bar dataKey="km" radius={[6, 6, 0, 0]} maxBarSize={runnerWeeklyVolumes.length <= 3 ? 48 : 28}>
-                    {runnerWeeklyVolumes.map((_, i) => (
-                      <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#a5b4fc' : '#6366f1'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
+                <div className="space-y-2">
+                  {recentActivities.slice(0, 3).map((a) => {
+                    const km = (a.distance / 1000).toFixed(1);
+                    const kmNum = a.distance / 1000;
+                    const pace = a.average_pace ? formatPace(a.average_pace) : null;
+                    const date = new Date(a.start_time);
+                    const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const runType = inferRunTypeFromActivity(kmNum, a.average_pace);
+                    return (
+                      <Link key={a.id} href="/dashboard/activities" className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/40 border border-slate-700/20 hover:border-[#4338ff]/30 transition-all">
+                        <div className="flex items-center gap-2.5">
+                          <div className={cn('w-2 h-2 rounded-full', runType.bg)} style={{ backgroundColor: runType.color.includes('#') ? runType.color : undefined }} />
+                          <div>
+                            <p className="text-xs font-semibold text-white">{km} km</p>
+                            <p className="text-[10px] text-slate-500">{dateLabel}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {pace && <span className="text-[11px] font-bold text-emerald-400 tabular-nums">{pace}</span>}
+                          <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', runType.bg, runType.color)}>{runType.label}</span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </div>
         );
       })()}
 
-      {/* ═══ RECENT RUNS ═══ */}
-      {recentActivities.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-amber-400" />
-              <h2 className="text-sm sm:text-base font-bold text-white">Recent Runs</h2>
-            </div>
-            <Link href="/dashboard/activities" className="text-sm font-semibold text-[#4338ff] hover:text-[#5b54ff] inline-flex items-center gap-1">
-              All <ChevronRight className="h-4 w-4" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {recentActivities.map((a) => {
-              const km = (a.distance / 1000).toFixed(1);
-              const kmNum = a.distance / 1000;
-              const pace = a.average_pace ? formatPace(a.average_pace) : null;
-              const date = new Date(a.start_time);
-              const hebrewDays = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
-              const dayLabel = hebrewDays[date.getDay()];
-              const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-              const runType = inferRunTypeFromActivity(kmNum, a.average_pace);
-              return (
-                <Link key={a.id} href="/dashboard/activities" className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/30 hover:border-[#4338ff]/30 hover:bg-slate-800/70 transition-all">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-400">{dateLabel}</span>
-                      <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded', runType.bg, runType.color)}>
-                        {runType.label}
-                      </span>
-                    </div>
-                    <span className="text-xs text-slate-500">{a.athlete_name}</span>
-                  </div>
-                  <p className="text-sm font-bold text-white mb-2">{dayLabel}</p>
-                  <div className="flex items-center gap-4">
-                    <span className="text-xl font-black text-white tabular-nums">{km}<span className="text-xs text-slate-400 ml-0.5">km</span></span>
-                    {pace && <span className="text-sm font-bold text-emerald-400 tabular-nums">{pace}<span className="text-xs text-slate-500">/km</span></span>}
-                    {a.average_hr && <span className="text-sm font-bold text-red-400 tabular-nums">{a.average_hr}<span className="text-xs text-slate-500">bpm</span></span>}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       {showSyncModal && (
         <FirstSyncModal
