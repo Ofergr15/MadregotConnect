@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target, Activity, WifiOff } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
@@ -61,6 +61,12 @@ export default function ProfilePage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [dataSource, setDataSource] = useState<'garmin' | 'strava' | null>(null);
+  const [hasGarmin, setHasGarmin] = useState(false);
+  const [hasStrava, setHasStrava] = useState(false);
+  const [connectingStrava, setConnectingStrava] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
 
   useEffect(() => {
     const id = localStorage.getItem('athlete_id') || '';
@@ -77,6 +83,20 @@ export default function ProfilePage() {
       .then(res => res.json())
       .then(data => setGroups(data.groups || []))
       .catch(() => {});
+
+    if (id) {
+      fetch('/api/admin/athlete-source')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          const me = data?.athletes?.find((a: any) => a.id === id);
+          if (me) {
+            setDataSource(me.dataSource || 'garmin');
+            setHasGarmin(me.hasGarmin);
+            setHasStrava(me.hasStrava);
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const hasChanges = selectedGroupId !== currentGroupId;
@@ -154,10 +174,24 @@ export default function ProfilePage() {
         </div>
 
         <div className="mt-4 flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
-            <Watch className="h-3.5 w-3.5 text-green-400" />
-            <span className="text-xs font-medium text-green-400">Garmin Connected</span>
-          </div>
+          {hasGarmin && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
+              <Watch className="h-3.5 w-3.5 text-green-400" />
+              <span className="text-xs font-medium text-green-400">Garmin Connected</span>
+            </div>
+          )}
+          {hasStrava && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20">
+              <Activity className="h-3.5 w-3.5 text-orange-400" />
+              <span className="text-xs font-medium text-orange-400">Strava Connected</span>
+            </div>
+          )}
+          {!hasGarmin && !hasStrava && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+              <WifiOff className="h-3.5 w-3.5 text-amber-400" />
+              <span className="text-xs font-medium text-amber-400">No Connection</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -271,6 +305,160 @@ export default function ProfilePage() {
               </>
             )}
           </button>
+        )}
+      </div>
+
+      {/* Data Source - Connect Strava */}
+      <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
+            <Activity className="h-4.5 w-4.5 text-[#4338ff]" />
+          </div>
+          <h2 className="font-semibold text-white">Activity Data Source</h2>
+        </div>
+
+        <div className="space-y-3">
+          {/* Garmin status */}
+          <div className={cn(
+            'flex items-center justify-between px-4 py-3 rounded-xl border',
+            hasGarmin ? 'border-green-500/30 bg-green-500/5' : 'border-slate-700/50 bg-slate-900/30'
+          )}>
+            <div className="flex items-center gap-3">
+              <Watch className={cn('h-5 w-5', hasGarmin ? 'text-green-400' : 'text-slate-500')} />
+              <div>
+                <p className={cn('text-sm font-medium', hasGarmin ? 'text-white' : 'text-slate-400')}>Garmin Connect</p>
+                <p className="text-[11px] text-slate-500">{hasGarmin ? 'Connected' : 'Not connected'}</p>
+              </div>
+            </div>
+            {dataSource === 'garmin' && hasGarmin && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Active</span>
+            )}
+          </div>
+
+          {/* Strava status */}
+          <div className={cn(
+            'flex items-center justify-between px-4 py-3 rounded-xl border',
+            hasStrava ? 'border-orange-500/30 bg-orange-500/5' : 'border-slate-700/50 bg-slate-900/30'
+          )}>
+            <div className="flex items-center gap-3">
+              <Activity className={cn('h-5 w-5', hasStrava ? 'text-orange-400' : 'text-slate-500')} />
+              <div>
+                <p className={cn('text-sm font-medium', hasStrava ? 'text-white' : 'text-slate-400')}>Strava</p>
+                <p className="text-[11px] text-slate-500">{hasStrava ? 'Connected' : 'Not connected'}</p>
+              </div>
+            </div>
+            {dataSource === 'strava' && hasStrava && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">Active</span>
+            )}
+          </div>
+        </div>
+
+        {/* Connect Strava button (shown if not connected) */}
+        {!hasStrava && (
+          <button
+            onClick={async () => {
+              setConnectingStrava(true);
+              try {
+                const res = await fetch(`/api/strava?athleteId=${athleteId}`);
+                const data = await res.json();
+                if (data.authUrl) {
+                  window.location.href = data.authUrl;
+                }
+              } catch {
+                setConnectingStrava(false);
+              }
+            }}
+            disabled={connectingStrava}
+            className="mt-4 w-full bg-[#fc5200] hover:bg-[#e04a00] text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {connectingStrava ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <Activity className="h-4 w-4" />
+                Connect Strava
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Switch source (shown if both connected) */}
+        {hasStrava && hasGarmin && (
+          <button
+            onClick={async () => {
+              const newSource = dataSource === 'strava' ? 'garmin' : 'strava';
+              await fetch('/api/admin/athlete-source', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ athleteId, dataSource: newSource }),
+              });
+              setDataSource(newSource);
+            }}
+            className="mt-4 w-full border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            <Activity className="h-4 w-4" />
+            Switch to {dataSource === 'strava' ? 'Garmin' : 'Strava'}
+          </button>
+        )}
+
+        {!hasGarmin && !hasStrava && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+            <WifiOff className="h-4 w-4 shrink-0" />
+            <span>No data source connected. Connect Strava to sync your activities.</span>
+          </div>
+        )}
+
+        {/* Manual Sync button */}
+        {(hasGarmin || hasStrava) && (
+          <div className="mt-4 pt-4 border-t border-slate-700/30">
+            <button
+              onClick={async () => {
+                setSyncing(true);
+                setSyncResult(null);
+                try {
+                  const endpoint = dataSource === 'strava' ? '/api/strava/sync-activities' : '/api/garmin/sync-activities';
+                  const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ athleteId }),
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setSyncResult(`Synced ${data.synced || 0} new activities`);
+                  } else {
+                    setSyncResult('Sync failed. Try again later.');
+                  }
+                } catch {
+                  setSyncResult('Sync failed. Try again later.');
+                } finally {
+                  setSyncing(false);
+                  setTimeout(() => setSyncResult(null), 4000);
+                }
+              }}
+              disabled={syncing}
+              className="w-full border border-slate-600 hover:border-[#4338ff]/50 hover:bg-[#4338ff]/5 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {syncing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <Activity className="h-4 w-4" />
+                  Sync Activities Now
+                </>
+              )}
+            </button>
+            {syncResult && (
+              <p className={cn('text-xs mt-2 text-center', syncResult.includes('failed') ? 'text-red-400' : 'text-green-400')}>
+                {syncResult}
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>
