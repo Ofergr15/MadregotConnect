@@ -740,26 +740,26 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-end justify-center gap-3 h-28 mt-2">
+                  <div className="flex items-end justify-center gap-2 h-32 mt-2">
                     {top3.length >= 2 && (
                       <div className="flex flex-col items-center flex-1">
-                        <span className="text-[10px] font-bold text-slate-300 mb-0.5">{top3[1].distanceKm}</span>
-                        <div className="w-full rounded-t bg-gradient-to-t from-slate-600/50 to-slate-500/20 border-t border-x border-slate-500/30" style={{ height: '60%' }} />
-                        <span className="text-[10px] text-slate-400 mt-1 truncate max-w-full">{top3[1].name.split(' ')[0]}</span>
+                        <span className="text-xs font-bold text-slate-200 mb-1">{top3[1].distanceKm}</span>
+                        <div className="w-full rounded-t-lg bg-slate-500/40" style={{ height: '70%' }} />
+                        <span className="text-[11px] text-slate-300 mt-1.5 truncate max-w-full font-medium">{top3[1].name.split(' ')[0]}</span>
                       </div>
                     )}
                     {top3.length >= 1 && (
                       <div className="flex flex-col items-center flex-1">
-                        <span className="text-[10px] font-bold text-yellow-400 mb-0.5">{top3[0].distanceKm}</span>
-                        <div className="w-full rounded-t bg-gradient-to-t from-yellow-500/20 to-yellow-400/10 border-t border-x border-yellow-500/30" style={{ height: '100%' }} />
-                        <span className="text-[10px] text-white font-semibold mt-1 truncate max-w-full">{top3[0].name.split(' ')[0]}</span>
+                        <span className="text-xs font-bold text-yellow-400 mb-1">{top3[0].distanceKm}</span>
+                        <div className="w-full rounded-t-lg bg-yellow-500/30" style={{ height: '100%' }} />
+                        <span className="text-[11px] text-white font-bold mt-1.5 truncate max-w-full">{top3[0].name.split(' ')[0]}</span>
                       </div>
                     )}
                     {top3.length >= 3 && (
                       <div className="flex flex-col items-center flex-1">
-                        <span className="text-[10px] font-bold text-amber-600 mb-0.5">{top3[2].distanceKm}</span>
-                        <div className="w-full rounded-t bg-gradient-to-t from-amber-700/20 to-amber-600/10 border-t border-x border-amber-600/30" style={{ height: '40%' }} />
-                        <span className="text-[10px] text-slate-400 mt-1 truncate max-w-full">{top3[2].name.split(' ')[0]}</span>
+                        <span className="text-xs font-bold text-amber-500 mb-1">{top3[2].distanceKm}</span>
+                        <div className="w-full rounded-t-lg bg-amber-600/30" style={{ height: '50%' }} />
+                        <span className="text-[11px] text-slate-300 mt-1.5 truncate max-w-full font-medium">{top3[2].name.split(' ')[0]}</span>
                       </div>
                     )}
                   </div>
