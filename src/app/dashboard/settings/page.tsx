@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface User {
@@ -198,6 +198,7 @@ interface FeedbackItem {
   status: FeedbackStatus;
   priority: FeedbackPriority;
   admin_notes: string | null;
+  sort_order: number | null;
   created_at: string;
 }
 
@@ -250,6 +251,8 @@ export default function SettingsPage() {
   const [filterPriority, setFilterPriority] = useState<FeedbackPriority | 'all'>('all');
   const [updatingFeedback, setUpdatingFeedback] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<string>('');
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -307,10 +310,50 @@ export default function SettingsPage() {
     }
   };
 
+  const deleteFeedback = async (id: string) => {
+    setUpdatingFeedback(id);
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setSelectedFeedback(null);
+        await fetchFeedback();
+      }
+    } catch {
+    } finally {
+      setUpdatingFeedback(null);
+    }
+  };
+
+  const handleDragEnd = (dragId: string, dropId: string) => {
+    if (dragId === dropId) return;
+    const items = [...feedbackItems];
+    const dragIdx = items.findIndex(i => i.id === dragId);
+    const dropIdx = items.findIndex(i => i.id === dropId);
+    if (dragIdx === -1 || dropIdx === -1) return;
+    const [moved] = items.splice(dragIdx, 1);
+    items.splice(dropIdx, 0, moved);
+    const reordered = items.map((item, i) => ({ ...item, sort_order: i }));
+    setFeedbackItems(reordered);
+    const sprintItems = reordered.filter(i => (i.status || 'new') === 'sprint');
+    sprintItems.forEach((item, i) => {
+      fetch('/api/feedback', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, sort_order: i }),
+      });
+    });
+    setDraggedItem(null);
+    setDragOverItem(null);
+  };
+
   const filteredFeedback = feedbackItems.filter(item => {
-    if (filterCategory !== 'all' && item.category !== filterCategory) return false;
-    if (filterStatus !== 'all' && item.status !== filterStatus) return false;
-    if (filterPriority !== 'all' && item.priority !== filterPriority) return false;
+    if (filterCategory !== 'all' && (item.category || 'general') !== filterCategory) return false;
+    if (filterStatus !== 'all' && (item.status || 'new') !== filterStatus) return false;
+    if (filterPriority !== 'all' && (item.priority || 'medium') !== filterPriority) return false;
     return true;
   });
 
@@ -835,6 +878,17 @@ export default function SettingsPage() {
                         <p className="text-[10px] text-slate-500 mt-1.5">Current: {selectedFeedback.admin_notes}</p>
                       )}
                     </div>
+
+                    <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-end">
+                      <button
+                        onClick={() => { if (confirm('Delete this feedback?')) deleteFeedback(selectedFeedback.id); }}
+                        disabled={updatingFeedback === selectedFeedback.id}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-all disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -962,14 +1016,31 @@ export default function SettingsPage() {
                   const CatIcon = catConfig.icon;
                   const statusCfg = statusConfig[item.status || 'new'];
                   const priorityCfg = priorityConfig[item.priority || 'medium'];
+                  const sprintIndex = (item.status || 'new') === 'sprint'
+                    ? filteredFeedback.filter(f => (f.status || 'new') === 'sprint').indexOf(item) + 1
+                    : null;
                   return (
                     <div
                       key={item.id}
+                      draggable
+                      onDragStart={() => setDraggedItem(item.id)}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverItem(item.id); }}
+                      onDragEnd={() => { if (draggedItem && dragOverItem) handleDragEnd(draggedItem, dragOverItem); }}
                       onClick={() => { setSelectedFeedback(item); setAdminNotes(item.admin_notes || ''); }}
-                      className="p-4 rounded-xl bg-slate-900/40 border border-slate-700/30 cursor-pointer hover:border-[#4338ff]/30 hover:bg-slate-800/60 transition-all"
+                      className={cn(
+                        "p-4 rounded-xl bg-slate-900/40 border cursor-pointer hover:border-[#4338ff]/30 hover:bg-slate-800/60 transition-all",
+                        dragOverItem === item.id ? 'border-[#4338ff]/50 bg-[#4338ff]/5' : 'border-slate-700/30',
+                        draggedItem === item.id && 'opacity-50'
+                      )}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
+                          <GripVertical className="w-4 h-4 text-slate-600 cursor-grab flex-shrink-0" />
+                          {sprintIndex && (
+                            <span className="w-6 h-6 rounded-md bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[10px] font-black text-amber-400 flex-shrink-0">
+                              {sprintIndex}
+                            </span>
+                          )}
                           <div className="w-8 h-8 rounded-full bg-[#4338ff]/15 flex items-center justify-center">
                             <span className="text-[10px] font-bold text-[#4338ff]">
                               {item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}

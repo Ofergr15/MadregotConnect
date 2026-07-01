@@ -44,9 +44,31 @@ export async function GET() {
   }
 }
 
+export async function DELETE(request: Request) {
+  try {
+    const { id } = await request.json();
+
+    if (!id) {
+      return NextResponse.json({ error: 'Feedback ID is required' }, { status: 400 });
+    }
+
+    const supabase = createServerClient();
+    const { error } = await supabase
+      .from('feedback')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Feedback delete error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to delete' }, { status: 500 });
+  }
+}
+
 export async function PATCH(request: Request) {
   try {
-    const { id, status, priority, admin_notes } = await request.json();
+    const { id, status, priority, admin_notes, sort_order } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: 'Feedback ID is required' }, { status: 400 });
@@ -57,6 +79,7 @@ export async function PATCH(request: Request) {
     if (status !== undefined) updateData.status = status;
     if (priority !== undefined) updateData.priority = priority;
     if (admin_notes !== undefined) updateData.admin_notes = admin_notes;
+    if (sort_order !== undefined) updateData.sort_order = sort_order;
 
     const { error } = await supabase
       .from('feedback')
