@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   Calendar, Users, ArrowRight, TrendingUp, TrendingDown,
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
+  Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
@@ -301,6 +302,74 @@ interface RecentActivity {
   average_hr: number | null;
 }
 
+type SyncStatus = 'syncing' | 'done' | 'error';
+
+function FirstSyncModal({ status, syncedCount, error, onClose }: {
+  status: SyncStatus;
+  syncedCount: number;
+  error?: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm mx-4 p-6 text-center">
+        <div className="flex flex-col items-center">
+          {status === 'syncing' && (
+            <>
+              <div className="bg-[#4338ff]/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                <RefreshCw className="h-8 w-8 text-[#4338ff] animate-spin" />
+              </div>
+              <h2 className="text-lg font-bold text-white">Syncing Your Data</h2>
+              <p className="text-sm text-slate-400 mt-2">
+                Fetching your Garmin activities and setting up your dashboard...
+              </p>
+              <div className="mt-4 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                <div className="h-full bg-[#4338ff] rounded-full animate-pulse" style={{ width: '60%' }} />
+              </div>
+            </>
+          )}
+          {status === 'done' && (
+            <>
+              <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle2 className="h-8 w-8 text-green-400" />
+              </div>
+              <h2 className="text-lg font-bold text-white">All Set!</h2>
+              <p className="text-sm text-slate-400 mt-2">
+                {syncedCount > 0
+                  ? `Synced ${syncedCount} activities from Garmin.`
+                  : 'Your dashboard is ready. Activities will appear after your next run!'}
+              </p>
+              <button
+                onClick={onClose}
+                className="mt-5 px-6 py-2.5 bg-[#4338ff] hover:bg-[#3730d4] text-white font-medium rounded-lg transition-colors"
+              >
+                Let&apos;s Go
+              </button>
+            </>
+          )}
+          {status === 'error' && (
+            <>
+              <div className="bg-amber-500/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="h-8 w-8 text-amber-400" />
+              </div>
+              <h2 className="text-lg font-bold text-white">Sync Issue</h2>
+              <p className="text-sm text-slate-400 mt-2">
+                {error || 'Could not sync activities. Your dashboard will update once data is available.'}
+              </p>
+              <button
+                onClick={onClose}
+                className="mt-5 px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
+              >
+                Continue to Dashboard
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
@@ -316,6 +385,10 @@ export default function DashboardPage() {
   const [isCoach, setIsCoach] = useState(false);
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [athleteName, setAthleteName] = useState<string>('');
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing');
+  const [syncedCount, setSyncedCount] = useState(0);
+  const [syncError, setSyncError] = useState<string | undefined>();
 
   useEffect(() => {
     const coachEmail = localStorage.getItem('coach_email');
@@ -346,6 +419,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function load() {
+      const myAthleteId = localStorage.getItem('athlete_id');
+      const myIsCoach = !!localStorage.getItem('coach_email');
+      const isFirstVisit = !localStorage.getItem('dashboard_synced');
+
+      if (isFirstVisit && myAthleteId && !myIsCoach) {
+        setShowSyncModal(true);
+        setSyncStatus('syncing');
+      }
+
       try {
         const [s, w] = await Promise.all([
           fetch('/api/dashboard/stats').then(r => r.json()),
@@ -382,12 +464,33 @@ export default function DashboardPage() {
             code: d.c.sort((a, b) => b - a)[0],
           })));
         }
+
+        if (isFirstVisit && myAthleteId && !myIsCoach) {
+          try {
+            const syncRes = await fetch('/api/garmin/sync-activities', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ athleteId: myAthleteId }),
+            });
+            if (syncRes.ok) {
+              const syncData = await syncRes.json();
+              setSyncedCount(syncData.synced || 0);
+              setSyncStatus('done');
+            } else {
+              setSyncStatus('done');
+              setSyncedCount(0);
+            }
+          } catch {
+            setSyncStatus('error');
+            setSyncError('Could not sync Garmin data.');
+          }
+          localStorage.setItem('dashboard_synced', '1');
+        }
+
         const actRes = await fetch('/api/garmin/sync-activities');
         if (actRes.ok) {
           const actData = await actRes.json();
           const allActs = actData.activities || [];
-          const myAthleteId = localStorage.getItem('athlete_id');
-          const myIsCoach = !!localStorage.getItem('coach_email');
           const filtered = myIsCoach ? allActs : allActs.filter((a: any) => a.athlete_id === myAthleteId);
           setRecentActivities(filtered.slice(0, 3));
         }
@@ -471,18 +574,67 @@ export default function DashboardPage() {
           <p className="text-sm text-slate-500 mt-1">this week</p>
         </div>
 
-        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Athletes</p>
-          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.athleteCount || 0}</p>
-          <p className="text-sm text-slate-500 mt-1">{stats?.groupCount || 0} groups</p>
-        </div>
+        {isCoach ? (
+          <>
+            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Athletes</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.athleteCount || 0}</p>
+              <p className="text-sm text-slate-500 mt-1">{stats?.groupCount || 0} groups</p>
+            </div>
 
-        <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivery</p>
-          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ml-0.5">%</span></p>
-          <p className="text-sm text-slate-500 mt-1">success rate</p>
-        </div>
+            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivery</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ml-0.5">%</span></p>
+              <p className="text-sm text-slate-500 mt-1">success rate</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">My Runs</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{recentActivities.length}</p>
+              <p className="text-sm text-slate-500 mt-1">recent</p>
+            </div>
+
+            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Race Day</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{countdown.d}<span className="text-sm font-medium text-slate-500 ml-1">days</span></p>
+              <p className="text-sm text-slate-500 mt-1">to go</p>
+            </div>
+          </>
+        )}
       </section>
+
+      {/* ═══ PROGRAM CARD (Runners) ═══ */}
+      {!isCoach && (
+        <section>
+          <Link href="/dashboard/program" className="block bg-gradient-to-r from-[#4338ff]/10 to-purple-600/10 rounded-2xl p-5 sm:p-6 border border-[#4338ff]/20 hover:border-[#4338ff]/40 transition-all group">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-[#4338ff]/20 w-10 h-10 rounded-xl flex items-center justify-center">
+                  <Dumbbell className="h-5 w-5 text-[#4338ff]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Weekly Program</h3>
+                  <p className="text-sm text-slate-400">Training & Nutrition Plans</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-[#4338ff] transition-colors" />
+            </div>
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="text-slate-300 font-medium">
+                  {week > 0 ? `Week ${week} of ${TOTAL_WEEKS}` : 'Pre-season'}
+                </span>
+                <span className="text-slate-500">{week > 0 ? `${Math.round((week / TOTAL_WEEKS) * 100)}%` : 'Starting Aug 9'}</span>
+              </div>
+              <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-[#4338ff] to-purple-500 rounded-full transition-all duration-1000" style={{ width: `${Math.max(4, (week / TOTAL_WEEKS) * 100)}%` }} />
+              </div>
+            </div>
+          </Link>
+        </section>
+      )}
 
       {/* ═══ TODAY'S WORKOUT + WEATHER ═══ */}
       {(todayWorkout || todayWeather) && (
@@ -746,6 +898,15 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {showSyncModal && (
+        <FirstSyncModal
+          status={syncStatus}
+          syncedCount={syncedCount}
+          error={syncError}
+          onClose={() => setShowSyncModal(false)}
+        />
+      )}
+
       {selectedSession && (
         <WorkoutDetailModal session={selectedSession} onClose={() => setSelectedSession(null)} />
       )}
@@ -813,12 +974,19 @@ export default function DashboardPage() {
 
       {/* ═══ QUICK LINKS ═══ */}
       <section className="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-800/50">
-        <Link href="/dashboard/plan/new" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-[#4338ff] hover:bg-[#3730d4] transition-colors">
-          <Calendar className="h-4 w-4" /> Weekly Planner
+        <Link href="/dashboard/program" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-[#4338ff] hover:bg-[#3730d4] transition-colors">
+          <Dumbbell className="h-4 w-4" /> Program
         </Link>
-        <Link href="/dashboard/athletes" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors">
-          <Users className="h-4 w-4" /> Athletes
-        </Link>
+        {isCoach && (
+          <Link href="/dashboard/plan/new" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors">
+            <Calendar className="h-4 w-4" /> Weekly Planner
+          </Link>
+        )}
+        {isCoach && (
+          <Link href="/dashboard/athletes" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors">
+            <Users className="h-4 w-4" /> Athletes
+          </Link>
+        )}
         <Link href="/dashboard/history" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors">
           <ChevronRight className="h-4 w-4" /> History
         </Link>

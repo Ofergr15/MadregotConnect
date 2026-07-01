@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ExternalLink } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 interface Group {
@@ -118,118 +119,145 @@ export default function ProfilePage() {
     );
   }
 
-  const levelStyles = {
-    fast: 'border-green-500/40 bg-green-500/10 hover:bg-green-500/20',
-    medium: 'border-yellow-500/40 bg-yellow-500/10 hover:bg-yellow-500/20',
-    slow: 'border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/20',
-  };
-  const badgeStyles = {
-    fast: 'bg-green-500/20 text-green-400 border-green-500/30',
-    medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    slow: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-  };
+  const initials = athleteName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
+  const currentGroup = groups.find(g => g.id === currentGroupId);
   const currentWeek = WEEKS[0];
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold">My Profile</h1>
-        <p className="text-slate-400 mt-1 text-sm">
-          Manage your settings and pace group
-        </p>
-      </div>
-
-      {/* Profile Info */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-        <div className="flex items-center gap-4">
-          <div className="bg-primary-500/20 w-14 h-14 rounded-full flex items-center justify-center">
-            <User className="h-7 w-7 text-primary-400" />
+    <div className="max-w-lg mx-auto space-y-5 pb-8">
+      {/* Profile Hero */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#4338ff]/20 via-slate-800 to-purple-900/20 border border-slate-700/50 p-6">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#4338ff]/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+        <div className="relative flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#4338ff] to-purple-600 flex items-center justify-center shadow-lg shadow-[#4338ff]/20">
+            <span className="text-xl font-bold text-white">{initials}</span>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-white">{athleteName}</h2>
-            <p className="text-sm text-slate-400">{athleteEmail}</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-white truncate">{athleteName}</h1>
+            <div className="flex items-center gap-1.5 mt-1">
+              <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <span className="text-sm text-slate-400 truncate">{athleteEmail}</span>
+            </div>
+            {currentGroup && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <Target className="h-3.5 w-3.5 text-[#4338ff] shrink-0" />
+                <span className="text-sm font-medium text-[#4338ff]">{currentGroup.marathonGoal || currentGroup.name}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
+            <Watch className="h-3.5 w-3.5 text-green-400" />
+            <span className="text-xs font-medium text-green-400">Garmin Connected</span>
           </div>
         </div>
       </div>
 
       {/* This Week's Program */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Dumbbell className="h-5 w-5 text-primary-400" />
-          <h2 className="font-semibold">This Week&apos;s Program</h2>
-          <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium ml-auto">
-            {currentWeek.weekLabel}
-          </span>
-        </div>
-
-        <div className="bg-slate-700/30 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-400" />
-              <span className="text-sm font-medium text-white">Training Program</span>
+      <Link
+        href="/dashboard/program"
+        className="block rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5 hover:border-[#4338ff]/30 hover:bg-slate-800 transition-all group"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
+              <Dumbbell className="h-4.5 w-4.5 text-[#4338ff]" />
             </div>
-            <span className="text-xs text-slate-400">{currentWeek.dateRange}</span>
+            <h2 className="font-semibold text-white">This Week&apos;s Program</h2>
           </div>
-          <a
-            href="/dashboard/program"
-            className="mt-3 inline-flex items-center gap-2 text-sm text-primary-400 hover:text-primary-300 transition-colors"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            View full program
-          </a>
-        </div>
-      </div>
-
-      {/* Group Selection */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary-400" />
-            <h2 className="font-semibold">My Pace Group</h2>
+            <span className="text-xs font-bold text-[#4338ff] bg-[#4338ff]/10 px-2.5 py-1 rounded-full">
+              {currentWeek.weekLabel}
+            </span>
+            <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-[#4338ff] transition-colors" />
           </div>
-          {saved && <CheckCircle2 className="h-4 w-4 text-green-400" />}
+        </div>
+
+        <div className="bg-slate-900/50 rounded-xl p-4 flex items-center gap-3">
+          <FileText className="h-5 w-5 text-slate-400 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white">Training & Nutrition</p>
+            <p className="text-xs text-slate-500 mt-0.5">{currentWeek.dateRange}</p>
+          </div>
+        </div>
+      </Link>
+
+      {/* Pace Group Selection */}
+      <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-purple-500/15 flex items-center justify-center">
+              <Users className="h-4.5 w-4.5 text-purple-400" />
+            </div>
+            <h2 className="font-semibold text-white">Pace Group</h2>
+          </div>
+          {saved && (
+            <div className="flex items-center gap-1.5 text-green-400">
+              <CheckCircle2 className="h-4 w-4" />
+              <span className="text-xs font-medium">Saved</span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
           {groups.map(g => {
-            const level = g.level || 'medium';
             const isSelected = selectedGroupId === g.id;
+            const isCurrent = currentGroupId === g.id;
+            const levelColor = g.level === 'fast' ? 'green' : g.level === 'medium' ? 'amber' : 'orange';
             return (
               <button
                 key={g.id}
                 onClick={() => setSelectedGroupId(g.id)}
                 disabled={saving}
                 className={cn(
-                  'w-full text-left px-4 py-4 rounded-lg border-2 transition-all flex items-center gap-3',
+                  'w-full text-left px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3',
                   isSelected
-                    ? `${levelStyles[level]} ring-2 ring-offset-1 ring-offset-slate-800 ring-primary-500/50`
-                    : 'border-slate-600 bg-slate-700 hover:border-slate-500'
+                    ? 'border-[#4338ff]/60 bg-[#4338ff]/5 shadow-sm shadow-[#4338ff]/10'
+                    : 'border-slate-700/50 bg-slate-900/30 hover:bg-slate-700/30 hover:border-slate-600'
                 )}
               >
-                <Users className={cn('h-5 w-5', isSelected ? 'text-primary-400' : 'text-slate-400')} />
-                <span className="flex-1 font-medium text-white">{g.name}</span>
+                <div className={cn(
+                  'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+                  isSelected ? 'bg-[#4338ff]/20' : 'bg-slate-700/50'
+                )}>
+                  <Users className={cn('h-4 w-4', isSelected ? 'text-[#4338ff]' : 'text-slate-400')} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className={cn('font-medium block', isSelected ? 'text-white' : 'text-slate-300')}>
+                    {g.name}
+                  </span>
+                </div>
                 {g.marathonGoal && (
-                  <span className={cn('text-xs px-2 py-0.5 rounded border font-medium', badgeStyles[level])}>
+                  <span className={cn(
+                    'text-xs px-2 py-1 rounded-md font-bold shrink-0',
+                    levelColor === 'green' && 'bg-green-500/15 text-green-400',
+                    levelColor === 'amber' && 'bg-amber-500/15 text-amber-400',
+                    levelColor === 'orange' && 'bg-orange-500/15 text-orange-400',
+                  )}>
                     {g.marathonGoal}
                   </span>
                 )}
-                {isSelected && <CheckCircle2 className="h-5 w-5 text-primary-400" />}
+                {isSelected && (
+                  <CheckCircle2 className="h-5 w-5 text-[#4338ff] shrink-0" />
+                )}
               </button>
             );
           })}
         </div>
 
-        <p className="text-xs text-slate-500 mt-3">
-          Your coach will assign workouts based on your group&apos;s pace
-        </p>
-
-        {/* Save button — only shows when group changed */}
         {hasChanges && (
           <button
             onClick={saveGroup}
             disabled={saving}
-            className="mt-4 w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="mt-4 w-full bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving ? (
               <>
@@ -239,7 +267,7 @@ export default function ProfilePage() {
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Save Changes
+                Save Group Change
               </>
             )}
           </button>
