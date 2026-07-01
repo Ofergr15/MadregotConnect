@@ -53,6 +53,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to save connection' }, { status: 500 });
       }
 
+      try {
+        const { notifyAdminNewUser } = await import('@/lib/email');
+        await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: 'garmin_authed', hasGarmin: true });
+      } catch {}
+
       return NextResponse.json({ success: true, athlete: updated });
     }
 
