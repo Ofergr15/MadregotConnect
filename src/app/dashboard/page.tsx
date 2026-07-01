@@ -1032,41 +1032,39 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <span className={cn('text-[11px] font-bold px-2.5 py-1 rounded-lg', runType.color, runType.bg)}>
-                      {runType.label}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={cn('text-[11px] font-bold px-2.5 py-1 rounded-lg', runType.color, runType.bg)}>
+                        {runType.label}
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-slate-600" />
+                    </div>
                   </div>
 
                   {/* Activity name */}
-                  <div className="px-5 pt-3 pb-2">
-                    <h3 className="text-lg font-bold text-white">{a.activity_name || 'Run'}</h3>
+                  <div className="px-5 pt-3 pb-1">
+                    <h3 className="text-base font-bold text-white">{a.activity_name || 'Run'}</h3>
                   </div>
 
-                  {/* Stats row — spread evenly like Strava */}
-                  <div className="grid grid-cols-5 gap-2 px-5 pb-4">
+                  {/* Stats row — Strava style: Distance, Elev Gain, Time */}
+                  <div className="flex items-baseline gap-8 px-5 pb-4 border-b border-slate-700/20">
                     <div>
                       <p className="text-[10px] text-slate-500 mb-0.5">Distance</p>
-                      <p className="text-base font-black text-white tabular-nums">{km}<span className="text-xs font-normal text-slate-500 ml-0.5">km</span></p>
+                      <p className="text-xl font-black text-white tabular-nums">{km} <span className="text-sm font-normal text-slate-500">km</span></p>
                     </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">Pace</p>
-                      <p className="text-base font-black text-white tabular-nums">{pace || '–'}<span className="text-xs font-normal text-slate-500 ml-0.5">/km</span></p>
-                    </div>
+                    {a.elevation_gain && a.elevation_gain > 0 ? (
+                      <div>
+                        <p className="text-[10px] text-slate-500 mb-0.5">Elev Gain</p>
+                        <p className="text-xl font-black text-white tabular-nums">{Math.round(a.elevation_gain)} <span className="text-sm font-normal text-slate-500">m</span></p>
+                      </div>
+                    ) : pace ? (
+                      <div>
+                        <p className="text-[10px] text-slate-500 mb-0.5">Pace</p>
+                        <p className="text-xl font-black text-white tabular-nums">{pace} <span className="text-sm font-normal text-slate-500">/km</span></p>
+                      </div>
+                    ) : null}
                     <div>
                       <p className="text-[10px] text-slate-500 mb-0.5">Time</p>
-                      <p className="text-base font-black text-white tabular-nums">{durationStr}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">Avg HR</p>
-                      <p className="text-base font-black tabular-nums">
-                        {a.average_hr ? <><Heart className="h-3 w-3 text-red-400 inline mr-0.5" /><span className="text-red-400">{a.average_hr}</span></> : <span className="text-slate-600">–</span>}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">Elevation</p>
-                      <p className="text-base font-black text-white tabular-nums">
-                        {a.elevation_gain && a.elevation_gain > 0 ? <><span className="text-emerald-400">{Math.round(a.elevation_gain)}</span><span className="text-xs font-normal text-slate-500 ml-0.5">m</span></> : <span className="text-slate-600">–</span>}
-                      </p>
+                      <p className="text-xl font-black text-white tabular-nums">{durationStr}</p>
                     </div>
                   </div>
 
