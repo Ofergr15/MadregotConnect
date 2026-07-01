@@ -21,9 +21,22 @@ export async function POST(req: NextRequest) {
       auth: encryptedAuth,
     });
   } catch (error: any) {
-    console.error('Garmin auth error:', error);
+    console.error('Garmin auth error:', error?.message, error?.cause || '');
+    const msg = error?.message?.toLowerCase() || '';
+    if (msg.includes('mfa') || msg.includes('two-factor') || msg.includes('verification')) {
+      return NextResponse.json(
+        { error: 'Garmin account has MFA enabled. Please disable 2FA in Garmin Connect settings and try again.' },
+        { status: 401 }
+      );
+    }
+    if (msg.includes('locked') || msg.includes('too many')) {
+      return NextResponse.json(
+        { error: 'Account temporarily locked due to too many attempts. Wait a few minutes and try again.' },
+        { status: 429 }
+      );
+    }
     return NextResponse.json(
-      { error: 'Failed to authenticate with Garmin. Check credentials.' },
+      { error: 'Failed to authenticate with Garmin. Check your credentials or try again in a few minutes.' },
       { status: 401 }
     );
   }
