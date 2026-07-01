@@ -544,25 +544,31 @@ export default function SettingsPage() {
                           Approve
                         </button>
                       )}
-                      <RoleDropdown
-                        value={user.role}
-                        onChange={(role) => handleRoleSelect(user, role)}
-                        disabled={updatingUsers.has(user.id)}
-                      />
-                      {updatingUsers.has(user.id) && (
-                        <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+                      {user.role !== 'admin' ? (
+                        <>
+                          <RoleDropdown
+                            value={user.role}
+                            onChange={(role) => handleRoleSelect(user, role)}
+                            disabled={updatingUsers.has(user.id)}
+                          />
+                          {updatingUsers.has(user.id) && (
+                            <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+                          )}
+                          {savedUsers.has(user.id) && (
+                            <CheckCircle2 className="w-4 h-4 text-green-400" />
+                          )}
+                          <button
+                            onClick={() => setPendingDelete(user)}
+                            disabled={updatingUsers.has(user.id)}
+                            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete user"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-xs font-medium text-slate-500 px-2 py-1 bg-slate-700/50 rounded-lg">Protected</span>
                       )}
-                      {savedUsers.has(user.id) && (
-                        <CheckCircle2 className="w-4 h-4 text-green-400" />
-                      )}
-                      <button
-                        onClick={() => setPendingDelete(user)}
-                        disabled={updatingUsers.has(user.id)}
-                        className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                        title="Delete user"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
                     </div>
                   </div>
                 </div>
