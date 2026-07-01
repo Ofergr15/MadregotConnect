@@ -654,9 +654,12 @@ export default function DashboardPage() {
                 <span className="text-sm font-medium text-slate-500 ml-1">km</span>
               </p>
               {hasData && (
-                <div className="mt-2">
-                  <p className="text-xs text-slate-500">Target: {Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)} km</p>
-                  <div className="w-full h-1.5 bg-slate-700 rounded-full mt-1.5 overflow-hidden">
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">Target</span>
+                    <span className="text-sm font-black text-[#4338ff]">{Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)} km</span>
+                  </div>
+                  <div className="w-full h-2.5 bg-slate-700/60 rounded-full overflow-hidden">
                     <div
                       className={cn('h-full rounded-full transition-all', weeklyKm >= weekly!.weekTotalMin ? 'bg-emerald-400' : 'bg-[#4338ff]')}
                       style={{ width: `${Math.min(100, (weeklyKm / weekly!.weekTotalMax) * 100)}%` }}
