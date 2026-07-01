@@ -636,38 +636,6 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* ═══ RUNNER WEEKLY VOLUME GRAPH ═══ */}
-      {!isCoach && runnerWeeklyVolumes.length > 1 && (
-        <section className="bg-slate-800/30 rounded-2xl p-4 sm:p-6 border border-slate-700/20">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm sm:text-base font-bold text-white">Weekly Kilometers</h2>
-            <span className="text-xs text-slate-500">Last {runnerWeeklyVolumes.length} weeks</span>
-          </div>
-          <div className="h-44 sm:h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={runnerWeeklyVolumes} margin={{ top: 8, right: 4, bottom: 0, left: -16 }}>
-                <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={36} tickFormatter={v => `${v}`} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '13px', padding: '8px 12px', color: '#f1f5f9' }}
-                  labelStyle={{ color: '#fff', fontWeight: 700 }}
-                  formatter={(v: any) => [`${v} km`, 'Distance']}
-                  labelFormatter={l => `Week of ${l}`}
-                />
-                <Bar dataKey="km" radius={[6, 6, 0, 0]}>
-                  {runnerWeeklyVolumes.map((_, i) => (
-                    <Cell
-                      key={i}
-                      fill={i === runnerWeeklyVolumes.length - 1 ? '#4338ff' : '#4338ff80'}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
-
       {/* ═══ TODAY'S WORKOUT + WEATHER ═══ */}
       {(todayWorkout || todayWeather) && (
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -883,6 +851,58 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+
+      {/* ═══ RUNNER WEEKLY VOLUME GRAPH ═══ */}
+      {!isCoach && runnerWeeklyVolumes.length > 1 && (() => {
+        const maxKm = Math.max(...runnerWeeklyVolumes.map(w => w.km));
+        const avgKm = Math.round(runnerWeeklyVolumes.reduce((s, w) => s + w.km, 0) / runnerWeeklyVolumes.length * 10) / 10;
+        const lastWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 1];
+        const prevWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 2];
+        const trend = prevWeek && prevWeek.km > 0 ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100) : 0;
+        return (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm sm:text-base font-bold text-white">Running Volume</h2>
+                <p className="text-xs text-slate-500 mt-0.5">avg {avgKm} km/week</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {trend !== 0 && (
+                  <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full', trend > 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10')}>
+                    {trend > 0 ? '+' : ''}{trend}%
+                  </span>
+                )}
+                <span className="text-xs text-slate-500">{runnerWeeklyVolumes.length}w</span>
+              </div>
+            </div>
+            <div className="h-48 sm:h-56 rounded-2xl bg-slate-800/30 border border-slate-700/20 p-4 pt-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                  <defs>
+                    <linearGradient id="runVolGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#4338ff" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#475569' }} axisLine={false} tickLine={false} width={32} domain={[0, Math.ceil(maxKm * 1.2)]} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '13px', padding: '8px 12px', color: '#f1f5f9' }}
+                    labelStyle={{ color: '#fff', fontWeight: 700 }}
+                    formatter={(v: any, _: any, props: any) => {
+                      const runs = props?.payload?.runs;
+                      return [`${v} km · ${runs || 0} runs`, ''];
+                    }}
+                    labelFormatter={l => `Week of ${l}`}
+                    separator=""
+                  />
+                  <Area type="monotone" dataKey="km" stroke="#818cf8" fill="url(#runVolGrad)" strokeWidth={2.5} dot={{ r: 4, fill: '#818cf8', strokeWidth: 0 }} activeDot={{ r: 6, fill: '#a5b4fc', strokeWidth: 2, stroke: '#4338ff' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* ═══ RECENT RUNS ═══ */}
       {recentActivities.length > 0 && (
