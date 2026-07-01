@@ -120,14 +120,16 @@ export async function DELETE(request: Request) {
       .eq('id', id)
       .single();
 
-    // Delete related activities first
+    // Delete all related data
     await supabase.from('athlete_activities').delete().eq('athlete_id', id);
+    await supabase.from('workout_deliveries').delete().eq('athlete_id', id);
+    await supabase.from('weekly_plans').delete().eq('athlete_id', id);
 
-    // Delete the athlete
+    // Delete the athlete record
     const { error } = await supabase.from('athletes').delete().eq('id', id);
     if (error) throw error;
 
-    // Also remove from coaches table so they start onboarding from scratch
+    // Remove from coaches table so they start from scratch on next sign-in
     if (athlete?.email) {
       await supabase.from('coaches').delete().eq('email', athlete.email);
     }

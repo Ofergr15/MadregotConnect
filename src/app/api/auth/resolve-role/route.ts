@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const supabase = createServerClient();
     const lowerEmail = email.toLowerCase();
 
-    // Check if user is a coach
+    // Check if user is a coach (must also exist in athletes with coach/admin role)
     const { data: coach } = await supabase
       .from('coaches')
       .select('id, email, name')
@@ -20,7 +20,17 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (coach) {
-      return NextResponse.json({ role: 'coach', coach });
+      const { data: coachAthlete } = await supabase
+        .from('athletes')
+        .select('id, role')
+        .eq('email', lowerEmail)
+        .in('role', ['coach', 'admin'])
+        .maybeSingle();
+
+      if (coachAthlete) {
+        return NextResponse.json({ role: coachAthlete.role || 'coach', coach });
+      }
+      // Coach record exists but no matching athlete — treat as new user (was deleted)
     }
 
     // Check if user is an athlete
