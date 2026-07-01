@@ -207,7 +207,7 @@ const categoryConfig = {
   feature_request: { label: 'Feature Request', icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
   bug_report: { label: 'Bug Report', icon: Bug, color: 'text-red-400', bg: 'bg-red-500/15', border: 'border-red-500/30' },
   training_feedback: { label: 'Training Feedback', icon: Dumbbell, color: 'text-blue-400', bg: 'bg-blue-500/15', border: 'border-blue-500/30' },
-  general: { label: 'General', icon: MessageCircle, color: 'text-slate-400', bg: 'bg-slate-500/15', border: 'border-slate-500/30' },
+  general: { label: 'General', icon: MessageCircle, color: 'text-teal-400', bg: 'bg-teal-500/15', border: 'border-teal-500/30' },
 };
 
 const statusConfig = {
