@@ -677,127 +677,97 @@ export default function DashboardPage() {
 
           </div>
 
-          {leaderboard.length > 0 && (() => {
-            const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
-            const top3 = filtered.slice(0, 3);
-            const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
-            const maxKmLb = top3[0]?.distanceKm || 1;
-            return (
-              <div className="bg-slate-800/50 rounded-2xl p-5 sm:p-6 border border-slate-700/30">
-                <div className="flex items-center gap-2 mb-4">
-                  <Trophy className="h-5 w-5 text-yellow-400" />
-                  <p className="text-sm font-bold uppercase tracking-wider text-slate-300">Top 3</p>
-                </div>
-                {groups.length > 1 && (
-                  <div className="flex items-center gap-1.5 mb-5 flex-wrap">
-                    <button
-                      onClick={() => setLeaderboardFilter('all')}
-                      className={cn(
-                        'text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all',
-                        leaderboardFilter === 'all'
-                          ? 'border-[#4338ff] text-white bg-[#4338ff]/10'
-                          : 'border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300'
-                      )}
-                    >All</button>
-                    {groups.map(g => (
-                      <button
-                        key={g.id}
-                        onClick={() => setLeaderboardFilter(g.id)}
-                        className={cn(
-                          'text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all',
-                          leaderboardFilter === g.id
-                            ? 'border-[#4338ff] text-white bg-[#4338ff]/10'
-                            : 'border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300'
-                        )}
-                      >{g.name}</button>
-                    ))}
-                  </div>
-                )}
-                <div className="flex items-end justify-center gap-3 h-32 sm:h-36">
-                  {top3.length >= 2 && (
-                    <div className="flex flex-col items-center flex-1 max-w-[100px]">
-                      <span className="text-xs font-bold text-white mb-1">{top3[1].distanceKm} km</span>
-                      <div
-                        className="w-full rounded-t-lg bg-gradient-to-t from-slate-600/50 to-slate-500/30 border border-slate-500/30 flex items-end justify-center"
-                        style={{ height: `${Math.max(30, (top3[1].distanceKm / maxKmLb) * 100)}%` }}
-                      >
-                        <span className="text-2xl font-black text-slate-300 pb-2">2</span>
-                      </div>
-                      <span className="text-xs text-slate-400 mt-2 truncate max-w-full">{top3[1].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                  {top3.length >= 1 && (
-                    <div className="flex flex-col items-center flex-1 max-w-[100px]">
-                      <span className="text-xs font-bold text-yellow-400 mb-1">{top3[0].distanceKm} km</span>
-                      <div
-                        className="w-full rounded-t-lg bg-gradient-to-t from-yellow-500/20 to-yellow-400/10 border border-yellow-500/30 flex items-end justify-center"
-                        style={{ height: '100%' }}
-                      >
-                        <span className="text-2xl font-black text-yellow-400 pb-2">1</span>
-                      </div>
-                      <span className="text-xs text-white font-semibold mt-2 truncate max-w-full">{top3[0].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                  {top3.length >= 3 && (
-                    <div className="flex flex-col items-center flex-1 max-w-[100px]">
-                      <span className="text-xs font-bold text-white mb-1">{top3[2].distanceKm} km</span>
-                      <div
-                        className="w-full rounded-t-lg bg-gradient-to-t from-amber-700/20 to-amber-600/10 border border-amber-600/30 flex items-end justify-center"
-                        style={{ height: `${Math.max(25, (top3[2].distanceKm / maxKmLb) * 100)}%` }}
-                      >
-                        <span className="text-2xl font-black text-amber-600 pb-2">3</span>
-                      </div>
-                      <span className="text-xs text-slate-400 mt-2 truncate max-w-full">{top3[2].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                </div>
-                {myRank > 3 && (
-                  <p className="text-xs text-slate-500 text-center mt-4 border-t border-slate-700/50 pt-3">You&apos;re #{myRank} · {filtered[myRank - 1]?.distanceKm} km</p>
-                )}
-              </div>
-            );
-          })()}
-
-          {todayWorkout && todayWorkout.max > 0 && (() => {
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-            const todayActs = recentActivities.filter(a => new Date(a.start_time) >= todayStart);
-            const todayKm = todayActs.reduce((sum, a) => sum + (a.distance || 0) / 1000, 0);
-            const isCompleted = todayKm >= todayWorkout.min;
-            return (
-              <div className={cn(
-                'rounded-2xl p-5 sm:p-6 border',
-                isCompleted
-                  ? 'bg-emerald-500/10 border-emerald-500/30'
-                  : 'bg-gradient-to-br from-slate-800/80 to-slate-800/40 border-slate-700/30'
-              )}>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-slate-300">Today&apos;s Workout</p>
-                  <div className="flex items-center gap-2">
-                    {isCompleted && (
-                      <span className="text-xs font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> Done
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            {todayWorkout && todayWorkout.max > 0 && (() => {
+              const todayStart = new Date();
+              todayStart.setHours(0, 0, 0, 0);
+              const todayActs = recentActivities.filter(a => new Date(a.start_time) >= todayStart);
+              const todayKm = todayActs.reduce((sum, a) => sum + (a.distance || 0) / 1000, 0);
+              const isCompleted = todayKm >= todayWorkout.min;
+              return (
+                <div className={cn(
+                  'rounded-2xl p-4 border',
+                  isCompleted
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : 'bg-slate-800/50 border-slate-700/30'
+                )}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Today&apos;s Workout</p>
+                    <div className="flex items-center gap-1.5">
+                      {isCompleted && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[todayWorkout.type]}20`, color: typeColors[todayWorkout.type] }}>
+                        {typeLabels[todayWorkout.type] || todayWorkout.type}
                       </span>
-                    )}
-                    <div className="px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: `${typeColors[todayWorkout.type]}20`, color: typeColors[todayWorkout.type] }}>
-                      {typeLabels[todayWorkout.type] || todayWorkout.type}
                     </div>
                   </div>
-                </div>
-                <div className="flex items-end justify-between mt-3">
-                  <p className="text-4xl sm:text-5xl font-black text-white tabular-nums">
-                    {todayWorkout.min === todayWorkout.max ? todayWorkout.max : `${todayWorkout.min}–${todayWorkout.max}`}
-                    <span className="text-xl text-slate-400 ml-1">km</span>
-                  </p>
-                  {todayKm > 0 && (
-                    <p className="text-sm font-semibold text-slate-300">
-                      {Math.round(todayKm * 10) / 10} km done
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-2xl sm:text-3xl font-black text-white tabular-nums">
+                      {todayWorkout.min === todayWorkout.max ? todayWorkout.max : `${todayWorkout.min}–${todayWorkout.max}`}
+                      <span className="text-sm text-slate-400 ml-1">km</span>
                     </p>
-                  )}
+                    {todayKm > 0 && (
+                      <span className="text-xs font-semibold text-slate-400">{Math.round(todayKm * 10) / 10} done</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
+
+            {leaderboard.length > 0 && (() => {
+              const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
+              const top3 = filtered.slice(0, 3);
+              const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
+              return (
+                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Trophy className="h-3.5 w-3.5 text-yellow-400" />
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 3</p>
+                    </div>
+                    {groups.length > 1 && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setLeaderboardFilter('all')}
+                          className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}
+                        >All</button>
+                        {groups.map(g => (
+                          <button
+                            key={g.id}
+                            onClick={() => setLeaderboardFilter(g.id)}
+                            className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}
+                          >{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-end justify-center gap-2 h-20 mt-2">
+                    {top3.length >= 2 && (
+                      <div className="flex flex-col items-center flex-1">
+                        <span className="text-[10px] font-bold text-slate-300 mb-0.5">{top3[1].distanceKm}</span>
+                        <div className="w-full rounded-t bg-gradient-to-t from-slate-600/50 to-slate-500/20 border-t border-x border-slate-500/30" style={{ height: '60%' }} />
+                        <span className="text-[10px] text-slate-400 mt-1 truncate max-w-full">{top3[1].name.split(' ')[0]}</span>
+                      </div>
+                    )}
+                    {top3.length >= 1 && (
+                      <div className="flex flex-col items-center flex-1">
+                        <span className="text-[10px] font-bold text-yellow-400 mb-0.5">{top3[0].distanceKm}</span>
+                        <div className="w-full rounded-t bg-gradient-to-t from-yellow-500/20 to-yellow-400/10 border-t border-x border-yellow-500/30" style={{ height: '100%' }} />
+                        <span className="text-[10px] text-white font-semibold mt-1 truncate max-w-full">{top3[0].name.split(' ')[0]}</span>
+                      </div>
+                    )}
+                    {top3.length >= 3 && (
+                      <div className="flex flex-col items-center flex-1">
+                        <span className="text-[10px] font-bold text-amber-600 mb-0.5">{top3[2].distanceKm}</span>
+                        <div className="w-full rounded-t bg-gradient-to-t from-amber-700/20 to-amber-600/10 border-t border-x border-amber-600/30" style={{ height: '40%' }} />
+                        <span className="text-[10px] text-slate-400 mt-1 truncate max-w-full">{top3[2].name.split(' ')[0]}</span>
+                      </div>
+                    )}
+                  </div>
+                  {myRank > 3 && <p className="text-[10px] text-slate-500 text-center mt-2">You: #{myRank}</p>}
+                </div>
+              );
+            })()}
+          </div>
         </section>
       )}
 
