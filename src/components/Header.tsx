@@ -41,6 +41,9 @@ export function Header() {
   const [groupName, setGroupName] = useState<string | null>(null);
   const [groupColor, setGroupColor] = useState<string>('#6366f1');
   const [hasGarmin, setHasGarmin] = useState<boolean | null>(null);
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
+  const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -93,6 +96,9 @@ export function Header() {
       const supabaseClient = getSupabase();
       supabaseClient.from('athletes').select('garmin_auth').eq('id', athleteId).single()
         .then(({ data }) => { setHasGarmin(!!data?.garmin_auth); });
+      fetch('/api/groups').then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setAvailableGroups(data.groups || data || []); })
+        .catch(() => {});
     }
   }, []);
 
@@ -197,22 +203,65 @@ export function Header() {
 
           {/* Desktop: User */}
           <div className="hidden md:flex items-center gap-2.5 shrink-0">
-            <div className="flex items-center gap-2 hidden lg:flex">
-              <span className="text-sm text-slate-400 font-medium">{userName}</span>
-              {groupName && (
-                <span className="text-xs font-bold px-2.5 py-1 rounded-lg border" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
+            <span className="text-sm text-slate-400 font-medium hidden lg:inline">{userName}</span>
+
+            {groupName && (
+              <div className="relative hidden lg:block">
+                <button
+                  onClick={() => { setShowGroupPicker(!showGroupPicker); setShowNotifications(false); }}
+                  className="text-xs font-bold px-2.5 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
+                  style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}
+                >
                   {groupName}
-                </span>
-              )}
-            </div>
-            {isAthlete && hasGarmin !== null && (
-              <div className={cn('p-2 rounded-lg', hasGarmin ? 'text-emerald-400' : 'text-red-400')} title={hasGarmin ? 'Garmin Connected' : 'Garmin Not Connected'}>
-                <Watch className="h-4.5 w-4.5" />
+                </button>
+                {showGroupPicker && availableGroups.length > 0 && (
+                  <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[140px] z-50">
+                    {availableGroups.map(g => (
+                      <button
+                        key={g.id}
+                        onClick={async () => {
+                          localStorage.setItem('athlete_group_id', g.id);
+                          const supabaseClient = getSupabase();
+                          const athleteId = localStorage.getItem('athlete_id');
+                          if (athleteId) {
+                            await supabaseClient.from('athletes').update({ group_id: g.id }).eq('id', athleteId);
+                          }
+                          setShowGroupPicker(false);
+                          window.location.reload();
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                      >
+                        {g.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-            <button className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" title="Notifications">
-              <Bell className="h-4.5 w-4.5" />
-            </button>
+
+            {isAthlete && hasGarmin !== null && (
+              <div className={cn('relative group p-2 rounded-lg', hasGarmin ? 'text-emerald-400' : 'text-red-400')}>
+                <Watch className="h-4.5 w-4.5" />
+                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                  {hasGarmin ? 'Garmin Connected' : 'Garmin Not Connected'}
+                </span>
+              </div>
+            )}
+
+            <div className="relative">
+              <button
+                onClick={() => { setShowNotifications(!showNotifications); setShowGroupPicker(false); }}
+                className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <Bell className="h-4.5 w-4.5" />
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-4 px-5 min-w-[200px] z-50">
+                  <p className="text-xs text-slate-400 text-center">Nothing new</p>
+                </div>
+              )}
+            </div>
+
             <div className="bg-primary-600/20 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-primary-300 ring-1 ring-primary-500/20">
               {initials}
             </div>
