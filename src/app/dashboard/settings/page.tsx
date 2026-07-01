@@ -934,7 +934,7 @@ export default function SettingsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 overflow-x-auto">
-              {(['new', 'idea', 'sprint', 'done', 'denied'] as FeedbackStatus[]).map(status => {
+              {(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => {
                 const colConfig = statusConfig[status];
                 const colItems = feedbackItems.filter(item => {
                   if ((item.status || 'new') !== status) return false;
