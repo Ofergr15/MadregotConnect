@@ -130,11 +130,30 @@ export function Header() {
     <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          {/* Logo */}
-          <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0">
-            <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0 invert" />
-            <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
-          </Link>
+          {/* Logo + Review */}
+          <div className="flex items-center gap-3 shrink-0">
+            <Link href="/dashboard" className="flex items-center gap-2.5">
+              <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0 invert" />
+              <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
+            </Link>
+            {navReady && navItems.some(i => i.tab === 'review') && (() => {
+              const isActive = pathname === '/dashboard/review';
+              return (
+                <Link
+                  href="/dashboard/review"
+                  className={cn(
+                    'hidden md:flex items-center gap-2 px-4 h-9 rounded-xl font-bold text-sm transition-all',
+                    isActive
+                      ? 'bg-amber-400 text-slate-900 shadow-md shadow-amber-400/25'
+                      : 'bg-amber-400/15 text-amber-300 border border-amber-400/30 hover:bg-amber-400/25 hover:text-amber-200'
+                  )}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span className="text-xs font-bold">Review</span>
+                </Link>
+              );
+            })()}
+          </div>
 
           {/* Desktop: Icon-only navigation with tooltips */}
           <nav className="hidden md:flex items-center gap-1.5">
@@ -145,27 +164,9 @@ export function Header() {
                 ))}
               </>
             ) : (
-              navItems.map((item) => {
+              navItems.filter(item => item.tab !== 'review').map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
-                const isReview = item.tab === 'review';
-                if (isReview) {
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        'relative group flex items-center gap-2 px-4 h-10 rounded-xl font-bold text-sm transition-all ml-1 mr-1',
-                        isActive
-                          ? 'bg-amber-400 text-slate-900 shadow-md shadow-amber-400/25'
-                          : 'bg-amber-400/15 text-amber-300 border border-amber-400/30 hover:bg-amber-400/25 hover:text-amber-200'
-                      )}
-                    >
-                      <Icon className="h-4.5 w-4.5" />
-                      <span className="text-xs font-bold">{item.label}</span>
-                    </Link>
-                  );
-                }
                 return (
                   <Link
                     key={item.href}
