@@ -405,20 +405,20 @@ export default function SettingsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <div className="text-sm font-medium text-white truncate">{user.name}</div>
-                    {user.onboardingStatus && user.onboardingStatus !== 'active' && (
-                      <span className={cn(
-                        'text-[10px] font-bold px-1.5 py-0.5 rounded',
-                        user.onboardingStatus === 'google_authed' ? 'bg-amber-500/15 text-amber-400' :
-                        user.onboardingStatus === 'garmin_authed' ? 'bg-cyan-500/15 text-cyan-400' :
-                        user.onboardingStatus === 'garmin_failed' ? 'bg-red-500/15 text-red-400' :
-                        'bg-slate-500/15 text-slate-400'
-                      )}>
-                        {user.onboardingStatus === 'google_authed' ? 'Step 1: Google' :
-                         user.onboardingStatus === 'garmin_authed' ? 'Step 2: Garmin ✓' :
-                         user.onboardingStatus === 'garmin_failed' ? 'Garmin Failed' :
-                         user.onboardingStatus}
-                      </span>
-                    )}
+                    <span className={cn(
+                      'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                      user.onboardingStatus === 'active' ? 'bg-green-500/15 text-green-400' :
+                      user.onboardingStatus === 'google_authed' ? 'bg-amber-500/15 text-amber-400' :
+                      user.onboardingStatus === 'garmin_authed' ? 'bg-cyan-500/15 text-cyan-400' :
+                      user.onboardingStatus === 'garmin_failed' ? 'bg-red-500/15 text-red-400' :
+                      'bg-slate-500/15 text-slate-400'
+                    )}>
+                      {user.onboardingStatus === 'active' ? 'Active ✓' :
+                       user.onboardingStatus === 'google_authed' ? 'Step 1: Google' :
+                       user.onboardingStatus === 'garmin_authed' ? 'Step 2: Garmin ✓' :
+                       user.onboardingStatus === 'garmin_failed' ? 'Garmin Failed' :
+                       user.onboardingStatus || 'Unknown'}
+                    </span>
                     {user.approved === false && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400">
                         Pending Approval
