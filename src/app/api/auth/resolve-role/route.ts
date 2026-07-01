@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
     // Notify admin of new user
     try {
       const { notifyAdminNewUser } = await import('@/lib/email');
-      await notifyAdminNewUser({ name: name || lowerEmail, email: lowerEmail, onboardingStatus: 'google_authed' });
+      await notifyAdminNewUser({ name: name || lowerEmail, email: lowerEmail, onboardingStatus: 'google_authed', hasGarmin: false });
     } catch (emailErr) {
       console.error('Failed to send admin notification email:', emailErr);
     }

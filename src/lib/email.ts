@@ -15,7 +15,8 @@ function getTransporter() {
   });
 }
 
-export async function notifyAdminNewUser(user: { name: string; email: string; onboardingStatus: string }) {
+export async function notifyAdminNewUser(user: { name: string; email: string; onboardingStatus: string; hasGarmin?: boolean }) {
+  const authStatus = user.hasGarmin ? '✅ Google + Garmin' : '⚠️ Google only (no Garmin)';
   await getTransporter().sendMail({
     from: `Madregot <${GMAIL_USER}>`,
     to: ADMIN_EMAIL,
@@ -26,6 +27,7 @@ export async function notifyAdminNewUser(user: { name: string; email: string; on
         <table style="width: 100%; border-collapse: collapse;">
           <tr><td style="padding: 8px 0; color: #64748b;">Name</td><td style="padding: 8px 0; font-weight: 600;">${user.name}</td></tr>
           <tr><td style="padding: 8px 0; color: #64748b;">Email</td><td style="padding: 8px 0;">${user.email}</td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">Auth</td><td style="padding: 8px 0; font-weight: 600;">${authStatus}</td></tr>
           <tr><td style="padding: 8px 0; color: #64748b;">Status</td><td style="padding: 8px 0;">${user.onboardingStatus}</td></tr>
         </table>
         <p style="margin-top: 20px;">
