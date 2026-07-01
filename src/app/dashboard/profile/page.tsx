@@ -444,44 +444,32 @@ export default function ProfilePage() {
                   <p className="text-[11px] text-slate-500">{hasStrava ? 'Connected' : 'Not connected'}</p>
                 </div>
               </div>
-              {dataSource === 'strava' && hasStrava && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">Active</span>
+              {hasStrava ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">Connected</span>
+              ) : (
+                <button
+                  onClick={async () => {
+                    setConnectingStrava(true);
+                    try {
+                      const res = await fetch(`/api/strava?athleteId=${athleteId}`);
+                      const data = await res.json();
+                      if (data.authUrl) {
+                        window.location.href = data.authUrl;
+                      }
+                    } catch {
+                      setConnectingStrava(false);
+                    }
+                  }}
+                  disabled={connectingStrava}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#fc5200]/10 text-[#fc5200] hover:bg-[#fc5200]/20 transition-colors disabled:opacity-50"
+                >
+                  {connectingStrava ? 'Connecting...' : 'Connect'}
+                </button>
               )}
             </div>
           )}
         </div>
 
-        {/* Connect Strava button (shown if admin enabled and not yet connected) */}
-        {!hasStrava && stravaEnabled && (
-          <button
-            onClick={async () => {
-              setConnectingStrava(true);
-              try {
-                const res = await fetch(`/api/strava?athleteId=${athleteId}`);
-                const data = await res.json();
-                if (data.authUrl) {
-                  window.location.href = data.authUrl;
-                }
-              } catch {
-                setConnectingStrava(false);
-              }
-            }}
-            disabled={connectingStrava}
-            className="mt-4 w-full bg-[#fc5200] hover:bg-[#e04a00] text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {connectingStrava ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Connecting...
-              </>
-            ) : (
-              <>
-                <Activity className="h-4 w-4" />
-                Connect Strava
-              </>
-            )}
-          </button>
-        )}
 
         {/* Switch source (shown if both connected) */}
         {hasStrava && hasGarmin && (
