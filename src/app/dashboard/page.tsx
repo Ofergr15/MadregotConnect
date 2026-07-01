@@ -679,40 +679,51 @@ export default function DashboardPage() {
               const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
               const top3 = filtered.slice(0, 3);
               const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
+              const rankColors = ['text-yellow-400', 'text-slate-300', 'text-amber-600'];
               return (
                 <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30 col-span-2 sm:col-span-1">
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <Trophy className="h-3.5 w-3.5 text-yellow-400" />
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 3</p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Trophy className="h-4 w-4 text-yellow-400" />
+                    <p className="text-sm font-bold uppercase tracking-wider text-slate-300">Top 3</p>
                   </div>
                   {groups.length > 1 && (
-                    <div className="flex items-center gap-1 mb-3 flex-wrap">
+                    <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                       <button
                         onClick={() => setLeaderboardFilter('all')}
-                        className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full transition-all', leaderboardFilter === 'all' ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-400 hover:text-slate-200')}
+                        className={cn(
+                          'text-[11px] font-bold px-3 py-1 rounded-full border transition-all',
+                          leaderboardFilter === 'all'
+                            ? 'border-[#4338ff] text-white bg-[#4338ff]/10'
+                            : 'border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                        )}
                       >All</button>
                       {groups.map(g => (
                         <button
                           key={g.id}
                           onClick={() => setLeaderboardFilter(g.id)}
-                          className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full transition-all', leaderboardFilter === g.id ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-400 hover:text-slate-200')}
+                          className={cn(
+                            'text-[11px] font-bold px-3 py-1 rounded-full border transition-all',
+                            leaderboardFilter === g.id
+                              ? 'border-[#4338ff] text-white bg-[#4338ff]/10'
+                              : 'border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                          )}
                         >{g.name}</button>
                       ))}
                     </div>
                   )}
-                  <div className="space-y-1.5">
+                  <div className="space-y-2.5 mt-3">
                     {top3.map((runner, i) => (
-                      <div key={runner.id} className="flex items-center gap-2">
-                        <span className={cn('text-xs font-black w-4', i === 0 ? 'text-yellow-400' : i === 1 ? 'text-slate-300' : 'text-amber-600')}>
+                      <div key={runner.id} className="flex items-center gap-3">
+                        <span className={cn('text-base font-black w-5 tabular-nums', rankColors[i])}>
                           {i + 1}
                         </span>
-                        <span className="text-xs text-slate-300 flex-1 truncate">{runner.name.split(' ')[0]}</span>
-                        <span className="text-xs font-bold text-white tabular-nums">{runner.distanceKm} km</span>
+                        <span className="text-sm text-slate-200 flex-1 truncate">{runner.name.split(' ')[0]}</span>
+                        <span className="text-sm font-bold text-white tabular-nums">{runner.distanceKm} km</span>
                       </div>
                     ))}
                   </div>
                   {myRank > 3 && (
-                    <p className="text-[10px] text-slate-500 mt-2">You: #{myRank}</p>
+                    <p className="text-xs text-slate-500 mt-3 border-t border-slate-700/50 pt-2">You&apos;re #{myRank} · {filtered[myRank - 1]?.distanceKm} km</p>
                   )}
                 </div>
               );
