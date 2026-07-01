@@ -100,3 +100,28 @@ export async function PUT(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const supabase = createServerClient();
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'User id is required' }, { status: 400 });
+    }
+
+    // Delete related activities first
+    await supabase.from('athlete_activities').delete().eq('athlete_id', id);
+
+    // Delete the athlete
+    const { error } = await supabase.from('athletes').delete().eq('id', id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete user:', error);
+    return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });
+  }
+}
