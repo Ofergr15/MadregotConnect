@@ -113,13 +113,24 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'User id is required' }, { status: 400 });
     }
 
+    // Get the athlete email before deleting
+    const { data: athlete } = await supabase
+      .from('athletes')
+      .select('email')
+      .eq('id', id)
+      .single();
+
     // Delete related activities first
     await supabase.from('athlete_activities').delete().eq('athlete_id', id);
 
     // Delete the athlete
     const { error } = await supabase.from('athletes').delete().eq('id', id);
-
     if (error) throw error;
+
+    // Also remove from coaches table so they start onboarding from scratch
+    if (athlete?.email) {
+      await supabase.from('coaches').delete().eq('email', athlete.email);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
