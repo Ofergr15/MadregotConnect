@@ -606,7 +606,10 @@ export default function DashboardPage() {
               </span>
             </div>
           )}
-          {!isCoach && <p className="text-sm text-slate-500 mt-1">{weeklyRuns} {weeklyRuns === 1 ? 'run' : 'runs'}</p>}
+          {!isCoach && hasData && (
+            <p className="text-sm text-slate-500 mt-1">Target: {Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)} km</p>
+          )}
+          {!isCoach && !hasData && <p className="text-sm text-slate-500 mt-1">{weeklyRuns} {weeklyRuns === 1 ? 'run' : 'runs'}</p>}
         </div>
 
         <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
@@ -619,9 +622,12 @@ export default function DashboardPage() {
         </div>
 
         <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{isCoach ? 'Athletes' : 'Total Runs'}</p>
-          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{isCoach ? (stats?.athleteCount || 0) : recentActivities.length}</p>
-          <p className="text-sm text-slate-500 mt-1">{isCoach ? `${stats?.groupCount || 0} groups` : 'synced'}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{isCoach ? 'Athletes' : 'Runs This Week'}</p>
+          <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+            {isCoach ? (stats?.athleteCount || 0) : weeklyRuns}
+            {!isCoach && hasData && <span className="text-sm font-medium text-slate-500 ml-1">/ {weekly!.trainingDays || 0}</span>}
+          </p>
+          <p className="text-sm text-slate-500 mt-1">{isCoach ? `${stats?.groupCount || 0} groups` : 'this week'}</p>
         </div>
 
         <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
