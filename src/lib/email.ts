@@ -1,17 +1,23 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'madregot.club@gmail.com';
-const FROM_EMAIL = process.env.FROM_EMAIL || 'Madregot <onboarding@resend.dev>';
+const GMAIL_USER = process.env.GMAIL_USER || 'madregot.club@gmail.com';
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 
-function getResend() {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('RESEND_API_KEY not configured');
-  return new Resend(key);
+function getTransporter() {
+  if (!GMAIL_APP_PASSWORD) throw new Error('GMAIL_APP_PASSWORD not configured');
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: GMAIL_USER,
+      pass: GMAIL_APP_PASSWORD,
+    },
+  });
 }
 
 export async function notifyAdminNewUser(user: { name: string; email: string; onboardingStatus: string }) {
-  await getResend().emails.send({
-    from: FROM_EMAIL,
+  await getTransporter().sendMail({
+    from: `Madregot <${GMAIL_USER}>`,
     to: ADMIN_EMAIL,
     subject: `🏃 New user waiting for approval: ${user.name}`,
     html: `
@@ -33,8 +39,8 @@ export async function notifyAdminNewUser(user: { name: string; email: string; on
 }
 
 export async function notifyUserApproved(user: { name: string; email: string }) {
-  await getResend().emails.send({
-    from: FROM_EMAIL,
+  await getTransporter().sendMail({
+    from: `Madregot <${GMAIL_USER}>`,
     to: user.email,
     subject: `✅ Welcome to Madregot! You're approved`,
     html: `
@@ -57,8 +63,8 @@ export async function notifyUserApproved(user: { name: string; email: string }) 
 }
 
 export async function notifyAdminUserApproved(admin: { email: string }, user: { name: string; email: string }) {
-  await getResend().emails.send({
-    from: FROM_EMAIL,
+  await getTransporter().sendMail({
+    from: `Madregot <${GMAIL_USER}>`,
     to: admin.email,
     subject: `✅ User approved: ${user.name}`,
     html: `
