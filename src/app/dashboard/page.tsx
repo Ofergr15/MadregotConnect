@@ -960,67 +960,54 @@ export default function DashboardPage() {
         const targetMax = hasData ? Math.round(weekly!.weekTotalMax) : 0;
         return (
           <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-white">This Week</h2>
-              {trend !== 0 && (
-                <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
-                  {trend > 0 ? '+' : ''}{trend}%
-                </span>
-              )}
+            {/* Header row */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-white tabular-nums">{weeklyKm}</span>
+                <span className="text-xs text-slate-500">km this week</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {targetMax > 0 && (
+                  <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax}</span>
+                )}
+                {trend !== 0 && (
+                  <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
+                    {trend > 0 ? '+' : ''}{trend}%
+                  </span>
+                )}
+              </div>
             </div>
-            {/* Big distance + target */}
-            <div className="flex items-baseline gap-3 mb-1">
-              <span className="text-3xl font-black text-white tabular-nums">{weeklyKm}</span>
-              <span className="text-sm text-slate-500">km</span>
-              {targetMax > 0 && (
-                <span className="text-sm font-bold text-white/80 ml-auto">/ {targetMin}–{targetMax} km</span>
-              )}
-            </div>
-            {/* Progress bar toward target */}
+            {/* Progress bar */}
             {targetMax > 0 && (
-              <div className="w-full h-2 bg-slate-700/60 rounded-full overflow-hidden mb-4">
+              <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden mb-4">
                 <div
-                  className={cn('h-full rounded-full transition-all', weeklyKm >= targetMin ? 'bg-[#fc5200]' : 'bg-[#fc5200]/60')}
+                  className={cn('h-full rounded-full transition-all', weeklyKm >= targetMin ? 'bg-emerald-400' : 'bg-[#fc5200]')}
                   style={{ width: `${Math.min(100, (weeklyKm / targetMax) * 100)}%` }}
                 />
               </div>
             )}
-            {/* Strava-style bar chart */}
-            <div className="flex items-end gap-[3px]" style={{ height: '64px' }}>
+            {/* Bar chart - wide bars, tight gaps */}
+            <div className="flex items-end gap-1" style={{ height: '80px' }}>
               {runnerWeeklyVolumes.map((w, i) => {
                 const isLast = i === runnerWeeklyVolumes.length - 1;
-                const barH = maxKm > 0 ? Math.max(4, Math.round((w.km / maxKm) * 60)) : 4;
+                const barH = maxKm > 0 ? Math.max(6, Math.round((w.km / maxKm) * 72)) : 6;
                 return (
-                  <div key={i} className="flex-1 flex justify-center items-end" style={{ height: '64px' }}>
+                  <div key={i} className="flex-1 flex flex-col items-center justify-end" style={{ height: '80px' }}>
+                    <span className={cn('text-[9px] font-semibold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-slate-500')}>{w.km}</span>
                     <div
-                      className={cn('rounded-t-sm transition-all', isLast ? 'bg-[#fc5200]' : 'bg-slate-500/60')}
-                      style={{ height: `${barH}px`, width: '70%', maxWidth: '28px' }}
+                      className={cn('w-full rounded-t', isLast ? 'bg-[#fc5200]' : 'bg-slate-600/70')}
+                      style={{ height: `${barH}px` }}
                     />
                   </div>
                 );
               })}
             </div>
-            <div className="flex gap-[3px] mt-1.5">
+            <div className="flex gap-1 mt-1 border-t border-slate-700/20 pt-1.5">
               {runnerWeeklyVolumes.map((w, i) => (
                 <div key={i} className="flex-1 text-center">
-                  <span className="text-[9px] text-slate-500 font-medium">{w.week}</span>
+                  <span className="text-[9px] text-slate-500">{w.week}</span>
                 </div>
               ))}
-            </div>
-            {/* Stats row */}
-            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-700/30">
-              <div>
-                <p className="text-[10px] text-slate-500">Runs</p>
-                <p className="text-sm font-bold text-white">{lastWeek.runs}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500">This week</p>
-                <p className="text-sm font-bold text-white">{lastWeek.km} km</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500">Prev week</p>
-                <p className="text-sm font-bold text-slate-400">{prevWeek?.km || 0} km</p>
-              </div>
             </div>
           </section>
         );
