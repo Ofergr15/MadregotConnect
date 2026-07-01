@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     // Check if athlete exists with any status (could be missing garmin/group)
     const { data: anyAthlete } = await supabase
       .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth')
+      .select('id, name, email, group_id, status, garmin_auth, approved')
       .eq('email', lowerEmail)
       .maybeSingle();
 
@@ -73,10 +73,13 @@ export async function POST(req: NextRequest) {
       const hasGarmin = !!anyAthlete.garmin_auth;
       const hasGroup = !!anyAthlete.group_id;
       if (hasGarmin && hasGroup) {
+        if (anyAthlete.approved === false) {
+          return NextResponse.json({ pendingApproval: true });
+        }
         if (anyAthlete.status !== 'active') {
           await supabase.from('athletes').update({ status: 'active' }).eq('id', anyAthlete.id);
         }
-        return NextResponse.json({ role: 'runner', athlete: { ...anyAthlete, garmin_auth: undefined }, hasGarmin });
+        return NextResponse.json({ role: 'runner', athlete: { ...anyAthlete, garmin_auth: undefined, approved: undefined }, hasGarmin });
       }
       // Missing group or garmin — needs onboarding
       return NextResponse.json({
@@ -106,8 +109,7 @@ export async function POST(req: NextRequest) {
         role: 'runner',
         onboarding_status: 'google_authed',
         google_authed_at: new Date().toISOString(),
-        approved: true,
-        approved_at: new Date().toISOString(),
+        approved: false,
         ...(defaultCoach ? { coach_id: defaultCoach.id } : {}),
       }, { onConflict: 'email', ignoreDuplicates: true })
       .select('id')
@@ -128,6 +130,7 @@ export async function POST(req: NextRequest) {
       needsOnboarding: true,
       missingGroup: true,
       missingGarmin: true,
+      pendingApproval: true,
     });
   } catch (error: any) {
     return NextResponse.json(
