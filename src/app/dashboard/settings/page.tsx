@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface User {
@@ -169,18 +169,29 @@ const allTabs = [
   { key: 'activities', label: 'Activities' },
   { key: 'races', label: 'Races' },
   { key: 'program', label: 'Program' },
+  { key: 'review', label: 'Review' },
   { key: 'history', label: 'History' },
   { key: 'settings', label: 'Settings' },
 ];
 
 const allRoles: Role[] = ['admin', 'coach', 'runner', 'core_runner', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs';
+type SettingsTab = 'users' | 'tabs' | 'feedback';
 
 const settingsTabs = [
   { key: 'users' as SettingsTab, label: 'User Manager', icon: Users },
   { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout },
+  { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare },
 ];
+
+interface FeedbackItem {
+  id: string;
+  athlete_name: string;
+  athlete_email: string | null;
+  group_name: string | null;
+  message: string;
+  created_at: string;
+}
 
 function getOnboardingStep(status: string | undefined, approved: boolean | undefined): { step: number; label: string; color: string } {
   if (approved === true) return { step: 3, label: 'Active', color: 'text-green-400' };
@@ -202,10 +213,13 @@ export default function SettingsPage() {
   const [savedPermissions, setSavedPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   useEffect(() => {
     fetchUsers();
     fetchPermissions();
+    fetchFeedback();
   }, []);
 
   const fetchPermissions = async () => {
@@ -220,6 +234,19 @@ export default function SettingsPage() {
       setError(err instanceof Error ? err.message : 'Failed to load permissions');
     } finally {
       setPermissionsLoading(false);
+    }
+  };
+
+  const fetchFeedback = async () => {
+    try {
+      setFeedbackLoading(true);
+      const res = await fetch('/api/feedback');
+      if (!res.ok) return;
+      const data = await res.json();
+      setFeedbackItems(data.feedback || []);
+    } catch {
+    } finally {
+      setFeedbackLoading(false);
     }
   };
 
@@ -620,6 +647,68 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Feedback Tab */}
+      {activeTab === 'feedback' && (
+        <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50">
+          <div className="px-5 py-4 border-b border-slate-700/50">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-slate-400" />
+              <h2 className="text-sm font-semibold text-white">User Feedback ({feedbackItems.length})</h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">Feedback and suggestions from athletes</p>
+          </div>
+
+          {feedbackLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+            </div>
+          ) : feedbackItems.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <MessageSquare className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm">No feedback yet</p>
+              <p className="text-slate-500 text-xs mt-1">Athletes can submit feedback from the Review tab</p>
+            </div>
+          ) : (
+            <div className="p-3 space-y-2 max-h-[600px] overflow-y-auto">
+              {feedbackItems.map(item => {
+                const date = new Date(item.created_at);
+                const timeAgo = (() => {
+                  const h = (Date.now() - date.getTime()) / 3600000;
+                  if (h < 1) return 'Just now';
+                  if (h < 24) return `${Math.floor(h)}h ago`;
+                  if (h < 48) return 'Yesterday';
+                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                })();
+                return (
+                  <div key={item.id} className="p-4 rounded-xl bg-slate-900/40 border border-slate-700/30">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-[#4338ff]/15 flex items-center justify-center">
+                          <span className="text-[10px] font-bold text-[#4338ff]">
+                            {item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold text-white">{item.athlete_name}</span>
+                          {item.group_name && (
+                            <span className="text-[10px] text-slate-500 ml-2">{item.group_name}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-slate-500">{timeAgo}</span>
+                    </div>
+                    <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{item.message}</p>
+                    {item.athlete_email && (
+                      <p className="text-[10px] text-slate-600 mt-2">{item.athlete_email}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
