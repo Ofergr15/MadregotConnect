@@ -38,10 +38,24 @@ export async function PATCH(request: Request) {
 export async function GET() {
   try {
     const supabase = createServerClient();
-    const { data, error } = await supabase
+    let data: any[] | null = null;
+    let error: any = null;
+
+    const result = await supabase
       .from('athletes')
       .select('id, name, data_source, strava_auth, garmin_auth')
       .order('name');
+
+    if (result.error) {
+      const fallback = await supabase
+        .from('athletes')
+        .select('id, name, garmin_auth')
+        .order('name');
+      data = fallback.data;
+      error = fallback.error;
+    } else {
+      data = result.data;
+    }
 
     if (error) throw error;
 
