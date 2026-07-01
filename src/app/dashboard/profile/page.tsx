@@ -431,22 +431,24 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Strava status */}
-          <div className={cn(
-            'flex items-center justify-between px-4 py-3 rounded-xl border',
-            hasStrava ? 'border-orange-500/30 bg-orange-500/5' : 'border-slate-700/50 bg-slate-900/30'
-          )}>
-            <div className="flex items-center gap-3">
-              <Activity className={cn('h-5 w-5', hasStrava ? 'text-orange-400' : 'text-slate-500')} />
-              <div>
-                <p className={cn('text-sm font-medium', hasStrava ? 'text-white' : 'text-slate-400')}>Strava</p>
-                <p className="text-[11px] text-slate-500">{hasStrava ? 'Connected' : 'Not connected'}</p>
+          {/* Strava status - only show if admin enabled or already connected */}
+          {(stravaEnabled || hasStrava) && (
+            <div className={cn(
+              'flex items-center justify-between px-4 py-3 rounded-xl border',
+              hasStrava ? 'border-orange-500/30 bg-orange-500/5' : 'border-slate-700/50 bg-slate-900/30'
+            )}>
+              <div className="flex items-center gap-3">
+                <Activity className={cn('h-5 w-5', hasStrava ? 'text-orange-400' : 'text-slate-500')} />
+                <div>
+                  <p className={cn('text-sm font-medium', hasStrava ? 'text-white' : 'text-slate-400')}>Strava</p>
+                  <p className="text-[11px] text-slate-500">{hasStrava ? 'Connected' : 'Not connected'}</p>
+                </div>
               </div>
+              {dataSource === 'strava' && hasStrava && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">Active</span>
+              )}
             </div>
-            {dataSource === 'strava' && hasStrava && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">Active</span>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Connect Strava button (shown if admin enabled and not yet connected) */}
