@@ -949,36 +949,50 @@ export default function DashboardPage() {
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-white">Weekly KM</h2>
-                  <span className="text-[10px] text-slate-500">{avgKm} avg · {runnerWeeklyVolumes.length}w</span>
-                </div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-bold text-white">Weekly KM</h2>
                 {trend !== 0 && (
                   <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
                     {trend > 0 ? '+' : ''}{trend}%
                   </span>
                 )}
               </div>
-              <div className="h-28">
+              <div className="flex items-center gap-4 mb-3">
+                <div>
+                  <p className="text-[10px] text-slate-500">Distance</p>
+                  <p className="text-base font-black text-white">{lastWeek.km} km</p>
+                </div>
+                <div className="w-px h-6 bg-slate-700" />
+                <div>
+                  <p className="text-[10px] text-slate-500">Runs</p>
+                  <p className="text-base font-black text-white">{lastWeek.runs}</p>
+                </div>
+                <div className="w-px h-6 bg-slate-700" />
+                <div>
+                  <p className="text-[10px] text-slate-500">Avg</p>
+                  <p className="text-base font-black text-white">{avgKm} km</p>
+                </div>
+              </div>
+              <div className="h-24">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barCategoryGap="5%">
-                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} dy={4} />
-                    <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={28} domain={[0, yMax]} tickCount={4} unit=" km" />
+                  <AreaChart data={runnerWeeklyVolumes} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id="kmGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} dy={4} />
+                    <YAxis tick={{ fontSize: 8, fill: '#64748b' }} axisLine={false} tickLine={false} width={24} domain={[0, yMax]} tickCount={3} />
                     <Tooltip
-                      cursor={{ fill: 'rgba(99,102,241,0.06)' }}
                       contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #4338ff', borderRadius: '10px', fontSize: '11px', padding: '6px 10px', color: '#f1f5f9' }}
                       labelStyle={{ color: '#fff', fontWeight: 700 }}
                       formatter={(v: any, _: any, props: any) => [`${v} km · ${props?.payload?.runs || 0} runs`, '']}
                       labelFormatter={l => `Week of ${l}`}
                       separator=""
                     />
-                    <Bar dataKey="km" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                      {runnerWeeklyVolumes.map((_, i) => (
-                        <Cell key={i} fill={i === runnerWeeklyVolumes.length - 1 ? '#818cf8' : '#6366f1'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
+                    <Area type="monotone" dataKey="km" stroke="#6366f1" strokeWidth={2} fill="url(#kmGradient)" dot={{ r: 3, fill: '#6366f1', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#818cf8', stroke: '#fff', strokeWidth: 2 }} />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </section>
