@@ -17,6 +17,8 @@ interface Athlete {
   status: 'active' | 'invited' | 'paused' | 'disconnected';
   lastSynced: string | null;
   createdAt: string;
+  dataSource?: 'garmin' | 'strava';
+  hasStrava?: boolean;
 }
 
 interface Group {
@@ -120,6 +122,31 @@ export default function AthletesPage() {
       setActiveMenu(null);
     } catch (error) {
       console.error('Failed to update group:', error);
+    }
+  };
+
+  const toggleDataSource = async (athleteId: string, source: 'garmin' | 'strava') => {
+    try {
+      await fetch('/api/admin/athlete-source', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athleteId, dataSource: source }),
+      });
+      fetchAthletes();
+    } catch (error) {
+      console.error('Failed to toggle source:', error);
+    }
+  };
+
+  const connectStrava = async (athleteId: string) => {
+    try {
+      const res = await fetch(`/api/strava?athleteId=${athleteId}`);
+      const data = await res.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (error) {
+      console.error('Failed to connect Strava:', error);
     }
   };
 
@@ -486,7 +513,14 @@ ${inviteLink}`;
                           <span className="text-slate-500 text-sm">No group</span>
                         )}
                       </td>
-                      <td className="px-6 py-4">{getStatusBadge(athlete.status)}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(athlete.status)}
+                          <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', athlete.dataSource === 'strava' ? 'bg-orange-500/15 text-orange-400' : 'bg-blue-500/15 text-blue-400')}>
+                            {athlete.dataSource === 'strava' ? 'Strava' : 'Garmin'}
+                          </span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-slate-400">
                         {new Date(athlete.createdAt).toLocaleDateString()}
                       </td>
@@ -520,6 +554,21 @@ ${inviteLink}`;
                                 <PlayCircle className="h-4 w-4" /> Reactivate
                               </button>
                             ) : null}
+                            {athlete.hasStrava ? (
+                              <button
+                                onClick={() => { toggleDataSource(athlete.id, athlete.dataSource === 'strava' ? 'garmin' : 'strava'); setActiveMenu(null); }}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
+                              >
+                                <ArrowRightLeft className="h-4 w-4" /> Switch to {athlete.dataSource === 'strava' ? 'Garmin' : 'Strava'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => { connectStrava(athlete.id); setActiveMenu(null); }}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
+                              >
+                                <Wifi className="h-4 w-4" /> Connect Strava
+                              </button>
+                            )}
                             <button
                               onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
                               className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"

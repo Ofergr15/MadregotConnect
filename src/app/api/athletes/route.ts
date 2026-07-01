@@ -22,6 +22,8 @@ export async function GET(request: Request) {
         status,
         created_at,
         garmin_auth,
+        strava_auth,
+        data_source,
         group_id,
         groups (
           name
@@ -48,8 +50,10 @@ export async function GET(request: Request) {
         return raw;
       })(),
       groupId: athlete.group_id,
-      group_id: athlete.group_id, // Also include snake_case for compatibility
-      lastSynced: athlete.garmin_auth ? new Date().toISOString() : null,
+      group_id: athlete.group_id,
+      dataSource: (athlete as any).data_source || 'garmin',
+      hasStrava: !!(athlete as any).strava_auth,
+      lastSynced: athlete.garmin_auth || (athlete as any).strava_auth ? new Date().toISOString() : null,
       createdAt: athlete.created_at,
     }));
 
