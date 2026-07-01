@@ -290,24 +290,20 @@ export default function SettingsPage() {
   };
 
   const updateFeedbackStatus = async (id: string, status: FeedbackStatus, priority: FeedbackPriority, notes?: string) => {
-    setUpdatingFeedback(id);
+    setFeedbackItems(prev => prev.map(f => f.id === id ? { ...f, status, priority, admin_notes: notes ?? f.admin_notes } : f));
+    if (selectedFeedback && selectedFeedback.id === id) {
+      setSelectedFeedback({ ...selectedFeedback, status, priority, admin_notes: notes ?? selectedFeedback.admin_notes });
+    }
     try {
       const body: any = { id, status, priority };
       if (notes !== undefined) body.admin_notes = notes;
-      const res = await fetch('/api/feedback', {
+      await fetch('/api/feedback', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (res.ok) {
-        await fetchFeedback();
-        if (selectedFeedback && selectedFeedback.id === id) {
-          setSelectedFeedback({ ...selectedFeedback, status, priority, admin_notes: notes ?? selectedFeedback.admin_notes });
-        }
-      }
     } catch {
-    } finally {
-      setUpdatingFeedback(null);
+      await fetchFeedback();
     }
   };
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import {
-  Calendar, Users, ArrowRight, TrendingUp, TrendingDown, Heart,
+  Calendar, Users, ArrowRight, TrendingUp, TrendingDown, Heart, Route,
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
   Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
 } from 'lucide-react';
@@ -534,7 +534,7 @@ export default function DashboardPage() {
                 const [dB, mB] = b.week.split('/').map(Number);
                 return mA !== mB ? mA - mB : dA - dB;
               })
-              .slice(-8);
+              .slice(-12);
             setRunnerWeeklyVolumes(sortedWeeks);
           }
         }
@@ -757,18 +757,18 @@ export default function DashboardPage() {
                   />
                 </div>
               )}
-              <div className="flex items-end justify-between" style={{ height: '90px' }}>
+              <div className="flex items-end justify-center gap-[6px]" style={{ height: '100px' }}>
                 {runnerWeeklyVolumes.map((w, i) => {
                   const isLast = i === runnerWeeklyVolumes.length - 1;
-                  const barH = maxKm > 0 ? Math.max(8, Math.round((w.km / maxKm) * 70)) : 8;
+                  const barH = maxKm > 0 ? Math.max(10, Math.round((w.km / maxKm) * 65)) : 10;
                   return (
-                    <div key={i} className="flex flex-col items-center justify-end" style={{ height: '90px', flex: 1 }}>
-                      <span className={cn('text-[10px] font-bold mb-0.5 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-slate-400')}>{w.km}</span>
+                    <div key={i} className="flex flex-col items-center justify-end" style={{ height: '100px', width: '28px' }}>
+                      <span className={cn('text-[10px] font-bold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-white/70')}>{w.km}</span>
                       <div
-                        className={cn('rounded-full', isLast ? 'bg-[#fc5200]' : 'bg-slate-500/50')}
-                        style={{ height: `${barH}px`, width: '14px' }}
+                        className={cn('rounded-full', isLast ? 'bg-[#fc5200]' : 'bg-slate-600')}
+                        style={{ height: `${barH}px`, width: '12px' }}
                       />
-                      <span className={cn('text-[9px] mt-1.5', isLast ? 'text-slate-300' : 'text-slate-600')}>{w.week}</span>
+                      <span className={cn('text-[9px] mt-1', isLast ? 'text-white' : 'text-slate-400')}>{w.week}</span>
                     </div>
                   );
                 })}
@@ -992,7 +992,7 @@ export default function DashboardPage() {
 
 
 
-      {/* ═══ RECENT ACTIVITIES (Strava-style cards) ═══ */}
+      {/* ═══ RECENT ACTIVITIES (Strava feed style) ═══ */}
       {!isCoach && recentActivities.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3">
@@ -1001,110 +1001,111 @@ export default function DashboardPage() {
               View All <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {recentActivities.slice(0, 3).map((a) => {
-              const km = (a.distance / 1000).toFixed(2);
+              const km = (a.distance / 1000).toFixed(1);
               const pace = a.average_pace ? formatPace(a.average_pace) : null;
               const date = new Date(a.start_time);
               const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
               const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
               const hrs = Math.floor(a.duration / 3600);
               const mins = Math.round((a.duration % 3600) / 60);
-              const durationStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
-              const isExpanded = selectedBar === parseInt(a.id.slice(-4), 16) % 1000;
+              const secs = Math.round(a.duration % 60);
+              const durationStr = hrs > 0 ? `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}` : `${mins}:${secs.toString().padStart(2, '0')}`;
+              const runType = inferRunTypeFromActivity(a.distance / 1000, a.average_pace);
+              const initials = a.athlete_name ? a.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
               return (
-                <div key={a.id} className="bg-slate-800/40 rounded-xl border border-slate-700/20 overflow-hidden">
-                  <button
-                    onClick={() => setSelectedBar(isExpanded ? null : parseInt(a.id.slice(-4), 16) % 1000)}
-                    className="w-full p-4 text-left hover:bg-slate-800/60 transition-colors"
-                  >
-                    {/* Header: name + date */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <p className="text-sm font-bold text-white">{a.activity_name || 'Run'}</p>
-                        <p className="text-[11px] text-slate-500">{dateStr} at {timeStr}</p>
+                <div key={a.id} className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden">
+                  {/* Strava-style header: avatar + name + date + type badge */}
+                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-700/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center">
+                        <Route className="h-4 w-4 text-slate-400" />
                       </div>
-                      <ChevronRight className={cn('h-4 w-4 text-slate-500 transition-transform', isExpanded && 'rotate-90')} />
-                    </div>
-                    {/* Stats row - Strava style */}
-                    <div className="flex items-center gap-6">
                       <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Distance</p>
-                        <p className="text-lg font-black text-white tabular-nums">{km} <span className="text-xs font-medium text-slate-500">km</span></p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white">{a.athlete_name || initials}</span>
+                          <span className="text-xs text-slate-500">{dateStr} · {timeStr}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          {a.average_pace && a.average_pace < 300 ? 'Morning Run' : a.average_pace && new Date(a.start_time).getHours() >= 17 ? 'Evening Run' : 'Run'}
+                        </p>
                       </div>
-                      {pace && (
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wide">Pace</p>
-                          <p className="text-lg font-black text-white tabular-nums">{pace} <span className="text-xs font-medium text-slate-500">/km</span></p>
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Time</p>
-                        <p className="text-lg font-black text-white tabular-nums">{durationStr}</p>
-                      </div>
-                      {a.elevation_gain && a.elevation_gain > 0 && (
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wide">Elev Gain</p>
-                          <p className="text-lg font-black text-white tabular-nums">{Math.round(a.elevation_gain)} <span className="text-xs font-medium text-slate-500">m</span></p>
-                        </div>
-                      )}
                     </div>
-                  </button>
-                  {/* Expanded: Map + extra stats */}
-                  {isExpanded && (
-                    <div className="border-t border-slate-700/30 p-4 space-y-3">
-                      {a.has_polyline && a.garmin_activity_id && (
-                        <div className="rounded-lg overflow-hidden border border-slate-700/30 h-[200px]" id={`map-${a.id}`} ref={(el) => {
-                          if (el && !el.dataset.loaded) {
-                            el.dataset.loaded = '1';
-                            fetch(`/api/garmin/activity-details?activityId=${a.garmin_activity_id}&athleteId=${a.athlete_id}`)
-                              .then(r => r.ok ? r.json() : null)
-                              .then(data => {
-                                if (!data?.gpsPoints?.length) return;
-                                const initMap = () => {
-                                  const L = (window as any).L;
-                                  if (!L) return;
-                                  const map = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false });
-                                  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-                                  const latlngs = data.gpsPoints.map((p: any) => [p.lat, p.lng]);
-                                  L.polyline(latlngs, { color: '#fc5200', weight: 3, opacity: 0.9 }).addTo(map);
-                                  L.circleMarker(latlngs[0], { radius: 5, fillColor: '#22c55e', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
-                                  L.circleMarker(latlngs[latlngs.length - 1], { radius: 5, fillColor: '#ef4444', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
-                                  map.fitBounds(L.latLngBounds(latlngs), { padding: [15, 15] });
-                                };
-                                if ((window as any).L) initMap();
-                                else {
-                                  if (!document.getElementById('leaflet-css')) {
-                                    const link = document.createElement('link');
-                                    link.id = 'leaflet-css'; link.rel = 'stylesheet';
-                                    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-                                    document.head.appendChild(link);
-                                  }
-                                  const s = document.createElement('script');
-                                  s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-                                  s.onload = initMap;
-                                  document.head.appendChild(s);
-                                }
-                              });
-                          }
-                        }} />
-                      )}
-                      {a.average_hr && (
-                        <div className="flex items-center gap-4 text-sm">
-                          <div className="flex items-center gap-1.5">
-                            <Heart className="h-3.5 w-3.5 text-red-400" />
-                            <span className="text-slate-400">Avg HR</span>
-                            <span className="font-bold text-white">{a.average_hr} bpm</span>
-                          </div>
-                        </div>
-                      )}
-                      <Link
-                        href="/dashboard/activities"
-                        className="block w-full text-center text-xs font-bold text-[#fc5200] bg-[#fc5200]/10 border border-[#fc5200]/30 rounded-lg py-2.5 hover:bg-[#fc5200]/20 transition-colors"
-                      >
-                        View Full Activity →
-                      </Link>
+                    <span className={cn('text-[11px] font-bold px-2.5 py-1 rounded-lg', runType.color, runType.bg)}>
+                      {runType.label}
+                    </span>
+                  </div>
+
+                  {/* Activity name */}
+                  <div className="px-5 pt-3 pb-2">
+                    <h3 className="text-lg font-bold text-white">{a.activity_name || 'Run'}</h3>
+                  </div>
+
+                  {/* Stats row — spread evenly like Strava */}
+                  <div className="grid grid-cols-5 gap-2 px-5 pb-4">
+                    <div>
+                      <p className="text-[10px] text-slate-500 mb-0.5">Distance</p>
+                      <p className="text-base font-black text-white tabular-nums">{km}<span className="text-xs font-normal text-slate-500 ml-0.5">km</span></p>
                     </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 mb-0.5">Pace</p>
+                      <p className="text-base font-black text-white tabular-nums">{pace || '–'}<span className="text-xs font-normal text-slate-500 ml-0.5">/km</span></p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 mb-0.5">Time</p>
+                      <p className="text-base font-black text-white tabular-nums">{durationStr}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 mb-0.5">Avg HR</p>
+                      <p className="text-base font-black tabular-nums">
+                        {a.average_hr ? <><Heart className="h-3 w-3 text-red-400 inline mr-0.5" /><span className="text-red-400">{a.average_hr}</span></> : <span className="text-slate-600">–</span>}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 mb-0.5">Elevation</p>
+                      <p className="text-base font-black text-white tabular-nums">
+                        {a.elevation_gain && a.elevation_gain > 0 ? <><span className="text-emerald-400">{Math.round(a.elevation_gain)}</span><span className="text-xs font-normal text-slate-500 ml-0.5">m</span></> : <span className="text-slate-600">–</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Map — always visible if available */}
+                  {a.has_polyline && a.garmin_activity_id && (
+                    <div className="h-[220px] w-full" id={`map-${a.id}`} ref={(el) => {
+                      if (el && !el.dataset.loaded) {
+                        el.dataset.loaded = '1';
+                        fetch(`/api/garmin/activity-details?activityId=${a.garmin_activity_id}&athleteId=${a.athlete_id}`)
+                          .then(r => r.ok ? r.json() : null)
+                          .then(data => {
+                            if (!data?.gpsPoints?.length) return;
+                            const initMap = () => {
+                              const L = (window as any).L;
+                              if (!L) return;
+                              const map = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false });
+                              L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+                              const latlngs = data.gpsPoints.map((p: any) => [p.lat, p.lng]);
+                              L.polyline(latlngs, { color: '#fc5200', weight: 3, opacity: 0.9 }).addTo(map);
+                              L.circleMarker(latlngs[0], { radius: 5, fillColor: '#22c55e', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+                              L.circleMarker(latlngs[latlngs.length - 1], { radius: 5, fillColor: '#ef4444', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+                              map.fitBounds(L.latLngBounds(latlngs), { padding: [20, 20] });
+                            };
+                            if ((window as any).L) initMap();
+                            else {
+                              if (!document.getElementById('leaflet-css')) {
+                                const link = document.createElement('link');
+                                link.id = 'leaflet-css'; link.rel = 'stylesheet';
+                                link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                                document.head.appendChild(link);
+                              }
+                              const s = document.createElement('script');
+                              s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                              s.onload = initMap;
+                              document.head.appendChild(s);
+                            }
+                          });
+                      }
+                    }} />
                   )}
                 </div>
               );
