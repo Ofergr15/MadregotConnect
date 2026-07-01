@@ -101,6 +101,7 @@ export function Header() {
     localStorage.removeItem('athlete_group_id');
     localStorage.removeItem('coach_email');
     localStorage.removeItem('admin_session');
+    localStorage.removeItem('dashboard_synced');
     router.push('/');
   };
 
