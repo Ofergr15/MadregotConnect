@@ -650,13 +650,39 @@ export default function DashboardPage() {
         </section>
       ) : (
         <section className="space-y-3 sm:space-y-4">
-          {/* Training Days only - weekly volume moved to Strava chart below */}
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {weeklyRuns}<span className="text-sm font-medium text-slate-500 ml-1">/ {hasData ? weekly!.trainingDays : 7}</span>
-            </p>
-            <p className="text-sm text-slate-500 mt-1">completed</p>
+          {/* Training Days + Next Workout */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+                {weeklyRuns}<span className="text-sm font-medium text-slate-500 ml-1">/ {hasData ? weekly!.trainingDays : 7}</span>
+              </p>
+              <p className="text-sm text-slate-500 mt-1">completed</p>
+            </div>
+            {(() => {
+              const nextWorkout = weekly?.dailyDistances?.find((d, i) => {
+                const dayIdx = d.dayOfWeek;
+                return dayIdx >= todayDow && d.max > 0 && (dayIdx > todayDow || (dayIdx === todayDow && !recentActivities.some(a => new Date(a.start_time).toDateString() === new Date().toDateString())));
+              }) || weekly?.dailyDistances?.find(d => d.dayOfWeek > todayDow && d.max > 0);
+              if (!nextWorkout) return null;
+              const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+              const isToday = nextWorkout.dayOfWeek === todayDow;
+              return (
+                <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{isToday ? "Today's Run" : 'Next Workout'}</p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[nextWorkout.type]}20`, color: typeColors[nextWorkout.type] }}>
+                      {typeLabels[nextWorkout.type] || nextWorkout.type}
+                    </span>
+                  </div>
+                  <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+                    {nextWorkout.min === nextWorkout.max ? nextWorkout.max : `${nextWorkout.min}–${nextWorkout.max}`}
+                    <span className="text-sm font-medium text-slate-500 ml-1">km</span>
+                  </p>
+                  <p className="text-sm text-slate-500 mt-1">{isToday ? 'Today' : dayNames[nextWorkout.dayOfWeek]}</p>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
