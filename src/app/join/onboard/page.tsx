@@ -154,38 +154,34 @@ function OnboardContent() {
             <CheckCircle2 className="h-8 w-8 text-green-400" />
           </div>
 
-          <h1 className="text-2xl font-bold text-white text-center">You&apos;re Connected!</h1>
+          <h1 className="text-2xl font-bold text-white text-center">Garmin Connected!</h1>
           <p className="text-slate-400 mt-3 text-center">
-            Your Garmin account is now linked. Your coach will push workouts directly to your watch.
+            Your Garmin account is now linked successfully.
           </p>
 
-          <div className="mt-8 space-y-3">
-            <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-              <Calendar className="h-5 w-5 text-primary-400 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-medium text-white">Receive Workouts</h3>
-                <p className="text-xs text-slate-400 mt-1">Workouts appear in your Garmin training calendar</p>
-              </div>
+          <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-5 text-center">
+            <div className="bg-amber-500/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Shield className="h-6 w-6 text-amber-400" />
             </div>
-            <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-              <Smartphone className="h-5 w-5 text-primary-400 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-medium text-white">Sync Your Phone</h3>
-                <p className="text-xs text-slate-400 mt-1">Open Garmin Connect Mobile to sync</p>
-              </div>
-            </div>
+            <h2 className="text-base font-bold text-white">Waiting for Madregot Approval</h2>
+            <p className="text-sm text-slate-400 mt-2">
+              A coach will review your registration and approve your access. You&apos;ll receive an email once you&apos;re in!
+            </p>
+          </div>
+
+          <div className="mt-6 space-y-3">
             <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
               <Watch className="h-5 w-5 text-primary-400 mt-0.5" />
               <div>
-                <h3 className="text-sm font-medium text-white">Find on Your Watch</h3>
-                <p className="text-xs text-slate-400 mt-1">Training → My Workouts on your Garmin watch</p>
+                <h3 className="text-sm font-medium text-white">In the meantime...</h3>
+                <p className="text-xs text-slate-400 mt-1">Sync your Garmin watch via the Garmin Connect app so workouts will be ready when you&apos;re approved</p>
               </div>
             </div>
           </div>
 
           <div className="mt-6">
-            <a href="/dashboard/program" className="block w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center">
-              View Training Program
+            <a href="/" className="block w-full bg-slate-700 hover:bg-slate-600 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center">
+              Back to Home
             </a>
           </div>
         </div>
