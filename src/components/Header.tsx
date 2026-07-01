@@ -149,6 +149,24 @@ export function Header() {
               navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
+                const isReview = item.tab === 'review';
+                if (isReview) {
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        'relative group flex items-center gap-2 px-4 h-10 rounded-xl font-bold text-sm transition-all ml-1 mr-1',
+                        isActive
+                          ? 'bg-amber-400 text-slate-900 shadow-md shadow-amber-400/25'
+                          : 'bg-amber-400/15 text-amber-300 border border-amber-400/30 hover:bg-amber-400/25 hover:text-amber-200'
+                      )}
+                    >
+                      <Icon className="h-4.5 w-4.5" />
+                      <span className="text-xs font-bold">{item.label}</span>
+                    </Link>
+                  );
+                }
                 return (
                   <Link
                     key={item.href}
@@ -213,6 +231,7 @@ export function Header() {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
+              const isReview = item.tab === 'review';
               return (
                 <Link
                   key={item.href}
@@ -220,9 +239,13 @@ export function Header() {
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 text-base font-medium rounded-lg transition-colors',
-                    isActive
-                      ? 'bg-primary-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                    isReview
+                      ? isActive
+                        ? 'bg-amber-400 text-slate-900 font-bold'
+                        : 'bg-amber-400/10 text-amber-300 border border-amber-400/30 font-bold'
+                      : isActive
+                        ? 'bg-primary-600 text-white'
+                        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
                   )}
                 >
                   <Icon className="h-5 w-5" />
