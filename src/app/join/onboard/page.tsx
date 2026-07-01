@@ -166,7 +166,7 @@ function OnboardContent() {
             </div>
             <h2 className="text-base font-bold text-white">Waiting for Madregot Approval</h2>
             <p className="text-sm text-slate-400 mt-2">
-              A coach will review your registration and approve your access. You&apos;ll receive an email once you&apos;re in!
+              An admin will review your registration and approve your access. You&apos;ll receive an email once you&apos;re in!
             </p>
           </div>
 

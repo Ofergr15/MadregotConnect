@@ -24,7 +24,7 @@ export default function PendingApprovalPage() {
 
         <h1 className="text-xl font-bold text-white">Waiting for Approval</h1>
         <p className="text-slate-400 mt-3 text-sm leading-relaxed">
-          Your account has been created successfully. A coach will review and approve your access shortly.
+          Your account has been created successfully. An admin will review and approve your access shortly.
         </p>
         <p className="text-slate-500 mt-2 text-xs">
           You&apos;ll receive an email once you&apos;re approved.
