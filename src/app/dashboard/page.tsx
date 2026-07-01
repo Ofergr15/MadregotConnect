@@ -736,64 +736,6 @@ export default function DashboardPage() {
               );
             })()}
 
-            {leaderboard.length > 0 && (() => {
-              const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
-              const top3 = filtered.slice(0, 3);
-              const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
-              return (
-                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <Trophy className="h-3.5 w-3.5 text-yellow-400" />
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 3</p>
-                    </div>
-                    {groups.length > 1 && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setLeaderboardFilter('all')}
-                          className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}
-                        >All</button>
-                        {groups.map(g => (
-                          <button
-                            key={g.id}
-                            onClick={() => setLeaderboardFilter(g.id)}
-                            className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}
-                          >{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-end justify-center gap-6 mt-3 px-2" style={{ height: '100px' }}>
-                    {/* 2nd place */}
-                    {top3.length >= 2 && (
-                      <div className="flex flex-col items-center" style={{ width: '50px' }}>
-                        <span className="text-[11px] font-bold text-slate-300 mb-1 tabular-nums">{top3[1].distanceKm}</span>
-                        <div className="w-5 rounded-t bg-slate-400/80" style={{ height: '50px' }} />
-                        <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[1].name.split(' ')[0]}</span>
-                      </div>
-                    )}
-                    {/* 1st place - winner */}
-                    {top3.length >= 1 && (
-                      <div className="flex flex-col items-center" style={{ width: '50px' }}>
-                        <span className="text-base mb-0.5">👑</span>
-                        <span className="text-xs font-black text-yellow-400 mb-1 tabular-nums">{top3[0].distanceKm}</span>
-                        <div className="w-5 rounded-t bg-yellow-500" style={{ height: '70px' }} />
-                        <span className="text-[11px] text-white font-bold mt-1.5 whitespace-nowrap">{top3[0].name.split(' ')[0]}</span>
-                      </div>
-                    )}
-                    {/* 3rd place */}
-                    {top3.length >= 3 && (
-                      <div className="flex flex-col items-center" style={{ width: '50px' }}>
-                        <span className="text-[11px] font-bold text-amber-500 mb-1 tabular-nums">{top3[2].distanceKm}</span>
-                        <div className="w-5 rounded-t bg-amber-600/80" style={{ height: '35px' }} />
-                        <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[2].name.split(' ')[0]}</span>
-                      </div>
-                    )}
-                  </div>
-                  {myRank > 3 && <p className="text-[10px] text-slate-500 text-center mt-2">You: #{myRank}</p>}
-                </div>
-              );
-            })()}
           </div>
         </section>
       )}
@@ -965,7 +907,7 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ═══ RUNNER WEEKLY VOLUME (Strava-style) ═══ */}
+      {/* ═══ WEEKLY VOLUME + LEADERBOARD (side by side) ═══ */}
       {!isCoach && runnerWeeklyVolumes.length > 1 && (() => {
         const maxKm = Math.max(...runnerWeeklyVolumes.map(w => w.km));
         const lastWeek = runnerWeeklyVolumes[runnerWeeklyVolumes.length - 1];
@@ -973,58 +915,106 @@ export default function DashboardPage() {
         const trend = prevWeek && prevWeek.km > 0 ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100) : 0;
         const targetMin = hasData ? Math.round(weekly!.weekTotalMin) : 0;
         const targetMax = hasData ? Math.round(weekly!.weekTotalMax) : 0;
+        const filtered = leaderboardFilter === 'all' ? leaderboard : leaderboard.filter(a => a.groupId === leaderboardFilter);
+        const top3 = filtered.slice(0, 3);
+        const myRank = filtered.findIndex(a => a.id === athleteId) + 1;
         return (
-          <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
-            {/* Header row */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-white tabular-nums">{weeklyKm}</span>
-                <span className="text-xs text-slate-500">km this week</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {targetMax > 0 && (
-                  <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax}</span>
-                )}
-                {trend !== 0 && (
-                  <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
-                    {trend > 0 ? '+' : ''}{trend}%
-                  </span>
-                )}
-              </div>
-            </div>
-            {/* Progress bar */}
-            {targetMax > 0 && (
-              <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden mb-4">
-                <div
-                  className={cn('h-full rounded-full transition-all', weeklyKm >= targetMin ? 'bg-emerald-400' : 'bg-[#fc5200]')}
-                  style={{ width: `${Math.min(100, (weeklyKm / targetMax) * 100)}%` }}
-                />
-              </div>
-            )}
-            {/* Bar chart - wide bars, tight gaps */}
-            <div className="flex items-end gap-1" style={{ height: '80px' }}>
-              {runnerWeeklyVolumes.map((w, i) => {
-                const isLast = i === runnerWeeklyVolumes.length - 1;
-                const barH = maxKm > 0 ? Math.max(6, Math.round((w.km / maxKm) * 72)) : 6;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center justify-end" style={{ height: '80px' }}>
-                    <span className={cn('text-[9px] font-semibold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-slate-500')}>{w.km}</span>
-                    <div
-                      className={cn('w-full rounded-t', isLast ? 'bg-[#fc5200]' : 'bg-slate-600/70')}
-                      style={{ height: `${barH}px` }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex gap-1 mt-1 border-t border-slate-700/20 pt-1.5">
-              {runnerWeeklyVolumes.map((w, i) => (
-                <div key={i} className="flex-1 text-center">
-                  <span className="text-[9px] text-slate-500">{w.week}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            {/* LEFT: Weekly Volume */}
+            <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-white tabular-nums">{weeklyKm}</span>
+                  <span className="text-xs text-slate-500">km this week</span>
                 </div>
-              ))}
-            </div>
-          </section>
+                <div className="flex items-center gap-2">
+                  {targetMax > 0 && (
+                    <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax}</span>
+                  )}
+                  {trend !== 0 && (
+                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
+                      {trend > 0 ? '+' : ''}{trend}%
+                    </span>
+                  )}
+                </div>
+              </div>
+              {targetMax > 0 && (
+                <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden mb-4">
+                  <div
+                    className={cn('h-full rounded-full transition-all', weeklyKm >= targetMin ? 'bg-emerald-400' : 'bg-[#fc5200]')}
+                    style={{ width: `${Math.min(100, (weeklyKm / targetMax) * 100)}%` }}
+                  />
+                </div>
+              )}
+              <div className="flex items-end gap-1" style={{ height: '80px' }}>
+                {runnerWeeklyVolumes.map((w, i) => {
+                  const isLast = i === runnerWeeklyVolumes.length - 1;
+                  const barH = maxKm > 0 ? Math.max(6, Math.round((w.km / maxKm) * 72)) : 6;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center justify-end" style={{ height: '80px' }}>
+                      <span className={cn('text-[9px] font-semibold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-slate-500')}>{w.km}</span>
+                      <div
+                        className={cn('w-full rounded-t', isLast ? 'bg-[#fc5200]' : 'bg-slate-600/70')}
+                        style={{ height: `${barH}px` }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-1 mt-1 border-t border-slate-700/20 pt-1.5">
+                {runnerWeeklyVolumes.map((w, i) => (
+                  <div key={i} className="flex-1 text-center">
+                    <span className="text-[9px] text-slate-500">{w.week}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* RIGHT: Leaderboard */}
+            {leaderboard.length > 0 && (
+              <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <Trophy className="h-3.5 w-3.5 text-yellow-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 3</span>
+                  </div>
+                  {groups.length > 1 && (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setLeaderboardFilter('all')} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}>All</button>
+                      {groups.map(g => (
+                        <button key={g.id} onClick={() => setLeaderboardFilter(g.id)} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}>{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-end justify-center gap-5 px-2" style={{ height: '100px' }}>
+                  {top3.length >= 2 && (
+                    <div className="flex flex-col items-center" style={{ width: '56px' }}>
+                      <span className="text-[11px] font-bold text-slate-300 mb-1 tabular-nums">{top3[1].distanceKm}</span>
+                      <div className="w-6 rounded-t bg-slate-400/80" style={{ height: '50px' }} />
+                      <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[1].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {top3.length >= 1 && (
+                    <div className="flex flex-col items-center" style={{ width: '56px' }}>
+                      <span className="text-sm mb-0.5">👑</span>
+                      <span className="text-xs font-black text-yellow-400 mb-1 tabular-nums">{top3[0].distanceKm}</span>
+                      <div className="w-6 rounded-t bg-yellow-500" style={{ height: '70px' }} />
+                      <span className="text-[11px] text-white font-bold mt-1.5 whitespace-nowrap">{top3[0].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {top3.length >= 3 && (
+                    <div className="flex flex-col items-center" style={{ width: '56px' }}>
+                      <span className="text-[11px] font-bold text-amber-500 mb-1 tabular-nums">{top3[2].distanceKm}</span>
+                      <div className="w-6 rounded-t bg-amber-600/80" style={{ height: '35px' }} />
+                      <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[2].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                </div>
+                {myRank > 3 && <p className="text-[10px] text-slate-500 text-center mt-2">You: #{myRank}</p>}
+              </section>
+            )}
+          </div>
         );
       })()}
 
