@@ -477,6 +477,15 @@
     "openInNewTab": "Open in new tab",
     "exercise": "Exercise",
     "selectExercise": "Select exercise",
-    "nowPlaying": "Now playing"
+    "nowPlaying": "Now playing",
+    "exerciseLibrary": "Exercise Library",
+    "all": "All",
+    "legsGlutes": "Legs & Glutes",
+    "coreStability": "Core & Stability",
+    "upperBody": "Upper Body",
+    "prehabMobility": "Prehab & Mobility",
+    "exercises": "exercises",
+    "previous": "Previous",
+    "next": "Next"
   }
 }

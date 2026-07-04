@@ -477,6 +477,15 @@
     "openInNewTab": "פתח בחלון חדש",
     "exercise": "תרגיל",
     "selectExercise": "בחר תרגיל",
-    "nowPlaying": "מתנגן כעת"
+    "nowPlaying": "מתנגן כעת",
+    "exerciseLibrary": "ספריית תרגילים",
+    "all": "הכל",
+    "legsGlutes": "רגליים וישבן",
+    "coreStability": "ליבה ויציבות",
+    "upperBody": "גוף עליון",
+    "prehabMobility": "מניעה וניידות",
+    "exercises": "תרגילים",
+    "previous": "קודם",
+    "next": "הבא"
   }
 }
