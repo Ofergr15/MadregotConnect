@@ -22,6 +22,7 @@ export default function JoinPage({ params }: { params: { token: string } }) {
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaCode, setMfaCode] = useState('');
   const [mfaSessionId, setMfaSessionId] = useState('');
+  const [skippedGarmin, setSkippedGarmin] = useState(false);
   const [step, setStep] = useState<'auth' | 'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('auth');
   const [error, setError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -156,51 +157,57 @@ export default function JoinPage({ params }: { params: { token: string } }) {
           </div>
 
           {/* Success Message */}
-          <h1 className="text-2xl font-bold text-white text-center">You&apos;re Connected!</h1>
+          <h1 className="text-2xl font-bold text-white text-center">
+            {skippedGarmin ? 'Registration Complete!' : 'You\u0027re Connected!'}
+          </h1>
           <p className="text-slate-400 mt-3 text-center">
-            Your Garmin account is now linked. Your coach will push workouts directly to your Garmin training calendar.
+            {skippedGarmin
+              ? 'You can connect your Garmin watch anytime from your profile settings.'
+              : 'Your Garmin account is now linked. Your coach will push workouts directly to your Garmin training calendar.'}
           </p>
 
           {/* What's Next Section */}
-          <div className="mt-8 space-y-3">
-            <h2 className="text-sm font-semibold text-white mb-3">What&apos;s next?</h2>
+          {!skippedGarmin && (
+            <div className="mt-8 space-y-3">
+              <h2 className="text-sm font-semibold text-white mb-3">What&apos;s next?</h2>
 
-            <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-              <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                <Calendar className="h-5 w-5 text-primary-400" />
+              <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
+                <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
+                  <Calendar className="h-5 w-5 text-primary-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-white">Receive Workouts</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Your coach will push workouts to your Garmin training calendar
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-medium text-white">Receive Workouts</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Your coach will push workouts to your Garmin training calendar
-                </p>
+
+              <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
+                <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
+                  <Smartphone className="h-5 w-5 text-primary-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-white">Sync Your Phone</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Open Garmin Connect Mobile on your phone to sync the workouts
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
+                <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
+                  <Watch className="h-5 w-5 text-primary-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-white">Find on Your Watch</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Workouts appear in Training &rarr; My Workouts on your Garmin watch
+                  </p>
+                </div>
               </div>
             </div>
-
-            <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-              <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                <Smartphone className="h-5 w-5 text-primary-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-white">Sync Your Phone</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Open Garmin Connect Mobile on your phone to sync the workouts
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-              <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                <Watch className="h-5 w-5 text-primary-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-white">Find on Your Watch</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Workouts appear in Training → My Workouts on your Garmin watch
-                </p>
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* Go to Dashboard */}
           <div className="mt-6">
@@ -208,16 +215,17 @@ export default function JoinPage({ params }: { params: { token: string } }) {
               href="/dashboard/program"
               className="block w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center"
             >
-              View Training Program
+              {skippedGarmin ? 'Go to Dashboard' : 'View Training Program'}
             </a>
           </div>
 
-          {/* Footer Note */}
-          <div className="mt-4 pt-4 border-t border-slate-700">
-            <p className="text-xs text-slate-500 text-center">
-              Make sure Garmin Connect Mobile is running with Bluetooth enabled for automatic syncing
-            </p>
-          </div>
+          {!skippedGarmin && (
+            <div className="mt-4 pt-4 border-t border-slate-700">
+              <p className="text-xs text-slate-500 text-center">
+                Make sure Garmin Connect Mobile is running with Bluetooth enabled for automatic syncing
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -420,6 +428,45 @@ export default function JoinPage({ params }: { params: { token: string } }) {
               className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
             >
               Back
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                setStep('connecting');
+                try {
+                  const saveRes = await fetch('/api/athletes/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      inviteToken: params.token,
+                      name,
+                      email,
+                      groupId: selectedGroup || undefined,
+                    }),
+                  });
+                  if (!saveRes.ok) {
+                    const err = await saveRes.json();
+                    throw new Error(err.error || 'Failed to save');
+                  }
+                  const data = await saveRes.json();
+                  if (data.athlete) {
+                    localStorage.setItem('athlete_id', data.athlete.id);
+                    localStorage.setItem('athlete_name', data.athlete.name || name);
+                    localStorage.setItem('athlete_email', data.athlete.email || email);
+                    if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
+                  }
+                  setSkippedGarmin(true);
+                  setStep('done');
+                } catch (err: any) {
+                  setError(err.message);
+                  setStep('garmin');
+                }
+              }}
+              disabled={step === 'connecting'}
+              className="w-full text-slate-500 hover:text-slate-300 text-sm py-2 transition-colors"
+            >
+              I&apos;ll connect Garmin later
             </button>
           </form>
         )}

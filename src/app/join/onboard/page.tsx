@@ -39,6 +39,7 @@ function OnboardContent() {
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaCode, setMfaCode] = useState('');
   const [mfaSessionId, setMfaSessionId] = useState('');
+  const [skippedGarmin, setSkippedGarmin] = useState(false);
   const [step, setStep] = useState<'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('info');
   const [error, setError] = useState<string | null>(null);
 
@@ -207,9 +208,13 @@ function OnboardContent() {
             <CheckCircle2 className="h-8 w-8 text-green-400" />
           </div>
 
-          <h1 className="text-2xl font-bold text-white text-center">Garmin Connected!</h1>
+          <h1 className="text-2xl font-bold text-white text-center">
+            {skippedGarmin ? 'Registration Complete!' : 'Garmin Connected!'}
+          </h1>
           <p className="text-slate-400 mt-3 text-center">
-            Your Garmin account is now linked successfully.
+            {skippedGarmin
+              ? 'You can connect your Garmin watch anytime from your profile settings.'
+              : 'Your Garmin account is now linked successfully.'}
           </p>
 
           <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-5 text-center">
@@ -222,15 +227,17 @@ function OnboardContent() {
             </p>
           </div>
 
-          <div className="mt-6 space-y-3">
-            <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-              <Watch className="h-5 w-5 text-primary-400 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-medium text-white">In the meantime...</h3>
-                <p className="text-xs text-slate-400 mt-1">Sync your Garmin watch via the Garmin Connect app so workouts will be ready when you&apos;re approved</p>
+          {!skippedGarmin && (
+            <div className="mt-6 space-y-3">
+              <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
+                <Watch className="h-5 w-5 text-primary-400 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-medium text-white">In the meantime...</h3>
+                  <p className="text-xs text-slate-400 mt-1">Sync your Garmin watch via the Garmin Connect app so workouts will be ready when you&apos;re approved</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-6">
             <button
@@ -419,6 +426,44 @@ function OnboardContent() {
               className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
             >
               Back
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                setStep('connecting');
+                try {
+                  const saveRes = await fetch('/api/athletes/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      name,
+                      email,
+                      groupId: selectedGroup || undefined,
+                    }),
+                  });
+                  if (!saveRes.ok) {
+                    const err = await saveRes.json();
+                    throw new Error(err.error || 'Failed to save');
+                  }
+                  const data = await saveRes.json();
+                  if (data.athlete) {
+                    localStorage.setItem('athlete_id', data.athlete.id);
+                    localStorage.setItem('athlete_name', data.athlete.name || name);
+                    localStorage.setItem('athlete_email', data.athlete.email || email);
+                    if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
+                  }
+                  setSkippedGarmin(true);
+                  setStep('done');
+                } catch (err: any) {
+                  setError(err.message);
+                  setStep('garmin');
+                }
+              }}
+              disabled={step === 'connecting'}
+              className="w-full text-slate-500 hover:text-slate-300 text-sm py-2 transition-colors"
+            >
+              I&apos;ll connect Garmin later
             </button>
           </form>
         )}

@@ -16,7 +16,11 @@ function getTransporter() {
 }
 
 export async function notifyAdminNewUser(user: { name: string; email: string; onboardingStatus: string; hasGarmin?: boolean }) {
-  const authStatus = user.hasGarmin ? '✅ Google + Garmin' : '⚠️ Google only (no Garmin)';
+  const authStatusMap: Record<string, string> = {
+    'garmin_authed': '✅ Google + Garmin Connected',
+    'google_authed': '⚠️ Google Only (skipped Garmin)',
+  };
+  const authStatus = authStatusMap[user.onboardingStatus] || (user.hasGarmin ? '✅ Google + Garmin' : '⚠️ Google only');
   await getTransporter().sendMail({
     from: `Madregot <${GMAIL_USER}>`,
     to: ADMIN_EMAIL,
