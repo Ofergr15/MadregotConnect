@@ -471,8 +471,12 @@
     "current": "Current",
     "training": "Training",
     "nutrition": "Nutrition",
+    "workout": "Workout",
     "trainingProgram": "Training Program",
     "nutritionPlan": "Nutrition Plan",
-    "openInNewTab": "Open in new tab"
+    "openInNewTab": "Open in new tab",
+    "exercise": "Exercise",
+    "selectExercise": "Select exercise",
+    "nowPlaying": "Now playing"
   }
 }

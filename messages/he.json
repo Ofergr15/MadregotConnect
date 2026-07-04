@@ -471,8 +471,12 @@
     "current": "נוכחי",
     "training": "אימון",
     "nutrition": "תזונה",
+    "workout": "אימון",
     "trainingProgram": "תוכנית אימון",
     "nutritionPlan": "תוכנית תזונה",
-    "openInNewTab": "פתח בחלון חדש"
+    "openInNewTab": "פתח בחלון חדש",
+    "exercise": "תרגיל",
+    "selectExercise": "בחר תרגיל",
+    "nowPlaying": "מתנגן כעת"
   }
 }
