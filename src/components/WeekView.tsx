@@ -139,7 +139,7 @@ function WorkoutDetailModal({ workout, dayName, onClose }: { workout: ParsedWork
                           <div className="w-1 h-4 rounded-full shrink-0" style={{ background: stepTypeColors[sub.type] || '#64748b' }} />
                           <span className={cn("font-medium shrink-0", isRest ? "text-slate-500" : "text-white")}>{dur}</span>
                           {sub.notes && <span className="text-slate-400 truncate flex-1 text-xs">{sub.notes}</span>}
-                          {pace && <span className="text-xs text-slate-500 tabular-nums shrink-0 ml-auto">{pace}</span>}
+                          {pace && <span className="text-xs text-slate-500 tabular-nums shrink-0 ms-auto">{pace}</span>}
                         </div>
                       );
                     })}
@@ -156,7 +156,7 @@ function WorkoutDetailModal({ workout, dayName, onClose }: { workout: ParsedWork
                 <div className="w-1 h-5 rounded-full shrink-0" style={{ background: stepTypeColors[step.type] || '#64748b' }} />
                 <span className="font-medium text-white shrink-0">{dur}</span>
                 <span className="text-slate-400 truncate flex-1 text-xs">{label}</span>
-                {pace && <span className="text-xs text-slate-500 tabular-nums shrink-0 ml-auto">{pace}</span>}
+                {pace && <span className="text-xs text-slate-500 tabular-nums shrink-0 ms-auto">{pace}</span>}
               </div>
             );
           })}
@@ -196,7 +196,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
             <Route className="h-3.5 w-3.5 text-primary-400" />
             <span className="font-bold text-white tabular-nums">
               {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)}` : totalDist}
-              <span className="text-[10px] text-slate-400 ml-0.5">{totalDist >= 1000 ? 'km' : 'm'}</span>
+              <span className="text-[10px] text-slate-400 ms-0.5">{totalDist >= 1000 ? 'km' : 'm'}</span>
             </span>
           </div>
         )}
@@ -211,7 +211,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
         <div className="flex items-center gap-1.5">
           <Zap className="h-3.5 w-3.5 text-amber-400" />
           <span className="font-bold text-white tabular-nums">
-            {trainingDays}<span className="text-[10px] text-slate-400 ml-0.5">days</span>
+            {trainingDays}<span className="text-[10px] text-slate-400 ms-0.5">days</span>
           </span>
         </div>
       </div>

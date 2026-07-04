@@ -69,7 +69,7 @@ export default function ProgramPage() {
             onClick={() => setWeekDropdownOpen(!weekDropdownOpen)}
             className="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 hover:border-slate-600 transition-colors min-w-[240px]"
           >
-            <div className="flex-1 text-left">
+            <div className="flex-1 text-start">
               <div className="font-semibold text-white">{currentWeek.weekLabel}</div>
               <div className="text-xs text-slate-400">{currentWeek.dateRange}</div>
             </div>
@@ -84,14 +84,14 @@ export default function ProgramPage() {
           {weekDropdownOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setWeekDropdownOpen(false)} />
-              <div className="absolute top-full left-0 mt-2 z-50 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden min-w-[240px]">
+              <div className="absolute top-full start-0 mt-2 z-50 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden min-w-[240px]">
                 {WEEKS.map((week, i) => (
                   <button
                     key={i}
                     onClick={() => { setSelectedWeek(i); setWeekDropdownOpen(false); }}
                     className={cn(
-                      "w-full text-left px-4 py-3 flex items-center justify-between hover:bg-slate-700/50 transition-colors",
-                      i === selectedWeek && "bg-primary-600/20 border-l-2 border-primary-500"
+                      "w-full text-start px-4 py-3 flex items-center justify-between hover:bg-slate-700/50 transition-colors",
+                      i === selectedWeek && "bg-primary-600/20 border-s-2 border-primary-500"
                     )}
                   >
                     <div>

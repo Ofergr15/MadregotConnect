@@ -58,7 +58,7 @@ export function GarminReminderPopup() {
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-sm relative">
         <button
           onClick={handleRemindLater}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white"
+          className="absolute top-4 end-4 text-slate-400 hover:text-white"
         >
           <X className="h-5 w-5" />
         </button>

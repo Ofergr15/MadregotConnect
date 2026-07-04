@@ -9,12 +9,12 @@ const stepTypes = ['warmup', 'interval', 'rest', 'recovery', 'cooldown', 'active
 const targetZones = ['easy', 'threshold', 'interval', 'tempo', 'sprint', 'marathon_pace', 'no_target'] as const;
 
 const stepColors: Record<string, string> = {
-  warmup: 'border-l-yellow-400',
-  interval: 'border-l-red-400',
-  rest: 'border-l-slate-400',
-  recovery: 'border-l-green-400',
-  cooldown: 'border-l-blue-400',
-  active: 'border-l-purple-400',
+  warmup: 'border-s-yellow-400',
+  interval: 'border-s-red-400',
+  rest: 'border-s-slate-400',
+  recovery: 'border-s-green-400',
+  cooldown: 'border-s-blue-400',
+  active: 'border-s-purple-400',
 };
 
 const stepLabels: Record<string, string> = {
@@ -97,12 +97,12 @@ function StepRow({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={cn('border-l-3 rounded-md', stepColors[step.type] || 'border-l-slate-400')}>
+    <div className={cn('border-s-3 rounded-md', stepColors[step.type] || 'border-s-slate-400')}>
       <div
         className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-slate-700/30 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        <span className="text-[10px] text-slate-500 w-4 text-right">{index + 1}</span>
+        <span className="text-[10px] text-slate-500 w-4 text-end">{index + 1}</span>
         <span className={cn(
           'text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide',
           step.type === 'interval' ? 'bg-red-500/20 text-red-400' :
@@ -116,7 +116,7 @@ function StepRow({
         </span>
         <span className="text-sm text-white font-medium">{formatDuration(step)}</span>
         {formatPaceTarget(step) && (
-          <span className="text-[11px] text-primary-400 ml-auto mr-1">@{formatPaceTarget(step)}</span>
+          <span className="text-[11px] text-primary-400 ms-auto me-1">@{formatPaceTarget(step)}</span>
         )}
         {step.repeatCount && (
           <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-bold">
@@ -130,7 +130,7 @@ function StepRow({
       </div>
 
       {expanded && (
-        <div className="px-3 pb-3 space-y-3 border-t border-slate-700/50 pt-3 ml-4">
+        <div className="px-3 pb-3 space-y-3 border-t border-slate-700/50 pt-3 ms-4">
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Type</label>
@@ -255,7 +255,7 @@ function StepRow({
             <button onClick={onMoveUp} disabled={index === 0} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
             <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
             <button onClick={onDuplicate} className="p-1 rounded hover:bg-slate-700 text-slate-400"><Copy className="h-3.5 w-3.5" /></button>
-            <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ml-auto"><Trash2 className="h-3.5 w-3.5" /></button>
+            <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto"><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
         </div>
       )}
@@ -309,7 +309,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex justify-end" onClick={onClose}>
       <div
-        className="w-full max-w-lg bg-slate-900 border-l border-slate-700 h-full overflow-hidden flex flex-col animate-slide-in-right"
+        className="w-full max-w-lg bg-slate-900 border-s border-slate-700 h-full overflow-hidden flex flex-col animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

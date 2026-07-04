@@ -613,7 +613,7 @@ export default function WeeklyPlannerPage() {
             {weekOffset !== getDefaultOffset() && (
               <button
                 onClick={() => setWeekOffset(getDefaultOffset())}
-                className="text-xs text-primary-400 hover:text-primary-300 ml-2"
+                className="text-xs text-primary-400 hover:text-primary-300 ms-2"
               >
                 Current
               </button>
@@ -721,7 +721,7 @@ export default function WeeklyPlannerPage() {
                   <div className="w-10 h-12 bg-red-500/20 rounded flex items-center justify-center">
                     <span className="text-red-400 text-xs font-bold">PDF</span>
                   </div>
-                  <div className="text-left">
+                  <div className="text-start">
                     <p className="text-sm text-slate-300">{imageFile?.name}</p>
                     <p className="text-xs text-slate-500">Ready to parse</p>
                   </div>
@@ -895,7 +895,7 @@ export default function WeeklyPlannerPage() {
                     </span>
                     <span>Group {g}</span>
                     {groupDist > 0 && (
-                      <span className="text-[10px] text-slate-500 font-normal ml-1">
+                      <span className="text-[10px] text-slate-500 font-normal ms-1">
                         {(groupDist / 1000).toFixed(0)}km
                       </span>
                     )}
@@ -1105,7 +1105,7 @@ export default function WeeklyPlannerPage() {
                               Push {workoutCount} workout{workoutCount !== 1 ? 's' : ''} to everyone
                             </p>
                           </div>
-                          <div className="bg-slate-800 rounded-lg p-3 text-left text-xs text-slate-400 max-w-xs mx-auto">
+                          <div className="bg-slate-800 rounded-lg p-3 text-start text-xs text-slate-400 max-w-xs mx-auto">
                             <p className="font-medium text-slate-300 mb-1">Each athlete gets their group&apos;s plan:</p>
                             <div className="space-y-1">
                               <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" /> Group 1 — fastest paces</div>
@@ -1173,13 +1173,13 @@ export default function WeeklyPlannerPage() {
                       {pushTab === 'athletes' && (
                         <div className="space-y-3">
                           <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <input
                               type="text"
                               value={athleteSearch}
                               onChange={(e) => setAthleteSearch(e.target.value)}
                               placeholder="Search athletes..."
-                              className="input w-full pl-9 text-sm"
+                              className="input w-full ps-9 text-sm"
                             />
                           </div>
 

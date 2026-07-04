@@ -16,13 +16,13 @@ const stepColors: Record<string, { dot: string; bg: string }> = {
 };
 
 const workoutTypeStyles: Record<string, { border: string; color: string }> = {
-  intervals: { border: 'border-l-red-400', color: 'text-red-400' },
-  long_run: { border: 'border-l-purple-400', color: 'text-purple-400' },
-  tempo: { border: 'border-l-orange-400', color: 'text-orange-400' },
-  fartlek: { border: 'border-l-pink-400', color: 'text-pink-400' },
-  progressive: { border: 'border-l-teal-400', color: 'text-teal-400' },
-  easy: { border: 'border-l-blue-400', color: 'text-blue-400' },
-  recovery: { border: 'border-l-green-400', color: 'text-green-400' },
+  intervals: { border: 'border-s-red-400', color: 'text-red-400' },
+  long_run: { border: 'border-s-purple-400', color: 'text-purple-400' },
+  tempo: { border: 'border-s-orange-400', color: 'text-orange-400' },
+  fartlek: { border: 'border-s-pink-400', color: 'text-pink-400' },
+  progressive: { border: 'border-s-teal-400', color: 'text-teal-400' },
+  easy: { border: 'border-s-blue-400', color: 'text-blue-400' },
+  recovery: { border: 'border-s-green-400', color: 'text-green-400' },
 };
 
 function fmtDuration(step: WorkoutStep): string {
@@ -145,7 +145,7 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
   if (compact) {
     return (
       <div className={cn(
-        'bg-slate-800/80 border border-slate-700/40 rounded-lg overflow-hidden border-l-[3px] h-full',
+        'bg-slate-800/80 border border-slate-700/40 rounded-lg overflow-hidden border-s-[3px] h-full',
         style.border
       )}>
         <div className="px-3 py-2.5">
@@ -174,7 +174,7 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
 
   return (
     <div className={cn(
-      'bg-slate-800/80 border border-slate-700/40 rounded-lg overflow-hidden border-l-[3px] transition-all hover:bg-slate-800 h-full flex flex-col',
+      'bg-slate-800/80 border border-slate-700/40 rounded-lg overflow-hidden border-s-[3px] transition-all hover:bg-slate-800 h-full flex flex-col',
       style.border
     )}>
       {/* Header */}

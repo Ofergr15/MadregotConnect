@@ -336,7 +336,7 @@ function ProfileContent() {
                 onClick={() => setSelectedGroupId(g.id)}
                 disabled={saving || hasActivities}
                 className={cn(
-                  'w-full text-left px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3',
+                  'w-full text-start px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3',
                   hasActivities && 'opacity-60 cursor-not-allowed',
                   isSelected
                     ? 'border-[#4338ff]/60 bg-[#4338ff]/5 shadow-sm shadow-[#4338ff]/10'
