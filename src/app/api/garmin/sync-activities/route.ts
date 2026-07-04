@@ -10,13 +10,12 @@ export async function POST(request: Request) {
 
     const query = supabase
       .from('athletes')
-      .select('id, name, garmin_auth')
-      .eq('coach_id', COACH_ID);
+      .select('id, name, garmin_auth');
 
     if (athleteId) {
       query.eq('id', athleteId);
     } else {
-      query.not('garmin_auth', 'is', null);
+      query.eq('coach_id', COACH_ID).not('garmin_auth', 'is', null);
     }
 
     const { data: athletes, error: athError } = await query;
