@@ -75,7 +75,6 @@ const WORKOUT_VIDEOS: WorkoutVideo[] = [
   { id: '1PT4JyGjDwQEDjCzV8lGDP_AGZfJR1Hix', youtube: 'z2liB6tljNA', name: 'Shoulder Press', category: 'upper', tags: ['Shoulders', 'Strength'], desc: 'Press dumbbells or barbell overhead. Maintains upper body balance and arm drive strength for running.', sets: '3×10' },
   { id: '1c581iETVjs9GytI95T6iwN_bW_7k4_N6', youtube: 'Yi5kPtF0K78k', name: "Farmer's Carry", category: 'upper', tags: ['Grip', 'Functional'], desc: 'Walk with heavy weights in each hand, upright posture. Builds grip, core, and running posture endurance.', sets: '3×40m' },
   { id: '1egI6kI8qAfuWgu67Te9twkWZRD1MKJYU', youtube: 'OL9YgIsJpkk', name: 'Banded Tibialis Raise', category: 'prehab', tags: ['Prehab', 'Mobility'], desc: 'Pull toes up against band resistance. Strengthens shin muscles to prevent shin splints.', sets: '3×15' },
-  { id: '1lggSCQcqpfMrpFoZv6QSzmW2CX_7ttGq', name: 'Banded Tibialis Raise (2)', category: 'prehab', tags: ['Prehab', 'Mobility'], desc: 'Variation with different angle. Targets tibialis anterior from alternate position for full coverage.', sets: '3×15' },
 ];
 
 export default function ProgramPage() {
