@@ -52,26 +52,28 @@ interface WorkoutVideo {
   name: string;
   category: ExerciseCategory;
   tags: string[];
+  desc: string;
+  sets: string;
 }
 
 const WORKOUT_VIDEOS: WorkoutVideo[] = [
-  { id: '1p9Shn1UBipPtTbsuC21MskgKBhah8fxx', name: 'Back Squat', category: 'legs', tags: ['Legs', 'Compound', 'Strength'] },
-  { id: '1O_dNYkt86r7ZrEjL9qmWi1HPNMAPCR_a', name: 'Front Squat (no box)', category: 'legs', tags: ['Legs', 'Compound', 'Strength'] },
-  { id: '16oYlgqVxAh_LvejOQZf4Pc69aHM8XNFQ', name: 'Front Squat (with box)', category: 'legs', tags: ['Legs', 'Compound', 'Strength'] },
-  { id: '1d-6cNIuLvJ83cE9cNasN2Z_7kWGFIVoA', name: 'Hip Thrust', category: 'legs', tags: ['Glutes', 'Strength', 'Compound'] },
-  { id: '1RTRPVJNviLCnfBTmYDlwCYuWnrDj2_kI', name: 'Lunges', category: 'legs', tags: ['Legs', 'Unilateral', 'Compound'] },
-  { id: '10GWulniGD9EfbaJep6o5Cp1W_uBQmmtJ', name: 'Romanian Deadlift', category: 'legs', tags: ['Hamstrings', 'Compound', 'Strength'] },
-  { id: '1KPnhOu8yegX8Tj2KUqzb0PMA0PaXOfEf', name: 'Step Up', category: 'legs', tags: ['Legs', 'Unilateral', 'Compound'] },
-  { id: '1mYmpxjSjzRiEdaPzuPDQwm1qzJO3SNOC', name: 'Single-Leg Deadlift', category: 'legs', tags: ['Hamstrings', 'Unilateral', 'Balance'] },
-  { id: '1d29Y6KsBzcGOERF1hvtBQ75Cnaz4hjJa', name: 'Single-Leg Sit to Stand', category: 'legs', tags: ['Legs', 'Unilateral', 'Bodyweight'] },
-  { id: '1DyxyrjAaTX2gbsCY7d33Iz3hRWs4mESH', name: 'Seated Calf Raises', category: 'legs', tags: ['Calves', 'Isolation', 'Strength'] },
-  { id: '1M_AkiLylOcbybvBg2X-ALBGuPbF8A5MT', name: 'Bird Dog', category: 'core', tags: ['Core', 'Stability', 'Bodyweight'] },
-  { id: '133UK4QjplTNIsUBHrRp4OwYBnnPApCZk', name: 'Side Plank', category: 'core', tags: ['Core', 'Stability', 'Bodyweight'] },
-  { id: '1tIoIaxDizlgRsNL0H5VK5HdJ2Cw4YBlc', name: 'Toes to Bar', category: 'core', tags: ['Core', 'Strength', 'Advanced'] },
-  { id: '1PT4JyGjDwQEDjCzV8lGDP_AGZfJR1Hix', name: 'Shoulder Press', category: 'upper', tags: ['Upper', 'Shoulders', 'Strength'] },
-  { id: '1c581iETVjs9GytI95T6iwN_bW_7k4_N6', name: "Farmer's Carry", category: 'upper', tags: ['Upper', 'Grip', 'Functional'] },
-  { id: '1egI6kI8qAfuWgu67Te9twkWZRD1MKJYU', name: 'Banded Tibialis Raise', category: 'prehab', tags: ['Prehab', 'Mobility', 'Lower Leg'] },
-  { id: '1lggSCQcqpfMrpFoZv6QSzmW2CX_7ttGq', name: 'Banded Tibialis Raise (2)', category: 'prehab', tags: ['Prehab', 'Mobility', 'Lower Leg'] },
+  { id: '1p9Shn1UBipPtTbsuC21MskgKBhah8fxx', name: 'Back Squat', category: 'legs', tags: ['Legs', 'Compound'], desc: 'Barbell on upper back, squat to parallel. Builds quad & glute strength for uphill power.', sets: '3×8-10' },
+  { id: '1O_dNYkt86r7ZrEjL9qmWi1HPNMAPCR_a', name: 'Front Squat (no box)', category: 'legs', tags: ['Legs', 'Compound'], desc: 'Barbell on front delts, upright torso. Targets quads and core stability for running posture.', sets: '3×8' },
+  { id: '16oYlgqVxAh_LvejOQZf4Pc69aHM8XNFQ', name: 'Front Squat (with box)', category: 'legs', tags: ['Legs', 'Compound'], desc: 'Squat to box for consistent depth. Teaches proper mechanics and reduces knee stress.', sets: '3×8' },
+  { id: '1d-6cNIuLvJ83cE9cNasN2Z_7kWGFIVoA', name: 'Hip Thrust', category: 'legs', tags: ['Glutes', 'Strength'], desc: 'Back on bench, drive hips up with barbell. Isolates glutes for explosive push-off power.', sets: '3×10-12' },
+  { id: '1RTRPVJNviLCnfBTmYDlwCYuWnrDj2_kI', name: 'Lunges', category: 'legs', tags: ['Legs', 'Unilateral'], desc: 'Step forward, lower back knee to ground. Builds single-leg strength and running-specific balance.', sets: '3×10/leg' },
+  { id: '10GWulniGD9EfbaJep6o5Cp1W_uBQmmtJ', name: 'Romanian Deadlift', category: 'legs', tags: ['Hamstrings', 'Compound'], desc: 'Hinge at hips with slight knee bend, lower bar along legs. Strengthens hamstrings and posterior chain.', sets: '3×10' },
+  { id: '1KPnhOu8yegX8Tj2KUqzb0PMA0PaXOfEf', name: 'Step Up', category: 'legs', tags: ['Legs', 'Unilateral'], desc: 'Step onto elevated box, drive through front foot. Mimics hill running and builds single-leg power.', sets: '3×8/leg' },
+  { id: '1mYmpxjSjzRiEdaPzuPDQwm1qzJO3SNOC', name: 'Single-Leg Deadlift', category: 'legs', tags: ['Hamstrings', 'Balance'], desc: 'Hinge on one leg, opposite leg extends back. Improves balance and hamstring strength for stride stability.', sets: '3×8/leg' },
+  { id: '1d29Y6KsBzcGOERF1hvtBQ75Cnaz4hjJa', name: 'Single-Leg Sit to Stand', category: 'legs', tags: ['Legs', 'Bodyweight'], desc: 'Sit on bench, stand up on one leg. Tests and builds single-leg quad strength without loading the spine.', sets: '3×8/leg' },
+  { id: '1DyxyrjAaTX2gbsCY7d33Iz3hRWs4mESH', name: 'Seated Calf Raises', category: 'legs', tags: ['Calves', 'Isolation'], desc: 'Seated with weight on knees, raise heels. Targets the soleus — the key muscle for long-distance running.', sets: '3×15' },
+  { id: '1M_AkiLylOcbybvBg2X-ALBGuPbF8A5MT', name: 'Bird Dog', category: 'core', tags: ['Core', 'Stability'], desc: 'On all fours, extend opposite arm and leg. Builds anti-rotation core stability for better running form.', sets: '3×10/side' },
+  { id: '133UK4QjplTNIsUBHrRp4OwYBnnPApCZk', name: 'Side Plank', category: 'core', tags: ['Core', 'Stability'], desc: 'Hold body in straight line on forearm sideways. Strengthens obliques to prevent hip drop while running.', sets: '3×30s/side' },
+  { id: '1tIoIaxDizlgRsNL0H5VK5HdJ2Cw4YBlc', name: 'Toes to Bar', category: 'core', tags: ['Core', 'Advanced'], desc: 'Hang from bar, lift toes to touch it. Advanced core exercise that builds hip flexor and ab strength.', sets: '3×8-12' },
+  { id: '1PT4JyGjDwQEDjCzV8lGDP_AGZfJR1Hix', name: 'Shoulder Press', category: 'upper', tags: ['Shoulders', 'Strength'], desc: 'Press dumbbells or barbell overhead. Maintains upper body balance and arm drive strength for running.', sets: '3×10' },
+  { id: '1c581iETVjs9GytI95T6iwN_bW_7k4_N6', name: "Farmer's Carry", category: 'upper', tags: ['Grip', 'Functional'], desc: 'Walk with heavy weights in each hand, upright posture. Builds grip, core, and running posture endurance.', sets: '3×40m' },
+  { id: '1egI6kI8qAfuWgu67Te9twkWZRD1MKJYU', name: 'Banded Tibialis Raise', category: 'prehab', tags: ['Prehab', 'Mobility'], desc: 'Pull toes up against band resistance. Strengthens shin muscles to prevent shin splints.', sets: '3×15' },
+  { id: '1lggSCQcqpfMrpFoZv6QSzmW2CX_7ttGq', name: 'Banded Tibialis Raise (2)', category: 'prehab', tags: ['Prehab', 'Mobility'], desc: 'Variation with different angle. Targets tibialis anterior from alternate position for full coverage.', sets: '3×15' },
 ];
 
 export default function ProgramPage() {
@@ -290,7 +292,11 @@ export default function ProgramPage() {
                   </button>
                 </div>
               </div>
+              <p className="text-xs text-slate-400 mt-1.5 line-clamp-2">{currentExercise.desc}</p>
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 font-bold">
+                  {currentExercise.sets}
+                </span>
                 {currentExercise.tags.map((tag) => (
                   <span
                     key={tag}
@@ -381,9 +387,9 @@ export default function ProgramPage() {
               </div>
             </div>
 
-            {/* Exercise List */}
+            {/* Exercise Cards with Thumbnails */}
             <div className="p-3 sm:p-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {filteredExercises.map((video) => {
                   const globalIndex = WORKOUT_VIDEOS.indexOf(video);
                   const isSelected = globalIndex === selectedVideoIndex;
@@ -393,29 +399,52 @@ export default function ProgramPage() {
                       key={video.id}
                       onClick={() => setSelectedVideoIndex(globalIndex)}
                       className={cn(
-                        'px-4 py-3 rounded-xl border-2 transition-all text-start flex items-center gap-3 active:scale-[0.97]',
+                        'rounded-xl border-2 transition-all text-start overflow-hidden active:scale-[0.97]',
                         isSelected
-                          ? 'border-orange-500 bg-orange-500/10'
+                          ? 'border-orange-500 bg-orange-500/10 shadow-lg shadow-orange-500/10'
                           : 'border-slate-700 bg-slate-700/30 hover:border-slate-600'
                       )}
                     >
-                      {/* Play icon */}
-                      <div className={cn(
-                        'w-10 h-10 rounded-full flex items-center justify-center shrink-0',
-                        isSelected ? 'bg-orange-500' : 'bg-slate-600'
-                      )}>
-                        <Play className={cn('h-4 w-4', isSelected ? 'text-white' : 'text-slate-300')} />
+                      {/* Video Thumbnail Preview */}
+                      <div className="relative aspect-[16/9] bg-slate-900 overflow-hidden">
+                        <img
+                          src={`https://drive.google.com/thumbnail?id=${video.id}&sz=w400`}
+                          alt={video.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                        {isSelected && (
+                          <div className="absolute top-2 end-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            Playing
+                          </div>
+                        )}
+                        {!isSelected && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
+                              <Play className="h-5 w-5 text-white ms-0.5" />
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 start-2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                          {video.sets}
+                        </div>
                       </div>
 
-                      <div className="flex-1 min-w-0">
+                      {/* Card Content */}
+                      <div className="p-3">
                         <h4 className={cn(
-                          'font-semibold text-sm truncate',
+                          'font-bold text-sm',
                           isSelected ? 'text-orange-400' : 'text-white'
                         )}>
                           {video.name}
                         </h4>
-                        <div className="flex gap-1 mt-1 overflow-hidden">
-                          {video.tags.slice(0, 2).map((tag) => (
+                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                          {video.desc}
+                        </p>
+                        <div className="flex gap-1 mt-2">
+                          {video.tags.map((tag) => (
                             <span
                               key={tag}
                               className={cn(
@@ -428,10 +457,6 @@ export default function ProgramPage() {
                           ))}
                         </div>
                       </div>
-
-                      {isSelected && (
-                        <div className="shrink-0 w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                      )}
                     </button>
                   );
                 })}
