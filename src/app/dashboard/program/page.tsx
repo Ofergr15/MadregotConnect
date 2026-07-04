@@ -81,7 +81,7 @@ export default function ProgramPage() {
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [activeView, setActiveView] = useState<'training' | 'nutrition' | 'workout'>('training');
   const [weekDropdownOpen, setWeekDropdownOpen] = useState(false);
-  const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
+  const [selectedVideoIndex, setSelectedVideoIndex] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<'all' | ExerciseCategory>('all');
 
   const currentWeek = WEEKS[selectedWeek];
@@ -102,6 +102,7 @@ export default function ProgramPage() {
 
   // Navigation between exercises
   const handlePrevious = () => {
+    if (selectedVideoIndex === null) return;
     const currentFilteredIndex = filteredExercises.findIndex((_, i) => WORKOUT_VIDEOS.indexOf(filteredExercises[i]) === selectedVideoIndex);
     if (currentFilteredIndex > 0) {
       setSelectedVideoIndex(WORKOUT_VIDEOS.indexOf(filteredExercises[currentFilteredIndex - 1]));
@@ -109,14 +110,17 @@ export default function ProgramPage() {
   };
 
   const handleNext = () => {
+    if (selectedVideoIndex === null) return;
     const currentFilteredIndex = filteredExercises.findIndex((_, i) => WORKOUT_VIDEOS.indexOf(filteredExercises[i]) === selectedVideoIndex);
     if (currentFilteredIndex < filteredExercises.length - 1) {
       setSelectedVideoIndex(WORKOUT_VIDEOS.indexOf(filteredExercises[currentFilteredIndex + 1]));
     }
   };
 
-  const currentExercise = WORKOUT_VIDEOS[selectedVideoIndex];
-  const currentFilteredIndex = filteredExercises.findIndex((_, i) => WORKOUT_VIDEOS.indexOf(filteredExercises[i]) === selectedVideoIndex);
+  const currentExercise = selectedVideoIndex !== null ? WORKOUT_VIDEOS[selectedVideoIndex] : null;
+  const currentFilteredIndex = selectedVideoIndex !== null
+    ? filteredExercises.findIndex((_, i) => WORKOUT_VIDEOS.indexOf(filteredExercises[i]) === selectedVideoIndex)
+    : -1;
 
   // Tag colors
   const getTagColor = (tag: string): string => {
@@ -249,7 +253,8 @@ export default function ProgramPage() {
       {/* PDF Viewer or Workout Videos */}
       {activeView === 'workout' ? (
         <div className="space-y-3 sm:space-y-5">
-          {/* Video Player — full bleed on mobile */}
+          {/* Video Player — only show after selecting an exercise */}
+          {currentExercise && (
           <div className="bg-slate-800 rounded-xl sm:rounded-xl border border-slate-700 overflow-hidden -mx-4 sm:mx-0 rounded-none sm:rounded-xl border-x-0 sm:border-x">
             {/* Video */}
             <div className="w-full aspect-video bg-slate-900">
@@ -318,6 +323,7 @@ export default function ProgramPage() {
               </div>
             </div>
           </div>
+          )}
 
           {/* Category Filters — horizontal scroll on mobile */}
           <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
