@@ -16,11 +16,11 @@ interface Video {
 const videos: Video[] = [
   {
     id: '1',
-    title: 'Warm Up - Dynamic Stretching',
-    description: 'Full body dynamic warm-up routine before running. Focuses on hip mobility, leg swings, and activation.',
-    driveId: 'PLACEHOLDER_DRIVE_ID_1',
-    duration: '5 min',
-    category: 'Warm Up',
+    title: 'Leg Workout',
+    description: 'Leg strengthening exercises for runners.',
+    driveId: '1tIoIaxDizlgRsNL0H5VK5HdJ2Cw4YBlc',
+    duration: '—',
+    category: 'Strength',
   },
   {
     id: '2',
