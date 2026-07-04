@@ -145,21 +145,65 @@ export default function ProgramPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div>
+      {/* Header — hide on mobile when in workout mode */}
+      <div className={cn(activeView === 'workout' && 'hidden sm:block')}>
         <h1 className="text-2xl font-bold">{t('weeklyProgram')}</h1>
         <p className="text-slate-400 mt-1 text-sm">
           {t('subtitle')}
         </p>
       </div>
 
-      {/* Week Selector + View Toggle — compact row */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        {/* Week Dropdown */}
+      {/* View Toggle — full width on mobile */}
+      <div className="flex flex-col gap-3">
+        {/* Toggle Training / Nutrition / Workout */}
+        <div className="flex gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700 w-full">
+          <button
+            onClick={() => setActiveView('training')}
+            className={cn(
+              'flex-1 px-3 py-2.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1.5',
+              activeView === 'training'
+                ? 'bg-primary-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            )}
+          >
+            <Dumbbell className="h-4 w-4" />
+            <span className="hidden sm:inline">{t('training')}</span>
+            <span className="sm:hidden">Train</span>
+          </button>
+          <button
+            onClick={() => setActiveView('nutrition')}
+            className={cn(
+              'flex-1 px-3 py-2.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1.5',
+              activeView === 'nutrition'
+                ? 'bg-green-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            )}
+          >
+            <Utensils className="h-4 w-4" />
+            <span className="hidden sm:inline">{t('nutrition')}</span>
+            <span className="sm:hidden">Nutri</span>
+          </button>
+          <button
+            onClick={() => setActiveView('workout')}
+            className={cn(
+              'flex-1 px-3 py-2.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1.5',
+              activeView === 'workout'
+                ? 'bg-orange-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            )}
+          >
+            <Play className="h-4 w-4" />
+            <span className="hidden sm:inline">{t('workout')}</span>
+            <span className="sm:hidden">Gym</span>
+          </button>
+        </div>
+
+        {/* Week Dropdown — only show for training/nutrition */}
+        {activeView !== 'workout' && (
         <div className="relative">
           <button
             onClick={() => setWeekDropdownOpen(!weekDropdownOpen)}
-            className="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 hover:border-slate-600 transition-colors min-w-[240px]"
+            className="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 hover:border-slate-600 transition-colors w-full sm:w-auto sm:min-w-[240px]"
           >
             <div className="flex-1 text-start">
               <div className="font-semibold text-white">{currentWeek.weekLabel}</div>
@@ -201,46 +245,7 @@ export default function ProgramPage() {
             </>
           )}
         </div>
-
-        {/* Toggle Training / Nutrition / Workout */}
-        <div className="flex gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700">
-          <button
-            onClick={() => setActiveView('training')}
-            className={cn(
-              'px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2',
-              activeView === 'training'
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700'
-            )}
-          >
-            <Dumbbell className="h-4 w-4" />
-            {t('training')}
-          </button>
-          <button
-            onClick={() => setActiveView('nutrition')}
-            className={cn(
-              'px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2',
-              activeView === 'nutrition'
-                ? 'bg-green-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700'
-            )}
-          >
-            <Utensils className="h-4 w-4" />
-            {t('nutrition')}
-          </button>
-          <button
-            onClick={() => setActiveView('workout')}
-            className={cn(
-              'px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2',
-              activeView === 'workout'
-                ? 'bg-orange-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700'
-            )}
-          >
-            <Play className="h-4 w-4" />
-            {t('workout')}
-          </button>
-        </div>
+        )}
       </div>
 
       {/* PDF Viewer or Workout Videos */}
@@ -249,55 +254,54 @@ export default function ProgramPage() {
           {/* Video Player with Navigation */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
             {/* Video Header with Controls */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
-              <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-bold text-white truncate">{currentExercise.name}</h3>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {currentExercise.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className={cn(
-                        'text-xs px-2 py-0.5 rounded-full border font-medium',
-                        getTagColor(tag)
-                      )}
-                    >
-                      {tag}
-                    </span>
-                  ))}
+            <div className="px-4 py-3 border-b border-slate-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base sm:text-lg font-bold text-white truncate">{currentExercise.name}</h3>
+                {/* Navigation Controls */}
+                <div className="flex items-center gap-1.5 shrink-0 ms-3">
+                  <button
+                    onClick={handlePrevious}
+                    disabled={currentFilteredIndex === 0}
+                    className={cn(
+                      'p-2 rounded-lg transition-all',
+                      currentFilteredIndex === 0
+                        ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                        : 'bg-slate-700 text-white hover:bg-slate-600 active:scale-95'
+                    )}
+                    aria-label={t('previous')}
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <span className="text-xs sm:text-sm text-slate-400 font-medium min-w-[40px] text-center">
+                    {currentFilteredIndex + 1}/{filteredExercises.length}
+                  </span>
+                  <button
+                    onClick={handleNext}
+                    disabled={currentFilteredIndex === filteredExercises.length - 1}
+                    className={cn(
+                      'p-2 rounded-lg transition-all',
+                      currentFilteredIndex === filteredExercises.length - 1
+                        ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                        : 'bg-slate-700 text-white hover:bg-slate-600 active:scale-95'
+                    )}
+                    aria-label={t('next')}
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
                 </div>
               </div>
-
-              {/* Navigation Controls */}
-              <div className="flex items-center gap-2 ml-4">
-                <button
-                  onClick={handlePrevious}
-                  disabled={currentFilteredIndex === 0}
-                  className={cn(
-                    'p-2 rounded-lg transition-all',
-                    currentFilteredIndex === 0
-                      ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                      : 'bg-slate-700 text-white hover:bg-slate-600 active:scale-95'
-                  )}
-                  aria-label={t('previous')}
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <span className="text-sm text-slate-400 font-medium min-w-[60px] text-center">
-                  {currentFilteredIndex + 1} / {filteredExercises.length}
-                </span>
-                <button
-                  onClick={handleNext}
-                  disabled={currentFilteredIndex === filteredExercises.length - 1}
-                  className={cn(
-                    'p-2 rounded-lg transition-all',
-                    currentFilteredIndex === filteredExercises.length - 1
-                      ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                      : 'bg-slate-700 text-white hover:bg-slate-600 active:scale-95'
-                  )}
-                  aria-label={t('next')}
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                {currentExercise.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className={cn(
+                      'text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full border font-medium',
+                      getTagColor(tag)
+                    )}
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
             </div>
 
@@ -315,20 +319,9 @@ export default function ProgramPage() {
 
           {/* Exercise Library */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-            {/* Library Header */}
-            <div className="px-5 py-4 border-b border-slate-700">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Dumbbell className="h-5 w-5 text-orange-400" />
-                  <h3 className="text-lg font-bold text-white">{t('exerciseLibrary')}</h3>
-                </div>
-                <span className="text-sm text-slate-400 font-medium">
-                  {filteredExercises.length} {t('exercises')}
-                </span>
-              </div>
-
-              {/* Category Filters */}
-              <div className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5 scrollbar-hide">
+            {/* Category Filters */}
+            <div className="px-3 sm:px-5 py-3 border-b border-slate-700">
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 <button
                   onClick={() => setCategoryFilter('all')}
                   className={cn(
@@ -388,9 +381,9 @@ export default function ProgramPage() {
               </div>
             </div>
 
-            {/* Exercise Grid */}
-            <div className="p-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Exercise List */}
+            <div className="p-3 sm:p-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                 {filteredExercises.map((video) => {
                   const globalIndex = WORKOUT_VIDEOS.indexOf(video);
                   const isSelected = globalIndex === selectedVideoIndex;
@@ -400,46 +393,44 @@ export default function ProgramPage() {
                       key={video.id}
                       onClick={() => setSelectedVideoIndex(globalIndex)}
                       className={cn(
-                        'p-4 rounded-xl border-2 transition-all text-start group hover:scale-[1.02] active:scale-[0.98]',
+                        'px-4 py-3 rounded-xl border-2 transition-all text-start flex items-center gap-3 active:scale-[0.97]',
                         isSelected
-                          ? 'border-orange-500 bg-orange-500/10 shadow-lg shadow-orange-500/20'
-                          : 'border-slate-700 bg-slate-700/30 hover:border-slate-600 hover:bg-slate-700/50'
+                          ? 'border-orange-500 bg-orange-500/10'
+                          : 'border-slate-700 bg-slate-700/30 hover:border-slate-600'
                       )}
                     >
-                      {/* Exercise Name */}
-                      <div className="flex items-start justify-between gap-2 mb-3">
+                      {/* Play icon */}
+                      <div className={cn(
+                        'w-10 h-10 rounded-full flex items-center justify-center shrink-0',
+                        isSelected ? 'bg-orange-500' : 'bg-slate-600'
+                      )}>
+                        <Play className={cn('h-4 w-4', isSelected ? 'text-white' : 'text-slate-300')} />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
                         <h4 className={cn(
-                          'font-bold text-base leading-tight',
-                          isSelected ? 'text-orange-400' : 'text-white group-hover:text-orange-400 transition-colors'
+                          'font-semibold text-sm truncate',
+                          isSelected ? 'text-orange-400' : 'text-white'
                         )}>
                           {video.name}
                         </h4>
-                        {isSelected && (
-                          <div className="shrink-0 w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                        )}
-                      </div>
-
-                      {/* Tags */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {video.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className={cn(
-                              'text-xs px-2 py-1 rounded-md border font-medium transition-all',
-                              getTagColor(tag)
-                            )}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Play Indicator */}
-                      {isSelected && (
-                        <div className="flex items-center gap-1.5 mt-3 text-orange-400">
-                          <Play className="h-3.5 w-3.5" />
-                          <span className="text-xs font-medium">{t('nowPlaying')}</span>
+                        <div className="flex gap-1 mt-1 overflow-hidden">
+                          {video.tags.slice(0, 2).map((tag) => (
+                            <span
+                              key={tag}
+                              className={cn(
+                                'text-[10px] px-1.5 py-0.5 rounded border font-medium',
+                                getTagColor(tag)
+                              )}
+                            >
+                              {tag}
+                            </span>
+                          ))}
                         </div>
+                      </div>
+
+                      {isSelected && (
+                        <div className="shrink-0 w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                       )}
                     </button>
                   );
