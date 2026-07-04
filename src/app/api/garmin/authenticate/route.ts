@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ success: true, auth: encryptedAuth });
   } catch (error: any) {
-    console.error('Garmin auth error:', error?.message);
+    console.error('Garmin auth error:', error?.message, error?.response?.status, error?.response?.data?.substring?.(0, 300));
     return NextResponse.json(
       { error: 'Authentication failed. Please try again.' },
       { status: 500 }
