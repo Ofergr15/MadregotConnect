@@ -94,14 +94,20 @@ export function Header() {
     }
 
     if (athleteId) {
-      const supabaseClient = getSupabase();
-      supabaseClient.from('athletes').select('garmin_auth').eq('id', athleteId).single()
-        .then(({ data }) => { setHasGarmin(!!data?.garmin_auth); });
       fetch('/api/groups').then(r => r.ok ? r.json() : null)
         .then(data => { if (data) setAvailableGroups(data.groups || data || []); })
         .catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    const athleteId = localStorage.getItem('athlete_id');
+    if (athleteId) {
+      const supabaseClient = getSupabase();
+      supabaseClient.from('athletes').select('garmin_auth').eq('id', athleteId).single()
+        .then(({ data }) => { setHasGarmin(!!data?.garmin_auth); });
+    }
+  }, [pathname]);
 
   useEffect(() => {
     if (!userEmail) return;
