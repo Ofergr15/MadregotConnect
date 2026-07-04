@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GarminClient } from '@/lib/garmin/client';
+import { garminLogin, garminVerifyMfa } from '@/lib/garmin/auth-mfa';
 import { encrypt } from '@/lib/encryption';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    const { email, password, mfaCode, sessionId } = await req.json();
 
+    // MFA verification step
+    if (mfaCode && sessionId) {
+      const result = await garminVerifyMfa(sessionId, mfaCode);
+      if ('error' in result) {
+        return NextResponse.json({ error: result.error }, { status: 401 });
+      }
+      const encryptedAuth = encrypt({
+        email,
+        tokens: result.tokens,
+        lastAuth: new Date().toISOString(),
+      });
+      return NextResponse.json({ success: true, auth: encryptedAuth });
+    }
+
+    // Initial login step
     if (!email || !password) {
       return NextResponse.json(
         { error: 'Email and password are required' },
@@ -13,31 +28,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const auth = await GarminClient.authenticate(email, password);
-    const encryptedAuth = encrypt(auth);
+    const result = await garminLogin(email, password);
 
-    return NextResponse.json({
-      success: true,
-      auth: encryptedAuth,
+    if ('error' in result) {
+      const status = result.error.includes('locked') ? 429 : 401;
+      return NextResponse.json({ error: result.error }, { status });
+    }
+
+    if ('mfaRequired' in result) {
+      return NextResponse.json({
+        mfaRequired: true,
+        sessionId: result.sessionId,
+      });
+    }
+
+    const encryptedAuth = encrypt({
+      email,
+      tokens: result.tokens,
+      lastAuth: new Date().toISOString(),
     });
+    return NextResponse.json({ success: true, auth: encryptedAuth });
   } catch (error: any) {
-    console.error('Garmin auth error:', { message: error?.message, cause: error?.cause, stack: error?.stack });
-    const msg = error?.message?.toLowerCase() || '';
-    if (msg.includes('locked') || msg.includes('too many')) {
-      return NextResponse.json(
-        { error: 'Account temporarily locked due to too many attempts. Wait a few minutes and try again.' },
-        { status: 429 }
-      );
-    }
-    if (msg.includes('mfa') || msg.includes('two-factor')) {
-      return NextResponse.json(
-        { error: 'Garmin account has MFA/2FA enabled. Please disable 2FA in Garmin Connect settings and try again.' },
-        { status: 401 }
-      );
-    }
+    console.error('Garmin auth error:', error?.message);
     return NextResponse.json(
-      { error: 'Wrong email or password. Please double-check your Garmin credentials and try again.', detail: error?.message || 'Unknown error' },
-      { status: 401 }
+      { error: 'Authentication failed. Please try again.' },
+      { status: 500 }
     );
   }
 }

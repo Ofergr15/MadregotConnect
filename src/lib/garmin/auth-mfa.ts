@@ -1,0 +1,267 @@
+import axios, { AxiosInstance } from 'axios';
+import qs from 'qs';
+import crypto from 'crypto';
+
+const CSRF_RE = /name="_csrf"\s+value="(.+?)"/;
+const TICKET_RE = /ticket=([^"]+)"/;
+const MFA_RE = /id="verification-code"|name="verificationCode"|MFA Challenge/i;
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36';
+const OAUTH_CONSUMER_URL = 'https://thegarth.s3.amazonaws.com/oauth_consumer.json';
+
+const SSO_ORIGIN = 'https://sso.garmin.com';
+const SSO_EMBED = `${SSO_ORIGIN}/sso/embed`;
+const SIGNIN_URL = `${SSO_ORIGIN}/sso/signin`;
+const GC_MODERN = 'https://connect.garmin.com/modern';
+const OAUTH_URL = 'https://connectapi.garmin.com/oauth-service/oauth';
+
+interface MfaSession {
+  cookies: string[];
+  csrf: string;
+  signinParams: string;
+}
+
+// In-memory store for MFA sessions (short-lived)
+const mfaSessions = new Map<string, { session: MfaSession; expires: number }>();
+
+function extractCookies(response: any): string[] {
+  const setCookies = response.headers?.['set-cookie'] || [];
+  return Array.isArray(setCookies) ? setCookies : [setCookies];
+}
+
+function cookieHeader(allCookies: string[]): string {
+  return allCookies
+    .map(c => c.split(';')[0])
+    .join('; ');
+}
+
+export async function garminLogin(email: string, password: string): Promise<
+  | { success: true; tokens: { oauth1: any; oauth2: any } }
+  | { mfaRequired: true; sessionId: string }
+  | { error: string }
+> {
+  try {
+    const client = axios.create({
+      maxRedirects: 0,
+      validateStatus: (s) => s < 400 || s === 302,
+    });
+
+    let allCookies: string[] = [];
+
+    // Step 1: Get SSO page + cookies
+    const step1Params = { clientId: 'GarminConnect', locale: 'en', service: GC_MODERN };
+    const step1Url = `${SSO_EMBED}?${qs.stringify(step1Params)}`;
+    const step1 = await client.get(step1Url);
+    allCookies.push(...extractCookies(step1));
+
+    // Step 2: Get signin page + CSRF
+    const step2Params = { id: 'gauth-widget', embedWidget: true, locale: 'en', gauthHost: SSO_EMBED };
+    const step2Url = `${SIGNIN_URL}?${qs.stringify(step2Params)}`;
+    const step2 = await client.get(step2Url, {
+      headers: { Cookie: cookieHeader(allCookies), 'User-Agent': USER_AGENT },
+    });
+    allCookies.push(...extractCookies(step2));
+
+    const csrfMatch = CSRF_RE.exec(step2.data);
+    if (!csrfMatch) throw new Error('CSRF token not found');
+    const csrf = csrfMatch[1];
+
+    // Step 3: Submit credentials
+    const signinParams = {
+      id: 'gauth-widget',
+      embedWidget: true,
+      clientId: 'GarminConnect',
+      locale: 'en',
+      gauthHost: SSO_EMBED,
+      service: SSO_EMBED,
+      source: SSO_EMBED,
+      redirectAfterAccountLoginUrl: SSO_EMBED,
+      redirectAfterAccountCreationUrl: SSO_EMBED,
+    };
+    const step3Url = `${SIGNIN_URL}?${qs.stringify(signinParams)}`;
+
+    const formData = qs.stringify({
+      username: email,
+      password: password,
+      embed: 'true',
+      _csrf: csrf,
+    });
+
+    const step3 = await client.post(step3Url, formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Cookie: cookieHeader(allCookies),
+        Dnt: '1',
+        Origin: SSO_ORIGIN,
+        Referer: SIGNIN_URL,
+        'User-Agent': USER_AGENT,
+      },
+    });
+    allCookies.push(...extractCookies(step3));
+
+    const html = step3.data;
+
+    // Check for account locked
+    if (html.includes('locked') || html.includes('too many')) {
+      return { error: 'Account temporarily locked. Wait a few minutes and try again.' };
+    }
+
+    // Check for MFA
+    if (MFA_RE.test(html)) {
+      // Extract new CSRF for MFA submission
+      const mfaCsrf = CSRF_RE.exec(html);
+      const sessionId = crypto.randomBytes(16).toString('hex');
+
+      mfaSessions.set(sessionId, {
+        session: {
+          cookies: allCookies,
+          csrf: mfaCsrf ? mfaCsrf[1] : csrf,
+          signinParams: qs.stringify(signinParams),
+        },
+        expires: Date.now() + 5 * 60 * 1000, // 5 min expiry
+      });
+
+      return { mfaRequired: true, sessionId };
+    }
+
+    // No MFA — extract ticket directly
+    const ticketMatch = TICKET_RE.exec(html);
+    if (!ticketMatch) {
+      if (html.includes('incorrect') || html.includes('Invalid')) {
+        return { error: 'Wrong email or password.' };
+      }
+      return { error: 'Login failed. Please check your credentials.' };
+    }
+
+    const ticket = ticketMatch[1];
+    const tokens = await exchangeTicketForTokens(ticket);
+    return { success: true, tokens };
+  } catch (err: any) {
+    return { error: err.message || 'Authentication failed' };
+  }
+}
+
+export async function garminVerifyMfa(sessionId: string, code: string): Promise<
+  | { success: true; tokens: { oauth1: any; oauth2: any } }
+  | { error: string }
+> {
+  try {
+    const stored = mfaSessions.get(sessionId);
+    if (!stored || Date.now() > stored.expires) {
+      mfaSessions.delete(sessionId);
+      return { error: 'MFA session expired. Please start login again.' };
+    }
+
+    const { cookies, csrf, signinParams } = stored.session;
+    mfaSessions.delete(sessionId);
+
+    const client = axios.create({
+      maxRedirects: 0,
+      validateStatus: (s) => s < 400 || s === 302,
+    });
+
+    // Submit MFA verification code
+    const verifyUrl = `${SIGNIN_URL}/verifyMFA/loginEnterMfaCode?${signinParams}`;
+    const formData = qs.stringify({
+      'verification-code': code,
+      verificationCode: code,
+      _csrf: csrf,
+      embed: 'true',
+    });
+
+    const verifyRes = await client.post(verifyUrl, formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Cookie: cookieHeader(cookies),
+        Origin: SSO_ORIGIN,
+        Referer: SIGNIN_URL,
+        'User-Agent': USER_AGENT,
+      },
+    });
+
+    const allCookies = [...cookies, ...extractCookies(verifyRes)];
+    let html = verifyRes.data;
+
+    // Some flows redirect — follow if needed
+    if (verifyRes.status === 302) {
+      const location = verifyRes.headers.location;
+      if (location) {
+        const followRes = await client.get(location, {
+          headers: { Cookie: cookieHeader(allCookies), 'User-Agent': USER_AGENT },
+        });
+        html = followRes.data;
+      }
+    }
+
+    const ticketMatch = TICKET_RE.exec(html);
+    if (!ticketMatch) {
+      if (html.includes('incorrect') || html.includes('Invalid') || html.includes('invalid')) {
+        return { error: 'Invalid verification code. Please try again.' };
+      }
+      return { error: 'MFA verification failed. Please start login again.' };
+    }
+
+    const ticket = ticketMatch[1];
+    const tokens = await exchangeTicketForTokens(ticket);
+    return { success: true, tokens };
+  } catch (err: any) {
+    return { error: err.message || 'MFA verification failed' };
+  }
+}
+
+async function exchangeTicketForTokens(ticket: string): Promise<{ oauth1: any; oauth2: any }> {
+  // Fetch OAuth consumer credentials
+  const consumerRes = await axios.get(OAUTH_CONSUMER_URL);
+  const consumer = consumerRes.data;
+
+  // Get OAuth1 token
+  const OAuth = require('oauth-1.0a');
+  const oauth = new OAuth({
+    consumer: { key: consumer.consumer_key, secret: consumer.consumer_secret },
+    signature_method: 'HMAC-SHA1',
+    hash_function(baseString: string, key: string) {
+      return crypto.createHmac('sha1', key).update(baseString).digest('base64');
+    },
+  });
+
+  const preAuthParams = {
+    ticket,
+    'login-url': SSO_EMBED,
+    'accepts-mfa-tokens': true,
+  };
+  const preAuthUrl = `${OAUTH_URL}/preauthorized?${qs.stringify(preAuthParams)}`;
+  const requestData = { url: preAuthUrl, method: 'GET' };
+  const oauthHeaders = oauth.toHeader(oauth.authorize(requestData));
+
+  const oauth1Res = await axios.get(preAuthUrl, {
+    headers: { ...oauthHeaders, 'User-Agent': 'com.garmin.android.apps.connectmobile' },
+  });
+  const oauth1 = qs.parse(oauth1Res.data);
+
+  // Exchange for OAuth2
+  const exchangeUrl = `${OAUTH_URL}/exchange/user/2.0`;
+  const exchangeOauth = new OAuth({
+    consumer: { key: consumer.consumer_key, secret: consumer.consumer_secret },
+    signature_method: 'HMAC-SHA1',
+    hash_function(baseString: string, key: string) {
+      return crypto.createHmac('sha1', key).update(baseString).digest('base64');
+    },
+  });
+
+  const exchangeRequestData = { url: exchangeUrl, method: 'POST' };
+  const token = { key: oauth1.oauth_token as string, secret: oauth1.oauth_token_secret as string };
+  const exchangeHeaders = exchangeOauth.toHeader(exchangeOauth.authorize(exchangeRequestData, token));
+
+  const oauth2Res = await axios.post(exchangeUrl, null, {
+    headers: { ...exchangeHeaders, 'User-Agent': 'com.garmin.android.apps.connectmobile', 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+
+  return { oauth1, oauth2: oauth2Res.data };
+}
+
+// Cleanup expired sessions periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, data] of mfaSessions.entries()) {
+    if (now > data.expires) mfaSessions.delete(id);
+  }
+}, 60000);

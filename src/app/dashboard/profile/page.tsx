@@ -70,6 +70,9 @@ export default function ProfilePage() {
   const [garminEmail, setGarminEmail] = useState('');
   const [garminPassword, setGarminPassword] = useState('');
   const [garminError, setGarminError] = useState<string | null>(null);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaSessionId, setMfaSessionId] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [hasActivities, setHasActivities] = useState(false);
@@ -378,30 +381,61 @@ export default function ProfilePage() {
                   onChange={e => setGarminEmail(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4338ff]/50"
                 />
-                <input
-                  type="password"
-                  placeholder="Garmin password"
-                  value={garminPassword}
-                  onChange={e => setGarminPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4338ff]/50"
-                />
+                {!mfaRequired && (
+                  <input
+                    type="password"
+                    placeholder="Garmin password"
+                    value={garminPassword}
+                    onChange={e => setGarminPassword(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4338ff]/50"
+                  />
+                )}
+                {mfaRequired && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-amber-400">A verification code was sent to your email. Enter it below:</p>
+                    <input
+                      type="text"
+                      placeholder="6-digit code"
+                      value={mfaCode}
+                      onChange={e => setMfaCode(e.target.value)}
+                      maxLength={6}
+                      className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-amber-500/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-center text-lg tracking-widest"
+                    />
+                  </div>
+                )}
                 {garminError && (
                   <p className="text-xs text-red-400">{garminError}</p>
                 )}
                 <button
                   onClick={async () => {
-                    if (!garminEmail || !garminPassword) return;
                     setGarminError(null);
                     setConnectingGarmin(true);
                     try {
-                      const authRes = await fetch('/api/garmin/authenticate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: garminEmail, password: garminPassword }),
-                      });
+                      let authRes;
+                      if (mfaRequired && mfaCode) {
+                        authRes = await fetch('/api/garmin/authenticate', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
+                        });
+                      } else {
+                        if (!garminEmail || !garminPassword) return;
+                        authRes = await fetch('/api/garmin/authenticate', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: garminEmail, password: garminPassword }),
+                        });
+                      }
                       const authData = await authRes.json();
+                      if (authData.mfaRequired) {
+                        setMfaRequired(true);
+                        setMfaSessionId(authData.sessionId);
+                        setConnectingGarmin(false);
+                        return;
+                      }
                       if (!authRes.ok) {
                         setGarminError(authData.error || 'Authentication failed');
+                        setConnectingGarmin(false);
                         return;
                       }
                       const connectRes = await fetch('/api/athletes/connect', {
@@ -412,20 +446,24 @@ export default function ProfilePage() {
                       if (connectRes.ok) {
                         setHasGarmin(true);
                         setConnectingGarmin(false);
+                        setMfaRequired(false);
+                        setMfaCode('');
                         setGarminEmail('');
                         setGarminPassword('');
                       } else {
                         setGarminError('Failed to save connection');
+                        setConnectingGarmin(false);
                       }
                     } catch {
                       setGarminError('Connection failed. Try again.');
+                      setConnectingGarmin(false);
                     }
                   }}
-                  disabled={!garminEmail || !garminPassword}
+                  disabled={mfaRequired ? !mfaCode : (!garminEmail || !garminPassword)}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                 >
                   <Watch className="h-4 w-4" />
-                  Connect Garmin
+                  {mfaRequired ? 'Verify Code' : 'Connect Garmin'}
                 </button>
               </div>
             )}
