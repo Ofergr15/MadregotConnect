@@ -115,13 +115,8 @@ export async function POST(req: NextRequest) {
       .select('id')
       .single();
 
-    // Notify admin of new user
-    try {
-      const { notifyAdminNewUser } = await import('@/lib/email');
-      await notifyAdminNewUser({ name: name || lowerEmail, email: lowerEmail, onboardingStatus: 'google_authed', hasGarmin: false });
-    } catch (emailErr) {
-      console.error('Failed to send admin notification email:', emailErr);
-    }
+    // Email notification moved to /api/athletes/connect — fires only after
+    // Garmin auth completes or user presses "I'll connect later"
 
     return NextResponse.json({
       role: 'runner',
