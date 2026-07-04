@@ -253,12 +253,24 @@ export function Header() {
             )}
 
             {isAthlete && hasGarmin !== null && (
-              <div className={cn('relative group p-2 rounded-lg', hasGarmin ? 'text-emerald-400' : 'text-red-400')}>
-                <Watch className="h-4.5 w-4.5" />
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
-                  {hasGarmin ? 'Garmin Connected' : 'Garmin Not Connected'}
-                </span>
-              </div>
+              hasGarmin ? (
+                <div className="relative group p-2 rounded-lg text-emerald-400">
+                  <Watch className="h-4.5 w-4.5" />
+                  <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                    Garmin Connected
+                  </span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => router.push('/dashboard/profile?connectGarmin=1')}
+                  className="relative group p-2 rounded-lg text-red-400 hover:text-red-300 transition-colors"
+                >
+                  <Watch className="h-4.5 w-4.5" />
+                  <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                    Tap to connect Garmin
+                  </span>
+                </button>
+              )
             )}
 
             <div className="relative">
