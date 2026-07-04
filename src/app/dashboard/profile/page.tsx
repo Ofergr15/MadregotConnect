@@ -90,6 +90,7 @@ function ProfileContent() {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncModalStatus, setSyncModalStatus] = useState<'syncing' | 'done'>('syncing');
   const [syncModalCount, setSyncModalCount] = useState(0);
+  const [hasSynced, setHasSynced] = useState(false);
   const garminSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -236,7 +237,7 @@ function ProfileContent() {
 
       {/* Profile Hero */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#4338ff]/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-[#4338ff]/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+        <div className="absolute top-0 end-0 w-32 h-32 bg-[#4338ff]/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
         <div className="relative flex items-center gap-4">
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#4338ff] to-[#3730d4] flex items-center justify-center shadow-lg shadow-[#4338ff]/20">
             <span className="text-xl font-bold text-white">{initials}</span>
@@ -523,6 +524,7 @@ function ProfileContent() {
                           }
                         } catch {}
                         setSyncModalStatus('done');
+                        setHasSynced(true);
                       } else {
                         setGarminError('Failed to save connection');
                       }
@@ -613,7 +615,7 @@ function ProfileContent() {
         )}
 
         {/* Manual Sync button - only for Strava if Garmin already has activities */}
-        {(hasStrava || (hasGarmin && !hasActivities)) && (
+        {!hasSynced && (hasStrava || (hasGarmin && !hasActivities)) && (
           <div className="mt-4 pt-4 border-t border-slate-700/30">
             <button
               onClick={async () => {
