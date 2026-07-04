@@ -7,25 +7,36 @@ export function GarminReminderPopup() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
+    if (window.location.pathname.includes('/profile')) return;
+
+    const role = localStorage.getItem('role');
+    if (role === 'admin' || role === 'coach') return;
+
     const athleteId = localStorage.getItem('athlete_id');
     if (!athleteId) return;
 
     const dismissed = localStorage.getItem('garmin_reminder_dismissed');
     if (dismissed === 'forever') return;
 
+    const sessionDismissed = sessionStorage.getItem('garmin_reminder_dismissed_session');
+    if (sessionDismissed) return;
+
+    let mounted = true;
     fetch(`/api/athletes/me?id=${athleteId}`)
       .then(res => res.json())
       .then(data => {
-        if (data.athlete && !data.athlete.hasGarmin) {
+        if (mounted && data.athlete && !data.athlete.hasGarmin) {
           setShow(true);
         }
       })
       .catch(() => {});
+    return () => { mounted = false; };
   }, []);
 
   if (!show) return null;
 
   const handleRemindLater = () => {
+    sessionStorage.setItem('garmin_reminder_dismissed_session', '1');
     setShow(false);
   };
 
@@ -35,6 +46,7 @@ export function GarminReminderPopup() {
   };
 
   const handleConnect = () => {
+    sessionStorage.setItem('garmin_reminder_dismissed_session', '1');
     window.location.href = '/dashboard/profile?connectGarmin=1';
   };
 
