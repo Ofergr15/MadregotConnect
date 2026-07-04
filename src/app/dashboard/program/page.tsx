@@ -46,20 +46,10 @@ const WEEKS: WeekProgram[] = [
 ];
 
 const WORKOUT_VIDEOS = [
-  '4c4a6f41-9d8a-43b1-822a-8cb6290800fc',
-  '4f960cb4-abe2-4468-966a-4e2942a2599f',
-  '6c6ee794-3d71-44d0-93bb-7d1bd0a8b710',
-  '8daaa47b-6854-486f-a264-db580d45fe3c',
-  '53a2e96e-e299-412d-90bb-b5f68026020b',
-  '395e172f-bee6-45e0-ae3e-4dd5dfa3192c',
-  '8883bb41-1c28-4cde-94ea-15b01fe48bd9',
-  '99734d04-30a6-4adc-84cc-88764bbca100',
-  '998915c3-fcee-4b2b-ba97-0b7dacaa4200',
-  'a7f7d040-c3f0-4a6a-89a0-b7849b2f8ceb',
-  'a8e5e504-d4de-49c0-90a8-f7a095868bee',
-  'add39bbf-5d69-40cc-b5df-1285ae4bfea8',
-  'b72f0c85-84ac-48ad-831c-5c9e42693e13',
-  'c2a40b6e-343f-432b-aa63-ed06b56874b2',
+  '1mYmpxjSjzRiEdaPzuPDQwm1qzJO3SNOC',
+  '1O_dNYkt86r7ZrEjL9qmWi1HPNMAPCR_a',
+  '1DyxyrjAaTX2gbsCY7d33Iz3hRWs4mESH',
+  '133UK4QjplTNIsUBHrRp4OwYBnnPApCZk',
   '1tIoIaxDizlgRsNL0H5VK5HdJ2Cw4YBlc',
 ];
 
