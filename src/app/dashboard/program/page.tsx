@@ -50,6 +50,18 @@ const WORKOUT_VIDEOS = [
   '1O_dNYkt86r7ZrEjL9qmWi1HPNMAPCR_a',
   '1DyxyrjAaTX2gbsCY7d33Iz3hRWs4mESH',
   '133UK4QjplTNIsUBHrRp4OwYBnnPApCZk',
+  '1RTRPVJNviLCnfBTmYDlwCYuWnrDj2_kI',
+  '1egI6kI8qAfuWgu67Te9twkWZRD1MKJYU',
+  '16oYlgqVxAh_LvejOQZf4Pc69aHM8XNFQ',
+  '1lggSCQcqpfMrpFoZv6QSzmW2CX_7ttGq',
+  '1d-6cNIuLvJ83cE9cNasN2Z_7kWGFIVoA',
+  '1KPnhOu8yegX8Tj2KUqzb0PMA0PaXOfEf',
+  '1PT4JyGjDwQEDjCzV8lGDP_AGZfJR1Hix',
+  '1d29Y6KsBzcGOERF1hvtBQ75Cnaz4hjJa',
+  '1M_AkiLylOcbybvBg2X-ALBGuPbF8A5MT',
+  '1p9Shn1UBipPtTbsuC21MskgKBhah8fxx',
+  '1c581iETVjs9GytI95T6iwN_bW_7k4_N6',
+  '10GWulniGD9EfbaJep6o5Cp1W_uBQmmtJ',
   '1tIoIaxDizlgRsNL0H5VK5HdJ2Cw4YBlc',
 ];
 
