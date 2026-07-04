@@ -1,19 +1,21 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
 
 const categories = [
-  { value: 'feature_request' as FeedbackCategory, label: 'Feature Request', icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
-  { value: 'bug_report' as FeedbackCategory, label: 'Bug Report', icon: Bug, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' },
-  { value: 'training_feedback' as FeedbackCategory, label: 'Training Feedback', icon: Dumbbell, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
-  { value: 'general' as FeedbackCategory, label: 'General', icon: MessageCircle, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30' },
+  { value: 'feature_request' as FeedbackCategory, labelKey: 'featureRequest' as const, icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
+  { value: 'bug_report' as FeedbackCategory, labelKey: 'bugReport' as const, icon: Bug, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' },
+  { value: 'training_feedback' as FeedbackCategory, labelKey: 'trainingFeedback' as const, icon: Dumbbell, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
+  { value: 'general' as FeedbackCategory, labelKey: 'general' as const, icon: MessageCircle, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30' },
 ];
 
 export default function ReviewPage() {
+  const t = useTranslations('review');
   const [message, setMessage] = useState('');
   const [category, setCategory] = useState<FeedbackCategory>('general');
   const [sending, setSending] = useState(false);
@@ -93,15 +95,15 @@ export default function ReviewPage() {
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#4338ff]/10 border border-[#4338ff]/20 mb-4">
           <MessageSquare className="h-7 w-7 text-[#4338ff]" />
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white">Feedback & Suggestions</h1>
+        <h1 className="text-2xl sm:text-3xl font-black text-white">{t('title')}</h1>
         <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
-          Share your thoughts, ideas, or anything you&apos;d like to improve in the training experience.
+          {t('subtitle')}
         </p>
       </div>
 
       <div className="bg-slate-800/40 rounded-2xl border border-slate-700/30 p-5 sm:p-6">
         <div className="mb-4">
-          <label className="text-xs font-semibold text-slate-400 mb-2.5 block">Category</label>
+          <label className="text-xs font-semibold text-slate-400 mb-2.5 block">{t('category')}</label>
           <div className="grid grid-cols-2 gap-2">
             {categories.map(cat => {
               const Icon = cat.icon;
@@ -118,7 +120,7 @@ export default function ReviewPage() {
                   )}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{cat.label}</span>
+                  <span className="truncate">{t(cat.labelKey)}</span>
                 </button>
               );
             })}
@@ -128,7 +130,7 @@ export default function ReviewPage() {
         <textarea
           value={message}
           onChange={e => setMessage(e.target.value)}
-          placeholder="What's on your mind? Training feedback, feature ideas, anything..."
+          placeholder={t('placeholder')}
           rows={6}
           className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#4338ff]/50 focus:border-[#4338ff]/50 transition-all"
         />
@@ -158,8 +160,8 @@ export default function ReviewPage() {
           )}
         >
           <Camera className="h-8 w-8" />
-          <span className="text-lg font-semibold">{imagePreview ? 'Change Screenshot' : 'Attach a Screenshot'}</span>
-          <span className="text-xs text-slate-500">Drag & drop an image here or tap to browse</span>
+          <span className="text-lg font-semibold">{imagePreview ? t('changeScreenshot') : t('attachScreenshot')}</span>
+          <span className="text-xs text-slate-500">{t('dragDrop')}</span>
         </div>
         <input
           ref={fileInputRef}
@@ -176,7 +178,7 @@ export default function ReviewPage() {
         <div className="flex items-center justify-between mt-4">
           <div className="flex items-center gap-3">
             <p className="text-xs text-slate-500">
-              <span className="text-slate-300 font-medium">{athleteName || 'Anonymous'}</span>
+              <span className="text-slate-300 font-medium">{athleteName || t('anonymous')}</span>
               {groupName && <span className="text-slate-500"> · {groupName}</span>}
             </p>
           </div>
@@ -195,14 +197,14 @@ export default function ReviewPage() {
             ) : (
               <Send className="h-4 w-4" />
             )}
-            Send
+            {t('send')}
           </button>
         </div>
 
         {sent && (
           <div className="mt-4 flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
             <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-            <span>Thank you! Your feedback has been submitted.</span>
+            <span>{t('thankYou')}</span>
           </div>
         )}
       </div>

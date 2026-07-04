@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Dumbbell, Play, X, ChevronDown } from 'lucide-react';
 
 interface Video {
@@ -64,9 +65,10 @@ const videos: Video[] = [
   },
 ];
 
-const categories = ['All', ...Array.from(new Set(videos.map(v => v.category)))];
+const categoryKeys = ['All', 'Strength', 'Activation', 'Recovery', 'Power'];
 
 export default function PracticePage() {
+  const t = useTranslations('practice');
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [filter, setFilter] = useState('All');
 
@@ -79,15 +81,15 @@ export default function PracticePage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Dumbbell className="h-6 w-6 text-primary-400" />
-            Practice
+            {t('title')}
           </h1>
-          <p className="text-slate-400 mt-1">Leg workouts and exercises to complement your running</p>
+          <p className="text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
       </div>
 
       {/* Category Filter */}
       <div className="flex gap-2 flex-wrap">
-        {categories.map(cat => (
+        {categoryKeys.map(cat => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
@@ -97,7 +99,7 @@ export default function PracticePage() {
                 : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
             }`}
           >
-            {cat}
+            {t(cat.toLowerCase() as any)}
           </button>
         ))}
       </div>
@@ -161,7 +163,7 @@ export default function PracticePage() {
                 <div className="w-full h-full flex items-center justify-center text-slate-500">
                   <div className="text-center">
                     <Dumbbell className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">Video coming soon</p>
+                    <p className="text-sm">{t('videoComingSoon')}</p>
                     <p className="text-xs mt-1 text-slate-600">Replace driveId with Google Drive file ID</p>
                   </div>
                 </div>

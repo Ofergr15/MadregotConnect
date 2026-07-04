@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Users, Trophy, Edit3, X, ChevronDown, ChevronUp, Medal } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
@@ -42,6 +43,7 @@ function getGroupColors(index: number) {
 }
 
 export default function GroupsPage() {
+  const t = useTranslations('groups');
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
@@ -111,9 +113,9 @@ export default function GroupsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Training Groups</h1>
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
         <p className="text-slate-400 mt-1">
-          {totalAthletes} athletes across {groups.length} groups
+          {totalAthletes} {t('athletesAcross')} {groups.length} {t('groups')}
         </p>
       </div>
 
@@ -133,7 +135,7 @@ export default function GroupsPage() {
               <div className="flex items-center justify-between mb-2">
                 <span className={cn("text-lg font-bold", colors.text)}>{group.name}</span>
                 <span className={cn("text-xs px-2 py-1 rounded-full font-medium", colors.badge, colors.text)}>
-                  {group.athleteCount} runners
+                  {group.athleteCount} {t('runners')}
                 </span>
               </div>
               {group.marathonGoal && (
@@ -143,7 +145,7 @@ export default function GroupsPage() {
                 </div>
               )}
               <div className="text-xs text-slate-500 mt-1">
-                Pace offset: {group.paceOffsetSeconds > 0 ? '+' : ''}{group.paceOffsetSeconds}s/km
+                {t('paceOffset')}: {group.paceOffsetSeconds > 0 ? '+' : ''}{group.paceOffsetSeconds}s/km
               </div>
             </div>
           );
@@ -175,7 +177,7 @@ export default function GroupsPage() {
                   <div className="text-left">
                     <h3 className="text-lg font-semibold">{group.name}</h3>
                     <span className="text-sm text-slate-400">
-                      {group.athleteCount} athlete{group.athleteCount !== 1 ? 's' : ''}
+                      {group.athleteCount} {t('athletes')}
                       {group.marathonGoal && ` · Goal: ${group.marathonGoal}`}
                     </span>
                   </div>
@@ -228,8 +230,8 @@ export default function GroupsPage() {
                   ) : (
                     <div className="mt-4 text-center py-8">
                       <Users className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-                      <p className="text-sm text-slate-500">No athletes in this group yet</p>
-                      <p className="text-xs text-slate-600 mt-1">Assign athletes from the Athletes page</p>
+                      <p className="text-sm text-slate-500">{t('noAthletesYet')}</p>
+                      <p className="text-xs text-slate-600 mt-1">{t('assignAthletes')}</p>
                     </div>
                   )}
                 </div>
@@ -244,7 +246,7 @@ export default function GroupsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Medal className="h-5 w-5 text-yellow-400" />
-            <h2 className="text-xl font-bold">Weekly Leaderboard</h2>
+            <h2 className="text-xl font-bold">{t('weeklyLeaderboard')}</h2>
           </div>
           <div className="flex gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700">
             <button
@@ -254,7 +256,7 @@ export default function GroupsPage() {
                 activeTab === 'members' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
               )}
             >
-              By Group
+              {t('byGroup')}
             </button>
             <button
               onClick={() => setActiveTab('leaderboard')}
@@ -263,7 +265,7 @@ export default function GroupsPage() {
                 activeTab === 'leaderboard' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
               )}
             >
-              Overall
+              {t('overall')}
             </button>
           </div>
         </div>
@@ -293,8 +295,8 @@ export default function GroupsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-4 text-sm">
-                        <span className="text-slate-400">{entry.runs} runs</span>
-                        <span className="font-bold font-mono text-white">{entry.distanceKm} km</span>
+                        <span className="text-slate-400">{entry.runs} {t('runs')}</span>
+                        <span className="font-bold font-mono text-white">{entry.distanceKm} {t('km')}</span>
                       </div>
                     </div>
                   );
@@ -303,7 +305,7 @@ export default function GroupsPage() {
             ) : (
               <div className="text-center py-10">
                 <Trophy className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">No activity data yet this week</p>
+                <p className="text-sm text-slate-500">{t('noActivityData')}</p>
                 <p className="text-xs text-slate-600 mt-1">Leaderboard will populate once activities sync from Garmin</p>
               </div>
             )}
@@ -322,7 +324,7 @@ export default function GroupsPage() {
                       <span className={cn("font-semibold", colors.text)}>{group.name}</span>
                     </div>
                     <span className="text-sm text-slate-300 font-mono">
-                      {Math.round(groupTotal * 10) / 10} km total
+                      {Math.round(groupTotal * 10) / 10} {t('kmTotal')}
                     </span>
                   </div>
                   {entries.length > 0 ? (
@@ -334,15 +336,15 @@ export default function GroupsPage() {
                             <span className="text-sm">{entry.name}</span>
                           </div>
                           <div className="flex items-center gap-3 text-sm">
-                            <span className="text-slate-500">{entry.runs} runs</span>
-                            <span className="font-mono font-medium">{entry.distanceKm} km</span>
+                            <span className="text-slate-500">{entry.runs} {t('runs')}</span>
+                            <span className="font-mono font-medium">{entry.distanceKm} {t('km')}</span>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="px-4 py-4 bg-slate-800/60 text-center">
-                      <p className="text-xs text-slate-500">No activities this week</p>
+                      <p className="text-xs text-slate-500">{t('noActivities')}</p>
                     </div>
                   )}
                 </div>
@@ -355,8 +357,8 @@ export default function GroupsPage() {
       {groups.length === 0 && (
         <div className="bg-slate-800 rounded-xl border border-slate-700 text-center py-16">
           <Users className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold mb-2">No groups created</h3>
-          <p className="text-slate-400 text-sm">Groups will appear here once created</p>
+          <h3 className="text-lg font-semibold mb-2">{t('noGroups')}</h3>
+          <p className="text-slate-400 text-sm">{t('groupsWillAppear')}</p>
         </div>
       )}
 
@@ -377,6 +379,7 @@ function EditGroupModal({ group, onSave, onClose }: {
   onSave: (group: Partial<Group> & { id: string }) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations('groups');
   const [name, setName] = useState(group.name);
   const [paceOffsetSeconds, setPaceOffsetSeconds] = useState(group.paceOffsetSeconds);
   const [marathonGoal, setMarathonGoal] = useState(group.marathonGoal || '');
@@ -390,7 +393,7 @@ function EditGroupModal({ group, onSave, onClose }: {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="font-semibold text-lg">Edit {group.name}</h3>
+          <h3 className="font-semibold text-lg">{t('edit')} {group.name}</h3>
           <button onClick={onClose} className="p-1 hover:bg-slate-700 rounded transition-colors">
             <X className="h-5 w-5" />
           </button>
@@ -398,7 +401,7 @@ function EditGroupModal({ group, onSave, onClose }: {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Group Name</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">{t('groupName')}</label>
             <input
               type="text"
               value={name}
@@ -409,7 +412,7 @@ function EditGroupModal({ group, onSave, onClose }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Marathon Goal</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">{t('marathonGoal')}</label>
             <input
               type="text"
               value={marathonGoal}
@@ -420,7 +423,7 @@ function EditGroupModal({ group, onSave, onClose }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Pace Offset (s/km)</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">{t('paceOffsetLabel')}</label>
             <input
               type="number"
               value={paceOffsetSeconds}
@@ -438,13 +441,13 @@ function EditGroupModal({ group, onSave, onClose }: {
               onClick={onClose}
               className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="submit"
               className="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
-              Save
+              {t('save')}
             </button>
           </div>
         </form>
