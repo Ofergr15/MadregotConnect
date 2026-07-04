@@ -3,7 +3,7 @@ import qs from 'qs';
 import crypto from 'crypto';
 
 const CSRF_RE = /name="_csrf"\s+value="(.+?)"/;
-const TICKET_RE = /ticket=([^"]+)"/;
+const TICKET_RE = /ticket=([^"&\s]+)/;
 const MFA_RE = /id="verification-code"|name="verificationCode"|MFA Challenge/i;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36';
 const OAUTH_CONSUMER_URL = 'https://thegarth.s3.amazonaws.com/oauth_consumer.json';
@@ -210,32 +210,43 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
       embed: 'true',
     });
 
-    const verifyRes = await client.post(verifyUrl, formData, {
+    let res = await client.post(verifyUrl, formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         Cookie: cookieHeader(cookies),
         Origin: SSO_ORIGIN,
-        Referer: SIGNIN_URL,
+        Referer: `${SSO_ORIGIN}/sso/verifyMFA/loginEnterMfaCode`,
         'User-Agent': USER_AGENT,
       },
     });
 
-    const allCookies = [...cookies, ...extractCookies(verifyRes)];
-    let html = verifyRes.data;
+    let allCookies = [...cookies, ...extractCookies(res)];
+    let html = res.data || '';
 
-    // Some flows redirect — follow if needed
-    if (verifyRes.status === 302) {
-      const location = verifyRes.headers.location;
-      if (location) {
-        const followRes = await client.get(location, {
-          headers: { Cookie: cookieHeader(allCookies), 'User-Agent': USER_AGENT },
-        });
-        html = followRes.data;
+    // Follow redirects (up to 5) looking for the ticket
+    let attempts = 0;
+    while (res.status === 302 && attempts < 5) {
+      const location = res.headers?.location || '';
+
+      // Check if ticket is in the redirect URL itself
+      const ticketInUrl = TICKET_RE.exec(location);
+      if (ticketInUrl) {
+        const tokens = await exchangeTicketForTokens(ticketInUrl[1]);
+        return { success: true, tokens };
       }
+
+      const fullUrl = location.startsWith('http') ? location : `${SSO_ORIGIN}${location}`;
+      res = await client.get(fullUrl, {
+        headers: { Cookie: cookieHeader(allCookies), 'User-Agent': USER_AGENT },
+      }) as any;
+      allCookies.push(...extractCookies(res));
+      html = res.data || '';
+      attempts++;
     }
 
     const ticketMatch = TICKET_RE.exec(html);
     if (!ticketMatch) {
+      console.error('MFA verify - no ticket. Status:', res.status, 'HTML:', (html || '').substring(0, 500));
       if (html.includes('incorrect') || html.includes('Invalid') || html.includes('invalid')) {
         return { error: 'Invalid verification code. Please try again.' };
       }
