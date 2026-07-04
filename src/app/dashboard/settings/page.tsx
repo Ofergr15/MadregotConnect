@@ -295,12 +295,17 @@ export default function SettingsPage() {
     try {
       setMobilePermissionsLoading(true);
       const response = await fetch('/api/admin/mobile-tab-permissions');
-      if (!response.ok) throw new Error('Failed to fetch mobile permissions');
+      if (!response.ok) {
+        setMobilePermissions([]);
+        setSavedMobilePermissions([]);
+        return;
+      }
       const data = await response.json();
       setMobilePermissions(data.permissions || []);
       setSavedMobilePermissions(data.permissions || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load mobile permissions');
+    } catch {
+      setMobilePermissions([]);
+      setSavedMobilePermissions([]);
     } finally {
       setMobilePermissionsLoading(false);
     }
