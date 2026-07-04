@@ -77,6 +77,7 @@ function ProfileContent() {
   const [stravaEnabled, setStravaEnabled] = useState(false);
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [connectingGarmin, setConnectingGarmin] = useState(false);
+  const [garminLoading, setGarminLoading] = useState(false);
   const [garminEmail, setGarminEmail] = useState('');
   const [garminPassword, setGarminPassword] = useState('');
   const [garminError, setGarminError] = useState<string | null>(null);
@@ -425,7 +426,7 @@ function ProfileContent() {
                 <button
                   onClick={async () => {
                     setGarminError(null);
-                    setConnectingGarmin(true);
+                    setGarminLoading(true);
                     try {
                       let authRes;
                       if (mfaRequired && mfaCode) {
@@ -435,7 +436,7 @@ function ProfileContent() {
                           body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
                         });
                       } else {
-                        if (!garminEmail || !garminPassword) return;
+                        if (!garminEmail || !garminPassword) { setGarminLoading(false); return; }
                         authRes = await fetch('/api/garmin/authenticate', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -446,12 +447,12 @@ function ProfileContent() {
                       if (authData.mfaRequired) {
                         setMfaRequired(true);
                         setMfaSessionId(authData.sessionId);
-                        setConnectingGarmin(false);
+                        setGarminLoading(false);
                         return;
                       }
                       if (!authRes.ok) {
                         setGarminError(authData.error || 'Authentication failed');
-                        setConnectingGarmin(false);
+                        setGarminLoading(false);
                         return;
                       }
                       const connectRes = await fetch('/api/athletes/connect', {
@@ -468,18 +469,22 @@ function ProfileContent() {
                         setGarminPassword('');
                       } else {
                         setGarminError('Failed to save connection');
-                        setConnectingGarmin(false);
                       }
                     } catch {
                       setGarminError('Connection failed. Try again.');
-                      setConnectingGarmin(false);
+                    } finally {
+                      setGarminLoading(false);
                     }
                   }}
-                  disabled={mfaRequired ? !mfaCode : (!garminEmail || !garminPassword)}
+                  disabled={garminLoading || (mfaRequired ? !mfaCode : (!garminEmail || !garminPassword))}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                 >
-                  <Watch className="h-4 w-4" />
-                  {mfaRequired ? 'Verify Code' : 'Connect Garmin'}
+                  {garminLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Watch className="h-4 w-4" />
+                  )}
+                  {garminLoading ? 'Connecting...' : mfaRequired ? 'Verify Code' : 'Connect Garmin'}
                 </button>
               </div>
             )}
