@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface User {
   id: string;
@@ -26,7 +27,7 @@ const roleConfig = {
   viewer: { label: 'Viewer', bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30', dot: 'bg-slate-400' },
 };
 
-function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (role: Role) => void; disabled: boolean }) {
+function RoleDropdown({ value, onChange, disabled, t }: { value: Role; onChange: (role: Role) => void; disabled: boolean; t: (key: string) => string }) {
   const [open, setOpen] = useState(false);
   const [openUp, setOpenUp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -50,6 +51,10 @@ function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (r
   };
 
   const config = roleConfig[value];
+  const getRoleLabel = (role: Role) => {
+    if (role === 'core_runner') return t('coreRunner');
+    return t(role);
+  };
 
   return (
     <div className="relative" ref={ref}>
@@ -63,7 +68,7 @@ function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (r
         )}
       >
         <span className={cn('w-1.5 h-1.5 rounded-full', config.dot)}></span>
-        {config.label}
+        {getRoleLabel(value)}
         <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
       </button>
 
@@ -85,7 +90,7 @@ function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (r
                 )}
               >
                 <span className={cn('w-2 h-2 rounded-full', rc.dot)}></span>
-                {rc.label}
+                {getRoleLabel(role)}
                 {isSelected && <CheckCircle2 className="h-3.5 w-3.5 ms-auto text-primary-400" />}
               </button>
             );
@@ -101,18 +106,24 @@ interface ConfirmDialogProps {
   newRole: Role;
   onConfirm: () => void;
   onCancel: () => void;
+  t: (key: string) => string;
+  tc: (key: string) => string;
 }
 
-function ConfirmDialog({ user, newRole, onConfirm, onCancel }: ConfirmDialogProps) {
+function ConfirmDialog({ user, newRole, onConfirm, onCancel, t, tc }: ConfirmDialogProps) {
   const oldConfig = roleConfig[user.role];
   const newConfig = roleConfig[newRole];
+  const getRoleLabel = (role: Role) => {
+    if (role === 'core_runner') return t('coreRunner');
+    return t(role);
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
         <div className="flex items-center gap-3 mb-4">
           <AlertTriangle className="w-5 h-5 text-amber-400" />
-          <h3 className="text-lg font-semibold text-white">Change Role</h3>
+          <h3 className="text-lg font-semibold text-white">{t('changeRole')}</h3>
           <button onClick={onCancel} className="ms-auto text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
@@ -120,9 +131,9 @@ function ConfirmDialog({ user, newRole, onConfirm, onCancel }: ConfirmDialogProp
 
         <p className="text-slate-300 text-sm mb-4">
           Change <span className="font-medium text-white">{user.name}</span> from{' '}
-          <span className={cn('font-medium', oldConfig.text)}>{oldConfig.label}</span>{' '}
+          <span className={cn('font-medium', oldConfig.text)}>{getRoleLabel(user.role)}</span>{' '}
           to{' '}
-          <span className={cn('font-medium', newConfig.text)}>{newConfig.label}</span>?
+          <span className={cn('font-medium', newConfig.text)}>{getRoleLabel(newRole)}</span>?
         </p>
 
         {(newRole === 'admin' || newRole === 'coach') && user.role !== 'admin' && user.role !== 'coach' && (
@@ -141,13 +152,13 @@ function ConfirmDialog({ user, newRole, onConfirm, onCancel }: ConfirmDialogProp
             onClick={onCancel}
             className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
           >
-            Cancel
+            {tc('cancel')}
           </button>
           <button
             onClick={onConfirm}
             className="px-4 py-2 text-sm text-white bg-[#4338ff] hover:bg-[#3730d4] rounded-lg transition-colors font-medium"
           >
-            Confirm Change
+            {t('confirmChange')}
           </button>
         </div>
       </div>
@@ -242,6 +253,17 @@ function getOnboardingStep(status: string | undefined, approved: boolean | undef
 }
 
 export default function SettingsPage() {
+  const t = useTranslations('settings');
+  const tc = useTranslations('common');
+
+  const getStatusLabel = (status: FeedbackStatus) => {
+    return t(status);
+  };
+
+  const getPriorityLabel = (priority: FeedbackPriority) => {
+    return t(priority);
+  };
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -587,6 +609,8 @@ export default function SettingsPage() {
           newRole={pendingChange.newRole}
           onConfirm={confirmRoleChange}
           onCancel={() => setPendingChange(null)}
+          t={t}
+          tc={tc}
         />
       )}
 
@@ -595,7 +619,7 @@ export default function SettingsPage() {
           <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
             <div className="flex items-center gap-3 mb-4">
               <Trash2 className="w-5 h-5 text-red-400" />
-              <h3 className="text-lg font-semibold text-white">Delete User</h3>
+              <h3 className="text-lg font-semibold text-white">{t('deleteUser')}</h3>
               <button onClick={() => setPendingDelete(null)} className="ms-auto text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
@@ -611,13 +635,13 @@ export default function SettingsPage() {
                 onClick={() => setPendingDelete(null)}
                 className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
               >
-                Cancel
+                {tc('cancel')}
               </button>
               <button
                 onClick={handleDelete}
                 className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors font-medium"
               >
-                Delete User
+                {t('deleteUser')}
               </button>
             </div>
           </div>
@@ -627,9 +651,9 @@ export default function SettingsPage() {
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
           <Settings className="w-6 h-6 text-slate-400" />
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
+          <h1 className="text-2xl font-bold text-white">{t('title')}</h1>
         </div>
-        <p className="text-slate-400 text-sm">Manage users and permissions</p>
+        <p className="text-slate-400 text-sm">{t('subtitle')}</p>
       </div>
 
       {/* Settings Tabs */}
@@ -637,6 +661,7 @@ export default function SettingsPage() {
         {settingsTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
+          const labelKey = tab.key === 'users' ? 'userManager' : tab.key === 'tabs' ? 'tabManager' : 'feedback';
           return (
             <button
               key={tab.key}
@@ -649,7 +674,7 @@ export default function SettingsPage() {
               )}
             >
               <Icon className="w-4 h-4" />
-              {tab.label}
+              {t(labelKey)}
             </button>
           );
         })}
@@ -673,7 +698,7 @@ export default function SettingsPage() {
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Clock className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-semibold text-amber-400">Pending Approval ({pendingUsers.length})</h3>
+                <h3 className="text-sm font-semibold text-amber-400">{t('pendingApproval')} ({pendingUsers.length})</h3>
               </div>
               <div className="space-y-2">
                 {pendingUsers.map(user => {
@@ -712,7 +737,7 @@ export default function SettingsPage() {
                         ) : (
                           <CheckCircle2 className="w-3.5 h-3.5" />
                         )}
-                        Approve
+                        {t('approve')}
                       </button>
                       <button
                         onClick={() => setPendingDelete(user)}
@@ -733,7 +758,7 @@ export default function SettingsPage() {
             <div className="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-slate-400" />
-                <h2 className="text-sm font-semibold text-white">Members ({activeUsers.length})</h2>
+                <h2 className="text-sm font-semibold text-white">{t('members')} ({activeUsers.length})</h2>
               </div>
             </div>
 
@@ -821,6 +846,7 @@ export default function SettingsPage() {
                             value={user.role}
                             onChange={(role) => handleRoleSelect(user, role)}
                             disabled={updatingUsers.has(user.id)}
+                            t={t}
                           />
                           <button
                             onClick={() => setPendingDelete(user)}
@@ -913,14 +939,14 @@ export default function SettingsPage() {
                                   updatingFeedback === selectedFeedback.id && 'opacity-50 cursor-not-allowed'
                                 )}
                               >
-                                {config.label}
+                                {getStatusLabel(status)}
                               </button>
                             );
                           })}
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-slate-400 mb-2 block">Priority</label>
+                        <label className="text-xs font-semibold text-slate-400 mb-2 block">{t('priority')}</label>
                         <div className="flex flex-wrap gap-1.5">
                           {(['low', 'medium', 'high'] as FeedbackPriority[]).map(priority => {
                             const config = priorityConfig[priority];
@@ -936,7 +962,7 @@ export default function SettingsPage() {
                                   updatingFeedback === selectedFeedback.id && 'opacity-50 cursor-not-allowed'
                                 )}
                               >
-                                {config.label}
+                                {getPriorityLabel(priority)}
                               </button>
                             );
                           })}
@@ -951,13 +977,13 @@ export default function SettingsPage() {
                     )}
 
                     <div className="mt-4 pt-3 border-t border-slate-700/50">
-                      <label className="text-xs font-semibold text-slate-400 mb-2 block">Admin Notes</label>
+                      <label className="text-xs font-semibold text-slate-400 mb-2 block">{t('adminNotes')}</label>
                       <div className="flex gap-2">
                         <input
                           type="text"
                           value={adminNotes}
                           onChange={e => setAdminNotes(e.target.value)}
-                          placeholder="Add a tag or note..."
+                          placeholder={t('addTagOrNote')}
                           className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#4338ff]/50"
                         />
                         <button
@@ -965,7 +991,7 @@ export default function SettingsPage() {
                           disabled={updatingFeedback === selectedFeedback.id}
                           className="px-3 py-2 rounded-lg bg-[#4338ff] hover:bg-[#3730d4] text-white text-xs font-bold transition-colors disabled:opacity-50"
                         >
-                          Save
+                          {tc('save')}
                         </button>
                       </div>
                       {selectedFeedback.admin_notes && adminNotes !== selectedFeedback.admin_notes && (
@@ -980,7 +1006,7 @@ export default function SettingsPage() {
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-all disabled:opacity-50"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        Delete
+                        {tc('delete')}
                       </button>
                     </div>
                   </div>
@@ -994,7 +1020,7 @@ export default function SettingsPage() {
             <button
               onClick={() => setFilterCategory('all')}
               className={cn('text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all', filterCategory === 'all' ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-[#4338ff]' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400')}
-            >All</button>
+            >{t('all')}</button>
             {(['feature_request', 'bug_report', 'training_feedback', 'general'] as FeedbackCategory[]).map(cat => {
               const config = categoryConfig[cat];
               const CatIcon = config.icon;
@@ -1037,7 +1063,7 @@ export default function SettingsPage() {
                     <div className="px-3 py-2.5 border-b border-slate-700/30 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className={cn('w-2 h-2 rounded-full', colConfig.bg.replace('/15', ''))} style={{ backgroundColor: status === 'new' ? '#3b82f6' : status === 'idea' ? '#a855f7' : status === 'sprint' ? '#f59e0b' : status === 'done' ? '#22c55e' : '#64748b' }} />
-                        <span className={cn('text-xs font-bold', colConfig.text)}>{colConfig.label}</span>
+                        <span className={cn('text-xs font-bold', colConfig.text)}>{getStatusLabel(status)}</span>
                       </div>
                       <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">{colItems.length}</span>
                     </div>
@@ -1071,7 +1097,7 @@ export default function SettingsPage() {
                                 <CatIcon className="w-2.5 h-2.5" />{catCfg.label}
                               </span>
                               <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded border', priCfg.bg, priCfg.border, priCfg.text)}>
-                                {priCfg.label}
+                                {getPriorityLabel(item.priority || 'medium')}
                               </span>
                             </div>
                             <p className="text-xs text-white leading-relaxed line-clamp-3 mb-2">{item.message}</p>
@@ -1105,7 +1131,7 @@ export default function SettingsPage() {
           <div className="px-5 py-4 border-b border-slate-700/50">
             <div className="flex items-center gap-2">
               <Layout className="w-4 h-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-white">Tab Permissions</h2>
+              <h2 className="text-sm font-semibold text-white">{t('tabPermissions')}</h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">Configure which tabs each role can access on web and mobile</p>
             <div className="flex items-center gap-4 mt-3 text-[10px] font-semibold text-slate-400">
@@ -1188,13 +1214,13 @@ export default function SettingsPage() {
 
               {(hasPermissionChanges || hasMobilePermissionChanges) && (
                 <div className="flex items-center justify-between p-4 bg-slate-900 border border-[#4338ff]/30 rounded-xl">
-                  <p className="text-sm text-slate-300">Unsaved changes</p>
+                  <p className="text-sm text-slate-300">{t('unsavedChanges')}</p>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => { discardPermissionChanges(); discardMobilePermissionChanges(); }}
                       className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
                     >
-                      Discard
+                      {t('discard')}
                     </button>
                     <button
                       onClick={async () => {
@@ -1205,7 +1231,7 @@ export default function SettingsPage() {
                       className="px-4 py-2 text-sm text-white bg-[#4338ff] hover:bg-[#3730d4] rounded-lg transition-colors font-medium flex items-center gap-2"
                     >
                       {(savingPermissions || savingMobilePermissions) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      Save All
+                      {tc('save')}
                     </button>
                   </div>
                 </div>
