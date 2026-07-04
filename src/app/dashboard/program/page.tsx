@@ -256,17 +256,27 @@ export default function ProgramPage() {
           {/* Video Player — only show after selecting an exercise */}
           {currentExercise && (
           <div className="bg-slate-800 rounded-xl sm:rounded-xl border border-slate-700 overflow-hidden -mx-4 sm:mx-0 rounded-none sm:rounded-xl border-x-0 sm:border-x">
-            {/* Video — native player for mobile compatibility */}
-            <div className="w-full aspect-video bg-slate-900">
-              <video
+            {/* Video Player */}
+            <div className="w-full aspect-video bg-slate-900 relative">
+              <iframe
                 key={selectedVideoIndex}
-                src={`https://drive.google.com/uc?export=download&id=${currentExercise.id}`}
-                className="w-full h-full"
-                controls
-                playsInline
-                preload="metadata"
-                poster={`https://drive.google.com/thumbnail?id=${currentExercise.id}&sz=w800`}
+                src={`https://drive.google.com/file/d/${currentExercise.id}/preview?usp=embed_googleplus`}
+                className="w-full h-full border-0"
+                title={currentExercise.name}
+                allow="autoplay; fullscreen"
+                allowFullScreen
+                sandbox="allow-scripts allow-same-origin allow-popups"
               />
+              {/* Fullscreen link for mobile fallback */}
+              <a
+                href={`https://drive.google.com/file/d/${currentExercise.id}/view`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute top-2 end-2 bg-black/70 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 z-10 sm:hidden"
+              >
+                <Play className="h-3 w-3" />
+                Open Video
+              </a>
             </div>
 
             {/* Exercise Info + Nav below video */}
