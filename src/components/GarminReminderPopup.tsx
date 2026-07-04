@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Watch, X } from 'lucide-react';
 
 export function GarminReminderPopup() {
+  const router = useRouter();
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -47,7 +49,8 @@ export function GarminReminderPopup() {
 
   const handleConnect = () => {
     sessionStorage.setItem('garmin_reminder_dismissed_session', '1');
-    window.location.href = '/dashboard/profile?connectGarmin=1';
+    setShow(false);
+    router.push('/dashboard/profile?connectGarmin=1');
   };
 
   return (
