@@ -50,7 +50,7 @@ export default async function RootLayout({
   return (
     <html lang={locale} dir={dir}>
       <body className={`${heebo.variable} ${inter.variable} font-sans`}>
-        <NextIntlClientProvider messages={messages}>
+        <NextIntlClientProvider locale={locale} messages={messages} key={locale}>
           {children}
         </NextIntlClientProvider>
       </body>

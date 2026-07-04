@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import {
   Calendar, Users, ArrowRight, TrendingUp, TrendingDown, Heart, Route,
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
@@ -314,6 +315,7 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
   error?: string;
   onClose: () => void;
 }) {
+  const t = useTranslations('dashboard');
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm mx-4 p-6 text-center">
@@ -323,9 +325,9 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
               <div className="bg-[#4338ff]/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
                 <RefreshCw className="h-8 w-8 text-[#4338ff] animate-spin" />
               </div>
-              <h2 className="text-lg font-bold text-white">Syncing Your Data</h2>
+              <h2 className="text-lg font-bold text-white">{t('syncingData')}</h2>
               <p className="text-sm text-slate-400 mt-2">
-                Fetching your Garmin activities and setting up your dashboard...
+                {t('syncingDescription')}
               </p>
               <div className="mt-4 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
                 <div className="h-full bg-[#4338ff] rounded-full animate-pulse" style={{ width: '60%' }} />
@@ -337,7 +339,7 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
               <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle2 className="h-8 w-8 text-green-400" />
               </div>
-              <h2 className="text-lg font-bold text-white">All Set!</h2>
+              <h2 className="text-lg font-bold text-white">{t('allSet')}</h2>
               <p className="text-sm text-slate-400 mt-2">
                 {syncedCount > 0
                   ? `Synced ${syncedCount} activities from Garmin.`
@@ -347,7 +349,7 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
                 onClick={onClose}
                 className="mt-5 px-6 py-2.5 bg-[#4338ff] hover:bg-[#3730d4] text-white font-medium rounded-lg transition-colors"
               >
-                Let&apos;s Go
+                {t('letsGo')}
               </button>
             </>
           )}
@@ -356,7 +358,7 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
               <div className="bg-amber-500/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
                 <AlertCircle className="h-8 w-8 text-amber-400" />
               </div>
-              <h2 className="text-lg font-bold text-white">Sync Issue</h2>
+              <h2 className="text-lg font-bold text-white">{t('syncIssue')}</h2>
               <p className="text-sm text-slate-400 mt-2">
                 {error || 'Could not sync activities. Your dashboard will update once data is available.'}
               </p>
@@ -364,7 +366,7 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
                 onClick={onClose}
                 className="mt-5 px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
               >
-                Continue to Dashboard
+                {t('continueToDashboard')}
               </button>
             </>
           )}
@@ -375,6 +377,8 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
 }
 
 export default function DashboardPage() {
+  const t = useTranslations('dashboard');
+  const tc = useTranslations('common');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
   const [weather, setWeather] = useState<WeatherDay[]>([]);
@@ -631,12 +635,12 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <MapPin className="h-4 w-4 text-[#4338ff]" />
-              <span className="text-sm font-semibold text-slate-300">Valencia Marathon</span>
+              <span className="text-sm font-semibold text-slate-300">{t('valenciaMarathon')}</span>
               <span className="text-sm text-slate-500">· Dec 6, 2026</span>
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-5xl sm:text-8xl font-black text-white leading-none tracking-tight tabular-nums">{countdown.d}</span>
-              <span className="text-xl sm:text-2xl font-medium text-slate-400">days</span>
+              <span className="text-xl sm:text-2xl font-medium text-slate-400">{tc('days')}</span>
             </div>
             <div className="flex items-center gap-3 mt-2 tabular-nums text-base text-slate-300">
               <span className="font-semibold">{String(countdown.h).padStart(2, '0')}h</span>
@@ -665,10 +669,10 @@ export default function DashboardPage() {
       {isCoach ? (
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('weeklyVolume')}</p>
             <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
               {hasData ? `${Math.round(weekly!.weekTotalMin)}–${Math.round(weekly!.weekTotalMax)}` : '—'}
-              <span className="text-sm font-medium text-slate-500 ms-1">km</span>
+              <span className="text-sm font-medium text-slate-500 ms-1">{tc('km')}</span>
             </p>
             {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
               <div className="flex items-center gap-1 mt-2">
@@ -680,11 +684,11 @@ export default function DashboardPage() {
             )}
           </div>
           <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('trainingDays')}</p>
             <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
               {weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500 ms-1">/7</span>
             </p>
-            <p className="text-sm text-slate-500 mt-1">this week</p>
+            <p className="text-sm text-slate-500 mt-1">{t('thisWeek')}</p>
           </div>
           <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Athletes</p>
@@ -692,11 +696,11 @@ export default function DashboardPage() {
             <p className="text-sm text-slate-500 mt-1">{stats?.groupCount || 0} groups</p>
           </div>
           <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivery</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('delivery')}</p>
             <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
               {stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ms-0.5">%</span>
             </p>
-            <p className="text-sm text-slate-500 mt-1">success rate</p>
+            <p className="text-sm text-slate-500 mt-1">{t('successRate')}</p>
           </div>
         </section>
       ) : (
@@ -704,11 +708,11 @@ export default function DashboardPage() {
           {/* Training Days + Next Workout */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('trainingDays')}</p>
               <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
                 {weeklyRuns}<span className="text-sm font-medium text-slate-500 ms-1">/ {hasData ? weekly!.trainingDays : 7}</span>
               </p>
-              <p className="text-sm text-slate-500 mt-1">completed</p>
+              <p className="text-sm text-slate-500 mt-1">{t('completed')}</p>
             </div>
             {(() => {
               const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -726,7 +730,7 @@ export default function DashboardPage() {
                     return (
                       <div>
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Today</p>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('today')}</p>
                           <div className="flex items-center gap-1.5">
                             {done && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[todayW.type]}20`, color: typeColors[todayW.type] }}>
@@ -736,7 +740,7 @@ export default function DashboardPage() {
                         </div>
                         <p className="text-xl font-black text-white mt-1 tabular-nums">
                           {todayW.min === todayW.max ? todayW.max : `${todayW.min}–${todayW.max}`}
-                          <span className="text-sm font-medium text-slate-500 ms-1">km</span>
+                          <span className="text-sm font-medium text-slate-500 ms-1">{tc('km')}</span>
                           {todayKm > 0 && <span className="text-xs font-semibold text-emerald-400 ms-2">{Math.round(todayKm * 10) / 10} done</span>}
                         </p>
                         {sessionName && <p className="text-[11px] text-slate-500 mt-0.5">{sessionName}</p>}
@@ -748,14 +752,14 @@ export default function DashboardPage() {
                     return (
                       <div className={todayW ? 'mt-3 pt-3 border-t border-slate-700/30' : ''}>
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tomorrow</p>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('tomorrow')}</p>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[tomorrowW.type]}20`, color: typeColors[tomorrowW.type] }}>
                             {typeLabels[tomorrowW.type] || tomorrowW.type}
                           </span>
                         </div>
                         <p className="text-lg font-black text-white mt-1 tabular-nums">
                           {tomorrowW.min === tomorrowW.max ? tomorrowW.max : `${tomorrowW.min}–${tomorrowW.max}`}
-                          <span className="text-sm font-medium text-slate-500 ms-1">km</span>
+                          <span className="text-sm font-medium text-slate-500 ms-1">{tc('km')}</span>
                         </p>
                         {sessionName && <p className="text-[11px] text-slate-500 mt-0.5">{sessionName}</p>}
                       </div>
@@ -787,11 +791,11 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-black text-white tabular-nums">{weeklyKm}</span>
-                  <span className="text-xs text-slate-500">km this week</span>
+                  <span className="text-xs text-slate-500">{tc('km')} {t('thisWeek')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {targetMax > 0 && (
-                    <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax} km</span>
+                    <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax} {tc('km')}</span>
                   )}
                   {trend !== 0 && (
                     <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
@@ -878,8 +882,8 @@ export default function DashboardPage() {
       <section className="bg-slate-800/30 rounded-2xl p-4 sm:p-6 border border-slate-700/20">
         <div className="flex items-center justify-between mb-4 sm:mb-5">
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-white">Weekly Plan</h2>
-            <p className="text-sm text-slate-400 mt-0.5">Week of {weekly?.currentWeekStart || '—'}</p>
+            <h2 className="text-sm sm:text-base font-bold text-white">{t('weeklyPlan')}</h2>
+            <p className="text-sm text-slate-400 mt-0.5">{t('weekOf')} {weekly?.currentWeekStart || '—'}</p>
           </div>
           {hasData && (
             <div className="hidden sm:flex flex-wrap gap-x-3 gap-y-1">
@@ -1033,9 +1037,9 @@ export default function DashboardPage() {
         ) : (
           <div className="h-52 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700/60">
             <Calendar className="h-10 w-10 text-slate-600 mb-3" />
-            <p className="text-base text-slate-400">No plan loaded this week</p>
+            <p className="text-base text-slate-400">{t('noPlanLoaded')}</p>
             <Link href="/dashboard/plan/new" className="mt-3 text-sm font-bold text-[#4338ff] hover:text-[#5b54ff] inline-flex items-center gap-1">
-              Upload a plan <ArrowRight className="h-4 w-4" />
+              {t('uploadPlan')} <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         )}
@@ -1047,9 +1051,9 @@ export default function DashboardPage() {
       {!isCoach && recentActivities.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-white">Recent Activities</h2>
+            <h2 className="text-sm font-bold text-white">{t('recentActivities')}</h2>
             <Link href="/dashboard/activities" className="text-[11px] font-semibold text-[#fc5200] hover:text-[#ff7433] inline-flex items-center gap-0.5">
-              View All <ChevronRight className="h-3 w-3" />
+              {t('viewAll')} <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
           <div className="space-y-4">
@@ -1099,22 +1103,22 @@ export default function DashboardPage() {
                   {/* Stats row — Strava style: Distance, Elev Gain, Time */}
                   <div className="flex items-baseline gap-8 px-5 pb-4 border-b border-slate-700/20">
                     <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">Distance</p>
-                      <p className="text-xl font-black text-white tabular-nums">{km} <span className="text-sm font-normal text-slate-500">km</span></p>
+                      <p className="text-[10px] text-slate-500 mb-0.5">{t('distance')}</p>
+                      <p className="text-xl font-black text-white tabular-nums">{km} <span className="text-sm font-normal text-slate-500">{tc('km')}</span></p>
                     </div>
                     {a.elevation_gain && a.elevation_gain > 0 ? (
                       <div>
-                        <p className="text-[10px] text-slate-500 mb-0.5">Elev Gain</p>
+                        <p className="text-[10px] text-slate-500 mb-0.5">{t('elevGain')}</p>
                         <p className="text-xl font-black text-white tabular-nums">{Math.round(a.elevation_gain)} <span className="text-sm font-normal text-slate-500">m</span></p>
                       </div>
                     ) : pace ? (
                       <div>
-                        <p className="text-[10px] text-slate-500 mb-0.5">Pace</p>
-                        <p className="text-xl font-black text-white tabular-nums">{pace} <span className="text-sm font-normal text-slate-500">/km</span></p>
+                        <p className="text-[10px] text-slate-500 mb-0.5">{t('pace')}</p>
+                        <p className="text-xl font-black text-white tabular-nums">{pace} <span className="text-sm font-normal text-slate-500">/{tc('km')}</span></p>
                       </div>
                     ) : null}
                     <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">Time</p>
+                      <p className="text-[10px] text-slate-500 mb-0.5">{t('time')}</p>
                       <p className="text-xl font-black text-white tabular-nums">{durationStr}</p>
                     </div>
                   </div>
@@ -1180,8 +1184,8 @@ export default function DashboardPage() {
       {weather.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm sm:text-base font-bold text-white">7-Day Weather</h2>
-            <span className="text-sm text-slate-400">5–8am Tel Aviv</span>
+            <h2 className="text-sm sm:text-base font-bold text-white">{t('weather7Day')}</h2>
+            <span className="text-sm text-slate-400">{t('weatherLocation')}</span>
           </div>
           {/* Mobile: horizontal scroll. Desktop: grid */}
           <div className="flex sm:grid sm:grid-cols-7 gap-2 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -1192,7 +1196,7 @@ export default function DashboardPage() {
                   "flex-shrink-0 w-[80px] sm:w-auto text-center py-4 px-2 rounded-2xl transition-all",
                   isToday ? "bg-[#4338ff]/15 ring-1 ring-[#4338ff]/40" : "bg-slate-800/40"
                 )}>
-                  <p className={cn("text-xs font-bold uppercase", isToday ? "text-[#4338ff]" : "text-slate-400")}>{isToday ? 'Today' : day.day}</p>
+                  <p className={cn("text-xs font-bold uppercase", isToday ? "text-[#4338ff]" : "text-slate-400")}>{isToday ? t('today') : day.day}</p>
                   <WeatherIcon code={day.code} className="h-5 w-5 mx-auto mt-2" />
                   <p className={cn("text-lg font-black mt-2 tabular-nums", heatLevel(day.tempMax).color)}>{day.tempMax}°</p>
                   <p className="text-xs text-slate-400 mt-1">{day.humidity}%</p>
@@ -1207,7 +1211,7 @@ export default function DashboardPage() {
       {weekly?.weeklyVolumes && weekly.weeklyVolumes.length > 1 && (
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm sm:text-base font-bold text-white">Training Load</h2>
+            <h2 className="text-sm sm:text-base font-bold text-white">{t('trainingLoad')}</h2>
             <Link href="/dashboard/history" className="text-sm font-semibold text-slate-400 hover:text-[#4338ff] inline-flex items-center gap-1 transition-colors">
               History <ChevronRight className="h-4 w-4" />
             </Link>

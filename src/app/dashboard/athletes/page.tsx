@@ -7,6 +7,7 @@ import {
   PauseCircle, PlayCircle, ArrowRightLeft, X, MessageCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface Athlete {
   id: string;
@@ -43,6 +44,8 @@ function getGroupStyle(name: string | null) {
 }
 
 export default function AthletesPage() {
+  const t = useTranslations('athletes');
+  const tc = useTranslations('common');
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -248,25 +251,25 @@ ${inviteLink}`;
       case 'active':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
-            <Wifi className="h-3 w-3" /> Active
+            <Wifi className="h-3 w-3" /> {t('active')}
           </span>
         );
       case 'invited':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-            <Clock className="h-3 w-3" /> Invited
+            <Clock className="h-3 w-3" /> {t('invited')}
           </span>
         );
       case 'paused':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
-            <PauseCircle className="h-3 w-3" /> Paused
+            <PauseCircle className="h-3 w-3" /> {t('paused')}
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
-            <WifiOff className="h-3 w-3" /> Disconnected
+            <WifiOff className="h-3 w-3" /> {t('disconnected')}
           </span>
         );
     }
@@ -284,15 +287,15 @@ ${inviteLink}`;
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Athletes</h1>
-          <p className="text-slate-400 mt-1">Manage your athletes and their Garmin connections</p>
+          <h1 className="text-2xl font-bold">{t('title')}</h1>
+          <p className="text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
         <button
           onClick={() => { setShowInvite(!showInvite); setInviteLink(null); }}
           className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
         >
           <UserPlus className="h-4 w-4" />
-          Invite Athlete
+          {t('inviteAthlete')}
         </button>
       </div>
 
@@ -305,7 +308,7 @@ ${inviteLink}`;
             </div>
             <div>
               <p className="text-2xl font-bold">{athletes.filter(a => a.status === 'active').length}</p>
-              <p className="text-xs text-slate-400">Active</p>
+              <p className="text-xs text-slate-400">{t('active')}</p>
             </div>
           </div>
         </div>
@@ -316,7 +319,7 @@ ${inviteLink}`;
             </div>
             <div>
               <p className="text-2xl font-bold">{athletes.filter(a => a.status === 'invited').length}</p>
-              <p className="text-xs text-slate-400">Invited</p>
+              <p className="text-xs text-slate-400">{t('invited')}</p>
             </div>
           </div>
         </div>
@@ -327,7 +330,7 @@ ${inviteLink}`;
             </div>
             <div>
               <p className="text-2xl font-bold">{athletes.filter(a => a.status === 'paused').length}</p>
-              <p className="text-xs text-slate-400">Paused</p>
+              <p className="text-xs text-slate-400">{t('paused')}</p>
             </div>
           </div>
         </div>
@@ -338,7 +341,7 @@ ${inviteLink}`;
             </div>
             <div>
               <p className="text-2xl font-bold">{athletes.length}</p>
-              <p className="text-xs text-slate-400">Total</p>
+              <p className="text-xs text-slate-400">{t('total')}</p>
             </div>
           </div>
         </div>
@@ -364,18 +367,18 @@ ${inviteLink}`;
       {/* Invite Form */}
       {showInvite && (
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
-          <h3 className="font-semibold text-lg">Invite New Athlete</h3>
+          <h3 className="font-semibold text-lg">{t('inviteNewAthlete')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input
               value={inviteName}
               onChange={(e) => setInviteName(e.target.value)}
-              placeholder="Athlete name"
+              placeholder={t('athleteName')}
               className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <input
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="Email address"
+              placeholder={t('emailAddress')}
               type="email"
               className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
@@ -384,7 +387,7 @@ ${inviteLink}`;
               onChange={(e) => setInviteGroup(e.target.value)}
               className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              <option value="">No group (assign later)</option>
+              <option value="">{t('noGroup')}</option>
               {groups.map(g => (
                 <option key={g.id} value={g.id}>{g.name}</option>
               ))}
@@ -396,13 +399,13 @@ ${inviteLink}`;
             className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             <Mail className="h-4 w-4" />
-            {submitting ? 'Creating...' : 'Generate Invite Link'}
+            {submitting ? t('generating') : t('generateInviteLink')}
           </button>
           {inviteLink && (
             <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
                 <CheckCircle2 className="h-4 w-4" />
-                Invitation created!
+                {t('invitationCreated')}
               </div>
               <div className="flex items-center gap-2">
                 <input value={inviteLink} readOnly className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm" />
@@ -413,7 +416,7 @@ ${inviteLink}`;
                     copied ? "bg-green-600 text-white" : "bg-slate-600 hover:bg-slate-500 text-white"
                   )}
                 >
-                  {copied ? <><Check className="h-4 w-4" />Copied!</> : <><Copy className="h-4 w-4" />Copy</>}
+                  {copied ? <><Check className="h-4 w-4" />{tc('copied')}</> : <><Copy className="h-4 w-4" />{tc('copy')}</>}
                 </button>
                 <button
                   onClick={shareViaWhatsApp}
@@ -421,7 +424,7 @@ ${inviteLink}`;
                   title="Share via WhatsApp"
                 >
                   <MessageCircle className="h-4 w-4" />
-                  WhatsApp
+                  {t('whatsApp')}
                 </button>
               </div>
             </div>
@@ -433,7 +436,7 @@ ${inviteLink}`;
       <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="font-semibold">Public Invite Link</h3>
+            <h3 className="font-semibold">{t('publicInviteLink')}</h3>
             <p className="text-sm text-slate-400 mt-1">
               Share one link with the entire WhatsApp group — athletes self-register with their name and Garmin account
             </p>
@@ -445,7 +448,7 @@ ${inviteLink}`;
               className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               <UserPlus className="h-4 w-4" />
-              {generatingPublicLink ? 'Generating...' : 'Generate Link'}
+              {generatingPublicLink ? t('generating') : t('generateLink')}
             </button>
           )}
         </div>
@@ -460,14 +463,14 @@ ${inviteLink}`;
                   publicLinkCopied ? "bg-green-600 text-white" : "bg-slate-600 hover:bg-slate-500 text-white"
                 )}
               >
-                {publicLinkCopied ? <><Check className="h-4 w-4" />Copied!</> : <><Copy className="h-4 w-4" />Copy</>}
+                {publicLinkCopied ? <><Check className="h-4 w-4" />{tc('copied')}</> : <><Copy className="h-4 w-4" />{tc('copy')}</>}
               </button>
               <button
                 onClick={sharePublicLinkWhatsApp}
                 className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA59] text-white"
               >
                 <MessageCircle className="h-4 w-4" />
-                WhatsApp
+                {t('whatsApp')}
               </button>
             </div>
             <p className="text-xs text-slate-500">
@@ -485,12 +488,12 @@ ${inviteLink}`;
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-700 bg-slate-700/50">
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Name</th>
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Email</th>
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Group</th>
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Status</th>
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Joined</th>
-                    <th className="text-end text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Actions</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('name')}</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('email')}</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('group')}</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('status')}</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('joined')}</th>
+                    <th className="text-end text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700">
@@ -554,21 +557,21 @@ ${inviteLink}`;
                               onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
                               className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
                             >
-                              <ArrowRightLeft className="h-4 w-4" /> Move to Group
+                              <ArrowRightLeft className="h-4 w-4" /> {t('moveToGroup')}
                             </button>
                             {athlete.status === 'active' ? (
                               <button
                                 onClick={() => updateAthleteStatus(athlete.id, 'paused')}
                                 className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
                               >
-                                <PauseCircle className="h-4 w-4" /> Pause
+                                <PauseCircle className="h-4 w-4" /> {t('pause')}
                               </button>
                             ) : athlete.status === 'paused' ? (
                               <button
                                 onClick={() => updateAthleteStatus(athlete.id, 'active')}
                                 className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
                               >
-                                <PlayCircle className="h-4 w-4" /> Reactivate
+                                <PlayCircle className="h-4 w-4" /> {t('reactivate')}
                               </button>
                             ) : null}
                             <button
@@ -584,21 +587,21 @@ ${inviteLink}`;
                               }}
                               className={cn('w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2', athlete.stravaEnabled ? 'text-slate-400' : 'text-orange-400')}
                             >
-                              <Wifi className="h-4 w-4" /> {athlete.stravaEnabled ? 'Disable Strava' : 'Enable Strava'}
+                              <Wifi className="h-4 w-4" /> {athlete.stravaEnabled ? t('disableStrava') : t('enableStrava')}
                             </button>
                             {athlete.hasStrava && (
                               <button
                                 onClick={() => { toggleDataSource(athlete.id, athlete.dataSource === 'strava' ? 'garmin' : 'strava'); setActiveMenu(null); }}
                                 className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
                               >
-                                <ArrowRightLeft className="h-4 w-4" /> Switch to {athlete.dataSource === 'strava' ? 'Garmin' : 'Strava'}
+                                <ArrowRightLeft className="h-4 w-4" /> {athlete.dataSource === 'strava' ? t('switchToGarmin') : t('switchToStrava')}
                               </button>
                             )}
                             <button
                               onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
                               className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
                             >
-                              <Trash2 className="h-4 w-4" /> Delete
+                              <Trash2 className="h-4 w-4" /> {tc('delete')}
                             </button>
                           </div>
                         )}
@@ -638,28 +641,28 @@ ${inviteLink}`;
                         onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
                         className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
                       >
-                        <ArrowRightLeft className="h-4 w-4" /> Move to Group
+                        <ArrowRightLeft className="h-4 w-4" /> {t('moveToGroup')}
                       </button>
                       {athlete.status === 'active' ? (
                         <button
                           onClick={() => updateAthleteStatus(athlete.id, 'paused')}
                           className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
                         >
-                          <PauseCircle className="h-4 w-4" /> Pause
+                          <PauseCircle className="h-4 w-4" /> {t('pause')}
                         </button>
                       ) : athlete.status === 'paused' ? (
                         <button
                           onClick={() => updateAthleteStatus(athlete.id, 'active')}
                           className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
                         >
-                          <PlayCircle className="h-4 w-4" /> Reactivate
+                          <PlayCircle className="h-4 w-4" /> {t('reactivate')}
                         </button>
                       ) : null}
                       <button
                         onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
                         className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
                       >
-                        <Trash2 className="h-4 w-4" /> Delete
+                        <Trash2 className="h-4 w-4" /> {tc('delete')}
                       </button>
                     </div>
                   )}
@@ -694,7 +697,7 @@ ${inviteLink}`;
           <div className="bg-slate-700/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
             <UsersIcon className="h-10 w-10 text-slate-500" />
           </div>
-          <h3 className="text-lg font-semibold mb-2">No athletes found</h3>
+          <h3 className="text-lg font-semibold mb-2">{t('noAthletes')}</h3>
           <p className="text-slate-400 mb-4">
             {filter !== 'all' ? 'No athletes with this status' : 'Invite your first athlete to get started'}
           </p>
@@ -706,7 +709,7 @@ ${inviteLink}`;
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Move {moveModal.athleteName}</h3>
+              <h3 className="font-semibold">{t('moveToGroup')} {moveModal.athleteName}</h3>
               <button onClick={() => { setMoveModal(null); setSelectedGroupId(null); }} className="p-1 hover:bg-slate-700 rounded">
                 <X className="h-4 w-4" />
               </button>
@@ -771,7 +774,7 @@ ${inviteLink}`;
               disabled={!selectedGroupId}
               className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
-              Save
+              {tc('save')}
             </button>
           </div>
         </div>
@@ -781,7 +784,7 @@ ${inviteLink}`;
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-sm">
-            <h3 className="font-semibold text-lg mb-2">Delete Athlete</h3>
+            <h3 className="font-semibold text-lg mb-2">{t('deleteAthlete')}</h3>
             <p className="text-slate-400 text-sm mb-6">
               Are you sure you want to remove <span className="text-white font-medium">{confirmDelete.name}</span>? This action cannot be undone.
             </p>
@@ -790,13 +793,13 @@ ${inviteLink}`;
                 onClick={() => setConfirmDelete(null)}
                 className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
               >
-                Cancel
+                {tc('cancel')}
               </button>
               <button
                 onClick={() => deleteAthlete(confirmDelete.id)}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
               >
-                Delete
+                {tc('delete')}
               </button>
             </div>
           </div>

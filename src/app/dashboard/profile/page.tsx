@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target, Activity, WifiOff } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface Group {
   id: string;
@@ -62,6 +63,9 @@ export default function ProfilePage() {
 }
 
 function ProfileContent() {
+  const t = useTranslations('profile');
+  const tHeader = useTranslations('header');
+  const tCommon = useTranslations('common');
   const searchParams = useSearchParams();
   const [athleteId, setAthleteId] = useState('');
   const [athleteName, setAthleteName] = useState('');
@@ -180,9 +184,9 @@ function ProfileContent() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <User className="h-12 w-12 text-slate-500 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold mb-2">No Profile Found</h2>
+          <h2 className="text-lg font-semibold mb-2">{t('noProfileFound')}</h2>
           <p className="text-slate-400 text-sm">
-            Join via your invite link to set up your profile.
+            {t('joinViaInvite')}
           </p>
         </div>
       </div>
@@ -209,25 +213,25 @@ function ProfileContent() {
                 <div className="bg-[#4338ff]/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Loader2 className="h-8 w-8 text-[#4338ff] animate-spin" />
                 </div>
-                <h2 className="text-lg font-bold text-white">Syncing Activities</h2>
-                <p className="text-sm text-slate-400 mt-2">Fetching your recent activities from Garmin...</p>
+                <h2 className="text-lg font-bold text-white">{t('syncingActivities')}</h2>
+                <p className="text-sm text-slate-400 mt-2">{t('fetchingActivities')}</p>
               </>
             ) : (
               <>
                 <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 className="h-8 w-8 text-green-400" />
                 </div>
-                <h2 className="text-lg font-bold text-white">Garmin Connected!</h2>
+                <h2 className="text-lg font-bold text-white">{t('garminConnected')}</h2>
                 <p className="text-sm text-slate-400 mt-2">
                   {syncModalCount > 0
-                    ? `Synced ${syncModalCount} activities from Garmin.`
-                    : 'Connected successfully. Activities will appear after your next run!'}
+                    ? t('syncedActivities', { count: syncModalCount })
+                    : t('connectedSuccessfully')}
                 </p>
                 <button
                   onClick={() => setShowSyncModal(false)}
                   className="mt-5 px-6 py-2.5 bg-[#4338ff] hover:bg-[#3730d4] text-white font-medium rounded-lg transition-colors"
                 >
-                  Let&apos;s Go
+                  {t('letsGo')}
                 </button>
               </>
             )}
@@ -261,19 +265,19 @@ function ProfileContent() {
           {hasGarmin && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
               <Watch className="h-3.5 w-3.5 text-green-400" />
-              <span className="text-xs font-medium text-green-400">Garmin Connected</span>
+              <span className="text-xs font-medium text-green-400">{tHeader('garminConnected')}</span>
             </div>
           )}
           {hasStrava && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20">
               <Activity className="h-3.5 w-3.5 text-orange-400" />
-              <span className="text-xs font-medium text-orange-400">Strava Connected</span>
+              <span className="text-xs font-medium text-orange-400">{t('connected')}</span>
             </div>
           )}
           {!hasGarmin && !hasStrava && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
               <WifiOff className="h-3.5 w-3.5 text-amber-400" />
-              <span className="text-xs font-medium text-amber-400">No Connection</span>
+              <span className="text-xs font-medium text-amber-400">{t('noConnection')}</span>
             </div>
           )}
         </div>
@@ -289,7 +293,7 @@ function ProfileContent() {
             <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
               <Dumbbell className="h-4.5 w-4.5 text-[#4338ff]" />
             </div>
-            <h2 className="font-semibold text-white">This Week&apos;s Program</h2>
+            <h2 className="font-semibold text-white">{t('thisWeeksProgram')}</h2>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#4338ff] bg-[#4338ff]/10 px-2.5 py-1 rounded-full">
@@ -302,7 +306,7 @@ function ProfileContent() {
         <div className="bg-slate-900/50 rounded-xl p-4 flex items-center gap-3">
           <FileText className="h-5 w-5 text-slate-400 shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-white">Training & Nutrition</p>
+            <p className="text-sm font-medium text-white">{t('trainingAndNutrition')}</p>
             <p className="text-xs text-slate-500 mt-0.5">{currentWeek.dateRange}</p>
           </div>
         </div>
@@ -315,12 +319,12 @@ function ProfileContent() {
             <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
               <Users className="h-4.5 w-4.5 text-[#4338ff]" />
             </div>
-            <h2 className="font-semibold text-white">Pace Group</h2>
+            <h2 className="font-semibold text-white">{t('paceGroup')}</h2>
           </div>
           {saved && (
             <div className="flex items-center gap-1.5 text-green-400">
               <CheckCircle2 className="h-4 w-4" />
-              <span className="text-xs font-medium">Saved</span>
+              <span className="text-xs font-medium">{t('saved')}</span>
             </div>
           )}
         </div>
@@ -373,7 +377,7 @@ function ProfileContent() {
         </div>
 
         {hasActivities && (
-          <p className="text-xs text-slate-500 mt-3 text-center">Group is locked once you have synced activities. Contact your coach to change.</p>
+          <p className="text-xs text-slate-500 mt-3 text-center">{t('groupLocked')}</p>
         )}
 
         {hasChanges && !hasActivities && (
@@ -385,12 +389,12 @@ function ProfileContent() {
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
+                {t('saving')}
               </>
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Save Group Change
+                {t('saveGroupChange')}
               </>
             )}
           </button>
@@ -403,7 +407,7 @@ function ProfileContent() {
           <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
             <Activity className="h-4.5 w-4.5 text-[#4338ff]" />
           </div>
-          <h2 className="font-semibold text-white">Activity Data Source</h2>
+          <h2 className="font-semibold text-white">{t('activityDataSource')}</h2>
         </div>
 
         <div className="space-y-3">
@@ -416,18 +420,18 @@ function ProfileContent() {
               <div className="flex items-center gap-3">
                 <Watch className={cn('h-5 w-5', hasGarmin ? 'text-green-400' : 'text-slate-500')} />
                 <div>
-                  <p className={cn('text-sm font-medium', hasGarmin ? 'text-white' : 'text-slate-400')}>Garmin Connect</p>
-                  <p className="text-[11px] text-slate-500">{hasGarmin ? 'Connected' : 'Not connected'}</p>
+                  <p className={cn('text-sm font-medium', hasGarmin ? 'text-white' : 'text-slate-400')}>{t('garminConnect')}</p>
+                  <p className="text-[11px] text-slate-500">{hasGarmin ? t('connected') : t('notConnected')}</p>
                 </div>
               </div>
               {hasGarmin ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Connected</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">{t('connected')}</span>
               ) : (
                 <button
                   onClick={() => setConnectingGarmin(!connectingGarmin)}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#4338ff]/10 text-[#4338ff] hover:bg-[#4338ff]/20 transition-colors"
                 >
-                  Connect
+                  {t('connect')}
                 </button>
               )}
             </div>
@@ -435,7 +439,7 @@ function ProfileContent() {
               <div className="px-4 pb-4 space-y-3 border-t border-slate-700/30 pt-3">
                 <input
                   type="email"
-                  placeholder="Garmin email"
+                  placeholder={t('garminEmail')}
                   value={garminEmail}
                   onChange={e => setGarminEmail(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4338ff]/50"
@@ -443,7 +447,7 @@ function ProfileContent() {
                 {!mfaRequired && (
                   <input
                     type="password"
-                    placeholder="Garmin password"
+                    placeholder={t('garminPassword')}
                     value={garminPassword}
                     onChange={e => setGarminPassword(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4338ff]/50"
@@ -451,10 +455,10 @@ function ProfileContent() {
                 )}
                 {mfaRequired && (
                   <div className="space-y-2">
-                    <p className="text-xs text-amber-400">A verification code was sent to your email. Enter it below:</p>
+                    <p className="text-xs text-amber-400">{t('verificationCodeSent')}</p>
                     <input
                       type="text"
-                      placeholder="6-digit code"
+                      placeholder={t('sixDigitCode')}
                       value={mfaCode}
                       onChange={e => setMfaCode(e.target.value)}
                       maxLength={6}
@@ -542,7 +546,7 @@ function ProfileContent() {
                   ) : (
                     <Watch className="h-4 w-4" />
                   )}
-                  {garminLoading ? 'Connecting...' : mfaRequired ? 'Verify Code' : 'Connect Garmin'}
+                  {garminLoading ? t('connecting') : mfaRequired ? t('verifyCode') : t('connectGarmin')}
                 </button>
               </div>
             )}
@@ -557,12 +561,12 @@ function ProfileContent() {
               <div className="flex items-center gap-3">
                 <Activity className={cn('h-5 w-5', hasStrava ? 'text-orange-400' : 'text-slate-500')} />
                 <div>
-                  <p className={cn('text-sm font-medium', hasStrava ? 'text-white' : 'text-slate-400')}>Strava</p>
-                  <p className="text-[11px] text-slate-500">{hasStrava ? 'Connected' : 'Not connected'}</p>
+                  <p className={cn('text-sm font-medium', hasStrava ? 'text-white' : 'text-slate-400')}>{t('strava')}</p>
+                  <p className="text-[11px] text-slate-500">{hasStrava ? t('connected') : t('notConnected')}</p>
                 </div>
               </div>
               {hasStrava ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">Connected</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">{t('connected')}</span>
               ) : (
                 <button
                   onClick={async () => {
@@ -580,7 +584,7 @@ function ProfileContent() {
                   disabled={connectingStrava}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#fc5200]/10 text-[#fc5200] hover:bg-[#fc5200]/20 transition-colors disabled:opacity-50"
                 >
-                  {connectingStrava ? 'Connecting...' : 'Connect'}
+                  {connectingStrava ? t('connecting') : t('connect')}
                 </button>
               )}
             </div>
@@ -603,14 +607,14 @@ function ProfileContent() {
             className="mt-4 w-full border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             <Activity className="h-4 w-4" />
-            Switch to {dataSource === 'strava' ? 'Garmin' : 'Strava'}
+            {dataSource === 'strava' ? t('switchToGarmin') : t('switchToStrava')}
           </button>
         )}
 
         {!hasGarmin && !hasStrava && (
           <div className="mt-4 flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
             <WifiOff className="h-4 w-4 shrink-0" />
-            <span>No data source connected. Connect Garmin or Strava to sync your activities.</span>
+            <span>{t('noDataSource')}</span>
           </div>
         )}
 
@@ -645,9 +649,9 @@ function ProfileContent() {
                       totalSynced += d.synced || 0;
                     }
                   }
-                  setSyncResult(`Synced ${totalSynced} new activities`);
+                  setSyncResult(t('syncedNewActivities', { count: totalSynced }));
                 } catch {
-                  setSyncResult('Sync failed. Try again later.');
+                  setSyncResult(t('syncFailed'));
                 } finally {
                   setSyncing(false);
                   setTimeout(() => setSyncResult(null), 4000);
@@ -659,17 +663,17 @@ function ProfileContent() {
               {syncing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Syncing...
+                  {t('syncing')}
                 </>
               ) : (
                 <>
                   <Activity className="h-4 w-4" />
-                  {hasStrava && hasActivities ? 'Sync Strava Activities' : 'Sync Activities Now'}
+                  {hasStrava && hasActivities ? t('syncStravaActivities') : t('syncActivitiesNow')}
                 </>
               )}
             </button>
             {syncResult && (
-              <p className={cn('text-xs mt-2 text-center', syncResult.includes('failed') ? 'text-red-400' : 'text-green-400')}>
+              <p className={cn('text-xs mt-2 text-center', syncResult.includes(t('syncFailed')) ? 'text-red-400' : 'text-green-400')}>
                 {syncResult}
               </p>
             )}
