@@ -20,8 +20,36 @@ interface MfaSession {
   signinParams: string;
 }
 
-// In-memory store for MFA sessions (short-lived)
-const mfaSessions = new Map<string, { session: MfaSession; expires: number }>();
+// Encrypt/decrypt MFA session data so it can be sent to client and back
+const MFA_SECRET = process.env.ENCRYPTION_KEY || 'default-mfa-key-change-me-32ch';
+
+function encryptSession(session: MfaSession): string {
+  const iv = crypto.randomBytes(12);
+  const key = crypto.scryptSync(MFA_SECRET, 'salt', 32);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const data = JSON.stringify({ ...session, exp: Date.now() + 5 * 60 * 1000 });
+  const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, encrypted]).toString('base64');
+}
+
+function decryptSession(token: string): MfaSession | null {
+  try {
+    const buf = Buffer.from(token, 'base64');
+    const iv = buf.subarray(0, 12);
+    const tag = buf.subarray(12, 28);
+    const encrypted = buf.subarray(28);
+    const key = crypto.scryptSync(MFA_SECRET, 'salt', 32);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    const decrypted = decipher.update(encrypted) + decipher.final('utf8');
+    const parsed = JSON.parse(decrypted);
+    if (Date.now() > parsed.exp) return null;
+    return { cookies: parsed.cookies, csrf: parsed.csrf, signinParams: parsed.signinParams };
+  } catch {
+    return null;
+  }
+}
 
 function extractCookies(response: any): string[] {
   const setCookies = response.headers?.['set-cookie'] || [];
@@ -112,16 +140,12 @@ export async function garminLogin(email: string, password: string): Promise<
       });
       const mfaHtml = mfaPageRes.data || '';
       const mfaCsrf = CSRF_RE.exec(mfaHtml);
-      const sessionId = crypto.randomBytes(16).toString('hex');
-
-      mfaSessions.set(sessionId, {
-        session: {
-          cookies: [...step3Cookies, ...extractCookies(mfaPageRes)],
-          csrf: mfaCsrf ? mfaCsrf[1] : csrf,
-          signinParams: qs.stringify(signinParams),
-        },
-        expires: Date.now() + 5 * 60 * 1000,
-      });
+      const sessionData: MfaSession = {
+        cookies: [...step3Cookies, ...extractCookies(mfaPageRes)],
+        csrf: mfaCsrf ? mfaCsrf[1] : csrf,
+        signinParams: qs.stringify(signinParams),
+      };
+      const sessionId = encryptSession(sessionData);
 
       return { mfaRequired: true, sessionId };
     }
@@ -150,16 +174,12 @@ export async function garminLogin(email: string, password: string): Promise<
 
     if (hasMfa) {
       const mfaCsrf = CSRF_RE.exec(html);
-      const sessionId = crypto.randomBytes(16).toString('hex');
-
-      mfaSessions.set(sessionId, {
-        session: {
-          cookies: allCookies,
-          csrf: mfaCsrf ? mfaCsrf[1] : csrf,
-          signinParams: qs.stringify(signinParams),
-        },
-        expires: Date.now() + 5 * 60 * 1000,
-      });
+      const sessionData: MfaSession = {
+        cookies: allCookies,
+        csrf: mfaCsrf ? mfaCsrf[1] : csrf,
+        signinParams: qs.stringify(signinParams),
+      };
+      const sessionId = encryptSession(sessionData);
 
       return { mfaRequired: true, sessionId };
     }
@@ -187,14 +207,12 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
   | { error: string }
 > {
   try {
-    const stored = mfaSessions.get(sessionId);
-    if (!stored || Date.now() > stored.expires) {
-      mfaSessions.delete(sessionId);
+    const session = decryptSession(sessionId);
+    if (!session) {
       return { error: 'MFA session expired. Please start login again.' };
     }
 
-    const { cookies, csrf, signinParams } = stored.session;
-    mfaSessions.delete(sessionId);
+    const { cookies, csrf, signinParams } = session;
 
     const client = axios.create({
       maxRedirects: 0,
@@ -204,10 +222,10 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
     // Submit MFA verification code
     const verifyUrl = `${SSO_ORIGIN}/sso/verifyMFA/loginEnterMfaCode?${signinParams}`;
     const formData = qs.stringify({
-      'verification-code': code,
-      verificationCode: code,
+      'mfa-code': code,
       _csrf: csrf,
       embed: 'true',
+      fromPage: 'setupEnterMfaCode',
     });
 
     let res = await client.post(verifyUrl, formData, {
@@ -311,10 +329,4 @@ async function exchangeTicketForTokens(ticket: string): Promise<{ oauth1: any; o
   return { oauth1, oauth2: oauth2Res.data };
 }
 
-// Cleanup expired sessions periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, data] of mfaSessions.entries()) {
-    if (now > data.expires) mfaSessions.delete(id);
-  }
-}, 60000);
+
