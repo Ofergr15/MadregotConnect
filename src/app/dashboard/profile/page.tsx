@@ -87,6 +87,9 @@ function ProfileContent() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [hasActivities, setHasActivities] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncModalStatus, setSyncModalStatus] = useState<'syncing' | 'done'>('syncing');
+  const [syncModalCount, setSyncModalCount] = useState(0);
   const garminSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -197,6 +200,40 @@ function ProfileContent() {
 
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-8">
+      {showSyncModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-sm text-center">
+            {syncModalStatus === 'syncing' ? (
+              <>
+                <div className="bg-[#4338ff]/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Loader2 className="h-8 w-8 text-[#4338ff] animate-spin" />
+                </div>
+                <h2 className="text-lg font-bold text-white">Syncing Activities</h2>
+                <p className="text-sm text-slate-400 mt-2">Fetching your recent activities from Garmin...</p>
+              </>
+            ) : (
+              <>
+                <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="h-8 w-8 text-green-400" />
+                </div>
+                <h2 className="text-lg font-bold text-white">Garmin Connected!</h2>
+                <p className="text-sm text-slate-400 mt-2">
+                  {syncModalCount > 0
+                    ? `Synced ${syncModalCount} activities from Garmin.`
+                    : 'Connected successfully. Activities will appear after your next run!'}
+                </p>
+                <button
+                  onClick={() => setShowSyncModal(false)}
+                  className="mt-5 px-6 py-2.5 bg-[#4338ff] hover:bg-[#3730d4] text-white font-medium rounded-lg transition-colors"
+                >
+                  Let&apos;s Go
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Profile Hero */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#4338ff]/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#4338ff]/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
@@ -471,8 +508,8 @@ function ProfileContent() {
                         setMfaCode('');
                         setGarminEmail('');
                         setGarminPassword('');
-                        setSyncing(true);
-                        setSyncResult(null);
+                        setShowSyncModal(true);
+                        setSyncModalStatus('syncing');
                         try {
                           const syncRes = await fetch('/api/garmin/sync-activities', {
                             method: 'POST',
@@ -481,12 +518,11 @@ function ProfileContent() {
                           });
                           if (syncRes.ok) {
                             const syncData = await syncRes.json();
-                            setSyncResult(`Synced ${syncData.synced || 0} activities from Garmin`);
+                            setSyncModalCount(syncData.synced || 0);
                             if (syncData.synced > 0) setHasActivities(true);
                           }
                         } catch {}
-                        setSyncing(false);
-                        setTimeout(() => setSyncResult(null), 5000);
+                        setSyncModalStatus('done');
                       } else {
                         setGarminError('Failed to save connection');
                       }
