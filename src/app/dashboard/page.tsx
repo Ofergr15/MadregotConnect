@@ -433,9 +433,19 @@ export default function DashboardPage() {
       const myIsCoach = !!localStorage.getItem('coach_email');
       const isFirstVisit = !localStorage.getItem('dashboard_synced');
 
+      let hasGarminOrStrava = false;
       if (isFirstVisit && myAthleteId && !myIsCoach) {
-        setShowSyncModal(true);
-        setSyncStatus('syncing');
+        try {
+          const meRes = await fetch(`/api/athletes/me?id=${myAthleteId}`);
+          const meData = await meRes.json();
+          hasGarminOrStrava = meData.athlete?.hasGarmin || false;
+        } catch {}
+        if (hasGarminOrStrava) {
+          setShowSyncModal(true);
+          setSyncStatus('syncing');
+        } else {
+          localStorage.setItem('dashboard_synced', '1');
+        }
       }
 
       try {
@@ -475,7 +485,7 @@ export default function DashboardPage() {
           })));
         }
 
-        if (isFirstVisit && myAthleteId && !myIsCoach) {
+        if (isFirstVisit && hasGarminOrStrava && myAthleteId && !myIsCoach) {
           try {
             const [syncRes, stravaSyncRes] = await Promise.allSettled([
               fetch('/api/garmin/sync-activities', {
