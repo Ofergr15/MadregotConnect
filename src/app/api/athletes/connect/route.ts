@@ -7,15 +7,10 @@ export async function POST(req: NextRequest) {
   try {
     const { inviteToken, garminAuth, name, email, groupId } = await req.json();
 
-    if (!garminAuth) {
-      return NextResponse.json(
-        { error: 'garminAuth is required' },
-        { status: 400 }
-      );
-    }
-
     const supabase = createServerClient();
-    const encryptedAuth = typeof garminAuth === 'string' ? garminAuth : encrypt(garminAuth);
+    const encryptedAuth = garminAuth
+      ? (typeof garminAuth === 'string' ? garminAuth : encrypt(garminAuth))
+      : null;
 
     // If inviteToken provided, update existing athlete record
     if (inviteToken) {
@@ -33,11 +28,13 @@ export async function POST(req: NextRequest) {
       }
 
       const updateData: Record<string, any> = {
-        garmin_auth: encryptedAuth,
         status: 'active',
-        onboarding_status: 'garmin_authed',
-        garmin_authed_at: new Date().toISOString(),
+        onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
       };
+      if (encryptedAuth) {
+        updateData.garmin_auth = encryptedAuth;
+        updateData.garmin_authed_at = new Date().toISOString();
+      }
       if (name) updateData.name = name;
       if (email) updateData.email = email;
       if (groupId) updateData.group_id = groupId;
@@ -55,7 +52,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const { notifyAdminNewUser } = await import('@/lib/email');
-        await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: 'garmin_authed', hasGarmin: true });
+        await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!encryptedAuth });
       } catch {}
 
       return NextResponse.json({ success: true, athlete: updated });
@@ -74,16 +71,20 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (existing) {
+      const updatePayload: Record<string, any> = {
+        status: 'active',
+        name,
+        onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
+        ...(groupId ? { group_id: groupId } : {}),
+      };
+      if (encryptedAuth) {
+        updatePayload.garmin_auth = encryptedAuth;
+        updatePayload.garmin_authed_at = new Date().toISOString();
+      }
+
       const { data: updated, error: updateError } = await supabase
         .from('athletes')
-        .update({
-          garmin_auth: encryptedAuth,
-          status: 'active',
-          name,
-          onboarding_status: 'garmin_authed',
-          garmin_authed_at: new Date().toISOString(),
-          ...(groupId ? { group_id: groupId } : {}),
-        })
+        .update(updatePayload)
         .eq('id', existing.id)
         .select('id, name, email, group_id')
         .single();
@@ -91,28 +92,43 @@ export async function POST(req: NextRequest) {
       if (updateError) {
         return NextResponse.json({ error: 'Failed to save connection' }, { status: 500 });
       }
+
+      try {
+        const { notifyAdminNewUser } = await import('@/lib/email');
+        await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updatePayload.onboarding_status, hasGarmin: !!encryptedAuth });
+      } catch {}
+
       return NextResponse.json({ success: true, athlete: updated });
     }
 
     // Create new athlete
+    const insertPayload: Record<string, any> = {
+      coach_id: COACH_ID,
+      name,
+      email: email.toLowerCase(),
+      status: 'active',
+      onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
+      ...(groupId ? { group_id: groupId } : {}),
+    };
+    if (encryptedAuth) {
+      insertPayload.garmin_auth = encryptedAuth;
+      insertPayload.garmin_authed_at = new Date().toISOString();
+    }
+
     const { data: created, error: createError } = await supabase
       .from('athletes')
-      .insert({
-        coach_id: COACH_ID,
-        name,
-        email: email.toLowerCase(),
-        garmin_auth: encryptedAuth,
-        status: 'active',
-        onboarding_status: 'garmin_authed',
-        garmin_authed_at: new Date().toISOString(),
-        ...(groupId ? { group_id: groupId } : {}),
-      })
+      .insert(insertPayload)
       .select('id, name, email, group_id')
       .single();
 
     if (createError) {
       return NextResponse.json({ error: 'Failed to create athlete' }, { status: 500 });
     }
+
+    try {
+      const { notifyAdminNewUser } = await import('@/lib/email');
+      await notifyAdminNewUser({ name, email, onboardingStatus: insertPayload.onboarding_status, hasGarmin: !!encryptedAuth });
+    } catch {}
 
     return NextResponse.json({ success: true, athlete: created });
   } catch (error: any) {

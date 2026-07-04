@@ -21,6 +21,7 @@ interface Athlete {
   hasGarmin?: boolean;
   hasStrava?: boolean;
   stravaEnabled?: boolean;
+  onboardingStatus?: string | null;
 }
 
 interface Group {
@@ -524,6 +525,17 @@ ${inviteLink}`;
                           <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', athlete.hasStrava ? 'bg-orange-500/15 text-orange-400' : athlete.stravaEnabled ? 'bg-amber-500/15 text-amber-400 animate-pulse' : 'hidden')}>
                             {athlete.hasStrava ? 'Strava' : 'Awaiting Strava'}
                           </span>
+                          {athlete.onboardingStatus && (
+                            <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded',
+                              athlete.onboardingStatus === 'garmin_authed' ? 'bg-green-500/15 text-green-400' :
+                              athlete.onboardingStatus === 'google_authed' ? 'bg-blue-500/15 text-blue-400' :
+                              'bg-slate-500/15 text-slate-400'
+                            )}>
+                              {athlete.onboardingStatus === 'garmin_authed' ? 'Garmin Auth' :
+                               athlete.onboardingStatus === 'google_authed' ? 'Google Only' :
+                               athlete.onboardingStatus}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-400">
@@ -661,6 +673,17 @@ ${inviteLink}`;
                     <span className="text-slate-500 text-xs">No group</span>
                   )}
                   {getStatusBadge(athlete.status)}
+                  {athlete.onboardingStatus && (
+                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded',
+                      athlete.onboardingStatus === 'garmin_authed' ? 'bg-green-500/15 text-green-400' :
+                      athlete.onboardingStatus === 'google_authed' ? 'bg-blue-500/15 text-blue-400' :
+                      'bg-slate-500/15 text-slate-400'
+                    )}>
+                      {athlete.onboardingStatus === 'garmin_authed' ? 'Garmin Auth' :
+                       athlete.onboardingStatus === 'google_authed' ? 'Google Only' :
+                       athlete.onboardingStatus}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
