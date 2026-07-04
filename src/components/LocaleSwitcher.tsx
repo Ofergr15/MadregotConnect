@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { Globe } from 'lucide-react';
 
 function getLocaleFromCookie(): string {
@@ -10,7 +9,6 @@ function getLocaleFromCookie(): string {
 }
 
 export function LocaleSwitcher() {
-  const router = useRouter();
   const [locale, setLocaleState] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,8 +20,7 @@ export function LocaleSwitcher() {
   const switchLocale = () => {
     const newLocale = locale === 'he' ? 'en' : 'he';
     document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=${60 * 60 * 24 * 365}`;
-    setLocaleState(newLocale);
-    router.refresh();
+    window.location.reload();
   };
 
   return (
