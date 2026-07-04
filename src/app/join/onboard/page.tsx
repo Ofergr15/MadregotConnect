@@ -471,7 +471,7 @@ function OnboardContent() {
                 }
               }}
               disabled={step === 'connecting'}
-              className="w-full text-slate-500 hover:text-slate-300 text-sm py-2 transition-colors"
+              className="w-full border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors"
             >
               I&apos;ll connect Garmin later
             </button>
