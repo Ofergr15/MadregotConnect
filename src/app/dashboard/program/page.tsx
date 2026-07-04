@@ -49,6 +49,7 @@ type ExerciseCategory = 'legs' | 'core' | 'upper' | 'prehab';
 
 interface WorkoutVideo {
   id: string;
+  youtube?: string;
   name: string;
   category: ExerciseCategory;
   tags: string[];
@@ -69,7 +70,7 @@ const WORKOUT_VIDEOS: WorkoutVideo[] = [
   { id: '1DyxyrjAaTX2gbsCY7d33Iz3hRWs4mESH', name: 'Seated Calf Raises', category: 'legs', tags: ['Calves', 'Isolation'], desc: 'Seated with weight on knees, raise heels. Targets the soleus — the key muscle for long-distance running.', sets: '3×15' },
   { id: '1M_AkiLylOcbybvBg2X-ALBGuPbF8A5MT', name: 'Bird Dog', category: 'core', tags: ['Core', 'Stability'], desc: 'On all fours, extend opposite arm and leg. Builds anti-rotation core stability for better running form.', sets: '3×10/side' },
   { id: '133UK4QjplTNIsUBHrRp4OwYBnnPApCZk', name: 'Side Plank', category: 'core', tags: ['Core', 'Stability'], desc: 'Hold body in straight line on forearm sideways. Strengthens obliques to prevent hip drop while running.', sets: '3×30s/side' },
-  { id: '1tIoIaxDizlgRsNL0H5VK5HdJ2Cw4YBlc', name: 'Toes to Bar', category: 'core', tags: ['Core', 'Advanced'], desc: 'Hang from bar, lift toes to touch it. Advanced core exercise that builds hip flexor and ab strength.', sets: '3×8-12' },
+  { id: '1tIoIaxDizlgRsNL0H5VK5HdJ2Cw4YBlc', youtube: 'zUMI4pyfFz8', name: 'Toes to Bar', category: 'core', tags: ['Core', 'Advanced'], desc: 'Hang from bar, lift toes to touch it. Advanced core exercise that builds hip flexor and ab strength.', sets: '3×8-12' },
   { id: '1PT4JyGjDwQEDjCzV8lGDP_AGZfJR1Hix', name: 'Shoulder Press', category: 'upper', tags: ['Shoulders', 'Strength'], desc: 'Press dumbbells or barbell overhead. Maintains upper body balance and arm drive strength for running.', sets: '3×10' },
   { id: '1c581iETVjs9GytI95T6iwN_bW_7k4_N6', name: "Farmer's Carry", category: 'upper', tags: ['Grip', 'Functional'], desc: 'Walk with heavy weights in each hand, upright posture. Builds grip, core, and running posture endurance.', sets: '3×40m' },
   { id: '1egI6kI8qAfuWgu67Te9twkWZRD1MKJYU', name: 'Banded Tibialis Raise', category: 'prehab', tags: ['Prehab', 'Mobility'], desc: 'Pull toes up against band resistance. Strengthens shin muscles to prevent shin splints.', sets: '3×15' },
@@ -258,25 +259,36 @@ export default function ProgramPage() {
           <div className="bg-slate-800 rounded-xl sm:rounded-xl border border-slate-700 overflow-hidden -mx-4 sm:mx-0 rounded-none sm:rounded-xl border-x-0 sm:border-x">
             {/* Video Player */}
             <div className="w-full aspect-video bg-slate-900 relative">
-              <iframe
-                key={selectedVideoIndex}
-                src={`https://drive.google.com/file/d/${currentExercise.id}/preview?usp=embed_googleplus`}
-                className="w-full h-full border-0"
-                title={currentExercise.name}
-                allow="autoplay; fullscreen"
-                allowFullScreen
-                sandbox="allow-scripts allow-same-origin allow-popups"
-              />
-              {/* Fullscreen link for mobile fallback */}
-              <a
-                href={`https://drive.google.com/file/d/${currentExercise.id}/view`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="absolute top-2 end-2 bg-black/70 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 z-10 sm:hidden"
-              >
-                <Play className="h-3 w-3" />
-                Open Video
-              </a>
+              {currentExercise.youtube ? (
+                <iframe
+                  key={selectedVideoIndex}
+                  src={`https://www.youtube.com/embed/${currentExercise.youtube}?playsinline=1&rel=0`}
+                  className="w-full h-full border-0"
+                  title={currentExercise.name}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <>
+                  <iframe
+                    key={selectedVideoIndex}
+                    src={`https://drive.google.com/file/d/${currentExercise.id}/preview`}
+                    className="w-full h-full border-0"
+                    title={currentExercise.name}
+                    allow="autoplay; fullscreen"
+                    allowFullScreen
+                  />
+                  <a
+                    href={`https://drive.google.com/file/d/${currentExercise.id}/view`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute top-2 end-2 bg-black/70 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 z-10 sm:hidden"
+                  >
+                    <Play className="h-3 w-3" />
+                    Open
+                  </a>
+                </>
+              )}
             </div>
 
             {/* Exercise Info + Nav below video */}
