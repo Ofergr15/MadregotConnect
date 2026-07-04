@@ -256,14 +256,16 @@ export default function ProgramPage() {
           {/* Video Player — only show after selecting an exercise */}
           {currentExercise && (
           <div className="bg-slate-800 rounded-xl sm:rounded-xl border border-slate-700 overflow-hidden -mx-4 sm:mx-0 rounded-none sm:rounded-xl border-x-0 sm:border-x">
-            {/* Video */}
+            {/* Video — native player for mobile compatibility */}
             <div className="w-full aspect-video bg-slate-900">
-              <iframe
+              <video
                 key={selectedVideoIndex}
-                src={`https://drive.google.com/file/d/${currentExercise.id}/preview`}
-                className="w-full h-full border-0"
-                title={currentExercise.name}
-                allow="autoplay"
+                src={`https://drive.google.com/uc?export=download&id=${currentExercise.id}`}
+                className="w-full h-full"
+                controls
+                playsInline
+                preload="metadata"
+                poster={`https://drive.google.com/thumbnail?id=${currentExercise.id}&sz=w800`}
               />
             </div>
 
