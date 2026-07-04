@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users, Eye, EyeOff } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -26,6 +27,7 @@ export default function OnboardPage() {
 }
 
 function OnboardContent() {
+  const t = useTranslations('onboarding');
   const searchParams = useSearchParams();
   const skipGroup = searchParams.get('skipGroup') === '1';
   const skipGarmin = searchParams.get('skipGarmin') === '1';
@@ -214,21 +216,21 @@ function OnboardContent() {
           </div>
 
           <h1 className="text-2xl font-bold text-white text-center">
-            {skippedGarmin ? 'Registration Complete!' : 'Garmin Connected!'}
+            {skippedGarmin ? t('registrationComplete') : t('garminConnected')}
           </h1>
           <p className="text-slate-400 mt-3 text-center">
             {skippedGarmin
-              ? 'You can connect your Garmin watch anytime from your profile settings.'
-              : 'Your Garmin account is now linked successfully.'}
+              ? t('canConnectLater')
+              : t('garminLinked')}
           </p>
 
           <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-5 text-center">
             <div className="bg-amber-500/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
               <Shield className="h-6 w-6 text-amber-400" />
             </div>
-            <h2 className="text-base font-bold text-white">Waiting for Madregot Approval</h2>
+            <h2 className="text-base font-bold text-white">{t('waitingApproval')}</h2>
             <p className="text-sm text-slate-400 mt-2">
-              An admin will review your registration and approve your access. You&apos;ll receive an email once you&apos;re in!
+              {t('approvalMessage')}
             </p>
           </div>
 
@@ -237,8 +239,8 @@ function OnboardContent() {
               <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
                 <Watch className="h-5 w-5 text-primary-400 mt-0.5" />
                 <div>
-                  <h3 className="text-sm font-medium text-white">In the meantime...</h3>
-                  <p className="text-xs text-slate-400 mt-1">Sync your Garmin watch via the Garmin Connect app so workouts will be ready when you&apos;re approved</p>
+                  <h3 className="text-sm font-medium text-white">{t('inTheMeantime')}</h3>
+                  <p className="text-xs text-slate-400 mt-1">{t('syncGarminTip')}</p>
                 </div>
               </div>
             </div>
@@ -253,7 +255,7 @@ function OnboardContent() {
               }}
               className="block w-full bg-slate-700 hover:bg-slate-600 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center"
             >
-              Back to Home
+              {t('backHome')}
             </button>
           </div>
         </div>
@@ -275,9 +277,9 @@ function OnboardContent() {
         </div>
 
         <div className="text-center mb-6">
-          <h1 className="text-xl font-bold text-white">Complete Your Setup</h1>
+          <h1 className="text-xl font-bold text-white">{t('completeSetup')}</h1>
           <p className="text-slate-400 mt-2 text-sm">
-            Choose your pace group and connect your Garmin watch
+            {t('chooseGroup')}
           </p>
         </div>
 
@@ -289,7 +291,7 @@ function OnboardContent() {
         {step === 'info' && (
           <form onSubmit={handleInfoSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Your Name</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1">{t('yourName')}</label>
               <input
                 type="text"
                 value={name}
@@ -300,20 +302,20 @@ function OnboardContent() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1">{t('emailLabel')}</label>
               <input
                 type="email"
                 value={email}
                 readOnly
                 className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-base text-slate-300 cursor-not-allowed"
               />
-              <p className="text-xs text-slate-500 mt-1">From your Google account</p>
+              <p className="text-xs text-slate-500 mt-1">{t('fromGoogle')}</p>
             </div>
             {groups.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   <Users className="inline h-4 w-4 me-1" />
-                  Your Pace Group
+                  {t('yourPaceGroup')}
                 </label>
                 <div className="space-y-2">
                   {groups.map(g => {
@@ -334,7 +336,7 @@ function OnboardContent() {
                             <div className="font-medium text-white">{g.name}</div>
                             {g.marathonGoal && (
                               <div className="text-xs text-slate-400 mt-0.5">
-                                Marathon Goal: <span className="font-mono text-slate-300">{g.marathonGoal}</span>
+                                {t('marathonGoal')} <span className="font-mono text-slate-300">{g.marathonGoal}</span>
                               </div>
                             )}
                           </div>
@@ -354,7 +356,7 @@ function OnboardContent() {
               type="submit"
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors"
             >
-              Continue
+              {t('continue')}
             </button>
             <button
               type="button"
@@ -365,7 +367,7 @@ function OnboardContent() {
               }}
               className="block w-full text-center text-sm text-slate-500 hover:text-slate-300 transition-colors mt-3"
             >
-              ← Back to Home
+              {t('backToHome')}
             </button>
           </form>
         )}
@@ -375,12 +377,12 @@ function OnboardContent() {
             <div className="bg-slate-700/50 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-primary-400 mt-0.5 shrink-0" />
               <p className="text-xs text-slate-400">
-                <span className="text-white font-medium">One-time setup:</span> Enter your Garmin Connect credentials to link your watch.
+                <span className="text-white font-medium">{t('oneTimeSetup')}</span> {t('garminHelper')}
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Garmin Connect Email</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminEmail')}</label>
               <input
                 type="email"
                 value={garminEmail}
@@ -392,7 +394,7 @@ function OnboardContent() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Garmin Connect Password</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminPassword')}</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -424,9 +426,9 @@ function OnboardContent() {
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {step === 'connecting' ? (
-                <><Loader2 className="h-4 w-4 animate-spin" />Connecting to Garmin...</>
+                <><Loader2 className="h-4 w-4 animate-spin" />{t('connectingGarmin')}</>
               ) : (
-                'Connect Garmin Account'
+                t('connectGarmin')
               )}
             </button>
 
@@ -473,7 +475,7 @@ function OnboardContent() {
               disabled={step === 'connecting'}
               className="w-full border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors"
             >
-              I&apos;ll connect Garmin later
+              {t('connectLater')}
             </button>
           </form>
         )}
@@ -484,19 +486,19 @@ function OnboardContent() {
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
               <p className="text-xs text-slate-300">
-                <span className="text-amber-400 font-medium">Verification required:</span> A code was sent to your Garmin email. Enter it below to complete the connection.
+                <span className="text-amber-400 font-medium">{t('verificationRequired')}</span> {t('mfaHelper')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Verification Code
+                {t('verificationCode')}
               </label>
               <input
                 type="text"
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}
-                placeholder="Enter 6-digit code"
+                placeholder={t('enterCode')}
                 maxLength={6}
                 className="w-full bg-slate-700 border border-amber-500/50 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-center text-xl tracking-widest"
                 required
@@ -515,7 +517,7 @@ function OnboardContent() {
               disabled={!mfaCode || mfaCode.length < 6}
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Verify & Connect
+              {t('verifyConnect')}
             </button>
 
             <button
@@ -523,7 +525,7 @@ function OnboardContent() {
               onClick={() => { setStep('garmin'); setMfaRequired(false); setMfaCode(''); }}
               className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
             >
-              Back to login
+              {t('backToLogin')}
             </button>
           </form>
         )}

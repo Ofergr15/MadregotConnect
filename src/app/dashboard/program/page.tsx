@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -45,6 +46,7 @@ const WEEKS: WeekProgram[] = [
 ];
 
 export default function ProgramPage() {
+  const t = useTranslations('program');
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [activeView, setActiveView] = useState<'training' | 'nutrition'>('training');
   const [weekDropdownOpen, setWeekDropdownOpen] = useState(false);
@@ -55,9 +57,9 @@ export default function ProgramPage() {
     <div className="space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Weekly Program</h1>
+        <h1 className="text-2xl font-bold">{t('weeklyProgram')}</h1>
         <p className="text-slate-400 mt-1 text-sm">
-          Training & Nutrition plans — Madregot After 2KM
+          {t('subtitle')}
         </p>
       </div>
 
@@ -75,7 +77,7 @@ export default function ProgramPage() {
             </div>
             {selectedWeek === 0 && (
               <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium">
-                Current
+                {t('current')}
               </span>
             )}
             <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", weekDropdownOpen && "rotate-180")} />
@@ -122,7 +124,7 @@ export default function ProgramPage() {
             )}
           >
             <Dumbbell className="h-4 w-4" />
-            Training
+            {t('training')}
           </button>
           <button
             onClick={() => setActiveView('nutrition')}
@@ -134,7 +136,7 @@ export default function ProgramPage() {
             )}
           >
             <Utensils className="h-4 w-4" />
-            Nutrition
+            {t('nutrition')}
           </button>
         </div>
       </div>
@@ -145,7 +147,7 @@ export default function ProgramPage() {
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-slate-400" />
             <span className="text-sm font-medium">
-              {activeView === 'training' ? 'Training Program' : 'Nutrition Plan'} — {currentWeek.dateRange}
+              {activeView === 'training' ? t('trainingProgram') : t('nutritionPlan')} — {currentWeek.dateRange}
             </span>
           </div>
           <a
@@ -155,7 +157,7 @@ export default function ProgramPage() {
             className="flex items-center gap-1.5 text-xs text-primary-400 hover:text-primary-300 transition-colors"
           >
             <ExternalLink className="h-3.5 w-3.5" />
-            Open in new tab
+            {t('openInNewTab')}
           </a>
         </div>
 

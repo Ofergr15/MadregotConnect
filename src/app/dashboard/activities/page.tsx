@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import { RefreshCw, Activity, TrendingUp, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain } from 'lucide-react';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { cn } from '@/lib/utils';
@@ -41,12 +42,13 @@ function getCurrentWeekSunday(offset: number): string {
   return sunday.toISOString().split('T')[0];
 }
 
-function getWeekLabel(dateStr: string): string {
+function getWeekLabel(dateStr: string, locale: string): string {
   const date = new Date(dateStr + 'T00:00:00');
   const endDate = new Date(date);
   endDate.setDate(date.getDate() + 6);
-  const startLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const endLabel = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
+  const startLabel = date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
+  const endLabel = endDate.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   return `${startLabel} – ${endLabel}`;
 }
 
@@ -67,6 +69,8 @@ function formatDuration(seconds: number): string {
 export default function ActivitiesPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const t = useTranslations('activities');
+  const locale = useLocale();
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [enriching, setEnriching] = useState(false);
@@ -78,6 +82,8 @@ export default function ActivitiesPage() {
   });
   const [isCoach, setIsCoach] = useState(false);
   const [athleteId, setAthleteId] = useState<string | null>(null);
+
+  const dayKeys = ['daySun', 'dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat'] as const;
 
   const setWeekOffset = (val: number | ((prev: number) => number)) => {
     setWeekOffsetState(prev => {
@@ -124,7 +130,8 @@ export default function ActivitiesPage() {
         const data = await res.json();
         setActivities(data.activities || []);
       }
-      setLastSyncTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+      const timeLocale = locale === 'he' ? 'he-IL' : 'en-US';
+      setLastSyncTime(new Date().toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' }));
     } catch { /* silent */ }
     finally { setSyncing(false); }
   };
@@ -146,7 +153,7 @@ export default function ActivitiesPage() {
 
   // Compute weekly data based on current weekOffset
   const weekStartDate = getCurrentWeekSunday(weekOffset);
-  const weekLabel = getWeekLabel(weekStartDate);
+  const weekLabel = getWeekLabel(weekStartDate, locale);
 
   const weekData = useMemo(() => {
     const start = new Date(weekStartDate + 'T00:00:00');
@@ -154,19 +161,18 @@ export default function ActivitiesPage() {
     end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
 
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const weekActivities = filteredActivities.filter(a => {
       const d = new Date(a.start_time);
       return d >= start && d <= end;
     });
 
-    const daily = days.map((day, i) => {
+    const daily = dayKeys.map((dayKey, i) => {
       const date = new Date(start);
       date.setDate(start.getDate() + i);
       const dateStr = date.toISOString().split('T')[0];
       const dayActs = weekActivities.filter(a => a.start_time.startsWith(dateStr));
       return {
-        day,
+        dayKey,
         date: dateStr,
         distance: dayActs.reduce((s, a) => s + a.distance / 1000, 0),
         runs: dayActs.length,
@@ -200,12 +206,12 @@ export default function ActivitiesPage() {
 
   return (
     <div className="min-h-[calc(100vh-6rem)] flex flex-col">
-      {/* ═══ HEADER BAR - same pattern as Weekly Planner ═══ */}
+      {/* HEADER BAR - same pattern as Weekly Planner */}
       <div className="border-b border-slate-700 bg-slate-900/50 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
             <Activity className="h-5 w-5 text-primary-400" />
-            <h1 className="text-lg font-semibold text-white">Activities</h1>
+            <h1 className="text-lg font-semibold text-white">{t('title')}</h1>
           </div>
 
           <div className="flex items-center gap-3">
@@ -219,7 +225,7 @@ export default function ActivitiesPage() {
             <div className="text-center min-w-[180px]">
               <p className="text-sm font-medium text-white">{weekLabel}</p>
               <p className="text-xs text-slate-500">
-                {weekOffset === 0 ? 'This week' : weekOffset === -1 ? 'Last week' : ''}
+                {weekOffset === 0 ? t('thisWeek') : weekOffset === -1 ? t('lastWeek') : ''}
               </p>
             </div>
 
@@ -239,7 +245,7 @@ export default function ActivitiesPage() {
                 onClick={() => setWeekOffset(0)}
                 className="text-xs text-primary-400 hover:text-primary-300 ms-2"
               >
-                Current
+                {t('current')}
               </button>
             )}
           </div>
@@ -252,7 +258,7 @@ export default function ActivitiesPage() {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors disabled:opacity-50"
               >
                 <TrendingUp className={cn("h-3.5 w-3.5", enriching && "animate-pulse")} />
-                {enriching ? 'Enriching...' : 'Enrich'}
+                {enriching ? t('enriching') : t('enrich')}
               </button>
             )}
             <button
@@ -261,57 +267,57 @@ export default function ActivitiesPage() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#4338ff] hover:bg-[#3730d4] transition-colors disabled:opacity-50"
             >
               <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
-              {syncing ? 'Syncing...' : 'Sync'}
+              {syncing ? t('syncing') : t('sync')}
             </button>
           </div>
         </div>
       </div>
 
-      {/* ═══ CONTENT ═══ */}
+      {/* CONTENT */}
       <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full space-y-5">
 
-        {/* ─── Hero Stats ─── */}
+        {/* Hero Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="relative overflow-hidden bg-gradient-to-br from-[#4338ff]/15 to-[#4338ff]/5 rounded-2xl p-5 border border-[#4338ff]/20">
             <div className="absolute -top-4 -right-4 w-20 h-20 bg-[#4338ff]/10 rounded-full blur-2xl" />
             <Route className="h-5 w-5 text-[#4338ff] mb-3" />
             <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
-              {weekData.totalKm > 0 ? weekData.totalKm.toFixed(1) : '—'}
+              {weekData.totalKm > 0 ? weekData.totalKm.toFixed(1) : '\u2014'}
             </p>
-            <p className="text-sm text-slate-400 mt-1 font-medium">km · {weekData.totalRuns} run{weekData.totalRuns !== 1 ? 's' : ''}</p>
+            <p className="text-sm text-slate-400 mt-1 font-medium">{t('km')} · {weekData.totalRuns} {weekData.totalRuns !== 1 ? t('runs') : t('run')}</p>
           </div>
           <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
             <Timer className="h-5 w-5 text-cyan-400 mb-3" />
             <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
-              {weekData.totalDuration > 0 ? formatDuration(weekData.totalDuration) : '—'}
+              {weekData.totalDuration > 0 ? formatDuration(weekData.totalDuration) : '\u2014'}
             </p>
-            <p className="text-sm text-slate-400 mt-1 font-medium">Total Time</p>
+            <p className="text-sm text-slate-400 mt-1 font-medium">{t('totalTime')}</p>
           </div>
           <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
             <TrendingUp className="h-5 w-5 text-emerald-400 mb-3" />
             <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
-              {weekData.avgPace ? formatPace(weekData.avgPace) : '—'}
-              <span className="text-lg font-medium text-slate-500 ms-0.5">/km</span>
+              {weekData.avgPace ? formatPace(weekData.avgPace) : '\u2014'}
+              <span className="text-lg font-medium text-slate-500 ms-0.5">{t('perKm')}</span>
             </p>
-            <p className="text-sm text-slate-400 mt-1 font-medium">Avg Pace</p>
+            <p className="text-sm text-slate-400 mt-1 font-medium">{t('avgPace')}</p>
           </div>
           <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
             <Heart className="h-5 w-5 text-red-400 mb-3" />
             <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
-              {weekData.avgHR || '—'}
-              <span className="text-lg font-medium text-slate-500 ms-0.5">bpm</span>
+              {weekData.avgHR || '\u2014'}
+              <span className="text-lg font-medium text-slate-500 ms-0.5">{t('bpm')}</span>
             </p>
-            <p className="text-sm text-slate-400 mt-1 font-medium">Avg Heart Rate</p>
+            <p className="text-sm text-slate-400 mt-1 font-medium">{t('avgHeartRate')}</p>
           </div>
         </div>
 
-        {/* ─── Daily Volume Chart ─── */}
+        {/* Daily Volume Chart */}
         <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-5">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-bold text-white">Daily Volume</h3>
+            <h3 className="text-sm font-bold text-white">{t('dailyVolume')}</h3>
             <div className="flex items-center gap-4 text-xs text-slate-400">
               {weekData.totalCalories > 0 && (
-                <span className="flex items-center gap-1.5"><Flame className="h-3.5 w-3.5 text-orange-400" />{weekData.totalCalories.toLocaleString()} cal</span>
+                <span className="flex items-center gap-1.5"><Flame className="h-3.5 w-3.5 text-orange-400" />{weekData.totalCalories.toLocaleString()} {t('cal')}</span>
               )}
               {weekData.totalElevation > 0 && (
                 <span className="flex items-center gap-1.5"><Mountain className="h-3.5 w-3.5 text-green-400" />{Math.round(weekData.totalElevation)}m</span>
@@ -328,7 +334,7 @@ export default function ActivitiesPage() {
                   {/* Tooltip */}
                   {d.distance > 0 && (
                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-xl">
-                      {d.distance.toFixed(1)} km{hasMultiple ? ` · ${d.perActivity.length} runs` : ''}
+                      {d.distance.toFixed(1)} {t('km')}{hasMultiple ? ` · ${d.perActivity.length} ${t('runs')}` : ''}
                     </div>
                   )}
                   {/* Bar */}
@@ -366,13 +372,13 @@ export default function ActivitiesPage() {
                       'text-xs font-bold',
                       isToday ? 'text-[#4338ff]' : d.distance > 0 ? 'text-white' : 'text-slate-600'
                     )}>
-                      {d.day}
+                      {t(d.dayKey)}
                     </p>
                     <p className={cn(
                       'text-[11px] tabular-nums mt-0.5 font-medium',
                       d.distance > 0 ? 'text-slate-400' : 'text-slate-700'
                     )}>
-                      {d.distance > 0 ? d.distance.toFixed(1) : '—'}
+                      {d.distance > 0 ? d.distance.toFixed(1) : '\u2014'}
                     </p>
                   </div>
                 </div>
@@ -381,7 +387,7 @@ export default function ActivitiesPage() {
           </div>
         </div>
 
-        {/* ─── Activity Feed ─── */}
+        {/* Activity Feed */}
         <ActivityFeed
           activities={weekData.weekActivities}
           syncing={syncing}

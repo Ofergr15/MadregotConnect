@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Calendar, CheckCircle2, AlertCircle, Clock, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PlanDetail } from '@/components/PlanDetail';
@@ -22,12 +23,13 @@ interface PlanHistory {
 }
 
 const statusConfig = {
-  draft: { icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-400/10', label: 'Draft' },
-  pushed: { icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-400/10', label: 'Pushed' },
-  partial: { icon: AlertCircle, color: 'text-orange-400', bg: 'bg-orange-400/10', label: 'Partial' },
+  draft: { icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-400/10', labelKey: 'draft' as const },
+  pushed: { icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-400/10', labelKey: 'pushed' as const },
+  partial: { icon: AlertCircle, color: 'text-orange-400', bg: 'bg-orange-400/10', labelKey: 'partial' as const },
 };
 
 export default function HistoryPage() {
+  const t = useTranslations('history');
   const [plans, setPlans] = useState<PlanHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,12 +104,12 @@ export default function HistoryPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Plan History</h1>
-          <p className="text-slate-400 mt-1">View past weekly training plans and delivery status</p>
+          <h1 className="text-2xl font-bold">{t('title')}</h1>
+          <p className="text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
         <div className="card text-center py-12">
           <RefreshCw className="h-12 w-12 text-slate-600 mx-auto mb-3 animate-spin" />
-          <p className="text-slate-400">Loading plans...</p>
+          <p className="text-slate-400">{t('loading')}</p>
         </div>
       </div>
     );
@@ -117,18 +119,18 @@ export default function HistoryPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Plan History</h1>
-          <p className="text-slate-400 mt-1">View past weekly training plans and delivery status</p>
+          <h1 className="text-2xl font-bold">{t('title')}</h1>
+          <p className="text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
         <div className="card text-center py-12">
           <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
-          <p className="text-red-400 mb-2">Error loading plans</p>
+          <p className="text-red-400 mb-2">{t('errorLoading')}</p>
           <p className="text-slate-400 text-sm mb-4">{error}</p>
           <button
             onClick={loadPlans}
             className="px-4 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg text-sm font-medium transition-colors"
           >
-            Try Again
+            {t('tryAgain')}
           </button>
         </div>
       </div>
@@ -138,8 +140,8 @@ export default function HistoryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Plan History</h1>
-        <p className="text-slate-400 mt-1">View past weekly training plans and delivery status</p>
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
+        <p className="text-slate-400 mt-1">{t('subtitle')}</p>
       </div>
 
       {plans.length > 0 ? (
@@ -161,31 +163,31 @@ export default function HistoryPage() {
                     </div>
                     <div>
                       <p className="font-medium">
-                        Week of {new Date(plan.week_start_date).toLocaleDateString('en-US', {
+                        {t('weekOf')} {new Date(plan.week_start_date).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric'
                         })}
                       </p>
                       <p className="text-sm text-slate-400">
-                        {plan.workout_count} workouts · {plan.delivery_stats.total > 0
-                          ? `${plan.delivery_stats.total} deliveries`
-                          : 'Not delivered'}
+                        {plan.workout_count} {t('workouts')} · {plan.delivery_stats.total > 0
+                          ? `${plan.delivery_stats.total} ${t('deliveries')}`
+                          : t('notDelivered')}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     {plan.delivery_stats.total > 0 && (
                       <span className="text-sm text-slate-400">
-                        {plan.delivery_stats.success}/{plan.delivery_stats.total} delivered
+                        {plan.delivery_stats.success}/{plan.delivery_stats.total} {t('delivered')}
                         {plan.delivery_stats.failed > 0 && (
-                          <span className="text-red-400"> · {plan.delivery_stats.failed} failed</span>
+                          <span className="text-red-400"> · {plan.delivery_stats.failed} {t('failed')}</span>
                         )}
                       </span>
                     )}
                     <div className={cn('flex items-center gap-1 px-2 py-1 rounded-full text-xs', config.bg, config.color)}>
                       <StatusIcon className="h-3 w-3" />
-                      {config.label}
+                      {t(config.labelKey)}
                     </div>
                   </div>
                 </div>
@@ -207,7 +209,7 @@ export default function HistoryPage() {
         <div className="card text-center py-12">
           <Clock className="h-12 w-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400">
-            No plans in history yet. Your pushed plans will appear here.
+            {t('emptyState')}
           </p>
         </div>
       )}

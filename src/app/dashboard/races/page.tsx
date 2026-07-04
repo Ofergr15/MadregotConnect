@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { MapPin, Calendar, Route, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -59,9 +60,9 @@ const typeColors: Record<string, { bg: string; text: string; dot: string }> = {
   trail: { bg: 'bg-green-500/15', text: 'text-green-400', dot: '#22c55e' },
 };
 
-const typeLabels: Record<string, string> = {
-  marathon: 'Marathon', half: 'Half Marathon', ultra: 'Ultra',
-  '10k': '10K', '5k': '5K', trail: 'Trail',
+const typeLabelKeys: Record<string, string> = {
+  marathon: 'marathon', half: 'half', ultra: 'ultra',
+  '10k': '10k', '5k': '5k', trail: 'trail',
 };
 
 function computeDaysUntil(dateStr: string): number {
@@ -72,6 +73,7 @@ function computeDaysUntil(dateStr: string): number {
 }
 
 export default function RacesPage() {
+  const t = useTranslations('races');
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -186,9 +188,9 @@ export default function RacesPage() {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
             <Trophy className="h-5 w-5 text-amber-400" />
-            <h1 className="text-lg font-semibold text-white">Upcoming Races</h1>
+            <h1 className="text-lg font-semibold text-white">{t('upcomingRaces')}</h1>
           </div>
-          <span className="text-sm text-slate-400">{races.length} races</span>
+          <span className="text-sm text-slate-400">{races.length} {t('races')}</span>
         </div>
       </div>
 
@@ -200,11 +202,11 @@ export default function RacesPage() {
           {/* Goal race overlay */}
           {goalRace && (
             <div className="absolute top-4 start-4 z-10 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-xl p-4 max-w-[280px]">
-              <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1">Goal Race</p>
+              <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1">{t('goalRace')}</p>
               <p className="text-sm font-bold text-white">{goalRace.name}</p>
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-2xl font-black text-white tabular-nums">{goalRace.daysUntil}</span>
-                <span className="text-xs text-slate-400">days to go</span>
+                <span className="text-xs text-slate-400">{t('daysToGo')}</span>
               </div>
             </div>
           )}
@@ -235,7 +237,7 @@ export default function RacesPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', style.bg, style.text)}>
-                            {typeLabels[race.type]}
+                            {t(typeLabelKeys[race.type])}
                           </span>
                           <span className="text-[10px] text-slate-500">{weekday}</span>
                         </div>
@@ -247,7 +249,7 @@ export default function RacesPage() {
                       </div>
                       <div className="text-end shrink-0 ms-3">
                         <p className="text-lg font-black text-white tabular-nums leading-none">{race.daysUntil}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">days</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{t('days')}</p>
                       </div>
                     </div>
 
@@ -276,7 +278,7 @@ export default function RacesPage() {
                             onClick={e => e.stopPropagation()}
                             className="inline-block text-xs text-[#4338ff] hover:text-[#5b54ff] font-medium mt-1"
                           >
-                            Website →
+                            {t('website')} →
                           </a>
                         )}
                       </div>
