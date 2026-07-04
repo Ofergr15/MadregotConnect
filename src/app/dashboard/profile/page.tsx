@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target, Activity, WifiOff } from 'lucide-react';
 import Link from 'next/link';
@@ -87,10 +87,14 @@ function ProfileContent() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [hasActivities, setHasActivities] = useState(false);
+  const garminSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (searchParams.get('connectGarmin') === '1') {
       setConnectingGarmin(true);
+      setTimeout(() => {
+        garminSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
     }
   }, [searchParams]);
 
@@ -356,7 +360,7 @@ function ProfileContent() {
       </div>
 
       {/* Data Source - Connect Strava */}
-      <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+      <div ref={garminSectionRef} className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
             <Activity className="h-4.5 w-4.5 text-[#4338ff]" />
