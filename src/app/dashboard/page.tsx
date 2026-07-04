@@ -220,7 +220,7 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
                   <div className="w-1 h-5 rounded-full bg-amber-500 flex-shrink-0" />
                   <span className="text-sm text-white font-medium">{block.phase === 'warmup' ? 'Warmup' : 'Cooldown'}</span>
                   {durLabel && <span className="text-sm text-slate-400">{durLabel}</span>}
-                  {pace && <span className="text-xs text-slate-500 ml-auto tabular-nums">{pace}</span>}
+                  {pace && <span className="text-xs text-slate-500 ms-auto tabular-nums">{pace}</span>}
                 </div>
               );
             }
@@ -247,7 +247,7 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
                         <span className={cn("font-medium flex-shrink-0", s.isRest ? "text-slate-500" : "text-white")}>
                           {s.dur}
                         </span>
-                        <span className="text-slate-400 truncate flex-1 text-right" dir="rtl">{s.label}</span>
+                        <span className="text-slate-400 truncate flex-1 text-end" dir="rtl">{s.label}</span>
                         {s.pace && <span className="text-xs text-slate-500 tabular-nums flex-shrink-0">{s.pace}</span>}
                       </div>
                     ))}
@@ -263,7 +263,7 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
                 <div key={i} className="flex items-center gap-2 py-1.5 px-3 text-sm text-slate-500">
                   <div className="w-1 h-4 rounded-full bg-slate-600" />
                   <span>{s.notes || 'Recovery'}</span>
-                  <span className="ml-auto">{dur}</span>
+                  <span className="ms-auto">{dur}</span>
                 </div>
               );
             }
@@ -277,7 +277,7 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
                 <div className="w-1 h-5 rounded-full flex-shrink-0" style={{ background: getStepColor(s) }} />
                 <span className="font-medium text-white">{label}</span>
                 <span className="text-slate-400">{dur}</span>
-                {pace && <span className="text-xs text-slate-500 ml-auto tabular-nums">{pace}</span>}
+                {pace && <span className="text-xs text-slate-500 ms-auto tabular-nums">{pace}</span>}
               </div>
             );
           })}
@@ -434,16 +434,20 @@ export default function DashboardPage() {
       const isFirstVisit = !localStorage.getItem('dashboard_synced');
 
       let hasGarminOrStrava = false;
-      if (isFirstVisit && myAthleteId && !myIsCoach) {
+      if (myAthleteId && !myIsCoach) {
         try {
           const meRes = await fetch(`/api/athletes/me?id=${myAthleteId}`);
           const meData = await meRes.json();
           hasGarminOrStrava = meData.athlete?.hasGarmin || false;
         } catch {}
-        if (hasGarminOrStrava) {
+
+        const needsSync = isFirstVisit && hasGarminOrStrava;
+        const garminNewlyConnected = hasGarminOrStrava && !isFirstVisit && !localStorage.getItem('dashboard_synced_with_garmin');
+
+        if (needsSync || garminNewlyConnected) {
           setShowSyncModal(true);
           setSyncStatus('syncing');
-        } else {
+        } else if (!hasGarminOrStrava) {
           localStorage.setItem('dashboard_synced', '1');
         }
       }
@@ -485,7 +489,8 @@ export default function DashboardPage() {
           })));
         }
 
-        if (isFirstVisit && hasGarminOrStrava && myAthleteId && !myIsCoach) {
+        const shouldSync = (isFirstVisit && hasGarminOrStrava) || (hasGarminOrStrava && !localStorage.getItem('dashboard_synced_with_garmin'));
+        if (shouldSync && myAthleteId && !myIsCoach) {
           try {
             const [syncRes, stravaSyncRes] = await Promise.allSettled([
               fetch('/api/garmin/sync-activities', {
@@ -514,6 +519,7 @@ export default function DashboardPage() {
             setSyncError('Could not sync Garmin data.');
           }
           localStorage.setItem('dashboard_synced', '1');
+          localStorage.setItem('dashboard_synced_with_garmin', '1');
         }
 
         const actRes = await fetch('/api/garmin/sync-activities');
@@ -613,7 +619,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="sm:text-right">
+          <div className="sm:text-end">
             <p className="text-sm font-semibold text-slate-400 mb-1">Training Block</p>
             <p className="text-3xl sm:text-4xl font-black text-white">
               {week > 0 ? (
@@ -622,7 +628,7 @@ export default function DashboardPage() {
                 <span className="text-slate-400">Pre-season</span>
               )}
             </p>
-            <div className="w-full sm:w-48 h-2 bg-slate-800 rounded-full mt-3 overflow-hidden sm:ml-auto">
+            <div className="w-full sm:w-48 h-2 bg-slate-800 rounded-full mt-3 overflow-hidden sm:ms-auto">
               <div className="h-full bg-[#4338ff] rounded-full transition-all duration-1000" style={{ width: `${Math.max(4, (week / TOTAL_WEEKS) * 100)}%` }} />
             </div>
           </div>
@@ -636,7 +642,7 @@ export default function DashboardPage() {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Weekly Volume</p>
             <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
               {hasData ? `${Math.round(weekly!.weekTotalMin)}–${Math.round(weekly!.weekTotalMax)}` : '—'}
-              <span className="text-sm font-medium text-slate-500 ml-1">km</span>
+              <span className="text-sm font-medium text-slate-500 ms-1">km</span>
             </p>
             {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
               <div className="flex items-center gap-1 mt-2">
@@ -650,7 +656,7 @@ export default function DashboardPage() {
           <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
             <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500 ml-1">/7</span>
+              {weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500 ms-1">/7</span>
             </p>
             <p className="text-sm text-slate-500 mt-1">this week</p>
           </div>
@@ -662,7 +668,7 @@ export default function DashboardPage() {
           <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivery</p>
             <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ml-0.5">%</span>
+              {stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ms-0.5">%</span>
             </p>
             <p className="text-sm text-slate-500 mt-1">success rate</p>
           </div>
@@ -674,7 +680,7 @@ export default function DashboardPage() {
             <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Training Days</p>
               <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-                {weeklyRuns}<span className="text-sm font-medium text-slate-500 ml-1">/ {hasData ? weekly!.trainingDays : 7}</span>
+                {weeklyRuns}<span className="text-sm font-medium text-slate-500 ms-1">/ {hasData ? weekly!.trainingDays : 7}</span>
               </p>
               <p className="text-sm text-slate-500 mt-1">completed</p>
             </div>
@@ -704,8 +710,8 @@ export default function DashboardPage() {
                         </div>
                         <p className="text-xl font-black text-white mt-1 tabular-nums">
                           {todayW.min === todayW.max ? todayW.max : `${todayW.min}–${todayW.max}`}
-                          <span className="text-sm font-medium text-slate-500 ml-1">km</span>
-                          {todayKm > 0 && <span className="text-xs font-semibold text-emerald-400 ml-2">{Math.round(todayKm * 10) / 10} done</span>}
+                          <span className="text-sm font-medium text-slate-500 ms-1">km</span>
+                          {todayKm > 0 && <span className="text-xs font-semibold text-emerald-400 ms-2">{Math.round(todayKm * 10) / 10} done</span>}
                         </p>
                         {sessionName && <p className="text-[11px] text-slate-500 mt-0.5">{sessionName}</p>}
                       </div>
@@ -723,7 +729,7 @@ export default function DashboardPage() {
                         </div>
                         <p className="text-lg font-black text-white mt-1 tabular-nums">
                           {tomorrowW.min === tomorrowW.max ? tomorrowW.max : `${tomorrowW.min}–${tomorrowW.max}`}
-                          <span className="text-sm font-medium text-slate-500 ml-1">km</span>
+                          <span className="text-sm font-medium text-slate-500 ms-1">km</span>
                         </p>
                         {sessionName && <p className="text-[11px] text-slate-500 mt-0.5">{sessionName}</p>}
                       </div>
@@ -872,7 +878,7 @@ export default function DashboardPage() {
                     const maxVal = Math.max(...weekly!.dailyDistances.map(d => d.max), 1);
                     const topTick = Math.ceil(maxVal / 8) * 8;
                     return [topTick, Math.round(topTick * 0.75), Math.round(topTick * 0.5), Math.round(topTick * 0.25), 0].map(v => (
-                      <span key={v} className="text-[11px] text-slate-600 text-right leading-none">{v}</span>
+                      <span key={v} className="text-[11px] text-slate-600 text-end leading-none">{v}</span>
                     ));
                   })()}
                 </div>
