@@ -1101,17 +1101,26 @@ export default function SettingsPage() {
 
       {/* Tab Manager Tab */}
       {activeTab === 'tabs' && (
-        <>
         <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50">
           <div className="px-5 py-4 border-b border-slate-700/50">
             <div className="flex items-center gap-2">
               <Layout className="w-4 h-4 text-slate-400" />
               <h2 className="text-sm font-semibold text-white">Tab Permissions</h2>
             </div>
-            <p className="text-xs text-slate-500 mt-1">Configure which tabs each role can access</p>
+            <p className="text-xs text-slate-500 mt-1">Configure which tabs each role can access on web and mobile</p>
+            <div className="flex items-center gap-4 mt-3 text-[10px] font-semibold text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-[#4338ff] flex items-center justify-center"><Layout className="w-2 h-2 text-white" /></div>
+                Web
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-green-500 flex items-center justify-center"><Smartphone className="w-2 h-2 text-white" /></div>
+                Mobile
+              </div>
+            </div>
           </div>
 
-          {permissionsLoading ? (
+          {(permissionsLoading || mobilePermissionsLoading) ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
             </div>
@@ -1119,6 +1128,11 @@ export default function SettingsPage() {
             <div className="p-5 space-y-5">
               {allRoles.map(role => {
                 const rc = roleConfig[role];
+                const combinedTabs = [...new Set([...allTabs.map(t => t.key), ...allMobileTabs.map(t => t.key)])];
+                const tabLabels: Record<string, string> = {};
+                allTabs.forEach(t => { tabLabels[t.key] = t.label; });
+                allMobileTabs.forEach(t => { tabLabels[t.key] = t.label; });
+
                 return (
                   <div key={role} className="bg-slate-900/40 border border-slate-700/30 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-3">
@@ -1126,27 +1140,45 @@ export default function SettingsPage() {
                       <h3 className={cn('text-sm font-semibold', rc.text)}>{rc.label}</h3>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                      {allTabs.map(tab => {
-                        const enabled = isTabEnabled(role, tab.key);
+                      {combinedTabs.map(tabKey => {
+                        const webEnabled = isTabEnabled(role, tabKey);
+                        const mobileEnabled = isMobileTabEnabled(role, tabKey);
+                        const isWebTab = allTabs.some(t => t.key === tabKey);
+                        const isMobileTab = allMobileTabs.some(t => t.key === tabKey);
+
                         return (
-                          <button
-                            key={tab.key}
-                            onClick={() => togglePermission(role, tab.key, enabled)}
-                            className={cn(
-                              'flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all',
-                              enabled
-                                ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-white'
-                                : 'bg-slate-800/50 border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400'
-                            )}
+                          <div
+                            key={tabKey}
+                            className="flex items-center justify-between px-3 py-2 rounded-lg border border-slate-700/50 bg-slate-800/50"
                           >
-                            <div className={cn(
-                              'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
-                              enabled ? 'bg-[#4338ff] border-[#4338ff]' : 'bg-slate-700 border-slate-600'
-                            )}>
-                              {enabled && <CheckCircle2 className="w-2.5 h-2.5 text-white" />}
+                            <span className="text-xs font-medium text-slate-300 truncate mr-2">{tabLabels[tabKey]}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isWebTab && (
+                                <button
+                                  onClick={() => togglePermission(role, tabKey, webEnabled)}
+                                  className={cn(
+                                    'w-5 h-5 rounded flex items-center justify-center transition-all',
+                                    webEnabled ? 'bg-[#4338ff] text-white' : 'bg-slate-700 text-slate-500 hover:bg-slate-600'
+                                  )}
+                                  title="Web"
+                                >
+                                  <Layout className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                              {isMobileTab && (
+                                <button
+                                  onClick={() => toggleMobilePermission(role, tabKey, mobileEnabled)}
+                                  className={cn(
+                                    'w-5 h-5 rounded flex items-center justify-center transition-all',
+                                    mobileEnabled ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-500 hover:bg-slate-600'
+                                  )}
+                                  title="Mobile"
+                                >
+                                  <Smartphone className="w-2.5 h-2.5" />
+                                </button>
+                              )}
                             </div>
-                            {tab.label}
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -1154,23 +1186,26 @@ export default function SettingsPage() {
                 );
               })}
 
-              {hasPermissionChanges && (
+              {(hasPermissionChanges || hasMobilePermissionChanges) && (
                 <div className="flex items-center justify-between p-4 bg-slate-900 border border-[#4338ff]/30 rounded-xl">
                   <p className="text-sm text-slate-300">Unsaved changes</p>
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={discardPermissionChanges}
+                      onClick={() => { discardPermissionChanges(); discardMobilePermissionChanges(); }}
                       className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
                     >
                       Discard
                     </button>
                     <button
-                      onClick={savePermissions}
-                      disabled={savingPermissions}
+                      onClick={async () => {
+                        if (hasPermissionChanges) await savePermissions();
+                        if (hasMobilePermissionChanges) await saveMobilePermissions();
+                      }}
+                      disabled={savingPermissions || savingMobilePermissions}
                       className="px-4 py-2 text-sm text-white bg-[#4338ff] hover:bg-[#3730d4] rounded-lg transition-colors font-medium flex items-center gap-2"
                     >
-                      {savingPermissions && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      Save
+                      {(savingPermissions || savingMobilePermissions) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Save All
                     </button>
                   </div>
                 </div>
@@ -1178,85 +1213,6 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
-
-        {/* Mobile Tab Permissions */}
-        <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 mt-5">
-          <div className="px-5 py-4 border-b border-slate-700/50">
-            <div className="flex items-center gap-2">
-              <Smartphone className="w-4 h-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-white">Mobile Tab Permissions</h2>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">Configure which tabs each role can see on the mobile app</p>
-          </div>
-
-          {mobilePermissionsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-            </div>
-          ) : (
-            <div className="p-5 space-y-5">
-              {allRoles.map(role => {
-                const rc = roleConfig[role];
-                return (
-                  <div key={role} className="bg-slate-900/40 border border-slate-700/30 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={cn('w-2 h-2 rounded-full', rc.dot)}></span>
-                      <h3 className={cn('text-sm font-semibold', rc.text)}>{rc.label}</h3>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                      {allMobileTabs.map(tab => {
-                        const enabled = isMobileTabEnabled(role, tab.key);
-                        return (
-                          <button
-                            key={tab.key}
-                            onClick={() => toggleMobilePermission(role, tab.key, enabled)}
-                            className={cn(
-                              'flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all',
-                              enabled
-                                ? 'bg-green-500/10 border-green-500/30 text-white'
-                                : 'bg-slate-800/50 border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400'
-                            )}
-                          >
-                            <div className={cn(
-                              'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
-                              enabled ? 'bg-green-500 border-green-500' : 'bg-slate-700 border-slate-600'
-                            )}>
-                              {enabled && <CheckCircle2 className="w-2.5 h-2.5 text-white" />}
-                            </div>
-                            {tab.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {hasMobilePermissionChanges && (
-                <div className="flex items-center justify-between p-4 bg-slate-900 border border-green-500/30 rounded-xl">
-                  <p className="text-sm text-slate-300">Unsaved mobile changes</p>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={discardMobilePermissionChanges}
-                      className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
-                    >
-                      Discard
-                    </button>
-                    <button
-                      onClick={saveMobilePermissions}
-                      disabled={savingMobilePermissions}
-                      className="px-4 py-2 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors font-medium flex items-center gap-2"
-                    >
-                      {savingMobilePermissions && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      Save
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        </>
       )}
     </div>
   );
