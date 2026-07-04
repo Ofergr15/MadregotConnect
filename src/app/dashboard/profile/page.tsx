@@ -471,6 +471,22 @@ function ProfileContent() {
                         setMfaCode('');
                         setGarminEmail('');
                         setGarminPassword('');
+                        setSyncing(true);
+                        setSyncResult(null);
+                        try {
+                          const syncRes = await fetch('/api/garmin/sync-activities', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ athleteId }),
+                          });
+                          if (syncRes.ok) {
+                            const syncData = await syncRes.json();
+                            setSyncResult(`Synced ${syncData.synced || 0} activities from Garmin`);
+                            if (syncData.synced > 0) setHasActivities(true);
+                          }
+                        } catch {}
+                        setSyncing(false);
+                        setTimeout(() => setSyncResult(null), 5000);
                       } else {
                         setGarminError('Failed to save connection');
                       }
