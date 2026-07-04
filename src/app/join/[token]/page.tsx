@@ -77,6 +77,11 @@ export default function JoinPage({ params }: { params: { token: string } }) {
 
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (groups.length > 0 && !selectedGroup) {
+      setError('Please select a pace group');
+      return;
+    }
+    setError(null);
     if (!garminEmail) setGarminEmail(email);
     setStep('garmin');
   };
@@ -340,6 +345,11 @@ export default function JoinPage({ params }: { params: { token: string } }) {
                 <p className="text-xs text-slate-500 mt-2">
                   Your coach will assign workouts based on your group&apos;s pace offset
                 </p>
+              </div>
+            )}
+            {error && step === 'info' && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+                {error}
               </div>
             )}
             <button

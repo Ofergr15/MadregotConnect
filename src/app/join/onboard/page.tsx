@@ -60,6 +60,11 @@ function OnboardContent() {
 
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!skipGroup && groups.length > 0 && !selectedGroup) {
+      setError('Please select a pace group');
+      return;
+    }
+    setError(null);
     if (!garminEmail) setGarminEmail(email);
     if (skipGarmin) {
       handleSaveGroupOnly();
@@ -338,6 +343,11 @@ function OnboardContent() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+            {error && step === 'info' && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+                {error}
               </div>
             )}
             <button
