@@ -35,7 +35,7 @@ export function GarminReminderPopup() {
   };
 
   const handleConnect = () => {
-    window.location.href = '/dashboard/profile';
+    window.location.href = '/dashboard/profile?connectGarmin=1';
   };
 
   return (
