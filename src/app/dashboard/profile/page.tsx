@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target, Activity, WifiOff } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -53,6 +54,15 @@ const WEEKS: WeekProgram[] = [
 ];
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mt-20"></div>}>
+      <ProfileContent />
+    </Suspense>
+  );
+}
+
+function ProfileContent() {
+  const searchParams = useSearchParams();
   const [athleteId, setAthleteId] = useState('');
   const [athleteName, setAthleteName] = useState('');
   const [athleteEmail, setAthleteEmail] = useState('');
@@ -76,6 +86,12 @@ export default function ProfilePage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [hasActivities, setHasActivities] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('connectGarmin') === '1') {
+      setConnectingGarmin(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const id = localStorage.getItem('athlete_id') || '';
