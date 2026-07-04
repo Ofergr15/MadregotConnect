@@ -114,12 +114,12 @@ export default function PracticePage() {
             <div className="relative overflow-hidden bg-slate-900 aspect-video flex items-center justify-center">
               <div className="absolute inset-0 bg-gradient-to-br from-primary-900/40 to-slate-900/80" />
               <div className="relative w-14 h-14 bg-primary-600/80 rounded-full flex items-center justify-center group-hover:scale-110 group-hover:bg-primary-600 transition-all shadow-lg">
-                <Play className="h-6 w-6 text-white ml-0.5" />
+                <Play className="h-6 w-6 text-white ms-0.5" />
               </div>
-              <span className="absolute bottom-2 left-2 text-xs font-bold px-2 py-1 rounded bg-black/60 text-white">
+              <span className="absolute bottom-2 start-2 text-xs font-bold px-2 py-1 rounded bg-black/60 text-white">
                 {video.duration}
               </span>
-              <span className="absolute top-2 right-2 text-xs font-medium px-2 py-1 rounded bg-primary-600/80 text-white">
+              <span className="absolute top-2 end-2 text-xs font-medium px-2 py-1 rounded bg-primary-600/80 text-white">
                 {video.category}
               </span>
             </div>

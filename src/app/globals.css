@@ -61,7 +61,7 @@
   }
 }
 
-@keyframes slideInRight {
+@keyframes slideInEnd {
   from {
     transform: translateX(100%);
   }
@@ -70,24 +70,33 @@
   }
 }
 
+[dir="rtl"] @keyframes slideInEnd {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 .animate-slide-in-right {
-  animation: slideInRight 0.2s ease-out;
+  animation: slideInEnd 0.2s ease-out;
 }
 
 @keyframes runner {
-  0% { left: -10%; }
-  100% { left: 100%; }
+  0% { inset-inline-start: -10%; }
+  100% { inset-inline-start: 100%; }
 }
 
 @keyframes runnerDust {
-  0% { left: -15%; opacity: 1; }
-  100% { left: 95%; opacity: 0; }
+  0% { inset-inline-start: -15%; opacity: 1; }
+  100% { inset-inline-start: 95%; opacity: 0; }
 }
 
 @keyframes progressIndeterminate {
-  0% { width: 0%; margin-left: 0%; }
-  50% { width: 60%; margin-left: 20%; }
-  100% { width: 0%; margin-left: 100%; }
+  0% { width: 0%; margin-inline-start: 0%; }
+  50% { width: 60%; margin-inline-start: 20%; }
+  100% { width: 0%; margin-inline-start: 100%; }
 }
 
 .animate-progress-indeterminate {
@@ -146,8 +155,8 @@
 /* Safe area support for notched devices */
 .safe-top { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-.safe-left { padding-left: env(safe-area-inset-left); }
-.safe-right { padding-right: env(safe-area-inset-right); }
+.safe-inline-start { padding-inline-start: env(safe-area-inset-left); }
+.safe-inline-end { padding-inline-end: env(safe-area-inset-right); }
 
 /* Touch-friendly minimum sizes */
 .touch-target { min-height: 44px; min-width: 44px; }

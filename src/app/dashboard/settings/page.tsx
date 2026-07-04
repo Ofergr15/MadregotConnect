@@ -80,13 +80,13 @@ function RoleDropdown({ value, onChange, disabled }: { value: Role; onChange: (r
                 key={role}
                 onClick={() => { onChange(role); setOpen(false); }}
                 className={cn(
-                  'w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left',
+                  'w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-start',
                   isSelected ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700/50'
                 )}
               >
                 <span className={cn('w-2 h-2 rounded-full', rc.dot)}></span>
                 {rc.label}
-                {isSelected && <CheckCircle2 className="h-3.5 w-3.5 ml-auto text-primary-400" />}
+                {isSelected && <CheckCircle2 className="h-3.5 w-3.5 ms-auto text-primary-400" />}
               </button>
             );
           })}
@@ -113,7 +113,7 @@ function ConfirmDialog({ user, newRole, onConfirm, onCancel }: ConfirmDialogProp
         <div className="flex items-center gap-3 mb-4">
           <AlertTriangle className="w-5 h-5 text-amber-400" />
           <h3 className="text-lg font-semibold text-white">Change Role</h3>
-          <button onClick={onCancel} className="ml-auto text-slate-400 hover:text-white">
+          <button onClick={onCancel} className="ms-auto text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -596,7 +596,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3 mb-4">
               <Trash2 className="w-5 h-5 text-red-400" />
               <h3 className="text-lg font-semibold text-white">Delete User</h3>
-              <button onClick={() => setPendingDelete(null)} className="ml-auto text-slate-400 hover:text-white">
+              <button onClick={() => setPendingDelete(null)} className="ms-auto text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -659,7 +659,7 @@ export default function SettingsPage() {
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
           <p className="text-red-400 text-sm">{error}</p>
-          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-300">
+          <button onClick={() => setError(null)} className="ms-auto text-red-400 hover:text-red-300">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -1151,7 +1151,7 @@ export default function SettingsPage() {
                             key={tabKey}
                             className="flex items-center justify-between px-3 py-2 rounded-lg border border-slate-700/50 bg-slate-800/50"
                           >
-                            <span className="text-xs font-medium text-slate-300 truncate mr-2">{tabLabels[tabKey]}</span>
+                            <span className="text-xs font-medium text-slate-300 truncate me-2">{tabLabels[tabKey]}</span>
                             <div className="flex items-center gap-1 shrink-0">
                               {isWebTab && (
                                 <button

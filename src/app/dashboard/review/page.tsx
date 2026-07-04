@@ -138,7 +138,7 @@ export default function ReviewPage() {
             <img src={imagePreview} alt="Attached" className="max-h-32 rounded-lg border border-slate-700/50" />
             <button
               onClick={() => setImagePreview(null)}
-              className="absolute -top-2 -right-2 w-5 h-5 bg-slate-700 hover:bg-red-500 rounded-full flex items-center justify-center transition-colors"
+              className="absolute -top-2 -end-2 w-5 h-5 bg-slate-700 hover:bg-red-500 rounded-full flex items-center justify-center transition-colors"
             >
               <X className="w-3 h-3 text-white" />
             </button>

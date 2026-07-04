@@ -221,7 +221,7 @@ function RouteMap({ points, height = 300, splits }: {
         <button
           onClick={() => setColorByPace(!colorByPace)}
           className={cn(
-            'absolute top-3 right-3 z-[1000] px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-lg',
+            'absolute top-3 end-3 z-[1000] px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-lg',
             colorByPace ? 'bg-white text-slate-900' : 'bg-slate-800/90 text-slate-300 hover:text-white border border-slate-600'
           )}
         >
@@ -229,7 +229,7 @@ function RouteMap({ points, height = 300, splits }: {
         </button>
       )}
       {colorByPace && (
-        <div className="absolute bottom-3 left-3 z-[1000] bg-slate-800/90 rounded-lg px-3 py-2 flex items-center gap-2 text-[10px] font-medium shadow-lg">
+        <div className="absolute bottom-3 start-3 z-[1000] bg-slate-800/90 rounded-lg px-3 py-2 flex items-center gap-2 text-[10px] font-medium shadow-lg">
           <span className="text-slate-400">Fast</span>
           <div className="flex gap-0.5">
             <div className="w-4 h-2 rounded-sm bg-[#22c55e]" />
@@ -320,7 +320,7 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep
     <div>
       <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Timer className="h-3 w-3" /> Pace per KM
-        {planned && <span className="text-[9px] text-slate-600 ml-2">— dashed = planned</span>}
+        {planned && <span className="text-[9px] text-slate-600 ms-2">— dashed = planned</span>}
       </h4>
       <svg
         ref={svgRef}
@@ -513,7 +513,7 @@ function ElevationChart({ splits }: { splits: Split[] }) {
     <div>
       <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Mountain className="h-3 w-3" /> Elevation per KM
-        <span className="ml-2 flex items-center gap-2 text-[9px]">
+        <span className="ms-2 flex items-center gap-2 text-[9px]">
           <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500/80" /> gain</span>
           <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-400/80" /> loss</span>
         </span>
@@ -628,7 +628,7 @@ function SplitsTable({ splits }: { splits: Split[] }) {
               <span className="col-span-3 text-slate-300 tabular-nums">{formatDuration(split.duration)}</span>
               <span className="col-span-2 text-slate-400 tabular-nums">{split.averageHR || '—'}</span>
               <span className="col-span-2 text-slate-400 tabular-nums">
-                {split.elevationGain != null ? <><span className="text-green-400">+{Math.round(split.elevationGain)}</span>{split.elevationLoss ? <span className="text-red-400 ml-1">-{Math.round(split.elevationLoss)}</span> : null}</> : '—'}
+                {split.elevationGain != null ? <><span className="text-green-400">+{Math.round(split.elevationGain)}</span>{split.elevationLoss ? <span className="text-red-400 ms-1">-{Math.round(split.elevationLoss)}</span> : null}</> : '—'}
               </span>
             </div>
           );
@@ -706,11 +706,11 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div>
             <p className="text-[10px] text-slate-500 font-medium">Distance</p>
-            <p className="text-lg font-black text-white tabular-nums">{distKm}<span className="text-xs text-slate-400 ml-0.5">km</span></p>
+            <p className="text-lg font-black text-white tabular-nums">{distKm}<span className="text-xs text-slate-400 ms-0.5">km</span></p>
           </div>
           <div>
             <p className="text-[10px] text-slate-500 font-medium">Pace</p>
-            <p className="text-lg font-black text-white tabular-nums">{paceStr || '—'}<span className="text-xs text-slate-400 ml-0.5">/km</span></p>
+            <p className="text-lg font-black text-white tabular-nums">{paceStr || '—'}<span className="text-xs text-slate-400 ms-0.5">/km</span></p>
           </div>
           <div>
             <p className="text-[10px] text-slate-500 font-medium">Time</p>
@@ -741,7 +741,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
           {loadingDetails && !details && (
             <div className="flex items-center justify-center py-8">
               <RefreshCw className="h-5 w-5 text-slate-400 animate-spin" />
-              <span className="text-sm text-slate-400 ml-2">Loading activity details...</span>
+              <span className="text-sm text-slate-400 ms-2">Loading activity details...</span>
             </div>
           )}
 
@@ -757,11 +757,11 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               <div>
                 <p className="text-xs text-slate-400 mb-1">Distance</p>
-                <p className="text-3xl font-black text-white tabular-nums">{distKm}<span className="text-sm text-slate-400 ml-1">km</span></p>
+                <p className="text-3xl font-black text-white tabular-nums">{distKm}<span className="text-sm text-slate-400 ms-1">km</span></p>
               </div>
               <div>
                 <p className="text-xs text-slate-400 mb-1">Pace</p>
-                <p className="text-3xl font-black text-white tabular-nums">{paceStr || '—'}<span className="text-sm text-slate-400 ml-1">/km</span></p>
+                <p className="text-3xl font-black text-white tabular-nums">{paceStr || '—'}<span className="text-sm text-slate-400 ms-1">/km</span></p>
               </div>
               <div>
                 <p className="text-xs text-slate-400 mb-1">Time</p>
@@ -780,7 +780,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
               {activity.elevation_gain ? (
                 <div className="hidden lg:block">
                   <p className="text-xs text-slate-400 mb-1">Elevation</p>
-                  <p className="text-3xl font-black text-white tabular-nums">{Math.round(activity.elevation_gain)}<span className="text-sm text-slate-400 ml-1">m</span></p>
+                  <p className="text-3xl font-black text-white tabular-nums">{Math.round(activity.elevation_gain)}<span className="text-sm text-slate-400 ms-1">m</span></p>
                 </div>
               ) : null}
             </div>

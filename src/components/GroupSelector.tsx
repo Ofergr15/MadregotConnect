@@ -67,7 +67,7 @@ export function GroupSelector({ coachId, selectedGroupIds, onSelectionChange }: 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8 text-slate-400">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+        <Loader2 className="h-5 w-5 animate-spin me-2" />
         Loading groups...
       </div>
     );

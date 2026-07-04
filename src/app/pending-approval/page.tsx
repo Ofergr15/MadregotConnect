@@ -15,7 +15,7 @@ export default function PendingApprovalPage() {
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8 w-full max-w-md text-center">
         <div className="flex items-center justify-center mb-6">
           <img src="/images/logo.png" alt="Madregot" className="h-10 w-10 object-contain brightness-0 invert" />
-          <span className="text-lg font-bold text-white ml-3">Madregot</span>
+          <span className="text-lg font-bold text-white ms-3">Madregot</span>
         </div>
 
         <div className="bg-amber-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">

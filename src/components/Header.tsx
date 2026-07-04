@@ -3,25 +3,27 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route, Trophy, MessageSquare, Watch, Bell, Dumbbell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
+import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 const allNavItems = [
-  { href: '/dashboard', tab: 'dashboard', label: 'Dashboard', icon: Activity },
-  { href: '/dashboard/review', tab: 'review', label: 'Review', icon: MessageSquare },
-  { href: '/dashboard/plan/new', tab: 'plan/new', label: 'Planner', icon: Calendar },
-  { href: '/dashboard/athletes', tab: 'athletes', label: 'Athletes', icon: Users },
-  { href: '/dashboard/groups', tab: 'groups', label: 'Groups', icon: Layers },
-  { href: '/dashboard/activities', tab: 'activities', label: 'Activities', icon: Route },
-  { href: '/dashboard/program', tab: 'program', label: 'Program', icon: ClipboardList },
-  { href: '/dashboard/practice', tab: 'practice', label: 'Practice', icon: Dumbbell },
-  { href: '/dashboard/races', tab: 'races', label: 'Races', icon: Trophy },
-  { href: '/dashboard/history', tab: 'history', label: 'History', icon: Clock },
-  { href: '/dashboard/settings', tab: 'settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
+  { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
+  { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
+  { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
+  { href: '/dashboard/groups', tab: 'groups', labelKey: 'groups', icon: Layers },
+  { href: '/dashboard/activities', tab: 'activities', labelKey: 'activities', icon: Route },
+  { href: '/dashboard/program', tab: 'program', labelKey: 'program', icon: ClipboardList },
+  { href: '/dashboard/practice', tab: 'practice', labelKey: 'practice', icon: Dumbbell },
+  { href: '/dashboard/races', tab: 'races', labelKey: 'races', icon: Trophy },
+  { href: '/dashboard/history', tab: 'history', labelKey: 'history', icon: Clock },
+  { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },
 ];
 
-const profileNavItem = { href: '/dashboard/profile', tab: 'profile', label: 'Profile', icon: User };
+const profileNavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'profile', icon: User };
 
 interface TabPermission {
   role: string;
@@ -32,6 +34,9 @@ interface TabPermission {
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
+  const t = useTranslations('nav');
+  const th = useTranslations('header');
+  const tc = useTranslations('common');
   const [isAthlete, setIsAthlete] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
@@ -94,20 +99,14 @@ export function Header() {
     }
 
     if (athleteId) {
+      const supabaseClient = getSupabase();
+      supabaseClient.from('athletes').select('garmin_auth').eq('id', athleteId).single()
+        .then(({ data }) => { setHasGarmin(!!data?.garmin_auth); });
       fetch('/api/groups').then(r => r.ok ? r.json() : null)
         .then(data => { if (data) setAvailableGroups(data.groups || data || []); })
         .catch(() => {});
     }
   }, []);
-
-  useEffect(() => {
-    const athleteId = localStorage.getItem('athlete_id');
-    if (athleteId) {
-      const supabaseClient = getSupabase();
-      supabaseClient.from('athletes').select('garmin_auth').eq('id', athleteId).single()
-        .then(({ data }) => { setHasGarmin(!!data?.garmin_auth); });
-    }
-  }, [pathname]);
 
   useEffect(() => {
     if (!userEmail) return;
@@ -169,7 +168,7 @@ export function Header() {
                   )}
                 >
                   <MessageSquare className="h-4 w-4" />
-                  <span className="text-xs font-bold">Review</span>
+                  <span className="text-xs font-bold">{t('review')}</span>
                 </Link>
               );
             })()}
@@ -199,8 +198,8 @@ export function Header() {
                     )}
                   >
                     <Icon className="h-5 w-5" />
-                    <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-slate-800 border border-slate-600 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
-                      {item.label}
+                    <span className="absolute -bottom-9 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2.5 py-1 bg-slate-800 border border-slate-600 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                      {t(item.labelKey as any)}
                     </span>
                   </Link>
                 );
@@ -210,6 +209,7 @@ export function Header() {
 
           {/* Desktop: User */}
           <div className="hidden md:flex items-center gap-2.5 shrink-0">
+            <LocaleSwitcher />
             <span className="text-sm text-slate-400 font-medium hidden lg:inline">{userName}</span>
 
             {groupName && (
@@ -222,7 +222,7 @@ export function Header() {
                   {groupName}
                 </button>
                 {showGroupPicker && availableGroups.length > 0 && (
-                  <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[160px] z-50">
+                  <div className="absolute end-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[160px] z-50">
                     {availableGroups.map(g => {
                       const n = g.name.toLowerCase();
                       const color = n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30') ? '#3b82f6'
@@ -246,7 +246,7 @@ export function Header() {
                             setShowGroupPicker(false);
                             window.location.reload();
                           }}
-                          className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                          className="w-full text-start px-4 py-2.5 text-xs font-semibold hover:bg-slate-700/50 transition-colors flex items-center gap-2"
                         >
                           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                           <span style={{ color }}>{displayName}</span>
@@ -259,24 +259,12 @@ export function Header() {
             )}
 
             {isAthlete && hasGarmin !== null && (
-              hasGarmin ? (
-                <div className="relative group p-2 rounded-lg text-emerald-400">
-                  <Watch className="h-4.5 w-4.5" />
-                  <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
-                    Garmin Connected
-                  </span>
-                </div>
-              ) : (
-                <button
-                  onClick={() => router.push('/dashboard/profile?connectGarmin=1')}
-                  className="relative group p-2 rounded-lg text-red-400 hover:text-red-300 transition-colors"
-                >
-                  <Watch className="h-4.5 w-4.5" />
-                  <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
-                    Tap to connect Garmin
-                  </span>
-                </button>
-              )
+              <div className={cn('relative group p-2 rounded-lg', hasGarmin ? 'text-emerald-400' : 'text-red-400')}>
+                <Watch className="h-4.5 w-4.5" />
+                <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                  {hasGarmin ? th('garminConnected') : th('garminNotConnected')}
+                </span>
+              </div>
             )}
 
             <div className="relative">
@@ -287,8 +275,8 @@ export function Header() {
                 <Bell className="h-4.5 w-4.5" />
               </button>
               {showNotifications && (
-                <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-4 px-5 min-w-[200px] z-50">
-                  <p className="text-xs text-slate-400 text-center">Nothing new</p>
+                <div className="absolute end-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-4 px-5 min-w-[200px] z-50">
+                  <p className="text-xs text-slate-400 text-center">{th('nothingNew')}</p>
                 </div>
               )}
             </div>
@@ -299,7 +287,7 @@ export function Header() {
             <button
               onClick={handleLogout}
               className="p-2.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
-              title="Sign out"
+              title={tc('signOut')}
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -344,7 +332,7 @@ export function Header() {
                   )}
                 >
                   <Icon className="h-5 w-5" />
-                  <span>{item.label}</span>
+                  <span>{t(item.labelKey as any)}</span>
                 </Link>
               );
             })}
@@ -367,12 +355,15 @@ export function Header() {
                 <div className="text-xs text-slate-400 truncate">{userEmail}</div>
               </div>
             </div>
+            <div className="flex items-center gap-2 mb-3">
+              <LocaleSwitcher />
+            </div>
             <button
               onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
             >
               <LogOut className="h-5 w-5" />
-              <span className="font-medium">Sign Out</span>
+              <span className="font-medium">{tc('signOut')}</span>
             </button>
           </div>
         </div>

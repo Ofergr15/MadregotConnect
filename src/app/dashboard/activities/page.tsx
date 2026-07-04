@@ -237,7 +237,7 @@ export default function ActivitiesPage() {
             {weekOffset !== 0 && (
               <button
                 onClick={() => setWeekOffset(0)}
-                className="text-xs text-primary-400 hover:text-primary-300 ml-2"
+                className="text-xs text-primary-400 hover:text-primary-300 ms-2"
               >
                 Current
               </button>
@@ -291,7 +291,7 @@ export default function ActivitiesPage() {
             <TrendingUp className="h-5 w-5 text-emerald-400 mb-3" />
             <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
               {weekData.avgPace ? formatPace(weekData.avgPace) : '—'}
-              <span className="text-lg font-medium text-slate-500 ml-0.5">/km</span>
+              <span className="text-lg font-medium text-slate-500 ms-0.5">/km</span>
             </p>
             <p className="text-sm text-slate-400 mt-1 font-medium">Avg Pace</p>
           </div>
@@ -299,7 +299,7 @@ export default function ActivitiesPage() {
             <Heart className="h-5 w-5 text-red-400 mb-3" />
             <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
               {weekData.avgHR || '—'}
-              <span className="text-lg font-medium text-slate-500 ml-0.5">bpm</span>
+              <span className="text-lg font-medium text-slate-500 ms-0.5">bpm</span>
             </p>
             <p className="text-sm text-slate-400 mt-1 font-medium">Avg Heart Rate</p>
           </div>

@@ -132,7 +132,7 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
     <div className="border-t border-slate-700 mt-4 pt-4">
       <button
         onClick={handleToggle}
-        className="w-full flex items-center justify-between text-left hover:text-primary-400 transition-colors"
+        className="w-full flex items-center justify-between text-start hover:text-primary-400 transition-colors"
       >
         <span className="text-sm font-medium">View Details</span>
         {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -203,12 +203,12 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
                 <table className="w-full">
                   <thead className="bg-slate-700/50">
                     <tr>
-                      {hasFailures && <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">Select</th>}
-                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">Athlete</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">Date</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">Status</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">Garmin ID</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">Error</th>
+                      {hasFailures && <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Select</th>}
+                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Athlete</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Date</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Status</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Garmin ID</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Error</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700">

@@ -199,7 +199,7 @@ export default function RacesPage() {
           <div ref={mapRef} className="absolute inset-0" style={{ zIndex: 0 }} />
           {/* Goal race overlay */}
           {goalRace && (
-            <div className="absolute top-4 left-4 z-10 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-xl p-4 max-w-[280px]">
+            <div className="absolute top-4 start-4 z-10 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-xl p-4 max-w-[280px]">
               <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1">Goal Race</p>
               <p className="text-sm font-bold text-white">{goalRace.name}</p>
               <div className="flex items-center gap-3 mt-2">
@@ -245,7 +245,7 @@ export default function RacesPage() {
                           <span className="text-xs text-slate-400">{race.location}</span>
                         </div>
                       </div>
-                      <div className="text-right shrink-0 ml-3">
+                      <div className="text-end shrink-0 ms-3">
                         <p className="text-lg font-black text-white tabular-nums leading-none">{race.daysUntil}</p>
                         <p className="text-[10px] text-slate-500 mt-0.5">days</p>
                       </div>

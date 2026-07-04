@@ -485,12 +485,12 @@ ${inviteLink}`;
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-700 bg-slate-700/50">
-                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Name</th>
-                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Email</th>
-                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Group</th>
-                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Status</th>
-                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Joined</th>
-                    <th className="text-right text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Actions</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Name</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Email</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Group</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Status</th>
+                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Joined</th>
+                    <th className="text-end text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700">
@@ -541,7 +541,7 @@ ${inviteLink}`;
                       <td className="px-6 py-4 text-sm text-slate-400">
                         {new Date(athlete.createdAt).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 text-right relative">
+                      <td className="px-6 py-4 text-end relative">
                         <button
                           onClick={() => setActiveMenu(activeMenu === athlete.id ? null : athlete.id)}
                           className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
@@ -552,21 +552,21 @@ ${inviteLink}`;
                           <div className="absolute right-6 top-12 z-10 bg-slate-700 border border-slate-600 rounded-lg shadow-xl py-1 w-48">
                             <button
                               onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
-                              className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
+                              className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
                             >
                               <ArrowRightLeft className="h-4 w-4" /> Move to Group
                             </button>
                             {athlete.status === 'active' ? (
                               <button
                                 onClick={() => updateAthleteStatus(athlete.id, 'paused')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
+                                className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
                               >
                                 <PauseCircle className="h-4 w-4" /> Pause
                               </button>
                             ) : athlete.status === 'paused' ? (
                               <button
                                 onClick={() => updateAthleteStatus(athlete.id, 'active')}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
+                                className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
                               >
                                 <PlayCircle className="h-4 w-4" /> Reactivate
                               </button>
@@ -582,21 +582,21 @@ ${inviteLink}`;
                                 fetchAthletes();
                                 setActiveMenu(null);
                               }}
-                              className={cn('w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2', athlete.stravaEnabled ? 'text-slate-400' : 'text-orange-400')}
+                              className={cn('w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2', athlete.stravaEnabled ? 'text-slate-400' : 'text-orange-400')}
                             >
                               <Wifi className="h-4 w-4" /> {athlete.stravaEnabled ? 'Disable Strava' : 'Enable Strava'}
                             </button>
                             {athlete.hasStrava && (
                               <button
                                 onClick={() => { toggleDataSource(athlete.id, athlete.dataSource === 'strava' ? 'garmin' : 'strava'); setActiveMenu(null); }}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
+                                className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
                               >
                                 <ArrowRightLeft className="h-4 w-4" /> Switch to {athlete.dataSource === 'strava' ? 'Garmin' : 'Strava'}
                               </button>
                             )}
                             <button
                               onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
-                              className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
+                              className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
                             >
                               <Trash2 className="h-4 w-4" /> Delete
                             </button>
@@ -636,28 +636,28 @@ ${inviteLink}`;
                     <div className="absolute right-4 mt-10 z-10 bg-slate-700 border border-slate-600 rounded-lg shadow-xl py-1 w-48">
                       <button
                         onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
+                        className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
                       >
                         <ArrowRightLeft className="h-4 w-4" /> Move to Group
                       </button>
                       {athlete.status === 'active' ? (
                         <button
                           onClick={() => updateAthleteStatus(athlete.id, 'paused')}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
+                          className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
                         >
                           <PauseCircle className="h-4 w-4" /> Pause
                         </button>
                       ) : athlete.status === 'paused' ? (
                         <button
                           onClick={() => updateAthleteStatus(athlete.id, 'active')}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
+                          className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
                         >
                           <PlayCircle className="h-4 w-4" /> Reactivate
                         </button>
                       ) : null}
                       <button
                         onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
+                        className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
                       >
                         <Trash2 className="h-4 w-4" /> Delete
                       </button>
@@ -745,7 +745,7 @@ ${inviteLink}`;
                       key={g.id}
                       onClick={() => setSelectedGroupId(g.id)}
                       className={cn(
-                        'w-full text-left px-4 py-3 rounded-lg border text-white transition-colors flex items-center gap-3',
+                        'w-full text-start px-4 py-3 rounded-lg border text-white transition-colors flex items-center gap-3',
                         levelStyles[level],
                         isSelected && 'ring-2 ring-primary-500'
                       )}

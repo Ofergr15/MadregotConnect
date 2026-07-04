@@ -312,7 +312,7 @@ function OnboardContent() {
             {groups.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  <Users className="inline h-4 w-4 mr-1" />
+                  <Users className="inline h-4 w-4 me-1" />
                   Your Pace Group
                 </label>
                 <div className="space-y-2">
@@ -323,7 +323,7 @@ function OnboardContent() {
                         key={g.id}
                         type="button"
                         onClick={() => setSelectedGroup(g.id)}
-                        className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
+                        className={`w-full text-start px-4 py-3 rounded-lg border-2 transition-all ${
                           isSelected
                             ? 'border-primary-500 bg-primary-500/10 ring-2 ring-primary-500/50'
                             : 'border-slate-600 bg-slate-700 hover:border-slate-500'
@@ -399,13 +399,13 @@ function OnboardContent() {
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pe-12 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1.5"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1.5"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
