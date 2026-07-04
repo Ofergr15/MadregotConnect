@@ -42,7 +42,7 @@ export async function garminLogin(email: string, password: string): Promise<
   try {
     const client = axios.create({
       maxRedirects: 0,
-      validateStatus: (s) => s < 400 || s === 302,
+      validateStatus: (s) => s < 500,
     });
 
     let allCookies: string[] = [];
@@ -98,16 +98,57 @@ export async function garminLogin(email: string, password: string): Promise<
     });
     allCookies.push(...extractCookies(step3));
 
-    const html = step3.data;
+    let html = step3.data || '';
+    const location = step3.headers?.location || '';
+
+    // Check for MFA via redirect to verifyMFA page
+    const hasMfaRedirect = location.includes('verifyMFA') || location.includes('enterMfaCode');
+
+    if (hasMfaRedirect) {
+      // Follow the redirect to get MFA page with CSRF
+      const step3Cookies = [...allCookies, ...extractCookies(step3)];
+      const mfaPageRes = await client.get(location, {
+        headers: { Cookie: cookieHeader(step3Cookies), 'User-Agent': USER_AGENT },
+      });
+      const mfaHtml = mfaPageRes.data || '';
+      const mfaCsrf = CSRF_RE.exec(mfaHtml);
+      const sessionId = crypto.randomBytes(16).toString('hex');
+
+      mfaSessions.set(sessionId, {
+        session: {
+          cookies: [...step3Cookies, ...extractCookies(mfaPageRes)],
+          csrf: mfaCsrf ? mfaCsrf[1] : csrf,
+          signinParams: qs.stringify(signinParams),
+        },
+        expires: Date.now() + 5 * 60 * 1000,
+      });
+
+      return { mfaRequired: true, sessionId };
+    }
+
+    // Follow non-MFA redirect if needed
+    if (step3.status === 302 && location) {
+      allCookies.push(...extractCookies(step3));
+      const followRes = await client.get(location, {
+        headers: { Cookie: cookieHeader(allCookies), 'User-Agent': USER_AGENT },
+      });
+      allCookies.push(...extractCookies(followRes));
+      html = followRes.data || '';
+    }
 
     // Check for account locked
     if (html.includes('locked') || html.includes('too many')) {
       return { error: 'Account temporarily locked. Wait a few minutes and try again.' };
     }
 
-    // Check for MFA
-    if (MFA_RE.test(html)) {
-      // Extract new CSRF for MFA submission
+    // Check for MFA in HTML body (fallback)
+    const hasMfa = MFA_RE.test(html) ||
+      html.includes('verifyMFA') ||
+      html.includes('mfa-challenge') ||
+      html.includes('verification-code') ||
+      html.includes('enterMfaCode');
+
+    if (hasMfa) {
       const mfaCsrf = CSRF_RE.exec(html);
       const sessionId = crypto.randomBytes(16).toString('hex');
 
@@ -117,7 +158,7 @@ export async function garminLogin(email: string, password: string): Promise<
           csrf: mfaCsrf ? mfaCsrf[1] : csrf,
           signinParams: qs.stringify(signinParams),
         },
-        expires: Date.now() + 5 * 60 * 1000, // 5 min expiry
+        expires: Date.now() + 5 * 60 * 1000,
       });
 
       return { mfaRequired: true, sessionId };
@@ -129,6 +170,7 @@ export async function garminLogin(email: string, password: string): Promise<
       if (html.includes('incorrect') || html.includes('Invalid')) {
         return { error: 'Wrong email or password.' };
       }
+      console.error('Garmin login - no ticket found. Status:', step3.status);
       return { error: 'Login failed. Please check your credentials.' };
     }
 
