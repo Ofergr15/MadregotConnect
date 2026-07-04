@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface User {
@@ -174,6 +174,16 @@ const allTabs = [
   { key: 'settings', label: 'Settings' },
 ];
 
+const allMobileTabs = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'athletes', label: 'Athletes' },
+  { key: 'activities', label: 'Activities' },
+  { key: 'program', label: 'Program' },
+  { key: 'practice', label: 'Practice' },
+  { key: 'races', label: 'Races' },
+  { key: 'settings', label: 'Settings' },
+];
+
 const allRoles: Role[] = ['admin', 'coach', 'runner', 'core_runner', 'viewer'];
 
 type SettingsTab = 'users' | 'tabs' | 'feedback';
@@ -244,6 +254,10 @@ export default function SettingsPage() {
   const [savedPermissions, setSavedPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  const [mobilePermissions, setMobilePermissions] = useState<TabPermission[]>([]);
+  const [savedMobilePermissions, setSavedMobilePermissions] = useState<TabPermission[]>([]);
+  const [mobilePermissionsLoading, setMobilePermissionsLoading] = useState(true);
+  const [savingMobilePermissions, setSavingMobilePermissions] = useState(false);
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
@@ -258,6 +272,7 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchUsers();
     fetchPermissions();
+    fetchMobilePermissions();
     fetchFeedback();
   }, []);
 
@@ -274,6 +289,65 @@ export default function SettingsPage() {
     } finally {
       setPermissionsLoading(false);
     }
+  };
+
+  const fetchMobilePermissions = async () => {
+    try {
+      setMobilePermissionsLoading(true);
+      const response = await fetch('/api/admin/mobile-tab-permissions');
+      if (!response.ok) throw new Error('Failed to fetch mobile permissions');
+      const data = await response.json();
+      setMobilePermissions(data.permissions || []);
+      setSavedMobilePermissions(data.permissions || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load mobile permissions');
+    } finally {
+      setMobilePermissionsLoading(false);
+    }
+  };
+
+  const toggleMobilePermission = (role: string, tab: string, currentEnabled: boolean) => {
+    setMobilePermissions(prev =>
+      prev.map(p => p.role === role && p.tab === tab ? { ...p, enabled: !currentEnabled } : p)
+    );
+  };
+
+  const hasMobilePermissionChanges = mobilePermissions.some(p => {
+    const saved = savedMobilePermissions.find(s => s.role === p.role && s.tab === p.tab);
+    return saved?.enabled !== p.enabled;
+  });
+
+  const saveMobilePermissions = async () => {
+    setSavingMobilePermissions(true);
+    try {
+      const changed = mobilePermissions.filter(p => {
+        const saved = savedMobilePermissions.find(s => s.role === p.role && s.tab === p.tab);
+        return saved?.enabled !== p.enabled;
+      });
+      await Promise.all(
+        changed.map(p =>
+          fetch('/api/admin/mobile-tab-permissions', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: p.role, tab: p.tab, enabled: p.enabled }),
+          })
+        )
+      );
+      setSavedMobilePermissions([...mobilePermissions]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save mobile permissions');
+    } finally {
+      setSavingMobilePermissions(false);
+    }
+  };
+
+  const discardMobilePermissionChanges = () => {
+    setMobilePermissions([...savedMobilePermissions]);
+  };
+
+  const isMobileTabEnabled = (role: string, tab: string) => {
+    const perm = mobilePermissions.find(p => p.role === role && p.tab === tab);
+    return perm?.enabled ?? false;
   };
 
   const fetchFeedback = async () => {
@@ -1022,6 +1096,7 @@ export default function SettingsPage() {
 
       {/* Tab Manager Tab */}
       {activeTab === 'tabs' && (
+        <>
         <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50">
           <div className="px-5 py-4 border-b border-slate-700/50">
             <div className="flex items-center gap-2">
@@ -1098,6 +1173,85 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        {/* Mobile Tab Permissions */}
+        <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 mt-5">
+          <div className="px-5 py-4 border-b border-slate-700/50">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-slate-400" />
+              <h2 className="text-sm font-semibold text-white">Mobile Tab Permissions</h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">Configure which tabs each role can see on the mobile app</p>
+          </div>
+
+          {mobilePermissionsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+            </div>
+          ) : (
+            <div className="p-5 space-y-5">
+              {allRoles.map(role => {
+                const rc = roleConfig[role];
+                return (
+                  <div key={role} className="bg-slate-900/40 border border-slate-700/30 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={cn('w-2 h-2 rounded-full', rc.dot)}></span>
+                      <h3 className={cn('text-sm font-semibold', rc.text)}>{rc.label}</h3>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {allMobileTabs.map(tab => {
+                        const enabled = isMobileTabEnabled(role, tab.key);
+                        return (
+                          <button
+                            key={tab.key}
+                            onClick={() => toggleMobilePermission(role, tab.key, enabled)}
+                            className={cn(
+                              'flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all',
+                              enabled
+                                ? 'bg-green-500/10 border-green-500/30 text-white'
+                                : 'bg-slate-800/50 border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                            )}
+                          >
+                            <div className={cn(
+                              'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                              enabled ? 'bg-green-500 border-green-500' : 'bg-slate-700 border-slate-600'
+                            )}>
+                              {enabled && <CheckCircle2 className="w-2.5 h-2.5 text-white" />}
+                            </div>
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {hasMobilePermissionChanges && (
+                <div className="flex items-center justify-between p-4 bg-slate-900 border border-green-500/30 rounded-xl">
+                  <p className="text-sm text-slate-300">Unsaved mobile changes</p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={discardMobilePermissionChanges}
+                      className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+                    >
+                      Discard
+                    </button>
+                    <button
+                      onClick={saveMobilePermissions}
+                      disabled={savingMobilePermissions}
+                      className="px-4 py-2 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors font-medium flex items-center gap-2"
+                    >
+                      {savingMobilePermissions && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        </>
       )}
     </div>
   );
