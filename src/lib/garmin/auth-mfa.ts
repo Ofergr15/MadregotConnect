@@ -198,11 +198,11 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
 
     const client = axios.create({
       maxRedirects: 0,
-      validateStatus: (s) => s < 400 || s === 302,
+      validateStatus: (s) => s < 500,
     });
 
     // Submit MFA verification code
-    const verifyUrl = `${SIGNIN_URL}/verifyMFA/loginEnterMfaCode?${signinParams}`;
+    const verifyUrl = `${SSO_ORIGIN}/sso/verifyMFA/loginEnterMfaCode?${signinParams}`;
     const formData = qs.stringify({
       'verification-code': code,
       verificationCode: code,
