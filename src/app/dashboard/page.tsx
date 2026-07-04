@@ -489,39 +489,10 @@ export default function DashboardPage() {
           })));
         }
 
-        const shouldSync = (isFirstVisit && hasGarminOrStrava) || (hasGarminOrStrava && !localStorage.getItem('dashboard_synced_with_garmin'));
-        if (shouldSync && myAthleteId && !myIsCoach) {
-          try {
-            const [syncRes, stravaSyncRes] = await Promise.allSettled([
-              fetch('/api/garmin/sync-activities', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ athleteId: myAthleteId }),
-              }),
-              fetch('/api/strava/sync-activities', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ athleteId: myAthleteId }),
-              }),
-            ]);
-            const garminResult = syncRes.status === 'fulfilled' && syncRes.value.ok ? await syncRes.value.json() : null;
-            const stravaResult = stravaSyncRes.status === 'fulfilled' && stravaSyncRes.value.ok ? await stravaSyncRes.value.json() : null;
-            const totalSynced = (garminResult?.synced || 0) + (stravaResult?.synced || 0);
-            if (totalSynced >= 0) {
-              setSyncedCount(totalSynced);
-              setSyncStatus('done');
-            } else {
-              setSyncStatus('done');
-              setSyncedCount(0);
-            }
-          } catch {
-            setSyncStatus('error');
-            setSyncError('Could not sync Garmin data.');
-          }
-          localStorage.setItem('dashboard_synced', '1');
-          localStorage.setItem('dashboard_synced_with_garmin', '1');
-        }
+        // Show dashboard immediately — sync runs in background
+        setLoading(false);
 
+        // Load existing activities first (non-blocking for UI)
         const actRes = await fetch('/api/garmin/sync-activities');
         if (actRes.ok) {
           const actData = await actRes.json();
@@ -563,6 +534,62 @@ export default function DashboardPage() {
             setRunnerWeeklyVolumes(sortedWeeks);
           }
         }
+
+        // Sync Garmin/Strava in background with popup overlay on dashboard
+        const shouldSync = (isFirstVisit && hasGarminOrStrava) || (hasGarminOrStrava && !localStorage.getItem('dashboard_synced_with_garmin'));
+        if (shouldSync && myAthleteId && !myIsCoach) {
+          try {
+            const [syncRes, stravaSyncRes] = await Promise.allSettled([
+              fetch('/api/garmin/sync-activities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ athleteId: myAthleteId }),
+              }),
+              fetch('/api/strava/sync-activities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ athleteId: myAthleteId }),
+              }),
+            ]);
+            const garminResult = syncRes.status === 'fulfilled' && syncRes.value.ok ? await syncRes.value.json() : null;
+            const stravaResult = stravaSyncRes.status === 'fulfilled' && stravaSyncRes.value.ok ? await stravaSyncRes.value.json() : null;
+            const totalSynced = (garminResult?.synced || 0) + (stravaResult?.synced || 0);
+            if (totalSynced >= 0) {
+              setSyncedCount(totalSynced);
+              setSyncStatus('done');
+            } else {
+              setSyncStatus('done');
+              setSyncedCount(0);
+            }
+          } catch {
+            setSyncStatus('error');
+            setSyncError('Could not sync Garmin data.');
+          }
+          localStorage.setItem('dashboard_synced', '1');
+          localStorage.setItem('dashboard_synced_with_garmin', '1');
+
+          // Refresh activities after sync completes
+          try {
+            const refreshRes = await fetch('/api/garmin/sync-activities');
+            if (refreshRes.ok) {
+              const refreshData = await refreshRes.json();
+              const allActs = refreshData.activities || [];
+              const filtered = allActs.filter((a: any) => a.athlete_id === myAthleteId);
+              setRecentActivities(filtered.slice(0, 3));
+
+              const now = new Date();
+              const dayOfWeek = now.getDay();
+              const weekStart = new Date(now);
+              weekStart.setDate(now.getDate() - dayOfWeek);
+              weekStart.setHours(0, 0, 0, 0);
+              const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
+              const totalKm = thisWeekActs.reduce((sum: number, a: any) => sum + (a.distance || 0), 0) / 1000;
+              setWeeklyKm(Math.round(totalKm * 10) / 10);
+              setWeeklyRuns(thisWeekActs.length);
+            }
+          } catch {}
+        }
+
         if (!myIsCoach) {
           try {
             const [lbRes, grpRes] = await Promise.all([
@@ -579,8 +606,7 @@ export default function DashboardPage() {
             }
           } catch {}
         }
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+      } catch (e) { console.error(e); setLoading(false); }
     }
     load();
   }, []);
