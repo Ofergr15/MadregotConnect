@@ -19,7 +19,10 @@ export default function JoinPage({ params }: { params: { token: string } }) {
   const [garminEmail, setGarminEmail] = useState('');
   const [garminPassword, setGarminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [step, setStep] = useState<'auth' | 'info' | 'garmin' | 'connecting' | 'done'>('auth');
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaSessionId, setMfaSessionId] = useState('');
+  const [step, setStep] = useState<'auth' | 'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('auth');
   const [error, setError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -89,17 +92,48 @@ export default function JoinPage({ params }: { params: { token: string } }) {
         body: JSON.stringify({ email: garminEmail, password: garminPassword }),
       });
 
-      if (!authRes.ok) {
-        const err = await authRes.json();
-        const detail = err.detail ? ` (${err.detail})` : '';
-        throw new Error((err.error || 'Failed to connect to Garmin') + detail);
+      const authData = await authRes.json();
+
+      if (authData.mfaRequired) {
+        setMfaRequired(true);
+        setMfaSessionId(authData.sessionId);
+        setStep('mfa');
+        return;
       }
 
-      const { auth } = await authRes.json();
-      await saveConnection(auth);
+      if (!authRes.ok) {
+        throw new Error(authData.error || 'Failed to connect to Garmin');
+      }
+
+      await saveConnection(authData.auth);
     } catch (err: any) {
       setError(err.message);
       setStep('garmin');
+    }
+  };
+
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep('connecting');
+    setError(null);
+
+    try {
+      const authRes = await fetch('/api/garmin/authenticate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
+      });
+
+      const authData = await authRes.json();
+
+      if (!authRes.ok) {
+        throw new Error(authData.error || 'Verification failed');
+      }
+
+      await saveConnection(authData.auth);
+    } catch (err: any) {
+      setError(err.message);
+      setStep('mfa');
     }
   };
 
@@ -214,8 +248,8 @@ export default function JoinPage({ params }: { params: { token: string } }) {
 
         {/* Step indicator */}
         <div className="flex items-center justify-center gap-2 mb-6">
-          <div className={`h-2 w-8 rounded-full ${step === 'info' || step === 'garmin' || step === 'connecting' ? 'bg-primary-500' : 'bg-slate-600'}`} />
-          <div className={`h-2 w-8 rounded-full ${step === 'garmin' || step === 'connecting' ? 'bg-primary-500' : 'bg-slate-600'}`} />
+          <div className={`h-2 w-8 rounded-full ${step === 'info' || step === 'garmin' || step === 'mfa' || step === 'connecting' ? 'bg-primary-500' : 'bg-slate-600'}`} />
+          <div className={`h-2 w-8 rounded-full ${step === 'garmin' || step === 'mfa' || step === 'connecting' ? 'bg-primary-500' : 'bg-slate-600'}`} />
         </div>
 
 
@@ -386,6 +420,56 @@ export default function JoinPage({ params }: { params: { token: string } }) {
               className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
             >
               Back
+            </button>
+          </form>
+        )}
+
+        {/* Step 3b: MFA verification */}
+        {step === 'mfa' && (
+          <form onSubmit={handleMfaSubmit} className="space-y-4">
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
+              <Shield className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-slate-300">
+                <span className="text-amber-400 font-medium">Verification required:</span> A code was sent to your Garmin email. Enter it below to complete the connection.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Verification Code
+              </label>
+              <input
+                type="text"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)}
+                placeholder="Enter 6-digit code"
+                maxLength={6}
+                className="w-full bg-slate-700 border border-amber-500/50 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-center text-xl tracking-widest"
+                required
+                autoFocus
+              />
+            </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={!mfaCode || mfaCode.length < 6}
+              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              Verify & Connect
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStep('garmin'); setMfaRequired(false); setMfaCode(''); }}
+              className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
+            >
+              Back to login
             </button>
           </form>
         )}
