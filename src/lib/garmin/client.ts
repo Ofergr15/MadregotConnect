@@ -47,27 +47,10 @@ export class GarminClient {
 
   async scheduleWorkout(workoutId: string, date: string): Promise<void> {
     await this.restoreSession();
-    const tokens = this.gc.exportToken() as any;
-    const accessToken = tokens.oauth2?.access_token;
-    if (!accessToken) throw new Error('No access token available for scheduling');
-
-    const res = await fetch(
+    await (this.gc as any).client.post(
       `https://connectapi.garmin.com/workout-service/schedule/${workoutId}`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'NK': 'NT',
-          'DI-Backend': 'connectapi.garmin.com',
-        },
-        body: JSON.stringify({ date }),
-      }
+      { date }
     );
-
-    if (!res.ok) {
-      throw new Error(`Failed to schedule workout: ${res.status} ${await res.text()}`);
-    }
   }
 
   async deleteWorkout(workoutId: string): Promise<void> {
