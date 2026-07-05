@@ -539,9 +539,9 @@ function UploadForm({
   useEffect(() => {
     const now = new Date();
     const day = now.getDay();
-    const diff = day === 0 ? 1 : 8 - day;
+    const sundayOffset = day === 0 ? 0 : 7 - day;
     const nextSunday = new Date(now);
-    nextSunday.setDate(now.getDate() + diff);
+    nextSunday.setDate(now.getDate() + sundayOffset);
     const nextSaturday = new Date(nextSunday);
     nextSaturday.setDate(nextSunday.getDate() + 6);
 
