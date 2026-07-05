@@ -1,49 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface WeekProgram {
-  weekLabel: string;
-  dateRange: string;
-  training: string;
-  nutrition: string;
+interface ProgramWeek {
+  id: string;
+  week_number: number;
+  date_range: string;
+  week_start_date: string;
+  training_pdf_url: string | null;
+  nutrition_pdf_url: string | null;
 }
-
-const WEEKS: WeekProgram[] = [
-  {
-    weekLabel: 'Week 5',
-    dateRange: '28.06 – 04.07',
-    training: '/plans/training-program/week-28-06-04-07-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-28-06-04-07-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 4',
-    dateRange: '21.06 – 27.06',
-    training: '/plans/training-program/week-21-27-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-21-27-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 3',
-    dateRange: '14.06 – 20.06',
-    training: '/plans/training-program/week-14-20-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-14-20-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 2',
-    dateRange: '07.06 – 13.06',
-    training: '/plans/training-program/week-07-13-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-07-13-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 1',
-    dateRange: '31.05 – 06.06',
-    training: '/plans/training-program/week-31-05-06-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-31-05-06-06-2026.pdf',
-  },
-];
 
 type ExerciseCategory = 'legs' | 'core' | 'upper' | 'prehab';
 
@@ -79,20 +48,40 @@ const WORKOUT_VIDEOS: WorkoutVideo[] = [
 
 export default function ProgramPage() {
   const t = useTranslations('program');
+  const [weeks, setWeeks] = useState<ProgramWeek[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [activeView, setActiveView] = useState<'training' | 'nutrition' | 'workout'>('training');
   const [weekDropdownOpen, setWeekDropdownOpen] = useState(false);
   const [selectedVideoIndex, setSelectedVideoIndex] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<'all' | ExerciseCategory>('all');
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const currentWeek = WEEKS[selectedWeek];
+  useEffect(() => {
+    setIsAdmin(localStorage.getItem('admin_session') === 'true');
+    fetchWeeks();
+  }, []);
+
+  async function fetchWeeks() {
+    try {
+      const res = await fetch('/api/program-weeks');
+      if (res.ok) {
+        const data = await res.json();
+        setWeeks(data);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const currentWeek = weeks[selectedWeek];
 
   // Filter exercises based on category
   const filteredExercises = categoryFilter === 'all'
     ? WORKOUT_VIDEOS
     : WORKOUT_VIDEOS.filter(ex => ex.category === categoryFilter);
 
-  // Get exercise categories with counts
   const categoryData = {
     all: WORKOUT_VIDEOS.length,
     legs: WORKOUT_VIDEOS.filter(ex => ex.category === 'legs').length,
@@ -101,7 +90,6 @@ export default function ProgramPage() {
     prehab: WORKOUT_VIDEOS.filter(ex => ex.category === 'prehab').length,
   };
 
-  // Navigation between exercises
   const handlePrevious = () => {
     if (selectedVideoIndex === null) return;
     const currentFilteredIndex = filteredExercises.findIndex((_, i) => WORKOUT_VIDEOS.indexOf(filteredExercises[i]) === selectedVideoIndex);
@@ -123,7 +111,6 @@ export default function ProgramPage() {
     ? filteredExercises.findIndex((_, i) => WORKOUT_VIDEOS.indexOf(filteredExercises[i]) === selectedVideoIndex)
     : -1;
 
-  // Tag colors
   const getTagColor = (tag: string): string => {
     const tagColors: Record<string, string> = {
       'Legs': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -150,14 +137,31 @@ export default function ProgramPage() {
     return tagColors[tag] || 'bg-slate-500/20 text-slate-300 border-slate-500/30';
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+      </div>
+    );
+  }
+
   return (
     <div className={cn('space-y-4 sm:space-y-5', activeView === 'workout' && 'space-y-3')}>
       {/* Header — hide on mobile when in workout mode */}
-      <div className={cn(activeView === 'workout' ? 'hidden sm:block' : '')}>
-        <h1 className="text-xl sm:text-2xl font-bold">{t('weeklyProgram')}</h1>
-        <p className="text-slate-400 mt-1 text-sm">
-          {t('subtitle')}
-        </p>
+      <div className={cn(activeView === 'workout' ? 'hidden sm:block' : '', 'flex items-center justify-between')}>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold">{t('weeklyProgram')}</h1>
+          <p className="text-slate-400 mt-1 text-sm">{t('subtitle')}</p>
+        </div>
+        {isAdmin && activeView !== 'workout' && (
+          <button
+            onClick={() => setShowUploadForm(true)}
+            className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            New Week
+          </button>
+        )}
       </div>
 
       {/* View Toggle — full width, sticky on mobile */}
@@ -202,15 +206,15 @@ export default function ProgramPage() {
         </div>
 
         {/* Week Dropdown — only show for training/nutrition */}
-        {activeView !== 'workout' && (
+        {activeView !== 'workout' && currentWeek && (
         <div className="relative">
           <button
             onClick={() => setWeekDropdownOpen(!weekDropdownOpen)}
             className="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 hover:border-slate-600 transition-colors w-full sm:w-auto sm:min-w-[240px]"
           >
             <div className="flex-1 text-start">
-              <div className="font-semibold text-white">{currentWeek.weekLabel}</div>
-              <div className="text-xs text-slate-400">{currentWeek.dateRange}</div>
+              <div className="font-semibold text-white">Week {currentWeek.week_number}</div>
+              <div className="text-xs text-slate-400">{currentWeek.date_range}</div>
             </div>
             {selectedWeek === 0 && (
               <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium">
@@ -223,10 +227,10 @@ export default function ProgramPage() {
           {weekDropdownOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setWeekDropdownOpen(false)} />
-              <div className="absolute top-full start-0 mt-2 z-50 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden min-w-[240px]">
-                {WEEKS.map((week, i) => (
+              <div className="absolute top-full start-0 mt-2 z-50 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden min-w-[240px] max-h-[300px] overflow-y-auto">
+                {weeks.map((week, i) => (
                   <button
-                    key={i}
+                    key={week.id}
                     onClick={() => { setSelectedWeek(i); setWeekDropdownOpen(false); }}
                     className={cn(
                       "w-full text-start px-4 py-3 flex items-center justify-between hover:bg-slate-700/50 transition-colors",
@@ -234,8 +238,8 @@ export default function ProgramPage() {
                     )}
                   >
                     <div>
-                      <div className="font-medium text-white text-sm">{week.weekLabel}</div>
-                      <div className="text-xs text-slate-400">{week.dateRange}</div>
+                      <div className="font-medium text-white text-sm">Week {week.week_number}</div>
+                      <div className="text-xs text-slate-400">{week.date_range}</div>
                     </div>
                     {i === 0 && (
                       <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium">
@@ -257,7 +261,6 @@ export default function ProgramPage() {
           {/* Video Player — only show after selecting an exercise */}
           {currentExercise && (
           <div className="bg-slate-800 rounded-xl sm:rounded-xl border border-slate-700 overflow-hidden -mx-4 sm:mx-0 rounded-none sm:rounded-xl border-x-0 sm:border-x">
-            {/* Video Player */}
             <div className="w-full aspect-video bg-slate-900 relative">
               {currentExercise.youtube ? (
                 <iframe
@@ -291,13 +294,11 @@ export default function ProgramPage() {
               )}
             </div>
 
-            {/* Exercise Info + Nav below video */}
             <div className="px-4 py-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base sm:text-lg font-bold text-white truncate">{currentExercise.name}</h3>
                 </div>
-                {/* Navigation Controls */}
                 <div className="flex items-center gap-1 shrink-0 ms-2">
                   <button
                     onClick={handlePrevious}
@@ -349,7 +350,7 @@ export default function ProgramPage() {
           </div>
           )}
 
-          {/* Category Filters — horizontal scroll on mobile */}
+          {/* Category Filters */}
           <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
             {[
               { key: 'all' as const, label: t('all'), count: categoryData.all, color: 'orange' },
@@ -393,7 +394,6 @@ export default function ProgramPage() {
                       : 'border-slate-700 bg-slate-800/50'
                   )}
                 >
-                  {/* Thumbnail — small on mobile (horizontal), bigger on desktop (vertical) */}
                   <div className="relative w-28 sm:w-full aspect-square sm:aspect-[16/9] bg-slate-900 overflow-hidden shrink-0">
                     <img
                       src={`https://drive.google.com/thumbnail?id=${video.id}&sz=w400`}
@@ -420,7 +420,6 @@ export default function ProgramPage() {
                     </div>
                   </div>
 
-                  {/* Card Content */}
                   <div className="p-3 flex-1 min-w-0 flex flex-col justify-center">
                     <h4 className={cn(
                       'font-bold text-sm leading-tight',
@@ -450,35 +449,224 @@ export default function ProgramPage() {
             })}
           </div>
         </div>
-      ) : (
+      ) : currentWeek ? (
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700">
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-slate-400" />
               <span className="text-sm font-medium">
-                {activeView === 'training' ? t('trainingProgram') : t('nutritionPlan')} — {currentWeek.dateRange}
+                {activeView === 'training' ? t('trainingProgram') : t('nutritionPlan')} — {currentWeek.date_range}
               </span>
             </div>
-            <a
-              href={activeView === 'training' ? currentWeek.training : currentWeek.nutrition}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs text-primary-400 hover:text-primary-300 transition-colors"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              {t('openInNewTab')}
-            </a>
+            {getPdfUrl(currentWeek, activeView) && (
+              <a
+                href={getPdfUrl(currentWeek, activeView)!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-primary-400 hover:text-primary-300 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                {t('openInNewTab')}
+              </a>
+            )}
           </div>
 
           <div className="w-full" style={{ height: '80vh' }}>
-            <iframe
-              src={activeView === 'training' ? currentWeek.training : currentWeek.nutrition}
-              className="w-full h-full border-0"
-              title={`${activeView} plan for ${currentWeek.weekLabel}`}
-            />
+            {getPdfUrl(currentWeek, activeView) ? (
+              <iframe
+                src={getPdfUrl(currentWeek, activeView)!}
+                className="w-full h-full border-0"
+                title={`${activeView} plan for Week ${currentWeek.week_number}`}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-400">
+                No {activeView} plan uploaded for this week yet.
+              </div>
+            )}
           </div>
         </div>
+      ) : (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
+          <p className="text-slate-400">No program weeks available yet.</p>
+          {isAdmin && (
+            <button
+              onClick={() => setShowUploadForm(true)}
+              className="mt-4 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add First Week
+            </button>
+          )}
+        </div>
       )}
+
+      {/* Upload Modal */}
+      {showUploadForm && (
+        <UploadForm
+          nextWeekNumber={weeks.length > 0 ? weeks[0].week_number + 1 : 1}
+          onClose={() => setShowUploadForm(false)}
+          onSuccess={() => { setShowUploadForm(false); fetchWeeks(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function getPdfUrl(week: ProgramWeek, view: 'training' | 'nutrition' | 'workout'): string | null {
+  if (view === 'workout') return null;
+  return view === 'training' ? week.training_pdf_url : week.nutrition_pdf_url;
+}
+
+function UploadForm({
+  nextWeekNumber,
+  onClose,
+  onSuccess,
+}: {
+  nextWeekNumber: number;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [weekNumber, setWeekNumber] = useState(nextWeekNumber);
+  const [dateRange, setDateRange] = useState('');
+  const [weekStartDate, setWeekStartDate] = useState('');
+  const [trainingFile, setTrainingFile] = useState<File | null>(null);
+  const [nutritionFile, setNutritionFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? 1 : 8 - day;
+    const nextSunday = new Date(now);
+    nextSunday.setDate(now.getDate() + diff);
+    const nextSaturday = new Date(nextSunday);
+    nextSaturday.setDate(nextSunday.getDate() + 6);
+
+    const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+    setDateRange(`${fmt(nextSunday)} – ${fmt(nextSaturday)}`);
+    setWeekStartDate(nextSunday.toISOString().slice(0, 10));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!trainingFile && !nutritionFile) {
+      setError('Please upload at least one PDF');
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+
+    const formData = new FormData();
+    formData.append('week_number', String(weekNumber));
+    formData.append('date_range', dateRange);
+    formData.append('week_start_date', weekStartDate);
+    if (trainingFile) formData.append('training_pdf', trainingFile);
+    if (nutritionFile) formData.append('nutrition_pdf', nutritionFile);
+
+    try {
+      const res = await fetch('/api/program-weeks', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md">
+        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <Upload className="h-5 w-5 text-primary-400" />
+          Add New Week
+        </h2>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">Week #</label>
+              <input
+                type="number"
+                value={weekNumber}
+                onChange={e => setWeekNumber(Number(e.target.value))}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                min={1}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">Date Range</label>
+              <input
+                type="text"
+                value={dateRange}
+                onChange={e => setDateRange(e.target.value)}
+                placeholder="05.07 – 11.07"
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">Week Start Date (Sunday)</label>
+            <input
+              type="date"
+              value={weekStartDate}
+              onChange={e => setWeekStartDate(e.target.value)}
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">Training Program PDF</label>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={e => setTrainingFile(e.target.files?.[0] || null)}
+              className="w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-primary-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">Nutrition Plan PDF</label>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={e => setNutritionFile(e.target.files?.[0] || null)}
+              className="w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-green-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-green-500"
+            />
+          </div>
+
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={uploading}
+              className="flex-1 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {uploading ? 'Uploading...' : 'Upload'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
