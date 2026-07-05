@@ -59,7 +59,9 @@ export default function ProgramPage() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    setIsAdmin(localStorage.getItem('admin_session') === 'true');
+    const adminSession = localStorage.getItem('admin_session') === 'true';
+    const coachEmail = localStorage.getItem('coach_email');
+    setIsAdmin(adminSession || !!coachEmail);
     fetchWeeks();
   }, []);
 
