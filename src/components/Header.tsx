@@ -123,6 +123,9 @@ export function Header() {
     const enabledTabs = permissions
       .filter(p => p.role === userRole && p.enabled)
       .map(p => p.tab);
+    if (userRole === 'admin' && !enabledTabs.includes('settings')) {
+      enabledTabs.push('settings');
+    }
     const items = allNavItems.filter(item => enabledTabs.includes(item.tab));
     if (isAthlete) items.push(profileNavItem);
     return items.length > 0 ? items : [allNavItems.find(i => i.tab === 'dashboard')!, profileNavItem];
