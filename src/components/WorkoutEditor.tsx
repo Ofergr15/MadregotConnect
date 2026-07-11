@@ -455,7 +455,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex justify-end" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 z-[2000] flex justify-end" onClick={onClose}>
       <div
         className="w-full max-w-lg bg-slate-900 border-s border-slate-700 h-full overflow-hidden flex flex-col animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}

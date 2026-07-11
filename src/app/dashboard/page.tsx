@@ -191,7 +191,7 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
   const blocks = summarizeSteps(session.steps || []);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="px-5 py-4 flex items-start justify-between">
@@ -318,7 +318,7 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
 }) {
   const t = useTranslations('dashboard');
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm mx-4 p-6 text-center">
         <div className="flex flex-col items-center">
           {status === 'syncing' && (

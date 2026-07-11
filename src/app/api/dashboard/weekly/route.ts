@@ -165,6 +165,24 @@ function getWorkoutType(workout: ParsedWorkout): string {
   return 'easy';
 }
 
+/**
+ * Compact duration for a repeat's rep, used in the "Nx…" highlight badge.
+ * Distance -> "200m"; time -> "Nmin" for whole minutes, else "M:SS" (so a 30s
+ * rep reads "0:30", not the old buggy "0min").
+ */
+function formatRepDuration(rep: WorkoutStep): string {
+  if (rep.durationType === 'distance' && rep.durationValue) {
+    return `${rep.durationValue}m`;
+  }
+  if (rep.durationType === 'time' && rep.durationValue) {
+    const s = rep.durationValue;
+    if (s % 60 === 0) return `${s / 60}min`;
+    if (s < 60) return `0:${s.toString().padStart(2, '0')}`;
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+  }
+  return '';
+}
+
 export async function GET() {
   try {
     const supabase = createServerClient();
@@ -329,17 +347,13 @@ export async function GET() {
         } else if (wType === 'fartlek') {
           const mainRepeat = w.steps.find(s => s.repeatCount && s.repeatCount > 2);
           if (mainRepeat && mainRepeat.repeatSteps?.[0]) {
-            const rep = mainRepeat.repeatSteps[0];
-            const dur = rep.durationType === 'distance' ? `${rep.durationValue}m` :
-              rep.durationType === 'time' && rep.durationValue ? `${Math.round(rep.durationValue / 60)}min` : '';
+            const dur = formatRepDuration(mainRepeat.repeatSteps[0]);
             if (dur) highlight = `${mainRepeat.repeatCount}x${dur}`;
           }
         } else {
           const intervalStep = w.steps.find(s => s.repeatCount && s.repeatSteps?.[0]?.durationValue);
           if (intervalStep && intervalStep.repeatSteps?.[0]) {
-            const rep = intervalStep.repeatSteps[0];
-            const dur = rep.durationType === 'distance' ? `${rep.durationValue}m` :
-              rep.durationType === 'time' && rep.durationValue ? `${Math.round(rep.durationValue / 60)}min` : '';
+            const dur = formatRepDuration(intervalStep.repeatSteps[0]);
             if (dur) highlight = `${intervalStep.repeatCount}x${dur}`;
           }
         }
