@@ -5,6 +5,7 @@ import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { formatPace } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronUp, Timer, Route } from 'lucide-react';
+import { workoutDistanceMeters } from '@/lib/workout-distance';
 
 const stepColors: Record<string, { dot: string; bg: string }> = {
   warmup: { dot: 'bg-yellow-400', bg: 'bg-yellow-400/10' },
@@ -136,7 +137,9 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
   const [expanded, setExpanded] = useState(false);
   const steps = workout.steps;
 
-  const totalDist = estimateDistance(steps);
+  // Coach-aware distance (prefers the day's km range) so per-day cards sum to
+  // the same weekly total shown on the athlete dashboard.
+  const totalDist = workoutDistanceMeters(workout);
   const totalTime = estimateTime(steps);
   const type = inferWorkoutType(workout);
   const style = workoutTypeStyles[type] || workoutTypeStyles['easy'];

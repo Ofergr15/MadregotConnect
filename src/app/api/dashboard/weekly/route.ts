@@ -5,11 +5,56 @@ import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 
 export const dynamic = 'force-dynamic';
 
+const TIMEZONE = 'Asia/Jerusalem';
+// After this hour on Saturday, athletes preview the UPCOMING week's plan.
+const ROLLOVER_HOUR = 20;
+
 function getWeekStart(date: Date): string {
   const d = new Date(date);
   const day = d.getDay();
   d.setDate(d.getDate() - day);
   return d.toISOString().split('T')[0];
+}
+
+/**
+ * Israel wall-clock parts for a given instant (handles IDT/IST DST via Intl).
+ */
+function israelParts(date: Date): { year: number; month: number; day: number; weekday: number; hour: number } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIMEZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', hour12: false, weekday: 'short',
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    weekday: weekdayMap[parts.weekday as string] ?? 0,
+    hour: Number(parts.hour === '24' ? '0' : parts.hour),
+  };
+}
+
+/**
+ * The plan week (Sunday YYYY-MM-DD) that athletes should currently SEE.
+ * Normally the current Israel week, but after Saturday 20:00 it advances to the
+ * upcoming week so athletes can preview next week's training on Sat evening.
+ */
+function getDisplayWeekStart(now: Date): string {
+  const p = israelParts(now);
+  // Build a UTC date anchored to the Israel calendar day (time-of-day irrelevant
+  // for week math since we only use it to find the Sunday).
+  const israelMidday = new Date(Date.UTC(p.year, p.month - 1, p.day, 12, 0, 0));
+  // Days since Sunday, in Israel local terms.
+  let daysSinceSunday = p.weekday;
+  // Saturday (weekday 6) at/after ROLLOVER_HOUR → jump to next week's Sunday.
+  if (p.weekday === 6 && p.hour >= ROLLOVER_HOUR) {
+    daysSinceSunday = -1; // Sunday is 1 day ahead
+  }
+  const sunday = new Date(israelMidday);
+  sunday.setUTCDate(israelMidday.getUTCDate() - daysSinceSunday);
+  return sunday.toISOString().split('T')[0];
 }
 
 function extractWorkouts(parsedWorkouts: any): ParsedWorkout[] {
@@ -124,7 +169,8 @@ export async function GET() {
   try {
     const supabase = createServerClient();
     const now = new Date();
-    const currentWeekStart = getWeekStart(now);
+    // Plan week to display — rolls to next week after Saturday 20:00 Israel time.
+    const currentWeekStart = getDisplayWeekStart(now);
 
     const { data: plans } = await supabase
       .from('weekly_plans')
@@ -149,9 +195,12 @@ export async function GET() {
       currentPlan = uniquePlans[uniquePlans.length - 1];
     }
 
-    const previousWeekStart = new Date(now);
-    previousWeekStart.setDate(previousWeekStart.getDate() - 7);
-    let prevPlan = uniquePlans.find(p => p.week_start_date === getWeekStart(previousWeekStart));
+    // Previous week = 7 days before the DISPLAYED week (keeps the delta correct
+    // after the Saturday-evening rollover).
+    const prevWeek = new Date(currentWeekStart);
+    prevWeek.setUTCDate(prevWeek.getUTCDate() - 7);
+    const previousWeekStartStr = prevWeek.toISOString().split('T')[0];
+    let prevPlan = uniquePlans.find(p => p.week_start_date === previousWeekStartStr);
     if (!prevPlan && uniquePlans.length >= 2) {
       prevPlan = uniquePlans[uniquePlans.length - 2];
     }

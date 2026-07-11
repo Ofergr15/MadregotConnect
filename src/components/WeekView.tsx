@@ -5,8 +5,9 @@ import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { WorkoutPreview, inferWorkoutType } from './WorkoutPreview';
 import { WorkoutEditorPanel } from './WorkoutEditor';
 import { cn } from '@/lib/utils';
-import { Route, Timer, Zap, X } from 'lucide-react';
+import { Route, Timer, Zap, X, Pencil } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
+import { workoutDistanceMeters, totalDistanceMeters } from '@/lib/workout-distance';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -175,7 +176,9 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
   const viewingWorkout = viewingIdx !== null ? workouts[viewingIdx] : null;
   const todayIdx = new Date().getDay();
 
-  const totalDist = workouts.reduce((s, w) => s + estimateWorkoutDistance(w.steps), 0);
+  // Use the shared, coach-aware distance so the planner total matches the
+  // athlete dashboard (prefers distanceMinKm/Max, falls back to time+pace).
+  const totalDist = totalDistanceMeters(workouts);
   const totalTime = workouts.reduce((s, w) => s + estimateWorkoutTime(w.steps), 0);
   const trainingDays = new Set(workouts.map(w => w.dayOfWeek)).size;
 
@@ -240,14 +243,26 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                 )}>
                   {DAYS_SHORT[dayIndex]}
                 </h4>
-                {hasMultiple && (
-                  <button
-                    onClick={() => setExpandedDay(isExpanded ? null : dayIndex)}
-                    className="flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black"
-                  >
-                    {dayWorkouts.length}
-                  </button>
-                )}
+                <div className="flex items-center gap-1">
+                  {hasMultiple && (
+                    <button
+                      onClick={() => setExpandedDay(isExpanded ? null : dayIndex)}
+                      className="flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black"
+                    >
+                      {dayWorkouts.length}
+                    </button>
+                  )}
+                  {/* Per-day edit pencil (edit mode only, when the day has a workout) */}
+                  {editable && dayWorkouts.length > 0 && (
+                    <button
+                      onClick={() => setEditingIdx(workouts.indexOf(dayWorkouts[0]))}
+                      title={`Edit ${day}`}
+                      className="flex items-center justify-center w-5 h-5 rounded-md bg-primary-500/15 text-primary-400 hover:bg-primary-500/25 transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Workout Card(s) */}
@@ -257,8 +272,9 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
               )}>
                 {dayWorkouts.length > 0 ? (
                   <>
-                    {/* Primary workout */}
+                    {/* Primary workout — single click edits in edit mode, else opens view */}
                     <div
+                      onClick={() => { if (editable) setEditingIdx(workouts.indexOf(dayWorkouts[0])); }}
                       onDoubleClick={() => handleCardDoubleTap(workouts.indexOf(dayWorkouts[0]))}
                       className="flex-1 cursor-pointer hover:ring-1 hover:ring-primary-500/50 rounded-lg transition-all"
                     >
@@ -272,6 +288,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                         return (
                           <div
                             key={globalIdx}
+                            onClick={() => { if (editable) setEditingIdx(globalIdx); }}
                             onDoubleClick={() => handleCardDoubleTap(globalIdx)}
                             className="cursor-pointer hover:ring-1 hover:ring-primary-500/50 rounded-lg transition-all"
                           >
