@@ -1,0 +1,36 @@
+name: Hourly activity sync
+
+# Vercel Hobby crons are capped at once/day, so we drive the hourly sync from
+# GitHub Actions instead. This pings the deployed /api/cron/sync endpoint, which
+# pulls new Garmin/Strava activities for every connected athlete so the
+# leaderboard stays fresh without anyone opening the app.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   SYNC_URL     e.g. https://madregot-connect.vercel.app/api/cron/sync
+#   CRON_SECRET  same value set in Vercel env vars
+
+on:
+  schedule:
+    - cron: '0 * * * *' # every hour, on the hour (UTC)
+  workflow_dispatch: {} # allow manual "Run workflow" from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger activity sync
+        run: |
+          if [ -z "${{ secrets.SYNC_URL }}" ] || [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "::error::SYNC_URL and CRON_SECRET repository secrets must be set."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/sync_out.json -w "%{http_code}" \
+            -X POST "${{ secrets.SYNC_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          echo "HTTP $code"
+          cat /tmp/sync_out.json || true
+          echo ""
+          if [ "$code" != "200" ]; then
+            echo "::error::Sync failed with HTTP $code"
+            exit 1
+          fi
