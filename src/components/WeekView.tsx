@@ -87,7 +87,7 @@ function WorkoutDetailModal({ workout, dayName, onClose }: { workout: ParsedWork
   const totalTime = estimateWorkoutTime(workout.steps);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-700/50">
@@ -175,6 +175,10 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
   const editingWorkout = editingIdx !== null ? workouts[editingIdx] : null;
   const viewingWorkout = viewingIdx !== null ? workouts[viewingIdx] : null;
   const todayIdx = new Date().getDay();
+  // The per-day edit pencil is available whenever editing is possible — either
+  // Edit mode is on, or the parent provided an onWorkoutChange handler. This
+  // lets coaches edit a specific day without toggling Edit first.
+  const canEdit = editable || !!onWorkoutChange;
 
   // Use the shared, coach-aware distance so the planner total matches the
   // athlete dashboard (prefers distanceMinKm/Max, falls back to time+pace).
@@ -252,8 +256,8 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                       {dayWorkouts.length}
                     </button>
                   )}
-                  {/* Per-day edit pencil (edit mode only, when the day has a workout) */}
-                  {editable && dayWorkouts.length > 0 && (
+                  {/* Per-day edit pencil — always available when editing is possible */}
+                  {canEdit && dayWorkouts.length > 0 && (
                     <button
                       onClick={() => setEditingIdx(workouts.indexOf(dayWorkouts[0]))}
                       title={`Edit ${day}`}
@@ -325,8 +329,8 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
         />
       )}
 
-      {/* Workout Editor (edit mode) */}
-      {editable && editingWorkout && editingIdx !== null && (
+      {/* Workout Editor */}
+      {canEdit && editingWorkout && editingIdx !== null && (
         <WorkoutEditorPanel
           workout={editingWorkout}
           dayName={DAYS[editingWorkout.dayOfWeek]}

@@ -168,7 +168,8 @@ function RouteMap({ points, height = 300, splits }: {
         zoomControl: true,
         attributionControl: false,
         dragging: true,
-        scrollWheelZoom: true,
+        // Don't hijack page scroll when the cursor is over the map.
+        scrollWheelZoom: false,
       });
 
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
