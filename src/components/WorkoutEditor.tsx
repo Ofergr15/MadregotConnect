@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { cn } from '@/lib/utils';
-import { Plus, Trash2, X, Copy, ArrowUp, ArrowDown, ChevronDown, ChevronRight, Save, AlertCircle } from 'lucide-react';
+import { Plus, Minus, Trash2, X, Copy, ArrowUp, ArrowDown, ChevronDown, ChevronRight, Save, AlertCircle } from 'lucide-react';
 
 const stepTypes = ['warmup', 'interval', 'rest', 'recovery', 'cooldown', 'active'] as const;
 const targetZones = ['easy', 'threshold', 'interval', 'tempo', 'sprint', 'marathon_pace', 'no_target'] as const;
@@ -130,20 +130,93 @@ function PaceInput({
     else setText(paceToInput(seconds)); // revert invalid input
   };
 
+  // Step by 1 s/km per click (min 2:00/km). Bumps off the current value or 4:30.
+  const bump = (delta: number) => {
+    const base = seconds ?? inputToPace(text) ?? 270;
+    const next = Math.max(120, base + delta);
+    setText(paceToInput(next));
+    onCommit(next);
+  };
+
   return (
     <div className="flex flex-col">
       {label && <span className="text-[9px] text-slate-500 mb-0.5">{label}</span>}
-      <input
-        type="text"
-        inputMode="numeric"
-        value={text}
-        onFocus={() => setFocused(true)}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => { setFocused(false); commit(); }}
-        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-        placeholder={placeholder}
-        className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white w-full"
-      />
+      <div className="flex items-stretch">
+        <button
+          type="button"
+          onClick={() => bump(-1)}
+          className="px-1.5 rounded-s bg-slate-600 hover:bg-slate-500 text-white text-sm flex items-center"
+          title="Faster (−1s/km)"
+        >
+          <Minus className="h-3 w-3" />
+        </button>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={text}
+          onFocus={() => setFocused(true)}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => { setFocused(false); commit(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          placeholder={placeholder}
+          className="bg-slate-700 border-y border-slate-600 px-2 py-1.5 text-xs text-white w-full text-center min-w-0"
+        />
+        <button
+          type="button"
+          onClick={() => bump(1)}
+          className="px-1.5 rounded-e bg-slate-600 hover:bg-slate-500 text-white text-sm flex items-center"
+          title="Slower (+1s/km)"
+        >
+          <Plus className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Numeric field with −/+ stepper buttons (for seconds / meters / reps), so
+ * coaches can adjust without free-text. Clamps to >= min.
+ */
+function NumberStepper({
+  value,
+  onChange,
+  step = 1,
+  min = 0,
+  suffix,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+  min?: number;
+  suffix?: string;
+}) {
+  const set = (v: number) => onChange(Math.max(min, v));
+  return (
+    <div className="flex items-stretch">
+      <button
+        type="button"
+        onClick={() => set((value || 0) - step)}
+        className="px-2 rounded-s bg-slate-600 hover:bg-slate-500 text-white flex items-center"
+      >
+        <Minus className="h-3 w-3" />
+      </button>
+      <div className="relative flex-1 min-w-0">
+        <input
+          type="number"
+          value={value || ''}
+          onChange={(e) => set(parseInt(e.target.value) || 0)}
+          className="w-full bg-slate-700 border-y border-slate-600 px-2 py-1.5 text-xs text-white text-center"
+        />
+        {suffix && <span className="absolute end-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none">{suffix}</span>}
+      </div>
+      <button
+        type="button"
+        onClick={() => set((value || 0) + step)}
+        className="px-2 rounded-e bg-slate-600 hover:bg-slate-500 text-white flex items-center"
+      >
+        <Plus className="h-3 w-3" />
+      </button>
     </div>
   );
 }
@@ -184,17 +257,15 @@ function SubStepEditor({
           <option value="open">Lap</option>
         </select>
         {step.durationType !== 'open' && (
-          <input
-            type="number"
-            value={step.durationValue || ''}
-            onChange={(e) => onChange({ ...step, durationValue: parseInt(e.target.value) || 0 })}
-            placeholder={step.durationType === 'distance' ? 'm' : 'sec'}
-            className="w-16 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
-          />
+          <div className="w-28">
+            <NumberStepper
+              value={step.durationValue || 0}
+              step={step.durationType === 'distance' ? 100 : 5}
+              onChange={(v) => onChange({ ...step, durationValue: v })}
+              suffix={step.durationType === 'distance' ? 'm' : 's'}
+            />
+          </div>
         )}
-        <span className="text-[10px] text-slate-500">
-          {step.durationType === 'distance' ? 'm' : step.durationType === 'time' ? 'sec' : ''}
-        </span>
         <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto">
           <Trash2 className="h-3 w-3" />
         </button>
@@ -316,11 +387,11 @@ function StepRow({
               <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">
                 {step.durationType === 'distance' ? 'Meters' : 'Seconds'}
               </label>
-              <input
-                type="number"
-                value={step.durationValue || ''}
-                onChange={(e) => onChange({ ...step, durationValue: parseInt(e.target.value) || 0 })}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
+              <NumberStepper
+                value={step.durationValue || 0}
+                step={step.durationType === 'distance' ? 100 : 5}
+                onChange={(v) => onChange({ ...step, durationValue: v })}
+                suffix={step.durationType === 'distance' ? 'm' : 's'}
               />
             </div>
           )}
@@ -372,13 +443,15 @@ function StepRow({
           {step.repeatCount !== undefined && (
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Repeat</label>
-              <input
-                type="number"
-                value={step.repeatCount || ''}
-                onChange={(e) => onChange({ ...step, repeatCount: parseInt(e.target.value) || undefined })}
-                min={1}
-                className="w-20 bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
-              />
+              <div className="w-28">
+                <NumberStepper
+                  value={step.repeatCount || 1}
+                  min={1}
+                  step={1}
+                  onChange={(v) => onChange({ ...step, repeatCount: v })}
+                  suffix="×"
+                />
+              </div>
             </div>
           )}
 
@@ -461,11 +534,34 @@ function describeStep(step: WorkoutStep): string {
   return parts.join(' ');
 }
 
-/** Compute a human-readable list of changes between two workouts. */
-function diffWorkouts(before: ParsedWorkout, after: ParsedWorkout): string[] {
-  const changes: string[] = [];
+interface StepChange {
+  title: string;             // e.g. "Step 4 · Interval"
+  kind: 'added' | 'removed' | 'modified';
+  fields: { label: string; from?: string; to?: string }[];
+}
+
+function paceLabel(step: WorkoutStep): string {
+  const p = formatPaceTarget(step);
+  return p || 'No target';
+}
+
+/** Field-level changes for a single (non-repeat) step. */
+function fieldChanges(b: WorkoutStep, a: WorkoutStep): { label: string; from: string; to: string }[] {
+  const out: { label: string; from: string; to: string }[] = [];
+  if (b.type !== a.type) out.push({ label: 'Type', from: stepLabels[b.type] || b.type, to: stepLabels[a.type] || a.type });
+  const bDur = formatSingleDuration(b), aDur = formatSingleDuration(a);
+  if (bDur !== aDur) out.push({ label: 'Duration', from: bDur || '—', to: aDur || '—' });
+  const bPace = paceLabel(b), aPace = paceLabel(a);
+  if (bPace !== aPace) out.push({ label: 'Pace', from: bPace, to: aPace });
+  if ((b.notes || '') !== (a.notes || '')) out.push({ label: 'Notes', from: b.notes || '—', to: a.notes || '—' });
+  return out;
+}
+
+/** Compute a structured, field-level diff between two workouts. */
+function diffWorkouts(before: ParsedWorkout, after: ParsedWorkout): StepChange[] {
+  const changes: StepChange[] = [];
   if (before.name !== after.name) {
-    changes.push(`Name: “${before.name}” → “${after.name}”`);
+    changes.push({ title: 'Workout name', kind: 'modified', fields: [{ label: 'Name', from: before.name, to: after.name }] });
   }
   const bSteps = before.steps || [];
   const aSteps = after.steps || [];
@@ -473,11 +569,35 @@ function diffWorkouts(before: ParsedWorkout, after: ParsedWorkout): string[] {
   for (let i = 0; i < max; i++) {
     const b = bSteps[i];
     const a = aSteps[i];
-    if (b && !a) { changes.push(`Removed step ${i + 1}: ${describeStep(b)}`); continue; }
-    if (!b && a) { changes.push(`Added step ${i + 1}: ${describeStep(a)}`); continue; }
-    if (JSON.stringify(b) !== JSON.stringify(a)) {
-      changes.push(`Step ${i + 1}: ${describeStep(b)} → ${describeStep(a)}`);
+    if (b && !a) { changes.push({ title: `Step ${i + 1} · ${stepLabels[b.type] || b.type}`, kind: 'removed', fields: [{ label: '', to: describeStep(b) }] }); continue; }
+    if (!b && a) { changes.push({ title: `Step ${i + 1} · ${stepLabels[a.type] || a.type}`, kind: 'added', fields: [{ label: '', to: describeStep(a) }] }); continue; }
+    if (JSON.stringify(b) === JSON.stringify(a)) continue;
+
+    // Repeat block: diff reps + each sub-step field.
+    if (b.repeatCount || a.repeatCount) {
+      const fields: { label: string; from?: string; to?: string }[] = [];
+      if ((b.repeatCount || 0) !== (a.repeatCount || 0)) {
+        fields.push({ label: 'Repeats', from: `${b.repeatCount || 0}×`, to: `${a.repeatCount || 0}×` });
+      }
+      const bSub = b.repeatSteps || [], aSub = a.repeatSteps || [];
+      const subMax = Math.max(bSub.length, aSub.length);
+      for (let j = 0; j < subMax; j++) {
+        if (bSub[j] && aSub[j]) {
+          for (const fc of fieldChanges(bSub[j], aSub[j])) {
+            fields.push({ label: `${stepLabels[bSub[j].type] || 'sub'} ${fc.label}`, from: fc.from, to: fc.to });
+          }
+        } else if (aSub[j]) {
+          fields.push({ label: 'Added sub-step', to: describeStep(aSub[j]) });
+        } else if (bSub[j]) {
+          fields.push({ label: 'Removed sub-step', from: describeStep(bSub[j]) });
+        }
+      }
+      if (fields.length) changes.push({ title: `Step ${i + 1} · Repeat`, kind: 'modified', fields });
+      continue;
     }
+
+    const fields = fieldChanges(b, a);
+    if (fields.length) changes.push({ title: `Step ${i + 1} · ${stepLabels[a.type] || a.type}`, kind: 'modified', fields });
   }
   return changes;
 }
@@ -620,14 +740,36 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
               <h3 className="font-semibold text-white">Confirm changes</h3>
             </div>
             <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
-              <p className="text-sm text-slate-400 mb-3">Review the {changes.length} change{changes.length !== 1 ? 's' : ''} to <span className="text-white font-medium">{dayName}</span>:</p>
-              <ul className="space-y-2">
+              <p className="text-sm text-slate-400 mb-3">
+                You changed <span className="text-white font-medium">{dayName}</span>. Review before saving:
+              </p>
+              <div className="space-y-2.5">
                 {changes.map((c, i) => (
-                  <li key={i} className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 leading-relaxed">
-                    {c}
-                  </li>
+                  <div key={i} className="bg-slate-800/60 rounded-lg px-3 py-2.5">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className={cn(
+                        'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
+                        c.kind === 'added' ? 'bg-green-500/20 text-green-400' :
+                        c.kind === 'removed' ? 'bg-red-500/20 text-red-400' :
+                        'bg-primary-500/20 text-primary-400'
+                      )}>
+                        {c.kind}
+                      </span>
+                      <span className="text-xs font-semibold text-white">{c.title}</span>
+                    </div>
+                    <div className="space-y-1">
+                      {c.fields.map((f, j) => (
+                        <div key={j} className="flex items-center gap-2 text-xs flex-wrap">
+                          {f.label && <span className="text-slate-500 min-w-[70px]">{f.label}</span>}
+                          {f.from !== undefined && <span className="text-red-300/80 line-through">{f.from}</span>}
+                          {f.from !== undefined && f.to !== undefined && <span className="text-slate-500">→</span>}
+                          {f.to !== undefined && <span className="text-green-300">{f.to}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
             <div className="px-5 py-4 border-t border-slate-700 shrink-0 flex items-center justify-end gap-2">
               <button onClick={() => setConfirming(false)} className="px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800">
