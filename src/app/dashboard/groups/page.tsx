@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Users, Trophy, Edit3, X, ChevronDown, ChevronUp, Medal } from 'lucide-react';
+import { Users, Trophy, Edit3, X, ChevronDown, ChevronUp, Medal, Watch } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +11,8 @@ interface Athlete {
   name: string;
   email: string;
   status: string;
+  hasGarmin?: boolean;
+  hasStrava?: boolean;
 }
 
 interface Group {
@@ -216,14 +218,25 @@ export default function GroupsPage() {
                               <p className="text-xs text-slate-500">{athlete.email}</p>
                             </div>
                           </div>
-                          <span className={cn(
-                            "text-xs px-2 py-0.5 rounded-full",
-                            athlete.status === 'active'
-                              ? 'bg-green-500/20 text-green-400'
-                              : 'bg-slate-600/30 text-slate-400'
-                          )}>
-                            {athlete.status}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium",
+                              athlete.hasGarmin
+                                ? 'bg-green-500/20 text-green-400'
+                                : 'bg-slate-600/30 text-slate-500'
+                            )}>
+                              <Watch className="h-3 w-3" />
+                              {athlete.hasGarmin ? 'Garmin' : 'Not connected'}
+                            </span>
+                            <span className={cn(
+                              "text-xs px-2 py-0.5 rounded-full",
+                              athlete.status === 'active'
+                                ? 'bg-green-500/20 text-green-400'
+                                : 'bg-slate-600/30 text-slate-400'
+                            )}>
+                              {athlete.status}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>

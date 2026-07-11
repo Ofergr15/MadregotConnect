@@ -21,7 +21,7 @@ export async function GET(request: Request) {
         name,
         pace_profile,
         created_at,
-        athletes:athletes(id, name, email, status)
+        athletes:athletes(id, name, email, status, garmin_auth, strava_auth, data_source)
       `)
       .eq('coach_id', coachId)
       .order('created_at', { ascending: true });
@@ -43,7 +43,16 @@ export async function GET(request: Request) {
 
       const marathonGoal = paceProfile?.marathonGoal || '';
 
-      const athletes = Array.isArray(group.athletes) ? group.athletes : [];
+      // Map to booleans so we never leak encrypted auth tokens to the client.
+      const athletes = (Array.isArray(group.athletes) ? group.athletes : []).map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        email: a.email,
+        status: a.status,
+        hasGarmin: !!a.garmin_auth,
+        hasStrava: !!a.strava_auth,
+        dataSource: a.data_source || 'garmin',
+      }));
 
       const displayName = (() => {
         const n = (group.name || '').toLowerCase();

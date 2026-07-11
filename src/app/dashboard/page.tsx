@@ -192,9 +192,9 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="px-5 py-4 flex items-start justify-between">
+        <div className="px-5 py-4 flex items-start justify-between shrink-0">
           <div>
             <p className="text-xs font-bold text-[#4338ff] uppercase tracking-wider">{session.day}</p>
             <h3 className="text-lg font-bold text-white mt-1">{session.name}</h3>
@@ -210,8 +210,8 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
           </button>
         </div>
 
-        {/* Compact Workout Structure */}
-        <div className="px-5 pb-5 overflow-y-auto max-h-[calc(80vh-100px)] space-y-2">
+        {/* Compact Workout Structure — scrolls when longer than the modal */}
+        <div className="px-5 pb-5 overflow-y-auto flex-1 min-h-0 space-y-2 scrollbar-thin">
           {blocks.map((block, i) => {
             if (block.type === 'phase') {
               const step0 = block.steps[0];
