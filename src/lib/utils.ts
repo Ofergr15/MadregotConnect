@@ -5,6 +5,25 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Start of the ACTIVITY week (Monday), matching how Garmin and Strava report
+ * weekly mileage. Use this for anything that sums real activity distance
+ * (leaderboard, runner weekly km) so our numbers line up with the watch.
+ *
+ * NOTE: This is intentionally different from the coach's PLAN week, which runs
+ * Sunday–Saturday and is keyed by `weekly_plans.week_start_date`. Do NOT use
+ * this helper to look up plans.
+ *
+ * Returns a YYYY-MM-DD string for the Monday on/before `date`.
+ */
+export function getActivityWeekStart(date: Date): string {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun … 6=Sat
+  const diff = day === 0 ? 6 : day - 1; // days since Monday
+  d.setDate(d.getDate() - diff);
+  return d.toISOString().split('T')[0];
+}
+
 export type GroupLevel = 'fast' | 'medium' | 'slow';
 
 const groupColorMap = {

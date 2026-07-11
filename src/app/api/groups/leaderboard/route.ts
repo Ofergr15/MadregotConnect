@@ -1,21 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { getActivityWeekStart } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
-
-function getWeekStart(date: Date): string {
-  const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() - day);
-  return d.toISOString().split('T')[0];
-}
 
 export async function GET() {
   try {
     const supabase = createServerClient();
     const now = new Date();
-    const weekStart = getWeekStart(now);
+    // Monday-based week so weekly km matches Garmin/Strava reporting.
+    const weekStart = getActivityWeekStart(now);
 
     const { data: athletes, error: athError } = await supabase
       .from('athletes')
