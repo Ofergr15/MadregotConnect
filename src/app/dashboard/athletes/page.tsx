@@ -7,6 +7,7 @@ import {
   PauseCircle, PlayCircle, ArrowRightLeft, X, MessageCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { isProtectedEmail } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
 
 interface Athlete {
@@ -597,12 +598,14 @@ ${inviteLink}`;
                                 <ArrowRightLeft className="h-4 w-4" /> {athlete.dataSource === 'strava' ? t('switchToGarmin') : t('switchToStrava')}
                               </button>
                             )}
-                            <button
-                              onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
-                              className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
-                            >
-                              <Trash2 className="h-4 w-4" /> {tc('delete')}
-                            </button>
+                            {!isProtectedEmail(athlete.email) && (
+                              <button
+                                onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
+                                className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
+                              >
+                                <Trash2 className="h-4 w-4" /> {tc('delete')}
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>
@@ -658,12 +661,14 @@ ${inviteLink}`;
                           <PlayCircle className="h-4 w-4" /> {t('reactivate')}
                         </button>
                       ) : null}
-                      <button
-                        onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
-                        className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
-                      >
-                        <Trash2 className="h-4 w-4" /> {tc('delete')}
-                      </button>
+                      {!isProtectedEmail(athlete.email) && (
+                        <button
+                          onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
+                          className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" /> {tc('delete')}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
