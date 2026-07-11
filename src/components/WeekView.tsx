@@ -88,9 +88,9 @@ function WorkoutDetailModal({ workout, dayName, onClose }: { workout: ParsedWork
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-700/50">
+        <div className="px-5 py-4 border-b border-slate-700/50 shrink-0">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-bold text-primary-400 uppercase tracking-wider">{dayName}</p>
@@ -120,8 +120,8 @@ function WorkoutDetailModal({ workout, dayName, onClose }: { workout: ParsedWork
           </div>
         </div>
 
-        {/* Steps */}
-        <div className="px-5 py-4 overflow-y-auto max-h-[calc(80vh-140px)] space-y-1.5">
+        {/* Steps — scrolls when the workout is longer than the modal */}
+        <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 space-y-1.5 scrollbar-thin">
           {workout.steps.map((step, i) => {
             if (step.repeatCount && step.repeatSteps) {
               return (
