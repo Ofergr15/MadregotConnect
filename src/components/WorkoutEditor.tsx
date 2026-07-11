@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { cn } from '@/lib/utils';
-import { Plus, Trash2, X, Copy, ArrowUp, ArrowDown, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, X, Copy, ArrowUp, ArrowDown, ChevronDown, ChevronRight, Save, AlertCircle } from 'lucide-react';
 
 const stepTypes = ['warmup', 'interval', 'rest', 'recovery', 'cooldown', 'active'] as const;
 const targetZones = ['easy', 'threshold', 'interval', 'tempo', 'sprint', 'marathon_pace', 'no_target'] as const;
@@ -99,6 +99,56 @@ function inputToPace(value: string): number | undefined {
 }
 
 /**
+ * Pace text field (M:SS per km). Keeps its own local text while typing so the
+ * value doesn't snap back mid-keystroke, and only commits a parsed value on
+ * blur or Enter. Fixes the "changing the number doesn't work" bug.
+ */
+function PaceInput({
+  seconds,
+  onCommit,
+  placeholder,
+  label,
+}: {
+  seconds?: number;
+  onCommit: (secs: number | undefined) => void;
+  placeholder?: string;
+  label?: string;
+}) {
+  const [text, setText] = useState(paceToInput(seconds));
+  const [focused, setFocused] = useState(false);
+
+  // While not focused, mirror the external value; while typing, leave it alone.
+  if (!focused && text !== paceToInput(seconds)) {
+    setText(paceToInput(seconds));
+  }
+
+  const commit = () => {
+    const trimmed = text.trim();
+    if (trimmed === '') { onCommit(undefined); return; }
+    const secs = inputToPace(trimmed);
+    if (secs !== undefined) onCommit(secs);
+    else setText(paceToInput(seconds)); // revert invalid input
+  };
+
+  return (
+    <div className="flex flex-col">
+      {label && <span className="text-[9px] text-slate-500 mb-0.5">{label}</span>}
+      <input
+        type="text"
+        inputMode="numeric"
+        value={text}
+        onFocus={() => setFocused(true)}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => { setFocused(false); commit(); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        placeholder={placeholder}
+        className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white w-full"
+      />
+    </div>
+  );
+}
+
+/**
  * Compact inline editor for a single step INSIDE a repeat block
  * (e.g. the "run" and the "60s rest" that repeat together). Without this,
  * rest/recovery segments inside repeats were invisible and uneditable.
@@ -149,27 +199,23 @@ function SubStepEditor({
           <Trash2 className="h-3 w-3" />
         </button>
       </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={paceToInput(step.targetPaceMinPerKm)}
-          onChange={(e) => {
-            const secs = inputToPace(e.target.value);
-            if (secs !== undefined) onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: secs });
-          }}
-          placeholder="pace min"
-          className="w-20 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
-        />
-        <input
-          type="text"
-          value={paceToInput(step.targetPaceMaxPerKm)}
-          onChange={(e) => {
-            const secs = inputToPace(e.target.value);
-            if (secs !== undefined) onChange({ ...step, targetType: 'pace', targetPaceMaxPerKm: secs });
-          }}
-          placeholder="pace max"
-          className="w-20 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
-        />
+      <div className="flex items-end gap-2">
+        <div className="w-20">
+          <PaceInput
+            label="From /km"
+            seconds={step.targetPaceMinPerKm}
+            placeholder="3:20"
+            onCommit={(secs) => onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: secs })}
+          />
+        </div>
+        <div className="w-20">
+          <PaceInput
+            label="To /km"
+            seconds={step.targetPaceMaxPerKm}
+            placeholder="3:30"
+            onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
+          />
+        </div>
         <input
           type="text"
           value={step.notes || ''}
@@ -281,53 +327,42 @@ function StepRow({
 
           <div>
             <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Target</label>
-            <div className="grid grid-cols-3 gap-2">
-              <select
-                value={step.targetZone || (step.targetPaceMinPerKm ? 'custom' : 'no_target')}
-                onChange={(e) => {
-                  const zone = e.target.value;
-                  if (zone === 'no_target') {
-                    onChange({ ...step, targetType: 'no_target', targetZone: undefined, targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined });
-                  } else if (zone === 'custom') {
-                    onChange({ ...step, targetType: 'pace', targetZone: undefined });
-                  } else {
-                    onChange({ ...step, targetType: 'pace', targetZone: zone, targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined });
-                  }
-                }}
-                className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
-              >
-                {targetZones.map((z) => (
-                  <option key={z} value={z}>{zoneLabels[z]}</option>
-                ))}
-                <option value="custom">Custom</option>
-              </select>
+            <div className="grid grid-cols-3 gap-2 items-end">
+              <div className="flex flex-col">
+                <span className="text-[9px] text-slate-500 mb-0.5">Type</span>
+                <select
+                  value={step.targetZone || (step.targetPaceMinPerKm ? 'custom' : 'no_target')}
+                  onChange={(e) => {
+                    const zone = e.target.value;
+                    if (zone === 'no_target') {
+                      onChange({ ...step, targetType: 'no_target', targetZone: undefined, targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined });
+                    } else if (zone === 'custom') {
+                      onChange({ ...step, targetType: 'pace', targetZone: undefined });
+                    } else {
+                      onChange({ ...step, targetType: 'pace', targetZone: zone, targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined });
+                    }
+                  }}
+                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
+                >
+                  {targetZones.map((z) => (
+                    <option key={z} value={z}>{zoneLabels[z]}</option>
+                  ))}
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
               {(step.targetPaceMinPerKm || (!step.targetZone && step.targetType === 'pace')) && (
                 <>
-                  <input
-                    type="text"
-                    value={step.targetPaceMinPerKm ? `${Math.floor(step.targetPaceMinPerKm / 60)}:${(step.targetPaceMinPerKm % 60).toString().padStart(2, '0')}` : ''}
-                    onChange={(e) => {
-                      const parts = e.target.value.split(':');
-                      if (parts.length === 2) {
-                        const secs = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-                        if (!isNaN(secs)) onChange({ ...step, targetType: 'pace', targetZone: undefined, targetPaceMinPerKm: secs });
-                      }
-                    }}
-                    placeholder="4:00"
-                    className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
+                  <PaceInput
+                    label="From (fast) /km"
+                    seconds={step.targetPaceMinPerKm}
+                    placeholder="3:20"
+                    onCommit={(secs) => onChange({ ...step, targetType: 'pace', targetZone: undefined, targetPaceMinPerKm: secs })}
                   />
-                  <input
-                    type="text"
-                    value={step.targetPaceMaxPerKm ? `${Math.floor(step.targetPaceMaxPerKm / 60)}:${(step.targetPaceMaxPerKm % 60).toString().padStart(2, '0')}` : ''}
-                    onChange={(e) => {
-                      const parts = e.target.value.split(':');
-                      if (parts.length === 2) {
-                        const secs = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-                        if (!isNaN(secs)) onChange({ ...step, targetPaceMaxPerKm: secs });
-                      }
-                    }}
-                    placeholder="4:30"
-                    className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
+                  <PaceInput
+                    label="To (slow) /km"
+                    seconds={step.targetPaceMaxPerKm}
+                    placeholder="3:30"
+                    onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
                   />
                 </>
               )}
@@ -411,6 +446,42 @@ function StepRow({
   );
 }
 
+/** One-line human summary of a single step, for the diff view. */
+function describeStep(step: WorkoutStep): string {
+  if (step.repeatCount && step.repeatSteps) {
+    const inner = step.repeatSteps.map(describeStep).join(' + ');
+    return `${step.repeatCount}× (${inner})`;
+  }
+  const parts: string[] = [stepLabels[step.type] || step.type];
+  const dur = formatSingleDuration(step);
+  if (dur) parts.push(dur);
+  const pace = formatPaceTarget(step);
+  if (pace) parts.push(`@${pace}`);
+  if (step.notes) parts.push(`“${step.notes}”`);
+  return parts.join(' ');
+}
+
+/** Compute a human-readable list of changes between two workouts. */
+function diffWorkouts(before: ParsedWorkout, after: ParsedWorkout): string[] {
+  const changes: string[] = [];
+  if (before.name !== after.name) {
+    changes.push(`Name: “${before.name}” → “${after.name}”`);
+  }
+  const bSteps = before.steps || [];
+  const aSteps = after.steps || [];
+  const max = Math.max(bSteps.length, aSteps.length);
+  for (let i = 0; i < max; i++) {
+    const b = bSteps[i];
+    const a = aSteps[i];
+    if (b && !a) { changes.push(`Removed step ${i + 1}: ${describeStep(b)}`); continue; }
+    if (!b && a) { changes.push(`Added step ${i + 1}: ${describeStep(a)}`); continue; }
+    if (JSON.stringify(b) !== JSON.stringify(a)) {
+      changes.push(`Step ${i + 1}: ${describeStep(b)} → ${describeStep(a)}`);
+    }
+  }
+  return changes;
+}
+
 interface WorkoutEditorPanelProps {
   workout: ParsedWorkout;
   dayName: string;
@@ -419,43 +490,62 @@ interface WorkoutEditorPanelProps {
 }
 
 export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: WorkoutEditorPanelProps) {
+  // Edit a local DRAFT — nothing is applied until Save is confirmed.
+  const [draft, setDraft] = useState<ParsedWorkout>(workout);
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => { setDraft(workout); }, [workout]);
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(workout);
+  const changes = diffWorkouts(workout, draft);
+
   const updateStep = (index: number, step: WorkoutStep) => {
-    const newSteps = [...workout.steps];
+    const newSteps = [...draft.steps];
     newSteps[index] = step;
-    onChange({ ...workout, steps: newSteps });
+    setDraft({ ...draft, steps: newSteps });
   };
 
   const deleteStep = (index: number) => {
-    onChange({ ...workout, steps: workout.steps.filter((_, i) => i !== index) });
+    setDraft({ ...draft, steps: draft.steps.filter((_, i) => i !== index) });
   };
 
   const moveStep = (index: number, direction: 'up' | 'down') => {
-    const newSteps = [...workout.steps];
+    const newSteps = [...draft.steps];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newSteps.length) return;
     [newSteps[index], newSteps[targetIndex]] = [newSteps[targetIndex], newSteps[index]];
-    onChange({ ...workout, steps: newSteps });
+    setDraft({ ...draft, steps: newSteps });
   };
 
   const duplicateStep = (index: number) => {
-    const newSteps = [...workout.steps];
+    const newSteps = [...draft.steps];
     newSteps.splice(index + 1, 0, { ...newSteps[index], order: index + 2 });
-    onChange({ ...workout, steps: newSteps });
+    setDraft({ ...draft, steps: newSteps });
   };
 
   const addStep = () => {
     const newStep: WorkoutStep = {
-      order: workout.steps.length + 1,
+      order: draft.steps.length + 1,
       type: 'interval',
       durationType: 'time',
       durationValue: 60,
       targetType: 'no_target',
     };
-    onChange({ ...workout, steps: [...workout.steps, newStep] });
+    setDraft({ ...draft, steps: [...draft.steps, newStep] });
+  };
+
+  const handleClose = () => {
+    if (dirty && !window.confirm('Discard your unsaved changes?')) return;
+    onClose();
+  };
+
+  const confirmSave = () => {
+    onChange(draft);
+    setConfirming(false);
+    onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-[2000] flex justify-end" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 z-[2000] flex justify-end" onClick={handleClose}>
       <div
         className="w-full max-w-lg bg-slate-900 border-s border-slate-700 h-full overflow-hidden flex flex-col animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}
@@ -465,25 +555,25 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
           <div>
             <h3 className="font-semibold text-sm text-white">{dayName}</h3>
             <input
-              value={workout.name}
-              onChange={(e) => onChange({ ...workout, name: e.target.value })}
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               className="bg-transparent text-xs text-slate-400 focus:outline-none focus:text-white mt-0.5 w-full"
               placeholder="Workout name"
             />
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400">
+          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Steps */}
         <div className="flex-1 overflow-y-auto divide-y divide-slate-800">
-          {workout.steps.map((step, i) => (
+          {draft.steps.map((step, i) => (
             <StepRow
               key={i}
               step={step}
               index={i}
-              total={workout.steps.length}
+              total={draft.steps.length}
               onChange={(s) => updateStep(i, s)}
               onDelete={() => deleteStep(i)}
               onMoveUp={() => moveStep(i, 'up')}
@@ -491,18 +581,65 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
               onDuplicate={() => duplicateStep(i)}
             />
           ))}
+          <div className="px-4 py-3">
+            <button
+              onClick={addStep}
+              className="flex items-center gap-2 text-sm text-primary-400 hover:text-primary-300"
+            >
+              <Plus className="h-4 w-4" /> Add Step
+            </button>
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-4 py-3 border-t border-slate-700 shrink-0">
-          <button
-            onClick={addStep}
-            className="flex items-center gap-2 text-sm text-primary-400 hover:text-primary-300"
-          >
-            <Plus className="h-4 w-4" /> Add Step
-          </button>
+        {/* Footer — Save / Cancel */}
+        <div className="px-4 py-3 border-t border-slate-700 shrink-0 flex items-center justify-between gap-3">
+          <span className="text-xs text-slate-500">
+            {dirty ? `${changes.length} unsaved change${changes.length !== 1 ? 's' : ''}` : 'No changes'}
+          </span>
+          <div className="flex items-center gap-2">
+            <button onClick={handleClose} className="px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800">
+              Cancel
+            </button>
+            <button
+              onClick={() => setConfirming(true)}
+              disabled={!dirty}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Save className="h-4 w-4" /> Save
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Confirm dialog with a diff of what will change */}
+      {confirming && (
+        <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/70 p-4" onClick={(e) => { e.stopPropagation(); setConfirming(false); }}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-slate-700 shrink-0 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-primary-400" />
+              <h3 className="font-semibold text-white">Confirm changes</h3>
+            </div>
+            <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
+              <p className="text-sm text-slate-400 mb-3">Review the {changes.length} change{changes.length !== 1 ? 's' : ''} to <span className="text-white font-medium">{dayName}</span>:</p>
+              <ul className="space-y-2">
+                {changes.map((c, i) => (
+                  <li key={i} className="text-xs text-slate-300 bg-slate-800/60 rounded-lg px-3 py-2 leading-relaxed">
+                    {c}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="px-5 py-4 border-t border-slate-700 shrink-0 flex items-center justify-end gap-2">
+              <button onClick={() => setConfirming(false)} className="px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800">
+                Keep editing
+              </button>
+              <button onClick={confirmSave} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 hover:bg-primary-700 text-white">
+                <Save className="h-4 w-4" /> Save changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
