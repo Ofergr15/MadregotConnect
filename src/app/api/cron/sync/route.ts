@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { POST as garminSync } from '../../garmin/sync-activities/route';
 import { POST as stravaSync } from '../../strava/sync-activities/route';
+import { snapshotWeeklyKm } from '@/lib/weekly-snapshots';
 
 // Give the sync enough time to walk every athlete (Pro plan allows up to 300s).
 export const maxDuration = 300;
@@ -51,9 +52,19 @@ async function runSync(request: Request) {
       : { error: String(stravaResult.reason?.message || stravaResult.reason) };
 
   const totalSynced = (garmin?.synced || 0) + (strava?.synced || 0);
-  console.log('[cron/sync] done', { totalSynced, garmin, strava });
 
-  return NextResponse.json({ ok: true, totalSynced, garmin, strava });
+  // Persist weekly km per athlete/group so the numbers can be shared later,
+  // even if activities change. Never let a snapshot error fail the sync.
+  let snapshot: any = null;
+  try {
+    snapshot = await snapshotWeeklyKm(1);
+  } catch (e: any) {
+    snapshot = { error: String(e?.message || e) };
+  }
+
+  console.log('[cron/sync] done', { totalSynced, garmin, strava, snapshot });
+
+  return NextResponse.json({ ok: true, totalSynced, garmin, strava, snapshot });
 }
 
 // Vercel Cron issues GET requests.
