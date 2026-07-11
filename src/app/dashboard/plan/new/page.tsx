@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
+import { totalDistanceMeters } from '@/lib/workout-distance';
 import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import { cn } from '@/lib/utils';
 
@@ -863,20 +864,10 @@ export default function WeeklyPlannerPage() {
           <div className="border-b border-slate-700/50 px-6 bg-slate-800/20">
             <div className="flex gap-1 max-w-7xl mx-auto py-2">
               {([1, 2, 3] as const).map((g) => {
-                const groupWorkouts = groupedPlans[`group${g}` as keyof GroupedWeeklyPlans].workouts;
-                const groupDist = groupWorkouts.reduce((s, w) => {
-                  let d = 0;
-                  const calc = (steps: WorkoutStep[]): number => {
-                    let t = 0;
-                    for (const step of steps) {
-                      if (step.repeatCount && step.repeatSteps) t += calc(step.repeatSteps) * step.repeatCount;
-                      else if (step.durationType === 'distance' && step.durationValue) t += step.durationValue;
-                    }
-                    return t;
-                  };
-                  d = calc(w.steps);
-                  return s + d;
-                }, 0);
+                const groupWorkouts = groupedPlans[`group${g}` as keyof GroupedWeeklyPlans].workouts
+                  .filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
+                // Coach-aware total (matches dashboard + WeekView).
+                const groupDist = totalDistanceMeters(groupWorkouts);
                 const colors = g === 1
                   ? { active: 'bg-green-500/10 border-green-500/50 text-green-400', badge: 'bg-green-500 text-white', dot: 'bg-green-400' }
                   : g === 2
