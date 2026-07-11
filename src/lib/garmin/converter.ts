@@ -50,6 +50,11 @@ function convertStep(
     garminStep.endConditionValue = step.durationValue;
   }
 
+  // The step description is what the watch DISPLAYS on-screen at each step (and
+  // is read out by Garmin Audio Prompts on supported setups). Keep it concise —
+  // pace + special cues like ג׳ל / שתייה. This is also the anchor for a future
+  // "voice reminder to take a gel / drink water" feature: those cues already
+  // live in the notes, so a step-transition audio cue can be built on top.
   if (step.notes) {
     garminStep.description = step.notes;
   }

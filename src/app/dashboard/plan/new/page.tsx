@@ -24,6 +24,8 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Plus,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
@@ -50,6 +52,8 @@ interface Athlete {
   email?: string;
   group_id?: string;
   status: string;
+  hasGarmin?: boolean;
+  hasStrava?: boolean;
 }
 
 interface Group {
@@ -162,6 +166,8 @@ export default function WeeklyPlannerPage() {
   const [athleteSearch, setAthleteSearch] = useState('');
   const [pushing, setPushing] = useState(false);
   const [pushResults, setPushResults] = useState<PushResultItem[] | null>(null);
+  // Which group is expanded in the "All Athletes" tab to reveal its members.
+  const [expandedAllGroup, setExpandedAllGroup] = useState<string | null>(null);
 
   // --- Error ---
   const [error, setError] = useState<string | null>(null);
@@ -1095,24 +1101,87 @@ export default function WeeklyPlannerPage() {
                   ) : (
                     <>
                       {pushTab === 'all' && (
-                        <div className="text-center py-8 space-y-4">
-                          <Users className="h-12 w-12 text-slate-500 mx-auto" />
-                          <div>
-                            <p className="text-lg font-medium">
-                              {activeAthletes.length} active athlete{activeAthletes.length !== 1 ? 's' : ''}
-                            </p>
-                            <p className="text-sm text-slate-400 mt-1">
-                              Push {workoutCount} workout{workoutCount !== 1 ? 's' : ''} to everyone
-                            </p>
-                          </div>
-                          <div className="bg-slate-800 rounded-lg p-3 text-start text-xs text-slate-400 max-w-xs mx-auto">
-                            <p className="font-medium text-slate-300 mb-1">Each athlete gets their group&apos;s plan:</p>
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" /> Group 1 — fastest paces</div>
-                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-500" /> Group 2 — middle paces</div>
-                              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-orange-500" /> Group 3 — adjusted paces</div>
-                            </div>
-                          </div>
+                        <div className="space-y-3">
+                          {(() => {
+                            const readyCount = activeAthletes.filter((a) => a.hasGarmin).length;
+                            return (
+                              <div className="text-center">
+                                <p className="text-lg font-medium">
+                                  {activeAthletes.length} active athlete{activeAthletes.length !== 1 ? 's' : ''}
+                                </p>
+                                <p className="text-sm text-slate-400 mt-0.5">
+                                  {readyCount} Garmin-connected · will receive {workoutCount} workout{workoutCount !== 1 ? 's' : ''}
+                                </p>
+                              </div>
+                            );
+                          })()}
+
+                          {groups.length === 0 ? (
+                            <p className="text-sm text-slate-400 text-center py-6">No groups found</p>
+                          ) : (
+                            groups.map((group, groupIdx) => {
+                              const groupColor =
+                                groupIdx === 0 ? { dot: 'bg-green-400', badge: 'bg-green-500/20 text-green-400', label: 'Group 1' } :
+                                groupIdx === 1 ? { dot: 'bg-yellow-400', badge: 'bg-yellow-500/20 text-yellow-400', label: 'Group 2' } :
+                                { dot: 'bg-orange-400', badge: 'bg-orange-500/20 text-orange-400', label: 'Group 3' };
+                              const members = activeAthletes.filter((a) => a.group_id === group.id);
+                              const readyMembers = members.filter((a) => a.hasGarmin);
+                              const isOpen = expandedAllGroup === group.id;
+                              return (
+                                <div key={group.id} className="rounded-lg border border-slate-700 overflow-hidden">
+                                  <button
+                                    onClick={() => setExpandedAllGroup(isOpen ? null : group.id)}
+                                    className="w-full flex items-center gap-3 p-3 hover:bg-slate-800/60 transition-colors"
+                                  >
+                                    <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', groupColor.dot)} />
+                                    <div className="flex-1 text-start min-w-0">
+                                      <span className="text-sm font-medium">{group.name}</span>
+                                      <span className={cn('ms-2 text-[10px] font-bold px-1.5 py-0.5 rounded', groupColor.badge)}>
+                                        {groupColor.label}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs text-slate-400 shrink-0">
+                                      {readyMembers.length}/{members.length} ready
+                                    </span>
+                                    {isOpen ? <ChevronUp className="h-4 w-4 text-slate-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-500 shrink-0" />}
+                                  </button>
+                                  {isOpen && (
+                                    <div className="border-t border-slate-700/50 divide-y divide-slate-800">
+                                      {members.length === 0 ? (
+                                        <p className="text-xs text-slate-500 text-center py-3">No athletes in this group</p>
+                                      ) : (
+                                        members.map((a) => (
+                                          <div key={a.id} className="flex items-center justify-between px-3 py-2 bg-slate-900/40">
+                                            <span className="text-sm">{a.name}</span>
+                                            {a.hasGarmin ? (
+                                              <span className="flex items-center gap-1 text-[11px] text-green-400">
+                                                <CheckCircle className="h-3.5 w-3.5" /> Garmin
+                                              </span>
+                                            ) : (
+                                              <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                                                <XCircle className="h-3.5 w-3.5" /> Not connected
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+
+                          {/* Athletes with no group assigned */}
+                          {(() => {
+                            const ungrouped = activeAthletes.filter((a) => !a.group_id);
+                            if (ungrouped.length === 0) return null;
+                            return (
+                              <p className="text-xs text-slate-500 text-center pt-1">
+                                {ungrouped.length} athlete{ungrouped.length !== 1 ? 's' : ''} without a group (get Group 1 plan by default)
+                              </p>
+                            );
+                          })()}
                         </div>
                       )}
 
@@ -1128,7 +1197,7 @@ export default function WeeklyPlannerPage() {
                             }).map((group, groupIdx) => {
                               const count = activeAthletes.filter((a) => a.group_id === group.id).length;
                               const isSelected = selectedGroupIds.includes(group.id);
-                              const planLabel = groupIdx < 3 ? `Plan ${groupIdx + 1}` : 'Plan 3';
+                              const groupLabel = `Group ${Math.min(groupIdx + 1, 3)}`;
                               return (
                                 <label
                                   key={group.id}
@@ -1154,11 +1223,11 @@ export default function WeeklyPlannerPage() {
                                   </div>
                                   <span className={cn(
                                     'text-[10px] font-bold px-1.5 py-0.5 rounded',
-                                    groupIdx === 0 ? 'bg-red-500/20 text-red-400' :
+                                    groupIdx === 0 ? 'bg-green-500/20 text-green-400' :
                                     groupIdx === 1 ? 'bg-yellow-500/20 text-yellow-400' :
-                                    'bg-indigo-500/20 text-indigo-400'
+                                    'bg-orange-500/20 text-orange-400'
                                   )}>
-                                    {planLabel}
+                                    {groupLabel}
                                   </span>
                                   <span className="text-xs text-slate-400">
                                     {count} athlete{count !== 1 ? 's' : ''}
@@ -1189,7 +1258,8 @@ export default function WeeklyPlannerPage() {
                             ) : (
                               filteredAthletes.map((athlete) => {
                                 const isSelected = selectedAthleteIds.includes(athlete.id);
-                                const athleteGroup = groups.find((g) => g.id === athlete.group_id);
+                                const athleteGroupIdx = groups.findIndex((g) => g.id === athlete.group_id);
+                                const athleteGroup = athleteGroupIdx >= 0 ? groups[athleteGroupIdx] : undefined;
                                 return (
                                   <label
                                     key={athlete.id}
@@ -1212,7 +1282,14 @@ export default function WeeklyPlannerPage() {
                                       <span className="text-sm">{athlete.name}</span>
                                     </div>
                                     {athleteGroup && (
-                                      <span className="text-[10px] text-slate-500 shrink-0">{athleteGroup.name}</span>
+                                      <span className={cn(
+                                        'text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0',
+                                        athleteGroupIdx === 0 ? 'bg-green-500/20 text-green-400' :
+                                        athleteGroupIdx === 1 ? 'bg-yellow-500/20 text-yellow-400' :
+                                        'bg-orange-500/20 text-orange-400'
+                                      )}>
+                                        {athleteGroup.name}
+                                      </span>
                                     )}
                                   </label>
                                 );
