@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
-import { COACH_ID } from '@/lib/constants';
+import { COACH_ID, isProtectedEmail } from '@/lib/constants';
 
 const DEMO_COACH_ID = COACH_ID;
 
@@ -193,6 +193,21 @@ export async function DELETE(request: Request) {
       return NextResponse.json(
         { error: 'Athlete ID is required' },
         { status: 400 }
+      );
+    }
+
+    // Never allow deleting a protected account (e.g. the club/admin account).
+    const { data: target } = await supabase
+      .from('athletes')
+      .select('email')
+      .eq('id', id)
+      .eq('coach_id', DEMO_COACH_ID)
+      .maybeSingle();
+
+    if (isProtectedEmail(target?.email)) {
+      return NextResponse.json(
+        { error: 'This account is protected and cannot be deleted.' },
+        { status: 403 }
       );
     }
 

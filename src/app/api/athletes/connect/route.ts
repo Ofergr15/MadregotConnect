@@ -66,9 +66,15 @@ export async function POST(req: NextRequest) {
     // Check if athlete already exists by email
     const { data: existing } = await supabase
       .from('athletes')
-      .select('id')
+      .select('id, group_id')
       .eq('email', email.toLowerCase())
       .maybeSingle();
+
+    // Every athlete must belong to a group. Require it unless the athlete already
+    // has one (returning user just re-connecting Garmin).
+    if (!groupId && !existing?.group_id) {
+      return NextResponse.json({ error: 'A pace group is required' }, { status: 400 });
+    }
 
     if (existing) {
       const updatePayload: Record<string, any> = {

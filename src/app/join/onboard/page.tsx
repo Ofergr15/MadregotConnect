@@ -62,7 +62,8 @@ function OnboardContent() {
 
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!skipGroup && groups.length > 0 && !selectedGroup) {
+    // Every athlete must pick a group at registration.
+    if (!skipGroup && !selectedGroup) {
       setError('Please select a pace group');
       return;
     }
