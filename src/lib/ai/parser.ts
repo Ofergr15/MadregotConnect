@@ -8,6 +8,12 @@ const anthropic = new Anthropic({
 
 // --- Claude AI parser (for images/PDFs, or complex text fallback) ---
 
+// Time units the coach uses in notes (Hebrew + English). Presence of these is a
+// strong signal that a duration is genuinely time-based, not a distance.
+const TIME_UNIT_RE = /דקות|דק['׳]|שנ['׳]|שניות|שעות|שעה|\bmin\b|minute|\bhour\b|\bhr\b/i;
+// Distance units.
+const DIST_UNIT_RE = /ק["״']?\s*מ|קמ|קילומטר|\bkm\b|kilometer|מטר|מ['׳]/i;
+
 function validateAndFixStep(step: WorkoutStep): WorkoutStep {
   const fixed = { ...step };
 
@@ -17,23 +23,45 @@ function validateAndFixStep(step: WorkoutStep): WorkoutStep {
     return fixed;
   }
 
+  const notes = fixed.notes || '';
+  const mentionsTime = TIME_UNIT_RE.test(notes);
+  const mentionsDist = DIST_UNIT_RE.test(notes);
+
+  // A "time" value that's really a distance (e.g. "3 ק״מ" mislabeled as time:3000).
+  // Only reclassify when the notes clearly reference DISTANCE units and NOT time.
+  // Previously this fired for ANY time value >= 1000, which wrongly turned legit
+  // long runs like "50 דקות" (3000s) into 3000m. Guarding on units fixes that.
   if (fixed.durationType === 'time' && fixed.durationValue) {
-    if (fixed.durationValue >= 1000 && (fixed.type === 'warmup' || fixed.type === 'active' || fixed.type === 'interval')) {
+    if (
+      fixed.durationValue >= 1000 &&
+      (fixed.type === 'warmup' || fixed.type === 'active' || fixed.type === 'interval') &&
+      mentionsDist &&
+      !mentionsTime
+    ) {
       fixed.durationType = 'distance';
     }
   }
 
+  // Classic track distances (200/400/800m) mislabeled as time — but not if the
+  // note explicitly calls out seconds/minutes (e.g. a genuine 200s effort).
   if (fixed.durationType === 'time' && fixed.durationValue) {
-    if ([200, 400, 800].includes(fixed.durationValue) && fixed.targetType === 'pace') {
+    if ([200, 400, 800].includes(fixed.durationValue) && fixed.targetType === 'pace' && !mentionsTime) {
       fixed.durationType = 'distance';
     }
   }
 
+  // An "open" (Lap Button) step that mistakenly carries a value: infer the real
+  // unit from the notes rather than blindly assuming distance for large numbers.
   if (fixed.durationType === 'open' && fixed.durationValue) {
-    if (fixed.durationValue >= 1000) {
-      fixed.durationType = 'distance';
-    } else {
+    if (mentionsTime && !mentionsDist) {
       fixed.durationType = 'time';
+    } else if (mentionsDist && !mentionsTime) {
+      fixed.durationType = 'distance';
+    } else if (fixed.durationValue < 1000) {
+      fixed.durationType = 'time';
+    } else {
+      // Ambiguous large value with no unit hint — keep it a true Lap Button step.
+      fixed.durationValue = undefined;
     }
   }
 

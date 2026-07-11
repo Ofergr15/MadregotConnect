@@ -8,8 +8,9 @@ import {
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
   Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getActivityWeekStart } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
+import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 
 const RACE_DATE = new Date('2026-12-06T09:00:00');
 const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
@@ -505,11 +506,8 @@ export default function DashboardPage() {
           setRecentActivities(filtered.slice(0, 3));
 
           if (!myIsCoach && myAthleteId) {
-            const now = new Date();
-            const dayOfWeek = now.getDay();
-            const weekStart = new Date(now);
-            weekStart.setDate(now.getDate() - dayOfWeek);
-            weekStart.setHours(0, 0, 0, 0);
+            // Monday-based week so weekly km matches Garmin/Strava.
+            const weekStart = new Date(getActivityWeekStart(new Date()));
 
             const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
             const totalKm = thisWeekActs.reduce((sum: number, a: any) => sum + (a.distance || 0), 0) / 1000;
@@ -518,10 +516,8 @@ export default function DashboardPage() {
 
             const weekMap: Record<string, { km: number; runs: number }> = {};
             filtered.forEach((a: any) => {
-              const d = new Date(a.start_time);
-              const wStart = new Date(d);
-              wStart.setDate(d.getDate() - d.getDay());
-              const key = `${wStart.getDate().toString().padStart(2, '0')}/${(wStart.getMonth() + 1).toString().padStart(2, '0')}`;
+              const key = getActivityWeekStart(new Date(a.start_time))
+                .split('-').reverse().slice(0, 2).join('/'); // DD/MM of the Monday
               if (!weekMap[key]) weekMap[key] = { km: 0, runs: 0 };
               weekMap[key].km += (a.distance || 0) / 1000;
               weekMap[key].runs += 1;
@@ -581,11 +577,8 @@ export default function DashboardPage() {
               const filtered = allActs.filter((a: any) => a.athlete_id === myAthleteId);
               setRecentActivities(filtered.slice(0, 3));
 
-              const now = new Date();
-              const dayOfWeek = now.getDay();
-              const weekStart = new Date(now);
-              weekStart.setDate(now.getDate() - dayOfWeek);
-              weekStart.setHours(0, 0, 0, 0);
+              // Monday-based week so weekly km matches Garmin/Strava.
+              const weekStart = new Date(getActivityWeekStart(new Date()));
               const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
               const totalKm = thisWeekActs.reduce((sum: number, a: any) => sum + (a.distance || 0), 0) / 1000;
               setWeeklyKm(Math.round(totalKm * 10) / 10);
@@ -877,6 +870,9 @@ export default function DashboardPage() {
           </div>
         );
       })()}
+
+      {/* ═══ WATCH ALERTS & VOICE TIP (athletes only) ═══ */}
+      {!isCoach && <WatchAlertsCard />}
 
       {/* ═══ DAILY KM BAR CHART ═══ */}
       <section className="bg-slate-800/30 rounded-2xl p-4 sm:p-6 border border-slate-700/20">

@@ -36,8 +36,7 @@ const zoneLabels: Record<string, string> = {
   no_target: 'No Target',
 };
 
-function formatDuration(step: WorkoutStep): string {
-  if (step.repeatCount) return '';
+function formatSingleDuration(step: WorkoutStep): string {
   if (step.durationType === 'open') return 'Lap button';
   if (step.durationType === 'distance') {
     const m = step.durationValue || 0;
@@ -61,6 +60,18 @@ function formatDuration(step: WorkoutStep): string {
   return '';
 }
 
+function formatDuration(step: WorkoutStep): string {
+  // For repeat blocks, summarize the sub-steps so the rest segment is visible
+  // even when the row is collapsed, e.g. "0:30 + 1:00".
+  if (step.repeatCount) {
+    if (step.repeatSteps && step.repeatSteps.length > 0) {
+      return step.repeatSteps.map(formatSingleDuration).filter(Boolean).join(' + ');
+    }
+    return '';
+  }
+  return formatSingleDuration(step);
+}
+
 function formatPaceTarget(step: WorkoutStep): string {
   if (step.targetZone && step.targetZone !== 'no_target') {
     return zoneLabels[step.targetZone] || step.targetZone;
@@ -73,6 +84,102 @@ function formatPaceTarget(step: WorkoutStep): string {
     return `${min}:${minSec.toString().padStart(2, '0')}-${max}:${maxSec.toString().padStart(2, '0')}/km`;
   }
   return '';
+}
+
+function paceToInput(secs?: number): string {
+  if (!secs) return '';
+  return `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, '0')}`;
+}
+
+function inputToPace(value: string): number | undefined {
+  const parts = value.split(':');
+  if (parts.length !== 2) return undefined;
+  const secs = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  return isNaN(secs) ? undefined : secs;
+}
+
+/**
+ * Compact inline editor for a single step INSIDE a repeat block
+ * (e.g. the "run" and the "60s rest" that repeat together). Without this,
+ * rest/recovery segments inside repeats were invisible and uneditable.
+ */
+function SubStepEditor({
+  step,
+  onChange,
+  onDelete,
+}: {
+  step: WorkoutStep;
+  onChange: (step: WorkoutStep) => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="bg-slate-800/50 rounded-md p-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <select
+          value={step.type}
+          onChange={(e) => onChange({ ...step, type: e.target.value as any })}
+          className="bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+        >
+          {stepTypes.map((t) => (
+            <option key={t} value={t}>{stepLabels[t]}</option>
+          ))}
+        </select>
+        <select
+          value={step.durationType}
+          onChange={(e) => onChange({ ...step, durationType: e.target.value as any })}
+          className="bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+        >
+          <option value="distance">Distance</option>
+          <option value="time">Time</option>
+          <option value="open">Lap</option>
+        </select>
+        {step.durationType !== 'open' && (
+          <input
+            type="number"
+            value={step.durationValue || ''}
+            onChange={(e) => onChange({ ...step, durationValue: parseInt(e.target.value) || 0 })}
+            placeholder={step.durationType === 'distance' ? 'm' : 'sec'}
+            className="w-16 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+          />
+        )}
+        <span className="text-[10px] text-slate-500">
+          {step.durationType === 'distance' ? 'm' : step.durationType === 'time' ? 'sec' : ''}
+        </span>
+        <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto">
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={paceToInput(step.targetPaceMinPerKm)}
+          onChange={(e) => {
+            const secs = inputToPace(e.target.value);
+            if (secs !== undefined) onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: secs });
+          }}
+          placeholder="pace min"
+          className="w-20 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+        />
+        <input
+          type="text"
+          value={paceToInput(step.targetPaceMaxPerKm)}
+          onChange={(e) => {
+            const secs = inputToPace(e.target.value);
+            if (secs !== undefined) onChange({ ...step, targetType: 'pace', targetPaceMaxPerKm: secs });
+          }}
+          placeholder="pace max"
+          className="w-20 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+        />
+        <input
+          type="text"
+          value={step.notes || ''}
+          onChange={(e) => onChange({ ...step, notes: e.target.value || undefined })}
+          placeholder="notes"
+          className="flex-1 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+        />
+      </div>
+    </div>
+  );
 }
 
 function StepRow({
@@ -237,6 +344,47 @@ function StepRow({
                 min={1}
                 className="w-20 bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
               />
+            </div>
+          )}
+
+          {/* Sub-steps inside a repeat block (e.g. the interval + its rest) */}
+          {step.repeatSteps && step.repeatSteps.length > 0 && (
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">
+                Repeated steps ({step.repeatCount || 1}x)
+              </label>
+              <div className="space-y-2 ms-2 border-s-2 border-orange-500/30 ps-2">
+                {step.repeatSteps.map((sub, subIdx) => (
+                  <SubStepEditor
+                    key={subIdx}
+                    step={sub}
+                    onChange={(updated) => {
+                      const newSubs = [...step.repeatSteps!];
+                      newSubs[subIdx] = updated;
+                      onChange({ ...step, repeatSteps: newSubs });
+                    }}
+                    onDelete={() => {
+                      const newSubs = step.repeatSteps!.filter((_, i) => i !== subIdx);
+                      onChange({ ...step, repeatSteps: newSubs });
+                    }}
+                  />
+                ))}
+                <button
+                  onClick={() => {
+                    const newSub: WorkoutStep = {
+                      order: (step.repeatSteps?.length || 0) + 1,
+                      type: 'rest',
+                      durationType: 'time',
+                      durationValue: 60,
+                      targetType: 'no_target',
+                    };
+                    onChange({ ...step, repeatSteps: [...(step.repeatSteps || []), newSub] });
+                  }}
+                  className="flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300"
+                >
+                  <Plus className="h-3 w-3" /> Add sub-step
+                </button>
+              </div>
             </div>
           )}
 
