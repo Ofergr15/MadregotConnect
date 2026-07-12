@@ -123,28 +123,80 @@ function validatePlan(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
   };
 }
 
-async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'][0]['content'], useVision = false): Promise<ParsedWeeklyPlan> {
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 16000,
-    system: WORKOUT_PARSER_SYSTEM_PROMPT,
-    messages: [{ role: 'user', content }],
-  });
+/**
+ * Extract the JSON object from the model's reply. The model is told to return
+ * only JSON, but it can wrap it in ```json fences or (rarely) add a stray
+ * sentence. Strip fences, then slice from the first "{" to its matching close
+ * brace (brace-counting, string-aware) so trailing prose can't break JSON.parse.
+ */
+export function extractJson(text: string): string {
+  let s = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const start = s.indexOf('{');
+  if (start === -1) return s;
+  s = s.slice(start);
 
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-    .map((block) => block.text)
-    .join('');
-
-  let cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  const jsonStart = cleaned.indexOf('{');
-  if (jsonStart > 0) cleaned = cleaned.slice(jsonStart);
-
-  const parsed = JSON.parse(cleaned);
-  if (!parsed.workouts || !Array.isArray(parsed.workouts)) {
-    throw new Error('Invalid response structure');
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return s.slice(0, i + 1);
+    }
   }
-  return validatePlan(parsed as ParsedWeeklyPlan);
+  return s; // unbalanced — let JSON.parse throw so the caller can retry
+}
+
+// Vision/PDF parsing of the coach's dense Hebrew RTL tables is the accuracy-
+// critical path. Use Opus 4.8 (high-resolution vision, strongest table
+// extraction) with adaptive thinking so paces/durations are read correctly —
+// Haiku 4.5 mis-read descending pace ladders (e.g. 4:10→3:30 shifted to
+// 4:00→3:30). Plain-text fallback (rare) stays on the cheaper Haiku tier.
+const VISION_MODEL = 'claude-opus-4-8';
+const TEXT_MODEL = 'claude-haiku-4-5-20251001';
+
+async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'][0]['content'], useVision = false): Promise<ParsedWeeklyPlan> {
+  const call = async (extra?: string): Promise<ParsedWeeklyPlan> => {
+    const msgContent = extra
+      ? ([...(Array.isArray(content) ? content : [{ type: 'text', text: String(content) }]),
+          { type: 'text', text: extra }] as typeof content)
+      : content;
+    const response = await anthropic.messages.create({
+      model: useVision ? VISION_MODEL : TEXT_MODEL,
+      max_tokens: 16000,
+      ...(useVision ? { thinking: { type: 'adaptive' as const } } : {}),
+      system: WORKOUT_PARSER_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: msgContent }],
+    });
+
+    const text = response.content
+      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
+
+    const parsed = JSON.parse(extractJson(text));
+    if (!parsed.workouts || !Array.isArray(parsed.workouts)) {
+      throw new Error('Invalid response structure');
+    }
+    return validatePlan(parsed as ParsedWeeklyPlan);
+  };
+
+  try {
+    return await call();
+  } catch {
+    // One retry — transient truncation or a stray non-JSON preamble. Nudge the
+    // model to return only the JSON object this time.
+    return call('Return ONLY the JSON object, with no other text or markdown fences.');
+  }
 }
 
 // --- Regex parser (for simple text inputs, zero cost) ---
