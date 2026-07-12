@@ -104,6 +104,26 @@ export class GarminClient {
     );
   }
 
+  /**
+   * Fetch the GPS route as [{lat,lng}]. Returns [] when the activity has no GPS
+   * (treadmill/indoor) or on any error, so callers can persist a definitive
+   * "no route" value.
+   */
+  async getActivityGpsPoints(activityId: number): Promise<Array<{ lat: number; lng: number }>> {
+    try {
+      const details = await this.getActivityDetails(activityId);
+      const poly = details?.geoPolylineDTO?.polyline;
+      if (Array.isArray(poly)) {
+        return poly
+          .filter((p: any) => p?.lat != null && p?.lon != null)
+          .map((p: any) => ({ lat: p.lat, lng: p.lon }));
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
   async getActivitySplits(activityId: number): Promise<any[]> {
     await this.restoreSession();
     try {
