@@ -149,6 +149,48 @@ function applyPaceOffset(step: WorkoutStep, offset: number): WorkoutStep {
   return result;
 }
 
+/**
+ * Apply the group offset to a (possibly nested) step, driven by the ORIGINAL
+ * step so we can tell which segments already carry an explicit group pace.
+ * Recurses into repeat blocks — previously only top-level non-repeat steps got
+ * the offset, so Group ❷/❸ came out identical to Group ❶ for every interval
+ * workout built as a repeat (the common case).
+ */
+function applyGroupOffset(
+  original: WorkoutStep,
+  result: WorkoutStep,
+  group: 1 | 2 | 3,
+  offsets: { group2Offset: number; group3Offset: number },
+  isSubStep = false
+): WorkoutStep {
+  const offset = group === 2 ? offsets.group2Offset : offsets.group3Offset;
+
+  // Repeat parent: recurse into each sub-step, matching by index against the
+  // original so per-sub-step "had explicit pace?" checks stay accurate.
+  if (original.repeatSteps && result.repeatSteps) {
+    return {
+      ...result,
+      repeatSteps: result.repeatSteps.map((rs, i) =>
+        original.repeatSteps![i]
+          ? applyGroupOffset(original.repeatSteps![i], rs, group, offsets, true)
+          : rs
+      ),
+    };
+  }
+
+  // Leaf: only offset paced steps that had no explicit group pace / bracket
+  // notation (those were already resolved by splitStep). Inside a repeat, only
+  // the hard `interval` effort differs per group — the easy `active` float and
+  // `rest` segments are shared across groups, so don't shift them.
+  const eligible = isSubStep
+    ? shouldApplyOffset(original) && original.type === 'interval'
+    : shouldApplyOffset(original);
+  if (eligible) {
+    return applyPaceOffset(result, offset);
+  }
+  return result;
+}
+
 function hasBracketNotation(notes: string | undefined): boolean {
   if (!notes) return false;
   return /\([\d:]+/.test(notes) && /\(\([\d:]+/.test(notes);
@@ -169,11 +211,11 @@ function splitWorkout(workout: ParsedWorkout, group: 1 | 2 | 3, offsets: { group
   return {
     ...workout,
     steps: workout.steps.map(step => {
-      let result = splitStep(step, group);
-      // Only apply offset to top-level non-repeat steps
-      if (group !== 1 && !step.repeatCount && shouldApplyOffset(step)) {
-        const offset = group === 2 ? offsets.group2Offset : offsets.group3Offset;
-        result = applyPaceOffset(result, offset);
+      const result = splitStep(step, group);
+      // Apply the group offset to any paced step that lacked an explicit group
+      // pace — including sub-steps inside repeat blocks.
+      if (group !== 1) {
+        return applyGroupOffset(step, result, group, offsets);
       }
       return result;
     }),

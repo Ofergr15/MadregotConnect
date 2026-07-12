@@ -235,6 +235,10 @@ function SubStepEditor({
   onChange: (step: WorkoutStep) => void;
   onDelete: () => void;
 }) {
+  // Rest/recovery never take a pace. Everything else CAN, but we only show the
+  // pace fields once one is set (or the coach adds it via "+ pace").
+  const canHavePace = step.type !== 'rest' && step.type !== 'recovery';
+  const hasPace = canHavePace && step.targetType === 'pace' && !!step.targetPaceMinPerKm;
   return (
     <div className="bg-slate-800/50 rounded-md p-2 space-y-2">
       <div className="flex items-center gap-2">
@@ -271,28 +275,53 @@ function SubStepEditor({
         </button>
       </div>
       <div className="flex items-end gap-2">
-        <div className="w-20">
-          <PaceInput
-            label="From /km"
-            seconds={step.targetPaceMinPerKm}
-            placeholder="3:20"
-            onCommit={(secs) => onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: secs })}
-          />
-        </div>
-        <div className="w-20">
-          <PaceInput
-            label="To /km"
-            seconds={step.targetPaceMaxPerKm}
-            placeholder="3:30"
-            onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
-          />
-        </div>
+        {/* Pace fields ONLY when this sub-step actually targets a pace. Rest
+            segments and effort-based cuts (e.g. מתגברת "No Target") have none —
+            showing empty From/To boxes made their placeholders (3:20/3:30) look
+            like real targets. A running segment with no pace gets a "+ pace"
+            toggle instead. */}
+        {hasPace ? (
+          <>
+            <div className="w-24 shrink-0">
+              <PaceInput
+                label="From /km"
+                seconds={step.targetPaceMinPerKm}
+                placeholder="3:20"
+                onCommit={(secs) => onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: secs })}
+              />
+            </div>
+            <div className="w-24 shrink-0">
+              <PaceInput
+                label="To /km"
+                seconds={step.targetPaceMaxPerKm}
+                placeholder="3:30"
+                onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange({ ...step, targetType: 'no_target', targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined })}
+              title="Remove pace target"
+              className="p-1 rounded hover:bg-slate-700 text-slate-500 mb-0.5"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </>
+        ) : canHavePace ? (
+          <button
+            type="button"
+            onClick={() => onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: 210 })}
+            className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary-400 mb-1 shrink-0"
+          >
+            <Plus className="h-3 w-3" /> pace
+          </button>
+        ) : null}
         <input
           type="text"
           value={step.notes || ''}
           onChange={(e) => onChange({ ...step, notes: e.target.value || undefined })}
           placeholder="notes"
-          className="flex-1 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+          className="flex-1 min-w-0 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
         />
       </div>
     </div>

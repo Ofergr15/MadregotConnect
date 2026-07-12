@@ -231,8 +231,19 @@ export default function WeeklyPlannerPage() {
     if (currentPlan) {
       const workouts = currentPlan.parsed_workouts;
       if ('group1' in workouts && 'group2' in workouts && 'group3' in workouts) {
-        setGroupedPlans(workouts as GroupedWeeklyPlans);
-        setParsedPlan((workouts as GroupedWeeklyPlans).group1);
+        const grouped = workouts as GroupedWeeklyPlans;
+        // Self-heal plans saved before the repeat-block offset fix: back then
+        // Group ❷/❸ came out identical to Group ❶. If the stored groups are all
+        // identical, re-split from group1 (which holds the coach's ❶ paces,
+        // so this is lossless). Plans with real per-group edits differ and are
+        // left exactly as saved.
+        const g1 = JSON.stringify(grouped.group1.workouts);
+        const identical =
+          JSON.stringify(grouped.group2.workouts) === g1 &&
+          JSON.stringify(grouped.group3.workouts) === g1;
+        const effective = identical ? splitIntoGroups(grouped.group1) : grouped;
+        setGroupedPlans(effective);
+        setParsedPlan(effective.group1);
       } else {
         const parsed = workouts as ParsedWeeklyPlan;
         setParsedPlan(parsed);
