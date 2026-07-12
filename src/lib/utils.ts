@@ -24,6 +24,37 @@ export function getActivityWeekStart(date: Date): string {
   return d.toISOString().split('T')[0];
 }
 
+/**
+ * Activity start_time is Garmin's `startTimeLocal` (the athlete's own wall-clock,
+ * e.g. "2026-07-12 06:01:40") stored in a TIMESTAMPTZ column, which Postgres
+ * reads as UTC. So the CORRECT local time is the timestamp's UTC wall-clock —
+ * reading it in the viewer's zone double-shifts it (e.g. +3h in Israel).
+ *
+ * These helpers format/inspect an activity time by its UTC parts, giving back
+ * the athlete's real local time regardless of where it's viewed.
+ */
+export function formatActivityTime(startTime: string): string {
+  return new Date(startTime).toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+  });
+}
+
+export function formatActivityDate(startTime: string): string {
+  return new Date(startTime).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
+  });
+}
+
+/** Athlete-local hour (0-23) of an activity, for morning/evening labels etc. */
+export function activityLocalHour(startTime: string): number {
+  return new Date(startTime).getUTCHours();
+}
+
+/** Athlete-local weekday (0=Sun..6=Sat) of an activity. */
+export function activityLocalDay(startTime: string): number {
+  return new Date(startTime).getUTCDay();
+}
+
 export type GroupLevel = 'fast' | 'medium' | 'slow';
 
 const groupColorMap = {

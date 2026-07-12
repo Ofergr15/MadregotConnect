@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createServerClient();
-    const lowerEmail = email.toLowerCase();
+    const lowerEmail = email.toLowerCase().trim();
 
     // Check if user is a coach (must also exist in athletes with coach/admin role)
     const { data: coach } = await supabase
@@ -33,13 +33,18 @@ export async function POST(req: NextRequest) {
       // Coach record exists but no matching athlete — treat as new user (was deleted)
     }
 
-    // Check if user is an athlete
-    const { data: athlete } = await supabase
+    // Check if user is an athlete. Use maybeSingle (not single) so a stray
+    // duplicate row can't throw and wrongly force re-registration; if there are
+    // multiple, prefer the most complete one (has Garmin, else most recent).
+    const { data: activeRows } = await supabase
       .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth, approved')
+      .select('id, name, email, group_id, status, garmin_auth, approved, created_at')
       .eq('email', lowerEmail)
       .eq('status', 'active')
-      .single();
+      .order('created_at', { ascending: false });
+    const athlete = (activeRows || []).sort(
+      (a: any, b: any) => (b.garmin_auth ? 1 : 0) - (a.garmin_auth ? 1 : 0)
+    )[0];
 
     if (athlete) {
       if (athlete.approved === false) {
@@ -55,7 +60,9 @@ export async function POST(req: NextRequest) {
       .select('id, name, email, group_id, status, garmin_auth')
       .eq('email', lowerEmail)
       .eq('status', 'invited')
-      .single();
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (invitedAthlete) {
       const hasGarmin = !!invitedAthlete.garmin_auth;

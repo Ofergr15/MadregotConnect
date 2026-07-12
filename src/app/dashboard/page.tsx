@@ -8,7 +8,7 @@ import {
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
   Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
 } from 'lucide-react';
-import { cn, getActivityWeekStart } from '@/lib/utils';
+import { cn, getActivityWeekStart, formatActivityTime, formatActivityDate, activityLocalHour } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 
@@ -1056,9 +1056,8 @@ export default function DashboardPage() {
             {recentActivities.slice(0, 3).map((a) => {
               const km = (a.distance / 1000).toFixed(1);
               const pace = a.average_pace ? formatPace(a.average_pace) : null;
-              const date = new Date(a.start_time);
-              const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-              const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+              const dateStr = formatActivityDate(a.start_time);
+              const timeStr = formatActivityTime(a.start_time);
               const hrs = Math.floor(a.duration / 3600);
               const mins = Math.round((a.duration % 3600) / 60);
               const secs = Math.round(a.duration % 60);
@@ -1079,7 +1078,7 @@ export default function DashboardPage() {
                           <span className="text-xs text-slate-500">{dateStr} · {timeStr}</span>
                         </div>
                         <p className="text-[11px] text-slate-500">
-                          {a.average_pace && a.average_pace < 300 ? 'Morning Run' : a.average_pace && new Date(a.start_time).getHours() >= 17 ? 'Evening Run' : 'Run'}
+                          {activityLocalHour(a.start_time) < 12 ? 'Morning Run' : activityLocalHour(a.start_time) >= 17 ? 'Evening Run' : 'Afternoon Run'}
                         </p>
                       </div>
                     </div>
