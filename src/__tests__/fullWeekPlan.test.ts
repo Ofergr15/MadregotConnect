@@ -584,19 +584,20 @@ describe('Saturday — Easy run or rest (same for all groups)', () => {
 // EDGE CASES & VALIDATION
 // ═══════════════════════════════════════════════════
 describe('Edge cases and validation', () => {
-  it('pace offset inferred correctly from steps with bracket notation', () => {
-    // When some steps have bracket notation and others don't,
-    // the ones without should get inferred offset
+  it('single-pace steps are identical across groups (no inferred offset)', () => {
+    // Groups differ ONLY where the coach wrote an explicit per-group pace.
+    // A step the coach gave one pace for is run as-is by every group, so its
+    // pace always matches its notes (no guessed offset that would drift).
     const plan: ParsedWeeklyPlan = {
       workouts: [{
         dayOfWeek: 2,
         name: 'test',
         steps: [
-          // Step with bracket notation: offset = 10s for g2, 20s for g3
+          // Bracket notation → groups DO differ (explicit per-group paces).
           paceStep({ order: 1, type: 'interval', durationType: 'time', durationValue: 45,
             g1Pace: [230, 230], g2Pace: [240, 240], g3Pace: [250, 250],
             notes: '3:50 (4:00) ((4:10))' }),
-          // Step WITHOUT bracket notation - should get offset applied
+          // Single pace, no brackets → identical for all groups.
           paceStep({ order: 2, type: 'interval', durationType: 'time', durationValue: 120,
             g1Pace: [205, 205], notes: '3:25' }),
         ],
@@ -605,9 +606,15 @@ describe('Edge cases and validation', () => {
 
     const grouped = splitIntoGroups(plan);
 
-    // Step 2 should get inferred offset: g2 +10, g3 +20
-    expect(grouped.group2.workouts[0].steps[1].targetPaceMinPerKm).toBe(215); // 205+10
-    expect(grouped.group3.workouts[0].steps[1].targetPaceMinPerKm).toBe(225); // 205+20
+    // Bracketed step still differentiates.
+    expect(grouped.group1.workouts[0].steps[0].targetPaceMinPerKm).toBe(230);
+    expect(grouped.group2.workouts[0].steps[0].targetPaceMinPerKm).toBe(240);
+    expect(grouped.group3.workouts[0].steps[0].targetPaceMinPerKm).toBe(250);
+
+    // Single-pace step: same 205 (3:25) for every group.
+    expect(grouped.group1.workouts[0].steps[1].targetPaceMinPerKm).toBe(205);
+    expect(grouped.group2.workouts[0].steps[1].targetPaceMinPerKm).toBe(205);
+    expect(grouped.group3.workouts[0].steps[1].targetPaceMinPerKm).toBe(205);
   });
 
   it('open steps without pace are never modified', () => {
