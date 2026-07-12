@@ -36,6 +36,9 @@ import { cn } from '@/lib/utils';
 
 const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 type PushTab = 'all' | 'groups' | 'athletes';
 
 interface SavedPlanSummary {
@@ -159,6 +162,8 @@ export default function WeeklyPlannerPage() {
   // --- Push ---
   const [showPush, setShowPush] = useState(false);
   const [pushTab, setPushTab] = useState<PushTab>('all');
+  // Which days to send. null = whole week (default); an array = only those days.
+  const [pushDays, setPushDays] = useState<number[] | null>(null);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loadingAthletes, setLoadingAthletes] = useState(false);
@@ -502,13 +507,18 @@ export default function WeeklyPlannerPage() {
       for (const [paceGroup, ids] of Object.entries(athletesByPaceGroup)) {
         if (ids.length === 0) continue;
         const plan = groupedPlans[paceGroup as keyof GroupedWeeklyPlans];
+        // Send only the selected days (null = whole week).
+        const workoutsToSend = pushDays
+          ? plan.workouts.filter((w) => pushDays.includes(w.dayOfWeek))
+          : plan.workouts;
+        if (workoutsToSend.length === 0) continue;
 
         const res = await fetch('/api/garmin/push-workouts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             planId: savedPlanId,
-            workouts: plan.workouts,
+            workouts: workoutsToSend,
             athleteIds: ids,
             weekStartDate,
           }),
@@ -562,7 +572,9 @@ export default function WeeklyPlannerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planId: savedPlanId,
-          workouts: groupedPlans.group1.workouts,
+          workouts: pushDays
+            ? groupedPlans.group1.workouts.filter((w) => pushDays.includes(w.dayOfWeek))
+            : groupedPlans.group1.workouts,
           athleteIds: failedIds,
           weekStartDate,
         }),
@@ -591,6 +603,16 @@ export default function WeeklyPlannerPage() {
   };
 
   const workoutCount = parsedPlan ? new Set(parsedPlan.workouts.map(w => w.dayOfWeek)).size : 0;
+
+  // Days that actually have a workout (from the base plan) — for the per-day
+  // push selector. Sorted Sunday→Saturday.
+  const planDays = useMemo(() => {
+    const src = groupedPlans?.group1.workouts || parsedPlan?.workouts || [];
+    return Array.from(new Set(src.map((w) => w.dayOfWeek))).sort((a, b) => a - b);
+  }, [groupedPlans, parsedPlan]);
+
+  // How many workouts the current day selection will send (per athlete).
+  const selectedDayCount = pushDays === null ? planDays.length : pushDays.length;
 
   // ─────────────────────────────────────────────
   // RENDER
@@ -953,6 +975,7 @@ export default function WeeklyPlannerPage() {
                 onClick={() => {
                   setError(null);
                   setPushResults(null);
+                  setPushDays(null); // default: whole week
                   setShowPush(true);
                 }}
                 className="btn-primary flex items-center gap-2 px-6 py-2.5"
@@ -1073,6 +1096,69 @@ export default function WeeklyPlannerPage() {
               </div>
             ) : (
               <>
+                {/* Which days to send — whole week (default) or specific days */}
+                {planDays.length > 0 && (
+                  <div className="mt-4 pb-4 border-b border-slate-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-slate-400">Workouts to send</span>
+                      <div className="flex items-center gap-2">
+                        {planDays.includes(new Date().getDay()) && (
+                          <button
+                            onClick={() => setPushDays([new Date().getDay()])}
+                            className="text-[11px] text-primary-400 hover:text-primary-300"
+                          >
+                            Today only
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setPushDays(null)}
+                          className={cn(
+                            'text-[11px]',
+                            pushDays === null ? 'text-primary-400 font-medium' : 'text-slate-500 hover:text-slate-300'
+                          )}
+                        >
+                          Whole week
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {planDays.map((d) => {
+                        const selected = pushDays === null || pushDays.includes(d);
+                        const isToday = d === new Date().getDay();
+                        return (
+                          <button
+                            key={d}
+                            onClick={() => {
+                              setPushDays((prev) => {
+                                // From "whole week", first click starts an explicit selection.
+                                const base = prev === null ? [...planDays] : prev;
+                                const next = base.includes(d) ? base.filter((x) => x !== d) : [...base, d];
+                                // If every day ends up selected, collapse back to null (whole week).
+                                if (next.length === planDays.length) return null;
+                                return next;
+                              });
+                            }}
+                            className={cn(
+                              'px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors',
+                              selected
+                                ? 'bg-primary-500/15 border-primary-500/50 text-primary-300'
+                                : 'border-slate-700 text-slate-500 hover:border-slate-600',
+                              isToday && 'ring-1 ring-primary-500/40'
+                            )}
+                            title={DAY_NAMES[d]}
+                          >
+                            {DAY_SHORT[d]}{isToday ? ' •' : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2">
+                      Sending {selectedDayCount} workout{selectedDayCount !== 1 ? 's' : ''} per athlete
+                      {pushDays !== null && selectedDayCount === 0 && ' — select at least one day'}
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex border-b border-slate-700 mt-4">
                   {([
                     { key: 'all', icon: Users, label: 'All Athletes' },
@@ -1316,7 +1402,7 @@ export default function WeeklyPlannerPage() {
                   </span>
                   <button
                     onClick={executePush}
-                    disabled={pushing || pushTargetCount === 0}
+                    disabled={pushing || pushTargetCount === 0 || selectedDayCount === 0}
                     className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {pushing ? (
@@ -1327,7 +1413,9 @@ export default function WeeklyPlannerPage() {
                     ) : (
                       <>
                         <Send className="h-4 w-4" />
-                        Push Workouts
+                        {pushDays === null
+                          ? 'Push Workouts'
+                          : `Push ${selectedDayCount} Day${selectedDayCount !== 1 ? 's' : ''}`}
                       </>
                     )}
                   </button>
