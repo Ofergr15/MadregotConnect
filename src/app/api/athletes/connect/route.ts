@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         updateData.garmin_authed_at = new Date().toISOString();
       }
       if (name) updateData.name = name;
-      if (email) updateData.email = email;
+      if (email) updateData.email = email.toLowerCase().trim();
       if (groupId) updateData.group_id = groupId;
 
       const { data: updated, error: updateError } = await supabase

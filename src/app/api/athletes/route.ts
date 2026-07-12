@@ -113,13 +113,15 @@ export async function POST(request: Request) {
 
     const inviteToken = randomBytes(16).toString('hex');
 
-    // Create athlete record with invited status
+    // Create athlete record with invited status. Store email normalized
+    // (lowercase+trim) so it always matches the Google sign-in email later —
+    // otherwise the user is treated as new and asked to re-register.
     const { data: athlete, error } = await supabase
       .from('athletes')
       .insert({
         coach_id: DEMO_COACH_ID,
         name,
-        email,
+        email: email.toLowerCase().trim(),
         status: 'invited',
         invite_token: inviteToken,
       })

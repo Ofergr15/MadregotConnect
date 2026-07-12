@@ -6,7 +6,7 @@ import {
   MapPin, ChevronDown, ChevronUp, Zap, Footprints, Mountain,
   Flame, RefreshCw,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatActivityTime, formatActivityDate, activityLocalHour, activityLocalDay } from '@/lib/utils';
 
 interface ActivityEntry {
   id: string;
@@ -75,7 +75,7 @@ function formatDuration(seconds: number): string {
 }
 
 function getTimeLabel(startTime: string): string {
-  const hour = new Date(startTime).getHours();
+  const hour = activityLocalHour(startTime);
   if (hour < 6) return 'Night Run';
   if (hour < 12) return 'Morning Run';
   if (hour < 17) return 'Afternoon Run';
@@ -651,11 +651,10 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
   const paceStr = activity.average_pace ? formatPace(activity.average_pace) : null;
   const durationStr = formatDuration(activity.duration);
   const movingStr = activity.moving_duration ? formatDuration(activity.moving_duration) : null;
-  const startDate = new Date(activity.start_time);
-  const dateStr = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const timeStr = startDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = formatActivityDate(activity.start_time);
+  const timeStr = formatActivityTime(activity.start_time);
   const hebrewDays = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
-  const dayLabel = hebrewDays[startDate.getDay()];
+  const dayLabel = hebrewDays[activityLocalDay(activity.start_time)];
   const timeLabel = getTimeLabel(activity.start_time);
   const hrZone = activity.average_hr ? getHRZone(activity.average_hr) : null;
   const runType = inferRunTypeFromActivity(distKmNum, activity.average_pace);
