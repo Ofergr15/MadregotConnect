@@ -14,6 +14,42 @@ const TIME_UNIT_RE = /דקות|דק['׳]|שנ['׳]|שניות|שעות|שעה|\b
 // Distance units.
 const DIST_UNIT_RE = /ק["״']?\s*מ|קמ|קילומטר|\bkm\b|kilometer|מטר|מ['׳]/i;
 
+/**
+ * The coach's notes are the source of truth for pace (the prompt tells the model
+ * to preserve them character-for-character). The model sometimes writes a
+ * slightly-off NUMBER into targetPace* while keeping the right text in notes
+ * (e.g. notes "4:40 – 5:30" but targetPaceMin 270 = 4:30). Re-derive the Group ❶
+ * pace from the leading pace token in the notes so the chip matches the notes.
+ *
+ * Returns null when the notes have no explicit leading pace (walk/effort/All-out).
+ */
+export function paceFromNotes(notes: string | undefined): { min: number; max: number } | null {
+  if (!notes) return null;
+  // Only look at the Group ❶ segment — the text BEFORE any "(...)" bracket,
+  // which holds the fastest group's pace in this coach's notation.
+  const head = notes.split('(')[0];
+  const toSec = (p: string) => {
+    const m = p.match(/(\d+):(\d{2})/);
+    return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : null;
+  };
+  const range = head.match(/(\d+:\d{2})\s*[-–]\s*(\d+:\d{2})/);
+  if (range) {
+    const a = toSec(range[1]);
+    const b = toSec(range[2]);
+    if (a == null || b == null) return null;
+    // Normalize so min = faster (smaller sec/km), regardless of written order
+    // (the coach writes recovery ranges high-to-low, e.g. "4:10-4:00").
+    return { min: Math.min(a, b), max: Math.max(a, b) };
+  }
+  const single = head.match(/(\d+:\d{2})/);
+  if (single) {
+    const s = toSec(single[1]);
+    if (s == null) return null;
+    return { min: s, max: s };
+  }
+  return null;
+}
+
 function validateAndFixStep(step: WorkoutStep): WorkoutStep {
   const fixed = { ...step };
 
@@ -21,6 +57,16 @@ function validateAndFixStep(step: WorkoutStep): WorkoutStep {
   if (fixed.repeatCount && fixed.repeatSteps) {
     fixed.repeatSteps = fixed.repeatSteps.map(validateAndFixStep);
     return fixed;
+  }
+
+  // Reconcile the Group ❶ pace with the notes (notes win). Only for steps that
+  // ALREADY target a pace — never invent a target on walk/open/effort steps.
+  if (fixed.targetType === 'pace' && fixed.targetPaceMinPerKm) {
+    const fromNotes = paceFromNotes(fixed.notes);
+    if (fromNotes && (fromNotes.min !== fixed.targetPaceMinPerKm || fromNotes.max !== (fixed.targetPaceMaxPerKm ?? fixed.targetPaceMinPerKm))) {
+      fixed.targetPaceMinPerKm = fromNotes.min;
+      fixed.targetPaceMaxPerKm = fromNotes.max;
+    }
   }
 
   const notes = fixed.notes || '';
