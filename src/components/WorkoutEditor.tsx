@@ -76,12 +76,12 @@ function formatPaceTarget(step: WorkoutStep): string {
   if (step.targetZone && step.targetZone !== 'no_target') {
     return zoneLabels[step.targetZone] || step.targetZone;
   }
-  if (step.targetPaceMinPerKm && step.targetPaceMaxPerKm) {
-    const min = Math.floor(step.targetPaceMinPerKm / 60);
-    const minSec = step.targetPaceMinPerKm % 60;
-    const max = Math.floor(step.targetPaceMaxPerKm / 60);
-    const maxSec = step.targetPaceMaxPerKm % 60;
-    return `${min}:${minSec.toString().padStart(2, '0')}-${max}:${maxSec.toString().padStart(2, '0')}/km`;
+  if (step.targetPaceMinPerKm) {
+    const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+    const max = step.targetPaceMaxPerKm;
+    // A single pace (no max, or max === min) shows as "3:25/km", not "3:25-3:25/km".
+    if (!max || max === step.targetPaceMinPerKm) return `${fmt(step.targetPaceMinPerKm)}/km`;
+    return `${fmt(step.targetPaceMinPerKm)}-${fmt(max)}/km`;
   }
   return '';
 }
@@ -239,6 +239,9 @@ function SubStepEditor({
   // pace fields once one is set (or the coach adds it via "+ pace").
   const canHavePace = step.type !== 'rest' && step.type !== 'recovery';
   const hasPace = canHavePace && step.targetType === 'pace' && !!step.targetPaceMinPerKm;
+  // A "range" is two distinct bounds. A single pace (no max, or max === min) is
+  // shown as ONE field, matching how the coach writes "3:25" (not "3:25-3:25").
+  const isRange = hasPace && !!step.targetPaceMaxPerKm && step.targetPaceMaxPerKm !== step.targetPaceMinPerKm;
   return (
     <div className="bg-slate-800/50 rounded-md p-2 space-y-2">
       <div className="flex items-center gap-2">
@@ -284,27 +287,48 @@ function SubStepEditor({
           <>
             <div className="w-24 shrink-0">
               <PaceInput
-                label="From /km"
+                label={isRange ? 'From (fast) /km' : 'Pace /km'}
                 seconds={step.targetPaceMinPerKm}
-                placeholder="3:20"
+                placeholder="3:25"
                 onCommit={(secs) => onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: secs })}
               />
             </div>
-            <div className="w-24 shrink-0">
-              <PaceInput
-                label="To /km"
-                seconds={step.targetPaceMaxPerKm}
-                placeholder="3:30"
-                onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
-              />
-            </div>
+            {isRange && (
+              <div className="w-24 shrink-0">
+                <PaceInput
+                  label="To (slow) /km"
+                  seconds={step.targetPaceMaxPerKm}
+                  placeholder="3:35"
+                  onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
+                />
+              </div>
+            )}
+            {isRange ? (
+              // Collapse back to a single pace (drop the slow bound).
+              <button
+                type="button"
+                onClick={() => onChange({ ...step, targetPaceMaxPerKm: undefined })}
+                className="text-[10px] text-slate-500 hover:text-slate-300 mb-1 shrink-0"
+              >
+                single
+              </button>
+            ) : (
+              // Expand to a From–To range (seed slow bound 10s slower).
+              <button
+                type="button"
+                onClick={() => onChange({ ...step, targetPaceMaxPerKm: (step.targetPaceMinPerKm || 210) + 10 })}
+                className="text-[10px] text-slate-500 hover:text-primary-400 mb-1 shrink-0"
+              >
+                + range
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onChange({ ...step, targetType: 'no_target', targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined })}
               title="Remove pace target"
-              className="p-1 rounded hover:bg-slate-700 text-slate-500 mb-0.5"
+              className="text-[10px] text-slate-500 hover:text-red-400 mb-1 shrink-0"
             >
-              <X className="h-3 w-3" />
+              no pace
             </button>
           </>
         ) : canHavePace ? (
@@ -450,22 +474,37 @@ function StepRow({
                   <option value="custom">Custom</option>
                 </select>
               </div>
-              {(step.targetPaceMinPerKm || (!step.targetZone && step.targetType === 'pace')) && (
-                <>
-                  <PaceInput
-                    label="From (fast) /km"
-                    seconds={step.targetPaceMinPerKm}
-                    placeholder="3:20"
-                    onCommit={(secs) => onChange({ ...step, targetType: 'pace', targetZone: undefined, targetPaceMinPerKm: secs })}
-                  />
-                  <PaceInput
-                    label="To (slow) /km"
-                    seconds={step.targetPaceMaxPerKm}
-                    placeholder="3:30"
-                    onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
-                  />
-                </>
-              )}
+              {(step.targetPaceMinPerKm || (!step.targetZone && step.targetType === 'pace')) && (() => {
+                // Single pace vs From–To range: only show the second box when the
+                // coach actually gave two distinct bounds. A lone "3:25" is one field.
+                const isRange = !!step.targetPaceMaxPerKm && step.targetPaceMaxPerKm !== step.targetPaceMinPerKm;
+                return (
+                  <>
+                    <PaceInput
+                      label={isRange ? 'From (fast) /km' : 'Pace /km'}
+                      seconds={step.targetPaceMinPerKm}
+                      placeholder="3:25"
+                      onCommit={(secs) => onChange({ ...step, targetType: 'pace', targetZone: undefined, targetPaceMinPerKm: secs })}
+                    />
+                    {isRange ? (
+                      <PaceInput
+                        label="To (slow) /km"
+                        seconds={step.targetPaceMaxPerKm}
+                        placeholder="3:35"
+                        onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onChange({ ...step, targetPaceMaxPerKm: (step.targetPaceMinPerKm || 210) + 10 })}
+                        className="text-[10px] text-slate-500 hover:text-primary-400 self-end mb-2"
+                      >
+                        + range
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
