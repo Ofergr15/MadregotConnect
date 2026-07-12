@@ -6,35 +6,40 @@ function formatPaceFromSeconds(seconds: number): string {
   return sec === 0 ? `${min}:00` : `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
+// A single group's pace token: "3:50", "4:15-4:25", or with an en/em dash and
+// spaces as the coach writes them: "3:20 – 3:15". DASH matches -, –, or —.
+const DASH = '[-–—]';
+const PACE_TOKEN = `\\d+:\\d{2}(?:\\s*${DASH}\\s*\\d+:\\d{2})?`;
+// ❶ (❷) ((❸)) — three pace tokens in plain / single / double brackets.
+const bracketRe = () =>
+  new RegExp(`(${PACE_TOKEN})\\s*\\((${PACE_TOKEN})\\)\\s*\\(\\((${PACE_TOKEN})\\)\\)`, 'g');
+
 function rewriteNotesForGroup(notes: string | undefined, group: 1 | 2 | 3): string | undefined {
   if (!notes) return notes;
 
   // Replace bracket notation with the relevant group's pace
   // Pattern: "3:35(3:45)((3:55))" or "4:15-4:25 (4:25-4:35) ((4:35-4:45))"
-  const bracketPattern = /([\d:]+(?:-[\d:]+)?)\s*\(([\d:]+(?:-[\d:]+)?)\)\s*\(\(([\d:]+(?:-[\d:]+)?)\)\)/g;
+  if (!bracketRe().test(notes)) return notes;
 
-  if (!bracketPattern.test(notes)) return notes;
-
-  return notes.replace(
-    /([\d:]+(?:-[\d:]+)?)\s*\(([\d:]+(?:-[\d:]+)?)\)\s*\(\(([\d:]+(?:-[\d:]+)?)\)\)/g,
-    (_match, g1, g2, g3) => {
-      if (group === 1) return g1;
-      if (group === 2) return g2;
-      return g3;
-    }
-  );
+  return notes.replace(bracketRe(), (_match, g1, g2, g3) => {
+    if (group === 1) return g1;
+    if (group === 2) return g2;
+    return g3;
+  });
 }
 
 function parsePaceToSeconds(pace: string): { min: number; max: number } | null {
-  const rangeMatch = pace.match(/(\d+):(\d+)\s*-\s*(\d+):(\d+)/);
+  const toSec = (m: string, s: string) => parseInt(m) * 60 + parseInt(s);
+  const rangeMatch = pace.match(new RegExp(`(\\d+):(\\d+)\\s*${DASH}\\s*(\\d+):(\\d+)`));
   if (rangeMatch) {
-    const min = parseInt(rangeMatch[1]) * 60 + parseInt(rangeMatch[2]);
-    const max = parseInt(rangeMatch[3]) * 60 + parseInt(rangeMatch[4]);
-    return { min, max };
+    const a = toSec(rangeMatch[1], rangeMatch[2]);
+    const b = toSec(rangeMatch[3], rangeMatch[4]);
+    // Normalize fast-first: coach writes recovery ranges high-to-low ("4:10-4:00").
+    return { min: Math.min(a, b), max: Math.max(a, b) };
   }
   const singleMatch = pace.match(/(\d+):(\d+)/);
   if (singleMatch) {
-    const val = parseInt(singleMatch[1]) * 60 + parseInt(singleMatch[2]);
+    const val = toSec(singleMatch[1], singleMatch[2]);
     return { min: val, max: val };
   }
   return null;
@@ -43,8 +48,7 @@ function parsePaceToSeconds(pace: string): { min: number; max: number } | null {
 function extractPacesFromNotes(notes: string | undefined): { g1: { min: number; max: number } | null; g2: { min: number; max: number } | null; g3: { min: number; max: number } | null } {
   if (!notes) return { g1: null, g2: null, g3: null };
 
-  const bracketPattern = /([\d:]+-?[\d:]*)\s*\(([\d:]+-?[\d:]*)\)\s*\(\(([\d:]+-?[\d:]*)\)\)/;
-  const match = notes.match(bracketPattern);
+  const match = notes.match(new RegExp(bracketRe().source));
   if (!match) return { g1: null, g2: null, g3: null };
 
   return {

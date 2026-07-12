@@ -165,6 +165,13 @@ If all 3 columns have the SAME pace (e.g., easy runs, warmup at 5:00), set group
    - Use targetPaceMinPerKm/targetPaceMaxPerKm for specific paces
    - For ranges like "4:45-5:15", min=285 max=315
    - Use targetZone for generic references: "easy", "threshold", "interval", "tempo", "sprint", "marathon_pace"
+   - ⚠️ CRITICAL — targetPace* MUST EXACTLY MATCH the pace you write in notes.
+     The number and the text are the SAME pace in two forms. Never let them drift.
+     - notes "4:40 – 5:30" → targetPaceMinPerKm 280, targetPaceMaxPerKm 330 (NOT 270!)
+     - notes "3:50"        → targetPaceMinPerKm 230, targetPaceMaxPerKm 230
+     - targetPaceMinPerKm = the FASTER (smaller) number, targetPaceMaxPerKm = the SLOWER (larger) number,
+       EVEN when the coach writes the range high-to-low (e.g. "4:10-4:00" → min 240, max 250).
+     - Before finishing each step, re-read its notes and verify the seconds you computed match the min:sec text.
 
 5. **Repeats**: For intervals like "6x(9min + 1min)", create a single step with repeatCount=6 and repeatSteps containing the sub-steps.
 
