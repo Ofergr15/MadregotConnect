@@ -31,6 +31,7 @@ interface ActivityEntry {
   lap_count?: number | null;
   location_name?: string | null;
   has_polyline?: boolean;
+  gps_points?: Array<{ lat: number; lng: number }> | null;
   splits?: Split[] | null;
   athlete_name?: string;
 }
@@ -675,6 +676,13 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
   };
 
   const splits = details?.splits || activity.splits || [];
+  // Prefer the route stored at sync time (instant, reliable); fall back to the
+  // live-fetched points for activities synced before GPS was persisted.
+  const routePoints = (activity.gps_points && activity.gps_points.length > 0)
+    ? activity.gps_points
+    : (details?.gpsPoints || []);
+  // A stored empty array means we confirmed there's no GPS (indoor/treadmill).
+  const knownNoRoute = Array.isArray(activity.gps_points) && activity.gps_points.length === 0;
 
   return (
     <div className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden">
@@ -745,12 +753,17 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             </div>
           )}
 
-          {/* Map */}
-          {details?.gpsPoints && details.gpsPoints.length > 2 && (
+          {/* Map — stored route if available, else live-fetched */}
+          {routePoints.length > 2 ? (
             <div className="rounded-xl overflow-hidden border border-slate-700/30">
-              <RouteMap points={details.gpsPoints} height={300} splits={splits} />
+              <RouteMap points={routePoints} height={300} splits={splits} />
             </div>
-          )}
+          ) : (!loadingDetails && (knownNoRoute || details)) ? (
+            <div className="rounded-xl border border-slate-700/30 bg-slate-800/40 py-6 text-center">
+              <MapPin className="h-5 w-5 text-slate-600 mx-auto mb-1" />
+              <p className="text-xs text-slate-500">No route recorded (indoor/treadmill run)</p>
+            </div>
+          ) : null}
 
           {/* Key Stats Banner */}
           <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-xl p-5 border border-slate-700/30">

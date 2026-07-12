@@ -70,6 +70,12 @@ export async function POST(request: Request) {
             try {
               const detail = await client.getActivityFull(a.activityId);
               const summ = detail?.summaryDTO || {};
+              // Persist the route polyline so maps load instantly and reliably.
+              // [] means "confirmed no GPS" (treadmill/indoor); only fetch when
+              // the activity claims a polyline to keep sync fast.
+              const gpsPoints = detail.hasPolyline
+                ? await client.getActivityGpsPoints(a.activityId)
+                : [];
               enriched = {
                 start_lat: detail.startLatitude || null,
                 start_lng: detail.startLongitude || null,
@@ -81,6 +87,7 @@ export async function POST(request: Request) {
                 lap_count: detail.lapCount || null,
                 location_name: detail.locationName || null,
                 has_polyline: detail.hasPolyline || false,
+                gps_points: gpsPoints,
                 moving_duration: summ.movingDuration ? Math.round(summ.movingDuration) : Math.round(a.movingDuration),
               };
             } catch {
@@ -250,18 +257,31 @@ export async function GET() {
   try {
     const supabase = createServerClient();
 
-    const { data: activities, error } = await supabase
-      .from('athlete_activities')
-      .select(`
+    const baseCols = `
         id, athlete_id, garmin_activity_id, activity_name, activity_type,
         start_time, distance, duration, moving_duration, average_pace, average_hr, max_hr,
         calories, elevation_gain, start_lat, start_lng, end_lat, end_lng,
         avg_cadence, avg_stride_length, vo2max, lap_count, location_name,
         has_polyline, splits, created_at,
-        athletes (name)
-      `)
+        athletes (name)`;
+
+    // Prefer selecting gps_points; fall back gracefully if the column hasn't
+    // been added yet (migration 018 not yet run) so the feed never 500s.
+    let activities: any[] | null = null;
+    let error: any = null;
+    ({ data: activities, error } = await supabase
+      .from('athlete_activities')
+      .select(`${baseCols}, gps_points`)
       .order('start_time', { ascending: false })
-      .limit(200);
+      .limit(200));
+
+    if (error) {
+      ({ data: activities, error } = await supabase
+        .from('athlete_activities')
+        .select(baseCols)
+        .order('start_time', { ascending: false })
+        .limit(200));
+    }
 
     if (error) throw error;
 
