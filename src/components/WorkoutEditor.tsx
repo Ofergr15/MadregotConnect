@@ -373,6 +373,12 @@ function StepRow({
 }) {
   const [expanded, setExpanded] = useState(false);
 
+  // A repeat block is just "do these sub-steps N times" — its own type,
+  // duration, and pace are meaningless (the parser mirrors the first sub-step
+  // onto the parent). Show only REPEAT + the sub-steps, not a redundant second
+  // copy of the interval's distance/pace.
+  const isRepeat = step.repeatCount !== undefined && !!step.repeatSteps && step.repeatSteps.length > 0;
+
   return (
     <div className={cn('border-s-3 rounded-md', stepColors[step.type] || 'border-s-slate-400')}>
       <div
@@ -408,6 +414,9 @@ function StepRow({
 
       {expanded && (
         <div className="px-3 pb-3 space-y-3 border-t border-slate-700/50 pt-3 ms-4">
+          {/* A repeat block's own type/duration/pace are redundant with its
+              sub-steps — hide them and show only REPEAT + the sub-steps. */}
+          {!isRepeat && (
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Type</label>
@@ -434,8 +443,9 @@ function StepRow({
               </select>
             </div>
           </div>
+          )}
 
-          {step.durationType !== 'open' && (
+          {!isRepeat && step.durationType !== 'open' && (
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">
                 {step.durationType === 'distance' ? 'Meters' : 'Seconds'}
@@ -449,6 +459,7 @@ function StepRow({
             </div>
           )}
 
+          {!isRepeat && (
           <div>
             <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Target</label>
             <div className="grid grid-cols-3 gap-2 items-end">
@@ -507,6 +518,7 @@ function StepRow({
               })()}
             </div>
           </div>
+          )}
 
           {step.repeatCount !== undefined && (
             <div>
