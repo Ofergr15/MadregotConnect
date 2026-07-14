@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { MapPin, Calendar, Route, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BenchmarkLeaderboard } from '@/components/BenchmarkLeaderboard';
 
 interface Race {
   id: string;
@@ -193,6 +194,9 @@ export default function RacesPage() {
           <span className="text-sm text-slate-400">{races.length} {t('races')}</span>
         </div>
       </div>
+
+      {/* Time-trial leaderboard (hidden when there are no results) */}
+      <BenchmarkLeaderboard />
 
       {/* Content */}
       <div className="flex-1 flex flex-col lg:flex-row">

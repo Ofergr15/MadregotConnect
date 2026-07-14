@@ -6,6 +6,7 @@ import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRi
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
+import { ProfileBest } from '@/components/ProfileBest';
 
 interface Group {
   id: string;
@@ -282,6 +283,9 @@ function ProfileContent() {
           )}
         </div>
       </div>
+
+      {/* Your Best (benchmark results) — hidden when the athlete has none */}
+      <ProfileBest athleteId={athleteId} athleteName={athleteName} />
 
       {/* This Week's Program */}
       <Link
