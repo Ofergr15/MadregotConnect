@@ -2,10 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Trophy, Users, Zap, Heart, Camera, Loader2, Shield } from 'lucide-react';
+import { ArrowRight, Trophy, Users, Zap, Heart, Camera, Loader2, Shield, Route, Activity, Medal, GraduationCap } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { getSupabase } from '@/lib/supabase/client';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
+
+interface PublicStats {
+  athletes: number;
+  totalKm: number;
+  workouts: number;
+  topResults: { name: string; timeSeconds: number; test: string }[];
+}
+
+function fmtTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  const whole = Math.floor(s);
+  const frac = s - whole;
+  const fracStr = frac > 0 ? frac.toFixed(2).slice(1).replace(/0+$/, '').replace(/\.$/, '') : '';
+  return `${m}:${whole.toString().padStart(2, '0')}${fracStr}`;
+}
+function fmtNum(n: number): string {
+  return n.toLocaleString('en-US');
+}
 
 function useGoogleLogin() {
   const [loading, setLoading] = useState(false);
@@ -36,6 +56,7 @@ export default function HomePage() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState('');
+  const [stats, setStats] = useState<PublicStats | null>(null);
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -47,6 +68,13 @@ export default function HomePage() {
       }
     });
   }, [router]);
+
+  useEffect(() => {
+    fetch('/api/public/stats')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setStats(d); })
+      .catch(() => {});
+  }, []);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +124,12 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2">
             <LocaleSwitcher />
+            <Link
+              href="/academy-register"
+              className="hidden sm:inline-flex items-center gap-1.5 border-2 border-[#4338ff] text-[#4338ff] hover:bg-[#4338ff] hover:text-white font-semibold px-4 py-2 sm:px-5 sm:py-2 rounded-lg transition-colors text-sm"
+            >
+              <GraduationCap className="h-4 w-4" /> Join the Academy
+            </Link>
             <button
               onClick={signIn}
               disabled={signingIn}
@@ -178,13 +212,13 @@ export default function HomePage() {
                 {t('connectingRunners')}<br />
                 {t('buildingCommunity')}
               </p>
-              <div
-                className="inline-flex items-center gap-2 sm:gap-3 bg-gray-300 text-gray-500 font-bold px-5 py-3 sm:px-8 sm:py-4 rounded-xl mt-8 sm:mt-10 text-sm sm:text-lg cursor-not-allowed"
+              <Link
+                href="/academy-register"
+                className="inline-flex items-center gap-2 sm:gap-3 bg-[#4338ff] hover:bg-[#3730d4] text-white font-bold px-5 py-3 sm:px-8 sm:py-4 rounded-xl mt-8 sm:mt-10 text-sm sm:text-lg transition-colors"
               >
                 {t('joinUs')}
                 <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 rtl:rotate-180" />
-                <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wide ms-1">{t('comingSoon')}</span>
-              </div>
+              </Link>
             </div>
 
             {/* Visual (desktop only) */}
@@ -200,6 +234,56 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Live stats band + top-3 teaser (only when we have real data) */}
+      {stats && (stats.athletes > 0 || stats.totalKm > 0 || stats.topResults.length > 0) && (
+        <section className="px-4 sm:px-8 lg:px-20 pb-4">
+          <div className="max-w-7xl mx-auto">
+            {(stats.athletes > 0 || stats.totalKm > 0 || stats.workouts > 0) && (
+              <div className="grid grid-cols-3 gap-3 sm:gap-6">
+                <div className="bg-white rounded-2xl p-4 sm:p-6 text-center">
+                  <Users className="h-6 w-6 text-[#4338ff] mx-auto mb-2" />
+                  <div className="text-2xl sm:text-4xl font-black text-[#4338ff] tabular-nums">{fmtNum(stats.athletes)}</div>
+                  <div className="text-[11px] sm:text-sm font-semibold text-gray-500 uppercase tracking-wide mt-1">Athletes</div>
+                </div>
+                <div className="bg-white rounded-2xl p-4 sm:p-6 text-center">
+                  <Route className="h-6 w-6 text-[#4338ff] mx-auto mb-2" />
+                  <div className="text-2xl sm:text-4xl font-black text-[#4338ff] tabular-nums">{fmtNum(stats.totalKm)}</div>
+                  <div className="text-[11px] sm:text-sm font-semibold text-gray-500 uppercase tracking-wide mt-1">KM Run</div>
+                </div>
+                <div className="bg-white rounded-2xl p-4 sm:p-6 text-center">
+                  <Activity className="h-6 w-6 text-[#4338ff] mx-auto mb-2" />
+                  <div className="text-2xl sm:text-4xl font-black text-[#4338ff] tabular-nums">{fmtNum(stats.workouts)}</div>
+                  <div className="text-[11px] sm:text-sm font-semibold text-gray-500 uppercase tracking-wide mt-1">Workouts</div>
+                </div>
+              </div>
+            )}
+
+            {stats.topResults.length > 0 && (
+              <div className="bg-white rounded-2xl p-5 sm:p-8 mt-3 sm:mt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Trophy className="h-5 w-5 text-[#4338ff]" />
+                  <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-black">
+                    {stats.topResults[0].test} — Top 3
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {stats.topResults.map((r, i) => (
+                    <div key={i} className="flex items-center gap-3 bg-[#f0f0f0] rounded-xl p-3">
+                      <Medal className={`h-6 w-6 shrink-0 ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : 'text-orange-500'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-bold text-gray-400">#{i + 1}</div>
+                        <div className="text-sm font-bold text-black truncate" dir="auto">{r.name}</div>
+                      </div>
+                      <div className="text-lg font-black text-[#4338ff] tabular-nums">{fmtTime(r.timeSeconds)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Who We Are */}
       <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20">
