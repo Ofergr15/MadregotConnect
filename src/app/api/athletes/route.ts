@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const result = await supabase
       .from('athletes')
       .select(`
-        id, name, email, status, created_at, garmin_auth, strava_auth, data_source, strava_enabled, onboarding_status, group_id,
+        id, name, email, status, created_at, garmin_auth, strava_auth, data_source, strava_enabled, onboarding_status, is_academy, group_id,
         groups (name)
       `)
       .eq('coach_id', coachId)
@@ -58,6 +58,7 @@ export async function GET(request: Request) {
       groupId: athlete.group_id,
       group_id: athlete.group_id,
       dataSource: (athlete as any).data_source || 'garmin',
+      isAcademy: !!(athlete as any).is_academy,
       hasGarmin: !!athlete.garmin_auth,
       hasStrava: !!(athlete as any).strava_auth,
       stravaEnabled: !!(athlete as any).strava_enabled,
@@ -151,7 +152,7 @@ export async function PUT(request: Request) {
   try {
     const supabase = createServerClient();
     const body = await request.json();
-    const { id, groupId, status } = body;
+    const { id, groupId, status, isAcademy } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -163,6 +164,7 @@ export async function PUT(request: Request) {
     const updates: Record<string, any> = {};
     if (groupId !== undefined) updates.group_id = groupId;
     if (status) updates.status = status;
+    if (isAcademy !== undefined) updates.is_academy = isAcademy;
 
     const { data: athlete, error } = await supabase
       .from('athletes')

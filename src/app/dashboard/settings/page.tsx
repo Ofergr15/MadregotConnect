@@ -176,6 +176,7 @@ const allTabs = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'plan/new', label: 'Weekly Planner' },
   { key: 'athletes', label: 'Athletes' },
+  { key: 'academy', label: 'Academy' },
   { key: 'groups', label: 'Groups' },
   { key: 'activities', label: 'Activities' },
   { key: 'races', label: 'Races' },
@@ -188,6 +189,7 @@ const allTabs = [
 const allMobileTabs = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'athletes', label: 'Athletes' },
+  { key: 'academy', label: 'Academy' },
   { key: 'activities', label: 'Activities' },
   { key: 'program', label: 'Program' },
   { key: 'practice', label: 'Practice' },
