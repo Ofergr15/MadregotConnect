@@ -1,10 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Sparkles, Send, CheckCircle2, XCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Loader2, Send, CheckCircle2, XCircle, Calendar, ChevronLeft, ChevronRight,
+  Plus, Pencil, Trash2, BookOpen, X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COACH_ID } from '@/lib/constants';
 import { formatPace } from '@/lib/garmin/pace';
+import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
+import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 
 interface AcademyAthlete {
   id: string;
@@ -12,26 +17,15 @@ interface AcademyAthlete {
   hasGarmin?: boolean;
 }
 
-interface Step {
-  order: number;
-  type: string;
-  durationType: string;
-  durationValue?: number;
-  targetType: string;
-  targetPaceMinPerKm?: number;
-  targetPaceMaxPerKm?: number;
-  notes?: string;
-  repeatCount?: number;
-  repeatSteps?: Step[];
-}
-
-interface Workout {
-  dayOfWeek: number;
+interface LibraryWorkout {
+  id: string;
   name: string;
-  steps: Step[];
+  workout: ParsedWorkout;
+  created_at: string;
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function sundayOf(date: Date): string {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12));
@@ -51,23 +45,40 @@ function fmtWeekLabel(weekStart: string): string {
   return `${start.toLocaleDateString('en-US', opts)} – ${end.toLocaleDateString('en-US', opts)}`;
 }
 
-function stepPaceText(step: Step): string {
-  if (step.notes && /\d+:\d{2}/.test(step.notes)) return step.notes;
-  if (step.targetPaceMinPerKm) {
-    const min = step.targetPaceMinPerKm;
-    const max = step.targetPaceMaxPerKm;
-    return max && max !== min ? `${formatPace(min)}-${formatPace(max)}/km` : `${formatPace(min)}/km`;
+function emptyWorkout(dayOfWeek: number): ParsedWorkout {
+  return {
+    dayOfWeek,
+    name: `${DAY_FULL[dayOfWeek]} workout`,
+    steps: [
+      { order: 1, type: 'warmup', durationType: 'distance', durationValue: 2000, targetType: 'no_target' },
+    ],
+  };
+}
+
+function stepSummary(step: WorkoutStep): string {
+  const dur = step.durationType === 'distance'
+    ? `${((step.durationValue || 0) / 1000).toFixed(1)}km`
+    : step.durationType === 'time'
+      ? `${Math.round((step.durationValue || 0) / 60)}min`
+      : 'lap';
+  let pace = '';
+  if (step.notes && /\d+:\d{2}/.test(step.notes)) pace = step.notes;
+  else if (step.targetPaceMinPerKm) {
+    const min = step.targetPaceMinPerKm, max = step.targetPaceMaxPerKm;
+    pace = max && max !== min ? `${formatPace(min)}-${formatPace(max)}` : formatPace(min);
   }
-  return step.notes || '';
+  const rep = step.repeatCount ? `${step.repeatCount}× ` : '';
+  return `${rep}${dur}${pace ? ` @ ${pace}` : ''}`;
 }
 
 export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }) {
-  const [athleteId, setAthleteId] = useState<string>('');
+  const [athleteId, setAthleteId] = useState('');
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
-  const [input, setInput] = useState('');
-  const [parsing, setParsing] = useState(false);
-  const [workouts, setWorkouts] = useState<Workout[] | null>(null);
-  const [planId, setPlanId] = useState<string | null>(null);
+  // Day-of-week (0=Sun..6=Sat) → the workout planned for that day.
+  const [slots, setSlots] = useState<Record<number, ParsedWorkout>>({});
+  const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [library, setLibrary] = useState<LibraryWorkout[]>([]);
+  const [pickerDay, setPickerDay] = useState<number | null>(null);
   const [pushing, setPushing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pushResult, setPushResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -76,86 +87,94 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
     if (!athleteId && athletes.length) setAthleteId(athletes[0].id);
   }, [athletes, athleteId]);
 
+  const fetchLibrary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/academy/workouts');
+      const data = await res.json();
+      setLibrary(data.workouts || []);
+    } catch { /* library is optional */ }
+  }, []);
+
+  useEffect(() => { fetchLibrary(); }, [fetchLibrary]);
+
   // Reset the draft when switching athlete or week.
   useEffect(() => {
-    setWorkouts(null);
-    setPlanId(null);
+    setSlots({});
     setPushResult(null);
     setError(null);
   }, [athleteId, weekStart]);
 
   const selected = athletes.find(a => a.id === athleteId);
+  const filledDays = Object.keys(slots).map(Number).sort((a, b) => a - b);
 
-  const parseAndSave = useCallback(async () => {
-    if (!input.trim() || !athleteId) return;
-    setParsing(true);
-    setError(null);
+  const setSlot = (day: number, workout: ParsedWorkout) => {
+    setSlots(prev => ({ ...prev, [day]: { ...workout, dayOfWeek: day } }));
     setPushResult(null);
+  };
+  const clearSlot = (day: number) => {
+    setSlots(prev => {
+      const next = { ...prev };
+      delete next[day];
+      return next;
+    });
+  };
+
+  // Save a workout to the reusable library (fire-and-forget, refresh list).
+  const saveToLibrary = useCallback(async (w: ParsedWorkout) => {
     try {
-      const parseRes = await fetch('/api/parse-workout', {
+      await fetch('/api/academy/workouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: input }),
+        body: JSON.stringify({ name: w.name, workout: w }),
       });
-      const parsed = await parseRes.json();
-      if (!parseRes.ok) throw new Error(parsed.error || 'Failed to parse');
-      const wks: Workout[] = parsed.workouts || [];
-      setWorkouts(wks);
+      fetchLibrary();
+    } catch { /* non-blocking */ }
+  }, [fetchLibrary]);
 
-      // Save as an individual plan (athlete_id set). Stored flat — readers accept it.
+  const deleteLibraryWorkout = async (id: string) => {
+    try {
+      await fetch(`/api/academy/workouts?id=${id}`, { method: 'DELETE' });
+      setLibrary(prev => prev.filter(w => w.id !== id));
+    } catch { /* ignore */ }
+  };
+
+  const push = useCallback(async () => {
+    if (!filledDays.length || !athleteId) return;
+    setPushing(true);
+    setError(null);
+    setPushResult(null);
+    const workouts = filledDays.map(d => slots[d]);
+    try {
+      // Save the plan (individual, flat) so it shows in adherence.
       const saveRes = await fetch('/api/plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           coach_id: COACH_ID,
           week_start_date: weekStart,
-          original_input: input,
-          parsed_workouts: { workouts: wks },
+          original_input: '[built in-app]',
+          parsed_workouts: { workouts },
           status: 'draft',
           athlete_id: athleteId,
         }),
       });
       const saveData = await saveRes.json();
-      if (!saveRes.ok) throw new Error(saveData.error || 'Failed to save');
-      setPlanId(saveData.plan.id);
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong');
-    } finally {
-      setParsing(false);
-    }
-  }, [input, athleteId, weekStart]);
+      const planId = saveRes.ok ? saveData.plan?.id : null;
 
-  const push = useCallback(async () => {
-    if (!workouts || !athleteId) return;
-    setPushing(true);
-    setError(null);
-    setPushResult(null);
-    try {
       const res = await fetch('/api/garmin/push-workouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId,
-          workouts,
-          athleteIds: [athleteId],
-          weekStartDate: weekStart,
-        }),
+        body: JSON.stringify({ planId, workouts, athleteIds: [athleteId], weekStartDate: weekStart }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Push failed');
       const results = data.results || [];
       const ok = results.length > 0 && results.every((r: any) => r.status === 'success');
       const failed = results.find((r: any) => r.status === 'failed');
-      setPushResult({
-        ok,
-        msg: ok
-          ? `Pushed to ${selected?.name}'s Garmin.`
-          : failed?.error || 'Push failed.',
-      });
+      setPushResult({ ok, msg: ok ? `Pushed ${workouts.length} workout${workouts.length !== 1 ? 's' : ''} to ${selected?.name}'s Garmin.` : (failed?.error || 'Push failed.') });
       if (planId) {
         fetch('/api/plans', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ plan_id: planId, status: ok ? 'pushed' : 'partial' }),
         }).catch(() => {});
       }
@@ -164,7 +183,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
     } finally {
       setPushing(false);
     }
-  }, [workouts, athleteId, planId, weekStart, selected]);
+  }, [filledDays, slots, athleteId, weekStart, selected]);
 
   if (!athletes.length) {
     return (
@@ -207,29 +226,52 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         </div>
       </div>
 
-      {/* Input */}
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          Paste the weekly plan (same format as the group planner)
-        </label>
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          rows={5}
-          placeholder={"e.g. Tuesday: warmup 2km, 5x1km @ 3:40, easy 1km between…"}
-          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500 resize-y"
-          dir="auto"
-        />
-        <div className="mt-2 flex justify-end">
-          <button
-            onClick={parseAndSave}
-            disabled={parsing || !input.trim()}
-            className="flex items-center gap-2 px-4 h-10 rounded-xl bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
-          >
-            {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {parsing ? 'Parsing…' : 'Parse plan'}
-          </button>
-        </div>
+      {/* Day slots */}
+      <div className="space-y-2">
+        {DAY_LABELS.map((label, day) => {
+          const w = slots[day];
+          return (
+            <div key={day} className="flex items-center gap-3 bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
+              <div className="w-10 text-center shrink-0">
+                <div className="text-xs font-bold text-slate-300">{label}</div>
+              </div>
+              {w ? (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-white truncate">{w.name}</div>
+                    <div className="text-xs text-slate-400 truncate">
+                      {w.steps.map(stepSummary).join(' · ')}
+                    </div>
+                  </div>
+                  <button onClick={() => setEditingDay(day)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700" title="Edit">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => clearSlot(day)} className="p-2 rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10" title="Remove">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center gap-2">
+                  <span className="text-xs text-slate-500 flex-1">Rest / no workout</span>
+                  <button
+                    onClick={() => { setSlot(day, emptyWorkout(day)); setEditingDay(day); }}
+                    className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-primary-600/20 text-primary-300 hover:bg-primary-600/30 text-xs font-semibold"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Build
+                  </button>
+                  <button
+                    onClick={() => setPickerDay(day)}
+                    disabled={library.length === 0}
+                    className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs font-semibold disabled:opacity-40"
+                    title={library.length ? 'Pick from library' : 'Library is empty'}
+                  >
+                    <BookOpen className="h-3.5 w-3.5" /> Library
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {error && (
@@ -237,61 +279,100 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
           <XCircle className="h-4 w-4 shrink-0" /> {error}
         </div>
       )}
+      {pushResult && (
+        <div className={cn(
+          'flex items-center gap-2 rounded-xl px-4 py-3 text-sm border',
+          pushResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-300'
+        )}>
+          {pushResult.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+          {pushResult.msg}
+        </div>
+      )}
 
-      {/* Preview */}
-      {workouts && (
-        <div className="space-y-3">
-          <div className="text-sm font-semibold text-white">
-            {workouts.length} workout{workouts.length !== 1 ? 's' : ''} for {selected?.name}
+      {/* Push */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-slate-500">
+          {filledDays.length} workout{filledDays.length !== 1 ? 's' : ''} planned
+        </span>
+        <button
+          onClick={push}
+          disabled={pushing || filledDays.length === 0 || !selected?.hasGarmin}
+          title={selected?.hasGarmin ? '' : 'Athlete has no Garmin connected'}
+          className="flex items-center gap-2 px-5 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+        >
+          {pushing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {pushing ? 'Pushing…' : `Push to ${selected?.name?.split(' ')[0] || 'athlete'}`}
+        </button>
+      </div>
+
+      {/* Structured builder — reuses the same editor as the group planner. On save,
+          also store the workout in the library for reuse. */}
+      {editingDay !== null && slots[editingDay] && (
+        <WorkoutEditorPanel
+          workout={slots[editingDay]}
+          dayName={DAY_FULL[editingDay]}
+          onChange={(w) => { setSlot(editingDay, w); saveToLibrary(w); }}
+          onClose={() => setEditingDay(null)}
+        />
+      )}
+
+      {/* Library picker */}
+      {pickerDay !== null && (
+        <LibraryPicker
+          day={pickerDay}
+          library={library}
+          onPick={(w) => { setSlot(pickerDay, w); setPickerDay(null); }}
+          onDelete={deleteLibraryWorkout}
+          onClose={() => setPickerDay(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function LibraryPicker({
+  day, library, onPick, onDelete, onClose,
+}: {
+  day: number;
+  library: LibraryWorkout[];
+  onPick: (w: ParsedWorkout) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b border-slate-700">
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-primary-400" />
+            <h2 className="text-lg font-bold text-white">Workout library · {DAY_FULL[day]}</h2>
           </div>
-          {workouts.length === 0 ? (
-            <p className="text-sm text-slate-500">No workouts parsed — check the input format.</p>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="overflow-y-auto p-2">
+          {library.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-8">
+              Your library is empty. Build a workout and it will be saved here for reuse.
+            </p>
           ) : (
-            [...workouts].sort((a, b) => a.dayOfWeek - b.dayOfWeek).map((w, i) => (
-              <div key={i} className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-primary-600/20 text-primary-300">
-                    {DAY_LABELS[w.dayOfWeek] ?? '?'}
-                  </span>
-                  <span className="font-medium text-white text-sm">{w.name}</span>
-                </div>
-                <ul className="space-y-1 ps-1">
-                  {w.steps.map((s, j) => (
-                    <li key={j} className="text-xs text-slate-400 flex gap-2">
-                      <span className="text-slate-500 capitalize shrink-0">{s.repeatCount ? `${s.repeatCount}×` : s.type}</span>
-                      <span className="text-slate-300">{stepPaceText(s)}</span>
-                    </li>
-                  ))}
-                </ul>
+            library.map(item => (
+              <div key={item.id} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-700/50 transition-colors">
+                <button onClick={() => onPick(item.workout)} className="flex-1 min-w-0 text-start">
+                  <div className="font-medium text-white text-sm truncate">{item.name}</div>
+                  <div className="text-xs text-slate-400 truncate">
+                    {(item.workout.steps || []).map(stepSummary).join(' · ')}
+                  </div>
+                </button>
+                <button onClick={() => onDelete(item.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-300 hover:bg-red-500/10 shrink-0" title="Delete from library">
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             ))
           )}
-
-          {pushResult && (
-            <div className={cn(
-              'flex items-center gap-2 rounded-xl px-4 py-3 text-sm border',
-              pushResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-300'
-            )}>
-              {pushResult.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
-              {pushResult.msg}
-            </div>
-          )}
-
-          {workouts.length > 0 && (
-            <div className="flex justify-end">
-              <button
-                onClick={push}
-                disabled={pushing || !selected?.hasGarmin}
-                title={selected?.hasGarmin ? '' : 'Athlete has no Garmin connected'}
-                className="flex items-center gap-2 px-5 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
-              >
-                {pushing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {pushing ? 'Pushing…' : `Push to ${selected?.name?.split(' ')[0] || 'athlete'}`}
-              </button>
-            </div>
-          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
