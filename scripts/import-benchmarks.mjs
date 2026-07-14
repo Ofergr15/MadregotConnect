@@ -87,6 +87,8 @@ async function sb(env, method, pathQuery, body) {
 async function main() {
   const args = process.argv.slice(2);
   const replace = args.includes('--replace');
+  const dateArg = args.find(a => a.startsWith('--date='));
+  const recordedOn = dateArg ? dateArg.split('=')[1] : null; // e.g. --date=2026-07-14
   const csvPath = args.find(a => !a.startsWith('--')) || 'scripts/data/benchmark-2000m.csv';
   const env = loadEnv();
 
@@ -111,7 +113,7 @@ async function main() {
     testsSeen.add(test);
     const athleteId = byName.get(name.toLowerCase()) || null;
     if (athleteId) linked++;
-    payload.push({ coach_id: COACH_ID, test_name: test, athlete_name: name, athlete_id: athleteId, time_seconds: secs, notes: notes || null });
+    payload.push({ coach_id: COACH_ID, test_name: test, athlete_name: name, athlete_id: athleteId, time_seconds: secs, notes: notes || null, recorded_on: recordedOn });
   }
 
   if (replace) {

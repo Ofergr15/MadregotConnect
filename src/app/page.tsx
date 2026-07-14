@@ -9,11 +9,22 @@ import { getSupabase } from '@/lib/supabase/client';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 interface PublicStats {
+  since?: string;
   athletes: number;
   totalKm: number;
   workouts: number;
   totalHours: number;
   topResults: { name: string; timeSeconds: number; test: string }[];
+  testDate?: string | null;
+}
+
+function fmtMonthYear(dateStr?: string): string {
+  if (!dateStr) return '';
+  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+function fmtDate(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 function fmtTime(sec: number): string {
@@ -208,12 +219,12 @@ export default function HomePage() {
         <div className="relative z-10 flex-1 flex items-center px-4 sm:px-8 lg:px-20 py-8 lg:py-0 lg:min-h-[74vh]">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-20 items-center w-full max-w-7xl mx-auto">
             {/* Text */}
-            <div>
+            <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#4338ff]/10 text-[#4338ff] px-3.5 py-1.5 mb-6 sm:mb-8">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#4338ff]"></span>
                 <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em]">{t('after2km')}</span>
               </div>
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff]">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] break-words hyphens-none">
                 {t('redefining')}<br />
                 {t('running')}<br />
                 {t('culture')}
@@ -265,6 +276,12 @@ export default function HomePage() {
         <section className="px-4 sm:px-8 lg:px-20 pb-4 sm:pb-6 -mt-2">
           <div className="max-w-7xl mx-auto">
             {hasBandData && (
+              <>
+              {stats.since && (
+                <p className="text-center text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-gray-400 mb-3 sm:mb-4">
+                  Since {fmtMonthYear(stats.since)}
+                </p>
+              )}
               <div className="grid grid-cols-3 gap-3 sm:gap-6">
                 <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
                   <div className="mx-auto mb-3 sm:mb-4 flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
@@ -288,15 +305,21 @@ export default function HomePage() {
                   <div className="text-[11px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-2">Hours</div>
                 </div>
               </div>
+              </>
             )}
 
             {stats.topResults.length > 0 && (
               <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 sm:p-10 mt-3 sm:mt-6">
-                <div className="flex items-center justify-center gap-2 mb-8 sm:mb-10">
-                  <Trophy className="h-5 w-5 text-[#4338ff]" />
-                  <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight text-black">
-                    {stats.topResults[0].test} — Top 3
-                  </h3>
+                <div className="flex flex-col items-center gap-1 mb-8 sm:mb-10">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-[#4338ff]" />
+                    <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight text-black">
+                      {stats.topResults[0].test} — Top 3
+                    </h3>
+                  </div>
+                  {stats.testDate && (
+                    <span className="text-[11px] sm:text-xs font-semibold text-gray-400">{fmtDate(stats.testDate)}</span>
+                  )}
                 </div>
                 <div className="flex items-end justify-center gap-3 sm:gap-8">
                   {/* 2nd place */}
