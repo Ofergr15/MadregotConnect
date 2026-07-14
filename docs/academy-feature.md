@@ -1,7 +1,17 @@
 # Academy Feature — Design & Research
 
-Status: **research complete, not yet built.** This doc captures the design decisions and
-the codebase seams so implementation can proceed in phases.
+Status: **Phases 0–2 + 4–5 built; Phase 3 (per-athlete plan authoring UI) + Phase 6
+(emailed report) pending.** This doc captures the design decisions and the codebase seams.
+
+Progress:
+- ✅ P0 migration `019_academy.sql` (is_academy, weekly_plans.athlete_id, tab perms) — commit c06a5ee
+- ✅ P1 Academy tab + roster page (`/dashboard/academy`) — commit c06a5ee
+- ✅ P2 pace-zone push for academy (`ConvertOptions.paceTarget`) — commit 0fb2e80
+- ✅ P4 adherence engine (`src/lib/academy/adherence.ts` + `/api/academy/adherence`)
+- ✅ P5 in-app compliance view (`src/components/AcademyCompliance.tsx`, Roster/Compliance toggle)
+- ⏳ P3 per-athlete plan authoring UI (weekly_plans.athlete_id column exists; adherence route
+  already prefers an individual plan when present — only the planner UI to CREATE one is missing)
+- ⏳ P6 emailed weekly report (deferred)
 
 ## Goal
 

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import {
-  GraduationCap, Loader2, Watch, Plus, X, Search, UserMinus,
+  GraduationCap, Loader2, Watch, Plus, X, Search, UserMinus, Users, ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AcademyCompliance } from '@/components/AcademyCompliance';
 
 interface Athlete {
   id: string;
@@ -38,6 +39,7 @@ export default function AcademyPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
+  const [view, setView] = useState<'roster' | 'compliance'>('roster');
 
   useEffect(() => {
     fetchAthletes();
@@ -110,15 +112,43 @@ export default function AcademyPage() {
             </p>
           </div>
         </div>
+        {view === 'roster' && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 px-4 h-10 rounded-xl bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold transition-colors shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add athlete</span>
+          </button>
+        )}
+      </div>
+
+      {/* View toggle */}
+      <div className="flex items-center gap-1 mb-6 bg-slate-800/50 border border-slate-700/50 rounded-xl p-1 w-fit">
         <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 h-10 rounded-xl bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold transition-colors shrink-0"
+          onClick={() => setView('roster')}
+          className={cn(
+            'flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
+            view === 'roster' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+          )}
         >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Add athlete</span>
+          <Users className="h-4 w-4" /> Roster
+        </button>
+        <button
+          onClick={() => setView('compliance')}
+          className={cn(
+            'flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
+            view === 'compliance' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+          )}
+        >
+          <ClipboardCheck className="h-4 w-4" /> Compliance
         </button>
       </div>
 
+      {view === 'compliance' ? (
+        <AcademyCompliance />
+      ) : (
+      <>
       {/* Stat */}
       <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4">
@@ -192,6 +222,8 @@ export default function AcademyPage() {
             );
           })}
         </div>
+      )}
+      </>
       )}
 
       {/* Add modal */}
