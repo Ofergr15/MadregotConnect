@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Plus, Trophy, Pencil, Trash2, X, Medal } from 'lucide-react';
+import { Loader2, Plus, Trophy, Pencil, Trash2, X, Medal, Check, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseTime, formatTime } from '@/lib/academy/benchmark';
 
@@ -13,7 +13,8 @@ interface Result {
   time_seconds: number;
   notes: string | null;
   recorded_on: string | null;
-  rank: number;
+  status?: string;
+  rank: number | null;
 }
 
 const medalColor = (rank: number) =>
@@ -21,6 +22,7 @@ const medalColor = (rank: number) =>
 
 export function AcademyResults() {
   const [results, setResults] = useState<Result[]>([]);
+  const [pending, setPending] = useState<Result[]>([]);
   const [tests, setTests] = useState<string[]>([]);
   const [test, setTest] = useState('2000m');
   const [loading, setLoading] = useState(true);
@@ -32,9 +34,14 @@ export function AcademyResults() {
   const fetchResults = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/academy/benchmarks');
-      const data = await res.json();
+      const [approvedRes, pendingRes] = await Promise.all([
+        fetch('/api/academy/benchmarks'),
+        fetch('/api/academy/benchmarks?status=pending'),
+      ]);
+      const data = await approvedRes.json();
+      const pend = await pendingRes.json();
       setResults(data.results || []);
+      setPending(pend.results || []);
       const t: string[] = data.tests && data.tests.length ? data.tests : ['2000m'];
       setTests(t);
       setTest(prev => (t.includes(prev) ? prev : t[0]));
@@ -46,6 +53,17 @@ export function AcademyResults() {
   }, []);
 
   useEffect(() => { fetchResults(); }, [fetchResults]);
+
+  const moderate = async (id: string, action: 'approve' | 'reject') => {
+    setPending(prev => prev.filter(p => p.id !== id));
+    try {
+      await fetch('/api/academy/benchmarks', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      });
+      fetchResults();
+    } catch { fetchResults(); }
+  };
 
   const openNew = () => { setEditing({ test_name: test }); setTimeText(''); setError(null); };
   const openEdit = (r: Result) => { setEditing(r); setTimeText(formatTime(r.time_seconds)); setError(null); };
@@ -94,6 +112,29 @@ export function AcademyResults() {
 
   return (
     <div className="space-y-4">
+      {/* Pending approval queue — athlete submissions that would rank top-3 */}
+      {pending.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="h-4 w-4 text-amber-400" />
+            <h3 className="text-sm font-bold text-amber-300">Pending approval ({pending.length})</h3>
+          </div>
+          <div className="space-y-1.5">
+            {pending.map(p => (
+              <div key={p.id} className="flex items-center gap-3 bg-slate-900/40 rounded-lg px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-white truncate" dir="auto">{p.athlete_name} <span className="text-slate-500">· {p.test_name}</span></div>
+                  {p.notes && <div className="text-xs text-slate-500 truncate" dir="auto">{p.notes}</div>}
+                </div>
+                <span className="text-sm font-bold text-white tabular-nums">{formatTime(p.time_seconds)}</span>
+                <button onClick={() => moderate(p.id, 'approve')} className="p-2 rounded-lg text-emerald-400 hover:bg-emerald-500/15" title="Approve"><Check className="h-4 w-4" /></button>
+                <button onClick={() => moderate(p.id, 'reject')} className="p-2 rounded-lg text-red-400 hover:bg-red-500/15" title="Reject"><X className="h-4 w-4" /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {tests.length > 1 ? (
@@ -130,9 +171,9 @@ export function AcademyResults() {
           {shown.map(r => (
             <div key={r.id} className="flex items-center gap-3 bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
               <div className="w-7 text-center shrink-0">
-                {r.rank <= 3
+                {r.rank && r.rank <= 3
                   ? <Medal className={cn('h-5 w-5 mx-auto', medalColor(r.rank))} />
-                  : <span className="text-sm font-bold text-slate-500">{r.rank}</span>}
+                  : <span className="text-sm font-bold text-slate-500">{r.rank ?? '–'}</span>}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-white text-sm truncate flex items-center gap-2" dir="auto">

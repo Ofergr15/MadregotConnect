@@ -104,11 +104,24 @@ describe('assessWorkout — per-metric status', () => {
     expect(a.pace.status).toBe('faster');
   });
 
-  it('pace within ±5% tolerance is on target', () => {
-    // planned band 290-310; 314 is within 310*1.05=325.5
+  it('pace within ±5s tolerance is on target (band 290-310, good 285-315)', () => {
+    // 314 sec/km is within the slow bound 310 + 5 = 315.
     const actual: ActualActivity = { id: 'a5', date: '2026-07-13', distance: 10000, duration: 3140, averagePace: 314 };
     const a = assessWorkout(planned, actual);
     expect(a.pace.status).toBe('on_target');
+  });
+
+  it('pace-seconds example: 5:00 target ±5s → 4:55 ok, 4:50 too fast, 5:06 too slow', () => {
+    // Single target 300 s/km (5:00), default ±5s → good 295..305.
+    const p = buildPlannedWorkout(
+      workout([{ type: 'active', durationType: 'distance', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 300 }]),
+      '2026-07-13'
+    );
+    const at = (pace: number) => assessWorkout(p, { id: 'x', date: '2026-07-13', distance: 2000, duration: 2 * pace, averagePace: pace }).pace.status;
+    expect(at(295)).toBe('on_target'); // 4:55
+    expect(at(305)).toBe('on_target'); // 5:05
+    expect(at(290)).toBe('faster');    // 4:50
+    expect(at(306)).toBe('slower');    // 5:06
   });
 });
 

@@ -9,7 +9,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
+  role: 'admin' | 'coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
   groupId?: string;
   onboardingStatus?: string;
   approved?: boolean;
@@ -17,13 +17,14 @@ interface User {
   lastSeenAt?: string | null;
 }
 
-type Role = 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
+type Role = 'admin' | 'coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
 
 const roleConfig = {
   admin: { label: 'Admin', bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30', dot: 'bg-purple-400' },
   coach: { label: 'Coach', bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30', dot: 'bg-blue-400' },
   runner: { label: 'Runner', bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30', dot: 'bg-green-400' },
   core_runner: { label: 'Core Runner', bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30', dot: 'bg-emerald-400' },
+  academy_user: { label: 'Academy', bg: 'bg-primary-500/15', text: 'text-primary-400', border: 'border-primary-500/30', dot: 'bg-primary-400' },
   viewer: { label: 'Viewer', bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30', dot: 'bg-slate-400' },
 };
 
@@ -197,7 +198,7 @@ const allMobileTabs = [
   { key: 'settings', label: 'Settings' },
 ];
 
-const allRoles: Role[] = ['admin', 'coach', 'runner', 'core_runner', 'viewer'];
+const allRoles: Role[] = ['admin', 'coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
 type SettingsTab = 'users' | 'tabs' | 'feedback';
 
