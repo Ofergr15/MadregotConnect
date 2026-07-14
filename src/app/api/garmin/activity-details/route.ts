@@ -183,16 +183,44 @@ export async function GET(request: Request) {
     if (activity?.lapCount) enrichData.lap_count = activity.lapCount;
     if (summ.movingDuration) enrichData.moving_duration = Math.round(summ.movingDuration);
 
-    // Cache splits and enrichment data to DB
+    // Per-step LAPS (separate from the per-km `splits` used by the charts). When a
+    // pushed structured workout is run on-watch, Garmin records one lap per step —
+    // the basis for per-segment planned-vs-actual verdicts in academy compliance.
+    let laps: any[] = [];
+    try {
+      const lapData = await client.getActivitySplits(Number(activityId));
+      if (Array.isArray(lapData) && lapData.length > 1) {
+        laps = lapData.map((lap: any) => ({
+          distance: lap.distance || 0,
+          duration: lap.duration || lap.movingDuration || 0,
+          averagePace: lap.distance > 0 ? Math.round((lap.duration || lap.movingDuration || 0) / (lap.distance / 1000)) : null,
+          averageHR: lap.averageHR ?? null,
+          maxHR: lap.maxHR ?? null,
+        }));
+      }
+    } catch { /* laps are optional */ }
+
+    // Cache splits, laps, and enrichment data to DB
     const updatePayload: any = { ...enrichData };
     if (splits.length > 0) updatePayload.splits = splits;
+    if (laps.length > 0) updatePayload.laps = laps;
 
     if (Object.keys(updatePayload).length > 0) {
-      await supabase
+      const { error: updErr } = await supabase
         .from('athlete_activities')
         .update(updatePayload)
         .eq('athlete_id', athleteId)
         .eq('garmin_activity_id', Number(activityId));
+      // The `laps` column may not be migrated yet → retry without it rather than
+      // losing the splits/enrichment cache.
+      if (updErr && 'laps' in updatePayload) {
+        delete updatePayload.laps;
+        await supabase
+          .from('athlete_activities')
+          .update(updatePayload)
+          .eq('athlete_id', athleteId)
+          .eq('garmin_activity_id', Number(activityId));
+      }
     }
 
     return NextResponse.json({
