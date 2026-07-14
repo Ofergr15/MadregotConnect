@@ -49,6 +49,10 @@ export default function AcademyPage() {
 
   useEffect(() => {
     fetchAthletes();
+    // Deep-link to a tab, e.g. /dashboard/academy?tab=results (from the header bell).
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    const valid = ['roster', 'registrations', 'stats', 'plans', 'compliance', 'results', 'settings'];
+    if (tab && valid.includes(tab)) setView(tab as any);
   }, []);
 
   const fetchAthletes = async () => {

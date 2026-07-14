@@ -51,6 +51,7 @@ export function Header() {
   const [showGroupPicker, setShowGroupPicker] = useState(false);
   const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [pendingResults, setPendingResults] = useState<Array<{ id: string; athlete_name: string; test_name: string; time_seconds: number }>>([]);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -116,6 +117,16 @@ export function Header() {
       .then(data => { if (data?.role) setUserRole(data.role); })
       .catch(() => {});
   }, [userEmail]);
+
+  // Staff (admin/coach/academy_coach) get the pending benchmark-approval queue
+  // surfaced in the header bell.
+  useEffect(() => {
+    if (!userRole || !['admin', 'coach', 'academy_coach'].includes(userRole)) return;
+    fetch('/api/academy/benchmarks?status=pending')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.results) setPendingResults(data.results); })
+      .catch(() => {});
+  }, [userRole]);
 
   const navReady = permissionsLoaded && !!userRole;
 
@@ -277,10 +288,42 @@ export function Header() {
                 className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               >
                 <Bell className="h-4.5 w-4.5" />
+                {pendingResults.length > 0 && (
+                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {pendingResults.length}
+                  </span>
+                )}
               </button>
               {showNotifications && (
-                <div className="absolute end-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-4 px-5 min-w-[200px] z-50">
-                  <p className="text-xs text-slate-400 text-center">{th('nothingNew')}</p>
+                <div className="absolute end-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[280px] max-w-[340px] z-50">
+                  {pendingResults.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-3 px-5">{th('nothingNew')}</p>
+                  ) : (
+                    <>
+                      <div className="px-4 py-2 border-b border-slate-700 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        <span className="text-xs font-bold text-white">{pendingResults.length} result{pendingResults.length !== 1 ? 's' : ''} awaiting approval</span>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto py-1">
+                        {pendingResults.map(r => (
+                          <div key={r.id} className="px-4 py-2 flex items-center gap-2 text-xs">
+                            <span className="flex-1 min-w-0 truncate text-slate-200" dir="auto">{r.athlete_name}</span>
+                            <span className="text-slate-500">{r.test_name}</span>
+                            <span className="font-bold text-white tabular-nums">
+                              {Math.floor(r.time_seconds / 60)}:{(r.time_seconds % 60).toFixed(r.time_seconds % 1 ? 2 : 0).padStart(r.time_seconds % 1 ? 5 : 2, '0')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <Link
+                        href="/dashboard/academy?tab=results"
+                        onClick={() => setShowNotifications(false)}
+                        className="block px-4 py-2.5 border-t border-slate-700 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
+                      >
+                        Review in Academy → Results
+                      </Link>
+                    </>
+                  )}
                 </div>
               )}
             </div>
