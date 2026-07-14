@@ -23,6 +23,19 @@ Post-migration TODO: verify end-to-end with a real academy athlete (mark academy
 build individual plan → push → after a run, check Compliance). GMAIL_APP_PASSWORD +
 CRON_SECRET must be set for the weekly email.
 
+## Workout builder + library (added after P0–6)
+- Migration `020_academy_workouts.sql`: `academy_workouts` (coach_id, name, workout jsonb).
+  **Also needs running in Supabase** (alongside 019).
+- `/api/academy/workouts` — GET/POST/DELETE library of reusable single-workout templates
+  (workout = ParsedWorkout JSON). GET returns [] if the table isn't migrated yet.
+- Plans tab (`AcademyPlanComposer`) reworked into 7 day-slots. Each slot can be filled by
+  **Build** (opens the existing `WorkoutEditorPanel` — same structured editor + settings
+  pace zones as the group planner) or **Library** (pick a saved workout). Building a workout
+  auto-saves it to the library. Push saves an individual `weekly_plans` row (flat) + pushes
+  all filled days to the athlete's Garmin in one call.
+- Reuse note: `WorkoutEditorPanel` (src/components/WorkoutEditor.tsx) is the shared editor;
+  only WeekView + AcademyPlanComposer use it. No new editor was written.
+
 ## Goal
 
 A dedicated **Academy** area to manage a separate class of "academy athletes" with a
