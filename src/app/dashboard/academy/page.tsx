@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import {
-  GraduationCap, Loader2, Watch, Plus, X, Search, UserMinus, Users, ClipboardCheck,
+  GraduationCap, Loader2, Watch, Plus, X, Search, UserMinus, Users, ClipboardCheck, CalendarPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AcademyCompliance } from '@/components/AcademyCompliance';
+import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
 
 interface Athlete {
   id: string;
@@ -39,7 +40,7 @@ export default function AcademyPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<'roster' | 'compliance'>('roster');
+  const [view, setView] = useState<'roster' | 'plans' | 'compliance'>('roster');
 
   useEffect(() => {
     fetchAthletes();
@@ -135,6 +136,15 @@ export default function AcademyPage() {
           <Users className="h-4 w-4" /> Roster
         </button>
         <button
+          onClick={() => setView('plans')}
+          className={cn(
+            'flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
+            view === 'plans' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+          )}
+        >
+          <CalendarPlus className="h-4 w-4" /> Plans
+        </button>
+        <button
           onClick={() => setView('compliance')}
           className={cn(
             'flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
@@ -147,6 +157,10 @@ export default function AcademyPage() {
 
       {view === 'compliance' ? (
         <AcademyCompliance />
+      ) : view === 'plans' ? (
+        <AcademyPlanComposer
+          athletes={academyAthletes.map(a => ({ id: a.id, name: a.name, hasGarmin: a.hasGarmin }))}
+        />
       ) : (
       <>
       {/* Stat */}

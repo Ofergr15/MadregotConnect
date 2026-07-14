@@ -33,13 +33,12 @@ interface AthleteAdherence {
   week: WeekAdherence;
 }
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function mondayOf(date: Date): string {
+function sundayOf(date: Date): string {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12));
   const day = d.getUTCDay();
-  const diff = day === 0 ? 6 : day - 1;
-  d.setUTCDate(d.getUTCDate() - diff);
+  d.setUTCDate(d.getUTCDate() - day);
   return d.toISOString().split('T')[0];
 }
 
@@ -97,7 +96,7 @@ const metricLabel: Record<MetricStatus | PaceStatus, string> = {
 };
 
 export function AcademyCompliance() {
-  const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
+  const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
   const [data, setData] = useState<AthleteAdherence[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -120,7 +119,7 @@ export function AcademyCompliance() {
     fetchAdherence(weekStart);
   }, [weekStart, fetchAdherence]);
 
-  const isCurrentWeek = weekStart === mondayOf(new Date());
+  const isCurrentWeek = weekStart === sundayOf(new Date());
 
   return (
     <div>
@@ -201,8 +200,7 @@ export function AcademyCompliance() {
                       <div className="p-4 text-sm text-slate-500 text-center">No planned workouts this week.</div>
                     ) : (
                       w.workouts.map((wk, i) => {
-                        const dow = new Date(`${wk.date}T12:00:00Z`).getUTCDay();
-                        const dayIdx = dow === 0 ? 6 : dow - 1;
+                        const dayIdx = new Date(`${wk.date}T12:00:00Z`).getUTCDay();
                         return (
                           <div key={i} className="p-4 flex items-start gap-3">
                             <div className="shrink-0 w-10 text-center">
