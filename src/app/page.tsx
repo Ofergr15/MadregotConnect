@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Trophy, Users, Zap, Heart, Camera, Loader2, Shield, Route, Activity, Medal, GraduationCap } from 'lucide-react';
+import { ArrowRight, Trophy, Users, Zap, Heart, Camera, Loader2, Shield, Route, Activity, Clock, GraduationCap } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { getSupabase } from '@/lib/supabase/client';
@@ -12,6 +12,7 @@ interface PublicStats {
   athletes: number;
   totalKm: number;
   workouts: number;
+  totalHours: number;
   topResults: { name: string; timeSeconds: number; test: string }[];
 }
 
@@ -109,12 +110,18 @@ export default function HomePage() {
     );
   }
 
+  const hasBandData = !!stats && (stats.totalKm > 0 || stats.workouts > 0 || stats.totalHours > 0);
+
   return (
     <div className="min-h-screen bg-[#f0f0f0] text-black">
       {/* Hero Section */}
-      <section className="flex flex-col">
+      <section className="relative flex flex-col overflow-hidden">
+        {/* Decorative brand glow */}
+        <div className="pointer-events-none absolute -top-40 end-[-10%] h-[520px] w-[520px] rounded-full bg-[#4338ff]/10 blur-3xl" aria-hidden="true"></div>
+        <div className="pointer-events-none absolute top-1/3 start-[-15%] h-[420px] w-[420px] rounded-full bg-[#4338ff]/5 blur-3xl" aria-hidden="true"></div>
+
         {/* Nav */}
-        <nav className="relative flex items-center justify-between px-4 sm:px-8 lg:px-20 py-4 sm:py-6">
+        <nav className="relative z-10 flex items-center justify-between px-4 sm:px-8 lg:px-20 py-4 sm:py-6">
           <div className="flex items-center gap-2">
             <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 sm:h-12 sm:w-12 object-contain mix-blend-multiply" />
             <div className="flex flex-col leading-none">
@@ -187,8 +194,8 @@ export default function HomePage() {
         )}
 
         {/* Mobile Hero Image */}
-        <div className="lg:hidden px-4 sm:px-8 pt-2 pb-6">
-          <div className="rounded-2xl overflow-hidden aspect-[16/9]">
+        <div className="lg:hidden px-4 sm:px-8 pt-2 pb-6 relative z-10">
+          <div className="rounded-3xl overflow-hidden aspect-[16/9] shadow-xl ring-1 ring-black/5">
             <img
               src="/images/hero-running.jpg"
               alt="Madregot runners"
@@ -198,86 +205,131 @@ export default function HomePage() {
         </div>
 
         {/* Hero Content */}
-        <div className="flex-1 flex items-center px-4 sm:px-8 lg:px-20 py-8 lg:py-0 lg:min-h-[70vh]">
+        <div className="relative z-10 flex-1 flex items-center px-4 sm:px-8 lg:px-20 py-8 lg:py-0 lg:min-h-[74vh]">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-20 items-center w-full max-w-7xl mx-auto">
             {/* Text */}
             <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#4338ff]/10 text-[#4338ff] px-3.5 py-1.5 mb-6 sm:mb-8">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#4338ff]"></span>
+                <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em]">{t('after2km')}</span>
+              </div>
               <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff]">
                 {t('redefining')}<br />
                 {t('running')}<br />
                 {t('culture')}
               </h1>
-              <div className="w-12 sm:w-16 h-1.5 bg-[#4338ff] mt-6 sm:mt-8 mb-4 sm:mb-6"></div>
+              <div className="w-12 sm:w-16 h-1.5 bg-[#4338ff] mt-6 sm:mt-8 mb-4 sm:mb-6 rounded-full"></div>
               <p className="text-lg sm:text-xl md:text-2xl text-gray-700 font-light leading-relaxed">
                 {t('connectingRunners')}<br />
                 {t('buildingCommunity')}
               </p>
-              <Link
-                href="/academy-register"
-                className="inline-flex items-center gap-2 sm:gap-3 bg-[#4338ff] hover:bg-[#3730d4] text-white font-bold px-5 py-3 sm:px-8 sm:py-4 rounded-xl mt-8 sm:mt-10 text-sm sm:text-lg transition-colors"
-              >
-                {t('joinUs')}
-                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 rtl:rotate-180" />
-              </Link>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mt-8 sm:mt-10">
+                <Link
+                  href="/academy-register"
+                  className="group inline-flex items-center justify-center gap-2 sm:gap-3 bg-[#4338ff] hover:bg-[#3730d4] text-white font-bold px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-lg shadow-lg shadow-[#4338ff]/25 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#4338ff]/30"
+                >
+                  <GraduationCap className="h-5 w-5" />
+                  Join the Academy
+                  <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 rtl:rotate-180 transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
+                </Link>
+                <div
+                  aria-disabled="true"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-gray-300 text-gray-400 font-bold px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-lg cursor-not-allowed select-none"
+                >
+                  {t('joinUs')}
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
+                    {t('comingSoon')}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Visual (desktop only) */}
             <div className="relative hidden lg:block">
-              <div className="aspect-[3/4] rounded-2xl overflow-hidden">
+              <div className="absolute -inset-4 rounded-[2rem] bg-[#4338ff]/10 blur-2xl" aria-hidden="true"></div>
+              <div className="relative aspect-[3/4] rounded-[2rem] overflow-hidden shadow-2xl ring-1 ring-black/5">
                 <img
                   src="/images/hero-running.jpg"
                   alt="Madregot runners"
                   className="w-full h-full object-cover object-center"
                 />
+                <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent" aria-hidden="true"></div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Live stats band + top-3 teaser (only when we have real data) */}
-      {stats && (stats.athletes > 0 || stats.totalKm > 0 || stats.topResults.length > 0) && (
-        <section className="px-4 sm:px-8 lg:px-20 pb-4">
+      {/* Live stats band + top-3 podium (only when we have real data) */}
+      {stats && (hasBandData || stats.topResults.length > 0) && (
+        <section className="px-4 sm:px-8 lg:px-20 pb-4 sm:pb-6 -mt-2">
           <div className="max-w-7xl mx-auto">
-            {(stats.athletes > 0 || stats.totalKm > 0 || stats.workouts > 0) && (
+            {hasBandData && (
               <div className="grid grid-cols-3 gap-3 sm:gap-6">
-                <div className="bg-white rounded-2xl p-4 sm:p-6 text-center">
-                  <Users className="h-6 w-6 text-[#4338ff] mx-auto mb-2" />
-                  <div className="text-2xl sm:text-4xl font-black text-[#4338ff] tabular-nums">{fmtNum(stats.athletes)}</div>
-                  <div className="text-[11px] sm:text-sm font-semibold text-gray-500 uppercase tracking-wide mt-1">Athletes</div>
+                <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+                  <div className="mx-auto mb-3 sm:mb-4 flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                    <Route className="h-5 w-5 sm:h-7 sm:w-7" />
+                  </div>
+                  <div className="text-3xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none">{fmtNum(stats.totalKm)}</div>
+                  <div className="text-[11px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-2">Total KM</div>
                 </div>
-                <div className="bg-white rounded-2xl p-4 sm:p-6 text-center">
-                  <Route className="h-6 w-6 text-[#4338ff] mx-auto mb-2" />
-                  <div className="text-2xl sm:text-4xl font-black text-[#4338ff] tabular-nums">{fmtNum(stats.totalKm)}</div>
-                  <div className="text-[11px] sm:text-sm font-semibold text-gray-500 uppercase tracking-wide mt-1">KM Run</div>
+                <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+                  <div className="mx-auto mb-3 sm:mb-4 flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                    <Activity className="h-5 w-5 sm:h-7 sm:w-7" />
+                  </div>
+                  <div className="text-3xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none">{fmtNum(stats.workouts)}</div>
+                  <div className="text-[11px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-2">Workouts</div>
                 </div>
-                <div className="bg-white rounded-2xl p-4 sm:p-6 text-center">
-                  <Activity className="h-6 w-6 text-[#4338ff] mx-auto mb-2" />
-                  <div className="text-2xl sm:text-4xl font-black text-[#4338ff] tabular-nums">{fmtNum(stats.workouts)}</div>
-                  <div className="text-[11px] sm:text-sm font-semibold text-gray-500 uppercase tracking-wide mt-1">Workouts</div>
+                <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+                  <div className="mx-auto mb-3 sm:mb-4 flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                    <Clock className="h-5 w-5 sm:h-7 sm:w-7" />
+                  </div>
+                  <div className="text-3xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none">{fmtNum(stats.totalHours)}</div>
+                  <div className="text-[11px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-2">Hours</div>
                 </div>
               </div>
             )}
 
             {stats.topResults.length > 0 && (
-              <div className="bg-white rounded-2xl p-5 sm:p-8 mt-3 sm:mt-6">
-                <div className="flex items-center gap-2 mb-4">
+              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 sm:p-10 mt-3 sm:mt-6">
+                <div className="flex items-center justify-center gap-2 mb-8 sm:mb-10">
                   <Trophy className="h-5 w-5 text-[#4338ff]" />
-                  <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-black">
+                  <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight text-black">
                     {stats.topResults[0].test} — Top 3
                   </h3>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {stats.topResults.map((r, i) => (
-                    <div key={i} className="flex items-center gap-3 bg-[#f0f0f0] rounded-xl p-3">
-                      <Medal className={`h-6 w-6 shrink-0 ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : 'text-orange-500'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[10px] font-bold text-gray-400">#{i + 1}</div>
-                        <div className="text-sm font-bold text-black truncate" dir="auto">{r.name}</div>
+                <div className="flex items-end justify-center gap-3 sm:gap-8">
+                  {/* 2nd place */}
+                  {stats.topResults.length >= 2 && (
+                    <div className="flex w-20 flex-col items-center sm:w-32">
+                      <span className="mb-2 text-sm sm:text-lg font-black tabular-nums text-slate-500">{fmtTime(stats.topResults[1].timeSeconds)}</span>
+                      <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-slate-300 to-slate-400 pt-3 shadow-inner" style={{ height: '96px' }}>
+                        <span className="text-lg font-black text-white/90">2</span>
                       </div>
-                      <div className="text-lg font-black text-[#4338ff] tabular-nums">{fmtTime(r.timeSeconds)}</div>
+                      <span className="mt-3 max-w-full truncate text-xs sm:text-sm font-bold text-black" dir="auto">{stats.topResults[1].name.split(' ')[0]}</span>
                     </div>
-                  ))}
+                  )}
+                  {/* 1st place */}
+                  {stats.topResults.length >= 1 && (
+                    <div className="flex w-20 flex-col items-center sm:w-32">
+                      <span className="mb-0.5 text-xl sm:text-2xl leading-none">👑</span>
+                      <span className="mb-2 text-base sm:text-2xl font-black tabular-nums text-[#4338ff]">{fmtTime(stats.topResults[0].timeSeconds)}</span>
+                      <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-yellow-400 to-yellow-500 pt-3 shadow-md" style={{ height: '140px' }}>
+                        <span className="text-xl font-black text-white">1</span>
+                      </div>
+                      <span className="mt-3 max-w-full truncate text-sm sm:text-base font-black text-black" dir="auto">{stats.topResults[0].name.split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {/* 3rd place */}
+                  {stats.topResults.length >= 3 && (
+                    <div className="flex w-20 flex-col items-center sm:w-32">
+                      <span className="mb-2 text-sm sm:text-lg font-black tabular-nums text-amber-700">{fmtTime(stats.topResults[2].timeSeconds)}</span>
+                      <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-amber-500 to-amber-600 pt-3 shadow-inner" style={{ height: '68px' }}>
+                        <span className="text-lg font-black text-white/90">3</span>
+                      </div>
+                      <span className="mt-3 max-w-full truncate text-xs sm:text-sm font-bold text-black" dir="auto">{stats.topResults[2].name.split(' ')[0]}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -291,12 +343,12 @@ export default function HomePage() {
           <h2 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-8">
             {t('whoWeAre')}<br />{t('weAre')}
           </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 mt-12 items-center">
             <div>
               <h3 className="text-2xl sm:text-3xl font-bold text-black mb-6">
                 {t('fromTwoRunners')}
               </h3>
-              <div className="w-16 h-1.5 bg-[#4338ff] mb-8"></div>
+              <div className="w-16 h-1.5 bg-[#4338ff] mb-8 rounded-full"></div>
               <p className="text-lg text-gray-600 leading-relaxed mb-6">
                 {t('foundedDescription1')}
               </p>
@@ -305,15 +357,15 @@ export default function HomePage() {
               </p>
             </div>
             <div className="space-y-4">
-              <div className="rounded-xl overflow-hidden aspect-[16/9]">
-                <img src="/images/team-race.jpg" alt="Madregot team running on track" className="w-full h-full object-cover" />
+              <div className="rounded-3xl overflow-hidden aspect-[16/9] shadow-lg ring-1 ring-black/5">
+                <img src="/images/team-race.jpg" alt="Madregot team running on track" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-xl overflow-hidden aspect-[3/4]">
-                  <img src="/images/team-group.jpg" alt="Madregot team at golden hour" className="w-full h-full object-cover" />
+                <div className="rounded-3xl overflow-hidden aspect-[3/4] shadow-lg ring-1 ring-black/5">
+                  <img src="/images/team-group.jpg" alt="Madregot team at golden hour" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
                 </div>
-                <div className="rounded-xl overflow-hidden aspect-[3/4]">
-                  <img src="/images/runners-group.jpg" alt="Athlete checking watch" className="w-full h-full object-cover" />
+                <div className="rounded-3xl overflow-hidden aspect-[3/4] shadow-lg ring-1 ring-black/5">
+                  <img src="/images/runners-group.jpg" alt="Athlete checking watch" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
                 </div>
               </div>
             </div>
@@ -330,29 +382,29 @@ export default function HomePage() {
 
           {/* Timeline */}
           <div className="relative">
-            <div className="absolute top-8 inset-x-0 h-0.5 bg-[#4338ff] hidden sm:block"></div>
+            <div className="absolute top-8 inset-x-0 h-0.5 bg-gradient-to-r from-[#4338ff] to-[#4338ff]/20 hidden sm:block"></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              <div className="relative pt-12">
-                <div className="absolute top-6 start-0 w-3 h-3 rounded-full bg-[#4338ff]"></div>
-                <div className="text-2xl font-black">{t('year2022')}</div>
+              <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
+                <div className="absolute top-[26px] start-4 sm:start-4 w-3.5 h-3.5 rounded-full bg-[#4338ff] ring-4 ring-white"></div>
+                <div className="text-2xl font-black text-[#4338ff]">{t('year2022')}</div>
                 <div className="text-sm font-bold mt-1">{t('founded')}</div>
                 <div className="text-sm text-gray-500 mt-2">{t('foundedDesc')}</div>
               </div>
-              <div className="relative pt-12">
-                <div className="absolute top-6 start-0 w-3 h-3 rounded-full bg-[#4338ff]"></div>
-                <div className="text-2xl font-black">{t('year2023')}</div>
+              <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
+                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-[#4338ff] ring-4 ring-white"></div>
+                <div className="text-2xl font-black text-[#4338ff]">{t('year2023')}</div>
                 <div className="text-sm font-bold mt-1">{t('firstTeam')}</div>
                 <div className="text-sm text-gray-500 mt-2">{t('firstTeamDesc')}</div>
               </div>
-              <div className="relative pt-12">
-                <div className="absolute top-6 start-0 w-3 h-3 rounded-full bg-[#4338ff]"></div>
-                <div className="text-2xl font-black">{t('year2025')}</div>
+              <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
+                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-[#4338ff] ring-4 ring-white"></div>
+                <div className="text-2xl font-black text-[#4338ff]">{t('year2025')}</div>
                 <div className="text-sm font-bold mt-1">{t('historicValencia')}</div>
                 <div className="text-sm text-gray-500 mt-2">{t('historicValenciaDesc')}</div>
               </div>
-              <div className="relative pt-12">
-                <div className="absolute top-6 start-0 w-3 h-3 rounded-full bg-[#4338ff]"></div>
-                <div className="text-2xl font-black">{t('year2026')}</div>
+              <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
+                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-[#4338ff] ring-4 ring-white"></div>
+                <div className="text-2xl font-black text-[#4338ff]">{t('year2026')}</div>
                 <div className="text-sm font-bold mt-1">{t('nextLevel')}</div>
                 <div className="text-sm text-gray-500 mt-2">{t('nextLevelDesc')}</div>
               </div>
@@ -371,9 +423,11 @@ export default function HomePage() {
             {t('supportSystem')}
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-8">
-            <div>
-              <Trophy className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
+            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                <Trophy className="h-6 w-6 stroke-[1.75]" />
+              </div>
               <h3 className="text-lg font-bold mb-2">{t('performance')}</h3>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('professionalCoach')}</li>
@@ -381,8 +435,10 @@ export default function HomePage() {
                 <li>{t('personalizedPrograms')}</li>
               </ul>
             </div>
-            <div>
-              <Heart className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                <Heart className="h-6 w-6 stroke-[1.75]" />
+              </div>
               <h3 className="text-lg font-bold mb-2">{t('recovery')}</h3>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('physiotherapy')}</li>
@@ -390,8 +446,10 @@ export default function HomePage() {
                 <li>{t('injuryPrevention')}</li>
               </ul>
             </div>
-            <div>
-              <Zap className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                <Zap className="h-6 w-6 stroke-[1.75]" />
+              </div>
               <h3 className="text-lg font-bold mb-2">{t('nutrition')}</h3>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('sportsNutrition')}</li>
@@ -399,8 +457,10 @@ export default function HomePage() {
                 <li>{t('recoverySupport')}</li>
               </ul>
             </div>
-            <div>
-              <Users className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                <Users className="h-6 w-6 stroke-[1.75]" />
+              </div>
               <h3 className="text-lg font-bold mb-2">{t('community')}</h3>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('trainingPartners')}</li>
@@ -408,8 +468,10 @@ export default function HomePage() {
                 <li>{t('memberBenefits')}</li>
               </ul>
             </div>
-            <div>
-              <Camera className="h-10 w-10 text-[#4338ff] mb-4 stroke-[1.5]" />
+            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg col-span-2 sm:col-span-1">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                <Camera className="h-6 w-6 stroke-[1.75]" />
+              </div>
               <h3 className="text-lg font-bold mb-2">{t('content')}</h3>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('professionalPhotography')}</li>
@@ -422,22 +484,33 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20 bg-[#4338ff]">
-        <div className="max-w-4xl mx-auto text-center">
+      <section className="relative overflow-hidden py-24 lg:py-32 px-4 sm:px-8 lg:px-20 bg-[#4338ff]">
+        <div className="pointer-events-none absolute -top-24 -start-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" aria-hidden="true"></div>
+        <div className="pointer-events-none absolute -bottom-32 -end-16 h-96 w-96 rounded-full bg-black/10 blur-3xl" aria-hidden="true"></div>
+        <div className="relative max-w-4xl mx-auto text-center">
           <h2 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase tracking-tight text-white mb-6">
             {t('readyToRun')}
           </h2>
           <p className="text-xl text-white/80 mb-10">
             {t('joinCommunity')}
           </p>
-          <button
-            onClick={signIn}
-            disabled={signingIn}
-            className="inline-flex items-center gap-3 bg-white hover:bg-gray-100 text-[#4338ff] font-bold px-6 py-4 sm:px-10 sm:py-5 rounded-xl transition-all text-lg disabled:opacity-50"
-          >
-            {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : t('signInToStart')}
-            <ArrowRight className="h-6 w-6 rtl:rotate-180" />
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/academy-register"
+              className="group inline-flex items-center gap-3 bg-white hover:bg-gray-100 text-[#4338ff] font-bold px-8 py-4 sm:px-10 sm:py-5 rounded-xl text-lg shadow-lg transition-all hover:-translate-y-0.5"
+            >
+              <GraduationCap className="h-5 w-5" />
+              Join the Academy
+              <ArrowRight className="h-5 w-5 rtl:rotate-180 transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
+            </Link>
+            <button
+              onClick={signIn}
+              disabled={signingIn}
+              className="inline-flex items-center justify-center gap-2 border-2 border-white/40 text-white hover:bg-white/10 hover:border-white/70 font-semibold px-6 py-4 sm:py-5 rounded-xl text-lg transition-colors disabled:opacity-50"
+            >
+              {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : tc('signIn')}
+            </button>
+          </div>
         </div>
       </section>
 

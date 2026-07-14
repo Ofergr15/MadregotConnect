@@ -13,36 +13,39 @@ export const revalidate = 0;
  */
 export async function GET() {
   const out = {
-    athletes: 0,
+    athletes: 0,      // distinct runners with synced activity
     totalKm: 0,
     workouts: 0,
+    totalHours: 0,
     topResults: [] as { name: string; timeSeconds: number; test: string }[],
   };
 
   try {
     const supabase = createServerClient();
 
-    // Active athletes count.
-    const { count: athleteCount } = await supabase
-      .from('athletes')
-      .select('id', { count: 'exact', head: true })
-      .eq('coach_id', COACH_ID)
-      .eq('status', 'active');
-    out.athletes = athleteCount || 0;
-
-    // Total km + workouts across all synced activities for the coach's athletes.
-    // (Fetch ids first — activities aren't coach-scoped directly.)
+    // Total km / workouts / hours across all synced activities for the coach's
+    // athletes, plus the count of DISTINCT runners who actually have activity
+    // (the meaningful "active runners" number, not the athlete-status count).
     const { data: ath } = await supabase
       .from('athletes').select('id').eq('coach_id', COACH_ID);
     const ids = (ath || []).map((a: any) => a.id);
     if (ids.length) {
-      const { data: acts } = await supabase
-        .from('athlete_activities')
-        .select('distance')
-        .in('athlete_id', ids);
-      const rows = acts || [];
+      // Page through activities (there can be >1000 rows).
+      const rows: any[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data: page } = await supabase
+          .from('athlete_activities')
+          .select('distance, duration, athlete_id')
+          .in('athlete_id', ids)
+          .range(offset, offset + 999);
+        if (!page || page.length === 0) break;
+        rows.push(...page);
+        if (page.length < 1000) break;
+      }
       out.workouts = rows.length;
-      out.totalKm = Math.round(rows.reduce((s: number, r: any) => s + (Number(r.distance) || 0), 0) / 1000);
+      out.totalKm = Math.round(rows.reduce((s, r) => s + (Number(r.distance) || 0), 0) / 1000);
+      out.totalHours = Math.round(rows.reduce((s, r) => s + (Number(r.duration) || 0), 0) / 3600);
+      out.athletes = new Set(rows.map(r => r.athlete_id)).size;
     }
 
     // Top-3 approved 2000m (or the first available test).
