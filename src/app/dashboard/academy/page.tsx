@@ -3,10 +3,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   GraduationCap, Loader2, Watch, Plus, X, Search, UserMinus, Users, ClipboardCheck, CalendarPlus,
+  BarChart3, Trophy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AcademyCompliance } from '@/components/AcademyCompliance';
 import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
+import { AcademyStats } from '@/components/AcademyStats';
+import { AcademyResults } from '@/components/AcademyResults';
 
 interface Athlete {
   id: string;
@@ -40,7 +43,7 @@ export default function AcademyPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<'roster' | 'plans' | 'compliance'>('roster');
+  const [view, setView] = useState<'roster' | 'stats' | 'plans' | 'compliance' | 'results'>('roster');
 
   useEffect(() => {
     fetchAthletes();
@@ -125,37 +128,35 @@ export default function AcademyPage() {
       </div>
 
       {/* View toggle */}
-      <div className="flex items-center gap-1 mb-6 bg-slate-800/50 border border-slate-700/50 rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setView('roster')}
-          className={cn(
-            'flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
-            view === 'roster' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
-          )}
-        >
-          <Users className="h-4 w-4" /> Roster
-        </button>
-        <button
-          onClick={() => setView('plans')}
-          className={cn(
-            'flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
-            view === 'plans' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
-          )}
-        >
-          <CalendarPlus className="h-4 w-4" /> Plans
-        </button>
-        <button
-          onClick={() => setView('compliance')}
-          className={cn(
-            'flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
-            view === 'compliance' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
-          )}
-        >
-          <ClipboardCheck className="h-4 w-4" /> Compliance
-        </button>
+      <div className="flex items-center gap-1 mb-6 bg-slate-800/50 border border-slate-700/50 rounded-xl p-1 w-fit flex-wrap">
+        {([
+          { key: 'roster', label: 'Roster', icon: Users },
+          { key: 'stats', label: 'Stats', icon: BarChart3 },
+          { key: 'plans', label: 'Plans', icon: CalendarPlus },
+          { key: 'compliance', label: 'Compliance', icon: ClipboardCheck },
+          { key: 'results', label: 'Results', icon: Trophy },
+        ] as const).map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setView(tab.key)}
+              className={cn(
+                'flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
+                view === tab.key ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+              )}
+            >
+              <Icon className="h-4 w-4" /> {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {view === 'compliance' ? (
+      {view === 'stats' ? (
+        <AcademyStats />
+      ) : view === 'results' ? (
+        <AcademyResults />
+      ) : view === 'compliance' ? (
         <AcademyCompliance />
       ) : view === 'plans' ? (
         <AcademyPlanComposer

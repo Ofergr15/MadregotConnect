@@ -36,6 +36,25 @@ CRON_SECRET must be set for the weekly email.
 - Reuse note: `WorkoutEditorPanel` (src/components/WorkoutEditor.tsx) is the shared editor;
   only WeekView + AcademyPlanComposer use it. No new editor was written.
 
+## Stats + benchmark results (added after builder)
+Needs migration `021_benchmark_results.sql` run in Supabase (alongside 019, 020).
+
+- **Academy Stats tab** (`AcademyStats` + `/api/academy/stats`): team totals + per-athlete
+  workouts/km/time from real `athlete_activities`, week (Monday) + all-time toggle.
+  Reuses the leaderboard Map-accumulate aggregation. Empty until academy athletes sync runs.
+- **Benchmark results** (2000m time-trial etc.), name-based so it works for people not yet
+  registered; `athlete_id` auto-links on exact name match:
+  - `benchmark_results` table (migration 021); time helpers `src/lib/academy/benchmark.ts`
+    (parseTime/formatTime, unit-tested); `/api/academy/benchmarks` GET/POST/DELETE.
+  - **Academy Results tab** (`AcademyResults`): coach add/edit/delete results (the admin
+    entry surface). **Races tab** (`BenchmarkLeaderboard`): public podium top-3 + full board.
+    **Profile** (`ProfileBest`): the viewing athlete's result by athlete_id, name fallback.
+  - **Import**: `scripts/import-benchmarks.mjs` loads `scripts/data/benchmark-2000m.csv`
+    (42 rows exported from the shared Google Sheet, 2000m). Run AFTER migration 021:
+    `node scripts/import-benchmarks.mjs` (add `--replace` to reset a test first).
+    Only ~3 of 39 sheet names currently match registered athletes; the rest import unlinked
+    and auto-link later when those people register with matching names.
+
 ## Goal
 
 A dedicated **Academy** area to manage a separate class of "academy athletes" with a
