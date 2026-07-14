@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   GraduationCap, Loader2, Watch, Plus, X, Search, UserMinus, Users, ClipboardCheck, CalendarPlus,
-  BarChart3, Trophy, Settings as SettingsIcon,
+  BarChart3, Trophy, Settings as SettingsIcon, UserPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AcademyCompliance } from '@/components/AcademyCompliance';
@@ -11,6 +11,7 @@ import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
 import { AcademyStats } from '@/components/AcademyStats';
 import { AcademyResults } from '@/components/AcademyResults';
 import { AcademySettingsPanel } from '@/components/AcademySettings';
+import { AcademyRegistrations } from '@/components/AcademyRegistrations';
 
 interface Athlete {
   id: string;
@@ -44,7 +45,7 @@ export default function AcademyPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<'roster' | 'stats' | 'plans' | 'compliance' | 'results' | 'settings'>('roster');
+  const [view, setView] = useState<'roster' | 'registrations' | 'stats' | 'plans' | 'compliance' | 'results' | 'settings'>('roster');
 
   useEffect(() => {
     fetchAthletes();
@@ -132,6 +133,7 @@ export default function AcademyPage() {
       <div className="flex items-center gap-1 mb-6 bg-slate-800/50 border border-slate-700/50 rounded-xl p-1 w-fit flex-wrap">
         {([
           { key: 'roster', label: 'Roster', icon: Users },
+          { key: 'registrations', label: 'Registrations', icon: UserPlus },
           { key: 'stats', label: 'Stats', icon: BarChart3 },
           { key: 'plans', label: 'Plans', icon: CalendarPlus },
           { key: 'compliance', label: 'Compliance', icon: ClipboardCheck },
@@ -154,7 +156,9 @@ export default function AcademyPage() {
         })}
       </div>
 
-      {view === 'stats' ? (
+      {view === 'registrations' ? (
+        <AcademyRegistrations />
+      ) : view === 'stats' ? (
         <AcademyStats />
       ) : view === 'results' ? (
         <AcademyResults />
