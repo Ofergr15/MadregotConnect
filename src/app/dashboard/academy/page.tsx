@@ -3,13 +3,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   GraduationCap, Loader2, Watch, Plus, X, Search, UserMinus, Users, ClipboardCheck, CalendarPlus,
-  BarChart3, Trophy,
+  BarChart3, Trophy, Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AcademyCompliance } from '@/components/AcademyCompliance';
 import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
 import { AcademyStats } from '@/components/AcademyStats';
 import { AcademyResults } from '@/components/AcademyResults';
+import { AcademySettingsPanel } from '@/components/AcademySettings';
 
 interface Athlete {
   id: string;
@@ -43,7 +44,7 @@ export default function AcademyPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<'roster' | 'stats' | 'plans' | 'compliance' | 'results'>('roster');
+  const [view, setView] = useState<'roster' | 'stats' | 'plans' | 'compliance' | 'results' | 'settings'>('roster');
 
   useEffect(() => {
     fetchAthletes();
@@ -135,6 +136,7 @@ export default function AcademyPage() {
           { key: 'plans', label: 'Plans', icon: CalendarPlus },
           { key: 'compliance', label: 'Compliance', icon: ClipboardCheck },
           { key: 'results', label: 'Results', icon: Trophy },
+          { key: 'settings', label: 'Settings', icon: SettingsIcon },
         ] as const).map(tab => {
           const Icon = tab.icon;
           return (
@@ -156,6 +158,8 @@ export default function AcademyPage() {
         <AcademyStats />
       ) : view === 'results' ? (
         <AcademyResults />
+      ) : view === 'settings' ? (
+        <AcademySettingsPanel />
       ) : view === 'compliance' ? (
         <AcademyCompliance />
       ) : view === 'plans' ? (

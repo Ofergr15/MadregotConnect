@@ -13,14 +13,14 @@ export type PaceStatus = 'on_target' | 'faster' | 'slower' | 'unknown';
 
 export interface AdherenceTolerances {
   distance: number; // fraction, e.g. 0.15 = ±15%
-  duration: number;
-  pace: number;
+  duration: number; // fraction
+  paceSec: number;  // ± SECONDS per km, e.g. 5 → a 5:00 target is good from 4:55 to 5:05
 }
 
 export const DEFAULT_TOLERANCES: AdherenceTolerances = {
   distance: 0.15,
   duration: 0.15,
-  pace: 0.05,
+  paceSec: 5,
 };
 
 // What the athlete was supposed to do on a given day (derived from a ParsedWorkout).
@@ -205,10 +205,12 @@ function assessRange(actual: number | null, min: number, max: number, tol: numbe
   return 'on_target';
 }
 
-function assessPace(actual: number | null, min?: number, max?: number, tol = DEFAULT_TOLERANCES.pace): PaceStatus {
+// Pace tolerance is ± SECONDS per km around the planned band. e.g. a 5:00 target
+// with paceSec=5 is good from 4:55 (295s) to 5:05 (305s); 4:50 is too fast, 5:06 too slow.
+function assessPace(actual: number | null, min?: number, max?: number, paceSec = DEFAULT_TOLERANCES.paceSec): PaceStatus {
   if (actual == null || min == null || max == null) return 'unknown';
-  const lower = min * (1 - tol); // faster bound (smaller number)
-  const upper = max * (1 + tol); // slower bound
+  const lower = min - paceSec; // faster bound (smaller number)
+  const upper = max + paceSec; // slower bound
   if (actual < lower) return 'faster';
   if (actual > upper) return 'slower';
   return 'on_target';
@@ -224,7 +226,7 @@ export function assessWorkout(
   const distStatus = assessRange(actual?.distance ?? null, planned.distanceMin, planned.distanceMax, tol.distance);
   const actualDuration = actual ? (actual.movingDuration ?? actual.duration) : null;
   const durStatus = assessRange(actualDuration, planned.durationSec, planned.durationSec, tol.duration);
-  const paceStatus = assessPace(actual?.averagePace ?? null, planned.paceMin, planned.paceMax, tol.pace);
+  const paceStatus = assessPace(actual?.averagePace ?? null, planned.paceMin, planned.paceMax, tol.paceSec);
 
   // Score = fraction of computable metrics that landed on target. Missed = 0.
   let scored = 0;

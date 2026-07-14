@@ -4,6 +4,7 @@ import { convertToGarminWorkout } from '@/lib/garmin/converter';
 import { createServerClient } from '@/lib/supabase/server';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { PaceProfile } from '@/lib/garmin/types';
+import { loadAcademySettings } from '@/lib/academy/settings-server';
 
 interface PushResult {
   athleteId: string;
@@ -59,6 +60,9 @@ export async function POST(req: NextRequest) {
 
     const results: PushResult[] = [];
 
+    // Academy pace-zone alerts are on by default but coach-toggleable in settings.
+    const { paceAlerts } = await loadAcademySettings();
+
     for (const athlete of athletes) {
       try {
         if (!athlete.garmin_auth) {
@@ -76,7 +80,7 @@ export async function POST(req: NextRequest) {
         const isAcademy = !!(athlete as any).is_academy;
 
         for (const workout of workouts as ParsedWorkout[]) {
-          const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget: isAcademy });
+          const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget: isAcademy && paceAlerts });
 
           // Calculate the actual date for this workout
           const startDate = new Date(weekStartDate);

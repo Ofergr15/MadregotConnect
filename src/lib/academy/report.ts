@@ -9,6 +9,7 @@ import {
   PlannedWorkout,
   WeekAdherence,
 } from './adherence';
+import { loadAcademySettings } from './settings-server';
 
 export interface AthleteAdherence {
   athleteId: string;
@@ -60,6 +61,7 @@ export async function computeAcademyWeekAdherence(opts: {
   const weekStart = sundayOf(opts.weekStart);
   const weekEnd = addDaysStr(weekStart, 6);
   const supabase = createServerClient();
+  const { tolerances } = await loadAcademySettings();
 
   // 1) Academy athletes (or a single requested one).
   const athRes = await supabase
@@ -135,7 +137,7 @@ export async function computeAcademyWeekAdherence(opts: {
   const result: AthleteAdherence[] = athletes.map(a => ({
     athleteId: a.id,
     name: a.name,
-    week: assessWeek(plannedByAthlete.get(a.id) || [], actualByAthlete.get(a.id) || []),
+    week: assessWeek(plannedByAthlete.get(a.id) || [], actualByAthlete.get(a.id) || [], tolerances),
   }));
 
   return { weekStart, weekEnd, athletes: result };
