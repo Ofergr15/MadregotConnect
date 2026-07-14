@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // multiple, prefer the most complete one (has Garmin, else most recent).
     const { data: activeRows } = await supabase
       .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth, approved, created_at')
+      .select('id, name, email, group_id, status, garmin_auth, approved, role, created_at')
       .eq('email', lowerEmail)
       .eq('status', 'active')
       .order('created_at', { ascending: false });
@@ -51,7 +51,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ pendingApproval: true, missingGarmin: false });
       }
       const hasGarmin = !!athlete.garmin_auth;
-      return NextResponse.json({ role: 'runner', athlete: { ...athlete, garmin_auth: undefined, approved: undefined }, hasGarmin });
+      // Honor the athlete's actual role (coach / academy_coach / academy_user / …),
+      // not a hardcoded 'runner', so elevated roles resolve correctly on login.
+      return NextResponse.json({ role: athlete.role || 'runner', athlete: { ...athlete, garmin_auth: undefined, approved: undefined, role: undefined }, hasGarmin });
     }
 
     // Check invited athletes (need onboarding)

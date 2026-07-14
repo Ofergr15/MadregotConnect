@@ -9,7 +9,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
+  role: 'admin' | 'coach' | 'academy_coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
   groupId?: string;
   onboardingStatus?: string;
   approved?: boolean;
@@ -17,11 +17,12 @@ interface User {
   lastSeenAt?: string | null;
 }
 
-type Role = 'admin' | 'coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
+type Role = 'admin' | 'coach' | 'academy_coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
 
 const roleConfig = {
   admin: { label: 'Admin', bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30', dot: 'bg-purple-400' },
   coach: { label: 'Coach', bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30', dot: 'bg-blue-400' },
+  academy_coach: { label: 'Academy Coach', bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30', dot: 'bg-cyan-400' },
   runner: { label: 'Runner', bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30', dot: 'bg-green-400' },
   core_runner: { label: 'Core Runner', bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30', dot: 'bg-emerald-400' },
   academy_user: { label: 'Academy', bg: 'bg-primary-500/15', text: 'text-primary-400', border: 'border-primary-500/30', dot: 'bg-primary-400' },
@@ -78,7 +79,7 @@ function RoleDropdown({ value, onChange, disabled, t }: { value: Role; onChange:
           'absolute right-0 z-50 bg-slate-800 border border-slate-600 rounded-xl shadow-xl overflow-hidden min-w-[150px]',
           openUp ? 'bottom-full mb-1' : 'top-full mt-1'
         )}>
-          {(['admin', 'coach', 'runner', 'core_runner', 'viewer'] as Role[]).map(role => {
+          {allRoles.map(role => {
             const rc = roleConfig[role];
             const isSelected = role === value;
             return (
@@ -198,7 +199,7 @@ const allMobileTabs = [
   { key: 'settings', label: 'Settings' },
 ];
 
-const allRoles: Role[] = ['admin', 'coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
+const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
 type SettingsTab = 'users' | 'tabs' | 'feedback';
 
