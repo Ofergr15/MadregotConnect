@@ -55,6 +55,11 @@ export function activityLocalDay(startTime: string): number {
   return new Date(startTime).getUTCDay();
 }
 
+/** Athlete-local calendar day (YYYY-MM-DD) of an activity, by its UTC parts. */
+export function activityLocalDateStr(startTime: string): string {
+  return new Date(startTime).toISOString().split('T')[0];
+}
+
 export type GroupLevel = 'fast' | 'medium' | 'slow';
 
 const groupColorMap = {
