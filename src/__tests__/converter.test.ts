@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { convertToGarminWorkout } from '../lib/garmin/converter';
-import { getDefaultPaceProfile } from '../lib/garmin/pace';
+import { convertToGarminWorkout, ConvertOptions } from '../lib/garmin/converter';
+import { getDefaultPaceProfile, paceToMetersPerSecond } from '../lib/garmin/pace';
 import { ParsedWorkout, WorkoutStep } from '../lib/ai/types';
 
 const paceProfile = getDefaultPaceProfile();
 
 // Wrap a single step in a ParsedWorkout and return the first converted Garmin step.
-function convertSingle(step: Partial<WorkoutStep>) {
+function convertSingle(step: Partial<WorkoutStep>, opts?: ConvertOptions) {
   const full: WorkoutStep = {
     order: 1,
     type: 'interval',
@@ -20,7 +20,7 @@ function convertSingle(step: Partial<WorkoutStep>) {
     dayOfWeek: 0,
     steps: [full],
   } as unknown as ParsedWorkout;
-  return convertToGarminWorkout(workout, paceProfile).workoutSegments[0].workoutSteps[0];
+  return convertToGarminWorkout(workout, paceProfile, opts).workoutSegments[0].workoutSteps[0];
 }
 
 describe('convertToGarminWorkout — pace as info, not an alerting target', () => {
@@ -91,5 +91,71 @@ describe('convertToGarminWorkout — pace as info, not an alerting target', () =
     expect(s.targetType.workoutTargetTypeKey).toBe('no.target');
     expect(s.targetValueOne).toBeUndefined();
     expect(s.description).toBe('הליכה');
+  });
+});
+
+describe('convertToGarminWorkout — academy pace-zone target (paceTarget:true)', () => {
+  it('emits a pace-zone target with a single bound for a single pace', () => {
+    const s = convertSingle(
+      { targetType: 'pace', targetPaceMinPerKm: 200, notes: '3:20' },
+      { paceTarget: true }
+    );
+    expect(s.targetType.workoutTargetTypeId).toBe(6);
+    expect(s.targetType.workoutTargetTypeKey).toBe('pace.zone');
+    expect(s.targetValueOne).toBeCloseTo(paceToMetersPerSecond(200));
+    expect(s.targetValueTwo).toBeUndefined(); // single pace → no slow bound
+    // Pace still shown as text alongside the enforced target
+    expect(s.description).toBe('3:20');
+  });
+
+  it('emits both bounds for a genuine pace range', () => {
+    const s = convertSingle(
+      { targetType: 'pace', targetPaceMinPerKm: 195, targetPaceMaxPerKm: 200 },
+      { paceTarget: true }
+    );
+    expect(s.targetType.workoutTargetTypeKey).toBe('pace.zone');
+    expect(s.targetValueOne).toBeCloseTo(paceToMetersPerSecond(195));
+    expect(s.targetValueTwo).toBeCloseTo(paceToMetersPerSecond(200));
+  });
+
+  it('derives the pace-zone bounds from the zone when no numeric pace is set', () => {
+    const s = convertSingle(
+      { targetType: 'pace', targetPaceMinPerKm: undefined, targetZone: 'easy' },
+      { paceTarget: true }
+    );
+    // default profile easy = 330-390
+    expect(s.targetType.workoutTargetTypeKey).toBe('pace.zone');
+    expect(s.targetValueOne).toBeCloseTo(paceToMetersPerSecond(330));
+    expect(s.targetValueTwo).toBeCloseTo(paceToMetersPerSecond(390));
+  });
+
+  it('does not add a target to non-pace steps even with paceTarget:true', () => {
+    const s = convertSingle(
+      { type: 'rest', targetType: 'no_target', targetPaceMinPerKm: undefined, notes: 'הליכה' },
+      { paceTarget: true }
+    );
+    expect(s.targetType.workoutTargetTypeKey).toBe('no.target');
+    expect(s.targetValueOne).toBeUndefined();
+  });
+
+  it('applies the pace-zone target to steps inside a repeat group', () => {
+    const s = convertSingle(
+      {
+        type: 'interval',
+        targetType: 'no_target',
+        targetPaceMinPerKm: undefined,
+        durationType: 'open',
+        repeatCount: 4,
+        repeatSteps: [
+          { order: 1, type: 'interval', durationType: 'distance', durationValue: 400, targetType: 'pace', targetPaceMinPerKm: 200, notes: '3:20' } as WorkoutStep,
+          { order: 2, type: 'recovery', durationType: 'time', durationValue: 60, targetType: 'no_target', notes: 'הליכה' } as WorkoutStep,
+        ],
+      },
+      { paceTarget: true }
+    );
+    expect(s.type).toBe('RepeatGroupDTO');
+    const child = s.workoutSteps![0];
+    expect(child.targetType.workoutTargetTypeKey).toBe('pace.zone');
+    expect(child.targetValueOne).toBeCloseTo(paceToMetersPerSecond(200));
   });
 });

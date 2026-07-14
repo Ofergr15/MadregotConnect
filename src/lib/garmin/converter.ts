@@ -1,6 +1,15 @@
 import { ParsedWorkout, WorkoutStep } from '../ai/types';
 import { GarminWorkout, GarminWorkoutStep, PaceProfile } from './types';
-import { formatPace, getPaceForZone } from './pace';
+import { formatPace, getPaceForZone, paceToMetersPerSecond } from './pace';
+
+export interface ConvertOptions {
+  // When true, pace steps also get a Garmin pace-zone TARGET (workoutTargetTypeId 6),
+  // which makes the watch beep/vibrate when the runner drifts out of range. This is
+  // the higher-touch "academy" model. When false/omitted, pace is info-only (the
+  // pace shows as on-screen text via the description, with no alert) — the default
+  // for regular club athletes.
+  paceTarget?: boolean;
+}
 
 const STEP_TYPE_MAP: Record<string, { stepTypeId: number; stepTypeKey: string }> = {
   warmup: { stepTypeId: 1, stepTypeKey: 'warmup' },
@@ -20,7 +29,8 @@ const END_CONDITION_MAP: Record<string, { conditionTypeId: number; conditionType
 function convertStep(
   step: WorkoutStep,
   paceProfile: PaceProfile,
-  stepOrder: number
+  stepOrder: number,
+  opts: ConvertOptions = {}
 ): GarminWorkoutStep {
   if (step.repeatCount && step.repeatSteps) {
     return {
@@ -31,7 +41,7 @@ function convertStep(
       numberOfIterations: step.repeatCount,
       targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
       workoutSteps: step.repeatSteps.map((s, i) =>
-        convertStep(s, paceProfile, i + 1)
+        convertStep(s, paceProfile, i + 1, opts)
       ),
     };
   }
@@ -56,13 +66,33 @@ function convertStep(
   // "voice reminder to take a gel / drink water" feature: those cues already
   // live in the notes, so a step-transition audio cue can be built on top.
   //
-  // We intentionally DO NOT set a Garmin pace-zone target: a pace zone makes the
-  // watch beep/vibrate whenever the runner drifts out of range, and Garmin has no
-  // "target pace without alert". Instead we surface the target pace as info only,
-  // via this description text. The step keeps the default 'no.target' set above.
+  // By default we do NOT set a Garmin pace-zone target: a pace zone makes the watch
+  // beep/vibrate whenever the runner drifts out of range, and Garmin has no "target
+  // pace without alert". Instead we surface the target pace as info only, via this
+  // description text (the step keeps the default 'no.target' set above).
   const description = buildStepDescription(step, paceProfile);
   if (description) {
     garminStep.description = description;
+  }
+
+  // Academy model (opts.paceTarget): additionally attach a real pace-zone target so
+  // the watch actively alerts when off-pace. targetValueOne = faster pace (higher
+  // m/s), targetValueTwo = slower pace. We keep the description too, so the pace is
+  // both enforced and shown.
+  if (opts.paceTarget && step.targetType === 'pace') {
+    if (step.targetPaceMinPerKm) {
+      const hasRange = !!step.targetPaceMaxPerKm && step.targetPaceMaxPerKm !== step.targetPaceMinPerKm;
+      garminStep.targetType = { workoutTargetTypeId: 6, workoutTargetTypeKey: 'pace.zone' };
+      garminStep.targetValueOne = paceToMetersPerSecond(step.targetPaceMinPerKm);
+      if (hasRange) {
+        garminStep.targetValueTwo = paceToMetersPerSecond(step.targetPaceMaxPerKm!);
+      }
+    } else if (step.targetZone) {
+      const paceRange = getPaceForZone(step.targetZone, paceProfile);
+      garminStep.targetType = { workoutTargetTypeId: 6, workoutTargetTypeKey: 'pace.zone' };
+      garminStep.targetValueOne = paceToMetersPerSecond(paceRange.min);
+      garminStep.targetValueTwo = paceToMetersPerSecond(paceRange.max);
+    }
   }
 
   return garminStep;
@@ -110,12 +140,13 @@ function buildStepDescription(
 
 export function convertToGarminWorkout(
   workout: ParsedWorkout,
-  paceProfile: PaceProfile
+  paceProfile: PaceProfile,
+  opts: ConvertOptions = {}
 ): GarminWorkout {
   let stepOrder = 0;
   const workoutSteps: GarminWorkoutStep[] = workout.steps.map((step) => {
     stepOrder++;
-    return convertStep(step, paceProfile, stepOrder);
+    return convertStep(step, paceProfile, stepOrder, opts);
   });
 
   return {

@@ -25,12 +25,30 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServerClient();
 
-    // Fetch athletes with their auth tokens and group pace profiles
-    const { data: athletes, error: athletesError } = await supabase
+    // Fetch athletes with their auth tokens and group pace profiles. Academy
+    // athletes (is_academy) get pace-zone TARGETS (alerting); everyone else gets
+    // info-only pace text. The is_academy column may not exist yet on older DBs,
+    // so fall back to a select without it rather than failing the whole push.
+    let athletes: any[] | null = null;
+    let athletesError: any = null;
+
+    const primary = await supabase
       .from('athletes')
-      .select('id, name, email, garmin_auth, group_id, groups(pace_profile)')
+      .select('id, name, email, garmin_auth, is_academy, group_id, groups(pace_profile)')
       .in('id', athleteIds)
       .eq('status', 'active');
+
+    if (primary.error) {
+      const fallback = await supabase
+        .from('athletes')
+        .select('id, name, email, garmin_auth, group_id, groups(pace_profile)')
+        .in('id', athleteIds)
+        .eq('status', 'active');
+      athletes = fallback.data;
+      athletesError = fallback.error;
+    } else {
+      athletes = primary.data;
+    }
 
     if (athletesError || !athletes) {
       return NextResponse.json(
@@ -55,9 +73,10 @@ export async function POST(req: NextRequest) {
 
         const garmin = new GarminClient(athlete.garmin_auth as any);
         const paceProfile = ((athlete as any).groups?.pace_profile || {}) as PaceProfile;
+        const isAcademy = !!(athlete as any).is_academy;
 
         for (const workout of workouts as ParsedWorkout[]) {
-          const garminWorkout = convertToGarminWorkout(workout, paceProfile);
+          const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget: isAcademy });
 
           // Calculate the actual date for this workout
           const startDate = new Date(weekStartDate);
