@@ -14,7 +14,8 @@ type Field =
   | { key: string; label: string; type: 'checkboxes'; required?: boolean; options: string[] };
 
 const FIELDS: Field[] = [
-  { key: 'name', label: 'שם ושם משפחה', type: 'text', required: true },
+  { key: 'firstName', label: 'שם פרטי', type: 'text', required: true },
+  { key: 'lastName', label: 'שם משפחה', type: 'text', required: true },
   { key: 'email', label: 'אימייל', type: 'email', required: true },
   { key: 'phone', label: 'מספר נייד', type: 'tel', required: true, placeholder: '050-0000000' },
   { key: 'focus', label: 'מה מדבר אליך יותר', type: 'radio', required: true, options: [
@@ -79,7 +80,11 @@ export default function AcademyRegisterPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const { name, email, phone, ...intake } = values;
+      const { firstName, lastName, email, phone, ...rest } = values;
+      // The DB `name` column (used across roster/leaderboard/emails) expects a full
+      // name; keep first/last separately in the intake too.
+      const name = `${(firstName || '').trim()} ${(lastName || '').trim()}`.trim();
+      const intake = { firstName: firstName?.trim(), lastName: lastName?.trim(), ...rest };
       const res = await fetch('/api/academy/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, phone, intake }),

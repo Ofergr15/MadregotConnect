@@ -207,7 +207,7 @@ function assessRange(actual: number | null, min: number, max: number, tol: numbe
 
 // Pace tolerance is ± SECONDS per km around the planned band. e.g. a 5:00 target
 // with paceSec=5 is good from 4:55 (295s) to 5:05 (305s); 4:50 is too fast, 5:06 too slow.
-function assessPace(actual: number | null, min?: number, max?: number, paceSec = DEFAULT_TOLERANCES.paceSec): PaceStatus {
+export function assessPace(actual: number | null, min?: number, max?: number, paceSec = DEFAULT_TOLERANCES.paceSec): PaceStatus {
   if (actual == null || min == null || max == null) return 'unknown';
   const lower = min - paceSec; // faster bound (smaller number)
   const upper = max + paceSec; // slower bound

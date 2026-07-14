@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus, ListChecks } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
 
@@ -212,28 +212,31 @@ export function AcademyCompliance() {
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-white text-sm truncate">{wk.name}</div>
                               {wk.completed ? (
-                                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                                  <Metric
-                                    label="Distance"
-                                    plan={`${km(wk.distance.plannedMin)}${wk.distance.plannedMax !== wk.distance.plannedMin ? `–${km(wk.distance.plannedMax)}` : ''}`}
-                                    actual={km(wk.distance.actual)}
-                                    status={wk.distance.status}
-                                  />
-                                  <Metric
-                                    label="Time"
-                                    plan={mins(wk.duration.planned)}
-                                    actual={mins(wk.duration.actual)}
-                                    status={wk.duration.status}
-                                  />
-                                  <Metric
-                                    label="Pace"
-                                    plan={wk.pace.plannedMin != null
-                                      ? `${formatPace(wk.pace.plannedMin)}${wk.pace.plannedMax && wk.pace.plannedMax !== wk.pace.plannedMin ? `–${formatPace(wk.pace.plannedMax)}` : ''}/km`
-                                      : '—'}
-                                    actual={wk.pace.actual != null ? `${formatPace(wk.pace.actual)}/km` : '—'}
-                                    status={wk.pace.status}
-                                  />
-                                </div>
+                                <>
+                                  <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                                    <Metric
+                                      label="Distance"
+                                      plan={`${km(wk.distance.plannedMin)}${wk.distance.plannedMax !== wk.distance.plannedMin ? `–${km(wk.distance.plannedMax)}` : ''}`}
+                                      actual={km(wk.distance.actual)}
+                                      status={wk.distance.status}
+                                    />
+                                    <Metric
+                                      label="Time"
+                                      plan={mins(wk.duration.planned)}
+                                      actual={mins(wk.duration.actual)}
+                                      status={wk.duration.status}
+                                    />
+                                    <Metric
+                                      label="Pace"
+                                      plan={wk.pace.plannedMin != null
+                                        ? `${formatPace(wk.pace.plannedMin)}${wk.pace.plannedMax && wk.pace.plannedMax !== wk.pace.plannedMin ? `–${formatPace(wk.pace.plannedMax)}` : ''}/km`
+                                        : '—'}
+                                      actual={wk.pace.actual != null ? `${formatPace(wk.pace.actual)}/km` : '—'}
+                                      status={wk.pace.status}
+                                    />
+                                  </div>
+                                  <SegmentsPanel athleteId={a.athleteId} date={wk.date} />
+                                </>
                               ) : (
                                 <div className="mt-1 text-xs text-slate-500 flex items-center gap-1">
                                   <Minus className="h-3 w-3" /> Not completed
@@ -262,6 +265,78 @@ function Metric({ label, plan, actual, status }: { label: string; plan: string; 
       <span className="text-slate-300">{actual}</span>
       <span className="text-slate-600">/ {plan}</span>
       <span className={cn('font-medium', metricStyle[status])}>{metricLabel[status]}</span>
+    </div>
+  );
+}
+
+interface SegmentVerdict {
+  index: number; type: string; label: string;
+  plannedPaceMin: number | null; plannedPaceMax: number | null;
+  actualPace: number | null; status: PaceStatus; graded: boolean;
+}
+
+// Per-segment planned-vs-actual verdicts (lazy — fetched when opened). Reliable only
+// when the athlete ran the pushed structured workout on-watch (per-step laps).
+function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [segments, setSegments] = useState<SegmentVerdict[] | null>(null);
+  const [reason, setReason] = useState<string | null>(null);
+
+  const load = async () => {
+    if (segments || loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/academy/segments?athleteId=${athleteId}&date=${date}`);
+      const data = await res.json();
+      setSegments(data.segments || []);
+      if (!data.aligned) setReason(data.reason || 'per-segment data unavailable');
+    } catch {
+      setReason('failed to load segments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggle = () => { const next = !open; setOpen(next); if (next) load(); };
+  const graded = (segments || []).filter(s => s.graded);
+
+  return (
+    <div className="mt-2">
+      <button onClick={toggle} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-white">
+        <ListChecks className="h-3.5 w-3.5" /> {open ? 'Hide segments' : 'Per-segment breakdown'}
+      </button>
+      {open && (
+        <div className="mt-2">
+          {loading ? (
+            <div className="flex items-center gap-2 text-xs text-slate-500 py-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading segments…</div>
+          ) : graded.length === 0 ? (
+            <p className="text-[11px] text-slate-500 py-1">{reason || 'No graded segments.'}</p>
+          ) : (
+            <div className="space-y-1">
+              {segments!.map((s, i) => (
+                <div key={i} className={cn('flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs',
+                  s.graded ? 'bg-slate-900/50' : 'bg-slate-900/20')}>
+                  <span className="text-slate-400 flex-1 min-w-0 truncate">{s.label}</span>
+                  {s.graded ? (
+                    <>
+                      <span className="text-slate-500">
+                        {s.plannedPaceMin != null
+                          ? `${formatPace(s.plannedPaceMin)}${s.plannedPaceMax && s.plannedPaceMax !== s.plannedPaceMin ? `–${formatPace(s.plannedPaceMax)}` : ''}`
+                          : '—'}
+                      </span>
+                      <span className="text-slate-300 tabular-nums">{s.actualPace != null ? formatPace(s.actualPace) : '—'}</span>
+                      <span className={cn('font-semibold w-14 text-end', metricStyle[s.status])}>{metricLabel[s.status]}</span>
+                    </>
+                  ) : (
+                    <span className="text-slate-600 w-14 text-end">—</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
