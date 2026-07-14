@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { notifyUserApproved, notifyAdminUserApproved } from '@/lib/email';
+import { randomBytes } from 'crypto';
+import { notifyUserApproved, notifyAdminUserApproved, notifyAcademyApproved } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,13 +14,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'athleteId is required' }, { status: 400 });
     }
 
-    const { data: athlete, error: findError } = await supabase
+    // Select is_academy/garmin_auth too (guarded — may be older schema).
+    let athlete: any = null;
+    const primary = await supabase
       .from('athletes')
-      .select('id, name, email, approved')
+      .select('id, name, email, approved, is_academy, garmin_auth, invite_token')
       .eq('id', athleteId)
       .single();
+    if (primary.error) {
+      const fb = await supabase.from('athletes').select('id, name, email, approved').eq('id', athleteId).single();
+      athlete = fb.data;
+    } else {
+      athlete = primary.data;
+    }
 
-    if (findError || !athlete) {
+    if (!athlete) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -27,20 +36,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Already approved' });
     }
 
+    const updates: Record<string, any> = {
+      approved: true,
+      approved_at: new Date().toISOString(),
+      approved_by: approverEmail || null,
+      status: 'active',
+    };
+
+    // Academy applicants who haven't connected Garmin yet get a fresh onboarding
+    // token so the approval email can link them straight to the Garmin step.
+    const isAcademyPending = athlete.is_academy && !athlete.garmin_auth;
+    const token = athlete.invite_token || randomBytes(16).toString('hex');
+    if (isAcademyPending) updates.invite_token = token;
+
     const { error: updateError } = await supabase
       .from('athletes')
-      .update({
-        approved: true,
-        approved_at: new Date().toISOString(),
-        approved_by: approverEmail || null,
-        status: 'active',
-      })
+      .update(updates)
       .eq('id', athleteId);
 
     if (updateError) throw updateError;
 
     try {
-      await notifyUserApproved({ name: athlete.name, email: athlete.email });
+      if (isAcademyPending) {
+        await notifyAcademyApproved({ name: athlete.name, email: athlete.email, token });
+      } else {
+        await notifyUserApproved({ name: athlete.name, email: athlete.email });
+      }
       if (approverEmail) {
         await notifyAdminUserApproved({ email: approverEmail }, { name: athlete.name, email: athlete.email });
       }

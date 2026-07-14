@@ -81,6 +81,58 @@ export async function notifyAdminUserApproved(admin: { email: string }, user: { 
   });
 }
 
+const APP_URL = 'https://madregot-connect.vercel.app';
+
+// New academy self-registration → notify the coach/admin to review.
+export async function notifyAdminNewAcademyRegistration(user: { name: string; email: string; phone?: string }) {
+  await getTransporter().sendMail({
+    from: `Madregot <${GMAIL_USER}>`,
+    to: ADMIN_EMAIL,
+    subject: `🎓 New academy registration: ${user.name}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 500px;">
+        <h2 style="color: #1e293b;">New Academy Registration</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="padding: 8px 0; color: #64748b;">Name</td><td style="padding: 8px 0; font-weight: 600;">${user.name}</td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">Email</td><td style="padding: 8px 0;">${user.email}</td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">Phone</td><td style="padding: 8px 0;">${user.phone || '—'}</td></tr>
+        </table>
+        <p style="margin-top: 20px;">
+          <a href="${APP_URL}/dashboard/settings" style="background: #4338ff; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            Review &amp; Approve →
+          </a>
+        </p>
+      </div>
+    `,
+  });
+}
+
+// Academy applicant approved → send them the Garmin-onboarding link (different
+// entry than normal users, who just go to /dashboard).
+export async function notifyAcademyApproved(user: { name: string; email: string; token: string }) {
+  const link = `${APP_URL}/join/academy/${user.token}`;
+  await getTransporter().sendMail({
+    from: `Madregot <${GMAIL_USER}>`,
+    to: user.email,
+    subject: `✅ You're in the Madregot Academy — connect your watch`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 500px;">
+        <h2 style="color: #1e293b;">Welcome to the Academy, ${user.name}! 🎉</h2>
+        <p style="color: #475569; line-height: 1.6;">
+          Your registration was approved. One last step: connect your Garmin watch so
+          your coach can send you workouts and track your progress.
+        </p>
+        <p style="margin-top: 20px;">
+          <a href="${link}" style="background: #4338ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            Connect Garmin →
+          </a>
+        </p>
+        <p style="color: #94a3b8; font-size: 12px; margin-top: 30px;">Madregot After 2KM Running Club</p>
+      </div>
+    `,
+  });
+}
+
 // ── Academy weekly report ────────────────────────────────────────────────────
 
 export interface AcademyReportRow {
