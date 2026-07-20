@@ -46,11 +46,19 @@ export async function GET() {
     const weekStart = getActivityWeekStart(new Date());
 
     // All activities for these athletes (non-runs are filtered at ingest, so every
-    // row is a run). distance = meters, duration = seconds.
-    const { data: acts } = await supabase
-      .from('athlete_activities')
-      .select('athlete_id, distance, duration, start_time')
-      .in('athlete_id', athleteIds);
+    // row is a run). distance = meters, duration = seconds. Page through — PostgREST
+    // caps at 1000 rows, so all-time totals would silently undercount otherwise.
+    const acts: any[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data: page } = await supabase
+        .from('athlete_activities')
+        .select('athlete_id, distance, duration, start_time')
+        .in('athlete_id', athleteIds)
+        .range(offset, offset + 999);
+      if (!page || page.length === 0) break;
+      acts.push(...page);
+      if (page.length < 1000) break;
+    }
 
     type Acc = { km: number; runs: number; dur: number };
     const zero = (): Acc => ({ km: 0, runs: 0, dur: 0 });

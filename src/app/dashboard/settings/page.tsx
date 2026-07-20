@@ -54,7 +54,10 @@ function RoleDropdown({ value, onChange, disabled, t }: { value: Role; onChange:
 
   const config = roleConfig[value];
   const getRoleLabel = (role: Role) => {
+    // roles without a settings-namespace i18n key (academy_coach/academy_user)
+    // fall back to the roleConfig label instead of showing the raw key.
     if (role === 'core_runner') return t('coreRunner');
+    if (role === 'academy_coach' || role === 'academy_user') return roleConfig[role].label;
     return t(role);
   };
 
@@ -809,13 +812,20 @@ export default function SettingsPage() {
       {/* User Manager Tab */}
       {activeTab === 'users' && (
         <div className="space-y-4">
-          {/* Pending Approval Section */}
-          {pendingUsers.length > 0 && (
+          {/* Pending Approval Section (collapsible) */}
+          {pendingUsers.length > 0 && (() => {
+            const pendOpen = !collapsedSections.has('pending');
+            return (
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-              <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={() => toggleSection('pending')}
+                className="w-full flex items-center gap-2 mb-3"
+              >
+                {pendOpen ? <ChevronDown className="w-4 h-4 text-amber-400" /> : <ChevronRight className="w-4 h-4 text-amber-400" />}
                 <Clock className="w-4 h-4 text-amber-400" />
                 <h3 className="text-sm font-semibold text-amber-400">{t('pendingApproval')} ({pendingUsers.length})</h3>
-              </div>
+              </button>
+              {pendOpen && (
               <div className="space-y-2">
                 {pendingUsers.map(user => {
                   const onboarding = getOnboardingStep(user.onboardingStatus, user.approved);
@@ -866,8 +876,10 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Active Users — collapsible section per role, split by group inside */}
           <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 overflow-hidden">
