@@ -27,6 +27,7 @@ import {
   ChevronUp,
   ChevronDown,
   Plus,
+  Watch,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
@@ -480,8 +481,11 @@ export default function WeeklyPlannerPage() {
         targetAthletes = activeAthletes.filter((a) => selectedAthleteIds.includes(a.id));
       }
 
+      // Only athletes with Garmin connected can receive a workout push.
+      targetAthletes = targetAthletes.filter((a) => a.hasGarmin);
+
       if (targetAthletes.length === 0) {
-        throw new Error('No athletes selected');
+        throw new Error('No athletes with Garmin connected selected');
       }
 
       const sortedGroups = [...groups].sort((a, b) => {
@@ -1348,26 +1352,35 @@ export default function WeeklyPlannerPage() {
                                 const isSelected = selectedAthleteIds.includes(athlete.id);
                                 const athleteGroupIdx = groups.findIndex((g) => g.id === athlete.group_id);
                                 const athleteGroup = athleteGroupIdx >= 0 ? groups[athleteGroupIdx] : undefined;
+                                // Can't push a workout to an athlete with no Garmin connected.
+                                const canPush = !!athlete.hasGarmin;
                                 return (
                                   <label
                                     key={athlete.id}
                                     className={cn(
-                                      'flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors',
-                                      isSelected ? 'bg-primary-500/10' : 'hover:bg-slate-800'
+                                      'flex items-center gap-3 p-2.5 rounded-lg transition-colors',
+                                      !canPush ? 'opacity-50 cursor-not-allowed' :
+                                        isSelected ? 'bg-primary-500/10 cursor-pointer' : 'hover:bg-slate-800 cursor-pointer'
                                     )}
+                                    title={canPush ? '' : 'No Garmin connected — cannot push'}
                                   >
                                     <input
                                       type="checkbox"
                                       checked={isSelected}
+                                      disabled={!canPush}
                                       onChange={() => {
+                                        if (!canPush) return;
                                         setSelectedAthleteIds((prev) =>
                                           isSelected ? prev.filter((id) => id !== athlete.id) : [...prev, athlete.id]
                                         );
                                       }}
-                                      className="rounded border-slate-600 text-primary-500 focus:ring-primary-500"
+                                      className="rounded border-slate-600 text-primary-500 focus:ring-primary-500 disabled:opacity-50"
                                     />
+                                    {/* Garmin status — green when connected, muted/red when not */}
+                                    <Watch className={cn('h-4 w-4 shrink-0', canPush ? 'text-emerald-400' : 'text-red-400/60')} />
                                     <div className="flex-1 min-w-0">
                                       <span className="text-sm">{athlete.name}</span>
+                                      {!canPush && <span className="ms-2 text-[10px] text-red-400/70">no Garmin</span>}
                                     </div>
                                     {athleteGroup && (
                                       <span className={cn(
