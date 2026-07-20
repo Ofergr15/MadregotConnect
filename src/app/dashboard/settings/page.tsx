@@ -296,6 +296,10 @@ export default function SettingsPage() {
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
   const [groupsById, setGroupsById] = useState<Record<string, string>>({});
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [uSearch, setUSearch] = useState('');
+  const [uRole, setURole] = useState<'all' | Role>('all');
+  const [uGroup, setUGroup] = useState<'all' | '0' | '1' | '2' | 'none'>('all');
+  const [uGarmin, setUGarmin] = useState<'all' | 'with' | 'without'>('all');
 
   useEffect(() => {
     fetchUsers();
@@ -693,7 +697,25 @@ export default function SettingsPage() {
   }
 
   const pendingUsers = users.filter(u => u.approved === false);
-  const activeUsers = users.filter(u => u.approved !== false);
+  const allActiveUsers = users.filter(u => u.approved !== false);
+  // Apply the User Manager filter bar (name / role / group / garmin).
+  const activeUsers = allActiveUsers.filter(u => {
+    if (uSearch.trim()) {
+      const q = uSearch.trim().toLowerCase();
+      if (!(`${u.name} ${u.email}`.toLowerCase().includes(q))) return false;
+    }
+    if (uRole !== 'all' && u.role !== uRole) return false;
+    if (uGroup !== 'all') {
+      const idx = u.groupId ? resolveGroup(groupsById[u.groupId]).index : -1;
+      if (uGroup === 'none' ? idx >= 0 : idx !== Number(uGroup)) return false;
+    }
+    if (uGarmin !== 'all') {
+      const hasGarmin = u.onboardingStatus === 'garmin_authed';
+      if (uGarmin === 'with' ? !hasGarmin : hasGarmin) return false;
+    }
+    return true;
+  });
+  const uFiltersActive = uSearch.trim() !== '' || uRole !== 'all' || uGroup !== 'all' || uGarmin !== 'all';
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -851,13 +873,55 @@ export default function SettingsPage() {
           <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-700/50 flex items-center gap-2">
               <Users className="w-4 h-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-white">{t('members')} ({activeUsers.length})</h2>
+              <h2 className="text-sm font-semibold text-white">
+                {t('members')} ({uFiltersActive ? `${activeUsers.length} of ${allActiveUsers.length}` : activeUsers.length})
+              </h2>
+            </div>
+
+            {/* Filter bar: name / role / group / garmin */}
+            <div className="px-4 py-3 border-b border-slate-700/50 flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[160px]">
+                <Filter className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                <input
+                  value={uSearch}
+                  onChange={e => setUSearch(e.target.value)}
+                  placeholder="Search name or email…"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg ps-9 pe-3 h-9 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
+                />
+              </div>
+              <select value={uRole} onChange={e => setURole(e.target.value as any)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white">
+                <option value="all">All roles</option>
+                {allRoles.map(r => <option key={r} value={r}>{roleConfig[r]?.label || r}</option>)}
+              </select>
+              <select value={uGroup} onChange={e => setUGroup(e.target.value as any)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white">
+                <option value="all">All groups</option>
+                <option value="0">Group 1</option>
+                <option value="1">Group 2</option>
+                <option value="2">Group 3</option>
+                <option value="none">No group</option>
+              </select>
+              <select value={uGarmin} onChange={e => setUGarmin(e.target.value as any)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white">
+                <option value="all">Any Garmin</option>
+                <option value="with">With Garmin</option>
+                <option value="without">Without Garmin</option>
+              </select>
+              {uFiltersActive && (
+                <button
+                  onClick={() => { setUSearch(''); setURole('all'); setUGroup('all'); setUGarmin('all'); }}
+                  className="flex items-center gap-1 px-2.5 h-9 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 text-xs font-semibold"
+                >
+                  <X className="h-3.5 w-3.5" /> Clear
+                </button>
+              )}
             </div>
 
             {activeUsers.length === 0 ? (
               <div className="px-6 py-12 text-center">
                 <Users className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 text-sm">No active users</p>
+                <p className="text-slate-400 text-sm">{uFiltersActive ? 'No users match the filters' : 'No active users'}</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-700/40">
@@ -867,7 +931,7 @@ export default function SettingsPage() {
                   .map(({ role, members }) => {
                     const rc = roleConfig[role];
                     const roleKey = `role:${role}`;
-                    const roleOpen = !collapsedSections.has(roleKey);
+                    const roleOpen = uFiltersActive || !collapsedSections.has(roleKey);
                     // Does this role have members assigned to real groups? If so, split.
                     const hasGroups = members.some(u => u.groupId && resolveGroup(groupsById[u.groupId]).index >= 0);
                     // Buckets 0,1,2 = Group 1/2/3, 99 = No group. Ordered.
@@ -898,7 +962,7 @@ export default function SettingsPage() {
                             {hasGroups ? (
                               buckets.map(b => {
                                 const gKey = `${roleKey}:g${b.key}`;
-                                const gOpen = !collapsedSections.has(gKey);
+                                const gOpen = uFiltersActive || !collapsedSections.has(gKey);
                                 return (
                                   <div key={b.key} className="rounded-xl bg-slate-900/30">
                                     <button
