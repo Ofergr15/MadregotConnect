@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { groupDisplayName } from '@/lib/utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -42,13 +43,7 @@ export async function GET(req: NextRequest) {
 
       const marathonGoal = paceProfile?.marathonGoal || '';
 
-      const displayName = (() => {
-        const n = (group.name || '').toLowerCase();
-        if (n.includes('group a') || n.includes('sub 2:30')) return 'Group 1';
-        if (n.includes('group b') || n.includes('sub 2:35')) return 'Group 2';
-        if (n.includes('group c') || n.includes('sub 2:45')) return 'Group 3';
-        return group.name;
-      })();
+      const displayName = groupDisplayName(group.name);
 
       return {
         id: group.id,

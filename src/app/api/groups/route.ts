@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { groupDisplayName } from '@/lib/utils';
 
 const DEMO_COACH_ID = COACH_ID;
 
@@ -54,13 +55,7 @@ export async function GET(request: Request) {
         dataSource: a.data_source || 'garmin',
       }));
 
-      const displayName = (() => {
-        const n = (group.name || '').toLowerCase();
-        if (n.includes('group a') || n.includes('sub 2:30')) return 'Group 1';
-        if (n.includes('group b') || n.includes('sub 2:35')) return 'Group 2';
-        if (n.includes('group c') || n.includes('sub 2:45')) return 'Group 3';
-        return group.name;
-      })();
+      const displayName = groupDisplayName(group.name);
 
       return {
         id: group.id,

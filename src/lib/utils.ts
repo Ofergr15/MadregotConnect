@@ -102,3 +102,42 @@ export function getGroupColors(level?: GroupLevel | null) {
   if (!level) return defaultGroupColor;
   return groupColorMap[level] || defaultGroupColor;
 }
+
+// ── Single source of truth for group identity, name → color/label ────────────
+// Group 1 = green (fast), 2 = yellow (medium), 3 = orange (slow). Any place that
+// needs a group's display name or color MUST use this — do not re-derive inline
+// (that's how two color schemes drifted apart).
+
+export const GROUP_HEX = ['#22c55e', '#eab308', '#f97316'] as const; // 1,2,3
+const GROUP_LEVELS: GroupLevel[] = ['fast', 'medium', 'slow'];
+
+export interface ResolvedGroup {
+  index: number;        // 0-based (0=Group 1); -1 if unknown
+  displayName: string;  // "Group 1" | original name
+  level: GroupLevel;
+  hex: string;          // brand hex for dots/inline styles
+  colors: ReturnType<typeof getGroupColors>; // Tailwind class set
+}
+
+/** Map a raw group name (e.g. "Group A - SUB 2:30") to canonical group identity. */
+export function resolveGroup(name?: string | null): ResolvedGroup {
+  const n = (name || '').toLowerCase();
+  let index = -1;
+  if (n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30')) index = 0;
+  else if (n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35')) index = 1;
+  else if (n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45')) index = 2;
+
+  const level = index >= 0 ? GROUP_LEVELS[index] : 'medium';
+  return {
+    index,
+    displayName: index >= 0 ? `Group ${index + 1}` : (name || ''),
+    level,
+    hex: index >= 0 ? GROUP_HEX[index] : '#6366f1',
+    colors: index >= 0 ? getGroupColors(level) : defaultGroupColor,
+  };
+}
+
+/** Convenience: canonical display name only. */
+export function groupDisplayName(name?: string | null): string {
+  return resolveGroup(name).displayName;
+}
