@@ -240,9 +240,9 @@ export function Header() {
                   <div className="absolute end-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[160px] z-50">
                     {availableGroups.map(g => {
                       const n = g.name.toLowerCase();
-                      const color = n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30') ? '#3b82f6'
-                        : n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35') ? '#a855f7'
-                        : n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45') ? '#14b8a6'
+                      const color = n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30') ? '#22c55e'
+                        : n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35') ? '#eab308'
+                        : n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45') ? '#f97316'
                         : '#6366f1';
                       const displayName = n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30') ? 'Group 1'
                         : n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35') ? 'Group 2'
