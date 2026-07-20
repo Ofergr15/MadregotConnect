@@ -151,6 +151,9 @@ export function convertToGarminWorkout(
 
   return {
     workoutName: workout.name,
+    // Sets the workout Notes on Garmin. Without this the garmin-connect library
+    // stamps its default "Added by garmin-connect for Node.js".
+    description: 'Added by Madregot app',
     sportType: { sportTypeId: 1, sportTypeKey: 'running' },
     workoutSegments: [
       {
