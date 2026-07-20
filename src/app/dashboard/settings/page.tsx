@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone } from 'lucide-react';
+import { cn, resolveGroup } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 
 interface User {
@@ -294,13 +294,103 @@ export default function SettingsPage() {
   const [adminNotes, setAdminNotes] = useState<string>('');
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  const [groupsById, setGroupsById] = useState<Record<string, string>>({});
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchUsers();
     fetchPermissions();
     fetchMobilePermissions();
     fetchFeedback();
+    // Group names, to label the group sub-sections in User Manager.
+    fetch('/api/groups')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.groups) {
+          const map: Record<string, string> = {};
+          d.groups.forEach((g: any) => { map[g.id] = g.name; });
+          setGroupsById(map);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const toggleSection = (key: string) =>
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+
+  // One member row (used inside the role/group sections of User Manager).
+  const renderUserRow = (user: User) => {
+    const isAdmin = user.role === 'admin';
+    let lastSeenLabel = 'Never';
+    let lastSeenColor = 'text-slate-500';
+    if (user.lastSeenAt) {
+      const hoursAgo = (Date.now() - new Date(user.lastSeenAt).getTime()) / 3600000;
+      if (hoursAgo < 1) { lastSeenLabel = 'Online'; lastSeenColor = 'text-green-400'; }
+      else if (hoursAgo < 24) { lastSeenLabel = `${Math.floor(hoursAgo)}h ago`; lastSeenColor = 'text-green-400'; }
+      else { lastSeenLabel = `${Math.floor(hoursAgo / 24)}d ago`; lastSeenColor = hoursAgo < 72 ? 'text-slate-400' : 'text-slate-500'; }
+    }
+    return (
+      <div
+        key={user.id}
+        className={cn(
+          'flex items-center gap-3 p-3.5 rounded-xl transition-all',
+          isAdmin
+            ? 'bg-purple-500/5 border border-purple-500/20'
+            : 'bg-slate-900/40 border border-transparent hover:border-slate-700/50 hover:bg-slate-800/60'
+        )}
+      >
+        <div className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0', isAdmin ? 'bg-purple-500/20' : 'bg-slate-700/50')}>
+          {isAdmin ? (
+            <Shield className="w-4.5 h-4.5 text-purple-400" />
+          ) : (
+            <span className="text-xs font-bold text-slate-300">{user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-white truncate">{user.name}</p>
+            {isAdmin && <span className="text-[10px] font-bold text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded">ADMIN</span>}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="text-xs text-slate-500 truncate">{user.email}</span>
+            <span className={cn('text-[10px] font-medium', lastSeenColor)}>{lastSeenLabel}</span>
+            {user.onboardingStatus === 'garmin_authed' && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/20 flex items-center gap-1">
+                <Watch className="w-2.5 h-2.5" />Garmin
+              </span>
+            )}
+            {user.onboardingStatus === 'google_authed' && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">Google only</span>
+            )}
+            {user.approved === false && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">Pending</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {savedUsers.has(user.id) && <CheckCircle2 className="w-4 h-4 text-green-400" />}
+          {updatingUsers.has(user.id) && <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />}
+          {!isAdmin && (
+            <>
+              <RoleDropdown value={user.role} onChange={(role) => handleRoleSelect(user, role)} disabled={updatingUsers.has(user.id)} t={t} />
+              <button
+                onClick={() => setPendingDelete(user)}
+                disabled={updatingUsers.has(user.id)}
+                className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                title="Delete user"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const fetchPermissions = async () => {
     try {
@@ -757,123 +847,83 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Active Users */}
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50">
-            <div className="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-slate-400" />
-                <h2 className="text-sm font-semibold text-white">{t('members')} ({activeUsers.length})</h2>
+          {/* Active Users — collapsible section per role, split by group inside */}
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-700/50 flex items-center gap-2">
+              <Users className="w-4 h-4 text-slate-400" />
+              <h2 className="text-sm font-semibold text-white">{t('members')} ({activeUsers.length})</h2>
+            </div>
+
+            {activeUsers.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <Users className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 text-sm">No active users</p>
               </div>
-            </div>
+            ) : (
+              <div className="divide-y divide-slate-700/40">
+                {allRoles
+                  .map(role => ({ role, members: activeUsers.filter(u => u.role === role) }))
+                  .filter(s => s.members.length > 0)
+                  .map(({ role, members }) => {
+                    const rc = roleConfig[role];
+                    const roleKey = `role:${role}`;
+                    const roleOpen = !collapsedSections.has(roleKey);
+                    // Does this role have members assigned to real groups? If so, split.
+                    const hasGroups = members.some(u => u.groupId && resolveGroup(groupsById[u.groupId]).index >= 0);
+                    // Buckets 0,1,2 = Group 1/2/3, 99 = No group. Ordered.
+                    const buckets: { key: number; label: string; hex: string; list: User[] }[] = [];
+                    if (hasGroups) {
+                      [0, 1, 2].forEach(idx => {
+                        const list = members.filter(u => u.groupId && resolveGroup(groupsById[u.groupId]).index === idx);
+                        if (list.length) buckets.push({ key: idx, label: `Group ${idx + 1}`, hex: resolveGroup(`group ${idx + 1}`).hex, list });
+                      });
+                      const none = members.filter(u => !u.groupId || resolveGroup(groupsById[u.groupId]).index < 0);
+                      if (none.length) buckets.push({ key: 99, label: 'No group', hex: '#64748b', list: none });
+                    }
+                    return (
+                      <div key={role}>
+                        {/* Role header */}
+                        <button
+                          onClick={() => toggleSection(roleKey)}
+                          className="w-full flex items-center gap-2.5 px-5 py-3 hover:bg-slate-800/60 transition-colors"
+                        >
+                          {roleOpen ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
+                          <span className={cn('w-2 h-2 rounded-full', rc?.dot || 'bg-slate-400')} />
+                          <span className="text-sm font-semibold text-white">{rc?.label || role}</span>
+                          <span className="text-xs text-slate-500">({members.length})</span>
+                        </button>
 
-            <div className="p-3 space-y-2">
-              {activeUsers.map(user => {
-                const isAdmin = user.role === 'admin';
-                const rc = roleConfig[user.role];
-
-                let lastSeenLabel = 'Never';
-                let lastSeenColor = 'text-slate-500';
-                if (user.lastSeenAt) {
-                  const hoursAgo = (Date.now() - new Date(user.lastSeenAt).getTime()) / 3600000;
-                  if (hoursAgo < 1) { lastSeenLabel = 'Online'; lastSeenColor = 'text-green-400'; }
-                  else if (hoursAgo < 24) { lastSeenLabel = `${Math.floor(hoursAgo)}h ago`; lastSeenColor = 'text-green-400'; }
-                  else if (hoursAgo < 72) { lastSeenLabel = `${Math.floor(hoursAgo / 24)}d ago`; lastSeenColor = 'text-slate-400'; }
-                  else { lastSeenLabel = `${Math.floor(hoursAgo / 24)}d ago`; lastSeenColor = 'text-slate-500'; }
-                }
-
-                return (
-                  <div
-                    key={user.id}
-                    className={cn(
-                      'flex items-center gap-3 p-3.5 rounded-xl transition-all',
-                      isAdmin
-                        ? 'bg-purple-500/5 border border-purple-500/20'
-                        : 'bg-slate-900/40 border border-transparent hover:border-slate-700/50 hover:bg-slate-800/60'
-                    )}
-                  >
-                    {/* Avatar */}
-                    <div className={cn(
-                      'w-10 h-10 rounded-full flex items-center justify-center shrink-0',
-                      isAdmin ? 'bg-purple-500/20' : 'bg-slate-700/50'
-                    )}>
-                      {isAdmin ? (
-                        <Shield className="w-4.5 h-4.5 text-purple-400" />
-                      ) : (
-                        <span className="text-xs font-bold text-slate-300">
-                          {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-white truncate">{user.name}</p>
-                        {isAdmin && (
-                          <span className="text-[10px] font-bold text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded">
-                            ADMIN
-                          </span>
+                        {roleOpen && (
+                          <div className="px-3 pb-3 space-y-2">
+                            {hasGroups ? (
+                              buckets.map(b => {
+                                const gKey = `${roleKey}:g${b.key}`;
+                                const gOpen = !collapsedSections.has(gKey);
+                                return (
+                                  <div key={b.key} className="rounded-xl bg-slate-900/30">
+                                    <button
+                                      onClick={() => toggleSection(gKey)}
+                                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-800/40 transition-colors rounded-xl"
+                                    >
+                                      {gOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
+                                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: b.hex }} />
+                                      <span className="text-xs font-semibold text-slate-300">{b.label}</span>
+                                      <span className="text-[11px] text-slate-500">({b.list.length})</span>
+                                    </button>
+                                    {gOpen && <div className="px-2 pb-2 space-y-2">{b.list.map(renderUserRow)}</div>}
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              members.map(renderUserRow)
+                            )}
+                          </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="text-xs text-slate-500 truncate">{user.email}</span>
-                        <span className={cn('text-[10px] font-medium', lastSeenColor)}>{lastSeenLabel}</span>
-                        {user.onboardingStatus === 'garmin_authed' && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/20 flex items-center gap-1">
-                            <Watch className="w-2.5 h-2.5" />Garmin
-                          </span>
-                        )}
-                        {user.onboardingStatus === 'google_authed' && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">
-                            Google only
-                          </span>
-                        )}
-                        {user.approved === false && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
-                            Pending
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {savedUsers.has(user.id) && (
-                        <CheckCircle2 className="w-4 h-4 text-green-400" />
-                      )}
-                      {updatingUsers.has(user.id) && (
-                        <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
-                      )}
-                      {!isAdmin && (
-                        <>
-                          <RoleDropdown
-                            value={user.role}
-                            onChange={(role) => handleRoleSelect(user, role)}
-                            disabled={updatingUsers.has(user.id)}
-                            t={t}
-                          />
-                          <button
-                            onClick={() => setPendingDelete(user)}
-                            disabled={updatingUsers.has(user.id)}
-                            className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                            title="Delete user"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {activeUsers.length === 0 && (
-                <div className="px-6 py-12 text-center">
-                  <Users className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-400 text-sm">No active users</p>
-                </div>
-              )}
-            </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         </div>
       )}
