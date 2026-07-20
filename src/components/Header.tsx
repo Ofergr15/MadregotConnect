@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route, Trophy, MessageSquare, Watch, Bell, Dumbbell, GraduationCap } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
@@ -91,11 +91,9 @@ export function Header() {
       supabaseClient.from('groups').select('name').eq('id', groupId).single()
         .then(({ data: g }) => {
           if (g?.name) {
-            const n = g.name.toLowerCase();
-            if (n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30')) { setGroupName('Group 1'); setGroupColor('#22c55e'); }
-            else if (n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35')) { setGroupName('Group 2'); setGroupColor('#eab308'); }
-            else if (n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45')) { setGroupName('Group 3'); setGroupColor('#f97316'); }
-            else { setGroupName(g.name); setGroupColor('#6366f1'); }
+            const rg = resolveGroup(g.name);
+            setGroupName(rg.displayName);
+            setGroupColor(rg.hex);
           }
         });
     }
@@ -239,15 +237,9 @@ export function Header() {
                 {showGroupPicker && availableGroups.length > 0 && (
                   <div className="absolute end-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[160px] z-50">
                     {availableGroups.map(g => {
-                      const n = g.name.toLowerCase();
-                      const color = n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30') ? '#22c55e'
-                        : n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35') ? '#eab308'
-                        : n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45') ? '#f97316'
-                        : '#6366f1';
-                      const displayName = n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30') ? 'Group 1'
-                        : n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35') ? 'Group 2'
-                        : n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45') ? 'Group 3'
-                        : g.name;
+                      const rg = resolveGroup(g.name);
+                      const color = rg.hex;
+                      const displayName = rg.displayName;
                       return (
                         <button
                           key={g.id}

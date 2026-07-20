@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isProtectedEmail } from '@/lib/constants';
+import { groupDisplayName } from '@/lib/utils';
 
 const DEMO_COACH_ID = COACH_ID;
 
@@ -46,15 +47,7 @@ export async function GET(request: Request) {
       name: athlete.name,
       email: athlete.email,
       status: athlete.status,
-      groupName: (() => {
-        const raw = (athlete.groups as any)?.name || null;
-        if (!raw) return null;
-        const n = raw.toLowerCase();
-        if (n.includes('group a') || n.includes('sub 2:30')) return 'Group 1';
-        if (n.includes('group b') || n.includes('sub 2:35')) return 'Group 2';
-        if (n.includes('group c') || n.includes('sub 2:45')) return 'Group 3';
-        return raw;
-      })(),
+      groupName: (athlete.groups as any)?.name ? groupDisplayName((athlete.groups as any).name) : null,
       groupId: athlete.group_id,
       group_id: athlete.group_id,
       dataSource: (athlete as any).data_source || 'garmin',
