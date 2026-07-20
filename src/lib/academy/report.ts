@@ -84,12 +84,24 @@ export async function computeAcademyWeekAdherence(opts: {
     .in('athlete_id', athleteIds);
   const individualPlans: any[] = indiv.error ? [] : indiv.data || [];
 
-  const shared = await supabase
+  // The shared/group plan is the coach-wide one (athlete_id IS NULL) — must NOT
+  // pick up another athlete's individual plan for the same week. Fall back to the
+  // unscoped query if the athlete_id column isn't migrated.
+  let shared = await supabase
     .from('weekly_plans')
     .select('id, week_start_date, parsed_workouts, created_at')
     .eq('coach_id', COACH_ID)
     .eq('week_start_date', weekStart)
+    .is('athlete_id', null)
     .order('created_at', { ascending: false });
+  if (shared.error) {
+    shared = await supabase
+      .from('weekly_plans')
+      .select('id, week_start_date, parsed_workouts, created_at')
+      .eq('coach_id', COACH_ID)
+      .eq('week_start_date', weekStart)
+      .order('created_at', { ascending: false });
+  }
   const sharedPlan = (shared.data || [])[0];
   const sharedWorkouts = sharedPlan ? extractWorkouts(sharedPlan.parsed_workouts) : [];
 

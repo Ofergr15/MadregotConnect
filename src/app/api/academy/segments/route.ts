@@ -44,18 +44,27 @@ export async function GET(request: Request) {
     const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
     const { paceSec } = (await loadAcademySettings()).tolerances;
 
-    // 1) Planned workout for that day — individual plan wins, else shared group plan.
+    // 1) Planned workout for that day — the athlete's individual plan wins (newest,
+    //    tolerating duplicates), else the coach-wide shared plan (athlete_id NULL).
     let workouts: ParsedWorkout[] = [];
     const indiv = await supabase
-      .from('weekly_plans').select('parsed_workouts')
-      .eq('week_start_date', weekStart).eq('athlete_id', athleteId).maybeSingle();
-    if (!indiv.error && indiv.data) {
-      workouts = extractWorkouts(indiv.data.parsed_workouts);
+      .from('weekly_plans').select('parsed_workouts, created_at')
+      .eq('week_start_date', weekStart).eq('athlete_id', athleteId)
+      .order('created_at', { ascending: false });
+    if (!indiv.error && indiv.data && indiv.data.length) {
+      workouts = extractWorkouts(indiv.data[0].parsed_workouts);
     } else {
-      const shared = await supabase
+      let shared = await supabase
         .from('weekly_plans').select('parsed_workouts, created_at')
         .eq('coach_id', COACH_ID).eq('week_start_date', weekStart)
+        .is('athlete_id', null)
         .order('created_at', { ascending: false });
+      if (shared.error) {
+        shared = await supabase
+          .from('weekly_plans').select('parsed_workouts, created_at')
+          .eq('coach_id', COACH_ID).eq('week_start_date', weekStart)
+          .order('created_at', { ascending: false });
+      }
       workouts = shared.data?.length ? extractWorkouts(shared.data[0].parsed_workouts) : [];
     }
     const planned = workouts.find(w => w.dayOfWeek === dayOfWeek);
