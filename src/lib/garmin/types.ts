@@ -6,6 +6,7 @@ export interface GarminAuth {
 
 export interface GarminWorkout {
   workoutName: string;
+  description?: string;
   sportType: { sportTypeId: number; sportTypeKey: string };
   workoutSegments: GarminWorkoutSegment[];
 }
