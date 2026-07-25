@@ -23,6 +23,48 @@ export function formatPace(secondsPerKm: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+export interface GroupPace {
+  min: number;
+  max: number;
+}
+
+/** "3:40" for a single pace, "3:40–3:50" for a range. Empty string if no pace. */
+export function formatPaceRange(min?: number | null, max?: number | null): string {
+  if (!min) return '';
+  if (max && max !== min) return `${formatPace(min)}–${formatPace(max)}`;
+  return formatPace(min);
+}
+
+/**
+ * The three per-group pace tokens (range-aware), in group order [g1, g2, g3].
+ * Any group without a pace comes back as ''. Callers render/highlight each
+ * token individually; use joinGroupPaces() for a plain combined string.
+ */
+export function groupPaceTokens(
+  g1?: GroupPace | null,
+  g2?: GroupPace | null,
+  g3?: GroupPace | null,
+): [string, string, string] {
+  return [
+    formatPaceRange(g1?.min, g1?.max),
+    formatPaceRange(g2?.min, g2?.max),
+    formatPaceRange(g3?.min, g3?.max),
+  ];
+}
+
+/**
+ * Club pace notation: Group 1 plain, Group 2 single brackets, Group 3 double
+ * brackets — e.g. "3:30 (3:40) ((3:50))". Groups without a pace are skipped.
+ */
+export function joinGroupPaces(tokens: [string, string, string]): string {
+  const [a, b, c] = tokens;
+  const parts: string[] = [];
+  if (a) parts.push(a);
+  if (b) parts.push(`(${b})`);
+  if (c) parts.push(`((${c}))`);
+  return parts.join(' ');
+}
+
 export function getDefaultPaceProfile(): PaceProfile {
   return {
     easy: { min: 330, max: 390 },       // 5:30 - 6:30

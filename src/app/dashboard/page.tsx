@@ -8,7 +8,8 @@ import {
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
   Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
 } from 'lucide-react';
-import { cn, getActivityWeekStart, formatActivityTime, formatActivityDate, activityLocalHour } from '@/lib/utils';
+import { cn, getActivityWeekStart, formatActivityTime, formatActivityDate, activityLocalHour, resolveGroup } from '@/lib/utils';
+import { groupPaceTokens } from '@/lib/garmin/pace';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 
@@ -187,8 +188,52 @@ function formatStepPace(step: any): string {
   return '';
 }
 
-function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () => void }) {
+// Renders a step's pace for all three groups: Group 1 plain, Group 2 in single
+// brackets, Group 3 in double brackets — "3:30 (3:40) ((3:50))" — with the
+// athlete's own group highlighted. Falls back to the step's single pace when a
+// plan has no per-group data. Returns null when the step has no pace at all.
+function GroupPaces({ step, viewGroup }: { step: any; viewGroup: number }) {
+  if (isEffortBased(step)) return null;
+  const gp = step.groupPaces as Array<{ min: number; max: number } | null> | undefined;
+  const tokens: [string, string, string] = gp
+    ? groupPaceTokens(gp[0], gp[1], gp[2])
+    : [formatStepPace(step), '', ''];
+  if (!tokens.some(Boolean)) return null;
+
+  return (
+    <span dir="ltr" className="inline-flex items-center gap-1 tabular-nums">
+      {tokens.map((tok, g) => {
+        if (!tok) return null;
+        const text = g === 0 ? tok : g === 1 ? `(${tok})` : `((${tok}))`;
+        const mine = g === viewGroup;
+        return (
+          <span
+            key={g}
+            className={cn(
+              'text-xs',
+              mine ? 'text-[#4338ff] font-bold' : 'text-slate-500'
+            )}
+          >
+            {text}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
+  session: any;
+  viewGroup: number;
+  onPickGroup: (idx: number) => void;
+  onClose: () => void;
+}) {
   const blocks = summarizeSteps(session.steps || []);
+  // Only show the group toggle when the plan actually carries per-group paces.
+  const hasGroupPaces = (session.steps || []).some((s: any) =>
+    Array.isArray(s.groupPaces) && s.groupPaces.filter(Boolean).length > 1
+    || (s.repeatSteps || []).some((r: any) => Array.isArray(r.groupPaces) && r.groupPaces.filter(Boolean).length > 1)
+  );
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -210,19 +255,38 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
           </button>
         </div>
 
+        {/* Group selector — pick which group's pace is highlighted (display only) */}
+        {hasGroupPaces && (
+          <div className="px-5 pb-3 shrink-0">
+            <div className="flex items-center gap-1 bg-slate-800/60 border border-slate-700/50 rounded-lg p-1 w-fit">
+              {[0, 1, 2].map(g => (
+                <button
+                  key={g}
+                  onClick={() => onPickGroup(g)}
+                  className={cn(
+                    'px-3 h-7 rounded-md text-xs font-semibold transition-colors',
+                    g === viewGroup ? 'bg-[#4338ff] text-white' : 'text-slate-400 hover:text-white'
+                  )}
+                >
+                  Group {g + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Compact Workout Structure — scrolls when longer than the modal */}
         <div className="px-5 pb-5 overflow-y-auto flex-1 min-h-0 space-y-2 scrollbar-thin">
           {blocks.map((block, i) => {
             if (block.type === 'phase') {
               const step0 = block.steps[0];
               const durLabel = formatStepDuration(step0);
-              const pace = formatStepPace(step0);
               return (
                 <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-slate-800/40">
                   <div className="w-1 h-5 rounded-full bg-amber-500 flex-shrink-0" />
                   <span className="text-sm text-white font-medium">{block.phase === 'warmup' ? 'Warmup' : 'Cooldown'}</span>
                   {durLabel && <span className="text-sm text-slate-400">{durLabel}</span>}
-                  {pace && <span className="text-xs text-slate-500 ms-auto tabular-nums">{pace}</span>}
+                  <span className="ms-auto"><GroupPaces step={step0} viewGroup={viewGroup} /></span>
                 </div>
               );
             }
@@ -232,8 +296,7 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
               const summary = substeps.map((sub: any) => {
                 const dur = formatStepDuration(sub);
                 const label = getStepLabel(sub);
-                const pace = formatStepPace(sub);
-                return { dur, label, pace, isRest: sub.type === 'rest' || sub.type === 'recovery', step: sub };
+                return { dur, label, isRest: sub.type === 'rest' || sub.type === 'recovery', step: sub };
               });
 
               return (
@@ -250,7 +313,7 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
                           {s.dur}
                         </span>
                         <span className="text-slate-400 truncate flex-1 text-end" dir="rtl">{s.label}</span>
-                        {s.pace && <span className="text-xs text-slate-500 tabular-nums flex-shrink-0">{s.pace}</span>}
+                        <span className="flex-shrink-0"><GroupPaces step={s.step} viewGroup={viewGroup} /></span>
                       </div>
                     ))}
                   </div>
@@ -273,13 +336,12 @@ function WorkoutDetailModal({ session, onClose }: { session: any; onClose: () =>
             const s = block.step;
             const dur = formatStepDuration(s) || 'Open';
             const label = getStepLabel(s);
-            const pace = formatStepPace(s);
             return (
               <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-slate-800/40 text-sm">
                 <div className="w-1 h-5 rounded-full flex-shrink-0" style={{ background: getStepColor(s) }} />
                 <span className="font-medium text-white">{label}</span>
                 <span className="text-slate-400">{dur}</span>
-                {pace && <span className="text-xs text-slate-500 ms-auto tabular-nums">{pace}</span>}
+                <span className="ms-auto"><GroupPaces step={s} viewGroup={viewGroup} /></span>
               </div>
             );
           })}
@@ -404,6 +466,10 @@ export default function DashboardPage() {
   const [leaderboard, setLeaderboard] = useState<Array<{ id: string; name: string; groupId: string; distanceKm: number; runs: number }>>([]);
   const [leaderboardFilter, setLeaderboardFilter] = useState<'all' | string>('all');
   const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
+  // Which group's pace the athlete views as "theirs" (0=G1, 1=G2, 2=G3). Defaults
+  // to their assigned group; a manual pick is remembered per-browser. Display-only
+  // — never changes group assignment or what's pushed to the watch.
+  const [viewGroup, setViewGroup] = useState<number>(0);
 
   useEffect(() => {
     const coachEmail = localStorage.getItem('coach_email');
@@ -607,6 +673,26 @@ export default function DashboardPage() {
     }
     load();
   }, []);
+
+  // Resolve the athlete's "view group": a remembered manual pick wins, else map
+  // their assigned group_id → index (0/1/2) via the group name. Runs once groups
+  // are loaded so the name→index mapping is available.
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('view_group') : null;
+    if (stored !== null && stored !== '') {
+      const n = parseInt(stored, 10);
+      if (n >= 0 && n <= 2) { setViewGroup(n); return; }
+    }
+    const myGroupId = typeof window !== 'undefined' ? localStorage.getItem('athlete_group_id') : null;
+    const myGroup = groups.find(g => g.id === myGroupId);
+    const idx = myGroup ? resolveGroup(myGroup.name).index : -1;
+    if (idx >= 0) setViewGroup(idx);
+  }, [groups]);
+
+  const pickViewGroup = (idx: number) => {
+    setViewGroup(idx);
+    try { localStorage.setItem('view_group', String(idx)); } catch { /* ignore */ }
+  };
 
   if (loading) return (
     <div className="flex items-center justify-center h-[60vh]">
@@ -1172,7 +1258,12 @@ export default function DashboardPage() {
       )}
 
       {selectedSession && (
-        <WorkoutDetailModal session={selectedSession} onClose={() => setSelectedSession(null)} />
+        <WorkoutDetailModal
+          session={selectedSession}
+          viewGroup={viewGroup}
+          onPickGroup={pickViewGroup}
+          onClose={() => setSelectedSession(null)}
+        />
       )}
 
       {/* ═══ WEATHER FORECAST ═══ */}
