@@ -110,6 +110,10 @@ export async function POST(request: Request) {
     // Create athlete record with invited status. Store email normalized
     // (lowercase+trim) so it always matches the Google sign-in email later —
     // otherwise the user is treated as new and asked to re-register.
+    // A named coach invite IS the approval — the coach deliberately chose this
+    // person — so pre-approve it. They go active as soon as they connect, with
+    // no second approval click. Only self-registrants (public link / academy
+    // form / new Google sign-in) stay approved=false and wait in the queue.
     const { data: athlete, error } = await supabase
       .from('athletes')
       .insert({
@@ -117,6 +121,7 @@ export async function POST(request: Request) {
         name,
         email: email.toLowerCase().trim(),
         status: 'invited',
+        approved: true,
         invite_token: inviteToken,
       })
       .select()

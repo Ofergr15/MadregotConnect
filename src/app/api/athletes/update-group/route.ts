@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
     const { data: athlete, error: findError } = await supabase
       .from('athletes')
-      .select('id, name, email, group_id')
+      .select('id, name, email, group_id, approved')
       .eq('email', email.toLowerCase())
       .maybeSingle();
 
@@ -21,7 +21,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
     }
 
-    const updates: Record<string, any> = { status: 'active' };
+    // Onboarding must NOT self-activate. A public sign-up only becomes 'active'
+    // once the coach approves them (/api/admin/approve). Setting status='active'
+    // here let unapproved sign-ups appear as full members (workout push, roster,
+    // stats). Only block when approval is explicitly false — legacy rows with a
+    // null 'approved' stay active for backward compatibility.
+    const updates: Record<string, any> = {};
+    if (athlete.approved !== false) updates.status = 'active';
     if (groupId) updates.group_id = groupId;
 
     const { data: updated, error: updateError } = await supabase

@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (inviteToken) {
       const { data: athlete, error: findError } = await supabase
         .from('athletes')
-        .select('id')
+        .select('id, approved')
         .eq('invite_token', inviteToken)
         .single();
 
@@ -27,10 +27,15 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Connecting a watch does not grant access — only coach approval flips a
+      // user to 'active' (/api/admin/approve). Academy join links are issued
+      // AFTER approval (approved=true) so they stay active here; a not-yet-
+      // approved invite waits in the pending queue. Gate on explicit false so
+      // legacy rows with a null 'approved' keep working.
       const updateData: Record<string, any> = {
-        status: 'active',
         onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
       };
+      if (athlete.approved !== false) updateData.status = 'active';
       if (encryptedAuth) {
         updateData.garmin_auth = encryptedAuth;
         updateData.garmin_authed_at = new Date().toISOString();
@@ -66,7 +71,7 @@ export async function POST(req: NextRequest) {
     // Check if athlete already exists by email
     const { data: existing } = await supabase
       .from('athletes')
-      .select('id, group_id')
+      .select('id, group_id, approved')
       .eq('email', email.toLowerCase())
       .maybeSingle();
 
@@ -78,11 +83,13 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       const updatePayload: Record<string, any> = {
-        status: 'active',
         name,
         onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
         ...(groupId ? { group_id: groupId } : {}),
       };
+      // Self-onboarding must not activate an unapproved user — coach approval
+      // owns the active flip. Legacy rows (approved null) keep going active.
+      if (existing.approved !== false) updatePayload.status = 'active';
       if (encryptedAuth) {
         updatePayload.garmin_auth = encryptedAuth;
         updatePayload.garmin_authed_at = new Date().toISOString();
@@ -107,12 +114,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, athlete: updated });
     }
 
-    // Create new athlete
+    // Create new athlete — a brand-new public sign-up. Start pending (not
+    // 'active') and unapproved; the coach approves in Settings, which flips
+    // status to 'active'. Previously this inserted status='active', letting
+    // self-registrants bypass approval entirely.
     const insertPayload: Record<string, any> = {
       coach_id: COACH_ID,
       name,
       email: email.toLowerCase(),
-      status: 'active',
+      status: 'invited',
+      approved: false,
       onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
       ...(groupId ? { group_id: groupId } : {}),
     };

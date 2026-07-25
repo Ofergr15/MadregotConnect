@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     // Check invited athletes (need onboarding)
     const { data: invitedAthlete } = await supabase
       .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth')
+      .select('id, name, email, group_id, status, garmin_auth, approved')
       .eq('email', lowerEmail)
       .eq('status', 'invited')
       .order('created_at', { ascending: false })
@@ -68,6 +68,12 @@ export async function POST(req: NextRequest) {
 
     if (invitedAthlete) {
       const hasGarmin = !!invitedAthlete.garmin_auth;
+      // Onboarding done (Garmin linked) but not yet approved → hold at pending
+      // instead of logging them in. Onboarding routes no longer self-activate,
+      // so unapproved sign-ups stay 'invited' and must pass through here.
+      if (hasGarmin && invitedAthlete.approved === false) {
+        return NextResponse.json({ pendingApproval: true, missingGarmin: false });
+      }
       return NextResponse.json({ role: 'runner', athlete: { ...invitedAthlete, garmin_auth: undefined }, hasGarmin, needsOnboarding: !hasGarmin });
     }
 
