@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { randomBytes } from 'crypto';
+import { canApprove } from '@/lib/constants';
 import { notifyUserApproved, notifyAdminUserApproved, notifyAcademyApproved } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,15 @@ export async function POST(req: NextRequest) {
 
     if (!athleteId) {
       return NextResponse.json({ error: 'athleteId is required' }, { status: 400 });
+    }
+
+    // Only allowlisted accounts may approve new registrations. This is the
+    // authoritative check — the UI also hides the button, but that's cosmetic.
+    if (!canApprove(approverEmail)) {
+      return NextResponse.json(
+        { error: 'You are not authorized to approve registrations.' },
+        { status: 403 }
+      );
     }
 
     // Select is_academy/garmin_auth too (guarded — may be older schema).
