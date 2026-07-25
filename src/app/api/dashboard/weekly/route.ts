@@ -85,6 +85,52 @@ function extractWorkouts(parsedWorkouts: any): ParsedWorkout[] {
   return [];
 }
 
+/**
+ * Annotate each step of the group-1 workouts with ALL THREE groups' paces, so
+ * the athlete view can render "3:30 (3:40) ((3:50))" per block. The stored
+ * group1/group2/group3 arrays are parallel (same days, same step tree — only
+ * the pace differs), so we walk them together by day + step position. Falls
+ * back gracefully when a plan is flat (single group) or a group is missing.
+ */
+type GroupPace = { min: number; max: number } | null;
+
+function stepGroupPace(step: WorkoutStep | undefined): GroupPace {
+  if (!step || !step.targetPaceMinPerKm) return null;
+  return { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm || step.targetPaceMinPerKm };
+}
+
+function annotateSteps(s1: WorkoutStep[], s2: WorkoutStep[], s3: WorkoutStep[]): WorkoutStep[] {
+  return s1.map((step, i) => {
+    const s2i = s2[i];
+    const s3i = s3[i];
+    const annotated: any = {
+      ...step,
+      groupPaces: [stepGroupPace(step), stepGroupPace(s2i), stepGroupPace(s3i)],
+    };
+    if (step.repeatSteps) {
+      annotated.repeatSteps = annotateSteps(
+        step.repeatSteps,
+        s2i?.repeatSteps || step.repeatSteps,
+        s3i?.repeatSteps || step.repeatSteps,
+      );
+    }
+    return annotated;
+  });
+}
+
+function enrichWithGroupPaces(parsedWorkouts: any): ParsedWorkout[] {
+  const g1 = extractWorkouts(parsedWorkouts);
+  const g2 = parsedWorkouts?.group2?.workouts as ParsedWorkout[] | undefined;
+  const g3 = parsedWorkouts?.group3?.workouts as ParsedWorkout[] | undefined;
+  // Flat plan (single group) or no per-group split → nothing extra to attach;
+  // groupPaces falls back to group1's own pace for all three.
+  return g1.map(w => {
+    const w2 = g2?.find(x => x.dayOfWeek === w.dayOfWeek) || w;
+    const w3 = g3?.find(x => x.dayOfWeek === w.dayOfWeek) || w;
+    return { ...w, steps: annotateSteps(w.steps, w2.steps, w3.steps) };
+  });
+}
+
 function computeStepDistance(step: WorkoutStep): { min: number; max: number } {
   if (step.repeatCount && step.repeatSteps) {
     let subMin = 0;
@@ -226,7 +272,9 @@ export async function GET() {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dailyDistances: Array<{ day: string; dayOfWeek: number; min: number; max: number; type: string; sessions: Array<{ min: number; max: number; type: string; name: string }> }> = [];
 
-    const rawWorkouts = extractWorkouts(currentPlan?.parsed_workouts);
+    // Enrich group1 steps with all three groups' paces (adds `groupPaces` to each
+    // step; distance math is unaffected since only pace annotations are added).
+    const rawWorkouts = enrichWithGroupPaces(currentPlan?.parsed_workouts);
     // Deduplicate: keep only the first workout per day (group variants share same dayOfWeek)
     const currentWorkouts = rawWorkouts.filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
 
