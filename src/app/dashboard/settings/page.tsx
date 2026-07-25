@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
+import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
 
 interface User {
@@ -29,7 +30,7 @@ const roleConfig = {
   viewer: { label: 'Viewer', bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30', dot: 'bg-slate-400' },
 };
 
-function RoleDropdown({ value, onChange, disabled, t }: { value: Role; onChange: (role: Role) => void; disabled: boolean; t: (key: string) => string }) {
+function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: Role; onChange: (role: Role) => void; disabled: boolean; canGrantAdmin: boolean; t: (key: string) => string }) {
   const [open, setOpen] = useState(false);
   const [openUp, setOpenUp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -82,7 +83,11 @@ function RoleDropdown({ value, onChange, disabled, t }: { value: Role; onChange:
           'absolute right-0 z-50 bg-slate-800 border border-slate-600 rounded-xl shadow-xl overflow-hidden min-w-[150px]',
           openUp ? 'bottom-full mb-1' : 'top-full mt-1'
         )}>
-          {allRoles.map(role => {
+          {allRoles
+            // Only the club admin account may assign the Admin role; hide it for
+            // everyone else. The server (PUT /api/admin/users) enforces this too.
+            .filter(role => role !== 'admin' || canGrantAdmin)
+            .map(role => {
             const rc = roleConfig[role];
             const isSelected = role === value;
             return (
@@ -274,6 +279,11 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  // Whether the signed-in account is allowed to approve registrations / grant
+  // admin. Computed client-side (identity lives in localStorage); the server
+  // re-checks both anyway.
+  const [canApproveHere, setCanApproveHere] = useState(false);
+  const [canGrantAdminHere, setCanGrantAdminHere] = useState(false);
   const [updatingUsers, setUpdatingUsers] = useState<Set<string>>(new Set());
   const [savedUsers, setSavedUsers] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -303,6 +313,12 @@ export default function SettingsPage() {
   const [uRole, setURole] = useState<'all' | Role>('all');
   const [uGroup, setUGroup] = useState<'all' | '0' | '1' | '2' | 'none'>('all');
   const [uGarmin, setUGarmin] = useState<'all' | 'with' | 'without'>('all');
+
+  useEffect(() => {
+    const me = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
+    setCanApproveHere(canApprove(me));
+    setCanGrantAdminHere(canGrantAdmin(me));
+  }, []);
 
   useEffect(() => {
     fetchUsers();
@@ -383,7 +399,7 @@ export default function SettingsPage() {
           {updatingUsers.has(user.id) && <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />}
           {!isAdmin && (
             <>
-              <RoleDropdown value={user.role} onChange={(role) => handleRoleSelect(user, role)} disabled={updatingUsers.has(user.id)} t={t} />
+              <RoleDropdown value={user.role} onChange={(role) => handleRoleSelect(user, role)} disabled={updatingUsers.has(user.id)} canGrantAdmin={canGrantAdminHere} t={t} />
               <button
                 onClick={() => setPendingDelete(user)}
                 disabled={updatingUsers.has(user.id)}
@@ -667,10 +683,11 @@ export default function SettingsPage() {
     setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
 
     try {
+      const actorEmail = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
       const response = await fetch('/api/admin/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, role: newRole }),
+        body: JSON.stringify({ email: user.email, role: newRole, actorEmail }),
       });
 
       if (!response.ok) {
@@ -853,18 +870,24 @@ export default function SettingsPage() {
                         )}>Garmin</span>
                       </div>
 
-                      <button
-                        onClick={() => handleApprove(user)}
-                        disabled={updatingUsers.has(user.id)}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-green-600 hover:bg-green-500 rounded-lg transition-colors disabled:opacity-50 shrink-0"
-                      >
-                        {updatingUsers.has(user.id) ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        )}
-                        {t('approve')}
-                      </button>
+                      {canApproveHere ? (
+                        <button
+                          onClick={() => handleApprove(user)}
+                          disabled={updatingUsers.has(user.id)}
+                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-green-600 hover:bg-green-500 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                        >
+                          {updatingUsers.has(user.id) ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          )}
+                          {t('approve')}
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-medium text-slate-500 shrink-0 px-2 py-1 rounded bg-slate-700/40">
+                          Awaiting approval
+                        </span>
+                      )}
                       <button
                         onClick={() => setPendingDelete(user)}
                         disabled={updatingUsers.has(user.id)}

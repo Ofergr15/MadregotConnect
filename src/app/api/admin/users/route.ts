@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { canGrantAdmin } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -55,7 +56,7 @@ export async function PUT(request: Request) {
   try {
     const supabase = createServerClient();
     const body = await request.json();
-    const { email, role } = body;
+    const { email, role, actorEmail } = body;
 
     if (!email || !role) {
       return NextResponse.json(
@@ -73,7 +74,7 @@ export async function PUT(request: Request) {
 
     const { data: athlete, error: findError } = await supabase
       .from('athletes')
-      .select('id')
+      .select('id, role')
       .eq('email', email)
       .maybeSingle();
 
@@ -83,6 +84,16 @@ export async function PUT(request: Request) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
+      );
+    }
+
+    // Only the designated granter may create or remove admins. This blocks both
+    // promoting someone TO admin and demoting an existing admin FROM anyone else.
+    const touchesAdmin = role === 'admin' || athlete.role === 'admin';
+    if (touchesAdmin && !canGrantAdmin(actorEmail)) {
+      return NextResponse.json(
+        { error: 'Only the club admin account can grant or remove the admin role.' },
+        { status: 403 }
       );
     }
 

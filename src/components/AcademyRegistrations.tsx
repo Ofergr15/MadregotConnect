@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, ChevronDown, ChevronUp, Check, Trash2, Mail, Phone, ExternalLink, Copy, CheckCircle2, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { canApprove } from '@/lib/constants';
 
 interface Registration {
   id: string;
@@ -49,6 +50,13 @@ export function AcademyRegistrations() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Only allowlisted accounts may approve; server re-checks in /api/admin/approve.
+  const [canApproveHere, setCanApproveHere] = useState(false);
+
+  useEffect(() => {
+    const me = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
+    setCanApproveHere(canApprove(me));
+  }, []);
 
   const fetchRegs = useCallback(async (all: boolean) => {
     setLoading(true);
@@ -183,10 +191,14 @@ export function AcademyRegistrations() {
                       className="flex items-center gap-1.5 px-3 h-9 rounded-lg text-red-300 hover:bg-red-500/10 text-sm font-semibold disabled:opacity-50">
                       <Trash2 className="h-4 w-4" /> Reject
                     </button>
-                    <button onClick={() => approve(r.id)} disabled={busy === r.id}
-                      className="flex items-center gap-1.5 px-4 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50">
-                      {busy === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve
-                    </button>
+                    {canApproveHere ? (
+                      <button onClick={() => approve(r.id)} disabled={busy === r.id}
+                        className="flex items-center gap-1.5 px-4 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50">
+                        {busy === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve
+                      </button>
+                    ) : (
+                      <span className="text-xs font-medium text-slate-500 px-2">Approval restricted to the club coaches</span>
+                    )}
                   </div>
                 )}
               </div>
