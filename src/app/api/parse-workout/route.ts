@@ -29,8 +29,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Parse workout error:', error);
+
+    const status: number | undefined = error?.status;
+    const rawMessage: string = error?.message || '';
+
+    // Out of Anthropic API credits — surfaces as a 400 invalid_request_error
+    // whose message mentions the credit balance. Give the operator a clear,
+    // actionable message instead of the raw JSON blob from the SDK.
+    if (/credit balance is too low/i.test(rawMessage)) {
+      return NextResponse.json(
+        {
+          error:
+            'AI parsing is temporarily unavailable — the Anthropic API account is out of credits. Add credits in the Anthropic console (Plans & Billing), then try again. In the meantime you can paste the plan as text.',
+          code: 'insufficient_credits',
+        },
+        { status: 402 } // Payment Required
+      );
+    }
+
+    // Bad/misconfigured API key.
+    if (status === 401 || /authentication|invalid x-api-key|api key/i.test(rawMessage)) {
+      return NextResponse.json(
+        { error: 'AI parsing is unavailable — the API key is missing or invalid. Please check the server configuration.', code: 'auth_error' },
+        { status: 502 }
+      );
+    }
+
+    // Anthropic rate limit / overloaded.
+    if (status === 429 || status === 529) {
+      return NextResponse.json(
+        { error: 'The AI service is busy right now. Please wait a moment and try again.', code: 'rate_limited' },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Failed to parse workout' },
+      { error: rawMessage || 'Failed to parse workout' },
       { status: 500 }
     );
   }
