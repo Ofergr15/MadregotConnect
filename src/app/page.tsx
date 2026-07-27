@@ -142,12 +142,15 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2">
             <LocaleSwitcher />
-            <Link
-              href="/academy-register"
-              className="hidden sm:inline-flex items-center gap-1.5 border-2 border-[#4338ff] text-[#4338ff] hover:bg-[#4338ff] hover:text-white font-semibold px-4 py-2 sm:px-5 sm:py-2 rounded-lg transition-colors text-sm"
+            <div
+              aria-disabled="true"
+              className="hidden sm:inline-flex items-center gap-1.5 border-2 border-gray-300 text-gray-400 font-semibold px-4 py-2 sm:px-5 sm:py-2 rounded-lg text-sm cursor-not-allowed select-none"
             >
               <GraduationCap className="h-4 w-4" /> Join the Academy
-            </Link>
+              <span className="text-[9px] font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
+                {t('comingSoon')}
+              </span>
+            </div>
             <button
               onClick={signIn}
               disabled={signingIn}
@@ -235,19 +238,12 @@ export default function HomePage() {
                 {t('buildingCommunity')}
               </p>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mt-8 sm:mt-10">
-                <Link
-                  href="/academy-register"
-                  className="group inline-flex items-center justify-center gap-2 sm:gap-3 bg-[#4338ff] hover:bg-[#3730d4] text-white font-bold px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-lg shadow-lg shadow-[#4338ff]/25 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#4338ff]/30"
+                <div
+                  aria-disabled="true"
+                  className="inline-flex items-center justify-center gap-2 sm:gap-3 border-2 border-gray-300 text-gray-400 font-bold px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-lg cursor-not-allowed select-none"
                 >
                   <GraduationCap className="h-5 w-5" />
                   Join the Academy
-                  <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 rtl:rotate-180 transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
-                </Link>
-                <div
-                  aria-disabled="true"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-gray-300 text-gray-400 font-bold px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-lg cursor-not-allowed select-none"
-                >
-                  {t('joinUs')}
                   <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
                     {t('comingSoon')}
                   </span>
@@ -518,14 +514,16 @@ export default function HomePage() {
             {t('joinCommunity')}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/academy-register"
-              className="group inline-flex items-center gap-3 bg-white hover:bg-gray-100 text-[#4338ff] font-bold px-8 py-4 sm:px-10 sm:py-5 rounded-xl text-lg shadow-lg transition-all hover:-translate-y-0.5"
+            <div
+              aria-disabled="true"
+              className="inline-flex items-center gap-3 bg-white/40 text-[#4338ff]/50 font-bold px-8 py-4 sm:px-10 sm:py-5 rounded-xl text-lg cursor-not-allowed select-none"
             >
               <GraduationCap className="h-5 w-5" />
               Join the Academy
-              <ArrowRight className="h-5 w-5 rtl:rotate-180 transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
-            </Link>
+              <span className="text-xs font-black uppercase tracking-wider bg-white/30 text-[#4338ff]/70 px-2 py-0.5 rounded-full">
+                {t('comingSoon')}
+              </span>
+            </div>
             <button
               onClick={signIn}
               disabled={signingIn}
