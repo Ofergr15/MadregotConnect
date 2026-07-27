@@ -359,12 +359,31 @@ export default function WeeklyPlannerPage() {
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to parse plan');
+      // On a serverless timeout/crash Vercel returns an HTML/text error page,
+      // not JSON — so read the body as text and parse defensively. Blindly
+      // calling res.json() there throws "Unexpected token 'A'..." and hides the
+      // real problem (the AI parse taking too long).
+      const raw = await res.text();
+      let parsedBody: any = null;
+      try {
+        parsedBody = raw ? JSON.parse(raw) : null;
+      } catch {
+        // non-JSON body (platform error page)
       }
 
-      const data: ParsedWeeklyPlan = await res.json();
+      if (!res.ok) {
+        if (parsedBody?.error) throw new Error(parsedBody.error);
+        if (res.status === 504) {
+          throw new Error('Parsing timed out. The plan may be too large or complex — try a clearer photo or paste the text.');
+        }
+        throw new Error(`Failed to parse plan (server error ${res.status}). Please try again.`);
+      }
+
+      if (!parsedBody) {
+        throw new Error('The server returned an unexpected response. Please try again.');
+      }
+
+      const data: ParsedWeeklyPlan = parsedBody;
       setParsedPlan(data);
       const grouped = splitIntoGroups(data);
       setGroupedPlans(grouped);
