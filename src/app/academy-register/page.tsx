@@ -56,6 +56,10 @@ const FIELDS: Field[] = [
   { key: 'shirtSize', label: 'מה מידת החולצה שלך', type: 'radio', required: true, options: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
 ];
 
+// Academy registration is currently closed. Flip to true to reopen the public
+// form (the "Join the Academy" buttons on the landing page are disabled too).
+const REGISTRATION_OPEN = false;
+
 export default function AcademyRegisterPage() {
   const [values, setValues] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -98,6 +102,20 @@ export default function AcademyRegisterPage() {
       setSubmitting(false);
     }
   };
+
+  if (!REGISTRATION_OPEN) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4" dir="rtl">
+        <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center">
+          <GraduationCap className="h-12 w-12 text-[#4338ff] mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-white">ההרשמה סגורה כרגע</h2>
+          <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+            ההרשמה לאקדמיית הריצה של מדרגות סגורה כעת. עקבו אחרינו לפתיחת המחזור הבא.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (done) {
     return (

@@ -6,6 +6,11 @@ import { notifyAdminNewAcademyRegistration } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
+// Academy registration is currently closed. Keep in sync with REGISTRATION_OPEN
+// in src/app/academy-register/page.tsx. This is the server-side gate so a direct
+// POST can't bypass the disabled form.
+const REGISTRATION_OPEN = false;
+
 /**
  * POST /api/academy/register — public academy sign-up.
  * Body: { name, email, phone? }
@@ -15,6 +20,13 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   try {
+    if (!REGISTRATION_OPEN) {
+      return NextResponse.json(
+        { error: 'Academy registration is currently closed.' },
+        { status: 403 }
+      );
+    }
+
     const { name, email, phone, intake } = await request.json();
     if (!name?.trim() || !email?.trim()) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
