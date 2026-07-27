@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseWorkoutPlan } from '@/lib/ai/parser';
 
 // Image/PDF plans go through Opus 4.8 vision + adaptive thinking, which can take
-// 30–90s on a dense Hebrew table. Without this the function hits Vercel's short
-// default timeout and is killed mid-call, so the client fetch never resolves and
-// the "Parsing your plan…" spinner hangs forever. Pro plan allows up to 300s.
-export const maxDuration = 120;
+// 60–180s on a dense Hebrew table (and up to 2x if the one-shot JSON retry fires).
+// Without a raised limit the function hits Vercel's short default timeout and is
+// killed mid-call, so the client fetch never resolves and the "Parsing your plan…"
+// spinner hangs forever. Pinned to the Pro-plan ceiling of 300s.
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
