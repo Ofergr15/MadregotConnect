@@ -164,6 +164,13 @@ export function extractJson(text: string): string {
 const VISION_MODEL = 'claude-opus-4-8';
 const TEXT_MODEL = 'claude-haiku-4-5-20251001';
 
+// Adaptive thinking at the default `high` effort made dense 3-column plans run
+// past Vercel's 300s function ceiling (hard 504). `effort` is the primary
+// latency lever on Opus 4.8: `low` keeps adaptive thinking (so pace ladders are
+// still read correctly) but bounds how much it deliberates, cutting wall-clock
+// dramatically. Bump to 'medium' if a ladder is ever misread.
+const VISION_EFFORT: 'low' | 'medium' | 'high' = 'low';
+
 async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'][0]['content'], useVision = false): Promise<ParsedWeeklyPlan> {
   const call = async (extra?: string): Promise<ParsedWeeklyPlan> => {
     const msgContent = extra
@@ -172,8 +179,16 @@ async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'
       : content;
     const response = await anthropic.messages.create({
       model: useVision ? VISION_MODEL : TEXT_MODEL,
-      max_tokens: 16000,
-      ...(useVision ? { thinking: { type: 'adaptive' as const } } : {}),
+      // Thinking shares this budget with the JSON output; give vision headroom
+      // so extensive thinking can't truncate the JSON (which would fail parsing
+      // and trigger a second slow call).
+      max_tokens: useVision ? 24000 : 16000,
+      ...(useVision
+        ? {
+            thinking: { type: 'adaptive' as const },
+            output_config: { effort: VISION_EFFORT },
+          }
+        : {}),
       system: WORKOUT_PARSER_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: msgContent }],
     });
