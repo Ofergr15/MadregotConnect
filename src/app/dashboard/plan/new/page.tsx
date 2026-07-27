@@ -28,6 +28,7 @@ import {
   ChevronDown,
   Plus,
   Watch,
+  RefreshCw,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
@@ -419,6 +420,91 @@ export default function WeeklyPlannerPage() {
     }
   };
 
+  // Pull this week's uploaded training PDF from the Program page, parse it, and
+  // save it as the planner's plan for the week. Confirms before overwriting an
+  // existing plan so manual edits/pushes aren't silently lost.
+  const syncFromProgram = async () => {
+    if (currentPlan) {
+      const ok = window.confirm(
+        `A plan already exists for ${weekLabel}. Replace it with the program for this week? Any edits you made will be lost.`
+      );
+      if (!ok) return;
+    }
+
+    setError(null);
+    setParsing(true);
+    try {
+      const res = await fetch('/api/plans/sync-from-program', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week_start_date: weekStartDate }),
+      });
+
+      const raw = await res.text();
+      let parsedBody: any = null;
+      try {
+        parsedBody = raw ? JSON.parse(raw) : null;
+      } catch {
+        // non-JSON (platform error page)
+      }
+
+      if (!res.ok) {
+        if (parsedBody?.error) throw new Error(parsedBody.error);
+        if (res.status === 504) {
+          throw new Error('Parsing timed out. The program PDF may be too large — try again.');
+        }
+        throw new Error(`Failed to sync from program (server error ${res.status}).`);
+      }
+      if (!parsedBody) {
+        throw new Error('The server returned an unexpected response. Please try again.');
+      }
+
+      const data: ParsedWeeklyPlan = parsedBody;
+      const grouped = splitIntoGroups(data);
+      setParsedPlan(data);
+      setGroupedPlans(grouped);
+
+      // If a plan already exists, replace it in place; otherwise create a new one.
+      if (currentPlan && savedPlanId) {
+        const putRes = await fetch('/api/plans', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan_id: savedPlanId, parsed_workouts: grouped, status: 'draft' }),
+        });
+        if (putRes.ok) {
+          setLastSavedAt(new Date());
+          setAllPlans((prev) =>
+            prev.map((p) => (p.id === savedPlanId ? { ...p, parsed_workouts: grouped, status: 'draft' } : p))
+          );
+        }
+      } else {
+        const saveRes = await fetch('/api/plans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            coach_id: HARDCODED_COACH_ID,
+            week_start_date: weekStartDate,
+            original_input: `Synced from program (${parsedBody.dateRange || weekLabel})`,
+            parsed_workouts: grouped,
+            status: 'draft',
+          }),
+        });
+        if (saveRes.ok) {
+          const saveData = await saveRes.json();
+          setSavedPlanId(saveData.plan.id);
+          setLastSavedAt(new Date());
+          setAllPlans((prev) => [saveData.plan, ...prev.filter((p) => p.id !== saveData.plan.id)]);
+        }
+      }
+
+      setShowCreate(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to sync from program');
+    } finally {
+      setParsing(false);
+    }
+  };
+
   const handleWorkoutChange = (index: number, workout: ParsedWorkout) => {
     if (!groupedPlans) return;
     const groupKey = `group${activeGroup}` as keyof GroupedWeeklyPlans;
@@ -709,11 +795,18 @@ export default function WeeklyPlannerPage() {
             </div>
             <div className="flex flex-col gap-3 items-center">
               <button
-                onClick={() => setShowCreate(true)}
+                onClick={syncFromProgram}
                 className="btn-primary flex items-center gap-2 px-6 py-3"
               >
-                <Plus className="h-5 w-5" />
-                Create Plan
+                <RefreshCw className="h-5 w-5" />
+                Sync from Program
+              </button>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg border border-slate-700/50 transition-colors flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Create manually
               </button>
               <button
                 onClick={async () => {
@@ -895,6 +988,14 @@ export default function WeeklyPlannerPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={syncFromProgram}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                  title="Re-parse this week's training PDF from the Program page"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Sync
+                </button>
                 <button
                   onClick={() => setEditMode(!editMode)}
                   className={cn(
