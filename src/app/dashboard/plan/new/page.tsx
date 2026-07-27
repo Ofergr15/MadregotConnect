@@ -177,6 +177,10 @@ export default function WeeklyPlannerPage() {
   // Which group is expanded in the "All Athletes" tab to reveal its members.
   const [expandedAllGroup, setExpandedAllGroup] = useState<string | null>(null);
 
+  // --- This week's uploaded program PDF (source material shown while planning) ---
+  const [programPdfUrl, setProgramPdfUrl] = useState<string | null>(null);
+  const [showProgramViewer, setShowProgramViewer] = useState(false);
+
   // --- Error ---
   const [error, setError] = useState<string | null>(null);
 
@@ -232,6 +236,30 @@ export default function WeeklyPlannerPage() {
     };
     fetchPlans();
   }, []);
+
+  // --- Find this week's uploaded training program PDF (Sunday-keyed) ---
+  useEffect(() => {
+    let cancelled = false;
+    setProgramPdfUrl(null);
+    setShowProgramViewer(false);
+    const fetchProgram = async () => {
+      try {
+        const res = await fetch('/api/program-weeks');
+        if (!res.ok) return;
+        const weeks = await res.json();
+        const match = Array.isArray(weeks)
+          ? weeks.find((w: any) => w.week_start_date === weekStartDate)
+          : null;
+        if (!cancelled) setProgramPdfUrl(match?.training_pdf_url || null);
+      } catch {
+        // silent — the program preview is a convenience, not required
+      }
+    };
+    fetchProgram();
+    return () => {
+      cancelled = true;
+    };
+  }, [weekStartDate]);
 
   // --- Load plan into editor when current plan changes ---
   useEffect(() => {
@@ -790,23 +818,29 @@ export default function WeeklyPlannerPage() {
             <div>
               <h2 className="text-xl font-semibold text-white mb-2">No plan for this week</h2>
               <p className="text-sm text-slate-400">
-                Upload a training plan image or paste text to create one for {weekLabel}.
+                {programPdfUrl
+                  ? `The training program for ${weekLabel} is uploaded — sync it into a plan, or create one manually.`
+                  : `Upload a training plan image or paste text to create one for ${weekLabel}.`}
               </p>
             </div>
             <div className="flex flex-col gap-3 items-center">
-              <button
-                onClick={syncFromProgram}
-                className="btn-primary flex items-center gap-2 px-6 py-3"
-              >
-                <RefreshCw className="h-5 w-5" />
-                Sync from Program
-              </button>
+              {programPdfUrl && (
+                <button
+                  onClick={syncFromProgram}
+                  className="btn-primary flex items-center gap-2 px-6 py-3"
+                >
+                  <RefreshCw className="h-5 w-5" />
+                  Sync from Program
+                </button>
+              )}
               <button
                 onClick={() => setShowCreate(true)}
-                className="text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg border border-slate-700/50 transition-colors flex items-center gap-2"
+                className={programPdfUrl
+                  ? 'text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg border border-slate-700/50 transition-colors flex items-center gap-2'
+                  : 'btn-primary flex items-center gap-2 px-6 py-3'}
               >
-                <Plus className="h-4 w-4" />
-                Create manually
+                <Plus className={programPdfUrl ? 'h-4 w-4' : 'h-5 w-5'} />
+                {programPdfUrl ? 'Create manually' : 'Create Plan'}
               </button>
               <button
                 onClick={async () => {
@@ -852,6 +886,51 @@ export default function WeeklyPlannerPage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {/* This week's uploaded program — the coach's source material */}
+            {programPdfUrl && (
+              <div className="rounded-xl border border-slate-700 bg-slate-800/40 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <div className="flex items-center gap-2 text-sm text-slate-300">
+                    <FileText className="h-4 w-4 text-primary-400" />
+                    Program for {weekLabel}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowProgramViewer((v) => !v)}
+                      className="text-xs text-primary-400 hover:text-primary-300"
+                    >
+                      {showProgramViewer ? 'Hide' : 'View'}
+                    </button>
+                    <a
+                      href={programPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-slate-400 hover:text-white"
+                    >
+                      Open ↗
+                    </a>
+                  </div>
+                </div>
+                {showProgramViewer && (
+                  <iframe
+                    src={programPdfUrl}
+                    className="w-full border-0 border-t border-slate-700 bg-white"
+                    style={{ height: '60vh' }}
+                    title={`Training program for ${weekLabel}`}
+                  />
+                )}
+                <div className="px-4 py-2 border-t border-slate-700/60">
+                  <button
+                    onClick={syncFromProgram}
+                    className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Parse this program automatically
+                  </button>
+                </div>
+              </div>
+            )}
 
             <textarea
               value={inputText}
