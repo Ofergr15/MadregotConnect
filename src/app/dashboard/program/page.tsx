@@ -514,6 +514,21 @@ export default function ProgramPage() {
   );
 }
 
+// Local-timezone YYYY-MM-DD (avoids the UTC shift toISOString() introduces near
+// midnight, which could push a Sunday back to the previous Saturday).
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Given a Sunday ISO date, return the "DD.MM – DD.MM" Sunday→Saturday range.
+function deriveDateRange(sundayISO: string): string {
+  const sunday = new Date(sundayISO + 'T00:00:00');
+  const saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
+  const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return `${fmt(sunday)} – ${fmt(saturday)}`;
+}
+
 function getPdfUrl(week: ProgramWeek, view: 'training' | 'nutrition' | 'workout'): string | null {
   if (view === 'workout') return null;
   return view === 'training' ? week.training_pdf_url : week.nutrition_pdf_url;
@@ -529,26 +544,39 @@ function UploadForm({
   onSuccess: () => void;
 }) {
   const [weekNumber, setWeekNumber] = useState(nextWeekNumber);
-  const [dateRange, setDateRange] = useState('');
   const [weekStartDate, setWeekStartDate] = useState('');
   const [trainingFile, setTrainingFile] = useState<File | null>(null);
   const [nutritionFile, setNutritionFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
+  // The program runs Sunday → Saturday. The user only picks the Sunday; the
+  // date range is always derived from it (Sun→Sat) so it can never be reversed
+  // or mismatched — which is what created a bad, duplicate week row before.
+  const dateRange = weekStartDate ? deriveDateRange(weekStartDate) : '';
+
   useEffect(() => {
+    // Default to the upcoming Sunday.
     const now = new Date();
     const day = now.getDay();
     const sundayOffset = day === 0 ? 0 : 7 - day;
     const nextSunday = new Date(now);
     nextSunday.setDate(now.getDate() + sundayOffset);
-    const nextSaturday = new Date(nextSunday);
-    nextSaturday.setDate(nextSunday.getDate() + 6);
-
-    const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
-    setDateRange(`${fmt(nextSunday)} – ${fmt(nextSaturday)}`);
-    setWeekStartDate(nextSunday.toISOString().slice(0, 10));
+    setWeekStartDate(toISODate(nextSunday));
   }, []);
+
+  // Snap any picked date back to the Sunday that starts its week, so the stored
+  // week_start_date is always a Sunday regardless of what the user clicks.
+  function handleStartDateChange(value: string) {
+    if (!value) {
+      setWeekStartDate('');
+      return;
+    }
+    const picked = new Date(value + 'T00:00:00');
+    const sunday = new Date(picked);
+    sunday.setDate(picked.getDate() - picked.getDay()); // getDay() 0=Sun
+    setWeekStartDate(toISODate(sunday));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -605,10 +633,10 @@ function UploadForm({
               <input
                 type="text"
                 value={dateRange}
-                onChange={e => setDateRange(e.target.value)}
-                placeholder="05.07 – 11.07"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
-                required
+                readOnly
+                placeholder="pick a start date"
+                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-slate-300 cursor-not-allowed"
+                title="Auto-set from the week start date (Sunday → Saturday)"
               />
             </div>
           </div>
@@ -618,10 +646,13 @@ function UploadForm({
             <input
               type="date"
               value={weekStartDate}
-              onChange={e => setWeekStartDate(e.target.value)}
+              onChange={e => handleStartDateChange(e.target.value)}
               className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
               required
             />
+            <p className="text-xs text-slate-500 mt-1">
+              Any day you pick snaps to that week&apos;s Sunday. The range is set automatically.
+            </p>
           </div>
 
           <div>

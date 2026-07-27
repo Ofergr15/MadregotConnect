@@ -20,17 +20,32 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData();
 
   const weekNumber = Number(formData.get('week_number'));
-  const dateRange = formData.get('date_range') as string;
-  const weekStartDate = formData.get('week_start_date') as string;
+  const rawStartDate = formData.get('week_start_date') as string;
   const trainingFile = formData.get('training_pdf') as File | null;
   const nutritionFile = formData.get('nutrition_pdf') as File | null;
 
-  if (!weekNumber || !dateRange || !weekStartDate) {
+  if (!weekNumber || !rawStartDate) {
     return NextResponse.json(
-      { error: 'Missing required fields: week_number, date_range, week_start_date' },
+      { error: 'Missing required fields: week_number, week_start_date' },
       { status: 400 }
     );
   }
+
+  // The program is always Sunday → Saturday. Snap the given date back to its
+  // week's Sunday and derive the range server-side, so the stored row can never
+  // be reversed or start on a non-Sunday (which produced a bad duplicate week
+  // before). The client-supplied date_range, if any, is ignored.
+  const picked = new Date(rawStartDate + 'T00:00:00');
+  if (isNaN(picked.getTime())) {
+    return NextResponse.json({ error: 'Invalid week_start_date' }, { status: 400 });
+  }
+  const sunday = new Date(picked);
+  sunday.setDate(picked.getDate() - picked.getDay()); // getDay(): 0 = Sunday
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const weekStartDate = `${sunday.getFullYear()}-${pad(sunday.getMonth() + 1)}-${pad(sunday.getDate())}`;
+  const saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
+  const dateRange = `${pad(sunday.getDate())}.${pad(sunday.getMonth() + 1)} – ${pad(saturday.getDate())}.${pad(saturday.getMonth() + 1)}`;
 
   let trainingUrl: string | null = null;
   let nutritionUrl: string | null = null;
