@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target, Activity, WifiOff } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 import { ProfileBest } from '@/components/ProfileBest';
+import { shareTextForDay } from '@/lib/workout-share';
+import type { GroupedWeeklyPlans } from '@/lib/ai/types';
 
 interface Group {
   id: string;
@@ -97,6 +99,30 @@ function ProfileContent() {
   const [syncModalCount, setSyncModalCount] = useState(0);
   const [hasSynced, setHasSynced] = useState(false);
   const garminSectionRef = useRef<HTMLDivElement>(null);
+
+  // --- Copyable workout (current week's plan) ---
+  const [planWorkouts, setPlanWorkouts] = useState<GroupedWeeklyPlans | null>(null);
+  const [planWeekStart, setPlanWeekStart] = useState<string | null>(null);
+  const [planIsCurrent, setPlanIsCurrent] = useState(true);
+  const [shareDay, setShareDay] = useState<number>(() => new Date().getDay());
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/public/current-plan')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        const plan = data?.plan;
+        if (!plan?.parsed_workouts) return;
+        const pw = plan.parsed_workouts;
+        // Only the grouped shape (group1/2/3) can produce the ❶ (❷) ((❸)) copy.
+        if (pw.group1 && pw.group2 && pw.group3) {
+          setPlanWorkouts(pw as GroupedWeeklyPlans);
+          setPlanWeekStart(plan.week_start_date);
+          setPlanIsCurrent(!!plan.is_current);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (searchParams.get('connectGarmin') === '1') {
@@ -203,6 +229,24 @@ function ProfileContent() {
 
   const currentGroup = groups.find(g => g.id === currentGroupId);
   const currentWeek = WEEKS[0];
+
+  // Days (0=Sun..6=Sat) that actually have a workout in the loaded plan.
+  const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const workoutDays = planWorkouts
+    ? DAY_SHORT.map((_, d) => d).filter(d => shareTextForDay(planWorkouts, d) !== null)
+    : [];
+  const shareText = planWorkouts ? shareTextForDay(planWorkouts, shareDay) : null;
+
+  const copyShareText = async () => {
+    if (!shareText) return;
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard blocked — the text is selectable in the box as a fallback
+    }
+  };
 
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-8">
@@ -404,6 +448,72 @@ function ProfileContent() {
           </button>
         )}
       </div>
+
+      {/* Copy your workout — shareable text for WhatsApp / social */}
+      {planWorkouts && workoutDays.length > 0 && (
+        <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
+                <Share2 className="h-4.5 w-4.5 text-[#4338ff]" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-white">Share a workout</h2>
+                {!planIsCurrent && planWeekStart && (
+                  <p className="text-xs text-slate-500">Latest plan · week of {planWeekStart}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Day picker — only days that have a workout */}
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {workoutDays.map(d => (
+              <button
+                key={d}
+                onClick={() => setShareDay(d)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                  shareDay === d
+                    ? 'border-[#4338ff]/60 bg-[#4338ff]/10 text-white'
+                    : 'border-slate-700/50 bg-slate-900/30 text-slate-400 hover:text-slate-200'
+                )}
+              >
+                {DAY_SHORT[d]}
+              </button>
+            ))}
+          </div>
+
+          {shareText ? (
+            <>
+              <pre className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4 text-sm text-slate-200 whitespace-pre-wrap font-mono leading-relaxed max-h-72 overflow-y-auto">
+{shareText}
+              </pre>
+              <button
+                onClick={copyShareText}
+                className="mt-3 w-full bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy workout
+                  </>
+                )}
+              </button>
+              <p className="text-[11px] text-slate-500 mt-2 text-center">
+                Paces shown as ❶ (❷) ((❸)) for the three groups.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-400 text-center py-4">Rest day — no workout to share.</p>
+          )}
+        </div>
+      )}
 
       {/* Data Source - Connect Strava */}
       <div ref={garminSectionRef} className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
