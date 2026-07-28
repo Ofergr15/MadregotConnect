@@ -56,9 +56,10 @@ const FIELDS: Field[] = [
   { key: 'shirtSize', label: 'מה מידת החולצה שלך', type: 'radio', required: true, options: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
 ];
 
-// Academy registration is currently closed. Flip to true to reopen the public
-// form (the "Join the Academy" buttons on the landing page are disabled too).
-const REGISTRATION_OPEN = false;
+// The public form works via direct link; the landing-page "Join the Academy"
+// buttons are intentionally disabled ("Coming Soon"), so the form isn't
+// advertised there. Flip to false to fully close registration.
+const REGISTRATION_OPEN = true;
 
 export default function AcademyRegisterPage() {
   const [values, setValues] = useState<Record<string, any>>({});
