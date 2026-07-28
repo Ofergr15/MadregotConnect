@@ -6,10 +6,10 @@ import { notifyAdminNewAcademyRegistration } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
-// Academy registration is currently closed. Keep in sync with REGISTRATION_OPEN
-// in src/app/academy-register/page.tsx. This is the server-side gate so a direct
-// POST can't bypass the disabled form.
-const REGISTRATION_OPEN = false;
+// Registration accepts direct-link sign-ups; only the landing-page buttons are
+// hidden. Keep in sync with REGISTRATION_OPEN in
+// src/app/academy-register/page.tsx. Flip to false to fully close registration.
+const REGISTRATION_OPEN = true;
 
 /**
  * POST /api/academy/register — public academy sign-up.
