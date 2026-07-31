@@ -114,16 +114,18 @@ export default function RacesPage() {
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(link);
+    // Inject Leaflet CSS once (guarded — this effect can run on every mount).
+    if (!document.querySelector('link[data-leaflet]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.setAttribute('data-leaflet', '1');
+      document.head.appendChild(link);
+    }
 
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    script.onload = () => {
+    const initMap = () => {
       const L = (window as any).L;
-      if (!L || !mapRef.current) return;
+      if (!L || !mapRef.current || mapInstanceRef.current) return;
 
       const map = L.map(mapRef.current, {
         center: [31.5, 34.8],
@@ -137,6 +139,11 @@ export default function RacesPage() {
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
       }).addTo(map);
+
+      // On mobile the container often has no final size yet when the map
+      // initializes, leaving Leaflet with 0x0 tiles (a blank map). Recompute
+      // once layout settles so tiles render.
+      setTimeout(() => map.invalidateSize(), 200);
 
       races.forEach((race) => {
         const color = typeColors[race.type]?.dot || '#6366f1';
@@ -162,7 +169,21 @@ export default function RacesPage() {
 
       mapInstanceRef.current = map;
     };
-    document.body.appendChild(script);
+
+    // Load Leaflet's JS once, then init. If the script is already present
+    // (or loaded), init immediately; otherwise wait for its onload.
+    if ((window as any).L) {
+      initMap();
+    } else {
+      let script = document.querySelector<HTMLScriptElement>('script[data-leaflet]');
+      if (!script) {
+        script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.setAttribute('data-leaflet', '1');
+        document.body.appendChild(script);
+      }
+      script.addEventListener('load', initMap);
+    }
 
     return () => {
       if (mapInstanceRef.current) {
