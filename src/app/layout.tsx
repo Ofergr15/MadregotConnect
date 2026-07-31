@@ -25,6 +25,11 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'Madregot',
   },
+  // Next's appleWebApp only emits the (now-deprecated) apple- prefixed tag;
+  // add the standard one so Chrome/Android stops warning.
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
   openGraph: {
     title: 'Madregot After 2KM',
     description: "Israel's leading running community. Redefining running culture since 2022.",
@@ -34,7 +39,7 @@ export const metadata: Metadata = {
     icon: [
       { url: '/images/favicon.png', sizes: '256x256', type: 'image/png' },
     ],
-    apple: '/images/favicon.png',
+    apple: [{ url: '/images/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
 };
 

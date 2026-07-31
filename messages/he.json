@@ -488,5 +488,14 @@
     "exercises": "תרגילים",
     "previous": "קודם",
     "next": "הבא"
+  },
+  "install": {
+    "title": "התקנת Madregot",
+    "description": "הוסיפו את האפליקציה למסך הבית לגישה מהירה ולחוויה במסך מלא.",
+    "installButton": "התקנה",
+    "iosHintPrefix": "הקישו על",
+    "iosHintMiddle": "ואז",
+    "iosHintSuffix": "הוספה למסך הבית",
+    "dismiss": "סגירה"
   }
 }

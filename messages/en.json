@@ -488,5 +488,14 @@
     "exercises": "exercises",
     "previous": "Previous",
     "next": "Next"
+  },
+  "install": {
+    "title": "Install Madregot",
+    "description": "Add the app to your home screen for quick access and a full-screen experience.",
+    "installButton": "Install",
+    "iosHintPrefix": "Tap",
+    "iosHintMiddle": "then",
+    "iosHintSuffix": "Add to Home Screen",
+    "dismiss": "Dismiss"
   }
 }
