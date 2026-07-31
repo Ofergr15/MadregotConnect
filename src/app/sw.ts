@@ -41,7 +41,17 @@ const serwist = new Serwist({
           url.searchParams.has('code')),
       handler: new NetworkOnly(),
     },
-    // 4) Everything else -> Next-tuned defaults (handles _next/static,
+    // 4) Don't mediate the Races-page map (Leaflet CDN + CARTO map tiles).
+    //    defaultCache would otherwise route these cross-origin requests through
+    //    NetworkFirst, which can make opaque no-cors responses flaky on mobile.
+    //    Let the browser fetch them directly, exactly as it did pre-PWA.
+    {
+      matcher: ({ url }) =>
+        url.hostname === 'unpkg.com' ||
+        url.hostname.endsWith('.basemaps.cartocdn.com'),
+      handler: new NetworkOnly(),
+    },
+    // 5) Everything else -> Next-tuned defaults (handles _next/static,
     //    next-image, fonts, and NetworkFirst navigations). First match wins,
     //    so the NetworkOnly rules above supersede defaultCache's own /api entry.
     ...defaultCache,

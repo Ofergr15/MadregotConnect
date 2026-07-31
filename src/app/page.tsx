@@ -132,7 +132,7 @@ export default function HomePage() {
         <div className="pointer-events-none absolute top-1/3 start-[-15%] h-[420px] w-[420px] rounded-full bg-[#4338ff]/5 blur-3xl" aria-hidden="true"></div>
 
         {/* Nav */}
-        <nav className="relative z-10 flex items-center justify-between px-4 sm:px-8 lg:px-20 py-4 sm:py-6">
+        <nav className="relative z-10 flex items-center justify-between px-4 sm:px-8 lg:px-20 py-4 sm:py-6 safe-top safe-inline-start safe-inline-end">
           <div className="flex items-center gap-2">
             <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 sm:h-12 sm:w-12 object-contain mix-blend-multiply" />
             <div className="flex flex-col leading-none">
@@ -209,10 +209,12 @@ export default function HomePage() {
 
         {/* Mobile Hero Image */}
         <div className="lg:hidden px-4 sm:px-8 pt-2 pb-6 relative z-10">
-          <div className="rounded-3xl overflow-hidden aspect-[16/9] shadow-xl ring-1 ring-black/5">
+          <div className="rounded-3xl overflow-hidden aspect-[16/9] shadow-xl ring-1 ring-black/5 bg-[#4338ff]/10">
             <img
               src="/images/hero-running.jpg"
               alt="Madregot runners"
+              loading="eager"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
               className="w-full h-full object-cover object-center"
             />
           </div>
@@ -254,10 +256,11 @@ export default function HomePage() {
             {/* Visual (desktop only) */}
             <div className="relative hidden lg:block">
               <div className="absolute -inset-4 rounded-[2rem] bg-[#4338ff]/10 blur-2xl" aria-hidden="true"></div>
-              <div className="relative aspect-[3/4] rounded-[2rem] overflow-hidden shadow-2xl ring-1 ring-black/5">
+              <div className="relative aspect-[3/4] rounded-[2rem] overflow-hidden shadow-2xl ring-1 ring-black/5 bg-[#4338ff]/10">
                 <img
                   src="/images/hero-running.jpg"
                   alt="Madregot runners"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   className="w-full h-full object-cover object-center"
                 />
                 <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent" aria-hidden="true"></div>
