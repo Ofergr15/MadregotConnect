@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Trophy, Users, Zap, Heart, Camera, Loader2, Shield, Route, Activity, Clock, GraduationCap } from 'lucide-react';
-import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { Trophy, Users, Zap, Heart, Camera, Loader2, Shield, Route, Activity, Clock, GraduationCap } from 'lucide-react';
+import { useTranslations, useLocale } from 'next-intl';
 import { getSupabase } from '@/lib/supabase/client';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
+import { Figure } from '@/components/Figure';
 
 interface PublicStats {
   since?: string;
@@ -18,13 +18,13 @@ interface PublicStats {
   testDate?: string | null;
 }
 
-function fmtMonthYear(dateStr?: string): string {
+function fmtMonthYear(dateStr: string | undefined, locale: string): string {
   if (!dateStr) return '';
-  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
-function fmtDate(dateStr?: string | null): string {
+function fmtDate(dateStr: string | null | undefined, locale: string): string {
   if (!dateStr) return '';
-  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 function fmtTime(sec: number): string {
@@ -35,8 +35,8 @@ function fmtTime(sec: number): string {
   const fracStr = frac > 0 ? frac.toFixed(2).slice(1).replace(/0+$/, '').replace(/\.$/, '') : '';
   return `${m}:${whole.toString().padStart(2, '0')}${fracStr}`;
 }
-function fmtNum(n: number): string {
-  return n.toLocaleString('en-US');
+function fmtNum(n: number, locale: string): string {
+  return n.toLocaleString(locale);
 }
 
 function useGoogleLogin() {
@@ -61,6 +61,7 @@ export default function HomePage() {
   const t = useTranslations('home');
   const tc = useTranslations('common');
   const th = useTranslations('header');
+  const locale = useLocale();
   const [checking, setChecking] = useState(true);
   const { signIn, loading: signingIn } = useGoogleLogin();
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -131,46 +132,46 @@ export default function HomePage() {
         <div className="pointer-events-none absolute -top-40 end-[-10%] h-[520px] w-[520px] rounded-full bg-[#4338ff]/10 blur-3xl" aria-hidden="true"></div>
         <div className="pointer-events-none absolute top-1/3 start-[-15%] h-[420px] w-[420px] rounded-full bg-[#4338ff]/5 blur-3xl" aria-hidden="true"></div>
 
-        {/* Nav */}
-        <nav className="relative z-10 flex items-center justify-between px-4 sm:px-8 lg:px-20 py-4 sm:py-6 safe-top safe-inline-start safe-inline-end">
-          <div className="flex items-center gap-2">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 sm:h-12 sm:w-12 object-contain mix-blend-multiply" />
-            <div className="flex flex-col leading-none">
-              <span className="text-sm sm:text-base font-black uppercase tracking-tight">{t('madregot')}</span>
-              <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('after2km')}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <LocaleSwitcher />
-            <div
-              aria-disabled="true"
-              className="hidden sm:inline-flex items-center gap-1.5 border-2 border-gray-300 text-gray-400 font-semibold px-4 py-2 sm:px-5 sm:py-2 rounded-lg text-sm cursor-not-allowed select-none"
-            >
-              <GraduationCap className="h-4 w-4" /> Join the Academy
-              <span className="text-[9px] font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
-                {t('comingSoon')}
+        {/* Nav — sticky glass bar, safe-area aware */}
+        <nav className="sticky top-0 z-40 safe-top safe-inline-start safe-inline-end bg-[#f0f0f0]/80 backdrop-blur-md border-b border-black/5">
+          <div className="flex items-center justify-between px-4 sm:px-8 lg:px-20 h-16">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-[#4338ff] shadow-lg shadow-[#4338ff]/25">
+                <img src="/images/logo-white.png" alt="Madregot After 2KM" className="h-6 w-6 sm:h-7 sm:w-7 object-contain" />
               </span>
+              <div className="flex flex-col leading-none">
+                <span className="text-sm sm:text-base font-black uppercase tracking-tight">{t('madregot')}</span>
+                <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500 mt-0.5">{t('after2km')}</span>
+              </div>
             </div>
-            <button
-              onClick={signIn}
-              disabled={signingIn}
-              className="bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50"
-            >
-              {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : tc('signIn')}
-            </button>
-            <button
-              onClick={() => setShowAdminLogin(!showAdminLogin)}
-              className="p-2 text-gray-400 hover:text-[#4338ff] transition-colors rounded-lg hover:bg-gray-200"
-              title={th('adminLogin')}
-            >
-              <Shield className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <LocaleSwitcher />
+              <button
+                onClick={signIn}
+                disabled={signingIn}
+                className="whitespace-nowrap inline-flex items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full bg-[#4338ff] hover:bg-[#3730d4] active:scale-[0.98] text-white text-sm font-bold shadow-lg shadow-[#4338ff]/25 transition disabled:opacity-50"
+              >
+                {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                  <>
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#4338ff] text-[10px] font-black">G</span>
+                    {tc('signIn')}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </nav>
 
-        {/* Admin Login Dropdown */}
+        {/* Admin Login Modal (triggered from footer) */}
         {showAdminLogin && (
-          <div className="absolute top-16 end-4 sm:end-8 lg:end-20 z-50 bg-white rounded-xl shadow-2xl border border-gray-200 p-5 w-80">
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowAdminLogin(false)}
+          >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 p-5"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center gap-2 mb-4">
               <Shield className="h-4 w-4 text-[#4338ff]" />
               <span className="text-sm font-bold text-gray-800">{th('adminLogin')}</span>
@@ -180,7 +181,7 @@ export default function HomePage() {
                 type="email"
                 value={adminEmail}
                 onChange={e => setAdminEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
                 placeholder="admin@madregot.club"
                 required
               />
@@ -188,7 +189,7 @@ export default function HomePage() {
                 type="password"
                 value={adminPassword}
                 onChange={e => setAdminPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
                 placeholder={th('password')}
                 required
               />
@@ -205,19 +206,18 @@ export default function HomePage() {
               </button>
             </form>
           </div>
+          </div>
         )}
 
         {/* Mobile Hero Image */}
-        <div className="lg:hidden px-4 sm:px-8 pt-2 pb-6 relative z-10">
-          <div className="rounded-3xl overflow-hidden aspect-[16/9] shadow-xl ring-1 ring-black/5 bg-[#4338ff]/10">
-            <img
-              src="/images/hero-running.jpg"
-              alt="Madregot runners"
-              loading="eager"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              className="w-full h-full object-cover object-center"
-            />
-          </div>
+        <div className="lg:hidden px-4 sm:px-8 pt-4 pb-6 relative z-10">
+          <Figure
+            src="/images/hero-running.jpg"
+            alt={t('heroAlt')}
+            ratio="aspect-[16/9]"
+            priority
+            className="rounded-3xl shadow-xl ring-1 ring-black/5"
+          />
         </div>
 
         {/* Hero Content */}
@@ -239,14 +239,26 @@ export default function HomePage() {
                 {t('connectingRunners')}<br />
                 {t('buildingCommunity')}
               </p>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mt-8 sm:mt-10">
+              <div className="flex flex-col gap-3 mt-8 sm:mt-10 sm:max-w-sm">
+                <button
+                  onClick={signIn}
+                  disabled={signingIn}
+                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-[#4338ff] hover:bg-[#3730d4] active:scale-[0.99] text-white text-base font-bold shadow-lg shadow-[#4338ff]/25 transition disabled:opacity-50"
+                >
+                  {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                    <>
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[#4338ff] text-xs font-black">G</span>
+                      {t('signInWithGoogle')}
+                    </>
+                  )}
+                </button>
                 <div
                   aria-disabled="true"
-                  className="inline-flex items-center justify-center gap-2 sm:gap-3 border-2 border-gray-300 text-gray-400 font-bold px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-lg cursor-not-allowed select-none"
+                  className="w-full inline-flex items-center justify-center gap-2 min-h-[46px] rounded-2xl border-2 border-gray-300 text-gray-400 text-sm font-semibold cursor-not-allowed select-none"
                 >
-                  <GraduationCap className="h-5 w-5" />
-                  Join the Academy
-                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
+                  <GraduationCap className="h-4 w-4" />
+                  {t('joinAcademy')}
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
                     {t('comingSoon')}
                   </span>
                 </div>
@@ -256,15 +268,12 @@ export default function HomePage() {
             {/* Visual (desktop only) */}
             <div className="relative hidden lg:block">
               <div className="absolute -inset-4 rounded-[2rem] bg-[#4338ff]/10 blur-2xl" aria-hidden="true"></div>
-              <div className="relative aspect-[3/4] rounded-[2rem] overflow-hidden shadow-2xl ring-1 ring-black/5 bg-[#4338ff]/10">
-                <img
-                  src="/images/hero-running.jpg"
-                  alt="Madregot runners"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                  className="w-full h-full object-cover object-center"
-                />
-                <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent" aria-hidden="true"></div>
-              </div>
+              <Figure
+                src="/images/hero-running.jpg"
+                alt={t('heroAlt')}
+                ratio="aspect-[3/4]"
+                className="relative rounded-[2rem] shadow-2xl ring-1 ring-black/5"
+              />
             </div>
           </div>
         </div>
@@ -278,30 +287,30 @@ export default function HomePage() {
               <>
               {stats.since && (
                 <p className="text-center text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-gray-400 mb-3 sm:mb-4">
-                  Since {fmtMonthYear(stats.since)}
+                  {t('sinceLabel')} {fmtMonthYear(stats.since, locale)}
                 </p>
               )}
-              <div className="grid grid-cols-3 gap-3 sm:gap-6">
-                <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-                  <div className="mx-auto mb-3 sm:mb-4 flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
-                    <Route className="h-5 w-5 sm:h-7 sm:w-7" />
+              <div className="grid grid-cols-3 gap-2 sm:gap-6">
+                <div className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
+                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                    <Route className="h-4 w-4 sm:h-7 sm:w-7" />
                   </div>
-                  <div className="text-3xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none">{fmtNum(stats.totalKm)}</div>
-                  <div className="text-[11px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-2">Total KM</div>
+                  <div className="text-2xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none" dir="ltr">{fmtNum(stats.totalKm, locale)}</div>
+                  <div className="text-[10px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-1 sm:mt-2">{t('statKm')}</div>
                 </div>
-                <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-                  <div className="mx-auto mb-3 sm:mb-4 flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
-                    <Activity className="h-5 w-5 sm:h-7 sm:w-7" />
+                <div className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
+                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                    <Activity className="h-4 w-4 sm:h-7 sm:w-7" />
                   </div>
-                  <div className="text-3xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none">{fmtNum(stats.workouts)}</div>
-                  <div className="text-[11px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-2">Workouts</div>
+                  <div className="text-2xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none" dir="ltr">{fmtNum(stats.workouts, locale)}</div>
+                  <div className="text-[10px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-1 sm:mt-2">{t('statWorkouts')}</div>
                 </div>
-                <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-                  <div className="mx-auto mb-3 sm:mb-4 flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
-                    <Clock className="h-5 w-5 sm:h-7 sm:w-7" />
+                <div className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
+                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                    <Clock className="h-4 w-4 sm:h-7 sm:w-7" />
                   </div>
-                  <div className="text-3xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none">{fmtNum(stats.totalHours)}</div>
-                  <div className="text-[11px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-2">Hours</div>
+                  <div className="text-2xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none" dir="ltr">{fmtNum(stats.totalHours, locale)}</div>
+                  <div className="text-[10px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-1 sm:mt-2">{t('statHours')}</div>
                 </div>
               </div>
               </>
@@ -313,17 +322,17 @@ export default function HomePage() {
                   <div className="flex items-center gap-2">
                     <Trophy className="h-5 w-5 text-[#4338ff]" />
                     <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight text-black">
-                      {stats.topResults[0].test} — Top 3
+                      {stats.topResults[0].test} — {t('topThree')}
                     </h3>
                   </div>
                   {stats.testDate && (
-                    <span className="text-[11px] sm:text-xs font-semibold text-gray-400">{fmtDate(stats.testDate)}</span>
+                    <span className="text-[11px] sm:text-xs font-semibold text-gray-400">{fmtDate(stats.testDate, locale)}</span>
                   )}
                 </div>
                 <div className="flex items-end justify-center gap-3 sm:gap-8">
                   {/* 2nd place */}
                   {stats.topResults.length >= 2 && (
-                    <div className="flex w-20 flex-col items-center sm:w-32">
+                    <div className="flex flex-1 max-w-[104px] flex-col items-center">
                       <span className="mb-2 text-sm sm:text-lg font-black tabular-nums text-slate-500">{fmtTime(stats.topResults[1].timeSeconds)}</span>
                       <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-slate-300 to-slate-400 pt-3 shadow-inner" style={{ height: '96px' }}>
                         <span className="text-lg font-black text-white/90">2</span>
@@ -333,7 +342,7 @@ export default function HomePage() {
                   )}
                   {/* 1st place */}
                   {stats.topResults.length >= 1 && (
-                    <div className="flex w-20 flex-col items-center sm:w-32">
+                    <div className="flex flex-1 max-w-[104px] flex-col items-center">
                       <span className="mb-0.5 text-xl sm:text-2xl leading-none">👑</span>
                       <span className="mb-2 text-base sm:text-2xl font-black tabular-nums text-[#4338ff]">{fmtTime(stats.topResults[0].timeSeconds)}</span>
                       <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-yellow-400 to-yellow-500 pt-3 shadow-md" style={{ height: '140px' }}>
@@ -344,7 +353,7 @@ export default function HomePage() {
                   )}
                   {/* 3rd place */}
                   {stats.topResults.length >= 3 && (
-                    <div className="flex w-20 flex-col items-center sm:w-32">
+                    <div className="flex flex-1 max-w-[104px] flex-col items-center">
                       <span className="mb-2 text-sm sm:text-lg font-black tabular-nums text-amber-700">{fmtTime(stats.topResults[2].timeSeconds)}</span>
                       <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-amber-500 to-amber-600 pt-3 shadow-inner" style={{ height: '68px' }}>
                         <span className="text-lg font-black text-white/90">3</span>
@@ -379,16 +388,10 @@ export default function HomePage() {
               </p>
             </div>
             <div className="space-y-4">
-              <div className="rounded-3xl overflow-hidden aspect-[16/9] shadow-lg ring-1 ring-black/5">
-                <img src="/images/team-race.jpg" alt="Madregot team running on track" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
-              </div>
+              <Figure src="/images/team-race.jpg" alt={t('teamRaceAlt')} ratio="aspect-[16/9]" className="rounded-3xl shadow-lg ring-1 ring-black/5" imgClassName="motion-safe:transition-transform motion-safe:duration-500 sm:hover:scale-105" />
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-3xl overflow-hidden aspect-[3/4] shadow-lg ring-1 ring-black/5">
-                  <img src="/images/team-group.jpg" alt="Madregot team at golden hour" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
-                </div>
-                <div className="rounded-3xl overflow-hidden aspect-[3/4] shadow-lg ring-1 ring-black/5">
-                  <img src="/images/runners-group.jpg" alt="Athlete checking watch" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
-                </div>
+                <Figure src="/images/team-group.jpg" alt={t('teamGroupAlt')} ratio="aspect-[3/4]" className="rounded-3xl shadow-lg ring-1 ring-black/5" imgClassName="motion-safe:transition-transform motion-safe:duration-500 sm:hover:scale-105" />
+                <Figure src="/images/runners-group.jpg" alt={t('runnersGroupAlt')} ratio="aspect-[3/4]" className="rounded-3xl shadow-lg ring-1 ring-black/5" imgClassName="motion-safe:transition-transform motion-safe:duration-500 sm:hover:scale-105" />
               </div>
             </div>
           </div>
@@ -522,7 +525,7 @@ export default function HomePage() {
               className="inline-flex items-center gap-3 bg-white/40 text-[#4338ff]/50 font-bold px-8 py-4 sm:px-10 sm:py-5 rounded-xl text-lg cursor-not-allowed select-none"
             >
               <GraduationCap className="h-5 w-5" />
-              Join the Academy
+              {t('joinAcademy')}
               <span className="text-xs font-black uppercase tracking-wider bg-white/30 text-[#4338ff]/70 px-2 py-0.5 rounded-full">
                 {t('comingSoon')}
               </span>
@@ -530,27 +533,41 @@ export default function HomePage() {
             <button
               onClick={signIn}
               disabled={signingIn}
-              className="inline-flex items-center justify-center gap-2 border-2 border-white/40 text-white hover:bg-white/10 hover:border-white/70 font-semibold px-6 py-4 sm:py-5 rounded-xl text-lg transition-colors disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2.5 bg-white text-[#4338ff] hover:bg-white/90 active:scale-[0.99] font-bold px-8 py-4 sm:py-5 rounded-xl text-lg transition disabled:opacity-50"
             >
-              {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : tc('signIn')}
+              {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                <>
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#4338ff] text-white text-xs font-black">G</span>
+                  {t('signInWithGoogle')}
+                </>
+              )}
             </button>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-10 px-4 sm:px-8 lg:px-20 bg-black text-white">
+      <footer className="py-10 px-4 sm:px-8 lg:px-20 bg-black text-white safe-bottom safe-inline-start safe-inline-end">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain brightness-0 invert" />
+            <img src="/images/logo-white.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain" />
             <div className="flex flex-col leading-tight">
               <span className="text-base font-bold tracking-tight">{t('madregot')}</span>
               <span className="text-xs font-medium tracking-wide text-gray-400">{t('after2km')}</span>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">
-            {t('copyright')}
-          </p>
+          <div className="flex flex-col items-center sm:items-end gap-2">
+            <p className="text-gray-500 text-sm" dir="ltr">
+              {t('copyright')}
+            </p>
+            <button
+              onClick={() => setShowAdminLogin(!showAdminLogin)}
+              className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-300 text-xs font-medium transition-colors"
+            >
+              <Shield className="h-3.5 w-3.5" />
+              {t('adminSignIn')}
+            </button>
+          </div>
         </div>
       </footer>
     </div>

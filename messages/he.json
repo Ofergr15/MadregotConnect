@@ -100,7 +100,19 @@
     "signInToStart": "התחברו כדי להתחיל",
     "madregot": "מדרגות",
     "after2km": "מועדון ריצה After 2KM",
-    "copyright": "© 2026 מדרגות After 2KM Running Club. הוקם 2022"
+    "copyright": "© 2026 מדרגות After 2KM Running Club. הוקם 2022",
+    "signInWithGoogle": "התחברות עם Google",
+    "joinAcademy": "הצטרפו לאקדמיה",
+    "sinceLabel": "החל מ־",
+    "statKm": "ק\"מ",
+    "statWorkouts": "אימונים",
+    "statHours": "שעות",
+    "topThree": "טופ 3",
+    "adminSignIn": "כניסת מנהל",
+    "heroAlt": "רצי מדרגות",
+    "teamRaceAlt": "צוות מדרגות רץ על המסלול",
+    "teamGroupAlt": "צוות מדרגות בשעת זהב",
+    "runnersGroupAlt": "רץ בודק שעון"
   },
   "dashboard": {
     "valenciaMarathon": "מרתון ולנסיה",

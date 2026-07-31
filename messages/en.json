@@ -100,7 +100,19 @@
     "signInToStart": "Sign In to Get Started",
     "madregot": "Madregot",
     "after2km": "After 2KM Running Club",
-    "copyright": "© 2026 Madregot After 2KM Running Club. EST. 2022"
+    "copyright": "© 2026 Madregot After 2KM Running Club. EST. 2022",
+    "signInWithGoogle": "Sign in with Google",
+    "joinAcademy": "Join the Academy",
+    "sinceLabel": "Since",
+    "statKm": "Total KM",
+    "statWorkouts": "Workouts",
+    "statHours": "Hours",
+    "topThree": "Top 3",
+    "adminSignIn": "Admin sign in",
+    "heroAlt": "Madregot runners",
+    "teamRaceAlt": "Madregot team running on track",
+    "teamGroupAlt": "Madregot team at golden hour",
+    "runnersGroupAlt": "Athlete checking watch"
   },
   "dashboard": {
     "valenciaMarathon": "Valencia Marathon",
