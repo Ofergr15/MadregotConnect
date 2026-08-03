@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from '@/lib/garmin/client';
 import { COACH_ID } from '@/lib/constants';
+import { sendPushToSubscriptions } from '@/lib/push';
 
 export async function POST(request: Request) {
   try {
@@ -132,6 +133,26 @@ export async function POST(request: Request) {
 
           if (insertError) throw insertError;
           totalSynced += newActivities.length;
+
+          // Post-workout nudge (PRD §1): push the athlete to fill the feedback
+          // questionnaire for the newest run. Inline (not cron) so it's timely;
+          // never let a push failure break the sync.
+          try {
+            const newest = newActivities.reduce((a, b) =>
+              new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b);
+            const { data: subs } = await supabase
+              .from('push_subscriptions')
+              .select('id, endpoint, p256dh, auth, athlete_id')
+              .eq('athlete_id', athlete.id);
+            if (subs && subs.length > 0) {
+              await sendPushToSubscriptions(subs as any, {
+                title: 'כל הכבוד על האימון! 🏃',
+                body: 'איך היה? ספרו לנו במשוב קצר',
+                url: `/dashboard/feedback?activity=${newest.activityId}`,
+                tag: `post-workout-${newest.activityId}`,
+              });
+            }
+          } catch { /* push is best-effort */ }
         }
 
         results.push({ athleteId: athlete.id, name: athlete.name, synced: newActivities.length });

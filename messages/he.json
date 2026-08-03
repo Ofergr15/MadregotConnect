@@ -526,5 +526,23 @@
     "otherGroup": "דבוקה אחרת… (טקסט חופשי)",
     "goingCount": "מגיעים",
     "noRsvp": "לא ענו"
+  },
+  "workoutFeedback": {
+    "title": "איך היה האימון?",
+    "fromWatch": "מהשעון",
+    "effort": "מאמץ",
+    "feel": "הרגשה",
+    "adaptRecovery": "נשאל על התאוששות",
+    "difficulty": "רמת קושי",
+    "howFeel": "איך הרגשת?",
+    "pain": "כאב או אי-נוחות?",
+    "painAfterHard": "אחרי מאמץ קשה — יש כאב?",
+    "painDetail": "תארו (רשות)",
+    "wantFeedback": "רוצים משוב מהמאמן?",
+    "wantHelp": "רוצים שהמאמן יצור קשר?",
+    "yes": "כן",
+    "no": "לא",
+    "submit": "שליחת משוב",
+    "thanks": "תודה! 🙏"
   }
 }
