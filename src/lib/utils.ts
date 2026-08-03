@@ -25,6 +25,18 @@ export function getActivityWeekStart(date: Date): string {
 }
 
 /**
+ * The PLAN week start: the Sunday on/before `date`, as YYYY-MM-DD. This matches
+ * `weekly_plans.week_start_date` (Sunday–Saturday), so use THIS — not
+ * getActivityWeekStart (Monday) — for anything keyed to a scheduled workout
+ * (e.g. pre-workout attendance RSVP).
+ */
+export function getPlanWeekStart(date: Date): string {
+  const d = new Date(date);
+  d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun → subtract to land on Sunday
+  return d.toISOString().split('T')[0];
+}
+
+/**
  * Activity start_time is Garmin's `startTimeLocal` (the athlete's own wall-clock,
  * e.g. "2026-07-12 06:01:40") stored in a TIMESTAMPTZ column, which Postgres
  * reads as UTC. So the CORRECT local time is the timestamp's UTC wall-clock —

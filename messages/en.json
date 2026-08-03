@@ -517,5 +517,14 @@
     "enable": "Enable",
     "enabling": "Enabling…",
     "dismiss": "Dismiss"
+  },
+  "attendance": {
+    "title": "Coming to today's workout?",
+    "coming": "I'm coming",
+    "notComing": "Not this time",
+    "whichGroup": "Which group?",
+    "otherGroup": "Other group… (free text)",
+    "goingCount": "attending",
+    "noRsvp": "No response"
   }
 }
