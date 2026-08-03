@@ -137,7 +137,12 @@ export function Header() {
   // not here — it leaves the role untouched).
   const viewMode = typeof window !== 'undefined' ? getViewMode() : null;
   const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
-  const effectiveRole = previewRole || userRole;
+  // The super user (Ofer) always gets full admin-level nav, regardless of their
+  // stored DB role (which may just be 'runner') — so admin-only tabs like
+  // practice-attendance / workout-feedback are always reachable. A view-as role
+  // scenario still overrides this so previews render correctly.
+  const baseRole = isSuper ? 'admin' : userRole;
+  const effectiveRole = previewRole || baseRole;
 
   const navReady = permissionsLoaded && !!effectiveRole;
 
