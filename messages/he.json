@@ -504,7 +504,10 @@
     "prehabMobility": "מניעה וניידות",
     "exercises": "תרגילים",
     "previous": "קודם",
-    "next": "הבא"
+    "next": "הבא",
+    "planUploaded": "הועלתה",
+    "planMissing": "חסרה — יש להעלות",
+    "uploadArrow": "העלאה ←"
   },
   "install": {
     "title": "התקנת Madregot",

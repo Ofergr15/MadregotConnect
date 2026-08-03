@@ -504,7 +504,10 @@
     "prehabMobility": "Prehab & Mobility",
     "exercises": "exercises",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "planUploaded": "Uploaded",
+    "planMissing": "Missing — please upload",
+    "uploadArrow": "Upload →"
   },
   "install": {
     "title": "Install Madregot",
