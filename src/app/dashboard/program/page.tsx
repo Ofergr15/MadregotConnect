@@ -257,6 +257,30 @@ export default function ProgramPage() {
         )}
       </div>
 
+      {/* This week's plan status — mirrors the Saturday 20:00 "new week" push
+          (training ✅/❌ · nutrition ✅/❌) so the same info is visible in-app,
+          not only in the notification. Only on the current week. */}
+      {activeView !== 'workout' && currentWeek && selectedWeek === 0 && (
+        <div className="space-y-2.5">
+          <PlanStatusRow
+            icon="🏃"
+            label={t('trainingProgram')}
+            present={!!currentWeek.training_pdf_url}
+            isAdmin={isAdmin}
+            onUpload={() => setShowUploadForm(true)}
+            t={t}
+          />
+          <PlanStatusRow
+            icon="🥗"
+            label={t('nutritionPlan')}
+            present={!!currentWeek.nutrition_pdf_url}
+            isAdmin={isAdmin}
+            onUpload={() => setShowUploadForm(true)}
+            t={t}
+          />
+        </div>
+      )}
+
       {/* PDF Viewer or Workout Videos */}
       {activeView === 'workout' ? (
         <div className="space-y-3 sm:space-y-5">
@@ -532,6 +556,46 @@ function deriveDateRange(sundayISO: string): string {
 function getPdfUrl(week: ProgramWeek, view: 'training' | 'nutrition' | 'workout'): string | null {
   if (view === 'workout') return null;
   return view === 'training' ? week.training_pdf_url : week.nutrition_pdf_url;
+}
+
+// A single plan-status row (training / nutrition) — green when uploaded, red +
+// upload action (admin only) when missing. Mirrors the Saturday 20:00 push.
+function PlanStatusRow({
+  icon, label, present, isAdmin, onUpload, t,
+}: {
+  icon: string;
+  label: string;
+  present: boolean;
+  isAdmin: boolean;
+  onUpload: () => void;
+  t: (k: any) => string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-3 rounded-xl border px-4 py-3.5',
+        present
+          ? 'bg-green-500/10 border-green-500/30'
+          : 'bg-red-500/10 border-red-500/35'
+      )}
+    >
+      <span className="text-lg shrink-0">{icon}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-white">{label}</p>
+        <p className={cn('text-xs mt-0.5', present ? 'text-green-400' : 'text-red-400')}>
+          {present ? `✅ ${t('planUploaded')}` : `❌ ${t('planMissing')}`}
+        </p>
+      </div>
+      {!present && isAdmin && (
+        <button
+          onClick={onUpload}
+          className="text-xs font-bold text-primary-400 hover:text-primary-300 transition-colors shrink-0"
+        >
+          {t('uploadArrow')}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function UploadForm({
