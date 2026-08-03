@@ -509,7 +509,8 @@
     "iosHintPrefix": "הקישו על",
     "iosHintMiddle": "ואז",
     "iosHintSuffix": "הוספה למסך הבית",
-    "dismiss": "סגירה"
+    "dismiss": "סגירה",
+    "skip": "לא עכשיו"
   },
   "push": {
     "title": "הפעלת התראות",

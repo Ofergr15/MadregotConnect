@@ -710,11 +710,11 @@ export default function DashboardPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-8">
 
-      {/* ═══ PRE-WORKOUT ATTENDANCE (only when there's a workout today) ═══ */}
-      {todayWorkout && todayWorkout.max > 0 && (
+      {/* ═══ PRE-WORKOUT ATTENDANCE — team-workout days only (Tue=2, Fri=5) ═══ */}
+      {(todayDow === 2 || todayDow === 5) && (
         isCoach
           ? <AttendanceRoster />
-          : <AttendanceRSVP workoutLabel={todayWorkout.type ? `${todayWorkout.day} · ${todayWorkout.type}` : todayWorkout.day} />
+          : <AttendanceRSVP workoutLabel={todayWorkout?.type ? `${todayWorkout.day} · ${todayWorkout.type}` : undefined} />
       )}
 
       {/* ═══ RACE COUNTDOWN ═══ */}
