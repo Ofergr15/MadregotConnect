@@ -505,9 +505,12 @@ export default function DashboardPage() {
       const myAthleteId = localStorage.getItem('athlete_id');
       const myIsCoach = !!localStorage.getItem('coach_email');
       const isFirstVisit = !localStorage.getItem('dashboard_synced');
+      // Super-user "view as" preview is read-only (sync POST is blocked), so
+      // never show the syncing modal while previewing another role.
+      const isPreviewing = !!localStorage.getItem('view_as_role');
 
       let hasGarminOrStrava = false;
-      if (myAthleteId && !myIsCoach) {
+      if (myAthleteId && !myIsCoach && !isPreviewing) {
         try {
           const meRes = await fetch(`/api/athletes/me?id=${myAthleteId}`);
           const meData = await meRes.json();
@@ -520,6 +523,12 @@ export default function DashboardPage() {
         if (needsSync || garminNewlyConnected) {
           setShowSyncModal(true);
           setSyncStatus('syncing');
+          // Persist the flags NOW, not only after the long sync chain finishes.
+          // Otherwise a reload / pull-to-refresh mid-sync re-shows the modal every
+          // time, because these were previously only written at the very end.
+          // On a real sync error we re-arm below so it retries next visit.
+          localStorage.setItem('dashboard_synced', '1');
+          localStorage.setItem('dashboard_synced_with_garmin', '1');
         } else if (!hasGarminOrStrava) {
           localStorage.setItem('dashboard_synced', '1');
         }
@@ -632,9 +641,11 @@ export default function DashboardPage() {
           } catch {
             setSyncStatus('error');
             setSyncError('Could not sync Garmin data.');
+            // Re-arm so a failed sync retries on the next visit (the flags were
+            // set optimistically when the modal opened).
+            localStorage.removeItem('dashboard_synced_with_garmin');
           }
           localStorage.setItem('dashboard_synced', '1');
-          localStorage.setItem('dashboard_synced_with_garmin', '1');
 
           // Refresh activities after sync completes
           try {
