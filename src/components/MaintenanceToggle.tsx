@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils';
 export function MaintenanceToggle() {
   const [on, setOn] = useState<boolean | null>(null);
   const [allowlist, setAllowlist] = useState<string[]>([]);
-  const [newEmail, setNewEmail] = useState('');
+  const [pick, setPick] = useState('');
+  const [athletes, setAthletes] = useState<Array<{ name: string; email: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [actorEmail, setActorEmail] = useState('');
@@ -21,6 +22,10 @@ export function MaintenanceToggle() {
       .then(r => r.ok ? r.json() : null)
       .then(d => { setOn(!!d?.maintenance); setAllowlist(d?.allowlist || []); })
       .catch(() => setOn(false));
+    // Load real users so the allowlist is a pick-list, not free text.
+    fetch('/api/admin/users').then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.users) setAthletes(d.users.filter((u: any) => u.email).map((u: any) => ({ name: u.name || u.email, email: u.email })));
+    }).catch(() => {});
   }, []);
 
   const persist = async (patch: { on?: boolean; allowlist?: string[] }) => {
@@ -43,10 +48,10 @@ export function MaintenanceToggle() {
 
   const toggle = () => { if (on != null) persist({ on: !on }); };
   const addEmail = () => {
-    const e = newEmail.toLowerCase().trim();
-    if (!e || allowlist.includes(e)) { setNewEmail(''); return; }
+    const e = pick.toLowerCase().trim();
+    if (!e || allowlist.includes(e)) { setPick(''); return; }
     const next = [...allowlist, e];
-    setAllowlist(next); setNewEmail('');
+    setAllowlist(next); setPick('');
     persist({ allowlist: next });
   };
   const removeEmail = (e: string) => {
@@ -88,13 +93,15 @@ export function MaintenanceToggle() {
           ))}
         </div>
         <div className="flex gap-2">
-          <input
-            type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEmail(); } }}
-            placeholder="add email…"
-            className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
-          />
-          <button onClick={addEmail} disabled={saving || !newEmail.trim()}
+          <select
+            value={pick} onChange={e => setPick(e.target.value)}
+            className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#4338ff]">
+            <option value="">Select a user…</option>
+            {athletes.filter(a => !allowlist.includes(a.email.toLowerCase())).map(a => (
+              <option key={a.email} value={a.email}>{a.name} ({a.email})</option>
+            ))}
+          </select>
+          <button onClick={addEmail} disabled={saving || !pick}
             className="inline-flex items-center gap-1 bg-[#4338ff] hover:bg-[#3730d4] disabled:opacity-50 text-white text-sm font-semibold px-3 rounded-lg">
             <Plus className="w-4 h-4" /> Add
           </button>
