@@ -31,34 +31,40 @@ type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athl
  * athlete_id -> unread count (already including the notification being sent now).
  */
 async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string, number>> {
-  const supabase = createServerClient();
   const counts: Record<string, number> = {};
-  // Pull each athlete's last_seen_at + group, then count matching sent rows.
-  const { data: athletes } = await supabase
-    .from('athletes')
-    .select('id, group_id, last_seen_at')
-    .in('id', athleteIds);
-
-  await Promise.all(
-    (athletes || []).map(async (a: { id: string; group_id: string | null; last_seen_at: string | null }) => {
-      const since = a.last_seen_at || '1970-01-01';
-      // Notifications targeting this athlete (all / their group / them) sent since last open.
-      const orClause = [
-        'audience_type.eq.all',
-        a.group_id ? `and(audience_type.eq.group,audience_id.eq.${a.group_id})` : null,
-        `and(audience_type.eq.athlete,audience_id.eq.${a.id})`,
-      ].filter(Boolean).join(',');
-      const { count } = await supabase
-        .from('scheduled_notifications')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'sent')
-        .gt('last_sent_at', since)
-        .or(orClause);
-      // +1 for the notification being delivered right now.
-      counts[a.id] = (count || 0) + 1;
-    }),
-  );
+  await Promise.all(athleteIds.map(async (id) => {
+    // +1 for the notification being delivered right now (send path).
+    counts[id] = (await unreadCountForAthlete(id)) + 1;
+  }));
   return counts;
+}
+
+/**
+ * The athlete's current unread notification count = notifications targeting them
+ * (all / their group / them) sent since their last app open (last_seen_at).
+ * Used for the foreground badge self-heal. Exported for the badge-count route.
+ */
+export async function unreadCountForAthlete(athleteId: string): Promise<number> {
+  const supabase = createServerClient();
+  const { data: a } = await supabase
+    .from('athletes')
+    .select('group_id, last_seen_at')
+    .eq('id', athleteId)
+    .maybeSingle();
+  if (!a) return 0;
+  const since = a.last_seen_at || '1970-01-01';
+  const orClause = [
+    'audience_type.eq.all',
+    a.group_id ? `and(audience_type.eq.group,audience_id.eq.${a.group_id})` : null,
+    `and(audience_type.eq.athlete,audience_id.eq.${athleteId})`,
+  ].filter(Boolean).join(',');
+  const { count } = await supabase
+    .from('scheduled_notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'sent')
+    .gt('last_sent_at', since)
+    .or(orClause);
+  return count || 0;
 }
 
 /**

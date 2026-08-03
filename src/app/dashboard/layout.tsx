@@ -16,11 +16,30 @@ export default function DashboardLayout({
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
 
-  // Clear the app-icon badge when the app is opened (notifications were seen).
+  // App-icon badge self-heal. iOS PWAs can't reliably set the badge from a
+  // background push, but the foreground path IS reliable — so: clear it when the
+  // app is open/foregrounded (notifications seen), and set the real unread count
+  // when the app is backgrounded, so the icon is correct whenever you leave.
   useEffect(() => {
-    if ('clearAppBadge' in navigator) {
-      navigator.clearAppBadge().catch(() => {});
-    }
+    if (!('setAppBadge' in navigator)) return;
+    const clear = () => navigator.clearAppBadge().catch(() => {});
+    const setFromServer = async () => {
+      const id = localStorage.getItem('athlete_id');
+      if (!id) { clear(); return; }
+      try {
+        const res = await fetch(`/api/notifications/unread?athleteId=${id}`);
+        const { count } = await res.json();
+        if (count > 0) await navigator.setAppBadge(count);
+        else await navigator.clearAppBadge();
+      } catch { /* ignore */ }
+    };
+    clear(); // on mount (app opened)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') clear();
+      else setFromServer(); // backgrounding → stamp the current unread count
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   useEffect(() => {
