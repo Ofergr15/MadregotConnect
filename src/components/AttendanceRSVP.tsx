@@ -17,7 +17,6 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
 
   const [attending, setAttending] = useState<boolean | null>(null);
   const [group, setGroup] = useState('');
-  const [customGroup, setCustomGroup] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -31,9 +30,7 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
       .then(data => {
         if (data?.rsvp) {
           setAttending(data.rsvp.attending);
-          const g = data.rsvp.groupLabel || '';
-          if (g && !GROUP_PRESETS.includes(g)) setCustomGroup(g);
-          else setGroup(g);
+          setGroup(data.rsvp.groupLabel || '');
         }
       })
       .catch(() => {})
@@ -52,7 +49,7 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
         body: JSON.stringify({
           athleteId, weekStart, day,
           attending: isAttending,
-          groupLabel: isAttending ? (customGroup.trim() || group || null) : null,
+          groupLabel: isAttending ? (group || null) : null,
         }),
       });
       setSaved(true);
@@ -99,23 +96,15 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
             {GROUP_PRESETS.map(g => (
               <button
                 key={g}
-                onClick={() => { setGroup(g); setCustomGroup(''); submitGroup(g, ''); }}
+                onClick={() => { setGroup(g); submitGroup(g, ''); }}
                 className={cn('px-3 py-2 rounded-full text-xs font-bold transition',
-                  group === g && !customGroup ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
+                  group === g ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
                 dir="rtl"
               >
                 {g}
               </button>
             ))}
           </div>
-          <input
-            dir="rtl"
-            value={customGroup}
-            onChange={e => { setCustomGroup(e.target.value); setGroup(''); }}
-            onBlur={() => customGroup.trim() && submitGroup('', customGroup)}
-            placeholder={t('otherGroup')}
-            className="w-full mt-2 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
-          />
         </div>
       )}
     </div>

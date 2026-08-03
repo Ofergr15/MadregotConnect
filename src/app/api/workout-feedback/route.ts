@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 
     const { data: existing } = await supabase
       .from('workout_feedback')
-      .select('difficulty, feel, pain, pain_detail, wants_feedback')
+      .select('difficulty, feel, pain, pain_detail, wants_feedback, comment')
       .eq('athlete_id', athleteId)
       .eq('garmin_activity_id', Number(activityId))
       .maybeSingle();
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback } = body;
+    const { athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback, comment } = body;
     if (!athleteId) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
@@ -65,6 +65,7 @@ export async function POST(request: Request) {
           pain: pain ?? null,
           pain_detail: painDetail || null,
           wants_feedback: wantsFeedback ?? null,
+          comment: comment || null,
         },
         { onConflict: 'athlete_id,garmin_activity_id' },
       );

@@ -25,6 +25,7 @@ function FeedbackForm() {
   const [pain, setPain] = useState<boolean | null>(null);
   const [painDetail, setPainDetail] = useState('');
   const [wantsFeedback, setWantsFeedback] = useState<boolean | null>(null);
+  const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -49,6 +50,7 @@ function FeedbackForm() {
           setPain(data.existing.pain ?? null);
           setPainDetail(data.existing.pain_detail || '');
           setWantsFeedback(data.existing.wants_feedback ?? null);
+          setComment(data.existing.comment || '');
         } else {
           if (data.watchRpe != null) setDifficulty(Math.round(data.watchRpe));
           if (data.watchFeel != null) setFeel(Math.round(data.watchFeel));
@@ -65,7 +67,7 @@ function FeedbackForm() {
       await fetch('/api/workout-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback }),
+        body: JSON.stringify({ athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback, comment }),
       });
       setDone(true);
       setTimeout(() => router.push('/dashboard'), 1500);
@@ -157,6 +159,12 @@ function FeedbackForm() {
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
             wantsFeedback === false ? 'bg-slate-600 text-white' : 'bg-slate-700/50 text-slate-300')}>{t('no')}</button>
       </div>
+
+      {/* Free-text comment */}
+      <p className="text-sm font-semibold text-slate-200 mt-5 mb-2">{t('comment')}</p>
+      <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3}
+        placeholder={t('commentPlaceholder')}
+        className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4338ff]" />
 
       <button onClick={submit} disabled={saving}
         className="w-full mt-6 min-h-[52px] rounded-2xl bg-[#4338ff] hover:bg-[#3730d4] disabled:opacity-50 text-white font-bold flex items-center justify-center gap-2">
