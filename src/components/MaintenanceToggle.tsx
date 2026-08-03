@@ -80,17 +80,22 @@ export function MaintenanceToggle() {
         </button>
       </div>
 
-      {/* Allowlist — who can use the app while under renovation */}
+      {/* Allowlist — the ONLY people who can use the app while under renovation */}
       <div className="mt-3 pt-3 border-t border-slate-700/50">
-        <p className="text-xs font-semibold text-slate-400 mb-2">Allowed during maintenance (saved)</p>
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {allowlist.length === 0 && <span className="text-xs text-slate-500">Only approvers (admins) — add emails to let others in.</span>}
-          {allowlist.map(e => (
-            <span key={e} className="inline-flex items-center gap-1 bg-slate-700/50 rounded-full ps-2.5 pe-1 py-1 text-xs text-slate-200">
-              {e}
-              <button onClick={() => removeEmail(e)} className="text-slate-400 hover:text-red-400" aria-label={`Remove ${e}`}><X className="w-3 h-3" /></button>
-            </span>
-          ))}
+        <p className="text-xs font-semibold text-slate-400 mb-2">
+          Allowed during maintenance {allowlist.length > 0 && `(${allowlist.length})`}
+        </p>
+        <div className="flex flex-col gap-1.5 mb-2">
+          {allowlist.length === 0 && <span className="text-xs text-amber-400">⚠️ No one is allowed — turning maintenance on would lock everyone out. Add users below.</span>}
+          {allowlist.map(e => {
+            const u = athletes.find(a => a.email.toLowerCase() === e);
+            return (
+              <div key={e} className="inline-flex items-center gap-2 bg-slate-700/40 rounded-lg px-2.5 py-1.5">
+                <span className="text-sm text-slate-200 flex-1 truncate">{u ? u.name : e}{u && <span className="text-slate-500 text-xs"> · {e}</span>}</span>
+                <button onClick={() => removeEmail(e)} className="text-slate-400 hover:text-red-400 shrink-0" aria-label={`Remove ${e}`}><X className="w-4 h-4" /></button>
+              </div>
+            );
+          })}
         </div>
         <div className="flex gap-2">
           <select
