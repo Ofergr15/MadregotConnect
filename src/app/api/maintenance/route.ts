@@ -15,12 +15,14 @@ async function getSettings() {
 }
 
 // GET /api/maintenance?email=…  → { maintenance, allowed, allowlist }
-// allowed = approver (never lockable) OR on the saved maintenance allowlist.
+// allowed = the viewer's email is on the SAVED allowlist. (Approvers are NOT
+// auto-exempt anymore — the allowlist controls everyone. The actor who turns
+// maintenance ON is auto-added, so admins can't accidentally lock themselves out.)
 export async function GET(request: Request) {
   try {
     const email = (new URL(request.url).searchParams.get('email') || '').toLowerCase().trim();
     const { on, allow } = await getSettings();
-    const allowed = canApprove(email) || (!!email && allow.includes(email));
+    const allowed = !!email && allow.includes(email);
     return NextResponse.json({ maintenance: on, allowed, allowlist: allow });
   } catch {
     return NextResponse.json({ maintenance: false, allowed: true, allowlist: [] });
@@ -36,13 +38,27 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
     }
     const supabase = createServerClient();
-    const rows: Array<{ key: string; value: string; updated_at: string }> = [];
     const now = new Date().toISOString();
-    if (typeof on === 'boolean') rows.push({ key: 'maintenance_mode', value: on ? 'on' : 'off', updated_at: now });
+    const rows: Array<{ key: string; value: string; updated_at: string }> = [];
+
+    // Resolve the allowlist we'll end up with (explicit update wins, else current).
+    let nextAllow: string[] | null = null;
     if (Array.isArray(allowlist)) {
-      const clean = allowlist.map((e: string) => String(e).toLowerCase().trim()).filter(Boolean);
-      rows.push({ key: 'maintenance_allow', value: [...new Set(clean)].join(','), updated_at: now });
+      nextAllow = [...new Set(allowlist.map((e: string) => String(e).toLowerCase().trim()).filter(Boolean))];
     }
+
+    if (typeof on === 'boolean') {
+      rows.push({ key: 'maintenance_mode', value: on ? 'on' : 'off', updated_at: now });
+      // SAFEGUARD: turning maintenance ON auto-adds the actor to the allowlist so
+      // the admin who flips it can never lock themselves out.
+      if (on) {
+        const actor = String(actorEmail).toLowerCase().trim();
+        const base = nextAllow ?? (await getSettings()).allow;
+        if (actor && !base.includes(actor)) nextAllow = [...base, actor];
+      }
+    }
+    if (nextAllow) rows.push({ key: 'maintenance_allow', value: nextAllow.join(','), updated_at: now });
+
     if (rows.length > 0) {
       const { error } = await supabase.from('app_settings').upsert(rows, { onConflict: 'key' });
       if (error) throw error;

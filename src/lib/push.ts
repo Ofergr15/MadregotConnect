@@ -1,6 +1,6 @@
 import webpush from 'web-push';
 import { createServerClient } from '@/lib/supabase/server';
-import { COACH_ID, APPROVER_EMAILS } from '@/lib/constants';
+import { COACH_ID } from '@/lib/constants';
 
 /**
  * When maintenance mode is ON, only athletes whose email is on the saved
@@ -13,10 +13,10 @@ async function filterForMaintenance(subs: SubRow[]): Promise<SubRow[]> {
     const { data } = await supabase.from('app_settings').select('key, value').in('key', ['maintenance_mode', 'maintenance_allow']);
     const map = Object.fromEntries((data || []).map((r: { key: string; value: string }) => [r.key, r.value]));
     if (map['maintenance_mode'] !== 'on') return subs;
-    const allowEmails = new Set([
-      ...APPROVER_EMAILS.map(e => e.toLowerCase()),
-      ...String(map['maintenance_allow'] || '').split(',').map(e => e.toLowerCase().trim()).filter(Boolean),
-    ]);
+    // Allowlist controls everyone during maintenance (approvers are not auto-exempt).
+    const allowEmails = new Set(
+      String(map['maintenance_allow'] || '').split(',').map(e => e.toLowerCase().trim()).filter(Boolean),
+    );
     const ids = [...new Set(subs.map(s => s.athlete_id).filter(Boolean))];
     const { data: aths } = await supabase.from('athletes').select('id, email').in('id', ids);
     const allowedIds = new Set((aths || []).filter((a: { email: string }) => allowEmails.has((a.email || '').toLowerCase())).map((a: { id: string }) => a.id));
