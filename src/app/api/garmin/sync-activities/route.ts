@@ -89,6 +89,9 @@ export async function POST(request: Request) {
                 has_polyline: detail.hasPolyline || false,
                 gps_points: gpsPoints,
                 moving_duration: summ.movingDuration ? Math.round(summ.movingDuration) : Math.round(a.movingDuration),
+                // Garmin "Self Evaluation" (only present if answered on-watch).
+                perceived_rpe: summ.directWorkoutRpe != null ? summ.directWorkoutRpe / 10 : null,
+                perceived_feel: summ.directWorkoutFeel != null ? summ.directWorkoutFeel / 25 : null,
               };
             } catch {
               enriched = {
@@ -196,6 +199,9 @@ export async function PATCH(request: Request) {
         if (detail.locationName) update.location_name = detail.locationName;
         if (detail.hasPolyline != null) update.has_polyline = detail.hasPolyline;
         if (summ.movingDuration) update.moving_duration = Math.round(summ.movingDuration);
+        // Garmin "Self Evaluation" — backfill on older rows when present.
+        if (summ.directWorkoutRpe != null) update.perceived_rpe = summ.directWorkoutRpe / 10;
+        if (summ.directWorkoutFeel != null) update.perceived_feel = summ.directWorkoutFeel / 25;
 
         if (Object.keys(update).length > 0) {
           await supabase

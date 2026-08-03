@@ -509,5 +509,12 @@
     "iosHintMiddle": "then",
     "iosHintSuffix": "Add to Home Screen",
     "dismiss": "Dismiss"
+  },
+  "push": {
+    "title": "Turn on notifications",
+    "description": "Get reminders for your workouts and updates from the team.",
+    "enable": "Enable",
+    "enabling": "Enabling…",
+    "dismiss": "Dismiss"
   }
 }
