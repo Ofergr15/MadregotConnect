@@ -72,7 +72,7 @@ serwist.addEventListeners();
 // Serwist's addEventListeners() wires install/activate/fetch/message only, so we
 // add our own push + notificationclick handlers.
 self.addEventListener('push', (event: PushEvent) => {
-  let data: { title?: string; body?: string; url?: string; tag?: string } = {};
+  let data: { title?: string; body?: string; url?: string; tag?: string; badge?: number } = {};
   try {
     data = event.data ? event.data.json() : {};
   } catch {
@@ -80,13 +80,23 @@ self.addEventListener('push', (event: PushEvent) => {
   }
   const title = data.title || 'Madregot';
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body || '',
-      icon: '/images/icon-192.png',
-      badge: '/images/icon-192.png',
-      tag: data.tag,
-      data: { url: data.url || '/dashboard' },
-    }),
+    (async () => {
+      await self.registration.showNotification(title, {
+        body: data.body || '',
+        icon: '/images/icon-192.png',
+        badge: '/images/icon-192.png',
+        tag: data.tag,
+        data: { url: data.url || '/dashboard' },
+      });
+      // App-icon badge count (iOS 16.4+ installed PWA). Guard: not all engines
+      // expose it, and clearing needs the count param on iOS.
+      if (typeof data.badge === 'number' && 'setAppBadge' in self.navigator) {
+        try {
+          if (data.badge > 0) await (self.navigator as Navigator).setAppBadge(data.badge);
+          else await (self.navigator as Navigator).clearAppBadge();
+        } catch { /* badging unsupported / denied — ignore */ }
+      }
+    })(),
   );
 });
 

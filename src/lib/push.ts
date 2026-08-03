@@ -18,6 +18,7 @@ export interface PushPayload {
   body: string;
   url?: string;
   tag?: string;
+  badge?: number; // app-icon badge count (iOS 16.4+ installed PWA). Defaults to 1.
 }
 
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string };
@@ -29,7 +30,8 @@ type SubRow = { id: string; endpoint: string; p256dh: string; auth: string };
 export async function sendPushToSubscriptions(subs: SubRow[], payload: PushPayload): Promise<number> {
   if (!ensureConfigured() || subs.length === 0) return 0;
   const supabase = createServerClient();
-  const body = JSON.stringify(payload);
+  // Default to a single-badge dot when the caller doesn't specify a count.
+  const body = JSON.stringify({ badge: 1, ...payload });
   let sent = 0;
   const deadIds: string[] = [];
 
