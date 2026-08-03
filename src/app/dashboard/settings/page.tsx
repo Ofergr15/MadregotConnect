@@ -189,6 +189,7 @@ const allTabs = [
   { key: 'program', label: 'Program' },
   { key: 'review', label: 'Review' },
   { key: 'history', label: 'History' },
+  { key: 'photos', label: 'Photos' },
   { key: 'settings', label: 'Settings' },
 ];
 
@@ -200,6 +201,7 @@ const allMobileTabs = [
   { key: 'program', label: 'Program' },
   { key: 'practice', label: 'Practice' },
   { key: 'races', label: 'Races' },
+  { key: 'photos', label: 'Photos' },
   { key: 'settings', label: 'Settings' },
 ];
 
