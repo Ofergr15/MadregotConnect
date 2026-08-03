@@ -34,7 +34,9 @@
     "races": "תחרויות",
     "history": "היסטוריה",
     "settings": "הגדרות",
-    "profile": "פרופיל"
+    "profile": "פרופיל",
+    "practiceAttendance": "נוכחות",
+    "workoutFeedback": "משוב אימונים"
   },
   "header": {
     "coach": "מאמן",

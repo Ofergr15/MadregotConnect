@@ -6,13 +6,79 @@ import { APPROVER_EMAILS } from '@/lib/constants';
 export const dynamic = 'force-dynamic';
 
 // GET /api/workout-feedback?athleteId=…&activityId=…
-// Returns the watch Self-Evaluation for the activity (to pre-fill / adapt the
-// form) plus any feedback already submitted.
+//   -> the watch Self-Evaluation for the activity (to pre-fill / adapt the form)
+//      plus any feedback already submitted.
+// GET /api/workout-feedback?list=1[&days=N]
+//   -> admin view: recent workout feedback across ALL athletes, newest first,
+//      joined to athlete (name/avatar/squad) and the activity it's about.
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const athleteId = searchParams.get('athleteId');
     const activityId = searchParams.get('activityId');
+
+    if (searchParams.get('list')) {
+      const supabase = createServerClient();
+      const days = Math.min(Math.max(Number(searchParams.get('days')) || 30, 1), 180);
+      const since = new Date(Date.now() - days * 86400_000).toISOString();
+
+      const { data, error } = await supabase
+        .from('workout_feedback')
+        .select(
+          'id, athlete_id, garmin_activity_id, difficulty, feel, pain, pain_detail, wants_feedback, comment, created_at, athletes(name, avatar_url, group_id, groups(name))',
+        )
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(300);
+      if (error) throw error;
+
+      // Attach the activity each feedback is about (name/type/distance/time).
+      const actIds = Array.from(
+        new Set((data || []).map((r: any) => r.garmin_activity_id).filter(Boolean)),
+      );
+      const actMap = new Map<number, any>();
+      if (actIds.length > 0) {
+        const { data: acts } = await supabase
+          .from('athlete_activities')
+          .select('garmin_activity_id, activity_name, activity_type, distance, start_time')
+          .in('garmin_activity_id', actIds);
+        (acts || []).forEach((a: any) => actMap.set(a.garmin_activity_id, a));
+      }
+
+      const items = (data || []).map((r: any) => {
+        const act = r.garmin_activity_id ? actMap.get(r.garmin_activity_id) : null;
+        return {
+          id: r.id,
+          athleteId: r.athlete_id,
+          name: r.athletes?.name || '',
+          avatarUrl: r.athletes?.avatar_url || null,
+          squad: r.athletes?.groups?.name || null,
+          activityId: r.garmin_activity_id,
+          activityName: act?.activity_name || null,
+          activityType: act?.activity_type || null,
+          distance: act?.distance ?? null,
+          startTime: act?.start_time || null,
+          difficulty: r.difficulty,
+          feel: r.feel,
+          pain: r.pain,
+          painDetail: r.pain_detail,
+          wantsFeedback: r.wants_feedback,
+          comment: r.comment,
+          createdAt: r.created_at,
+        };
+      });
+
+      return NextResponse.json({
+        items,
+        counts: {
+          total: items.length,
+          pain: items.filter((i) => i.pain === true).length,
+          wantsFeedback: items.filter((i) => i.wantsFeedback === true).length,
+          withComment: items.filter((i) => !!i.comment).length,
+        },
+      });
+    }
+
     if (!athleteId || !activityId) {
       return NextResponse.json({ error: 'athleteId and activityId required' }, { status: 400 });
     }
