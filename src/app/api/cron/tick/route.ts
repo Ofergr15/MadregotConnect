@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushToSubscriptions, resolveAudience, subscriptionsForAthletes, allAthleteIds } from '@/lib/push';
 import { israelNow, getPlanWeekStart } from '@/lib/utils';
+import { APPROVER_EMAILS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -103,6 +104,53 @@ async function run(request: Request) {
         });
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
+      }
+    }
+  }
+
+  // Saturday 20:00 IL weekly rollover: archive past program weeks + push coaches
+  // to upload the upcoming week's plans, showing which are missing.
+  if (weekday === 6 && hour === 20) {
+    // Upcoming week = the Sunday right after this Saturday.
+    const upcomingSunday = new Date(now);
+    upcomingSunday.setDate(upcomingSunday.getDate() + 1);
+    const upcomingWeek = getPlanWeekStart(upcomingSunday); // Sunday YYYY-MM-DD
+    const tag = `rollover:${upcomingWeek}`;
+    if (!(await already(tag))) {
+      // Archive everything before the upcoming week (reversible flag; nothing deleted).
+      await supabase.from('program_weeks').update({ archived: true }).lt('week_start_date', upcomingWeek);
+
+      // Which plans exist for the upcoming week?
+      const { data: pw } = await supabase
+        .from('program_weeks')
+        .select('training_pdf_url, nutrition_pdf_url')
+        .eq('week_start_date', upcomingWeek)
+        .maybeSingle();
+      const hasTraining = !!pw?.training_pdf_url;
+      const hasNutrition = !!pw?.nutrition_pdf_url;
+
+      if (!hasTraining || !hasNutrition) {
+        // Build a "what's missing" body: training ✅/❌ · nutrition ✅/❌.
+        const parts = [
+          `אימונים ${hasTraining ? '✅' : '❌'}`,
+          `תזונה ${hasNutrition ? '✅' : '❌'}`,
+        ];
+        // Coaches = approver accounts.
+        const { data: coaches } = await supabase.from('athletes').select('id').in('email', APPROVER_EMAILS);
+        const coachIds = (coaches || []).map((c: { id: string }) => c.id);
+        const subs = await subscriptionsForAthletes(coachIds);
+        const sent = await sendPushToSubscriptions(subs, {
+          title: 'שבוע חדש מתחיל 📅',
+          body: `העלו את התוכניות: ${parts.join(' · ')}`,
+          url: '/dashboard/program',
+          tag,
+        });
+        await markFired(tag, sent);
+        fired.push(`${tag} → ${sent} (training:${hasTraining} nutrition:${hasNutrition})`);
+      } else {
+        // Both present — just record the rollover ran (no nag).
+        await markFired(tag, 0);
+        fired.push(`${tag} → both plans present`);
       }
     }
   }
