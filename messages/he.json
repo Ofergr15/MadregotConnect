@@ -389,6 +389,7 @@
     "switchTo": "English"
   },
   "profile": {
+    "memberSince": "חבר/ה מאז",
     "noProfileFound": "פרופיל לא נמצא",
     "joinViaInvite": "הצטרף דרך קישור ההזמנה כדי להגדיר את הפרופיל שלך.",
     "syncingActivities": "מסנכרן פעילויות",

@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2 } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { ProfileBest } from '@/components/ProfileBest';
 import { shareTextForDay } from '@/lib/workout-share';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
@@ -69,10 +69,15 @@ function ProfileContent() {
   const t = useTranslations('profile');
   const tHeader = useTranslations('header');
   const tCommon = useTranslations('common');
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const [athleteId, setAthleteId] = useState('');
   const [athleteName, setAthleteName] = useState('');
   const [athleteEmail, setAthleteEmail] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [memberSince, setMemberSince] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [currentGroupId, setCurrentGroupId] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
@@ -148,6 +153,18 @@ function ProfileContent() {
       .then(res => res.json())
       .then(data => setGroups(data.groups || []))
       .catch(() => {});
+
+    if (id) {
+      fetch(`/api/athletes/me?id=${id}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.athlete) {
+            setAvatarUrl(data.athlete.avatarUrl || null);
+            setMemberSince(data.athlete.memberSince || null);
+          }
+        })
+        .catch(() => {});
+    }
 
     if (id) {
       fetch('/api/garmin/sync-activities')
@@ -227,6 +244,24 @@ function ProfileContent() {
     .toUpperCase()
     .slice(0, 2);
 
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !athleteId) return;
+    setUploadingPhoto(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('athleteId', athleteId);
+      const res = await fetch('/api/athletes/avatar', { method: 'POST', body: form });
+      const data = await res.json();
+      if (res.ok && data.avatarUrl) setAvatarUrl(data.avatarUrl);
+    } catch { /* ignore — keep existing photo */ }
+    finally {
+      setUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  }
+
   const currentGroup = groups.find(g => g.id === currentGroupId);
   const currentWeek = WEEKS[0];
 
@@ -288,15 +323,33 @@ function ProfileContent() {
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#4338ff]/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
         <div className="absolute top-0 end-0 w-32 h-32 bg-[#4338ff]/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
         <div className="relative flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#4338ff] to-[#3730d4] flex items-center justify-center shadow-lg shadow-[#4338ff]/20">
-            <span className="text-xl font-bold text-white">{initials}</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            className="relative w-16 h-16 rounded-full shrink-0 shadow-lg shadow-[#4338ff]/20 overflow-hidden group"
+            title="Change photo"
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={athleteName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#4338ff] to-[#3730d4] text-xl font-bold text-white">{initials}</span>
+            )}
+            <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+              {uploadingPhoto ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Camera className="h-4 w-4 text-white" />}
+            </span>
+          </button>
+          <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-white truncate">{athleteName}</h1>
             <div className="flex items-center gap-1.5 mt-1">
               <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               <span className="text-sm text-slate-400 truncate">{athleteEmail}</span>
             </div>
+            {memberSince && (
+              <p className="text-xs text-slate-500 mt-1">
+                {t('memberSince')} {new Date(memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
+              </p>
+            )}
             {currentGroup && (
               <div className="flex items-center gap-1.5 mt-1.5">
                 <Target className="h-3.5 w-3.5 text-[#4338ff] shrink-0" />

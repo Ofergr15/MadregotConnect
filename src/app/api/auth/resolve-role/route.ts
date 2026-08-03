@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, name } = await req.json();
+    const { email, name, avatarUrl } = await req.json();
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -11,6 +11,16 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServerClient();
     const lowerEmail = email.toLowerCase().trim();
+
+    // Backfill the Google profile photo for any athlete row that doesn't have one
+    // yet (a manual upload always wins because it's set explicitly elsewhere).
+    if (avatarUrl) {
+      await supabase
+        .from('athletes')
+        .update({ avatar_url: avatarUrl })
+        .eq('email', lowerEmail)
+        .is('avatar_url', null);
+    }
 
     // Check if user is a coach (must also exist in athletes with coach/admin role)
     const { data: coach } = await supabase
@@ -125,6 +135,7 @@ export async function POST(req: NextRequest) {
         onboarding_status: 'google_authed',
         google_authed_at: new Date().toISOString(),
         approved: false,
+        ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
         ...(defaultCoach ? { coach_id: defaultCoach.id } : {}),
       }, { onConflict: 'email', ignoreDuplicates: true })
       .select('id')

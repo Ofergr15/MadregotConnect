@@ -48,10 +48,11 @@ export default function AuthResolvePage() {
       return;
     }
 
+    const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || '';
     const res = await fetch('/api/auth/resolve-role', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name: user.user_metadata?.full_name || '' }),
+      body: JSON.stringify({ email, name: user.user_metadata?.full_name || '', avatarUrl }),
     });
 
     const data = await res.json();
