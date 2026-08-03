@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Eye } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
+import { isSuperUser } from '@/lib/constants';
 
 // Full-screen "under renovation" gate. Mounted in the root layout so it covers
 // the whole app (landing + dashboard). Shows the overlay when maintenance is on
@@ -20,6 +22,10 @@ const ASAF_MESSAGE = 'עליך להוציא פחות גזים על מנת לצפ
 export function MaintenanceGate() {
   const [blocked, setBlocked] = useState(false);
   const [isAsaf, setIsAsaf] = useState(false);
+  // The super user (Ofer) gets a prominent "view as" button ON the gate itself,
+  // so switching scenarios is obvious even while the maintenance screen is up
+  // (the tiny floating pill was easy to miss).
+  const [isSuper, setIsSuper] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,6 +47,7 @@ export function MaintenanceGate() {
         const { maintenance, allowed } = await res.json();
         if (!cancelled) {
           setIsAsaf(email.toLowerCase().trim() === ASAF_EMAIL);
+          setIsSuper(isSuperUser(email));
           setBlocked(!!maintenance && !allowed);
         }
       } catch {
@@ -85,6 +92,18 @@ export function MaintenanceGate() {
             <p className="mt-3 max-w-[250px] mx-auto text-[15px] leading-relaxed text-slate-400" dir="rtl">הצוות שלנו עובד על שדרוג. נחזור בקרוב!</p>
             <p className="mt-4 text-xs tracking-wide text-slate-500" dir="ltr">We&apos;re rebuilding the stairs — back soon.</p>
           </>
+        )}
+
+        {/* Super-user only: a clear "view as" button right on the gate, so Ofer
+            can switch scenarios without hunting for the tiny floating pill. */}
+        {isSuper && (
+          <button
+            onClick={() => window.dispatchEvent(new Event('open-view-as'))}
+            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-200 text-sm font-bold hover:bg-amber-500/30 transition-colors"
+            dir="rtl"
+          >
+            <Eye className="h-4 w-4" /> תצוגה כמשתמש אחר
+          </button>
         )}
       </div>
 
