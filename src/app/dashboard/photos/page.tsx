@@ -142,10 +142,12 @@ export default function PhotosPage() {
 
 // ─── Import Tab ───────────────────────────────────────────────────────────────
 
+interface RunFolder { id: string; name: string; date: string }
+
 function ImportTab() {
-  const [dates, setDates] = useState<string[]>([]);
-  const [datesLoading, setDatesLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState('');
+  const [folders, setFolders] = useState<RunFolder[]>([]);
+  const [foldersLoading, setFoldersLoading] = useState(true);
+  const [selectedFolder, setSelectedFolder] = useState<RunFolder | null>(null);
   const [status, setStatus] = useState<'idle' | 'importing' | 'processing' | 'done' | 'error'>('idle');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [errorMsg, setErrorMsg] = useState('');
@@ -153,13 +155,13 @@ function ImportTab() {
   useEffect(() => {
     authedFetch('/api/photos/drive-dates')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.dates) setDates(d.dates); })
+      .then(d => { if (d?.folders) setFolders(d.folders); })
       .catch(() => {})
-      .finally(() => setDatesLoading(false));
+      .finally(() => setFoldersLoading(false));
   }, []);
 
   const run = async () => {
-    if (!selectedDate) return;
+    if (!selectedFolder) return;
     setStatus('importing');
     setErrorMsg('');
     setProgress({ done: 0, total: 0 });
@@ -169,7 +171,7 @@ function ImportTab() {
       const importRes = await authedFetch('/api/photos/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: selectedDate }),
+        body: JSON.stringify({ folderId: selectedFolder.id, folderName: selectedFolder.name }),
       });
       const importData = await importRes.json();
       if (!importRes.ok) throw new Error(importData.error || 'Import failed');
@@ -205,31 +207,35 @@ function ImportTab() {
       <div className="bg-white/5 rounded-xl p-6 border border-white/10">
         <h2 className="text-lg font-semibold text-white mb-4">Import from Google Drive</h2>
 
-        {datesLoading ? (
+        {foldersLoading ? (
           <div className="flex items-center gap-2 text-slate-400">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading dates...
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading runs...
           </div>
-        ) : dates.length === 0 ? (
-          <p className="text-slate-400">No dates found in the Drive folder.</p>
+        ) : folders.length === 0 ? (
+          <p className="text-slate-400">No run folders found in Drive.</p>
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-slate-300 mb-2">Run date</label>
+              <label className="block text-sm text-slate-300 mb-2">Select run</label>
               <select
-                value={selectedDate}
-                onChange={e => setSelectedDate(e.target.value)}
-                className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm min-w-[200px]"
+                value={selectedFolder?.id ?? ''}
+                onChange={e => {
+                  const f = folders.find(x => x.id === e.target.value) ?? null;
+                  setSelectedFolder(f);
+                  setStatus('idle');
+                }}
+                className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm min-w-[260px]"
               >
-                <option value="">Select a date...</option>
-                {dates.map(d => (
-                  <option key={d} value={d}>{d}</option>
+                <option value="">Choose a run...</option>
+                {folders.map(f => (
+                  <option key={f.id} value={f.id}>{f.name} ({f.date})</option>
                 ))}
               </select>
             </div>
 
             <button
               onClick={run}
-              disabled={!selectedDate || status === 'importing' || status === 'processing'}
+              disabled={!selectedFolder || status === 'importing' || status === 'processing'}
               className={cn(
                 'flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm transition-colors',
                 status === 'idle' || status === 'done' || status === 'error'
@@ -392,21 +398,30 @@ function UnknownFacesTab() {
 // ─── Browse Tab ───────────────────────────────────────────────────────────────
 
 function BrowseTab() {
-  const [date, setDate] = useState('');
-  const [dates, setDates] = useState<string[]>([]);
+  const [runDate, setRunDate] = useState('');
+  const [folders, setFolders] = useState<RunFolder[]>([]);
   const [photos, setPhotos] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     authedFetch('/api/photos/drive-dates')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.dates) setDates(d.dates); })
+      .then(d => { if (d?.folders) setFolders(d.folders); })
+      .catch(() => {});
+  }, []);
+
+  // Unique imported run_dates from DB
+  const [importedDates, setImportedDates] = useState<string[]>([]);
+  useEffect(() => {
+    authedFetch('/api/photos?importedDates=1')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.dates) setImportedDates(d.dates); })
       .catch(() => {});
   }, []);
 
   const load = async (d: string) => {
     if (!d) return;
-    setDate(d);
+    setRunDate(d);
     setLoading(true);
     try {
       const res = await authedFetch(`/api/photos?date=${d}`);
@@ -420,14 +435,14 @@ function BrowseTab() {
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm text-slate-300 mb-2">Select run date</label>
+        <label className="block text-sm text-slate-300 mb-2">Select imported run</label>
         <select
-          value={date}
+          value={runDate}
           onChange={e => load(e.target.value)}
           className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm min-w-[200px]"
         >
-          <option value="">Choose a date...</option>
-          {dates.map(d => (
+          <option value="">Choose a run date...</option>
+          {importedDates.map(d => (
             <option key={d} value={d}>{d}</option>
           ))}
         </select>
@@ -435,7 +450,7 @@ function BrowseTab() {
 
       {loading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>}
 
-      {!loading && date && photos.length === 0 && (
+      {!loading && runDate && photos.length === 0 && (
         <p className="text-slate-400">No photos imported for this date.</p>
       )}
 
