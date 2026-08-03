@@ -5,6 +5,7 @@ import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, Aler
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { MaintenanceToggle } from '@/components/MaintenanceToggle';
+import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
 
@@ -797,6 +798,9 @@ export default function SettingsPage() {
 
       {/* Maintenance / under-renovation gate control (admins/coaches) */}
       <MaintenanceToggle />
+
+      {/* Configurable workout-reminder schedule */}
+      <ReminderConfig />
 
       {/* Settings Tabs */}
       <div className="flex items-center gap-1 mb-6 bg-slate-800/50 p-1 rounded-xl border border-slate-700/50 w-fit">
