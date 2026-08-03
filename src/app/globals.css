@@ -6,6 +6,12 @@
   body {
     @apply bg-slate-900 text-white antialiased;
   }
+  /* Own the top overscroll for our custom pull-to-refresh (installed iOS PWAs
+     have no built-in PTR) — suppress the native rubber-band double-bounce. */
+  html,
+  body {
+    overscroll-behavior-y: contain;
+  }
 }
 
 @layer utilities {
