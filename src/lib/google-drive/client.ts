@@ -1,18 +1,21 @@
 /**
  * Google Drive client for importing run photos.
  *
- * Authentication: service account JWT (not OAuth). The service account email
- * needs read access to the Drive folder — share the folder with it once in Drive.
+ * Folder structure: root folder → one subfolder per run (e.g. "שישי 24.7")
+ * → images inside. Photos are NOT directly in the root.
+ *
+ * Authentication: service account JWT. The service account email needs
+ * read access to the Drive folder — share the root folder with it once.
  *
  * Required env vars:
  *   GOOGLE_SERVICE_ACCOUNT_EMAIL
- *   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY   (the RSA key from the JSON key file)
- *   GOOGLE_DRIVE_FOLDER_ID               (already set)
+ *   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY   (RSA key from the JSON key file)
+ *   GOOGLE_DRIVE_FOLDER_ID               (the root folder)
  */
 
 import { google } from 'googleapis';
 
-const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID!;
+const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID!;
 
 function getAuth() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -33,11 +36,17 @@ function getDrive() {
   return google.drive({ version: 'v3', auth: getAuth() });
 }
 
+export interface RunFolder {
+  id: string;       // Drive folder ID — used as the key in import/process calls
+  name: string;     // Display name, e.g. "שישי 24.7"
+  date: string;     // YYYY-MM-DD derived from createdTime
+}
+
 export interface DrivePhoto {
   id: string;
   name: string;
   mimeType: string;
-  createdTime: string; // ISO string
+  createdTime: string;
   webViewLink: string;
   webContentLink?: string;
   thumbnailLink?: string;
@@ -45,48 +54,36 @@ export interface DrivePhoto {
 }
 
 /**
- * Returns the set of distinct dates (YYYY-MM-DD) of images in the folder,
- * derived from each file's createdTime. Used by the Import tab date picker.
+ * Returns subfolders of the root folder — one per run date.
+ * These are what the Import tab shows in its picker.
  */
-export async function listPhotoDates(): Promise<string[]> {
+export async function listRunFolders(): Promise<RunFolder[]> {
   const drive = getDrive();
   const res = await drive.files.list({
-    q: `'${FOLDER_ID}' in parents and mimeType contains 'image/' and trashed = false`,
-    fields: 'files(id,createdTime)',
-    pageSize: 1000,
+    q: `'${ROOT_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: 'files(id,name,createdTime)',
+    pageSize: 200,
     orderBy: 'createdTime desc',
   });
 
-  const dates = new Set<string>();
-  for (const f of res.data.files ?? []) {
-    if (f.createdTime) {
-      dates.add(f.createdTime.slice(0, 10)); // YYYY-MM-DD
-    }
-  }
-  return Array.from(dates).sort().reverse();
+  return (res.data.files ?? []).map(f => ({
+    id: f.id!,
+    name: f.name ?? '',
+    date: (f.createdTime ?? '').slice(0, 10),
+  }));
 }
 
 /**
- * Lists all images in the folder whose createdTime falls on the given date
- * (YYYY-MM-DD, UTC-based comparison).
+ * Lists all images in a specific run subfolder.
+ * @param folderId  Drive folder ID (from listRunFolders)
  */
-export async function listPhotos(date: string): Promise<DrivePhoto[]> {
+export async function listPhotos(folderId: string): Promise<DrivePhoto[]> {
   const drive = getDrive();
-  // Drive's query syntax uses RFC 3339
-  const start = `${date}T00:00:00Z`;
-  const end = `${date}T23:59:59Z`;
-
   const res = await drive.files.list({
-    q: [
-      `'${FOLDER_ID}' in parents`,
-      `mimeType contains 'image/'`,
-      `trashed = false`,
-      `createdTime >= '${start}'`,
-      `createdTime <= '${end}'`,
-    ].join(' and '),
+    q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
     fields:
       'files(id,name,mimeType,createdTime,webViewLink,webContentLink,thumbnailLink,imageMediaMetadata)',
-    pageSize: 200,
+    pageSize: 500,
     orderBy: 'createdTime asc',
   });
 
@@ -94,8 +91,7 @@ export async function listPhotos(date: string): Promise<DrivePhoto[]> {
 }
 
 /**
- * Downloads the binary content of a Drive file. Returns a Buffer suitable for
- * passing to Rekognition or sharp.
+ * Downloads the binary content of a Drive file. Returns a Buffer.
  */
 export async function downloadFile(fileId: string): Promise<Buffer> {
   const drive = getDrive();

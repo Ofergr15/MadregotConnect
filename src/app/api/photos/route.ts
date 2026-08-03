@@ -18,8 +18,21 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get('date');
     const rawAthleteId = searchParams.get('athleteId');
+    const importedDates = searchParams.get('importedDates');
 
     const supabase = createServerClient();
+
+    // Return list of distinct run_dates that have been imported
+    if (importedDates) {
+      if (!isStaff(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      const { data, error } = await supabase
+        .from('run_photos')
+        .select('run_date')
+        .order('run_date', { ascending: false });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      const dates = [...new Set((data ?? []).map(r => r.run_date))];
+      return NextResponse.json({ dates });
+    }
 
     if (date) {
       // Date-based — staff only

@@ -1,8 +1,8 @@
 /**
  * POST /api/photos/import
- * Body: { date: "YYYY-MM-DD" }
+ * Body: { folderId: string, folderName: string }
  *
- * Imports all photos from Drive for the given date. Inserts run_photos rows
+ * Imports all photos from a Drive run subfolder. Inserts run_photos rows
  * (idempotent on drive_file_id). Does NO face detection — that's /process.
  * Returns the list of photoIds that still need processing.
  */
@@ -21,12 +21,12 @@ export async function POST(req: NextRequest) {
     if (!isStaff(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const body = await req.json();
-    const { date } = body as { date?: string };
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return NextResponse.json({ error: 'date (YYYY-MM-DD) is required' }, { status: 400 });
+    const { folderId, folderName } = body as { folderId?: string; folderName?: string };
+    if (!folderId) {
+      return NextResponse.json({ error: 'folderId is required' }, { status: 400 });
     }
 
-    const photos = await listPhotos(date);
+    const photos = await listPhotos(folderId);
     if (photos.length === 0) {
       return NextResponse.json({ imported: 0, photoIds: [] });
     }
@@ -41,6 +41,9 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     const coachId = athlete?.coach_id ?? null;
 
+    // Use the folder's first photo date as run_date, or today as fallback
+    const runDate = (photos[0]?.createdTime ?? new Date().toISOString()).slice(0, 10);
+
     // Upsert — idempotent on drive_file_id
     const rows = photos.map(p => ({
       drive_file_id: p.id,
@@ -48,7 +51,7 @@ export async function POST(req: NextRequest) {
       thumbnail_url: p.thumbnailLink ?? null,
       filename: p.name,
       taken_at: p.createdTime,
-      run_date: date,
+      run_date: runDate,
       width: p.imageMediaMetadata?.width ?? null,
       height: p.imageMediaMetadata?.height ?? null,
       coach_id: coachId,
@@ -66,11 +69,12 @@ export async function POST(req: NextRequest) {
     const { data: unprocessed } = await supabase
       .from('run_photos')
       .select('id')
-      .eq('run_date', date)
+      .eq('run_date', runDate)
+      .in('drive_file_id', photos.map(p => p.id))
       .is('processed_at', null);
 
     const photoIds = (unprocessed ?? []).map(r => r.id);
-    return NextResponse.json({ imported: photos.length, photoIds });
+    return NextResponse.json({ imported: photos.length, photoIds, runDate, folderName: folderName ?? folderId });
   } catch (error: unknown) {
     console.error('POST /api/photos/import error:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
