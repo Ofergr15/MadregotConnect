@@ -543,6 +543,8 @@
     "yes": "Yes",
     "no": "No",
     "submit": "Send feedback",
-    "thanks": "Thanks! 🙏"
+    "thanks": "Thanks! 🙏",
+    "comment": "Anything else?",
+    "commentPlaceholder": "Add a comment (optional)"
   }
 }

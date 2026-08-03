@@ -1,11 +1,23 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity } from 'lucide-react';
+import { cn, getPlanWeekStart } from '@/lib/utils';
 
 interface Group { id: string; name: string; }
 interface Athlete { id: string; name: string; email: string; }
+
+// Preset categories that pre-fill the compose form so the admin doesn't type
+// everything each time. he+en so each athlete gets their language.
+const TEMPLATES = [
+  { key: 'workout', icon: Activity, label: 'אימון', titleHe: 'תזכורת אימון 🏃', bodyHe: 'אימון היום — נתראה!', titleEn: 'Workout reminder 🏃', bodyEn: "Today's workout — see you there!" },
+  { key: 'race', icon: Trophy, label: 'מרוץ', titleHe: 'מרוץ מתקרב 🏆', bodyHe: '', titleEn: 'Upcoming race 🏆', bodyEn: '' },
+  { key: 'event', icon: CalendarDays, label: 'אירוע', titleHe: 'אירוע חדש 📅', bodyHe: '', titleEn: 'New event 📅', bodyEn: '' },
+  { key: 'announce', icon: Megaphone, label: 'הודעה', titleHe: 'הודעה מהצוות 📣', bodyHe: '', titleEn: 'Team announcement 📣', bodyEn: '' },
+  { key: 'academy', icon: GraduationCap, label: 'אקדמיה', titleHe: 'אקדמיה 🎓', bodyHe: '', titleEn: 'Academy 🎓', bodyEn: '' },
+];
+
+interface UpcomingWorkout { dayOfWeek: number; dayName: string; name: string; type: string; }
 interface NotificationRow {
   id: string;
   title_he: string; body_he: string;
@@ -37,6 +49,36 @@ export function NotificationCenter() {
   const [scheduledAt, setScheduledAt] = useState('');
   const [recurInterval, setRecurInterval] = useState(1);
   const [recurUnit, setRecurUnit] = useState<'day' | 'week'>('week');
+  const [upcoming, setUpcoming] = useState<UpcomingWorkout[]>([]);
+
+  const applyTemplate = (tpl: typeof TEMPLATES[number]) => {
+    setTitleHe(tpl.titleHe); setBodyHe(tpl.bodyHe);
+    setTitleEn(tpl.titleEn); setBodyEn(tpl.bodyEn);
+    setMsg(null);
+  };
+
+  // Pre-fill a reminder for a specific upcoming workout, scheduled to that day.
+  const remindWorkout = (w: UpcomingWorkout) => {
+    setTitleHe('תזכורת אימון 🏃');
+    setBodyHe(`${w.dayName}: ${w.name}`);
+    setTitleEn('Workout reminder 🏃');
+    setBodyEn(w.name);
+    setAudienceType('all');
+    setAudienceId('');
+    // Auto-target that weekday: compute its date within the current plan week.
+    const weekStart = new Date(getPlanWeekStart(new Date()));
+    weekStart.setDate(weekStart.getDate() + w.dayOfWeek);
+    weekStart.setHours(7, 0, 0, 0); // default morning reminder
+    if (weekStart.getTime() > Date.now()) {
+      setScheduleType('once_at');
+      // datetime-local wants local YYYY-MM-DDTHH:mm
+      const pad = (n: number) => String(n).padStart(2, '0');
+      setScheduledAt(`${weekStart.getFullYear()}-${pad(weekStart.getMonth() + 1)}-${pad(weekStart.getDate())}T07:00`);
+    } else {
+      setScheduleType('now');
+    }
+    setMsg('מוכן לשליחה — בדקו ושלחו ↓');
+  };
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -55,6 +97,18 @@ export function NotificationCenter() {
     }).catch(() => {});
     fetch('/api/admin/users').then(r => r.ok ? r.json() : null).then(d => {
       if (d?.users) setAthletes(d.users.map((u: any) => ({ id: u.id, name: u.name, email: u.email })));
+    }).catch(() => {});
+    // This week's upcoming workouts (from the plan) for one-tap reminders.
+    const DN = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+    const todayDow = new Date().getDay();
+    fetch('/api/dashboard/weekly').then(r => r.ok ? r.json() : null).then(d => {
+      const days = (d?.dailyDistances || []).filter((x: any) => x.dayOfWeek >= todayDow && x.max > 0);
+      setUpcoming(days.map((x: any) => ({
+        dayOfWeek: x.dayOfWeek,
+        dayName: `יום ${DN[x.dayOfWeek]}`,
+        name: x.sessions?.[0]?.name || x.type || 'אימון',
+        type: x.type || '',
+      })));
     }).catch(() => {});
     loadList();
   }, [loadList]);
@@ -124,6 +178,40 @@ export function NotificationCenter() {
           <h3 className="font-bold text-white">שליחת התראה / New notification</h3>
         </div>
 
+        {/* Category templates — one tap pre-fills the message */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {TEMPLATES.map(tpl => {
+            const Icon = tpl.icon;
+            return (
+              <button key={tpl.key} onClick={() => applyTemplate(tpl)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700/40 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition" dir="rtl">
+                <Icon className="w-3.5 h-3.5 text-[#4338ff]" /> {tpl.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Future workouts — one-tap reminder, auto-dated */}
+        <div className="mb-3 rounded-xl bg-slate-900/40 border border-slate-700/40 p-2.5">
+          <p className="text-[11px] font-bold text-slate-400 mb-1.5" dir="rtl">אימונים קרובים · תזכורת בלחיצה</p>
+          {upcoming.length > 0 ? (
+            <div className="space-y-1">
+              {upcoming.map(w => (
+                <button key={w.dayOfWeek} onClick={() => remindWorkout(w)}
+                  className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition text-right" dir="rtl">
+                  <span className="text-xs text-slate-200 truncate">{w.dayName} · {w.name}</span>
+                  <span className="text-[10px] font-bold text-[#4338ff] shrink-0">שלח תזכורת ←</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2 px-1 py-1.5" dir="rtl">
+              <span className="text-xs text-slate-500">אין תוכנית לשבוע הזה עדיין</span>
+              <a href="/dashboard/program" className="text-[10px] font-bold text-[#4338ff] shrink-0">הוספת תוכנית ←</a>
+            </div>
+          )}
+        </div>
+
         <div className="space-y-3">
           <div>
             <label className="text-xs font-semibold text-slate-400">כותרת (עברית)</label>
@@ -144,28 +232,44 @@ export function NotificationCenter() {
             </div>
           </div>
 
-          {/* Audience */}
+          {/* Audience — segmented control + contextual picker */}
           <div>
             <label className="text-xs font-semibold text-slate-400">קהל יעד / Audience</label>
-            <div className="flex gap-2 mt-1">
-              <select value={audienceType} onChange={e => { setAudienceType(e.target.value as any); setAudienceId(''); }} className={inputCls}>
-                <option value="all">כל הרצים / All</option>
-                <option value="group">קבוצה / Group</option>
-                <option value="athlete">אדם ספציפי / Person</option>
-              </select>
-              {audienceType === 'group' && (
-                <select value={audienceId} onChange={e => setAudienceId(e.target.value)} className={inputCls}>
-                  <option value="">בחרו קבוצה…</option>
-                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                </select>
-              )}
-              {audienceType === 'athlete' && (
-                <select value={audienceId} onChange={e => setAudienceId(e.target.value)} className={inputCls}>
-                  <option value="">בחרו רץ…</option>
-                  {athletes.map(a => <option key={a.id} value={a.id}>{a.name} ({a.email})</option>)}
-                </select>
-              )}
+            <div className="grid grid-cols-3 gap-2 mt-1.5">
+              {([
+                { v: 'all', icon: Users, label: 'כל הרצים' },
+                { v: 'group', icon: Users, label: 'דבוקה' },
+                { v: 'athlete', icon: User, label: 'אדם' },
+              ] as const).map(opt => {
+                const Icon = opt.icon;
+                const active = audienceType === opt.v;
+                return (
+                  <button key={opt.v} onClick={() => { setAudienceType(opt.v); setAudienceId(''); }}
+                    className={cn('flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-semibold transition',
+                      active ? 'bg-[#4338ff] border-[#4338ff] text-white' : 'bg-slate-900/40 border-slate-700 text-slate-300 hover:border-slate-500')} dir="rtl">
+                    <Icon className="w-4 h-4" /> {opt.label}
+                  </button>
+                );
+              })}
             </div>
+            {audienceType === 'group' && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {groups.map(g => (
+                  <button key={g.id} onClick={() => setAudienceId(g.id)}
+                    className={cn('px-3 py-2 rounded-full text-xs font-bold transition',
+                      audienceId === g.id ? 'bg-[#4338ff] text-white' : 'bg-slate-700/40 text-slate-300 hover:bg-slate-700')} dir="rtl">
+                    {g.name}
+                  </button>
+                ))}
+                {groups.length === 0 && <span className="text-xs text-slate-500">אין דבוקות</span>}
+              </div>
+            )}
+            {audienceType === 'athlete' && (
+              <select value={audienceId} onChange={e => setAudienceId(e.target.value)} className={cn(inputCls, 'mt-2')} dir="rtl">
+                <option value="">בחרו רץ…</option>
+                {athletes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            )}
           </div>
 
           {/* Schedule */}
