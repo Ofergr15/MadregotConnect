@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getPlanWeekStart } from '@/lib/utils';
 
 interface ProgramWeek {
   id: string;
@@ -69,8 +69,14 @@ export default function ProgramPage() {
     try {
       const res = await fetch('/api/program-weeks');
       if (res.ok) {
-        const data = await res.json();
+        const data: ProgramWeek[] = await res.json();
         setWeeks(data);
+        // Select the week that actually CONTAINS today (by plan-week Sunday), not
+        // just the most-recently-uploaded one — otherwise last week shows as
+        // "Current" and its plans mask that this week's are missing.
+        const thisWeekStart = getPlanWeekStart(new Date());
+        const idx = data.findIndex(w => w.week_start_date === thisWeekStart);
+        if (idx >= 0) setSelectedWeek(idx);
       }
     } finally {
       setLoading(false);
@@ -78,6 +84,11 @@ export default function ProgramPage() {
   }
 
   const currentWeek = weeks[selectedWeek];
+  // Is the selected week the real calendar-current week (contains today)?
+  const thisWeekStart = getPlanWeekStart(new Date());
+  const isCurrentWeek = !!currentWeek && currentWeek.week_start_date === thisWeekStart;
+  // Does a program row for the actual current week exist at all?
+  const currentWeekExists = weeks.some(w => w.week_start_date === thisWeekStart);
 
   // Filter exercises based on category
   const filteredExercises = categoryFilter === 'all'
@@ -218,7 +229,7 @@ export default function ProgramPage() {
               <div className="font-semibold text-white">Week {currentWeek.week_number}</div>
               <div className="text-xs text-slate-400">{currentWeek.date_range}</div>
             </div>
-            {selectedWeek === 0 && (
+            {isCurrentWeek && (
               <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium">
                 {t('current')}
               </span>
@@ -243,9 +254,9 @@ export default function ProgramPage() {
                       <div className="font-medium text-white text-sm">Week {week.week_number}</div>
                       <div className="text-xs text-slate-400">{week.date_range}</div>
                     </div>
-                    {i === 0 && (
+                    {week.week_start_date === thisWeekStart && (
                       <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium">
-                        Current
+                        {t('current')}
                       </span>
                     )}
                   </button>
@@ -257,29 +268,33 @@ export default function ProgramPage() {
         )}
       </div>
 
-      {/* This week's plan status — mirrors the Saturday 20:00 "new week" push
-          (training ✅/❌ · nutrition ✅/❌) so the same info is visible in-app,
-          not only in the notification. Only on the current week. */}
-      {activeView !== 'workout' && currentWeek && selectedWeek === 0 && (
-        <div className="space-y-2.5">
-          <PlanStatusRow
-            icon="🏃"
-            label={t('trainingProgram')}
-            present={!!currentWeek.training_pdf_url}
-            isAdmin={isAdmin}
-            onUpload={() => setShowUploadForm(true)}
-            t={t}
-          />
-          <PlanStatusRow
-            icon="🥗"
-            label={t('nutritionPlan')}
-            present={!!currentWeek.nutrition_pdf_url}
-            isAdmin={isAdmin}
-            onUpload={() => setShowUploadForm(true)}
-            t={t}
-          />
-        </div>
-      )}
+      {/* THIS calendar week's plan status — mirrors the Saturday 20:00 "new week"
+          push (training ✅/❌ · nutrition ✅/❌). Driven by the week that actually
+          contains today, NOT the selected/most-recent week — so if no plan exists
+          for the current week yet, both correctly read "missing". */}
+      {activeView !== 'workout' && (() => {
+        const cw = weeks.find(w => w.week_start_date === thisWeekStart);
+        return (
+          <div className="space-y-2.5">
+            <PlanStatusRow
+              icon="🏃"
+              label={t('trainingProgram')}
+              present={!!cw?.training_pdf_url}
+              isAdmin={isAdmin}
+              onUpload={() => setShowUploadForm(true)}
+              t={t}
+            />
+            <PlanStatusRow
+              icon="🥗"
+              label={t('nutritionPlan')}
+              present={!!cw?.nutrition_pdf_url}
+              isAdmin={isAdmin}
+              onUpload={() => setShowUploadForm(true)}
+              t={t}
+            />
+          </div>
+        );
+      })()}
 
       {/* PDF Viewer or Workout Videos */}
       {activeView === 'workout' ? (
