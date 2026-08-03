@@ -14,9 +14,12 @@ function advance(current: string, interval: number, unit: string): string {
 }
 
 /**
- * Notification Center scanner. Runs on a Vercel Cron: finds notifications whose
+ * Notification Center scanner. Runs on a Vercel Cron (daily 06:00 UTC — the
+ * Hobby plan only allows once-daily crons): finds notifications whose
  * next_run_at has passed, sends them to their audience, then advances recurring
  * ones / marks one-time ones sent. Secured with CRON_SECRET like the other crons.
+ * NOTE: "send now" delivers immediately from the API route, not via this cron;
+ * only scheduled / recurring sends wait for the daily tick.
  */
 async function run(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
