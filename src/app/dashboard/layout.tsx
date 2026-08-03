@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { GarminReminderPopup } from '@/components/GarminReminderPopup';
 import { InstallPrompt } from '@/components/InstallPrompt';
+import { PushOptIn } from '@/components/PushOptIn';
 import { getSupabase } from '@/lib/supabase/client';
 
 export default function DashboardLayout({
@@ -45,6 +46,7 @@ export default function DashboardLayout({
       <Header />
       <GarminReminderPopup />
       <InstallPrompt />
+      <PushOptIn />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>

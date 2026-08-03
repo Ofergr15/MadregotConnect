@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone, Bell } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
+import { NotificationCenter } from '@/components/NotificationCenter';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
 
@@ -209,12 +210,13 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications';
 
 const settingsTabs = [
   { key: 'users' as SettingsTab, label: 'User Manager', icon: Users },
   { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout },
   { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare },
+  { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell },
 ];
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
@@ -797,7 +799,10 @@ export default function SettingsPage() {
         {settingsTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
-          const labelKey = tab.key === 'users' ? 'userManager' : tab.key === 'tabs' ? 'tabManager' : 'feedback';
+          const label = tab.key === 'users' ? t('userManager')
+            : tab.key === 'tabs' ? t('tabManager')
+            : tab.key === 'feedback' ? t('feedback')
+            : tab.label;
           return (
             <button
               key={tab.key}
@@ -810,7 +815,7 @@ export default function SettingsPage() {
               )}
             >
               <Icon className="w-4 h-4" />
-              {t(labelKey)}
+              {label}
             </button>
           );
         })}
@@ -1392,6 +1397,10 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === 'notifications' && (
+        <NotificationCenter />
       )}
     </div>
   );

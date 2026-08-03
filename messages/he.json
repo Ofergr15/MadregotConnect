@@ -509,5 +509,12 @@
     "iosHintMiddle": "ואז",
     "iosHintSuffix": "הוספה למסך הבית",
     "dismiss": "סגירה"
+  },
+  "push": {
+    "title": "הפעלת התראות",
+    "description": "קבלו תזכורות לאימונים ועדכונים מהצוות.",
+    "enable": "הפעלה",
+    "enabling": "מפעיל…",
+    "dismiss": "סגירה"
   }
 }

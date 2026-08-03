@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Activity, Heart, Timer, Route, TrendingUp,
   MapPin, ChevronDown, ChevronUp, Zap, Footprints, Mountain,
-  Flame, RefreshCw,
+  Flame, RefreshCw, Gauge,
 } from 'lucide-react';
 import { cn, formatActivityTime, formatActivityDate, activityLocalHour, activityLocalDay } from '@/lib/utils';
 
@@ -870,6 +870,28 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
                     <div>
                       <p className="text-xl font-black text-orange-400 tabular-nums">{details.summary.anaerobicTrainingEffect.toFixed(1)}</p>
                       <p className="text-[9px] text-slate-500">Anaerobic</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {(details?.summary?.perceivedRpe != null || details?.summary?.perceivedFeel != null) && (
+              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Gauge className="h-3.5 w-3.5 text-primary-400" />
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Self Evaluation</p>
+                </div>
+                <div className="flex items-baseline gap-3">
+                  {details.summary.perceivedRpe != null && (
+                    <div>
+                      <p className="text-xl font-black text-primary-400 tabular-nums">{details.summary.perceivedRpe.toFixed(0)}<span className="text-xs text-slate-500">/10</span></p>
+                      <p className="text-[9px] text-slate-500">Effort</p>
+                    </div>
+                  )}
+                  {details.summary.perceivedFeel != null && (
+                    <div>
+                      <p className="text-xl leading-none">{['😣','😕','😐','🙂','😄'][Math.round(details.summary.perceivedFeel)] ?? '—'}</p>
+                      <p className="text-[9px] text-slate-500 mt-1">Feel</p>
                     </div>
                   )}
                 </div>

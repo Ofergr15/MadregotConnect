@@ -67,3 +67,41 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// --- Web Push (Notification Center) ---
+// Serwist's addEventListeners() wires install/activate/fetch/message only, so we
+// add our own push + notificationclick handlers.
+self.addEventListener('push', (event: PushEvent) => {
+  let data: { title?: string; body?: string; url?: string; tag?: string } = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data?.text() };
+  }
+  const title = data.title || 'Madregot';
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || '',
+      icon: '/images/icon-192.png',
+      badge: '/images/icon-192.png',
+      tag: data.tag,
+      data: { url: data.url || '/dashboard' },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event: NotificationEvent) => {
+  event.notification.close();
+  const url = (event.notification.data as { url?: string })?.url || '/dashboard';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) {
+          (client as WindowClient).navigate(url);
+          return (client as WindowClient).focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

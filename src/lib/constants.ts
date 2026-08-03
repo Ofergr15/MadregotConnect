@@ -11,7 +11,7 @@ export function isProtectedEmail(email: string | null | undefined): boolean {
 // Only these accounts may approve new registrations (club + academy sign-ups).
 // Gate is enforced server-side in /api/admin/approve; the Settings/Registrations
 // UIs also hide the Approve button for anyone not on this list.
-export const APPROVER_EMAILS = ['yairgb@gmail.com', 'grosfeldofer@gmail.com'];
+export const APPROVER_EMAILS = ['yairgb@gmail.com', 'grosfeldofer@gmail.com', 'madregot.club@gmail.com'];
 
 export function canApprove(email: string | null | undefined): boolean {
   if (!email) return false;

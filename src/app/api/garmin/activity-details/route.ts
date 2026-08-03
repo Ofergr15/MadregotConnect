@@ -182,6 +182,9 @@ export async function GET(request: Request) {
     if (activity?.vO2MaxValue) enrichData.vo2max = activity.vO2MaxValue;
     if (activity?.lapCount) enrichData.lap_count = activity.lapCount;
     if (summ.movingDuration) enrichData.moving_duration = Math.round(summ.movingDuration);
+    // Garmin "Self Evaluation" (present only if answered on-watch).
+    if (summ.directWorkoutRpe != null) enrichData.perceived_rpe = summ.directWorkoutRpe / 10;
+    if (summ.directWorkoutFeel != null) enrichData.perceived_feel = summ.directWorkoutFeel / 25;
 
     // Per-step LAPS (separate from the per-km `splits` used by the charts). When a
     // pushed structured workout is run on-watch, Garmin records one lap per step —
@@ -211,10 +214,12 @@ export async function GET(request: Request) {
         .update(updatePayload)
         .eq('athlete_id', athleteId)
         .eq('garmin_activity_id', Number(activityId));
-      // The `laps` column may not be migrated yet → retry without it rather than
-      // losing the splits/enrichment cache.
-      if (updErr && 'laps' in updatePayload) {
+      // Some columns (laps, perceived_rpe/feel) may not be migrated yet → retry
+      // without them rather than losing the splits/enrichment cache.
+      if (updErr) {
         delete updatePayload.laps;
+        delete updatePayload.perceived_rpe;
+        delete updatePayload.perceived_feel;
         await supabase
           .from('athlete_activities')
           .update(updatePayload)
@@ -245,6 +250,8 @@ export async function GET(request: Request) {
         vO2MaxValue: activity?.vO2MaxValue,
         trainingEffect: summ.trainingEffect,
         anaerobicTrainingEffect: summ.anaerobicTrainingEffect,
+        perceivedRpe: summ.directWorkoutRpe != null ? summ.directWorkoutRpe / 10 : null,
+        perceivedFeel: summ.directWorkoutFeel != null ? summ.directWorkoutFeel / 25 : null,
       },
     });
   } catch (error: any) {
