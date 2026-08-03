@@ -144,17 +144,24 @@
   filter:blur(6px);animation:mgBreathe 5.5s ease-in-out infinite;will-change:transform,opacity;
 }
 @keyframes mgBreathe { 0%,100%{transform:scale(.9);opacity:.38} 50%{transform:scale(1.12);opacity:.72} }
+/* Mask stays FIXED on the logo silhouette; only the light band (child <i>)
+   translates inside it, clipped to the shape. This keeps the shimmer aligned
+   with the logo instead of sliding a whole ghost copy of it upward. */
 .mg-sweep {
-  background:linear-gradient(155deg,transparent 38%,rgba(255,255,255,.15) 46%,rgba(255,255,255,.95) 50%,rgba(199,210,254,.35) 54%,transparent 62%);
+  overflow:hidden;
   -webkit-mask-image:url("/images/logo-white.png");mask-image:url("/images/logo-white.png");
   -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
-  -webkit-mask-position:center;mask-position:center;mix-blend-mode:screen;opacity:0;
+  -webkit-mask-position:center;mask-position:center;mix-blend-mode:screen;
+}
+.mg-sweep i {
+  position:absolute;inset:-25% 0;display:block;opacity:0;
+  background:linear-gradient(160deg,transparent 42%,rgba(255,255,255,.18) 47%,rgba(255,255,255,.95) 50%,rgba(199,210,254,.4) 53%,transparent 58%);
   animation:mgSweep 4.8s ease-in-out infinite;will-change:transform,opacity;
 }
 @keyframes mgSweep {
-  0%{transform:translateY(118%);opacity:0} 10%{opacity:1}
-  42%{transform:translateY(-32%);opacity:1} 52%{transform:translateY(-32%);opacity:0}
-  100%{transform:translateY(-32%);opacity:0}
+  0%{transform:translateY(85%);opacity:0} 12%{opacity:1}
+  46%{transform:translateY(-85%);opacity:1} 56%{transform:translateY(-85%);opacity:0}
+  100%{transform:translateY(-85%);opacity:0}
 }
 /* climbing staircase that builds up to the top and holds, + a runner ascending */
 .mg-climb { position:relative; height:120px; width:230px; direction:ltr; }
@@ -183,7 +190,7 @@
 @keyframes mgBob { 0%,100%{transform:translateY(0) rotate(-4deg)} 50%{transform:translateY(-3px) rotate(4deg)} }
 @media (prefers-reduced-motion: reduce) {
   .mg-glow{animation:none;opacity:.55;transform:scale(1.02)}
-  .mg-sweep,.mg-dust span,.mg-runner{animation:none;opacity:0}
+  .mg-sweep i,.mg-dust span,.mg-runner{animation:none;opacity:0}
   .mg-hat{animation:none;transform:rotate(0)}
   .mg-cstep{animation:none;opacity:1;transform:none}
 }
