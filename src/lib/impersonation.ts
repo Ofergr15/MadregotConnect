@@ -1,128 +1,71 @@
 'use client';
 
-// "View as" / impersonation for the super user (see SUPER_USER_EMAIL).
+// "View as" for the super user (Ofer — see SUPER_USER_EMAIL).
 //
-// The app derives the current user entirely from a handful of localStorage keys
-// and then filters data client-side (see Header + every dashboard page). So to
-// preview the app exactly as another member sees it, we snapshot the super
-// user's own identity, overwrite those keys with the target's, and reload — the
-// whole app (and the MaintenanceGate) then renders as that member. Exit restores
-// the snapshot and reloads back.
+// This does NOT change who you are — you stay signed in as yourself. It only
+// overrides which ROLE / SCENARIO the app renders, so the super user can preview
+// the different options each kind of user sees:
+//   - a role name ('admin' | 'coach' | 'runner' | 'viewer' | …) → the Header nav
+//     and role-gated UI render as if you had that role (and the maintenance gate
+//     is bypassed so you can actually see the app);
+//   - '__maintenance__' → force-show the maintenance ("rebuilding the stairs")
+//     screen, i.e. what a member blocked by maintenance sees.
 //
-// The preview is READ-ONLY: while impersonating, installImpersonationGuard()
-// blocks all data-mutating requests so nothing is ever written under a member's
-// name. Auth/session refreshes are left untouched so the session stays alive.
+// The chosen mode lives in one localStorage key and is read by the Header
+// (nav/role) and the MaintenanceGate. While a mode is active the preview is
+// READ-ONLY (installViewGuard blocks data-mutating requests) so nothing changes
+// while you're just looking around.
 
-export interface ViewAsTarget {
-  id: string;
-  email: string;
-  name: string;
-  groupId?: string | null;
-  role?: string;
-}
+export const MAINTENANCE_MODE = '__maintenance__';
 
-// The super user's real identity, saved before the first switch so Exit can
-// restore it verbatim (JSON of the identity keys below).
-const SNAPSHOT_KEY = 'view_as_snapshot';
-// The member currently being previewed (JSON of ViewAsTarget). Presence of this
-// key === "impersonating".
-const ACTIVE_KEY = 'view_as_active';
+const KEY = 'view_as_role';
 
-// Identity keys the app reads to decide "who am I". Overwriting these is what
-// makes the app render as the target user.
-const IDENTITY_KEYS = [
-  'athlete_id',
-  'athlete_name',
-  'athlete_email',
-  'athlete_group_id',
-  'coach_email',
-  'admin_session',
-] as const;
-
-export function getActiveImpersonation(): ViewAsTarget | null {
+export function getViewMode(): string | null {
   if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(ACTIVE_KEY);
-    return raw ? (JSON.parse(raw) as ViewAsTarget) : null;
-  } catch {
-    return null;
-  }
+  return localStorage.getItem(KEY);
 }
 
-export function isImpersonating(): boolean {
-  return getActiveImpersonation() !== null;
+export function isPreviewing(): boolean {
+  return !!getViewMode();
 }
 
-// Enter (or switch) "view as" for a target member, then reload so every page
-// re-reads identity from localStorage and renders as that member.
-export function startImpersonation(target: ViewAsTarget) {
+// Roles that see the "staff" flavour of the app (full nav, no profile tab). Used
+// to decide whether a previewed role should also get the athlete profile tab.
+export const STAFF_ROLES = ['admin', 'coach', 'academy_coach'];
+
+// Enter (or switch) a view mode, then reload so the Header + gate re-read it.
+export function startViewAs(mode: string) {
   if (typeof window === 'undefined') return;
-
-  // Snapshot the REAL identity only once (don't overwrite it when switching
-  // from one previewed member to another).
-  if (!localStorage.getItem(SNAPSHOT_KEY)) {
-    const snapshot: Record<string, string | null> = {};
-    for (const k of IDENTITY_KEYS) snapshot[k] = localStorage.getItem(k);
-    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
-  }
-
-  // Become the target member: an athlete session keyed by their id/email.
-  localStorage.setItem('athlete_id', target.id);
-  localStorage.setItem('athlete_name', target.name || '');
-  localStorage.setItem('athlete_email', target.email || '');
-  if (target.groupId) localStorage.setItem('athlete_group_id', target.groupId);
-  else localStorage.removeItem('athlete_group_id');
-  // Drop staff flags so we see the member's own (non-staff) view.
-  localStorage.removeItem('coach_email');
-  localStorage.removeItem('admin_session');
-
-  localStorage.setItem(ACTIVE_KEY, JSON.stringify(target));
-  // Clear a cached "already synced" flag so the previewed dashboard loads fresh.
+  localStorage.setItem(KEY, mode);
   localStorage.removeItem('dashboard_synced');
   window.location.assign('/dashboard');
 }
 
-// Exit "view as": restore the super user's real identity and reload back.
-export function stopImpersonation() {
+// Exit the preview and return to the super user's real view.
+export function stopViewAs() {
   if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem(SNAPSHOT_KEY);
-    const snapshot: Record<string, string | null> = raw ? JSON.parse(raw) : {};
-    for (const k of IDENTITY_KEYS) {
-      const v = snapshot[k];
-      if (v === null || v === undefined) localStorage.removeItem(k);
-      else localStorage.setItem(k, v);
-    }
-  } finally {
-    localStorage.removeItem(SNAPSHOT_KEY);
-    localStorage.removeItem(ACTIVE_KEY);
-    localStorage.removeItem('dashboard_synced');
-  }
+  localStorage.removeItem(KEY);
+  localStorage.removeItem('dashboard_synced');
   window.location.assign('/dashboard');
 }
 
-// Requests that must stay allowed even while impersonating (session/auth
-// refresh, and the reads that power the switcher itself).
-function isAllowedWhileImpersonating(url: string, method: string): boolean {
+// Requests that stay allowed even while previewing (session/auth refresh).
+function isAllowedWhilePreviewing(url: string, method: string): boolean {
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return true;
-  const u = url.toLowerCase();
-  // Supabase GoTrue auth (token refresh, session) — never block, or the preview
-  // session dies. Everything else on Supabase rest/storage is a data mutation.
-  if (u.includes('/auth/v1/')) return true;
-  return false;
+  return url.toLowerCase().includes('/auth/v1/');
 }
 
-// Wrap window.fetch once so that, while impersonating, every data-mutating
-// request is short-circuited with a synthetic 403. This makes the whole preview
-// read-only without touching any of the app's ~40 forms individually.
+// Wrap window.fetch once so that, while a view mode is active, every
+// data-mutating request is short-circuited with a synthetic 403 — the whole
+// preview is read-only without touching any of the app's forms individually.
 let guardInstalled = false;
-export function installImpersonationGuard() {
+export function installViewGuard() {
   if (typeof window === 'undefined' || guardInstalled) return;
   guardInstalled = true;
   const nativeFetch = window.fetch.bind(window);
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (isImpersonating()) {
+    if (isPreviewing()) {
       const method = (
         init?.method ||
         (typeof input !== 'string' && !(input instanceof URL) ? (input as Request).method : 'GET') ||
@@ -135,9 +78,7 @@ export function installImpersonationGuard() {
             ? input.toString()
             : (input as Request).url;
 
-      if (!isAllowedWhileImpersonating(url, method)) {
-        // Synthetic, non-throwing response so callers' .then/.catch behave and
-        // the UI simply shows "couldn't save" rather than crashing.
+      if (!isAllowedWhilePreviewing(url, method)) {
         return new Response(
           JSON.stringify({ error: 'read_only_preview', message: 'View-as preview is read-only.' }),
           { status: 403, headers: { 'Content-Type': 'application/json' } }
