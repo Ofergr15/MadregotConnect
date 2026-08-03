@@ -62,11 +62,8 @@ function OnboardContent() {
 
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Every athlete must pick a group at registration.
-    if (!skipGroup && !selectedGroup) {
-      setError('Please select a pace group');
-      return;
-    }
+    // The pace group is OPTIONAL at sign-up — the coach assigns/adjusts it later.
+    // No requirement to pick one here.
     setError(null);
     if (!garminEmail) setGarminEmail(email);
     if (skipGarmin) {
@@ -316,7 +313,7 @@ function OnboardContent() {
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   <Users className="inline h-4 w-4 me-1" />
-                  {t('yourPaceGroup')}
+                  {t('yourPaceGroup')} <span className="text-slate-500 font-normal">({t('optional')})</span>
                 </label>
                 <div className="space-y-2">
                   {groups.map(g => {
@@ -325,7 +322,7 @@ function OnboardContent() {
                       <button
                         key={g.id}
                         type="button"
-                        onClick={() => setSelectedGroup(g.id)}
+                        onClick={() => setSelectedGroup(isSelected ? '' : g.id)}
                         className={`w-full text-start px-4 py-3 rounded-lg border-2 transition-all ${
                           isSelected
                             ? 'border-primary-500 bg-primary-500/10 ring-2 ring-primary-500/50'
@@ -346,6 +343,7 @@ function OnboardContent() {
                     );
                   })}
                 </div>
+                <p className="text-xs text-slate-500 mt-2">{t('groupAssignedLater')}</p>
               </div>
             )}
             {error && step === 'info' && (

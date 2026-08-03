@@ -318,7 +318,7 @@
   },
   "onboarding": {
     "completeSetup": "Complete Your Setup",
-    "chooseGroup": "Choose your pace group and connect your Garmin watch",
+    "chooseGroup": "Complete your registration and connect your Garmin watch",
     "yourName": "Your Name",
     "namePlaceholder": "e.g., Yossi Cohen",
     "emailLabel": "Email",
@@ -350,7 +350,9 @@
     "inTheMeantime": "In the meantime...",
     "syncGarminTip": "Sync your Garmin watch via the Garmin Connect app so workouts will be ready when you're approved",
     "backHome": "Back to Home",
-    "continue": "Continue"
+    "continue": "Continue",
+    "optional": "optional",
+    "groupAssignedLater": "You can join without picking — your coach will assign you later"
   },
   "join": {
     "joinYourTeam": "Join Your Team",

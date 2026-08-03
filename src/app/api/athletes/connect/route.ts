@@ -75,11 +75,8 @@ export async function POST(req: NextRequest) {
       .eq('email', email.toLowerCase())
       .maybeSingle();
 
-    // Every athlete must belong to a group. Require it unless the athlete already
-    // has one (returning user just re-connecting Garmin).
-    if (!groupId && !existing?.group_id) {
-      return NextResponse.json({ error: 'A pace group is required' }, { status: 400 });
-    }
+    // The pace group is OPTIONAL at sign-up — a new athlete may register without
+    // one, and the coach assigns/adjusts it later. (group_id is nullable.)
 
     if (existing) {
       const updatePayload: Record<string, any> = {

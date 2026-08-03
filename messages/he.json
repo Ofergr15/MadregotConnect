@@ -318,7 +318,7 @@
   },
   "onboarding": {
     "completeSetup": "השלם את ההגדרה",
-    "chooseGroup": "בחר דבוקת קצב וחבר את שעון הגרמין שלך",
+    "chooseGroup": "השלימו את ההרשמה וחברו את שעון הגרמין",
     "yourName": "השם שלך",
     "namePlaceholder": "למשל, יוסי כהן",
     "emailLabel": "אימייל",
@@ -350,7 +350,9 @@
     "inTheMeantime": "בינתיים...",
     "syncGarminTip": "סנכרן את שעון הגרמין דרך אפליקציית Garmin Connect כדי שהאימונים יהיו מוכנים כשתאושר",
     "backHome": "חזרה לדף הבית",
-    "continue": "המשך"
+    "continue": "המשך",
+    "optional": "רשות",
+    "groupAssignedLater": "אפשר להצטרף בלי לבחור — המאמן ישבץ אתכם בהמשך"
   },
   "join": {
     "joinYourTeam": "הצטרף לקבוצה שלך",
