@@ -4,8 +4,13 @@ import { createServerClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 
 // GET /api/attendance?weekStart=YYYY-MM-DD&day=N
-//   &athleteId=…  -> that athlete's own RSVP for the day (or null)
-//   &roster=1     -> coach view: everyone attending that day (joined to athlete name/avatar)
+//   &athleteId=…    -> that athlete's own RSVP for the day (or null)
+//   &roster=1       -> coach view: everyone who RSVP'd that day (name/avatar)
+//   &roster=full    -> admin view: EVERY active athlete with their RSVP or null
+//                      (so non-responders are surfaced), incl. their squad.
+// GET /api/attendance?calendar=1&from=YYYY-MM-DD&to=YYYY-MM-DD
+//   -> admin calendar: per-practice-day attendance counts across a range, so a
+//      month grid can show who was/ is in each practice at a glance.
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -14,10 +19,91 @@ export async function GET(request: Request) {
     const athleteId = searchParams.get('athleteId');
     const roster = searchParams.get('roster');
 
+    const supabase = createServerClient();
+
+    // Calendar aggregate: group all RSVPs in [from,to] by their actual date
+    // (week_start_date + day_of_week) into per-day going/not-going counts.
+    if (searchParams.get('calendar')) {
+      const from = searchParams.get('from');
+      const to = searchParams.get('to');
+      if (!from || !to) {
+        return NextResponse.json({ error: 'from and to required' }, { status: 400 });
+      }
+      // week_start_date is the Sunday; a day up to +6 later can fall in-range, so
+      // widen the lower bound by a week and filter by the computed real date.
+      const lowerWeek = new Date(from + 'T12:00:00');
+      lowerWeek.setDate(lowerWeek.getDate() - 6);
+      const lowerStr = lowerWeek.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('workout_attendance')
+        .select('week_start_date, day_of_week, attending')
+        .gte('week_start_date', lowerStr)
+        .lte('week_start_date', to);
+      if (error) throw error;
+
+      // Fold into a map keyed by the practice's real ISO date.
+      const days: Record<string, { going: number; notGoing: number; total: number }> = {};
+      for (const r of data || []) {
+        const d = new Date((r as any).week_start_date + 'T12:00:00');
+        d.setDate(d.getDate() + Number((r as any).day_of_week));
+        const iso = d.toISOString().split('T')[0];
+        if (iso < from || iso > to) continue; // trim the widened lower bound
+        const bucket = (days[iso] ||= { going: 0, notGoing: 0, total: 0 });
+        bucket.total += 1;
+        if ((r as any).attending) bucket.going += 1;
+        else bucket.notGoing += 1;
+      }
+      return NextResponse.json({ days });
+    }
+
     if (!weekStart || day == null) {
       return NextResponse.json({ error: 'weekStart and day required' }, { status: 400 });
     }
-    const supabase = createServerClient();
+
+    // Admin roster: start from ALL athletes, then attach each one's RSVP (if any)
+    // so the view can show "לא ענו" (no-response) as a first-class bucket.
+    if (roster === 'full') {
+      const [{ data: athletes, error: aErr }, { data: rsvps, error: rErr }] = await Promise.all([
+        supabase
+          .from('athletes')
+          .select('id, name, avatar_url, group_id, groups(name), onboarding_status, approved')
+          .order('name'),
+        supabase
+          .from('workout_attendance')
+          .select('athlete_id, attending, group_label')
+          .eq('week_start_date', weekStart)
+          .eq('day_of_week', Number(day)),
+      ]);
+      if (aErr) throw aErr;
+      if (rErr) throw rErr;
+      const byAthlete = new Map(
+        (rsvps || []).map((r: any) => [r.athlete_id, r]),
+      );
+      const rows = (athletes || [])
+        // active members only (skip pending invites / unapproved)
+        .filter((a: any) => a.approved !== false && a.onboarding_status !== 'pending')
+        .map((a: any) => {
+          const r: any = byAthlete.get(a.id);
+          return {
+            athleteId: a.id,
+            name: a.name || '',
+            avatarUrl: a.avatar_url || null,
+            squad: a.groups?.name || null, // permanent squad (athletes.group_id → groups.name)
+            responded: !!r,
+            attending: r ? r.attending : null,
+            // Chosen דבוקה for the day; fall back to their permanent squad name.
+            groupLabel: r?.group_label || a.groups?.name || null,
+          };
+        });
+      return NextResponse.json({
+        roster: rows,
+        goingCount: rows.filter((r) => r.attending === true).length,
+        notGoingCount: rows.filter((r) => r.attending === false).length,
+        noResponseCount: rows.filter((r) => !r.responded).length,
+        total: rows.length,
+      });
+    }
 
     if (roster) {
       const { data, error } = await supabase

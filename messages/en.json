@@ -34,7 +34,9 @@
     "races": "Races",
     "history": "History",
     "settings": "Settings",
-    "profile": "Profile"
+    "profile": "Profile",
+    "practiceAttendance": "Attendance",
+    "workoutFeedback": "Workout Feedback"
   },
   "header": {
     "coach": "Coach",
