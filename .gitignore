@@ -38,3 +38,6 @@ public/swe-worker-*.js
 next-env.d.ts
 eng.traineddata
 heb.traineddata
+
+# claude code — personal overrides (.claude/settings.json IS committed)
+.claude/settings.local.json
