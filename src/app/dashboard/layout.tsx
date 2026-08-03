@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { GarminReminderPopup } from '@/components/GarminReminderPopup';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PushOptIn } from '@/components/PushOptIn';
+import { PullToRefresh } from '@/components/PullToRefresh';
 import { getSupabase } from '@/lib/supabase/client';
 
 export default function DashboardLayout({
@@ -69,6 +70,7 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
+      <PullToRefresh />
       <Header />
       <GarminReminderPopup />
       <InstallPrompt />
