@@ -12,6 +12,8 @@ import { cn, getActivityWeekStart, formatActivityTime, formatActivityDate, activ
 import { groupPaceTokens } from '@/lib/garmin/pace';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
+import { AttendanceRSVP } from '@/components/AttendanceRSVP';
+import { AttendanceRoster } from '@/components/AttendanceRoster';
 
 const RACE_DATE = new Date('2026-12-06T09:00:00');
 const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
@@ -707,6 +709,13 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-8">
+
+      {/* ═══ PRE-WORKOUT ATTENDANCE (only when there's a workout today) ═══ */}
+      {todayWorkout && todayWorkout.max > 0 && (
+        isCoach
+          ? <AttendanceRoster />
+          : <AttendanceRSVP workoutLabel={todayWorkout.type ? `${todayWorkout.day} · ${todayWorkout.type}` : todayWorkout.day} />
+      )}
 
       {/* ═══ RACE COUNTDOWN ═══ */}
       <section>

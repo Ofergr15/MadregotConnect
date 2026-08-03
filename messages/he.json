@@ -517,5 +517,14 @@
     "enable": "הפעלה",
     "enabling": "מפעיל…",
     "dismiss": "סגירה"
+  },
+  "attendance": {
+    "title": "מגיעים לאימון היום?",
+    "coming": "מגיע/ה",
+    "notComing": "לא הפעם",
+    "whichGroup": "באיזו דבוקה?",
+    "otherGroup": "דבוקה אחרת… (טקסט חופשי)",
+    "goingCount": "מגיעים",
+    "noRsvp": "לא ענו"
   }
 }
