@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from('athletes')
-    .select('id, name, email, garmin_auth, onboarding_status')
+    .select('id, name, email, garmin_auth, onboarding_status, avatar_url, created_at')
     .eq('id', id)
     .single();
 
@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
       email: data.email,
       hasGarmin: !!data.garmin_auth,
       onboardingStatus: data.onboarding_status,
+      avatarUrl: data.avatar_url || null,
+      memberSince: data.created_at || null,
     },
   });
 }

@@ -389,6 +389,7 @@
     "switchTo": "עברית"
   },
   "profile": {
+    "memberSince": "Member since",
     "noProfileFound": "No Profile Found",
     "joinViaInvite": "Join via your invite link to set up your profile.",
     "syncingActivities": "Syncing Activities",
