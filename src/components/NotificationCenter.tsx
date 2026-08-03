@@ -5,6 +5,7 @@ import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle } from 'lucide-
 import { cn } from '@/lib/utils';
 
 interface Group { id: string; name: string; }
+interface Athlete { id: string; name: string; email: string; }
 interface NotificationRow {
   id: string;
   title_he: string; body_he: string;
@@ -19,6 +20,7 @@ interface NotificationRow {
 export function NotificationCenter() {
   const [actorEmail, setActorEmail] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [list, setList] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -29,7 +31,7 @@ export function NotificationCenter() {
   const [bodyHe, setBodyHe] = useState('');
   const [titleEn, setTitleEn] = useState('');
   const [bodyEn, setBodyEn] = useState('');
-  const [audienceType, setAudienceType] = useState<'all' | 'group'>('all');
+  const [audienceType, setAudienceType] = useState<'all' | 'group' | 'athlete'>('all');
   const [audienceId, setAudienceId] = useState('');
   const [scheduleType, setScheduleType] = useState<'now' | 'once_at' | 'recurring'>('now');
   const [scheduledAt, setScheduledAt] = useState('');
@@ -51,6 +53,9 @@ export function NotificationCenter() {
     fetch('/api/groups').then(r => r.ok ? r.json() : null).then(d => {
       if (d?.groups) setGroups(d.groups.map((g: any) => ({ id: g.id, name: g.name })));
     }).catch(() => {});
+    fetch('/api/admin/users').then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.users) setAthletes(d.users.map((u: any) => ({ id: u.id, name: u.name, email: u.email })));
+    }).catch(() => {});
     loadList();
   }, [loadList]);
 
@@ -62,6 +67,7 @@ export function NotificationCenter() {
 
   const submit = async () => {
     if (!titleHe.trim() || !bodyHe.trim()) { setMsg('כותרת ותוכן בעברית נדרשים'); return; }
+    if (audienceType !== 'all' && !audienceId) { setMsg('בחרו קהל יעד'); return; }
     if ((scheduleType === 'once_at' || scheduleType === 'recurring') && !scheduledAt) {
       setMsg('בחרו תאריך ושעה'); return;
     }
@@ -75,7 +81,7 @@ export function NotificationCenter() {
           title_he: titleHe, body_he: bodyHe,
           title_en: titleEn || null, body_en: bodyEn || null,
           audience_type: audienceType,
-          audience_id: audienceType === 'group' ? audienceId : null,
+          audience_id: audienceType === 'all' ? null : audienceId,
           schedule_type: scheduleType,
           scheduled_at: scheduleType === 'now' ? null : new Date(scheduledAt).toISOString(),
           recur_interval: scheduleType === 'recurring' ? recurInterval : null,
@@ -142,14 +148,21 @@ export function NotificationCenter() {
           <div>
             <label className="text-xs font-semibold text-slate-400">קהל יעד / Audience</label>
             <div className="flex gap-2 mt-1">
-              <select value={audienceType} onChange={e => setAudienceType(e.target.value as any)} className={inputCls}>
+              <select value={audienceType} onChange={e => { setAudienceType(e.target.value as any); setAudienceId(''); }} className={inputCls}>
                 <option value="all">כל הרצים / All</option>
                 <option value="group">קבוצה / Group</option>
+                <option value="athlete">אדם ספציפי / Person</option>
               </select>
               {audienceType === 'group' && (
                 <select value={audienceId} onChange={e => setAudienceId(e.target.value)} className={inputCls}>
                   <option value="">בחרו קבוצה…</option>
                   {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              )}
+              {audienceType === 'athlete' && (
+                <select value={audienceId} onChange={e => setAudienceId(e.target.value)} className={inputCls}>
+                  <option value="">בחרו רץ…</option>
+                  {athletes.map(a => <option key={a.id} value={a.id}>{a.name} ({a.email})</option>)}
                 </select>
               )}
             </div>
@@ -217,7 +230,7 @@ export function NotificationCenter() {
                           : n.schedule_type === 'recurring' ? `כל ${n.recur_interval} ${n.recur_unit === 'week' ? 'שבועות' : 'ימים'}`
                           : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן'}
                       </span>
-                      <span>· {n.audience_type === 'all' ? 'הכל' : 'קבוצה'}</span>
+                      <span>· {n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם'}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
