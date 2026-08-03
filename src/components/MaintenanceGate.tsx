@@ -2,16 +2,25 @@
 
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase/client';
+import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 
 // Full-screen "under renovation" gate. Mounted in the root layout so it covers
 // the whole app (landing + dashboard). Shows the overlay when maintenance is on
 // and the viewer's email is NOT on the approver allowlist. Fails open on error.
+//
+// Super-user "view as" override: the '__maintenance__' scenario force-shows this
+// screen (preview what a blocked member sees); any role scenario bypasses it
+// (so Ofer can actually explore the app as that role).
 export function MaintenanceGate() {
   const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const viewMode = getViewMode();
+      if (viewMode === MAINTENANCE_MODE) { setBlocked(true); return; } // force preview
+      if (viewMode) { setBlocked(false); return; } // role scenario → bypass gate
+
       // Best-effort viewer email: localStorage (coach/athlete) or Supabase session.
       let email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
       if (!email) {

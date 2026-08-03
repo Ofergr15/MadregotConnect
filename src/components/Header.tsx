@@ -8,6 +8,7 @@ import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, 
 import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
+import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 const allNavItems = [
@@ -129,18 +130,28 @@ export function Header() {
       .catch(() => {});
   }, [userRole]);
 
-  const navReady = permissionsLoaded && !!userRole;
+  // Super-user "view as" override: while a role scenario is active, render the
+  // nav as if we had that role (the maintenance scenario is handled by the gate,
+  // not here — it leaves the role untouched).
+  const viewMode = typeof window !== 'undefined' ? getViewMode() : null;
+  const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
+  const effectiveRole = previewRole || userRole;
+
+  const navReady = permissionsLoaded && !!effectiveRole;
 
   const navItems = (() => {
     if (!navReady) return [];
     const enabledTabs = permissions
-      .filter(p => p.role === userRole && p.enabled)
+      .filter(p => p.role === effectiveRole && p.enabled)
       .map(p => p.tab);
-    if (userRole === 'admin' && !enabledTabs.includes('settings')) {
+    if (effectiveRole === 'admin' && !enabledTabs.includes('settings')) {
       enabledTabs.push('settings');
     }
     const items = allNavItems.filter(item => enabledTabs.includes(item.tab));
-    if (isAthlete) items.push(profileNavItem);
+    // Athlete-flavoured roles get the profile tab.
+    if (isAthlete || (previewRole && !['admin', 'coach', 'academy_coach'].includes(previewRole))) {
+      if (!items.some(i => i.tab === 'profile')) items.push(profileNavItem);
+    }
     return items.length > 0 ? items : [allNavItems.find(i => i.tab === 'dashboard')!, profileNavItem];
   })();
 
@@ -154,9 +165,8 @@ export function Header() {
     localStorage.removeItem('coach_email');
     localStorage.removeItem('admin_session');
     localStorage.removeItem('dashboard_synced');
-    // Clear any active "view as" so a leftover snapshot can't strand identity.
-    localStorage.removeItem('view_as_active');
-    localStorage.removeItem('view_as_snapshot');
+    // Clear any active "view as" scenario.
+    localStorage.removeItem('view_as_role');
     router.push('/');
   };
 
