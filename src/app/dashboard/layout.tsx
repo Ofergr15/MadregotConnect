@@ -16,6 +16,13 @@ export default function DashboardLayout({
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
 
+  // Clear the app-icon badge when the app is opened (notifications were seen).
+  useEffect(() => {
+    if ('clearAppBadge' in navigator) {
+      navigator.clearAppBadge().catch(() => {});
+    }
+  }, []);
+
   useEffect(() => {
     const supabase = getSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
