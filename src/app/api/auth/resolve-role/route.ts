@@ -78,42 +78,38 @@ export async function POST(req: NextRequest) {
 
     if (invitedAthlete) {
       const hasGarmin = !!invitedAthlete.garmin_auth;
-      // Onboarding done (Garmin linked) but not yet approved → hold at pending
-      // instead of logging them in. Onboarding routes no longer self-activate,
-      // so unapproved sign-ups stay 'invited' and must pass through here.
-      if (hasGarmin && invitedAthlete.approved === false) {
-        return NextResponse.json({ pendingApproval: true, missingGarmin: false });
+      // Not yet approved → hold at pending, regardless of Garmin (approval owns
+      // entry; Garmin/group are optional and can be added from inside the app).
+      if (invitedAthlete.approved === false) {
+        return NextResponse.json({ pendingApproval: true, missingGarmin: !hasGarmin });
       }
-      return NextResponse.json({ role: 'runner', athlete: { ...invitedAthlete, garmin_auth: undefined }, hasGarmin, needsOnboarding: !hasGarmin });
+      // Approved invited user → straight to the dashboard (no forced onboarding).
+      return NextResponse.json({ role: 'runner', athlete: { ...invitedAthlete, garmin_auth: undefined, approved: undefined }, hasGarmin });
     }
 
     // Check if athlete exists with any status (could be missing garmin/group)
     const { data: anyAthlete } = await supabase
       .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth, approved')
+      .select('id, name, email, group_id, status, garmin_auth, approved, role')
       .eq('email', lowerEmail)
       .maybeSingle();
 
     if (anyAthlete) {
       const hasGarmin = !!anyAthlete.garmin_auth;
-      const hasGroup = !!anyAthlete.group_id;
-      if (hasGarmin && hasGroup) {
-        if (anyAthlete.approved === false) {
-          return NextResponse.json({ pendingApproval: true });
-        }
-        if (anyAthlete.status !== 'active') {
-          await supabase.from('athletes').update({ status: 'active' }).eq('id', anyAthlete.id);
-        }
-        return NextResponse.json({ role: 'runner', athlete: { ...anyAthlete, garmin_auth: undefined, approved: undefined }, hasGarmin });
+      // An EXISTING athlete goes straight to the dashboard — Garmin and group are
+      // both optional/deferrable now, so we don't force a returning user back
+      // through onboarding just because one is missing. Onboarding is only for
+      // brand-new users (handled below). Approval still gates entry.
+      if (anyAthlete.approved === false) {
+        return NextResponse.json({ pendingApproval: true });
       }
-      // Missing group or garmin — needs onboarding
+      if (anyAthlete.status !== 'active') {
+        await supabase.from('athletes').update({ status: 'active' }).eq('id', anyAthlete.id);
+      }
       return NextResponse.json({
-        role: 'runner',
-        email: lowerEmail,
-        name: anyAthlete.name || name,
-        needsOnboarding: true,
-        missingGroup: !hasGroup,
-        missingGarmin: !hasGarmin,
+        role: anyAthlete.role || 'runner',
+        athlete: { ...anyAthlete, garmin_auth: undefined, approved: undefined, role: undefined },
+        hasGarmin,
       });
     }
 
