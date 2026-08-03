@@ -117,6 +117,77 @@
   animation: spinSlow 3s linear infinite;
 }
 
+/* Maintenance screen — "rebuilding the Madregot stairs" (Madregot = stairs).
+   Real logo hero with a breathing glow, a light-sweep polishing the stairs,
+   drifting dust, an ascending step-loader, and a bobbing hard-hat. */
+.mg-dust span {
+  position: absolute; bottom: -10px; width: 4px; height: 4px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(226,232,240,.9), rgba(148,163,184,0) 70%);
+  opacity: 0; animation: mgDrift linear infinite; will-change: transform, opacity;
+}
+.mg-dust span:nth-child(1){left:16%;width:3px;height:3px;animation-duration:9s;animation-delay:0s}
+.mg-dust span:nth-child(2){left:30%;width:5px;height:5px;animation-duration:11s;animation-delay:1.6s;background:radial-gradient(circle,rgba(253,224,71,.55),transparent 70%)}
+.mg-dust span:nth-child(3){left:44%;width:3px;height:3px;animation-duration:8s;animation-delay:.8s}
+.mg-dust span:nth-child(4){left:57%;width:4px;height:4px;animation-duration:12s;animation-delay:3s}
+.mg-dust span:nth-child(5){left:68%;width:3px;height:3px;animation-duration:10s;animation-delay:2.2s;background:radial-gradient(circle,rgba(129,140,248,.6),transparent 70%)}
+.mg-dust span:nth-child(6){left:80%;width:5px;height:5px;animation-duration:13s;animation-delay:.4s}
+.mg-dust span:nth-child(7){left:88%;width:3px;height:3px;animation-duration:9.5s;animation-delay:4s}
+.mg-dust span:nth-child(8){left:23%;width:4px;height:4px;animation-duration:12.5s;animation-delay:5.5s}
+@keyframes mgDrift {
+  0%{transform:translate3d(0,0,0);opacity:0} 12%{opacity:.7}
+  50%{transform:translate3d(6px,-260px,0)} 85%{opacity:.5}
+  100%{transform:translate3d(-4px,-520px,0);opacity:0}
+}
+.mg-glow {
+  width:230px;height:230px;border-radius:50%;
+  background:radial-gradient(circle,rgba(67,56,255,.55) 0%,rgba(55,48,212,.28) 42%,rgba(67,56,255,0) 70%);
+  filter:blur(6px);animation:mgBreathe 5.5s ease-in-out infinite;will-change:transform,opacity;
+}
+@keyframes mgBreathe { 0%,100%{transform:scale(.9);opacity:.38} 50%{transform:scale(1.12);opacity:.72} }
+.mg-sweep {
+  background:linear-gradient(155deg,transparent 38%,rgba(255,255,255,.15) 46%,rgba(255,255,255,.95) 50%,rgba(199,210,254,.35) 54%,transparent 62%);
+  -webkit-mask-image:url("/images/logo-white.png");mask-image:url("/images/logo-white.png");
+  -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;mix-blend-mode:screen;opacity:0;
+  animation:mgSweep 4.8s ease-in-out infinite;will-change:transform,opacity;
+}
+@keyframes mgSweep {
+  0%{transform:translateY(118%);opacity:0} 10%{opacity:1}
+  42%{transform:translateY(-32%);opacity:1} 52%{transform:translateY(-32%);opacity:0}
+  100%{transform:translateY(-32%);opacity:0}
+}
+/* climbing staircase that builds up to the top and holds, + a runner ascending */
+.mg-climb { position:relative; height:120px; width:230px; direction:ltr; }
+.mg-cstep {
+  position:absolute; bottom:0; width:34px; border-radius:5px 5px 0 0;
+  background:linear-gradient(180deg,#818cf8 0%,#4338ff 55%,#3730d4 100%);
+  box-shadow:0 0 10px rgba(99,102,241,.5), 0 0 0 1px rgba(199,210,254,.25) inset;
+  opacity:0; transform:translateY(20px); animation:mgBuild 5s ease-in-out infinite;
+}
+.mg-cstep i { position:absolute; left:0; right:0; top:0; height:4px; border-radius:5px 5px 0 0; background:#fff; opacity:.9; }
+@keyframes mgBuild {
+  0%{opacity:0;transform:translateY(20px)} 8%{opacity:1;transform:translateY(0)}
+  58%{opacity:1;transform:translateY(0)} 72%{opacity:1;transform:translateY(0)}
+  84%{opacity:0;transform:translateY(6px)} 100%{opacity:0;transform:translateY(20px)}
+}
+.mg-runner { position:absolute; bottom:0; left:0; width:22px; height:22px; z-index:3; animation:mgRunUp 5s cubic-bezier(.4,0,.2,1) infinite; }
+.mg-runner span { display:block; font-size:20px; line-height:1; transform:scaleX(-1); filter:drop-shadow(0 2px 3px rgba(0,0,0,.4)); } /* face the climb direction */
+@keyframes mgRunUp {
+  0%{left:-4px;bottom:6px;opacity:0} 8%{opacity:1}
+  12%{left:10px;bottom:20px} 22%{left:46px;bottom:38px} 32%{left:82px;bottom:56px}
+  42%{left:118px;bottom:74px} 50%{left:154px;bottom:92px}
+  56%{left:190px;bottom:110px;opacity:1} 80%{left:190px;bottom:110px;opacity:1}
+  88%{opacity:0} 100%{left:190px;bottom:110px;opacity:0}
+}
+.mg-hat { transform-origin:50% 80%;animation:mgBob 3.2s ease-in-out infinite;will-change:transform;filter:drop-shadow(0 3px 5px rgba(245,158,11,.35)) }
+@keyframes mgBob { 0%,100%{transform:translateY(0) rotate(-4deg)} 50%{transform:translateY(-3px) rotate(4deg)} }
+@media (prefers-reduced-motion: reduce) {
+  .mg-glow{animation:none;opacity:.55;transform:scale(1.02)}
+  .mg-sweep,.mg-dust span,.mg-runner{animation:none;opacity:0}
+  .mg-hat{animation:none;transform:rotate(0)}
+  .mg-cstep{animation:none;opacity:1;transform:none}
+}
+
 /* App-open splash: white logo on black, grows from tiny to full with one
    smooth spin (single deceleration, no overshoot -> no stutter), then the
    whole layer fades out and eases slightly larger to reveal the app. */
