@@ -3,6 +3,7 @@ import { Inter, Heebo } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { AppSplash } from '@/components/AppSplash';
+import { MaintenanceGate } from '@/components/MaintenanceGate';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -60,6 +61,7 @@ export default async function RootLayout({
           {children}
         </NextIntlClientProvider>
         <AppSplash />
+        <MaintenanceGate />
       </body>
     </html>
   );
