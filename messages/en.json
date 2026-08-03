@@ -509,7 +509,8 @@
     "iosHintPrefix": "Tap",
     "iosHintMiddle": "then",
     "iosHintSuffix": "Add to Home Screen",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "skip": "Not now"
   },
   "push": {
     "title": "Turn on notifications",

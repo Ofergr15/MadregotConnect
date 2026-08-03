@@ -92,21 +92,37 @@ export function InstallPrompt() {
           {deferredPrompt ? (
             <>
               <p className="text-xs text-slate-400 mt-0.5">{t('description')}</p>
-              <button
-                onClick={handleInstall}
-                className="mt-3 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-              >
-                {t('installButton')}
-              </button>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={handleInstall}
+                  className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {t('installButton')}
+                </button>
+                <button
+                  onClick={dismiss}
+                  className="text-slate-400 hover:text-white text-sm font-medium px-3 py-2"
+                >
+                  {t('skip')}
+                </button>
+              </div>
             </>
           ) : (
-            <p className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-1">
-              {t('iosHintPrefix')}
-              <Share className="inline h-3.5 w-3.5 text-slate-300" />
-              {t('iosHintMiddle')}
-              <Plus className="inline h-3.5 w-3.5 text-slate-300" />
-              {t('iosHintSuffix')}
-            </p>
+            <>
+              <p className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-1">
+                {t('iosHintPrefix')}
+                <Share className="inline h-3.5 w-3.5 text-slate-300" />
+                {t('iosHintMiddle')}
+                <Plus className="inline h-3.5 w-3.5 text-slate-300" />
+                {t('iosHintSuffix')}
+              </p>
+              <button
+                onClick={dismiss}
+                className="mt-2 text-slate-400 hover:text-white text-sm font-medium"
+              >
+                {t('skip')}
+              </button>
+            </>
           )}
         </div>
 
