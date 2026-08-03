@@ -37,6 +37,25 @@ export function getPlanWeekStart(date: Date): string {
 }
 
 /**
+ * Israel wall-clock parts (Asia/Jerusalem, DST-aware via Intl). weekday 0=Sun..6=Sat.
+ * Used by the reminder scheduler so 'Mon 08:00' etc. resolve in Israel local time
+ * regardless of the server's UTC clock or the IDT/IST switch.
+ */
+export function israelNow(date: Date = new Date()): { weekday: number; hour: number; minute: number } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jerusalem',
+    hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    weekday: weekdayMap[parts.weekday as string] ?? 0,
+    hour: Number(parts.hour === '24' ? '0' : parts.hour),
+    minute: Number(parts.minute),
+  };
+}
+
+/**
  * Activity start_time is Garmin's `startTimeLocal` (the athlete's own wall-clock,
  * e.g. "2026-07-12 06:01:40") stored in a TIMESTAMPTZ column, which Postgres
  * reads as UTC. So the CORRECT local time is the timestamp's UTC wall-clock —

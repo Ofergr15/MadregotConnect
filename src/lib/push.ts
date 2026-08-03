@@ -130,11 +130,23 @@ export async function resolveAudience(
   }
 
   if (athleteIds.length === 0) return [];
+  return subscriptionsForAthletes(athleteIds);
+}
 
+/** Push subscriptions for an explicit list of athlete ids (e.g. RSVP non-responders). */
+export async function subscriptionsForAthletes(athleteIds: string[]): Promise<SubRow[]> {
+  if (athleteIds.length === 0) return [];
+  const supabase = createServerClient();
   const { data: subs } = await supabase
     .from('push_subscriptions')
     .select('id, endpoint, p256dh, auth, athlete_id')
     .in('athlete_id', athleteIds);
-
   return (subs || []) as SubRow[];
+}
+
+/** All athlete ids of the club (for computing non-responders). */
+export async function allAthleteIds(): Promise<string[]> {
+  const supabase = createServerClient();
+  const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID);
+  return (data || []).map((a: { id: string }) => a.id);
 }
