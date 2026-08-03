@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone, Bell } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
+import { MaintenanceToggle } from '@/components/MaintenanceToggle';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
 
@@ -793,6 +794,9 @@ export default function SettingsPage() {
         </div>
         <p className="text-slate-400 text-sm">{t('subtitle')}</p>
       </div>
+
+      {/* Maintenance / under-renovation gate control (admins/coaches) */}
+      <MaintenanceToggle />
 
       {/* Settings Tabs */}
       <div className="flex items-center gap-1 mb-6 bg-slate-800/50 p-1 rounded-xl border border-slate-700/50 w-fit">
