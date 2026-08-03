@@ -11,8 +11,15 @@ import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 // Super-user "view as" override: the '__maintenance__' scenario force-shows this
 // screen (preview what a blocked member sees); any role scenario bypasses it
 // (so Ofer can actually explore the app as that role).
+// A private joke for one specific blocked user: instead of the normal
+// "rebuilding" copy, Asaf gets his own message. Everyone else sees the standard
+// screen. Keyed by email (lower-cased).
+const ASAF_EMAIL = 'akonsta1313@gmail.com';
+const ASAF_MESSAGE = 'עליך להוציא פחות גזים על מנת לצפות בפורמט החדש של האפליקציה - אנא עדכן במידה ומתאפשר 💨';
+
 export function MaintenanceGate() {
   const [blocked, setBlocked] = useState(false);
+  const [isAsaf, setIsAsaf] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +39,10 @@ export function MaintenanceGate() {
       try {
         const res = await fetch(`/api/maintenance?email=${encodeURIComponent(email)}`);
         const { maintenance, allowed } = await res.json();
-        if (!cancelled) setBlocked(!!maintenance && !allowed);
+        if (!cancelled) {
+          setIsAsaf(email.toLowerCase().trim() === ASAF_EMAIL);
+          setBlocked(!!maintenance && !allowed);
+        }
       } catch {
         if (!cancelled) setBlocked(false); // fail open
       }
@@ -62,11 +72,20 @@ export function MaintenanceGate() {
         </div>
       </div>
 
-      {/* copy */}
+      {/* copy — standard for everyone, a custom private message for Asaf */}
       <div className="relative z-[3] mt-7">
-        <h1 className="text-2xl font-bold leading-snug" dir="rtl">בונים מחדש את המדרגות 🚧</h1>
-        <p className="mt-3 max-w-[250px] mx-auto text-[15px] leading-relaxed text-slate-400" dir="rtl">הצוות שלנו עובד על שדרוג. נחזור בקרוב!</p>
-        <p className="mt-4 text-xs tracking-wide text-slate-500" dir="ltr">We&apos;re rebuilding the stairs — back soon.</p>
+        {isAsaf ? (
+          <>
+            <h1 className="text-2xl font-bold leading-snug" dir="rtl">רגע, אסף 💨</h1>
+            <p className="mt-3 max-w-[300px] mx-auto text-[15px] leading-relaxed text-slate-300" dir="rtl">{ASAF_MESSAGE}</p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold leading-snug" dir="rtl">בונים מחדש את המדרגות 🚧</h1>
+            <p className="mt-3 max-w-[250px] mx-auto text-[15px] leading-relaxed text-slate-400" dir="rtl">הצוות שלנו עובד על שדרוג. נחזור בקרוב!</p>
+            <p className="mt-4 text-xs tracking-wide text-slate-500" dir="ltr">We&apos;re rebuilding the stairs — back soon.</p>
+          </>
+        )}
       </div>
 
       {/* climbing staircase that builds up + a runner ascending to the top, then holds */}
