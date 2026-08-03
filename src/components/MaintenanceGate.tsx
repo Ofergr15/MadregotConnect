@@ -49,7 +49,7 @@ export function MaintenanceGate() {
         <div className="relative w-40 h-40 flex items-center justify-center z-[2]">
           <img src="/images/logo-white.png" alt="Madregot — After 2KM Running Club"
             className="w-full h-full object-contain" style={{ filter: 'drop-shadow(0 8px 18px rgba(8,12,25,.55))' }} />
-          <div className="mg-sweep absolute inset-0 pointer-events-none" aria-hidden="true" />
+          <div className="mg-sweep absolute inset-0 pointer-events-none" aria-hidden="true"><i /></div>
         </div>
       </div>
 
