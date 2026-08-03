@@ -1,10 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Eye } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { isSuperUser } from '@/lib/constants';
+
+// Public routes the gate must NEVER cover — otherwise a logged-out user (e.g.
+// Ofer in the installed PWA, which has its own session separate from Safari)
+// can't reach the login screen to sign in, a dead end. The gate still blocks
+// the actual app (/dashboard/*) after login.
+const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join'];
+const isPublicPath = (p: string) =>
+  PUBLIC_PATHS.some((pub) => p === pub || p.startsWith(pub + '/'));
 
 // Full-screen "under renovation" gate. Mounted in the root layout so it covers
 // the whole app (landing + dashboard). Shows the overlay when maintenance is on
@@ -26,10 +35,14 @@ export function MaintenanceGate() {
   // so switching scenarios is obvious even while the maintenance screen is up
   // (the tiny floating pill was easy to miss).
   const [isSuper, setIsSuper] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Never gate the public login/landing routes.
+      if (isPublicPath(pathname)) { setBlocked(false); return; }
+
       const viewMode = getViewMode();
       if (viewMode === MAINTENANCE_MODE) { setBlocked(true); return; } // force preview
       if (viewMode) { setBlocked(false); return; } // role scenario → bypass gate
@@ -42,20 +55,26 @@ export function MaintenanceGate() {
           email = data.session?.user?.email || '';
         } catch { /* ignore */ }
       }
+      // The super user (Ofer) is NEVER blocked by maintenance — otherwise, in the
+      // installed PWA (separate storage/session from Safari), being blocked on the
+      // login screen means he can't sign in, can't become super user, and can't
+      // reach view-as: a dead end. He previews the maintenance screen on demand
+      // via the view-as 'מסך תחזוקה' scenario instead (handled above).
+      const superUser = isSuperUser(email);
       try {
         const res = await fetch(`/api/maintenance?email=${encodeURIComponent(email)}`);
         const { maintenance, allowed } = await res.json();
         if (!cancelled) {
           setIsAsaf(email.toLowerCase().trim() === ASAF_EMAIL);
-          setIsSuper(isSuperUser(email));
-          setBlocked(!!maintenance && !allowed);
+          setIsSuper(superUser);
+          setBlocked(!superUser && !!maintenance && !allowed);
         }
       } catch {
         if (!cancelled) setBlocked(false); // fail open
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [pathname]);
 
   if (!blocked) return null;
 
