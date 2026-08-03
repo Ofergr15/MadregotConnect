@@ -1,6 +1,30 @@
 import webpush from 'web-push';
 import { createServerClient } from '@/lib/supabase/server';
-import { COACH_ID } from '@/lib/constants';
+import { COACH_ID, APPROVER_EMAILS } from '@/lib/constants';
+
+/**
+ * When maintenance mode is ON, only athletes whose email is on the saved
+ * maintenance allowlist (or an approver) may receive push. Returns the subs
+ * unchanged when maintenance is off. Fails OPEN (returns all) on error.
+ */
+async function filterForMaintenance(subs: SubRow[]): Promise<SubRow[]> {
+  try {
+    const supabase = createServerClient();
+    const { data } = await supabase.from('app_settings').select('key, value').in('key', ['maintenance_mode', 'maintenance_allow']);
+    const map = Object.fromEntries((data || []).map((r: { key: string; value: string }) => [r.key, r.value]));
+    if (map['maintenance_mode'] !== 'on') return subs;
+    const allowEmails = new Set([
+      ...APPROVER_EMAILS.map(e => e.toLowerCase()),
+      ...String(map['maintenance_allow'] || '').split(',').map(e => e.toLowerCase().trim()).filter(Boolean),
+    ]);
+    const ids = [...new Set(subs.map(s => s.athlete_id).filter(Boolean))];
+    const { data: aths } = await supabase.from('athletes').select('id, email').in('id', ids);
+    const allowedIds = new Set((aths || []).filter((a: { email: string }) => allowEmails.has((a.email || '').toLowerCase())).map((a: { id: string }) => a.id));
+    return subs.filter(s => allowedIds.has(s.athlete_id));
+  } catch {
+    return subs; // fail open
+  }
+}
 
 let configured = false;
 function ensureConfigured(): boolean {
@@ -74,6 +98,11 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
 export async function sendPushToSubscriptions(subs: SubRow[], payload: PushPayload): Promise<number> {
   if (!ensureConfigured() || subs.length === 0) return 0;
   const supabase = createServerClient();
+
+  // While maintenance mode is ON, only the allowlist (+ approvers) may receive
+  // ANY push — everyone else is walled off from the app, so don't nag them.
+  subs = await filterForMaintenance(subs);
+  if (subs.length === 0) return 0;
 
   // Badge is a per-athlete unread count (unless the caller pinned one explicitly).
   const athleteIds = [...new Set(subs.map((s) => s.athlete_id).filter(Boolean))];
