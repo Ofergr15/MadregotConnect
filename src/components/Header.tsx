@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route, Trophy, MessageSquare, Watch, Bell, Dumbbell, GraduationCap } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route, Trophy, MessageSquare, Watch, Bell, Dumbbell, GraduationCap, Eye } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
+import { isSuperUser } from '@/lib/constants';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 const allNavItems = [
@@ -52,6 +53,7 @@ export function Header() {
   const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [pendingResults, setPendingResults] = useState<Array<{ id: string; athlete_name: string; test_name: string; time_seconds: number }>>([]);
+  const [isSuper, setIsSuper] = useState(false);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -110,6 +112,7 @@ export function Header() {
 
   useEffect(() => {
     if (!userEmail) return;
+    setIsSuper(isSuperUser(userEmail));
     fetch('/api/auth/me', { headers: { 'x-user-email': userEmail } })
       .then(res => res.ok ? res.json() : null)
       .then(data => { if (data?.role) setUserRole(data.role); })
@@ -151,6 +154,9 @@ export function Header() {
     localStorage.removeItem('coach_email');
     localStorage.removeItem('admin_session');
     localStorage.removeItem('dashboard_synced');
+    // Clear any active "view as" so a leftover snapshot can't strand identity.
+    localStorage.removeItem('view_as_active');
+    localStorage.removeItem('view_as_snapshot');
     router.push('/');
   };
 
@@ -272,6 +278,19 @@ export function Header() {
                   {hasGarmin ? th('garminConnected') : th('garminNotConnected')}
                 </span>
               </div>
+            )}
+
+            {isSuper && (
+              <button
+                onClick={() => window.dispatchEvent(new Event('open-view-as'))}
+                className="relative group p-2 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors"
+                title="צפייה כמשתמש"
+              >
+                <Eye className="h-4.5 w-4.5" />
+                <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                  צפייה כמשתמש
+                </span>
+              </button>
             )}
 
             <div className="relative">
@@ -397,6 +416,15 @@ export function Header() {
             <div className="flex items-center gap-2 mb-3">
               <LocaleSwitcher />
             </div>
+            {isSuper && (
+              <button
+                onClick={() => { setMobileMenuOpen(false); window.dispatchEvent(new Event('open-view-as')); }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 mb-2 rounded-lg bg-amber-400/10 text-amber-300 border border-amber-400/30 hover:bg-amber-400/20 transition-colors font-bold"
+              >
+                <Eye className="h-5 w-5" />
+                <span>צפייה כמשתמש</span>
+              </button>
+            )}
             <button
               onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"

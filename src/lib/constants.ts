@@ -28,3 +28,14 @@ export function canGrantAdmin(email: string | null | undefined): boolean {
   if (!email) return false;
   return email.toLowerCase().trim() === ADMIN_GRANTER_EMAIL;
 }
+
+// The super user may "view as" any member — a read-only preview of exactly what
+// that person sees on their phone (including the maintenance screen). Only this
+// account gets the view-as switcher; the preview never writes data. See
+// src/lib/impersonation.ts and src/components/ImpersonationBar.tsx.
+export const SUPER_USER_EMAIL = 'grosfeldofer@gmail.com';
+
+export function isSuperUser(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return email.toLowerCase().trim() === SUPER_USER_EMAIL;
+}

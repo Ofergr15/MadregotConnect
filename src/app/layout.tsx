@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { AppSplash } from '@/components/AppSplash';
 import { MaintenanceGate } from '@/components/MaintenanceGate';
+import { ImpersonationBar } from '@/components/ImpersonationBar';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -62,6 +63,7 @@ export default async function RootLayout({
         </NextIntlClientProvider>
         <AppSplash />
         <MaintenanceGate />
+        <ImpersonationBar />
       </body>
     </html>
   );
