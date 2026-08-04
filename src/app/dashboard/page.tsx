@@ -455,7 +455,6 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
   const [weather, setWeather] = useState<WeatherDay[]>([]);
-  const [workoutHour, setWorkoutHour] = useState<number>(18); // team workout start (IL), admin-editable
   const [teamDays, setTeamDays] = useState<number[]>([2, 5]); // team-workout days (0=Sun..6=Sat), admin-editable
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -496,13 +495,9 @@ export default function DashboardPage() {
     setIsCoach(previewRole ? STAFF_ROLES.includes(previewRole) : !!coachEmail);
     setAthleteId(storedAthleteId);
     setAthleteName(name);
-    // Admin-editable team-workout config → drives the pre-workout RSVP cutoff
-    // (workoutHour) and which days it shows on (teamDays).
+    // Admin-editable team-workout days → which days the RSVP card shows on.
     fetch('/api/reminder-config').then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (typeof d?.config?.workoutHour === 'number') setWorkoutHour(d.config.workoutHour);
-        if (Array.isArray(d?.config?.teamDays)) setTeamDays(d.config.teamDays);
-      })
+      .then(d => { if (Array.isArray(d?.config?.teamDays)) setTeamDays(d.config.teamDays); })
       .catch(() => {});
   }, []);
 
@@ -755,20 +750,21 @@ export default function DashboardPage() {
   const todayWeather = weather.find(w => new Date(w.date).getDay() === todayDow);
   const todayWorkout = weekly?.dailyDistances?.find(d => d.dayOfWeek === todayDow);
 
-  // Which workout does the pre-workout RSVP target? Today if it's a team day and
-  // we're still before the cutoff (workoutHour + 2h grace); otherwise the NEXT
-  // team day if it's tomorrow (the "day before" prompt). weekStart is derived
+  // Which workout does the RSVP target? RSVP is a DAY-BEFORE flow (matching the
+  // Mon 08:00 + Mon 18:00 pushes for a Tue workout): the evening before a team
+  // day it asks "coming tomorrow?". On the team day itself it still shows for
+  // athletes who NEVER answered (a last-chance nudge) but hides once they have —
+  // the coach roster always shows. No time-of-day cutoff. weekStart is derived
   // from the TARGET date so the Sat→Sun plan-week boundary is handled.
   const rsvpTarget = (() => {
-    const nowH = israelNow().hour;
-    if (teamDays.includes(todayDow) && nowH < workoutHour + 2) {
-      return { date: new Date(), dow: todayDow, dayBefore: false };
+    if (teamDays.includes(todayDow)) {
+      return { date: new Date(), dow: todayDow, dayBefore: false }; // workout day
     }
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowDow = tomorrow.getDay();
     if (teamDays.includes(tomorrowDow)) {
-      return { date: tomorrow, dow: tomorrowDow, dayBefore: true };
+      return { date: tomorrow, dow: tomorrowDow, dayBefore: true }; // day before
     }
     return null;
   })();
@@ -790,16 +786,22 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ═══ PRE-WORKOUT ATTENDANCE — the RSVP targets the next team workout:
-          today's (until workoutHour + 2h grace) or, the evening before, tomorrow's
-          (the "day before" prompt). Days come from the admin teamDays config.
-          Coaches see the roster for the same target. */}
+      {/* ═══ ATTENDANCE — RSVP is a DAY-BEFORE flow (matches the Mon 08:00 + 18:00
+          pushes for a Tue workout). Day before → ask everyone. Workout day → the
+          athlete card only nudges those who never answered (hideIfAnswered), while
+          the coach roster always shows. Days come from the admin teamDays config. */}
       {rsvpTarget && (() => {
         // The title says "today"/"tomorrow"; the label just names the workout.
         const label = rsvpWorkout?.type ? `${rsvpWorkout.day} · ${rsvpWorkout.type}` : rsvpWorkout?.day;
         return isCoach
           ? <AttendanceRoster weekStart={rsvpWeekStart} day={rsvpTarget.dow} />
-          : <AttendanceRSVP workoutLabel={label || undefined} weekStart={rsvpWeekStart} day={rsvpTarget.dow} dayBefore={rsvpTarget.dayBefore} />;
+          : <AttendanceRSVP
+              workoutLabel={label || undefined}
+              weekStart={rsvpWeekStart}
+              day={rsvpTarget.dow}
+              dayBefore={rsvpTarget.dayBefore}
+              hideIfAnswered={!rsvpTarget.dayBefore}
+            />;
       })()}
 
       {/* ═══ RACE COUNTDOWN — compact native strip (was a giant 8xl number) ═══ */}

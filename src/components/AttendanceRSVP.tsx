@@ -11,7 +11,7 @@ const GROUP_PRESETS = ['דבוקה 1', 'דבוקה 2', 'דבוקה 3'];
 // NEXT team-workout day. The dashboard picks the target (weekStart + day); when
 // omitted we default to today, so existing call sites keep working. Athlete
 // answers: coming? + which דבוקה.
-export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: dayProp, dayBefore }: { workoutLabel?: string; weekStart?: string; day?: number; dayBefore?: boolean }) {
+export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: dayProp, dayBefore, hideIfAnswered }: { workoutLabel?: string; weekStart?: string; day?: number; dayBefore?: boolean; hideIfAnswered?: boolean }) {
   const t = useTranslations('attendance');
   const [athleteId, setAthleteId] = useState('');
   const weekStart = weekStartProp ?? getPlanWeekStart(new Date());
@@ -23,6 +23,9 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // On the workout day the card only nudges athletes who never answered; once
+  // they have an RSVP on record it self-hides (the day-before flow already asked).
+  const [alreadyAnswered, setAlreadyAnswered] = useState(false);
 
   useEffect(() => {
     const id = localStorage.getItem('athlete_id') || '';
@@ -32,6 +35,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.rsvp) {
+          setAlreadyAnswered(true);
           setAttending(data.rsvp.attending);
           const label = data.rsvp.groupLabel || '';
           setGroup(label);
@@ -65,6 +69,8 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
   };
 
   if (!loaded || !athleteId) return null;
+  // Workout-day mode: nothing to nudge if they've already RSVP'd.
+  if (hideIfAnswered && alreadyAnswered && !saved) return null;
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-primary-500/25 p-4"
