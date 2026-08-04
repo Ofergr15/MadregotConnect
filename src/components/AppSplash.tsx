@@ -39,17 +39,27 @@ export function AppSplash() {
   return (
     <div
       aria-hidden="true"
-      className={`fixed inset-0 z-[100] grid place-items-center bg-black ${
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden ${
         phase === 'out' ? 'app-splash-out' : ''
       }`}
+      // Match the app/manifest background (#0f172a) so there's no black→slate
+      // jump on cold launch; a soft brand-indigo radial glow makes it feel
+      // branded rather than utilitarian.
+      style={{ background: 'radial-gradient(120% 90% at 50% 42%, #16213b 0%, #0f172a 55%, #0b1120 100%)' }}
     >
-      <img
-        src="/images/logo-white.png"
-        alt=""
-        width={150}
-        height={150}
-        className="h-[150px] w-[150px] animate-app-open-icon"
-      />
+      <div className="relative flex items-center justify-center">
+        <div
+          className="absolute w-[280px] h-[280px] rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(67,56,255,.35) 0%, rgba(67,56,255,0) 70%)', filter: 'blur(8px)' }}
+        />
+        <img
+          src="/images/logo-white.png"
+          alt=""
+          width={150}
+          height={150}
+          className="relative h-[150px] w-[150px] animate-app-open-icon"
+        />
+      </div>
     </div>
   );
 }
