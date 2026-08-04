@@ -578,7 +578,8 @@
     "submit": "שליחת משוב",
     "thanks": "תודה! 🙏",
     "comment": "עוד משהו?",
-    "commentPlaceholder": "הוסיפו הערה (רשות)"
+    "commentPlaceholder": "הוסיפו הערה (רשות)",
+    "coachReply": "תשובת המאמן"
   },
   "momentum": {
     "weekStreak": "שבועות רצף",

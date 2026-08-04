@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Loader2, CheckCircle2, Gauge } from 'lucide-react';
+import { Loader2, CheckCircle2, Gauge, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const FEEL_FACES = ['😣', '😕', '😐', '🙂', '😄'];
@@ -26,6 +26,7 @@ function FeedbackForm() {
   const [painDetail, setPainDetail] = useState('');
   const [wantsFeedback, setWantsFeedback] = useState<boolean | null>(null);
   const [comment, setComment] = useState('');
+  const [coachReply, setCoachReply] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -51,6 +52,7 @@ function FeedbackForm() {
           setPainDetail(data.existing.pain_detail || '');
           setWantsFeedback(data.existing.wants_feedback ?? null);
           setComment(data.existing.comment || '');
+          setCoachReply(data.existing.coach_reply || null);
         } else {
           if (data.watchRpe != null) setDifficulty(Math.round(data.watchRpe));
           if (data.watchFeel != null) setFeel(Math.round(data.watchFeel));
@@ -98,6 +100,17 @@ function FeedbackForm() {
     <div className="max-w-md mx-auto px-4 py-6" dir="rtl">
       <h1 className="text-xl font-black text-white">{t('title')} 🏃</h1>
       {activityName && <p className="text-sm text-slate-400 mt-1">{activityName}</p>}
+
+      {/* Coach reply — surfaced whenever a coach has responded to this workout. */}
+      {coachReply && (
+        <div className="mt-4 rounded-xl bg-primary-600/12 border border-primary-600/30 p-3">
+          <div className="flex items-center gap-1.5 mb-1">
+            <MessageCircle className="h-4 w-4 text-primary-300" />
+            <span className="text-xs font-bold text-primary-300">{t('coachReply')}</span>
+          </div>
+          <p className="text-sm text-indigo-100" dir="auto">{coachReply}</p>
+        </div>
+      )}
 
       {(watchRpe != null || watchFeel != null) && (
         <div className="flex items-start gap-2 mt-4 rounded-xl bg-primary-600/12 border border-primary-600/30 p-3">

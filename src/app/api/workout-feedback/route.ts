@@ -22,14 +22,24 @@ export async function GET(request: Request) {
       const days = Math.min(Math.max(Number(searchParams.get('days')) || 30, 1), 180);
       const since = new Date(Date.now() - days * 86400_000).toISOString();
 
-      const { data, error } = await supabase
+      // Prefer the reply-aware select; fall back if migration 036 isn't applied.
+      const REPLY_COLS = 'coach_reply, coach_reply_at, coach_reply_by, ';
+      const baseCols = (extra: string) =>
+        `id, athlete_id, garmin_activity_id, difficulty, feel, pain, pain_detail, wants_feedback, comment, ${extra}created_at, athletes(name, avatar_url, group_id, groups(name))`;
+      let { data, error } = await supabase
         .from('workout_feedback')
-        .select(
-          'id, athlete_id, garmin_activity_id, difficulty, feel, pain, pain_detail, wants_feedback, comment, created_at, athletes(name, avatar_url, group_id, groups(name))',
-        )
+        .select(baseCols(REPLY_COLS))
         .gte('created_at', since)
         .order('created_at', { ascending: false })
         .limit(300);
+      if (error && ((error as { code?: string }).code === '42703' || /coach_reply/.test(error.message || ''))) {
+        ({ data, error } = await supabase
+          .from('workout_feedback')
+          .select(baseCols(''))
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+          .limit(300));
+      }
       if (error) throw error;
 
       // Attach the activity each feedback is about (name/type/distance/time).
@@ -64,6 +74,8 @@ export async function GET(request: Request) {
           painDetail: r.pain_detail,
           wantsFeedback: r.wants_feedback,
           comment: r.comment,
+          coachReply: r.coach_reply ?? null,
+          coachReplyAt: r.coach_reply_at ?? null,
           createdAt: r.created_at,
         };
       });
@@ -91,12 +103,28 @@ export async function GET(request: Request) {
       .eq('garmin_activity_id', Number(activityId))
       .maybeSingle();
 
-    const { data: existing } = await supabase
-      .from('workout_feedback')
-      .select('difficulty, feel, pain, pain_detail, wants_feedback, comment')
-      .eq('athlete_id', athleteId)
-      .eq('garmin_activity_id', Number(activityId))
-      .maybeSingle();
+    let existing: Record<string, unknown> | null = null;
+    {
+      const withReply = await supabase
+        .from('workout_feedback')
+        .select('id, difficulty, feel, pain, pain_detail, wants_feedback, comment, coach_reply, coach_reply_at')
+        .eq('athlete_id', athleteId)
+        .eq('garmin_activity_id', Number(activityId))
+        .maybeSingle();
+      if (withReply.data) {
+        existing = withReply.data as Record<string, unknown>;
+      } else {
+        // maybeSingle swallows column errors as null; retry without reply cols so
+        // a pre-migration DB still returns the athlete's own feedback.
+        const retry = await supabase
+          .from('workout_feedback')
+          .select('id, difficulty, feel, pain, pain_detail, wants_feedback, comment')
+          .eq('athlete_id', athleteId)
+          .eq('garmin_activity_id', Number(activityId))
+          .maybeSingle();
+        existing = (retry.data as Record<string, unknown>) || null;
+      }
+    }
 
     return NextResponse.json({
       activity: activity || null,

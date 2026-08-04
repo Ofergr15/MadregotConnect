@@ -578,7 +578,8 @@
     "submit": "Send feedback",
     "thanks": "Thanks! 🙏",
     "comment": "Anything else?",
-    "commentPlaceholder": "Add a comment (optional)"
+    "commentPlaceholder": "Add a comment (optional)",
+    "coachReply": "Coach reply"
   },
   "momentum": {
     "weekStreak": "week streak",

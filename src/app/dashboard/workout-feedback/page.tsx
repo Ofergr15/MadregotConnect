@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { MessageSquare, Loader2, AlertTriangle, MessageCircle, Bell } from 'lucide-react';
+import { MessageSquare, Loader2, AlertTriangle, MessageCircle, Bell, Send, Check, CornerDownLeft } from 'lucide-react';
 import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
 import { resolveGroup } from '@/lib/utils';
 
@@ -22,6 +22,8 @@ interface FeedbackItem {
   painDetail: string | null;
   wantsFeedback: boolean | null;
   comment: string | null;
+  coachReply: string | null;
+  coachReplyAt: string | null;
   createdAt: string;
 }
 
@@ -134,6 +136,35 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
   const dateStr = when ? new Date(when).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' }) : '';
   const km = it.distance != null ? (it.distance / 1000).toFixed(1) : null;
 
+  // Coach reply: show the existing reply, or an inline composer to send one.
+  const [reply, setReply] = useState(it.coachReply || '');
+  const [sent, setSent] = useState(!!it.coachReply);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
+
+  const sendReply = async () => {
+    if (!reply.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      const actorEmail = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
+      const res = await fetch('/api/workout-feedback/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedbackId: it.id, reply, actorEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data?.error || 'שליחה נכשלה'); return; }
+      setSent(true);
+      setEditing(false);
+    } catch {
+      setError('שליחה נכשלה');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className={`rounded-xl border bg-slate-800/60 p-3.5 ${it.pain ? 'border-amber-500/40' : 'border-slate-700'}`}>
       <div className="flex items-center gap-3">
@@ -190,6 +221,40 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
         <div className="mt-2.5 flex items-start gap-2 text-sm text-slate-300 bg-slate-900/40 rounded-lg px-3 py-2">
           <MessageCircle className="h-3.5 w-3.5 text-slate-500 mt-0.5 shrink-0" />
           <span dir="auto">{it.comment}</span>
+        </div>
+      )}
+
+      {/* Coach reply — existing reply, or an inline composer to send one. */}
+      {sent && !editing ? (
+        <div className="mt-2.5 rounded-lg bg-primary-600/12 border border-primary-500/25 px-3 py-2">
+          <div className="flex items-center gap-1.5 mb-1">
+            <CornerDownLeft className="h-3.5 w-3.5 text-primary-300" />
+            <span className="text-[11px] font-bold text-primary-300">התשובה שלך</span>
+            <Check className="h-3.5 w-3.5 text-green-400 ms-auto" />
+          </div>
+          <p className="text-sm text-slate-200" dir="auto">{reply}</p>
+          <button onClick={() => setEditing(true)} className="mt-1 text-[11px] font-semibold text-slate-400 hover:text-white">עריכה</button>
+        </div>
+      ) : (
+        <div className="mt-2.5">
+          <div className="flex items-end gap-2">
+            <textarea
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              placeholder="השב/י לרץ/ה…"
+              rows={2}
+              dir="rtl"
+              className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600 resize-none"
+            />
+            <button
+              onClick={sendReply}
+              disabled={saving || !reply.trim()}
+              className="min-h-[40px] px-3 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white font-bold flex items-center gap-1.5 shrink-0"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </button>
+          </div>
+          {error && <p className="text-[11px] text-red-400 mt-1">{error}</p>}
         </div>
       )}
     </div>
