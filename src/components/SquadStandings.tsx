@@ -3,6 +3,7 @@
 import { Swords, Medal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
+import { SkeletonList } from '@/components/ui';
 
 interface Squad {
   groupId: string;
@@ -23,11 +24,13 @@ export function SquadStandings() {
   const t = useTranslations('squads');
   const { data } = useApi<{ squads: Squad[] }>('/api/groups/standings');
 
-  const squads = data?.squads ?? [];
+  if (!data) return <SkeletonList count={3} />; // true first load → shaped skeleton
+
+  const squads = data.squads ?? [];
 
   // Only worth showing when at least 2 squads have some activity.
   const active = squads.filter((s) => s.volumeKmPerMember > 0 || s.attendancePerMember > 0);
-  if (!data || active.length < 2) return null;
+  if (active.length < 2) return null; // loaded but <2 active squads → hide entirely
 
   const medalColor = (rank: number) =>
     rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-300' : rank === 3 ? 'text-orange-400' : 'text-slate-500';

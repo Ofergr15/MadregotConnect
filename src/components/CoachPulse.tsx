@@ -4,6 +4,7 @@ import { AlertTriangle, PartyPopper, Bell, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { formatTime } from '@/lib/academy/benchmark';
 import { useApi } from '@/lib/api';
+import { SkeletonCard } from '@/components/ui';
 
 interface Attn {
   athleteId: string; name: string; avatarUrl: string | null; squad: string | null; squadColor: string | null;
@@ -21,10 +22,13 @@ interface PulseData { attention?: Attn[]; celebrate?: Celeb[]; }
 
 export function CoachPulse() {
   const { data } = useApi<PulseData>('/api/coach/pulse?days=14');
-  const attention = data?.attention || [];
-  const celebrate = data?.celebrate || [];
 
-  if (attention.length === 0 && celebrate.length === 0) return null;
+  if (!data) return <SkeletonCard className="mb-4" />; // true first load → shaped skeleton
+
+  const attention = data.attention || [];
+  const celebrate = data.celebrate || [];
+
+  if (attention.length === 0 && celebrate.length === 0) return null; // loaded but nothing to show → hide
 
   const initials = (n: string) => (n.split(' ').map((x) => x[0]).join('').toUpperCase().slice(0, 2)) || '?';
   const Avatar = ({ url, name }: { url: string | null; name: string }) =>

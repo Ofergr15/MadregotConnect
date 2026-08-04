@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, Loader2, MessageSquare, Trophy, Flame, Calendar, Activity } from 'lucide-react';
+import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { SkeletonList } from '@/components/ui';
 
 interface Item {
   id: string;
@@ -67,7 +68,7 @@ export default function NotificationsInboxPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 text-primary-500 animate-spin" /></div>
+        <SkeletonList count={5} />
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
           <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center">

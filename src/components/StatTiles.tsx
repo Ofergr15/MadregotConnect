@@ -1,6 +1,7 @@
 'use client';
 
 import { useApi } from '@/lib/api';
+import { SkeletonCard } from '@/components/ui';
 
 interface Summary { totalKm: number; thisMonthRuns: number; totalRuns: number; }
 
@@ -12,7 +13,13 @@ export function StatTiles({ athleteId }: { athleteId: string }) {
     athleteId ? `/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}` : null,
   );
 
-  if (!s || s.totalRuns === 0) return null;
+  if (!s) return ( // true first load → matching 2-col skeleton
+    <div className="grid grid-cols-2 gap-3">
+      <SkeletonCard />
+      <SkeletonCard />
+    </div>
+  );
+  if (s.totalRuns === 0) return null; // loaded but no runs → hide entirely
 
   return (
     <div className="grid grid-cols-2 gap-3" dir="rtl">

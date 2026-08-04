@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { TrendingUp, TrendingDown, Minus, Loader2, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { SkeletonList } from '@/components/ui';
 
 interface Row {
   athleteId: string;
@@ -53,7 +54,7 @@ export default function TeamVolumePage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 text-primary-500 animate-spin" /></div>
+        <SkeletonList count={6} />
       ) : rows.length === 0 ? (
         <p className="text-sm text-slate-500 text-center py-10">אין נתוני נפח עדיין</p>
       ) : (

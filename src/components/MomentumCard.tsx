@@ -3,6 +3,7 @@
 import { Flame, TrendingUp, TrendingDown, Minus, Mountain, Trophy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
+import { SkeletonCard } from '@/components/ui';
 
 interface Summary {
   weekStreak: number;
@@ -22,7 +23,8 @@ export function MomentumCard({ athleteId }: { athleteId: string }) {
     athleteId ? `/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}` : null,
   );
 
-  if (!s || s.totalRuns === 0) return null;
+  if (!s) return <SkeletonCard />; // true first load → shaped skeleton
+  if (s.totalRuns === 0) return null; // loaded but no runs → hide entirely
 
   const deltaKm = Math.round((s.thisWeek.km - s.lastWeek.km) * 10) / 10;
   const TrendIcon = deltaKm > 0.05 ? TrendingUp : deltaKm < -0.05 ? TrendingDown : Minus;

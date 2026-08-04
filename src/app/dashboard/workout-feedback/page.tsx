@@ -5,6 +5,7 @@ import { MessageSquare, Loader2, AlertTriangle, MessageCircle, Bell, Send, Check
 import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
 import { resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
+import { SkeletonList } from '@/components/ui';
 
 interface FeedbackItem {
   id: string;
@@ -83,7 +84,7 @@ export default function WorkoutFeedbackPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 text-primary-500 animate-spin" /></div>
+        <SkeletonList count={5} />
       ) : (
         <>
           {/* Filter pills with counts */}

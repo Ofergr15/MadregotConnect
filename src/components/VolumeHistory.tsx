@@ -2,6 +2,7 @@
 
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { SkeletonCard } from '@/components/ui';
 
 interface Week {
   weekStart: string;
@@ -26,7 +27,7 @@ export function VolumeHistory({ athleteId, weeks = 12 }: { athleteId: string; we
     athleteId ? `/api/athletes/volume-history?athleteId=${encodeURIComponent(athleteId)}&weeks=${weeks}` : null,
   );
 
-  if (!data) return null;
+  if (!data) return <SkeletonCard className="h-56" />; // true first load → chart-shaped skeleton
   const series = data.series || [];
   const ran = series.filter((w) => w.runs > 0);
   if (ran.length === 0) return null; // no volume yet → hide entirely

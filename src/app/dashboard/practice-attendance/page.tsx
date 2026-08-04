@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Users, Loader2, Check, X, CalendarDays, ChevronRight, ChevronLeft, List, CalendarRange } from 'lucide-react';
+import { Users, Check, X, CalendarDays, ChevronRight, ChevronLeft, List, CalendarRange } from 'lucide-react';
 import { getPlanWeekStart, resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
+import { SkeletonCard, SkeletonList } from '@/components/ui';
 
 interface RosterRow {
   athleteId: string;
@@ -174,7 +175,7 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
         })}
       </div>
 
-      {loading && <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 text-primary-500 animate-spin" /></div>}
+      {loading && <SkeletonCard className="mt-4" />}
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-3 mt-4 text-[11px] text-slate-500">
@@ -250,7 +251,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
       </p>
 
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 text-primary-500 animate-spin" /></div>
+        <SkeletonList count={6} />
       ) : (
         <>
           <div className="grid grid-cols-4 gap-2 mb-4">
