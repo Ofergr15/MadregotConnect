@@ -736,9 +736,21 @@ export default function DashboardPage() {
   const hasData = weekly && weekly.weekTotalMax > 0;
   const todayWeather = weather.find(w => new Date(w.date).getDay() === todayDow);
   const todayWorkout = weekly?.dailyDistances?.find(d => d.dayOfWeek === todayDow);
+  // Time-based greeting (Israel-ish local hour) for the large title.
+  const greetHour = new Date().getHours();
+  const greeting = greetHour < 12 ? t('goodMorning') : greetHour < 18 ? t('goodAfternoon') : t('goodEvening');
+  const firstName = (athleteName || '').split(' ')[0];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
+
+      {/* ═══ LARGE TITLE (native home header) ═══ */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-slate-400">{greeting}{firstName ? ` ${firstName}` : ''} 👋</p>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight mt-0.5">מדרגות</h1>
+        </div>
+      </div>
 
       {/* ═══ PRE-WORKOUT ATTENDANCE — team-workout days only (Tue=2, Fri=5) ═══ */}
       {(todayDow === 2 || todayDow === 5) && (
@@ -747,39 +759,20 @@ export default function DashboardPage() {
           : <AttendanceRSVP workoutLabel={todayWorkout?.type ? `${todayWorkout.day} · ${todayWorkout.type}` : undefined} />
       )}
 
-      {/* ═══ RACE COUNTDOWN ═══ */}
-      <section>
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 sm:gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <MapPin className="h-4 w-4 text-primary-600" />
-              <span className="text-sm font-semibold text-slate-300">{t('valenciaMarathon')}</span>
-              <span className="text-sm text-slate-500">· Dec 6, 2026</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-5xl sm:text-8xl font-black text-white leading-none tracking-tight tabular-nums">{countdown.d}</span>
-              <span className="text-xl sm:text-2xl font-medium text-slate-400">{tc('days')}</span>
-            </div>
-            <div className="flex items-center gap-3 mt-2 tabular-nums text-base text-slate-300">
-              <span className="font-semibold">{String(countdown.h).padStart(2, '0')}h</span>
-              <span className="font-semibold">{String(countdown.m).padStart(2, '0')}m</span>
-              <span className="text-slate-500">{String(countdown.s).padStart(2, '0')}s</span>
-            </div>
-          </div>
-
-          <div className="sm:text-end">
-            <p className="text-sm font-semibold text-slate-400 mb-1">Training Block</p>
-            <p className="text-3xl sm:text-4xl font-black text-white">
-              {week > 0 ? (
-                <>Week <span className="text-primary-600">{week}</span><span className="text-slate-500 text-xl font-medium">/{TOTAL_WEEKS}</span></>
-              ) : (
-                <span className="text-slate-400">Pre-season</span>
-              )}
-            </p>
-            <div className="w-full sm:w-48 h-2 bg-slate-800 rounded-full mt-3 overflow-hidden sm:ms-auto">
-              <div className="h-full bg-primary-600 rounded-full transition-all duration-1000" style={{ width: `${Math.max(4, (week / TOTAL_WEEKS) * 100)}%` }} />
-            </div>
-          </div>
+      {/* ═══ RACE COUNTDOWN — compact native strip (was a giant 8xl number) ═══ */}
+      <section className="rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4 flex items-center gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-primary-600/15 flex items-center justify-center shrink-0">
+          <MapPin className="h-5 w-5 text-primary-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white truncate">{t('valenciaMarathon')}</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Dec 6, 2026 · {week > 0 ? <>Week {week}/{TOTAL_WEEKS}</> : <span>{t('preSeason')}</span>}
+          </p>
+        </div>
+        <div className="text-end shrink-0">
+          <div className="text-2xl font-black text-white leading-none tabular-nums">{countdown.d}</div>
+          <div className="text-2xs text-slate-500 mt-1">{tc('days')}</div>
         </div>
       </section>
 
