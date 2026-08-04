@@ -280,9 +280,31 @@ export async function PUT(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = createServerClient();
+    const { searchParams } = new URL(request.url);
+    const athleteId = searchParams.get('athleteId');
+    // Coaches/admins may request the whole club (roster feed); everyone else is
+    // scoped to their own activities. Coach status is proven via x-user-email
+    // checked against the DB — NOT trusted from the client — so a runner can't
+    // just omit athleteId to see everyone's names/HR/GPS (the prior P0 leak).
+    let isStaff = false;
+    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
+    if (email) {
+      const { data: me } = await supabase
+        .from('athletes')
+        .select('role')
+        .eq('email', email)
+        .in('role', ['coach', 'admin', 'academy_coach'])
+        .maybeSingle();
+      isStaff = !!me;
+    }
+
+    // A non-staff caller MUST pass their own athleteId and gets only their rows.
+    if (!isStaff && !athleteId) {
+      return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
+    }
 
     const baseCols = `
         id, athlete_id, garmin_activity_id, activity_name, activity_type,
@@ -292,22 +314,25 @@ export async function GET() {
         has_polyline, splits, created_at,
         athletes (name)`;
 
+    const runQuery = (cols: string) => {
+      let q = supabase
+        .from('athlete_activities')
+        .select(cols)
+        .order('start_time', { ascending: false })
+        .limit(200);
+      // Scope to the caller unless they're verified staff.
+      if (!isStaff && athleteId) q = q.eq('athlete_id', athleteId);
+      return q;
+    };
+
     // Prefer selecting gps_points; fall back gracefully if the column hasn't
     // been added yet (migration 018 not yet run) so the feed never 500s.
     let activities: any[] | null = null;
     let error: any = null;
-    ({ data: activities, error } = await supabase
-      .from('athlete_activities')
-      .select(`${baseCols}, gps_points`)
-      .order('start_time', { ascending: false })
-      .limit(200));
+    ({ data: activities, error } = await runQuery(`${baseCols}, gps_points`));
 
     if (error) {
-      ({ data: activities, error } = await supabase
-        .from('athlete_activities')
-        .select(baseCols)
-        .order('start_time', { ascending: false })
-        .limit(200));
+      ({ data: activities, error } = await runQuery(baseCols));
     }
 
     if (error) throw error;

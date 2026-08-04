@@ -68,10 +68,17 @@ export function UpdatePrompt() {
   if (!ready) return null;
 
   const refresh = () => {
-    // Ask a waiting worker to take over now, then reload to the fresh bundle.
+    // Reload only AFTER the new worker takes control — otherwise the reload can
+    // fetch the shell while the OLD worker is still controlling and re-serve
+    // stale chunks (the exact loop this prompt exists to fix). Fall back to an
+    // unconditional reload if controllerchange doesn't fire promptly.
+    let reloaded = false;
+    const go = () => { if (!reloaded) { reloaded = true; window.location.reload(); } };
+    navigator.serviceWorker.addEventListener('controllerchange', go, { once: true });
+    setTimeout(go, 2000);
     navigator.serviceWorker.getRegistration()
       .then((r) => { r?.waiting?.postMessage({ type: 'SKIP_WAITING' }); })
-      .finally(() => window.location.reload());
+      .catch(() => {});
   };
 
   return (

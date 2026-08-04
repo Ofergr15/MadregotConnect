@@ -6,6 +6,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { RefreshCw, Activity, TrendingUp, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain } from 'lucide-react';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { cn } from '@/lib/utils';
+import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
 
 interface ActivityEntry {
   id: string;
@@ -34,12 +35,18 @@ interface ActivityEntry {
   athlete_name?: string;
 }
 
+// Local-date ISO (YYYY-MM-DD). NOT toISOString(), which converts to UTC and
+// shifts the day back in timezones ahead of UTC (Israel is +2/+3), throwing the
+// week boundary and per-day bucketing off by one for early/late-hour users.
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 function getCurrentWeekSunday(offset: number): string {
   const now = new Date();
   const dayOfWeek = now.getDay();
   const sunday = new Date(now);
   sunday.setDate(now.getDate() - dayOfWeek + offset * 7);
-  return sunday.toISOString().split('T')[0];
+  return iso(sunday);
 }
 
 function getWeekLabel(dateStr: string, locale: string): string {
@@ -108,7 +115,7 @@ export default function ActivitiesPage() {
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/garmin/sync-activities');
+      const res = await fetchActivitiesScoped();
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities || []);
@@ -125,7 +132,7 @@ export default function ActivitiesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
-      const res = await fetch('/api/garmin/sync-activities');
+      const res = await fetchActivitiesScoped();
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities || []);
@@ -169,7 +176,7 @@ export default function ActivitiesPage() {
     const daily = dayKeys.map((dayKey, i) => {
       const date = new Date(start);
       date.setDate(start.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = iso(date);
       const dayActs = weekActivities.filter(a => a.start_time.startsWith(dateStr));
       return {
         dayKey,

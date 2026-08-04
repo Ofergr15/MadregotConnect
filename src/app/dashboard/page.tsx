@@ -9,6 +9,7 @@ import {
   Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
 } from 'lucide-react';
 import { cn, getActivityWeekStart, formatActivityTime, formatActivityDate, activityLocalHour, resolveGroup } from '@/lib/utils';
+import { fetchActivities, fetchActivityDetails } from '@/lib/activities-client';
 import { groupPaceTokens } from '@/lib/garmin/pace';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
@@ -397,6 +398,10 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
               <div className="mt-4 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
                 <div className="h-full bg-[#4338ff] rounded-full animate-pulse" style={{ width: '60%' }} />
               </div>
+              {/* Safety valve: never trap the user on the spinner if sync stalls. */}
+              <button onClick={onClose} className="mt-4 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                {t('dismiss')}
+              </button>
             </>
           )}
           {status === 'done' && (
@@ -510,6 +515,11 @@ export default function DashboardPage() {
       const isPreviewing = !!localStorage.getItem('view_as_role');
 
       let hasGarminOrStrava = false;
+      // Snapshot of "will we run the sync this load?" — decided ONCE here and
+      // reused for the actual sync below, so the optimistic flag writes can't
+      // make the two disagree (which previously left the modal stuck spinning
+      // for a returning user who just connected Garmin).
+      let willSync = false;
       if (myAthleteId && !myIsCoach && !isPreviewing) {
         try {
           const meRes = await fetch(`/api/athletes/me?id=${myAthleteId}`);
@@ -519,8 +529,9 @@ export default function DashboardPage() {
 
         const needsSync = isFirstVisit && hasGarminOrStrava;
         const garminNewlyConnected = hasGarminOrStrava && !isFirstVisit && !localStorage.getItem('dashboard_synced_with_garmin');
+        willSync = needsSync || garminNewlyConnected;
 
-        if (needsSync || garminNewlyConnected) {
+        if (willSync) {
           setShowSyncModal(true);
           setSyncStatus('syncing');
           // Persist the flags NOW, not only after the long sync chain finishes.
@@ -535,47 +546,54 @@ export default function DashboardPage() {
       }
 
       try {
-        const [s, w] = await Promise.all([
-          fetch('/api/dashboard/stats').then(r => r.json()),
-          fetch('/api/dashboard/weekly').then(r => r.json()),
+        // Gate on res.ok so a 5xx doesn't get parsed as {error} and rendered as
+        // zeros / "no plan"; leave the prior state so the UI degrades gracefully.
+        const [sRes, wRes] = await Promise.all([
+          fetch('/api/dashboard/stats'),
+          fetch('/api/dashboard/weekly'),
         ]);
-        setStats(s);
-        setWeekly(w);
+        if (sRes.ok) setStats(await sRes.json());
+        if (wRes.ok) setWeekly(await wRes.json());
 
-        const wr = await fetch(
-          'https://api.open-meteo.com/v1/forecast?latitude=32.08&longitude=34.78&hourly=temperature_2m,relativehumidity_2m,precipitation,windspeed_10m,weathercode&timezone=Asia/Jerusalem&forecast_days=7'
-        ).then(r => r.json());
-
-        if (wr.hourly) {
-          const dn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-          const map: Record<string, { t: number[]; h: number[]; p: number[]; w: number[]; c: number[] }> = {};
-          wr.hourly.time.forEach((time: string, i: number) => {
-            const hr = new Date(time).getHours();
-            if (hr >= 5 && hr <= 8) {
-              const dk = time.split('T')[0];
-              if (!map[dk]) map[dk] = { t: [], h: [], p: [], w: [], c: [] };
-              map[dk].t.push(wr.hourly.temperature_2m[i]);
-              map[dk].h.push(wr.hourly.relativehumidity_2m?.[i] ?? 0);
-              map[dk].p.push(wr.hourly.precipitation[i]);
-              map[dk].w.push(wr.hourly.windspeed_10m[i]);
-              map[dk].c.push(wr.hourly.weathercode[i]);
-            }
-          });
-          setWeather(Object.entries(map).map(([date, d]) => ({
-            date, day: dn[new Date(date).getDay()],
-            tempMin: Math.round(Math.min(...d.t)), tempMax: Math.round(Math.max(...d.t)),
-            humidity: Math.round(d.h.reduce((a, b) => a + b, 0) / d.h.length),
-            precipitation: Math.round(d.p.reduce((a, b) => a + b, 0) * 10) / 10,
-            windSpeed: Math.round(Math.max(...d.w)),
-            code: d.c.sort((a, b) => b - a)[0],
-          })));
-        }
-
-        // Show dashboard immediately — sync runs in background
+        // Show the dashboard as soon as stats+plan are in hand. Weather is a
+        // third-party API and must NOT block first paint (open-meteo being slow
+        // previously hung the whole spinner). Fetch it independently below.
         setLoading(false);
 
+        // Weather — fully non-blocking; renders when it arrives (UI guards empty).
+        fetch(
+          'https://api.open-meteo.com/v1/forecast?latitude=32.08&longitude=34.78&hourly=temperature_2m,relativehumidity_2m,precipitation,windspeed_10m,weathercode&timezone=Asia/Jerusalem&forecast_days=7'
+        )
+          .then(r => (r.ok ? r.json() : null))
+          .then(wr => {
+            if (!wr?.hourly) return;
+            const dn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const map: Record<string, { t: number[]; h: number[]; p: number[]; w: number[]; c: number[] }> = {};
+            wr.hourly.time.forEach((time: string, i: number) => {
+              const hr = new Date(time).getHours();
+              if (hr >= 5 && hr <= 8) {
+                const dk = time.split('T')[0];
+                if (!map[dk]) map[dk] = { t: [], h: [], p: [], w: [], c: [] };
+                map[dk].t.push(wr.hourly.temperature_2m[i]);
+                map[dk].h.push(wr.hourly.relativehumidity_2m?.[i] ?? 0);
+                map[dk].p.push(wr.hourly.precipitation[i]);
+                map[dk].w.push(wr.hourly.windspeed_10m[i]);
+                map[dk].c.push(wr.hourly.weathercode[i]);
+              }
+            });
+            setWeather(Object.entries(map).map(([date, d]) => ({
+              date, day: dn[new Date(date).getDay()],
+              tempMin: Math.round(Math.min(...d.t)), tempMax: Math.round(Math.max(...d.t)),
+              humidity: Math.round(d.h.reduce((a, b) => a + b, 0) / d.h.length),
+              precipitation: Math.round(d.p.reduce((a, b) => a + b, 0) * 10) / 10,
+              windSpeed: Math.round(Math.max(...d.w)),
+              code: d.c.sort((a, b) => b - a)[0],
+            })));
+          })
+          .catch(() => {});
+
         // Load existing activities first (non-blocking for UI)
-        const actRes = await fetch('/api/garmin/sync-activities');
+        const actRes = await fetchActivities();
         if (actRes.ok) {
           const actData = await actRes.json();
           const allActs = actData.activities || [];
@@ -612,9 +630,9 @@ export default function DashboardPage() {
           }
         }
 
-        // Sync Garmin/Strava in background with popup overlay on dashboard
-        const shouldSync = (isFirstVisit && hasGarminOrStrava) || (hasGarminOrStrava && !localStorage.getItem('dashboard_synced_with_garmin'));
-        if (shouldSync && myAthleteId && !myIsCoach) {
+        // Sync Garmin/Strava in background — use the SAME decision made when the
+        // modal opened (willSync), so the modal always advances to done/error.
+        if (willSync && myAthleteId && !myIsCoach) {
           try {
             const [syncRes, stravaSyncRes] = await Promise.allSettled([
               fetch('/api/garmin/sync-activities', {
@@ -649,7 +667,7 @@ export default function DashboardPage() {
 
           // Refresh activities after sync completes
           try {
-            const refreshRes = await fetch('/api/garmin/sync-activities');
+            const refreshRes = await fetchActivities();
             if (refreshRes.ok) {
               const refreshData = await refreshRes.json();
               const allActs = refreshData.activities || [];
@@ -1229,7 +1247,7 @@ export default function DashboardPage() {
                     <div className="h-[220px] w-full" id={`map-${a.id}`} ref={(el) => {
                       if (el && !el.dataset.loaded) {
                         el.dataset.loaded = '1';
-                        fetch(`/api/garmin/activity-details?activityId=${a.garmin_activity_id}&athleteId=${a.athlete_id}`)
+                        fetchActivityDetails(a.garmin_activity_id!, a.athlete_id)
                           .then(r => r.ok ? r.json() : null)
                           .then(data => {
                             if (!data?.gpsPoints?.length) return;

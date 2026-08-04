@@ -7,6 +7,7 @@ import {
   Flame, RefreshCw, Gauge,
 } from 'lucide-react';
 import { cn, formatActivityTime, formatActivityDate, activityLocalHour, activityLocalDay } from '@/lib/utils';
+import { fetchActivityDetails } from '@/lib/activities-client';
 
 interface ActivityEntry {
   id: string;
@@ -664,7 +665,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
     if (details || loadingDetails) return;
     setLoadingDetails(true);
     try {
-      const res = await fetch(`/api/garmin/activity-details?activityId=${activity.garmin_activity_id}&athleteId=${activity.athlete_id}`);
+      const res = await fetchActivityDetails(activity.garmin_activity_id, activity.athlete_id);
       if (res.ok) setDetails(await res.json());
     } catch { /* silent */ }
     finally { setLoadingDetails(false); }

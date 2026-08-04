@@ -152,7 +152,8 @@
     "allSet": "All Set!",
     "letsGo": "Let's Go",
     "syncIssue": "Sync Issue",
-    "continueToDashboard": "Continue to Dashboard"
+    "continueToDashboard": "Continue to Dashboard",
+    "dismiss": "Dismiss"
   },
   "athletes": {
     "title": "Athletes",
