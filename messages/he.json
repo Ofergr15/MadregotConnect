@@ -510,7 +510,9 @@
     "next": "הבא",
     "planUploaded": "הועלתה",
     "planMissing": "חסרה — יש להעלות",
-    "uploadArrow": "העלאה ←"
+    "uploadArrow": "העלאה ←",
+    "noWeeks": "אין עדיין תוכניות שבועיות",
+    "addFirstWeek": "הוספת שבוע ראשון"
   },
   "install": {
     "title": "התקנת Madregot",

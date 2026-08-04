@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2 } from 'lucide-react';
+import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
+import { Card, Button, EmptyState } from '@/components/ui';
 
 interface ProgramWeek {
   id: string;
@@ -527,18 +528,17 @@ export default function ProgramPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
-          <p className="text-slate-400">No program weeks available yet.</p>
-          {isAdmin && (
-            <button
-              onClick={() => setShowUploadForm(true)}
-              className="mt-4 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Add First Week
-            </button>
-          )}
-        </div>
+        <Card variant="muted">
+          <EmptyState
+            icon={ClipboardList}
+            title={t('noWeeks')}
+            action={isAdmin ? (
+              <Button onClick={() => setShowUploadForm(true)}>
+                <Plus className="h-4 w-4" /> {t('addFirstWeek')}
+              </Button>
+            ) : undefined}
+          />
+        </Card>
       )}
 
       {/* Upload Modal */}
