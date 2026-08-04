@@ -157,7 +157,11 @@
     "letsGo": "Let's Go",
     "syncIssue": "Sync Issue",
     "continueToDashboard": "Continue to Dashboard",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "goodMorning": "Good morning",
+    "goodAfternoon": "Good afternoon",
+    "goodEvening": "Good evening",
+    "preSeason": "Pre-season"
   },
   "athletes": {
     "title": "Athletes",

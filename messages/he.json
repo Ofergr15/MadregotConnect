@@ -157,7 +157,11 @@
     "letsGo": "בוא נתחיל",
     "syncIssue": "בעיית סנכרון",
     "continueToDashboard": "המשך ללוח הבקרה",
-    "dismiss": "סגירה"
+    "dismiss": "סגירה",
+    "goodMorning": "בוקר טוב",
+    "goodAfternoon": "צהריים טובים",
+    "goodEvening": "ערב טוב",
+    "preSeason": "טרום-עונה"
   },
   "athletes": {
     "title": "ספורטאים",
