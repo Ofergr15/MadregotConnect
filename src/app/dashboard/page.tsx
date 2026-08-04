@@ -15,7 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaCh
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
-import { Spinner } from '@/components/ui';
+import { Sheet, Spinner } from '@/components/ui';
 
 const RACE_DATE = new Date('2026-12-06T09:00:00');
 const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
@@ -240,13 +240,11 @@ function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
   );
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }} title={session.name}>
         {/* Header */}
-        <div className="px-5 py-4 flex items-start justify-between shrink-0">
+        <div className="pb-3 flex items-start justify-between shrink-0">
           <div>
             <p className="text-xs font-bold text-primary-600 uppercase tracking-wider">{session.day}</p>
-            <h3 className="text-lg font-bold text-white mt-1">{session.name}</h3>
             <div className="flex items-center gap-3 mt-1">
               <span className="text-sm font-bold text-white">{session.totalKm} km</span>
               {session.highlight && (
@@ -261,7 +259,7 @@ function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
 
         {/* Group selector — pick which group's pace is highlighted (display only) */}
         {hasGroupPaces && (
-          <div className="px-5 pb-3 shrink-0">
+          <div className="pb-3 shrink-0">
             <div className="flex items-center gap-1 bg-slate-800/60 border border-slate-700/50 rounded-lg p-1 w-fit">
               {[0, 1, 2].map(g => (
                 <button
@@ -279,8 +277,8 @@ function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
           </div>
         )}
 
-        {/* Compact Workout Structure — scrolls when longer than the modal */}
-        <div className="px-5 pb-5 overflow-y-auto flex-1 min-h-0 space-y-2 scrollbar-thin">
+        {/* Compact Workout Structure */}
+        <div className="pb-1 space-y-2">
           {blocks.map((block, i) => {
             if (block.type === 'phase') {
               const step0 = block.steps[0];
@@ -354,8 +352,7 @@ function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
             <p className="text-sm text-slate-500 text-center py-8">No step details available</p>
           )}
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 

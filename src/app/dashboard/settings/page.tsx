@@ -8,6 +8,7 @@ import { MaintenanceToggle } from '@/components/MaintenanceToggle';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
+import { Sheet, SegmentedControl } from '@/components/ui';
 
 interface User {
   id: string;
@@ -132,50 +133,40 @@ function ConfirmDialog({ user, newRole, onConfirm, onCancel, t, tc }: ConfirmDia
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <AlertTriangle className="w-5 h-5 text-amber-400" />
-          <h3 className="text-lg font-semibold text-white">{t('changeRole')}</h3>
-          <button onClick={onCancel} className="ms-auto text-slate-400 hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Sheet open onOpenChange={(o) => { if (!o) onCancel(); }} title={t('changeRole')}>
+      <p className="text-slate-300 text-sm mb-4">
+        Change <span className="font-medium text-white">{user.name}</span> from{' '}
+        <span className={cn('font-medium', oldConfig.text)}>{getRoleLabel(user.role)}</span>{' '}
+        to{' '}
+        <span className={cn('font-medium', newConfig.text)}>{getRoleLabel(newRole)}</span>?
+      </p>
 
-        <p className="text-slate-300 text-sm mb-4">
-          Change <span className="font-medium text-white">{user.name}</span> from{' '}
-          <span className={cn('font-medium', oldConfig.text)}>{getRoleLabel(user.role)}</span>{' '}
-          to{' '}
-          <span className={cn('font-medium', newConfig.text)}>{getRoleLabel(newRole)}</span>?
+      {(newRole === 'admin' || newRole === 'coach') && user.role !== 'admin' && user.role !== 'coach' && (
+        <p className="text-amber-400/80 text-xs mb-4">
+          This will remove the user from the athletes list and add them as a coach.
         </p>
+      )}
+      {(newRole === 'runner' || newRole === 'core_runner' || newRole === 'viewer') && (user.role === 'admin' || user.role === 'coach') && (
+        <p className="text-amber-400/80 text-xs mb-4">
+          This will remove the user from the coaches list and add them as an athlete.
+        </p>
+      )}
 
-        {(newRole === 'admin' || newRole === 'coach') && user.role !== 'admin' && user.role !== 'coach' && (
-          <p className="text-amber-400/80 text-xs mb-4">
-            This will remove the user from the athletes list and add them as a coach.
-          </p>
-        )}
-        {(newRole === 'runner' || newRole === 'core_runner' || newRole === 'viewer') && (user.role === 'admin' || user.role === 'coach') && (
-          <p className="text-amber-400/80 text-xs mb-4">
-            This will remove the user from the coaches list and add them as an athlete.
-          </p>
-        )}
-
-        <div className="flex gap-3 justify-end">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
-          >
-            {tc('cancel')}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors font-medium"
-          >
-            {t('confirmChange')}
-          </button>
-        </div>
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+        >
+          {tc('cancel')}
+        </button>
+        <button
+          onClick={onConfirm}
+          className="px-4 py-2 text-sm text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors font-medium"
+        >
+          {t('confirmChange')}
+        </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -757,37 +748,28 @@ export default function SettingsPage() {
       )}
 
       {pendingDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Trash2 className="w-5 h-5 text-red-400" />
-              <h3 className="text-lg font-semibold text-white">{t('deleteUser')}</h3>
-              <button onClick={() => setPendingDelete(null)} className="ms-auto text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-slate-300 text-sm mb-2">
-              Delete <span className="font-medium text-white">{pendingDelete.name}</span> ({pendingDelete.email})?
-            </p>
-            <p className="text-slate-500 text-xs mb-4">
-              This will remove all their data including activities. They can register again as a new user.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setPendingDelete(null)}
-                className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
-              >
-                {tc('cancel')}
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors font-medium"
-              >
-                {t('deleteUser')}
-              </button>
-            </div>
+        <Sheet open onOpenChange={(o) => { if (!o) setPendingDelete(null); }} title={t('deleteUser')}>
+          <p className="text-slate-300 text-sm mb-2">
+            Delete <span className="font-medium text-white">{pendingDelete.name}</span> ({pendingDelete.email})?
+          </p>
+          <p className="text-slate-500 text-xs mb-4">
+            This will remove all their data including activities. They can register again as a new user.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setPendingDelete(null)}
+              className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+            >
+              {tc('cancel')}
+            </button>
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors font-medium"
+            >
+              {t('deleteUser')}
+            </button>
           </div>
-        </div>
+        </Sheet>
       )}
 
       <div className="mb-6">
@@ -805,31 +787,19 @@ export default function SettingsPage() {
       <ReminderConfig />
 
       {/* Settings Tabs */}
-      <div className="flex items-center gap-1 mb-6 bg-slate-800/50 p-1 rounded-xl border border-slate-700/50 w-fit">
-        {settingsTabs.map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.key;
-          const label = tab.key === 'users' ? t('userManager')
+      <SegmentedControl<SettingsTab>
+        className="mb-6"
+        value={activeTab}
+        onChange={setActiveTab}
+        options={settingsTabs.map(tab => ({
+          value: tab.key,
+          label: tab.key === 'users' ? t('userManager')
             : tab.key === 'tabs' ? t('tabManager')
             : tab.key === 'feedback' ? t('feedback')
-            : tab.label;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                isActive
-                  ? 'bg-primary-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-              )}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
-          );
-        })}
-      </div>
+            : tab.label,
+          icon: tab.icon,
+        }))}
+      />
 
       {error && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
@@ -1046,28 +1016,24 @@ export default function SettingsPage() {
       {activeTab === 'feedback' && (
         <>
           {selectedFeedback && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setSelectedFeedback(null)}>
-              <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="px-6 py-5 border-b border-slate-700/50 flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-full bg-primary-600/15 flex items-center justify-center">
-                      <span className="text-sm font-bold text-primary-600">
-                        {selectedFeedback.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-base font-bold text-white">{selectedFeedback.athlete_name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {selectedFeedback.athlete_email && <span className="text-xs text-slate-400">{selectedFeedback.athlete_email}</span>}
-                        {selectedFeedback.group_name && <span className="text-xs text-slate-500">· {selectedFeedback.group_name}</span>}
-                      </div>
+            <Sheet open onOpenChange={(o) => { if (!o) setSelectedFeedback(null); }}>
+              <div className="pb-4 mb-1 border-b border-slate-700/50 flex items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-full bg-primary-600/15 flex items-center justify-center">
+                    <span className="text-sm font-bold text-primary-600">
+                      {selectedFeedback.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-base font-bold text-white">{selectedFeedback.athlete_name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {selectedFeedback.athlete_email && <span className="text-xs text-slate-400">{selectedFeedback.athlete_email}</span>}
+                      {selectedFeedback.group_name && <span className="text-xs text-slate-500">· {selectedFeedback.group_name}</span>}
                     </div>
                   </div>
-                  <button onClick={() => setSelectedFeedback(null)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
-                    <X className="w-5 h-5" />
-                  </button>
                 </div>
-                <div className="px-6 py-5">
+              </div>
+                <div className="pt-4">
                   <div className="flex items-center gap-2 mb-4">
                     {(() => {
                       const catConfig = categoryConfig[selectedFeedback.category || 'general'];
@@ -1179,8 +1145,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+            </Sheet>
           )}
 
           {/* Category filter */}
