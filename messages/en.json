@@ -19,7 +19,8 @@
     "copied": "Copied!",
     "days": "days",
     "km": "km",
-    "bpm": "bpm"
+    "bpm": "bpm",
+    "language": "Language"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -47,7 +48,8 @@
     "adminLogin": "Admin Login",
     "password": "Password",
     "signInAsAdmin": "Sign In as Admin",
-    "account": "Account"
+    "account": "Account",
+    "viewAsUser": "View as user"
   },
   "home": {
     "redefining": "Redefining",

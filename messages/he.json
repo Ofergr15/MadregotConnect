@@ -19,7 +19,8 @@
     "copied": "הועתק!",
     "days": "ימים",
     "km": "ק״מ",
-    "bpm": "פעימות/דקה"
+    "bpm": "פעימות/דקה",
+    "language": "שפה"
   },
   "nav": {
     "dashboard": "לוח בקרה",
@@ -47,7 +48,8 @@
     "adminLogin": "כניסת מנהל",
     "password": "סיסמה",
     "signInAsAdmin": "כניסה כמנהל",
-    "account": "חשבון"
+    "account": "חשבון",
+    "viewAsUser": "צפייה כמשתמש"
   },
   "home": {
     "redefining": "מגדירים מחדש",
