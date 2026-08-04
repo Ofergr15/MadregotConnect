@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Users, Trophy, Edit3, X, ChevronDown, ChevronUp, Medal, Watch } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
+import { Spinner } from '@/components/ui';
 
 interface Athlete {
   id: string;
@@ -106,7 +107,7 @@ export default function GroupsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+        <Spinner size={48} />
       </div>
     );
   }
@@ -220,7 +221,7 @@ export default function GroupsPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className={cn(
-                              "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium",
+                              "flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-medium",
                               athlete.hasGarmin
                                 ? 'bg-green-500/20 text-green-400'
                                 : 'bg-slate-600/30 text-slate-500'
@@ -244,7 +245,7 @@ export default function GroupsPage() {
                     <div className="mt-4 text-center py-8">
                       <Users className="h-8 w-8 text-slate-600 mx-auto mb-2" />
                       <p className="text-sm text-slate-500">{t('noAthletesYet')}</p>
-                      <p className="text-xs text-slate-600 mt-1">{t('assignAthletes')}</p>
+                      <p className="text-xs text-slate-400 mt-1">{t('assignAthletes')}</p>
                     </div>
                   )}
                 </div>
@@ -319,7 +320,7 @@ export default function GroupsPage() {
               <div className="text-center py-10">
                 <Trophy className="h-8 w-8 text-slate-600 mx-auto mb-2" />
                 <p className="text-sm text-slate-500">{t('noActivityData')}</p>
-                <p className="text-xs text-slate-600 mt-1">Leaderboard will populate once activities sync from Garmin</p>
+                <p className="text-xs text-slate-400 mt-1">Leaderboard will populate once activities sync from Garmin</p>
               </div>
             )}
           </div>
@@ -368,7 +369,7 @@ export default function GroupsPage() {
       </div>
 
       {groups.length === 0 && (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 text-center py-16">
+        <div className="bg-slate-800 rounded-2xl border border-slate-700 text-center py-16">
           <Users className="h-12 w-12 text-slate-600 mx-auto mb-3" />
           <h3 className="text-lg font-semibold mb-2">{t('noGroups')}</h3>
           <p className="text-slate-400 text-sm">{t('groupsWillAppear')}</p>
@@ -404,7 +405,7 @@ function EditGroupModal({ group, onSave, onClose }: {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md">
+      <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-md">
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-semibold text-lg">{t('edit')} {group.name}</h3>
           <button onClick={onClose} className="p-1 hover:bg-slate-700 rounded transition-colors">

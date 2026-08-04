@@ -193,21 +193,21 @@ export function NotificationCenter() {
 
         {/* Future workouts — one-tap reminder, auto-dated */}
         <div className="mb-3 rounded-xl bg-slate-900/40 border border-slate-700/40 p-2.5">
-          <p className="text-[11px] font-bold text-slate-400 mb-1.5" dir="rtl">אימונים קרובים · תזכורת בלחיצה</p>
+          <p className="text-2xs font-bold text-slate-400 mb-1.5" dir="rtl">אימונים קרובים · תזכורת בלחיצה</p>
           {upcoming.length > 0 ? (
             <div className="space-y-1">
               {upcoming.map(w => (
                 <button key={w.dayOfWeek} onClick={() => remindWorkout(w)}
                   className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition text-right" dir="rtl">
                   <span className="text-xs text-slate-200 truncate">{w.dayName} · {w.name}</span>
-                  <span className="text-[10px] font-bold text-primary-600 shrink-0">שלח תזכורת ←</span>
+                  <span className="text-3xs font-bold text-primary-600 shrink-0">שלח תזכורת ←</span>
                 </button>
               ))}
             </div>
           ) : (
             <div className="flex items-center justify-between gap-2 px-1 py-1.5" dir="rtl">
               <span className="text-xs text-slate-500">אין תוכנית לשבוע הזה עדיין</span>
-              <a href="/dashboard/program" className="text-[10px] font-bold text-primary-600 shrink-0">הוספת תוכנית ←</a>
+              <a href="/dashboard/program" className="text-3xs font-bold text-primary-600 shrink-0">הוספת תוכנית ←</a>
             </div>
           )}
         </div>
@@ -324,7 +324,7 @@ export function NotificationCenter() {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-white truncate" dir="auto">{n.title_he}</p>
                     <p className="text-xs text-slate-400 truncate" dir="auto">{n.body_he}</p>
-                    <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
+                    <div className="flex items-center gap-2 mt-1.5 text-3xs text-slate-500">
                       {n.status === 'sent' ? <CheckCircle className="w-3 h-3 text-green-400" />
                         : n.schedule_type === 'recurring' ? <Repeat className="w-3 h-3 text-primary-600" />
                         : <Clock className="w-3 h-3 text-amber-400" />}

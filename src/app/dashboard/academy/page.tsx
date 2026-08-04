@@ -298,7 +298,7 @@ export default function AcademyPage() {
                         <div className="text-xs text-slate-400 truncate">{a.email}</div>
                       </div>
                       {a.groupName && gs && (
-                        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-md border', gs.bg, gs.text, gs.border)}>
+                        <span className={cn('text-3xs font-bold px-2 py-0.5 rounded-md border', gs.bg, gs.text, gs.border)}>
                           {a.groupName}
                         </span>
                       )}
