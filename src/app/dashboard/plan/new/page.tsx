@@ -1037,7 +1037,7 @@ export default function WeeklyPlannerPage() {
               <p className="text-sm text-slate-400">Reading workouts and building your week</p>
             </div>
             <div className="w-48 mx-auto h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-[#4338ff] via-purple-500 to-[#4338ff] rounded-full animate-progress-indeterminate" />
+              <div className="h-full bg-gradient-to-r from-primary-600 via-purple-500 to-primary-600 rounded-full animate-progress-indeterminate" />
             </div>
           </div>
         </div>

@@ -76,7 +76,7 @@ function FeedbackForm() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 text-[#4338ff] animate-spin" /></div>;
+    return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 text-primary-600 animate-spin" /></div>;
   }
   if (done) {
     return (
@@ -100,8 +100,8 @@ function FeedbackForm() {
       {activityName && <p className="text-sm text-slate-400 mt-1">{activityName}</p>}
 
       {(watchRpe != null || watchFeel != null) && (
-        <div className="flex items-start gap-2 mt-4 rounded-xl bg-[#4338ff]/12 border border-[#4338ff]/30 p-3">
-          <Gauge className="h-4 w-4 text-[#4338ff] mt-0.5 shrink-0" />
+        <div className="flex items-start gap-2 mt-4 rounded-xl bg-primary-600/12 border border-primary-600/30 p-3">
+          <Gauge className="h-4 w-4 text-primary-600 mt-0.5 shrink-0" />
           <p className="text-xs text-indigo-200">
             {t('fromWatch')}: {watchRpe != null && `${t('effort')} ${Math.round(watchRpe)}/10`}
             {watchRpe != null && watchFeel != null && ' · '}
@@ -117,7 +117,7 @@ function FeedbackForm() {
         {scale.map(n => (
           <button key={n} onClick={() => setDifficulty(n)}
             className={cn('aspect-square rounded-lg text-sm font-bold transition',
-              difficulty === n ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}>
+              difficulty === n ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}>
             {n}
           </button>
         ))}
@@ -142,11 +142,11 @@ function FeedbackForm() {
             pain === true ? 'bg-red-600/80 text-white' : 'bg-slate-700/50 text-slate-300')}>{t('yes')}</button>
         <button onClick={() => setPain(false)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            pain === false ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-300')}>{t('no')}</button>
+            pain === false ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300')}>{t('no')}</button>
       </div>
       {pain === true && (
         <input value={painDetail} onChange={e => setPainDetail(e.target.value)} placeholder={t('painDetail')}
-          className="w-full mt-2 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4338ff]" />
+          className="w-full mt-2 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600" />
       )}
 
       {/* Want feedback */}
@@ -154,7 +154,7 @@ function FeedbackForm() {
       <div className="flex gap-2">
         <button onClick={() => setWantsFeedback(true)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            wantsFeedback === true ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-300')}>{t('yes')}</button>
+            wantsFeedback === true ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300')}>{t('yes')}</button>
         <button onClick={() => setWantsFeedback(false)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
             wantsFeedback === false ? 'bg-slate-600 text-white' : 'bg-slate-700/50 text-slate-300')}>{t('no')}</button>
@@ -164,10 +164,10 @@ function FeedbackForm() {
       <p className="text-sm font-semibold text-slate-200 mt-5 mb-2">{t('comment')}</p>
       <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3}
         placeholder={t('commentPlaceholder')}
-        className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4338ff]" />
+        className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600" />
 
       <button onClick={submit} disabled={saving}
-        className="w-full mt-6 min-h-[52px] rounded-2xl bg-[#4338ff] hover:bg-[#3730d4] disabled:opacity-50 text-white font-bold flex items-center justify-center gap-2">
+        className="w-full mt-6 min-h-[52px] rounded-2xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold flex items-center justify-center gap-2">
         {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : t('submit')}
       </button>
     </div>
@@ -176,7 +176,7 @@ function FeedbackForm() {
 
 export default function WorkoutFeedbackPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="h-8 w-8 text-[#4338ff] animate-spin" /></div>}>
+    <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="h-8 w-8 text-primary-600 animate-spin" /></div>}>
       <FeedbackForm />
     </Suspense>
   );

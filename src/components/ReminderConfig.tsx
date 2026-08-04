@@ -47,7 +47,7 @@ export function ReminderConfig() {
     <div className="flex items-center gap-3 py-2">
       <button
         onClick={() => save({ ...cfg, [stage]: { ...cfg[stage], enabled: !cfg[stage].enabled } })}
-        className={cn('relative w-11 h-6 rounded-full transition-colors shrink-0', cfg[stage].enabled ? 'bg-[#4338ff]' : 'bg-slate-600')}>
+        className={cn('relative w-11 h-6 rounded-full transition-colors shrink-0', cfg[stage].enabled ? 'bg-primary-600' : 'bg-slate-600')}>
         <span className={cn('absolute top-1 h-4 w-4 rounded-full bg-white transition-all', cfg[stage].enabled ? 'start-6' : 'start-1')} />
       </button>
       <span className="text-sm text-slate-200 flex-1">{label}</span>
@@ -64,7 +64,7 @@ export function ReminderConfig() {
   return (
     <div className="mb-6 rounded-xl border border-slate-700/50 bg-slate-800/50 p-4">
       <div className="flex items-center gap-2 mb-3">
-        <Bell className="w-4 h-4 text-[#4338ff]" />
+        <Bell className="w-4 h-4 text-primary-600" />
         <h3 className="text-sm font-bold text-white">Workout reminders</h3>
         {flash && <Check className="w-3.5 h-3.5 text-green-400" />}
         {saving && <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />}
@@ -75,7 +75,7 @@ export function ReminderConfig() {
         {DAYS.map((d, i) => (
           <button key={i} onClick={() => toggleDay(i)}
             className={cn('w-8 h-8 rounded-lg text-xs font-bold transition',
-              cfg.teamDays.includes(i) ? 'bg-[#4338ff] text-white' : 'bg-slate-700/40 text-slate-400 hover:bg-slate-700')}>
+              cfg.teamDays.includes(i) ? 'bg-primary-600 text-white' : 'bg-slate-700/40 text-slate-400 hover:bg-slate-700')}>
             {d}
           </button>
         ))}

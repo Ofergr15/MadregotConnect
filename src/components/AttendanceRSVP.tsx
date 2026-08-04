@@ -63,7 +63,7 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
   return (
     <div className="rounded-2xl bg-slate-800/60 border border-slate-700/50 p-4">
       <div className="flex items-center gap-2 mb-3">
-        <Users className="h-4 w-4 text-[#4338ff]" />
+        <Users className="h-4 w-4 text-primary-600" />
         <h3 className="text-sm font-bold text-white" dir="rtl">{t('title')}</h3>
         {saved && <CheckCircle2 className="h-4 w-4 text-green-400 ms-auto" />}
         {saving && <Loader2 className="h-4 w-4 text-slate-400 animate-spin ms-auto" />}
@@ -74,7 +74,7 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
         <button
           onClick={() => submit(true)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition',
-            attending === true ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
+            attending === true ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
           dir="rtl"
         >
           <CheckCircle2 className="h-4 w-4" /> {t('coming')}
@@ -98,7 +98,7 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
                 key={g}
                 onClick={() => { setGroup(g); submitGroup(g, ''); }}
                 className={cn('px-3 py-2 rounded-full text-xs font-bold transition',
-                  group === g ? 'bg-[#4338ff] text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
+                  group === g ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
                 dir="rtl"
               >
                 {g}

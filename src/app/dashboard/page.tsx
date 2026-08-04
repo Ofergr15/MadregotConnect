@@ -214,7 +214,7 @@ function GroupPaces({ step, viewGroup }: { step: any; viewGroup: number }) {
             key={g}
             className={cn(
               'text-xs',
-              mine ? 'text-[#4338ff] font-bold' : 'text-slate-500'
+              mine ? 'text-primary-600 font-bold' : 'text-slate-500'
             )}
           >
             {text}
@@ -244,12 +244,12 @@ function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
         {/* Header */}
         <div className="px-5 py-4 flex items-start justify-between shrink-0">
           <div>
-            <p className="text-xs font-bold text-[#4338ff] uppercase tracking-wider">{session.day}</p>
+            <p className="text-xs font-bold text-primary-600 uppercase tracking-wider">{session.day}</p>
             <h3 className="text-lg font-bold text-white mt-1">{session.name}</h3>
             <div className="flex items-center gap-3 mt-1">
               <span className="text-sm font-bold text-white">{session.totalKm} km</span>
               {session.highlight && (
-                <code className="text-xs font-bold text-[#4338ff] bg-[#4338ff]/10 px-2 py-0.5 rounded">{session.highlight}</code>
+                <code className="text-xs font-bold text-primary-600 bg-primary-600/10 px-2 py-0.5 rounded">{session.highlight}</code>
               )}
             </div>
           </div>
@@ -268,7 +268,7 @@ function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
                   onClick={() => onPickGroup(g)}
                   className={cn(
                     'px-3 h-7 rounded-md text-xs font-semibold transition-colors',
-                    g === viewGroup ? 'bg-[#4338ff] text-white' : 'text-slate-400 hover:text-white'
+                    g === viewGroup ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
                   )}
                 >
                   Group {g + 1}
@@ -303,9 +303,9 @@ function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
               });
 
               return (
-                <div key={i} className="rounded-lg border border-[#4338ff]/20 bg-[#4338ff]/5 px-3 py-2.5">
+                <div key={i} className="rounded-lg border border-primary-600/20 bg-primary-600/5 px-3 py-2.5">
                   <div className="flex items-center gap-2 mb-2">
-                    <Repeat className="h-3.5 w-3.5 text-[#4338ff]" />
+                    <Repeat className="h-3.5 w-3.5 text-primary-600" />
                     <span className="text-sm font-bold text-white">{block.count}x</span>
                   </div>
                   <div className="space-y-1">
@@ -388,15 +388,15 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
         <div className="flex flex-col items-center">
           {status === 'syncing' && (
             <>
-              <div className="bg-[#4338ff]/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                <RefreshCw className="h-8 w-8 text-[#4338ff] animate-spin" />
+              <div className="bg-primary-600/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                <RefreshCw className="h-8 w-8 text-primary-600 animate-spin" />
               </div>
               <h2 className="text-lg font-bold text-white">{t('syncingData')}</h2>
               <p className="text-sm text-slate-400 mt-2">
                 {t('syncingDescription')}
               </p>
               <div className="mt-4 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
-                <div className="h-full bg-[#4338ff] rounded-full animate-pulse" style={{ width: '60%' }} />
+                <div className="h-full bg-primary-600 rounded-full animate-pulse" style={{ width: '60%' }} />
               </div>
               {/* Safety valve: never trap the user on the spinner if sync stalls. */}
               <button onClick={onClose} className="mt-4 text-xs text-slate-500 hover:text-slate-300 transition-colors">
@@ -417,7 +417,7 @@ function FirstSyncModal({ status, syncedCount, error, onClose }: {
               </p>
               <button
                 onClick={onClose}
-                className="mt-5 px-6 py-2.5 bg-[#4338ff] hover:bg-[#3730d4] text-white font-medium rounded-lg transition-colors"
+                className="mt-5 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
               >
                 {t('letsGo')}
               </button>
@@ -727,7 +727,7 @@ export default function DashboardPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-[60vh]">
-      <div className="animate-spin h-10 w-10 border-[3px] border-[#4338ff]/20 border-t-[#4338ff] rounded-full" />
+      <div className="animate-spin h-10 w-10 border-[3px] border-primary-600/20 border-t-primary-600 rounded-full" />
     </div>
   );
 
@@ -751,7 +751,7 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 sm:gap-6">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <MapPin className="h-4 w-4 text-[#4338ff]" />
+              <MapPin className="h-4 w-4 text-primary-600" />
               <span className="text-sm font-semibold text-slate-300">{t('valenciaMarathon')}</span>
               <span className="text-sm text-slate-500">· Dec 6, 2026</span>
             </div>
@@ -770,13 +770,13 @@ export default function DashboardPage() {
             <p className="text-sm font-semibold text-slate-400 mb-1">Training Block</p>
             <p className="text-3xl sm:text-4xl font-black text-white">
               {week > 0 ? (
-                <>Week <span className="text-[#4338ff]">{week}</span><span className="text-slate-500 text-xl font-medium">/{TOTAL_WEEKS}</span></>
+                <>Week <span className="text-primary-600">{week}</span><span className="text-slate-500 text-xl font-medium">/{TOTAL_WEEKS}</span></>
               ) : (
                 <span className="text-slate-400">Pre-season</span>
               )}
             </p>
             <div className="w-full sm:w-48 h-2 bg-slate-800 rounded-full mt-3 overflow-hidden sm:ms-auto">
-              <div className="h-full bg-[#4338ff] rounded-full transition-all duration-1000" style={{ width: `${Math.max(4, (week / TOTAL_WEEKS) * 100)}%` }} />
+              <div className="h-full bg-primary-600 rounded-full transition-all duration-1000" style={{ width: `${Math.max(4, (week / TOTAL_WEEKS) * 100)}%` }} />
             </div>
           </div>
         </div>
@@ -957,9 +957,9 @@ export default function DashboardPage() {
                   </div>
                   {groups.length > 1 && (
                     <div className="flex items-center gap-1">
-                      <button onClick={() => setLeaderboardFilter('all')} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}>All</button>
+                      <button onClick={() => setLeaderboardFilter('all')} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-primary-600 text-white bg-primary-600/10' : 'border-slate-600 text-slate-500')}>All</button>
                       {groups.map(g => (
-                        <button key={g.id} onClick={() => setLeaderboardFilter(g.id)} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-[#4338ff] text-white bg-[#4338ff]/10' : 'border-slate-600 text-slate-500')}>{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
+                        <button key={g.id} onClick={() => setLeaderboardFilter(g.id)} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-primary-600 text-white bg-primary-600/10' : 'border-slate-600 text-slate-500')}>{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
                       ))}
                     </div>
                   )}
@@ -1123,7 +1123,7 @@ export default function DashboardPage() {
                           "text-center py-2.5 sm:py-3 rounded-xl transition-all relative",
                           session ? "cursor-pointer" : "",
                           isActive ? "bg-slate-700/60 ring-1 ring-white/20" :
-                            d.dayOfWeek === todayDow ? "bg-[#4338ff]/15 ring-1 ring-[#4338ff]/40" : "bg-slate-800/40 hover:bg-slate-700/40"
+                            d.dayOfWeek === todayDow ? "bg-primary-600/15 ring-1 ring-primary-600/40" : "bg-slate-800/40 hover:bg-slate-700/40"
                         )}
                         onMouseEnter={() => setHoveredBar(i)}
                       >
@@ -1132,7 +1132,7 @@ export default function DashboardPage() {
                             x{sessions.length}
                           </span>
                         )}
-                        <p className={cn("text-xs font-bold uppercase", d.dayOfWeek === todayDow ? "text-[#4338ff]" : "text-slate-400")}>{d.day}</p>
+                        <p className={cn("text-xs font-bold uppercase", d.dayOfWeek === todayDow ? "text-primary-600" : "text-slate-400")}>{d.day}</p>
                         <p className={cn("text-base sm:text-lg font-black tabular-nums mt-1", d.max > 0 ? "text-white" : "text-slate-600")}>
                           {d.max > 0 ? d.max : '—'}
                         </p>
@@ -1158,7 +1158,7 @@ export default function DashboardPage() {
           <div className="h-52 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700/60">
             <Calendar className="h-10 w-10 text-slate-600 mb-3" />
             <p className="text-base text-slate-400">{t('noPlanLoaded')}</p>
-            <Link href="/dashboard/plan/new" className="mt-3 text-sm font-bold text-[#4338ff] hover:text-[#5b54ff] inline-flex items-center gap-1">
+            <Link href="/dashboard/plan/new" className="mt-3 text-sm font-bold text-primary-600 hover:text-[#5b54ff] inline-flex items-center gap-1">
               {t('uploadPlan')} <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -1318,9 +1318,9 @@ export default function DashboardPage() {
               return (
                 <div key={i} className={cn(
                   "flex-shrink-0 w-[80px] sm:w-auto text-center py-4 px-2 rounded-2xl transition-all",
-                  isToday ? "bg-[#4338ff]/15 ring-1 ring-[#4338ff]/40" : "bg-slate-800/40"
+                  isToday ? "bg-primary-600/15 ring-1 ring-primary-600/40" : "bg-slate-800/40"
                 )}>
-                  <p className={cn("text-xs font-bold uppercase", isToday ? "text-[#4338ff]" : "text-slate-400")}>{isToday ? t('today') : day.day}</p>
+                  <p className={cn("text-xs font-bold uppercase", isToday ? "text-primary-600" : "text-slate-400")}>{isToday ? t('today') : day.day}</p>
                   <WeatherIcon code={day.code} className="h-5 w-5 mx-auto mt-2" />
                   <p className={cn("text-lg font-black mt-2 tabular-nums", heatLevel(day.tempMax).color)}>{day.tempMax}°</p>
                   <p className="text-xs text-slate-400 mt-1">{day.humidity}%</p>
@@ -1336,7 +1336,7 @@ export default function DashboardPage() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm sm:text-base font-bold text-white">{t('trainingLoad')}</h2>
-            <Link href="/dashboard/history" className="text-sm font-semibold text-slate-400 hover:text-[#4338ff] inline-flex items-center gap-1 transition-colors">
+            <Link href="/dashboard/history" className="text-sm font-semibold text-slate-400 hover:text-primary-600 inline-flex items-center gap-1 transition-colors">
               History <ChevronRight className="h-4 w-4" />
             </Link>
           </div>
@@ -1367,7 +1367,7 @@ export default function DashboardPage() {
 
       {/* ═══ QUICK LINKS ═══ */}
       <section className="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-800/50">
-        <Link href="/dashboard/program" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-[#4338ff] hover:bg-[#3730d4] transition-colors">
+        <Link href="/dashboard/program" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 transition-colors">
           <Dumbbell className="h-4 w-4" /> Program
         </Link>
         <Link href="/dashboard/activities" className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 transition-colors">

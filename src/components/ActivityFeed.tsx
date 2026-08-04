@@ -620,7 +620,7 @@ function SplitsTable({ splits }: { splits: Split[] }) {
               <div className="col-span-4 flex items-center gap-2">
                 <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                   <div
-                    className={cn('h-full rounded-full', isFastest ? 'bg-green-400' : isSlowest ? 'bg-red-400' : 'bg-[#4338ff]')}
+                    className={cn('h-full rounded-full', isFastest ? 'bg-green-400' : isSlowest ? 'bg-red-400' : 'bg-primary-600')}
                     style={{ width: `${Math.max(20, pacePos * 100)}%` }}
                   />
                 </div>
@@ -691,8 +691,8 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
       <div className="p-4 sm:p-5 cursor-pointer hover:bg-slate-800/70 transition-colors" onClick={handleExpand}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#4338ff]/15 flex items-center justify-center">
-              <Route className="h-4 w-4 text-[#4338ff]" />
+            <div className="w-9 h-9 rounded-full bg-primary-600/15 flex items-center justify-center">
+              <Route className="h-4 w-4 text-primary-600" />
             </div>
             <div>
               <div className="flex items-center gap-2">

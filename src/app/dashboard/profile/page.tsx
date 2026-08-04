@@ -293,8 +293,8 @@ function ProfileContent() {
           <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-sm text-center">
             {syncModalStatus === 'syncing' ? (
               <>
-                <div className="bg-[#4338ff]/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Loader2 className="h-8 w-8 text-[#4338ff] animate-spin" />
+                <div className="bg-primary-600/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
                 </div>
                 <h2 className="text-lg font-bold text-white">{t('syncingActivities')}</h2>
                 <p className="text-sm text-slate-400 mt-2">{t('fetchingActivities')}</p>
@@ -312,7 +312,7 @@ function ProfileContent() {
                 </p>
                 <button
                   onClick={() => setShowSyncModal(false)}
-                  className="mt-5 px-6 py-2.5 bg-[#4338ff] hover:bg-[#3730d4] text-white font-medium rounded-lg transition-colors"
+                  className="mt-5 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
                 >
                   {t('letsGo')}
                 </button>
@@ -323,19 +323,19 @@ function ProfileContent() {
       )}
 
       {/* Profile Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#4338ff]/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
-        <div className="absolute top-0 end-0 w-32 h-32 bg-[#4338ff]/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
+        <div className="absolute top-0 end-0 w-32 h-32 bg-primary-600/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
         <div className="relative flex items-center gap-4">
           <button
             type="button"
             onClick={() => photoInputRef.current?.click()}
-            className="relative w-16 h-16 rounded-full shrink-0 shadow-lg shadow-[#4338ff]/20 overflow-hidden group"
+            className="relative w-16 h-16 rounded-full shrink-0 shadow-lg shadow-primary-600/20 overflow-hidden group"
             title="Change photo"
           >
             {avatarUrl ? (
               <img src={avatarUrl} alt={athleteName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#4338ff] to-[#3730d4] text-xl font-bold text-white">{initials}</span>
+              <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-600 to-primary-700 text-xl font-bold text-white">{initials}</span>
             )}
             <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
               {uploadingPhoto ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Camera className="h-4 w-4 text-white" />}
@@ -355,8 +355,8 @@ function ProfileContent() {
             )}
             {currentGroup && (
               <div className="flex items-center gap-1.5 mt-1.5">
-                <Target className="h-3.5 w-3.5 text-[#4338ff] shrink-0" />
-                <span className="text-sm font-medium text-[#4338ff]">{currentGroup.marathonGoal || currentGroup.name}</span>
+                <Target className="h-3.5 w-3.5 text-primary-600 shrink-0" />
+                <span className="text-sm font-medium text-primary-600">{currentGroup.marathonGoal || currentGroup.name}</span>
               </div>
             )}
           </div>
@@ -390,20 +390,20 @@ function ProfileContent() {
       {/* This Week's Program */}
       <Link
         href="/dashboard/program"
-        className="block rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5 hover:border-[#4338ff]/30 hover:bg-slate-800 transition-all group"
+        className="block rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5 hover:border-primary-600/30 hover:bg-slate-800 transition-all group"
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
-              <Dumbbell className="h-4.5 w-4.5 text-[#4338ff]" />
+            <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
+              <Dumbbell className="h-4.5 w-4.5 text-primary-600" />
             </div>
             <h2 className="font-semibold text-white">{t('thisWeeksProgram')}</h2>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#4338ff] bg-[#4338ff]/10 px-2.5 py-1 rounded-full">
+            <span className="text-xs font-bold text-primary-600 bg-primary-600/10 px-2.5 py-1 rounded-full">
               {currentWeek.weekLabel}
             </span>
-            <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-[#4338ff] transition-colors" />
+            <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-primary-600 transition-colors" />
           </div>
         </div>
 
@@ -420,8 +420,8 @@ function ProfileContent() {
       <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
-              <Users className="h-4.5 w-4.5 text-[#4338ff]" />
+            <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
+              <Users className="h-4.5 w-4.5 text-primary-600" />
             </div>
             <h2 className="font-semibold text-white">{t('paceGroup')}</h2>
           </div>
@@ -447,15 +447,15 @@ function ProfileContent() {
                   'w-full text-start px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3',
                   hasActivities && 'opacity-60 cursor-not-allowed',
                   isSelected
-                    ? 'border-[#4338ff]/60 bg-[#4338ff]/5 shadow-sm shadow-[#4338ff]/10'
+                    ? 'border-primary-600/60 bg-primary-600/5 shadow-sm shadow-primary-600/10'
                     : 'border-slate-700/50 bg-slate-900/30 hover:bg-slate-700/30 hover:border-slate-600'
                 )}
               >
                 <div className={cn(
                   'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
-                  isSelected ? 'bg-[#4338ff]/20' : 'bg-slate-700/50'
+                  isSelected ? 'bg-primary-600/20' : 'bg-slate-700/50'
                 )}>
-                  <Users className={cn('h-4 w-4', isSelected ? 'text-[#4338ff]' : 'text-slate-400')} />
+                  <Users className={cn('h-4 w-4', isSelected ? 'text-primary-600' : 'text-slate-400')} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className={cn('font-medium block', isSelected ? 'text-white' : 'text-slate-300')}>
@@ -473,7 +473,7 @@ function ProfileContent() {
                   </span>
                 )}
                 {isSelected && (
-                  <CheckCircle2 className="h-5 w-5 text-[#4338ff] shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-primary-600 shrink-0" />
                 )}
               </button>
             );
@@ -488,7 +488,7 @@ function ProfileContent() {
           <button
             onClick={saveGroup}
             disabled={saving}
-            className="mt-4 w-full bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="mt-4 w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving ? (
               <>
@@ -510,8 +510,8 @@ function ProfileContent() {
         <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
-                <Share2 className="h-4.5 w-4.5 text-[#4338ff]" />
+              <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
+                <Share2 className="h-4.5 w-4.5 text-primary-600" />
               </div>
               <div>
                 <h2 className="font-semibold text-white">Share a workout</h2>
@@ -531,7 +531,7 @@ function ProfileContent() {
                 className={cn(
                   'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
                   shareDay === d
-                    ? 'border-[#4338ff]/60 bg-[#4338ff]/10 text-white'
+                    ? 'border-primary-600/60 bg-primary-600/10 text-white'
                     : 'border-slate-700/50 bg-slate-900/30 text-slate-400 hover:text-slate-200'
                 )}
               >
@@ -547,7 +547,7 @@ function ProfileContent() {
               </pre>
               <button
                 onClick={copyShareText}
-                className="mt-3 w-full bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="mt-3 w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 {copied ? (
                   <>
@@ -574,8 +574,8 @@ function ProfileContent() {
       {/* Data Source - Connect Strava */}
       <div ref={garminSectionRef} className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
         <div className="flex items-center gap-2.5 mb-4">
-          <div className="w-9 h-9 rounded-lg bg-[#4338ff]/15 flex items-center justify-center">
-            <Activity className="h-4.5 w-4.5 text-[#4338ff]" />
+          <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
+            <Activity className="h-4.5 w-4.5 text-primary-600" />
           </div>
           <h2 className="font-semibold text-white">{t('activityDataSource')}</h2>
         </div>
@@ -599,7 +599,7 @@ function ProfileContent() {
               ) : (
                 <button
                   onClick={() => setConnectingGarmin(!connectingGarmin)}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#4338ff]/10 text-[#4338ff] hover:bg-[#4338ff]/20 transition-colors"
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-primary-600/10 text-primary-600 hover:bg-primary-600/20 transition-colors"
                 >
                   {t('connect')}
                 </button>
@@ -612,7 +612,7 @@ function ProfileContent() {
                   placeholder={t('garminEmail')}
                   value={garminEmail}
                   onChange={e => setGarminEmail(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4338ff]/50"
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
                 />
                 {!mfaRequired && (
                   <input
@@ -620,7 +620,7 @@ function ProfileContent() {
                     placeholder={t('garminPassword')}
                     value={garminPassword}
                     onChange={e => setGarminPassword(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4338ff]/50"
+                    className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
                   />
                 )}
                 {mfaRequired && (
@@ -828,7 +828,7 @@ function ProfileContent() {
                 }
               }}
               disabled={syncing}
-              className="w-full border border-slate-600 hover:border-[#4338ff]/50 hover:bg-[#4338ff]/5 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full border border-slate-600 hover:border-primary-600/50 hover:bg-primary-600/5 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {syncing ? (
                 <>

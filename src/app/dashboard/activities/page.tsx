@@ -206,7 +206,7 @@ export default function ActivitiesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <div className="animate-spin h-10 w-10 border-[3px] border-[#4338ff]/20 border-t-[#4338ff] rounded-full" />
+        <div className="animate-spin h-10 w-10 border-[3px] border-primary-600/20 border-t-primary-600 rounded-full" />
       </div>
     );
   }
@@ -271,7 +271,7 @@ export default function ActivitiesPage() {
             <button
               onClick={syncAndFetch}
               disabled={syncing}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#4338ff] hover:bg-[#3730d4] transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
               {syncing ? t('syncing') : t('sync')}
@@ -285,9 +285,9 @@ export default function ActivitiesPage() {
 
         {/* Hero Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="relative overflow-hidden bg-gradient-to-br from-[#4338ff]/15 to-[#4338ff]/5 rounded-2xl p-5 border border-[#4338ff]/20">
-            <div className="absolute -top-4 -right-4 w-20 h-20 bg-[#4338ff]/10 rounded-full blur-2xl" />
-            <Route className="h-5 w-5 text-[#4338ff] mb-3" />
+          <div className="relative overflow-hidden bg-gradient-to-br from-primary-600/15 to-primary-600/5 rounded-2xl p-5 border border-primary-600/20">
+            <div className="absolute -top-4 -right-4 w-20 h-20 bg-primary-600/10 rounded-full blur-2xl" />
+            <Route className="h-5 w-5 text-primary-600 mb-3" />
             <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
               {weekData.totalKm > 0 ? weekData.totalKm.toFixed(1) : '\u2014'}
             </p>
@@ -355,7 +355,7 @@ export default function ActivitiesPage() {
                               key={j}
                               className={cn(
                                 'flex-1 rounded-t-lg transition-all duration-200',
-                                j === 0 ? 'bg-[#4338ff] group-hover:bg-[#5b54ff] group-hover:shadow-lg group-hover:shadow-[#4338ff]/20' : 'bg-amber-400 group-hover:bg-amber-300',
+                                j === 0 ? 'bg-primary-600 group-hover:bg-[#5b54ff] group-hover:shadow-lg group-hover:shadow-primary-600/20' : 'bg-amber-400 group-hover:bg-amber-300',
                               )}
                               style={{ height: `${Math.max(segH, 25)}%` }}
                             />
@@ -366,8 +366,8 @@ export default function ActivitiesPage() {
                       <div
                         className={cn(
                           'w-full max-w-[24px] sm:max-w-[36px] rounded-t-xl transition-all duration-200',
-                          d.distance > 0 ? 'bg-[#4338ff]/80 group-hover:bg-[#4338ff] group-hover:shadow-lg group-hover:shadow-[#4338ff]/20' : 'bg-slate-700/30',
-                          isToday && d.distance > 0 && 'ring-2 ring-[#4338ff]/50 bg-[#4338ff]'
+                          d.distance > 0 ? 'bg-primary-600/80 group-hover:bg-primary-600 group-hover:shadow-lg group-hover:shadow-primary-600/20' : 'bg-slate-700/30',
+                          isToday && d.distance > 0 && 'ring-2 ring-primary-600/50 bg-primary-600'
                         )}
                         style={{ height: `${Math.max(barH, d.distance > 0 ? 10 : 3)}%` }}
                       />
@@ -377,7 +377,7 @@ export default function ActivitiesPage() {
                   <div className="mt-3 text-center">
                     <p className={cn(
                       'text-xs font-bold',
-                      isToday ? 'text-[#4338ff]' : d.distance > 0 ? 'text-white' : 'text-slate-600'
+                      isToday ? 'text-primary-600' : d.distance > 0 ? 'text-white' : 'text-slate-600'
                     )}>
                       {t(d.dayKey)}
                     </p>

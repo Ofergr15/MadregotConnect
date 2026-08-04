@@ -8,6 +8,7 @@ import { InstallPrompt } from '@/components/InstallPrompt';
 import { PushOptIn } from '@/components/PushOptIn';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { BottomTabBar } from '@/components/BottomTabBar';
+import { Spinner } from '@/components/ui';
 import { getSupabase } from '@/lib/supabase/client';
 
 export default function DashboardLayout({
@@ -63,8 +64,8 @@ export default function DashboardLayout({
 
   if (!authorized) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+      <div className="min-h-[100dvh] bg-slate-900 flex items-center justify-center">
+        <Spinner size={32} />
       </div>
     );
   }

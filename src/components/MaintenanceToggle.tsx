@@ -100,14 +100,14 @@ export function MaintenanceToggle() {
         <div className="flex gap-2">
           <select
             value={pick} onChange={e => setPick(e.target.value)}
-            className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#4338ff]">
+            className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600">
             <option value="">Select a user…</option>
             {athletes.filter(a => !allowlist.includes(a.email.toLowerCase())).map(a => (
               <option key={a.email} value={a.email}>{a.name} ({a.email})</option>
             ))}
           </select>
           <button onClick={addEmail} disabled={saving || !pick}
-            className="inline-flex items-center gap-1 bg-[#4338ff] hover:bg-[#3730d4] disabled:opacity-50 text-white text-sm font-semibold px-3 rounded-lg">
+            className="inline-flex items-center gap-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-semibold px-3 rounded-lg">
             <Plus className="w-4 h-4" /> Add
           </button>
         </div>
