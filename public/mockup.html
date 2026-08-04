@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Madregot — Notifications</title>
+<style>
+  :root{--indigo:#4338ff;--indigo-d:#3730d4;--bg:#f0f0f0;--slate900:#0f172a;--slate800:#1e293b;--slate700:#334155;--slate400:#94a3b8}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#e7ebf1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;padding:30px 16px 70px}
+  header.top{text-align:center;margin-bottom:8px}
+  header.top h1{font-size:26px;font-weight:900}
+  header.top .sub{color:#64748b;font-size:14px;margin-top:4px}
+  .legend{display:flex;gap:14px;justify-content:center;margin:16px 0 30px;flex-wrap:wrap;font-size:12px;font-weight:600}
+  .legend span{display:inline-flex;align-items:center;gap:6px;color:#475569}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .live{background:#22c55e}.next{background:#f59e0b}
+  .row{display:flex;flex-wrap:wrap;gap:40px 30px;justify-content:center;align-items:flex-start}
+  .item{display:flex;flex-direction:column;align-items:center;gap:12px;width:300px}
+  .cap{font-size:13px;font-weight:700;color:#334155;text-align:center}
+  .cap .tag{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:6px;vertical-align:middle}
+  .cap .tag.live{background:#dcfce7;color:#166534}
+  .cap .tag.next{background:#fef3c7;color:#92400e}
+  .cap p{font-weight:400;color:#64748b;font-size:12px;margin-top:3px}
+
+  .phone{width:290px;height:600px;background:#000;border-radius:42px;border:10px solid #0b1120;box-shadow:0 20px 40px rgba(0,0,0,.25);position:relative;overflow:hidden}
+  .island{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:104px;height:24px;background:#000;border-radius:15px;z-index:60}
+  .screen{position:absolute;inset:0;border-radius:32px;overflow:hidden}
+
+  /* 1. HOME SCREEN with badge */
+  .home{position:absolute;inset:0;background:linear-gradient(160deg,#1e3a8a,#020617);padding:52px 22px 0}
+  .apps{display:grid;grid-template-columns:repeat(4,1fr);gap:22px 16px}
+  .app{display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+  .app .ic{width:54px;height:54px;border-radius:14px;background:rgba(255,255,255,.14)}
+  .app .ic.dim{background:rgba(255,255,255,.08)}
+  .app .real{width:54px;height:54px;border-radius:14px;box-shadow:0 3px 8px rgba(0,0,0,.4)}
+  .app .nm{color:#fff;font-size:9px;opacity:.9}
+  .app.ours .nm{font-weight:800}
+  .app.ours{position:relative}
+  .app.ours .real{position:relative}
+  .badge{position:absolute;top:-7px;left:calc(50% + 14px);min-width:22px;height:22px;background:#ff3b30;border-radius:11px;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #0b1120;padding:0 5px;z-index:5}
+
+  /* lock-screen push */
+  .lock{position:absolute;inset:0;background:linear-gradient(160deg,#312e81,#0b1120);padding:64px 14px 0;display:flex;flex-direction:column;align-items:center}
+  .lock .time{color:#fff;font-size:52px;font-weight:200;letter-spacing:-2px}
+  .lock .date{color:rgba(255,255,255,.7);font-size:14px;margin-bottom:30px}
+  .toast{width:100%;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-radius:18px;padding:12px 14px;display:flex;gap:11px;align-items:flex-start;box-shadow:0 8px 24px rgba(0,0,0,.3);margin-bottom:10px}
+  .toast .tic{width:38px;height:38px;border-radius:9px;flex-shrink:0}
+  .toast .tbody{flex:1;min-width:0}
+  .toast .tt{font-size:13px;font-weight:700;color:#111;display:flex;justify-content:space-between}
+  .toast .tt .ago{font-size:11px;font-weight:400;color:#666}
+  .toast .tx{font-size:13px;color:#333;margin-top:1px}
+
+  /* real screenshot inside the phone frame (Section 8) */
+  .shotfill{position:absolute;inset:0;overflow:hidden;background:var(--slate900)}
+  .shotfill img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+
+  /* in-app screens */
+  .app-screen{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column}
+  .app-screen.dark{background:var(--slate900)}
+  .statusbar{height:44px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:12px;font-weight:600}
+  .statusbar.d{color:#fff}
+  .appnav{display:flex;align-items:center;gap:9px;padding:8px 16px;border-bottom:1px solid rgba(0,0,0,.06)}
+  .appnav.d{border-color:var(--slate700)}
+  .appnav .mk{width:30px;height:30px;border-radius:9px;background:var(--indigo);display:flex;align-items:center;justify-content:center}
+  .appnav .mk img{width:20px;height:20px}
+  .appnav .t{font-weight:900;font-size:14px}
+  .appnav.d .t{color:#fff}
+  .body{flex:1;padding:16px;overflow:hidden}
+
+  /* survey card */
+  .card{background:#fff;border-radius:18px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:12px}
+  .card.d{background:var(--slate800);border:1px solid var(--slate700)}
+  .qh{font-size:15px;font-weight:800;color:#fff;margin-bottom:3px}
+  .qsub{font-size:12px;color:var(--slate400);margin-bottom:16px}
+  .qlabel{font-size:13px;font-weight:600;color:#e2e8f0;margin:14px 0 8px}
+  .scale{display:flex;gap:5px}
+  .scale .n{flex:1;aspect-ratio:1;border-radius:9px;background:var(--slate700);color:#cbd5e1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  .scale .n.sel{background:var(--indigo);color:#fff}
+  .faces{display:flex;justify-content:space-between;font-size:26px}
+  .faces .f{opacity:.4}.faces .f.sel{opacity:1;transform:scale(1.15)}
+  .yn{display:flex;gap:8px}
+  .yn button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--slate700);background:transparent;color:#cbd5e1;font-weight:700;font-size:13px}
+  .yn button.sel{background:var(--indigo);border-color:var(--indigo);color:#fff}
+  .adaptive{background:rgba(67,56,255,.12);border:1px solid rgba(67,56,255,.3);border-radius:12px;padding:11px;margin:12px 0;font-size:12px;color:#c7d2fe;display:flex;gap:8px;align-items:flex-start}
+  .submit{width:100%;background:var(--indigo);color:#fff;font-weight:800;padding:12px;border-radius:12px;border:0;font-size:14px;margin-top:6px}
+
+  /* pre-workout RSVP */
+  .rsvp-opt{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;border:1px solid var(--slate700);margin-bottom:8px;color:#e2e8f0;font-size:14px;font-weight:600}
+  .rsvp-opt.sel{background:rgba(67,56,255,.15);border-color:var(--indigo)}
+  .rsvp-opt .r{width:20px;height:20px;border-radius:50%;border:2px solid var(--slate400)}
+  .rsvp-opt.sel .r{border-color:var(--indigo);background:var(--indigo);box-shadow:inset 0 0 0 3px var(--slate800)}
+  .grouppick{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .grouppick .g{padding:7px 12px;border-radius:999px;background:var(--slate700);color:#cbd5e1;font-size:12px;font-weight:700}
+  .grouppick .g.sel{background:var(--indigo);color:#fff}
+
+  /* dashboard home + bell */
+  .dnav{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(15,23,42,.95);border-bottom:1px solid var(--slate700)}
+  .dnav .lft{display:flex;align-items:center;gap:8px}
+  .dnav .mk{width:28px;height:28px;border-radius:8px;background:var(--indigo);display:flex;align-items:center;justify-content:center}
+  .dnav .mk img{width:19px;height:19px}
+  .dnav .icons{display:flex;align-items:center;gap:14px;color:var(--slate400)}
+  .bell{position:relative}
+  .bell .bdg{position:absolute;top:-5px;right:-6px;min-width:16px;height:16px;background:#ff3b30;border-radius:8px;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;border:1.5px solid var(--slate900)}
+  .avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#818cf8,#4338ff);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .dstat{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
+  .dstat .s{background:var(--slate800);border:1px solid var(--slate700);border-radius:14px;padding:12px}
+  .dstat .s .v{font-size:22px;font-weight:900;color:var(--indigo)}
+  .dstat .s .l{font-size:10px;color:var(--slate400);margin-top:2px}
+  .dcard{background:var(--slate800);border:1px solid var(--slate700);border-radius:14px;padding:13px;margin-bottom:10px}
+  .dcard .h{font-size:12px;font-weight:800;color:#fff;margin-bottom:6px;display:flex;justify-content:space-between}
+  .dcard .h .pill{font-size:9px;background:var(--indigo);color:#fff;padding:2px 7px;border-radius:99px}
+  .dcard .r{font-size:11px;color:var(--slate400)}
+
+  /* in-app notification inbox */
+  .inbox-item{display:flex;gap:10px;padding:12px 4px;border-bottom:1px solid var(--slate700)}
+  .inbox-item .ic{width:34px;height:34px;border-radius:10px;background:rgba(67,56,255,.18);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .inbox-item.unread{position:relative}
+  .inbox-item.unread::before{content:'';position:absolute;left:-2px;top:18px;width:7px;height:7px;border-radius:50%;background:var(--indigo)}
+  .inbox-item .c{flex:1;min-width:0}
+  .inbox-item .tt{font-size:13px;font-weight:700;color:#fff}
+  .inbox-item .tx{font-size:12px;color:var(--slate400);margin-top:1px}
+  .inbox-item .ago{font-size:10px;color:#64748b;margin-top:3px}
+
+  /* admin notif center mini */
+  .nc-field{background:var(--slate900);border:1px solid var(--slate700);border-radius:10px;padding:9px 11px;color:#e2e8f0;font-size:12px;margin-bottom:8px}
+  .nc-field .lbl{font-size:10px;color:var(--slate400);font-weight:700;margin-bottom:3px}
+  .chips{display:flex;gap:6px}
+  .chips .c{padding:6px 11px;border-radius:8px;font-size:11px;font-weight:700;background:var(--slate700);color:#cbd5e1}
+  .chips .c.sel{background:var(--indigo);color:#fff}
+  .send{width:100%;background:var(--indigo);color:#fff;font-weight:800;padding:11px;border-radius:10px;border:0;font-size:13px;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:4px}
+</style>
+</head>
+<body>
+  <header class="top">
+    <h1>Madregot — App Overview</h1>
+    <div class="sub">Organized into 8 sections you can walk through one at a time — <b>all live</b>. Section 8 is the latest batch (real screenshots from production).</div>
+  </header>
+  <div class="legend">
+    <span><span class="dot live"></span> Live now</span>
+    <span><span class="dot next"></span> In progress / next</span>
+  </div>
+  <nav style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px auto 30px;max-width:760px">
+    <span style="font-size:12px;font-weight:700;color:#334155;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px">1 · Notifications</span>
+    <span style="font-size:12px;font-weight:700;color:#334155;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px">2 · Athlete Experience</span>
+    <span style="font-size:12px;font-weight:700;color:#334155;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px">3 · Coach &amp; Admin</span>
+    <span style="font-size:12px;font-weight:700;color:#334155;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px">4 · Polish &amp; Super-User</span>
+    <span style="font-size:12px;font-weight:700;color:#334155;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px">5 · Attendance &amp; Feedback</span>
+    <span style="font-size:12px;font-weight:700;color:#334155;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px">6 · iOS Redesign</span>
+    <span style="font-size:12px;font-weight:700;color:#334155;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px">7 · Signature Features</span>
+    <span style="font-size:12px;font-weight:800;color:#fff;background:#4338ff;border:1px solid #4338ff;border-radius:999px;padding:5px 12px">8 · Latest Batch</span>
+  </nav>
+
+  <div class="row">
+
+    <!-- ==================== SECTION 1 ==================== -->
+    <div style="flex-basis:100%;width:100%;margin:8px 0 4px;padding-top:18px;border-top:2px solid #cbd5e1">
+      <h2 style="font-size:19px;font-weight:900;color:#0f172a">1 · Notifications &amp; App Badge <span style="font-size:11px;font-weight:800;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:7px;vertical-align:middle;margin-inline-start:6px">LIVE</span></h2>
+      <p style="font-size:13px;color:#64748b;max-width:640px;margin:6px 0 0;line-height:1.55">Every way the club reaches a member — push notifications, lock-screen alerts, the admin Notification Center, the in-app inbox, and the red app-icon badge like a normal app.</p>
+    </div>
+
+    <!-- 1. Home screen badge -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="home">
+          <div class="apps">
+            <div class="app"><div class="ic"></div><div class="nm">Phone</div></div>
+            <div class="app"><div class="ic dim"></div><div class="nm">Messages</div></div>
+            <div class="app"><div class="ic"></div><div class="nm">Camera</div></div>
+            <div class="app"><div class="ic dim"></div><div class="nm">Settings</div></div>
+            <div class="app ours"><div class="badge">3</div><img class="real" src="/images/icon-512.png"><div class="nm">Madregot</div></div>
+            <div class="app"><div class="ic"></div><div class="nm">Maps</div></div>
+            <div class="app"><div class="ic dim"></div><div class="nm">Notes</div></div>
+            <div class="app"><div class="ic"></div><div class="nm">Clock</div></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">1 · App icon badge <span class="tag live">LIVE</span><p>Red count on the icon when notifications arrive; clears when the app opens.</p></div>
+    </div>
+
+    <!-- 2. Lock-screen push -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="lock">
+          <div class="time">9:41</div>
+          <div class="date">Sunday, August 3</div>
+          <div class="toast">
+            <img class="tic" src="/images/icon-512.png">
+            <div class="tbody"><div class="tt">מדרגות <span class="ago">now</span></div>
+            <div class="tx" dir="rtl">אימון היום ב-18:00 בפארק הירקון 💪</div></div>
+          </div>
+          <div class="toast">
+            <img class="tic" src="/images/icon-512.png">
+            <div class="tbody"><div class="tt">מדרגות <span class="ago">2m</span></div>
+            <div class="tx" dir="rtl">כל הכבוד על האימון! איך הרגשת?</div></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">2 · Push notifications <span class="tag live">LIVE</span><p>Reminders, updates & prompts delivered to the phone.</p></div>
+    </div>
+
+    <!-- 2b. Weekly recap push (Sunday) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="lock">
+          <div class="time">19:00</div>
+          <div class="date">Sunday</div>
+          <div class="toast">
+            <img class="tic" src="/images/icon-512.png">
+            <div class="tbody"><div class="tt">מדרגות <span class="ago">now</span></div>
+            <div class="tx" dir="rtl">הסיכום השבועי שלך 🏅 השבוע רצת 20 ק״מ ב-4 ריצות. כל הכבוד!</div></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">2b · Weekly recap push <span class="tag live">LIVE</span><p>Every Sunday 19:00 IL — a personalized "your week" push (km + runs this week) to each runner who ran. Retention nudge, from existing data.</p></div>
+    </div>
+
+    <!-- 3. Admin notification center -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t">Notification Center</div></div>
+          <div class="body">
+            <div class="nc-field"><div class="lbl">כותרת / TITLE</div><span dir="rtl">אירוע חדש: מרוץ לילה 🌙</span></div>
+            <div class="nc-field"><div class="lbl">קהל יעד / AUDIENCE</div>
+              <div class="chips"><span class="c">All</span><span class="c">Group</span><span class="c sel">Person</span></div>
+            </div>
+            <div class="nc-field"><div class="lbl">תזמון / SCHEDULE</div>
+              <div class="chips"><span class="c sel">Now</span><span class="c">At time</span><span class="c">Recurring</span></div>
+            </div>
+            <button class="send">✈ שליחה עכשיו / Send now</button>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">3 · Admin Notification Center <span class="tag live">LIVE</span><p>Send to all / a group / one person — now, scheduled, or recurring.</p></div>
+    </div>
+
+    <!-- 3b. Dashboard home with bell + badge -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="dnav">
+            <div class="lft"><div class="mk"><img src="/images/logo-white.png"></div><span style="color:#fff;font-weight:900;font-size:13px">מדרגות</span></div>
+            <div class="icons">
+              <span class="bell">🔔<span class="bdg">3</span></span>
+              <span class="avatar">OG</span>
+            </div>
+          </div>
+          <div class="body">
+            <div class="dstat">
+              <div class="s"><div class="v">10,283</div><div class="l" dir="rtl">ק"מ סה"כ</div></div>
+              <div class="s"><div class="v">42</div><div class="l" dir="rtl">אימונים החודש</div></div>
+            </div>
+            <div class="dcard"><div class="h"><span dir="rtl">האימון של היום</span><span class="pill" dir="rtl">חדש</span></div><div class="r" dir="rtl">ריצת אינטרוולים · 8 ק"מ · 18:00</div></div>
+            <div class="dcard"><div class="h" dir="rtl">הפעילות האחרונה</div><div class="r" dir="rtl">ריצת בוקר · 6.4 ק"מ · 5:12/ק"מ</div></div>
+            <div class="dcard"><div class="h" dir="rtl">המרוץ הקרוב 🏆</div><div class="r" dir="rtl">חצי מרתון תל אביב · בעוד 24 ימים</div></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">4 · Dashboard + notification bell <span class="tag live">LIVE</span><p>Bell shows unread count on mobile &amp; desktop, opens the inbox; the app icon carries the same badge.</p></div>
+    </div>
+
+    <!-- 3c. In-app notification inbox -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t" dir="rtl">🔔 התראות</div></div>
+          <div class="body">
+            <div class="inbox-item unread"><div class="ic">🏃</div><div class="c"><div class="tt" dir="rtl">אימון היום ב-18:00</div><div class="tx" dir="rtl">ריצת אינטרוולים בפארק הירקון</div><div class="ago" dir="rtl">לפני 5 דקות</div></div></div>
+            <div class="inbox-item unread"><div class="ic">💬</div><div class="c"><div class="tt" dir="rtl">הודעה מהמאמן</div><div class="tx" dir="rtl">כל הכבוד על השבוע! המשך כך 💪</div><div class="ago" dir="rtl">לפני שעה</div></div></div>
+            <div class="inbox-item unread"><div class="ic">🏆</div><div class="c"><div class="tt" dir="rtl">מרוץ חדש נפתח להרשמה</div><div class="tx" dir="rtl">חצי מרתון תל אביב — הירשמו עכשיו</div><div class="ago" dir="rtl">אתמול</div></div></div>
+            <div class="inbox-item"><div class="ic">🎖️</div><div class="c"><div class="tt" dir="rtl">הישג חדש: 500 ק"מ!</div><div class="tx" dir="rtl">עברת את רף ה-500 ק"מ 🎉</div><div class="ago" dir="rtl">לפני יומיים</div></div></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">5 · In-app notifications <span class="tag live">LIVE</span><p>History inbox inside the app — unread dots, tap to open the linked screen. Reachable from the header bell on mobile &amp; desktop.</p></div>
+    </div>
+
+    <!-- ==================== SECTION 2 ==================== -->
+    <div style="flex-basis:100%;width:100%;margin:8px 0 4px;padding-top:18px;border-top:2px solid #cbd5e1">
+      <h2 style="font-size:19px;font-weight:900;color:#0f172a">2 · Athlete Experience <span style="font-size:11px;font-weight:800;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:7px;vertical-align:middle;margin-inline-start:6px">LIVE</span></h2>
+      <p style="font-size:13px;color:#64748b;max-width:640px;margin:6px 0 0;line-height:1.55">What runners do around each session — an adaptive post-workout survey (pulls the watch's Self-Evaluation) and pre-workout attendance RSVP by דבוקה on team days.</p>
+    </div>
+
+    <!-- 4. Adaptive post-workout survey -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t" dir="rtl">משוב אימון</div></div>
+          <div class="body">
+            <div class="qh" dir="rtl">איך היה האימון? 🏃</div>
+            <div class="qsub" dir="rtl">ריצת אינטרוולים · 8.2 ק"מ · היום</div>
+            <div class="adaptive" dir="rtl">⌚ מהשעון: מאמץ 8/10 — נשאל על התאוששות</div>
+            <div class="qlabel" dir="rtl">רמת קושי</div>
+            <div class="scale"><span class="n">6</span><span class="n">7</span><span class="n sel">8</span><span class="n">9</span><span class="n">10</span></div>
+            <div class="qlabel" dir="rtl">איך הרגשת?</div>
+            <div class="faces"><span class="f">😣</span><span class="f">😕</span><span class="f sel">😐</span><span class="f">🙂</span><span class="f">😄</span></div>
+            <div class="qlabel" dir="rtl">כאב או אי-נוחות?</div>
+            <div class="yn"><button>כן</button><button class="sel">לא</button></div>
+            <div class="qlabel" dir="rtl">עוד משהו?</div>
+            <textarea dir="rtl" rows="2" placeholder="הוסיפו הערה (רשות)" style="width:100%;background:var(--slate900);border:1px solid var(--slate700);border-radius:10px;padding:9px 11px;color:#e2e8f0;font-size:12px;resize:none"></textarea>
+            <button class="submit" dir="rtl" style="margin-top:12px">שליחת משוב</button>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">6 · Post-workout survey <span class="tag live">LIVE</span><p>Fires after each run. Adapts questions to the watch's Self-Evaluation.</p></div>
+    </div>
+
+    <!-- 5. Pre-workout attendance -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t" dir="rtl">אימון היום</div></div>
+          <div class="body">
+            <div class="qh" dir="rtl">מגיעים לאימון היום? 🏟️</div>
+            <div class="qsub" dir="rtl">אימון קבוצתי · 18:00 · פארק הירקון</div>
+            <div style="margin-top:14px"></div>
+            <div class="rsvp-opt sel" dir="rtl"><span class="r"></span> כן, אני מגיע/ה</div>
+            <div class="rsvp-opt" dir="rtl"><span class="r"></span> לא הפעם</div>
+            <div class="qlabel" dir="rtl">באיזו דבוקה?</div>
+            <div class="grouppick">
+              <span class="g">דבוקה 1</span><span class="g sel">דבוקה 2</span><span class="g">דבוקה 3</span>
+            </div>
+            <input dir="rtl" placeholder="דבוקה אחרת… (טקסט חופשי)"
+              style="width:100%;margin-top:8px;background:var(--slate900);border:1px solid var(--slate700);border-radius:10px;padding:9px 11px;color:#e2e8f0;font-size:12px" />
+            <button class="submit" dir="rtl" style="margin-top:16px">אישור הגעה</button>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">7 · Pre-workout attendance <span class="tag live">LIVE</span><p>RSVP before training — will you join & which דבוקה (presets + free-text "other group"). Coach sees who's coming.</p></div>
+    </div>
+
+    <!-- ==================== SECTION 3 ==================== -->
+    <div style="flex-basis:100%;width:100%;margin:8px 0 4px;padding-top:18px;border-top:2px solid #cbd5e1">
+      <h2 style="font-size:19px;font-weight:900;color:#0f172a">3 · Coach &amp; Admin Tools <span style="font-size:11px;font-weight:800;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:7px;vertical-align:middle;margin-inline-start:6px">LIVE</span></h2>
+      <p style="font-size:13px;color:#64748b;max-width:640px;margin:6px 0 0;line-height:1.55">Running the club: maintenance mode, the Saturday new-week prompt (which plans are missing), configurable reminders, plus the attendance calendar/roster and workout-feedback review (further below).</p>
+    </div>
+
+    <!-- 8. Maintenance toggle -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t">Settings</div></div>
+          <div class="body">
+            <!-- ON state -->
+            <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:14px;padding:14px;display:flex;align-items:center;gap:11px;margin-bottom:14px">
+              <span style="font-size:20px">🚧</span>
+              <div style="flex:1;min-width:0">
+                <p style="color:#fff;font-size:13px;font-weight:800">Maintenance mode · ON</p>
+                <p style="color:var(--slate400);font-size:11px;margin-top:2px">Only admins/coaches can access — everyone else sees the under-renovation screen.</p>
+              </div>
+              <div style="width:46px;height:26px;border-radius:99px;background:#f59e0b;position:relative;flex-shrink:0"><span style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff"></span></div>
+            </div>
+            <p style="color:var(--slate400);font-size:11px;text-align:center;margin-top:8px">— what everyone else sees —</p>
+            <!-- the gate preview -->
+            <div style="margin-top:10px;background:#0f172a;border:1px solid var(--slate700);border-radius:16px;padding:26px 16px;text-align:center">
+              <img src="/images/logo-white.png" style="width:52px;height:52px;opacity:.9;margin:0 auto 12px">
+              <p style="color:#fff;font-size:16px;font-weight:900" dir="rtl">האתר בשיפוצים 🚧</p>
+              <p style="color:var(--slate400);font-size:12px;margin-top:4px" dir="rtl">אנחנו משדרגים את מדרגות. נחזור בקרוב!</p>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">8 · Maintenance gate <span class="tag live">LIVE</span><p>Admin toggle hides the whole app behind an "under renovation" screen — only the allowlist gets in.</p></div>
+    </div>
+
+    <!-- 9. Saturday missing-plans prompt -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t" dir="rtl">שבוע חדש 📅</div></div>
+          <div class="body">
+            <div class="qh" dir="rtl">שבוע חדש מתחיל 📅</div>
+            <div class="qsub" dir="rtl">העלו את התוכניות לשבוע הקרוב</div>
+            <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:11px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:12px;padding:13px" dir="rtl">
+                <span style="font-size:18px">🏃</span>
+                <div style="flex:1"><p style="color:#fff;font-size:13px;font-weight:700">תוכנית אימונים</p><p style="color:#4ade80;font-size:11px;margin-top:1px">✅ הועלתה</p></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:11px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.35);border-radius:12px;padding:13px" dir="rtl">
+                <span style="font-size:18px">🥗</span>
+                <div style="flex:1"><p style="color:#fff;font-size:13px;font-weight:700">תוכנית תזונה</p><p style="color:#f87171;font-size:11px;margin-top:1px">❌ חסרה — יש להעלות</p></div>
+                <span style="font-size:11px;font-weight:800;color:var(--indigo)">העלאה ←</span>
+              </div>
+            </div>
+            <button class="submit" dir="rtl" style="margin-top:20px">העלאת תוכנית תזונה</button>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">9 · Saturday new-week prompt <span class="tag live">LIVE</span><p>Sat 20:00 IL: pushes coaches which plans are missing (training ✅ / nutrition ❌) + archives old weeks.</p></div>
+    </div>
+
+    <!-- 10. Reminder config (admin) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t">Settings</div></div>
+          <div class="body">
+            <div style="background:var(--slate800);border:1px solid var(--slate700);border-radius:14px;padding:14px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="color:var(--indigo)">🔔</span><span style="color:#fff;font-size:13px;font-weight:800">Workout reminders</span></div>
+              <p style="color:var(--slate400);font-size:11px;font-weight:700;margin-bottom:8px">Team-workout days</p>
+              <div style="display:flex;gap:6px;margin-bottom:14px">
+                <span style="width:30px;height:30px;border-radius:8px;background:var(--slate700);color:#94a3b8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">א</span>
+                <span style="width:30px;height:30px;border-radius:8px;background:var(--slate700);color:#94a3b8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">ב</span>
+                <span style="width:30px;height:30px;border-radius:8px;background:var(--indigo);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">ג</span>
+                <span style="width:30px;height:30px;border-radius:8px;background:var(--slate700);color:#94a3b8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">ד</span>
+                <span style="width:30px;height:30px;border-radius:8px;background:var(--slate700);color:#94a3b8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">ה</span>
+                <span style="width:30px;height:30px;border-radius:8px;background:var(--indigo);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">ו</span>
+                <span style="width:30px;height:30px;border-radius:8px;background:var(--slate700);color:#94a3b8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">ש</span>
+              </div>
+              <div style="border-top:1px solid var(--slate700);padding-top:8px">
+                <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
+                  <div style="width:40px;height:22px;border-radius:99px;background:var(--indigo);position:relative;flex-shrink:0"><span style="position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:#fff"></span></div>
+                  <span style="flex:1;color:#e2e8f0;font-size:12px" dir="rtl">תזכורת יום לפני (לכולם)</span>
+                  <span style="background:var(--slate900);border:1px solid var(--slate700);border-radius:8px;padding:4px 8px;color:#fff;font-size:12px">08:00</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
+                  <div style="width:40px;height:22px;border-radius:99px;background:var(--indigo);position:relative;flex-shrink:0"><span style="position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:#fff"></span></div>
+                  <span style="flex:1;color:#e2e8f0;font-size:12px" dir="rtl">ערב לפני — למי שלא ענה</span>
+                  <span style="background:var(--slate900);border:1px solid var(--slate700);border-radius:8px;padding:4px 8px;color:#fff;font-size:12px">18:00</span>
+                </div>
+              </div>
+              <p style="color:#64748b;font-size:10px;margin-top:8px">Israel time. Post-workout survey fires after each run syncs.</p>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">10 · Reminder settings <span class="tag live">LIVE</span><p>Admin sets team days + reminder times (day-before / evening-before). Runs via Supabase pg_cron.</p></div>
+    </div>
+
+    <!-- ==================== SECTION 4 ==================== -->
+    <div style="flex-basis:100%;width:100%;margin:8px 0 4px;padding-top:18px;border-top:2px solid #cbd5e1">
+      <h2 style="font-size:19px;font-weight:900;color:#0f172a">4 · Polish &amp; Super-User <span style="font-size:11px;font-weight:800;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:7px;vertical-align:middle;margin-inline-start:6px">LIVE</span></h2>
+      <p style="font-size:13px;color:#64748b;max-width:640px;margin:6px 0 0;line-height:1.55">The premium touches: the redesigned "rebuilding the stairs" maintenance screen, the super-user "view as" role/scenario switcher, and native pull-to-refresh.</p>
+    </div>
+
+    <!-- 11. Maintenance screen redesign (climbing stairs) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen" style="background:radial-gradient(130% 80% at 50% 8%,#16213b 0%,#0f172a 46%,#0b1120 100%);align-items:center;justify-content:flex-start;padding-top:56px">
+          <img src="/images/logo-white.png" style="width:96px;height:96px;object-fit:contain;filter:drop-shadow(0 8px 18px rgba(8,12,25,.55))">
+          <p style="color:#f8fafc;font-size:17px;font-weight:800;margin-top:18px" dir="rtl">בונים מחדש את המדרגות 🚧</p>
+          <p style="color:var(--slate400);font-size:12px;margin-top:8px;max-width:210px;text-align:center" dir="rtl">הצוות שלנו עובד על שדרוג. נחזור בקרוב!</p>
+          <p style="color:#64748b;font-size:10px;margin-top:10px;letter-spacing:.4px">We're rebuilding the stairs — back soon.</p>
+          <!-- climbing staircase -->
+          <div style="position:relative;width:200px;height:96px;margin-top:auto;margin-bottom:14px;direction:ltr">
+            <div style="position:absolute;bottom:0;left:2px;width:28px;height:18px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#818cf8,#4338ff 55%,#3730d4)"></div>
+            <div style="position:absolute;bottom:0;left:34px;width:28px;height:33px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#818cf8,#4338ff 55%,#3730d4)"></div>
+            <div style="position:absolute;bottom:0;left:66px;width:28px;height:48px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#818cf8,#4338ff 55%,#3730d4)"></div>
+            <div style="position:absolute;bottom:0;left:98px;width:28px;height:63px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#818cf8,#4338ff 55%,#3730d4)"></div>
+            <div style="position:absolute;bottom:0;left:130px;width:28px;height:78px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#818cf8,#4338ff 55%,#3730d4)"></div>
+            <div style="position:absolute;bottom:0;left:162px;width:28px;height:93px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#818cf8,#4338ff 55%,#3730d4)"></div>
+            <span style="position:absolute;bottom:74px;left:132px;font-size:18px;transform:scaleX(-1);filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))">🏃</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;color:#cbd5e1;font-size:11px;font-weight:600;margin-bottom:6px" dir="rtl"><span>👷</span><span>עדכון מערכת בתהליך</span></div>
+        </div>
+      </div></div>
+      <div class="cap">11 · Maintenance screen redesign <span class="tag live">LIVE</span><p>"Rebuilding the stairs" — logo with a light-sweep, a runner climbs the staircase to the top & holds. What blocked members see.</p></div>
+    </div>
+
+    <!-- 12. Super-user "view as" scenario switcher -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <!-- amber "viewing as" banner -->
+          <div style="background:linear-gradient(90deg,#b45309,#d97706);color:#fff;padding:9px 12px;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700" dir="rtl">
+            <span>👁</span><span>תצוגה בתור <b>רץ</b></span>
+            <span style="margin-inline-start:auto;display:flex;gap:6px"><span style="background:rgba(255,255,255,.2);border-radius:7px;padding:3px 8px;font-size:11px">החלף</span><span style="background:rgba(0,0,0,.25);border-radius:7px;padding:3px 8px;font-size:11px">יציאה</span></span>
+          </div>
+          <div class="body" style="padding-top:20px">
+            <div style="background:var(--slate800);border:1px solid var(--slate700);border-radius:18px;overflow:hidden" dir="rtl">
+              <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--slate700)"><span style="color:#fbbf24">👁</span><span style="color:#fff;font-size:13px;font-weight:800;flex:1">תצוגה כמשתמש</span><span style="color:var(--slate400)">✕</span></div>
+              <p style="color:var(--slate400);font-size:11px;padding:10px 14px 4px">נשארים מחוברים כ‑Ofer — בוחרים איזו תצוגה לראות:</p>
+              <div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div style="background:var(--slate900);border:1px solid var(--slate700);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">🛡️</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">מנהל</div></div>
+                <div style="background:var(--slate900);border:1px solid var(--slate700);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">📣</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">מאמן</div></div>
+                <div style="background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.5);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">👟</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">רץ</div></div>
+                <div style="background:var(--slate900);border:1px solid var(--slate700);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">👓</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">צופה</div></div>
+                <div style="grid-column:1/3;background:var(--slate900);border:1px solid var(--slate700);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">🚧</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">מסך תחזוקה</div></div>
+              </div>
+              <p style="color:#64748b;font-size:10px;text-align:center;padding:8px 14px;border-top:1px solid var(--slate700)">תצוגה בלבד — שמירת נתונים מושבתת במצב זה.</p>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">12 · Super-user "view as" <span class="tag live">LIVE</span><p>Ofer only: stay yourself but preview the app as any role — or the maintenance screen. Read-only. Amber banner to exit.</p></div>
+    </div>
+
+    <!-- 13. Pull-to-refresh -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <!-- PTR spinner peeking from the top -->
+          <div style="display:flex;justify-content:center;margin:-2px 0 6px">
+            <div style="width:34px;height:34px;border-radius:50%;background:var(--slate800);border:1px solid var(--slate700);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.35)"><span style="color:#818cf8;font-size:16px;display:inline-block;transform:rotate(200deg)">↻</span></div>
+          </div>
+          <div class="dnav" style="opacity:.55">
+            <div class="lft"><div class="mk"><img src="/images/logo-white.png"></div><span style="color:#fff;font-weight:900;font-size:13px">מדרגות</span></div>
+            <div class="icons"><span class="bell">🔔<span class="bdg">3</span></span><span class="avatar">OG</span></div>
+          </div>
+          <div class="body" style="opacity:.55">
+            <div class="dstat">
+              <div class="s"><div class="v">10,283</div><div class="l" dir="rtl">ק"מ סה"כ</div></div>
+              <div class="s"><div class="v">42</div><div class="l" dir="rtl">אימונים החודש</div></div>
+            </div>
+            <div class="dcard"><div class="h" dir="rtl">האימון של היום</div><div class="r" dir="rtl">ריצת אינטרוולים · 8 ק"מ · 18:00</div></div>
+          </div>
+          <div style="text-align:center;color:#64748b;font-size:11px;padding:6px" dir="rtl">↓ משכו למטה לרענון</div>
+        </div>
+      </div></div>
+      <div class="cap">13 · Pull-to-refresh <span class="tag live">LIVE</span><p>Native-style: pull down from the top → branded spinner follows your finger → release to refresh. Works on every screen.</p></div>
+    </div>
+
+    <!-- ==================== SECTION 5 ==================== -->
+    <div style="flex-basis:100%;width:100%;margin:8px 0 4px;padding-top:18px;border-top:2px solid #cbd5e1">
+      <h2 style="font-size:19px;font-weight:900;color:#0f172a">5 · Attendance &amp; Feedback (Admin) <span style="font-size:11px;font-weight:800;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:7px;vertical-align:middle;margin-inline-start:6px">LIVE</span></h2>
+      <p style="font-size:13px;color:#64748b;max-width:640px;margin:6px 0 0;line-height:1.55">Who was in which practice — a month calendar (heat-colored by turnout, tap a day to drill in), the day roster grouped by דבוקה with non-responders, and the coach workout-feedback review (pain → hardest → wants-feedback, with RPE/Feel).</p>
+    </div>
+
+    <!-- 14. Practice attendance — CALENDAR -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t" dir="rtl">נוכחות באימון</div></div>
+          <div class="body" dir="rtl">
+            <div style="text-align:center;margin-bottom:10px"><div style="color:#fff;font-size:15px;font-weight:800">אוגוסט 2026</div><div style="color:#64748b;font-size:10px">128 הגעות החודש</div></div>
+            <!-- weekday header: RTL, Sunday on right -->
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;font-size:9px;font-weight:800;text-align:center">
+              <span style="color:#64748b">א</span><span style="color:#64748b">ב</span><span style="color:#818cf8">ג</span><span style="color:#64748b">ד</span><span style="color:#64748b">ה</span><span style="color:#818cf8">ו</span><span style="color:#64748b">ש</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;text-align:center">
+              <!-- row: 1..7 (RTL fills right→left) -->
+              <span style="padding:6px 0;color:#475569">2</span>
+              <span style="padding:6px 0;color:#475569">1</span>
+              <span></span><span></span><span></span><span></span><span></span>
+              <!-- 3..9 -->
+              <span style="padding:5px 0;color:#fff;border:1px solid #4338ff;border-radius:8px">9</span>
+              <span style="padding:5px 0;color:#475569">8</span>
+              <span style="padding:5px 0;color:#475569">7</span>
+              <span style="padding:5px 0;color:#fff;background:rgba(34,197,94,.32);border-radius:8px">6<br><b style="color:#22c55e;font-size:9px">18</b></span>
+              <span style="padding:5px 0;color:#475569">5</span>
+              <span style="padding:5px 0;color:#475569">4</span>
+              <span style="padding:5px 0;color:#fff;background:rgba(34,197,94,.20);border-radius:8px">3<br><b style="color:#22c55e;font-size:9px">11</b></span>
+              <!-- 10..16 -->
+              <span style="padding:5px 0;color:#475569">16</span>
+              <span style="padding:5px 0;color:#475569">15</span>
+              <span style="padding:5px 0;color:#fff;background:rgba(34,197,94,.32);border-radius:8px">13<br><b style="color:#22c55e;font-size:9px">21</b></span>
+              <span style="padding:5px 0;color:#475569">12</span>
+              <span style="padding:5px 0;color:#475569">11</span>
+              <span style="padding:5px 0;color:#475569">10</span>
+              <span style="padding:5px 0;color:#fff;background:rgba(234,179,8,.20);border-radius:8px">10<br><b style="color:#eab308;font-size:9px">7</b></span>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;font-size:9px;color:#64748b;flex-wrap:wrap">
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:rgba(34,197,94,.32)"></span>15+</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:rgba(34,197,94,.20)"></span>8+</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:rgba(234,179,8,.20)"></span>1+</span>
+              <span>· המספר = כמה הגיעו</span>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">14 · Attendance calendar <span class="tag live">LIVE</span><p>Admin: who was in which practice, month at a glance. Heat-colored by turnout; tap any day to drill into the roster.</p></div>
+    </div>
+
+    <!-- 15. Practice attendance — DAY roster by דבוקה -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t" dir="rtl">נוכחות · יום שלישי</div></div>
+          <div class="body" dir="rtl">
+            <!-- counts strip -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;text-align:center">
+              <div style="border:1px solid #4338ff;background:rgba(67,56,255,.15);border-radius:10px;padding:8px"><div style="color:#fff;font-size:18px;font-weight:900">20</div><div style="color:#64748b;font-size:9px">סה״כ</div></div>
+              <div style="border:1px solid var(--slate700);border-radius:10px;padding:8px"><div style="color:#22c55e;font-size:18px;font-weight:900">14</div><div style="color:#64748b;font-size:9px">מגיעים</div></div>
+              <div style="border:1px solid var(--slate700);border-radius:10px;padding:8px"><div style="color:#94a3b8;font-size:18px;font-weight:900">4</div><div style="color:#64748b;font-size:9px">לא ענו</div></div>
+              <div style="border:1px solid var(--slate700);border-radius:10px;padding:8px"><div style="color:#f87171;font-size:18px;font-weight:900">2</div><div style="color:#64748b;font-size:9px">לא מגיעים</div></div>
+            </div>
+            <!-- group buckets -->
+            <div style="border:1px solid var(--slate700);background:var(--slate800);border-radius:12px;margin-bottom:8px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid var(--slate700)"><span style="width:9px;height:9px;border-radius:50%;background:#22c55e"></span><span style="color:#fff;font-size:12px;font-weight:800">דבוקה 1</span><span style="margin-inline-start:auto;color:#22c55e;font-size:11px;font-weight:800">6</span></div>
+              <div style="padding:8px 12px;color:var(--slate400);font-size:11px">רועי · עידו · דני · יוסי · רן · טל</div>
+            </div>
+            <div style="border:1px solid var(--slate700);background:var(--slate800);border-radius:12px;margin-bottom:8px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid var(--slate700)"><span style="width:9px;height:9px;border-radius:50%;background:#eab308"></span><span style="color:#fff;font-size:12px;font-weight:800">דבוקה 2</span><span style="margin-inline-start:auto;color:#22c55e;font-size:11px;font-weight:800">5</span></div>
+              <div style="padding:8px 12px;color:var(--slate400);font-size:11px">שחר · איתי · גיא · אלי · בן</div>
+            </div>
+            <div style="border:1px solid var(--slate700);background:rgba(30,41,59,.5);border-radius:12px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid var(--slate700)"><span style="width:9px;height:9px;border-radius:50%;background:#64748b"></span><span style="color:#cbd5e1;font-size:12px;font-weight:800">לא ענו</span><span style="margin-inline-start:auto;color:#94a3b8;font-size:11px;font-weight:800">4</span></div>
+              <div style="padding:8px 12px;color:#64748b;font-size:11px">שלו · אמית · יאיר · תרקין</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">15 · Attendance day roster <span class="tag live">LIVE</span><p>One practice, grouped by דבוקה, with the non-responders to chase. Tappable counts filter the list.</p></div>
+    </div>
+
+    <!-- 16. Workout feedback — coach view -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t" dir="rtl">משוב אימונים</div></div>
+          <div class="body" dir="rtl">
+            <!-- filter pills -->
+            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+              <span style="background:rgba(67,56,255,.25);color:#c7d2fe;border:1px solid rgba(67,56,255,.5);border-radius:99px;padding:5px 11px;font-size:11px;font-weight:800">הכל 12</span>
+              <span style="background:rgba(245,158,11,.25);color:#fcd34d;border:1px solid rgba(245,158,11,.5);border-radius:99px;padding:5px 11px;font-size:11px;font-weight:800">⚠️ כאב 2</span>
+              <span style="background:var(--slate800);color:var(--slate400);border:1px solid var(--slate700);border-radius:99px;padding:5px 11px;font-size:11px;font-weight:800">ביקשו משוב 3</span>
+            </div>
+            <!-- pain-flagged card (top priority) -->
+            <div style="border:1px solid rgba(245,158,11,.4);background:var(--slate800);border-radius:12px;padding:12px;margin-bottom:9px">
+              <div style="display:flex;align-items:center;gap:9px">
+                <span class="avatar" style="width:32px;height:32px">רר</span>
+                <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px"><span style="color:#fff;font-size:13px;font-weight:800">רועי רוט</span><span style="font-size:9px;font-weight:800;color:#22c55e;background:rgba(34,197,94,.15);padding:1px 6px;border-radius:4px">דבוקה 1</span></div><div style="color:var(--slate400);font-size:11px">ריצת טמפו · 12.0 ק"מ · 2 באוג׳</div></div>
+                <span style="font-size:20px">😕</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span style="color:var(--slate400);font-size:10px;width:52px">קושי 9/10</span><div style="flex:1;height:7px;border-radius:99px;background:var(--slate700);overflow:hidden"><div style="width:90%;height:100%;background:#e53935;border-radius:99px"></div></div></div>
+              <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap"><span style="background:rgba(245,158,11,.2);color:#fcd34d;border:1px solid rgba(245,158,11,.4);border-radius:8px;padding:3px 8px;font-size:10px;font-weight:800">⚠️ כאב: ברך ימין</span><span style="background:rgba(56,189,248,.15);color:#7dd3fc;border:1px solid rgba(56,189,248,.3);border-radius:8px;padding:3px 8px;font-size:10px;font-weight:800">🔔 ביקש/ה משוב</span></div>
+              <div style="background:var(--slate900);border-radius:9px;padding:8px 10px;margin-top:9px;color:#cbd5e1;font-size:11px">💬 היה קשה מאוד, הברך הציקה בסוף</div>
+            </div>
+            <!-- normal card -->
+            <div style="border:1px solid var(--slate700);background:var(--slate800);border-radius:12px;padding:12px">
+              <div style="display:flex;align-items:center;gap:9px">
+                <span class="avatar" style="width:32px;height:32px">עב</span>
+                <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px"><span style="color:#fff;font-size:13px;font-weight:800">עידו בר-און</span><span style="font-size:9px;font-weight:800;color:#eab308;background:rgba(234,179,8,.15);padding:1px 6px;border-radius:4px">דבוקה 2</span></div><div style="color:var(--slate400);font-size:11px">ריצה קלה · 8.0 ק"מ · 1 באוג׳</div></div>
+                <span style="font-size:20px">🙂</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span style="color:var(--slate400);font-size:10px;width:52px">קושי 6/10</span><div style="flex:1;height:7px;border-radius:99px;background:var(--slate700);overflow:hidden"><div style="width:60%;height:100%;background:#ffb300;border-radius:99px"></div></div></div>
+              <div style="background:var(--slate900);border-radius:9px;padding:8px 10px;margin-top:9px;color:#cbd5e1;font-size:11px">💬 אימון טוב, הרגשתי חזק</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">16 · Workout feedback (coach) <span class="tag live">LIVE</span><p>Admin sees all post-workout feedback, sorted pain → hardest → wants-feedback. Feel emoji + color-graded RPE bar.</p></div>
+    </div>
+
+    <!-- 16b. Coach Pulse -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="dnav">
+            <div class="lft"><div class="mk"><img src="/images/logo-white.png"></div><span style="color:#fff;font-weight:900;font-size:13px">מדרגות</span></div>
+            <div class="icons"><span class="bell">🔔<span class="bdg">2</span></span><span class="avatar">C</span></div>
+          </div>
+          <div class="body" dir="rtl">
+            <div style="background:var(--slate800);border:1px solid var(--slate700);border-radius:16px;padding:16px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="color:var(--indigo)">💓</span><span style="color:#fff;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;flex:1">דופק המאמן</span><span style="color:#64748b;font-size:10px">14 ימים</span></div>
+              <!-- attention -->
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><span style="color:#fbbf24">⚠️</span><span style="color:#fcd34d;font-size:11px;font-weight:800">דורש תשומת לב</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+                <div style="display:flex;align-items:center;gap:10px;background:var(--slate900);border-radius:10px;padding:9px"><span class="avatar" style="width:30px;height:30px">רר</span><div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:700">רועי רוט <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;margin-inline-start:4px"></span></div><div style="color:#fbbf24;font-size:11px">כאב ×2 · ברך ימין</div></div></div>
+                <div style="display:flex;align-items:center;gap:10px;background:var(--slate900);border-radius:10px;padding:9px"><span class="avatar" style="width:30px;height:30px">עב</span><div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:700">עידו בר-און</div><div style="color:#fbbf24;font-size:11px">ביקש/ה משוב</div></div><span style="color:#38bdf8">🔔</span></div>
+              </div>
+              <!-- celebrate -->
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><span>🎉</span><span style="color:#6ee7b7;font-size:11px;font-weight:800">לחגוג</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;align-items:center;gap:10px;background:var(--slate900);border-radius:10px;padding:9px"><span class="avatar" style="width:30px;height:30px">שב</span><div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:700">Shalev Bahalul</div><div style="color:#6ee7b7;font-size:11px">שיא חדש · 5K</div></div><span style="color:#fff;font-size:14px;font-weight:900">27:17</span></div>
+                <div style="display:flex;align-items:center;gap:10px;background:var(--slate900);border-radius:10px;padding:9px"><span class="avatar" style="width:30px;height:30px">אפ</span><div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:700">אלדר פרדו</div><div style="color:#6ee7b7;font-size:11px">שיא חדש · 10K</div></div><span style="color:#fff;font-size:14px;font-weight:900">42:03</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">16b · Coach Pulse <span class="tag live">LIVE</span><p>Coach dashboard radar: who needs attention (pain, wants-feedback, very-hard) and who to celebrate (fresh PRs) — the "coached club" moat, from existing data.</p></div>
+    </div>
+
+    <!-- ==================== SECTION 6 ==================== -->
+    <div style="flex-basis:100%;width:100%;margin:8px 0 4px;padding-top:18px;border-top:2px solid #cbd5e1">
+      <h2 style="font-size:19px;font-weight:900;color:#0f172a">6 · iOS-Native Redesign <span style="font-size:11px;font-weight:800;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:7px;vertical-align:middle;margin-inline-start:6px">LIVE</span></h2>
+      <p style="font-size:13px;color:#64748b;max-width:640px;margin:6px 0 0;line-height:1.55">It feels like a real iOS app now, not a website in a shell — all shipped: <b style="color:#166534">bottom tab bar, unified brand indigo, a consistent design system, segmented controls, native bottom sheets, and inset-grouped lists.</b></p>
+    </div>
+
+    <!-- 17. Bottom tab bar on the REAL current dashboard (as shipped) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="dnav">
+            <div class="lft"><div class="mk"><img src="/images/logo-white.png"></div><span style="color:#fff;font-weight:900;font-size:13px">מדרגות</span></div>
+            <div class="icons"><span class="bell">🔔<span class="bdg">3</span></span><span class="avatar">OG</span></div>
+          </div>
+          <div class="body" dir="rtl" style="padding-bottom:74px">
+            <div class="dcard"><div class="h"><span dir="rtl">המרוץ הקרוב 🏆</span></div><div class="r" dir="rtl">מרתון ולנסיה · בעוד 124 ימים</div></div>
+            <div class="dstat" style="margin-top:12px">
+              <div class="s"><div class="v">117–135</div><div class="l" dir="rtl">ק"מ שבועי</div></div>
+              <div class="s"><div class="v">7/7</div><div class="l" dir="rtl">ימי אימון</div></div>
+            </div>
+            <div class="dcard" style="margin-top:12px"><div class="h" dir="rtl">האימון של היום</div><div class="r" dir="rtl">ריצת אינטרוולים · 8 ק"מ · 18:00</div></div>
+          </div>
+          <!-- BOTTOM TAB BAR — matches the shipped component (brand indigo active) -->
+          <div style="position:absolute;bottom:0;left:0;right:0;height:64px;background:rgba(15,23,42,.9);backdrop-filter:blur(20px);border-top:1px solid rgba(51,65,85,.6);display:flex;padding-top:8px">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#818cf8"><span style="font-size:19px">📈</span><span style="font-size:10px;font-weight:700">בית</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#64748b"><span style="font-size:19px">📋</span><span style="font-size:10px">תוכנית</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#64748b"><span style="font-size:19px">🏟️</span><span style="font-size:10px">נוכחות</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#64748b"><span style="font-size:19px">💬</span><span style="font-size:10px">משוב</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#64748b"><span style="font-size:19px">⋯</span><span style="font-size:10px">עוד</span></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">17 · Bottom tab bar <span class="tag live">LIVE</span><p>Shipped: the ☰ hamburger is replaced by a bottom tab bar (Home · Program · Attendance · Feedback · More) with a native "More" sheet — shown here on the current dashboard. The full-screen redesign (large title + inset cards) is panel 18, still next.</p></div>
+    </div>
+
+    <!-- 18. iOS grouped Settings (inset list: rows, chevrons, toggles) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark" style="background:#000">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div style="padding:6px 20px 12px"><span style="font-size:30px;font-weight:800;color:#fff">הגדרות</span></div>
+          <div class="body" dir="rtl" style="padding:0 16px">
+            <div style="background:#1c1c1e;border-radius:12px;overflow:hidden;margin-bottom:18px">
+              <div style="padding:12px 15px;display:flex;align-items:center;gap:12px;border-bottom:.5px solid #38383a"><span style="width:29px;height:29px;border-radius:7px;background:#f59e0b;display:flex;align-items:center;justify-content:center">🚧</span><span style="flex:1;color:#fff;font-size:15px">מצב תחזוקה</span><div style="width:51px;height:31px;border-radius:99px;background:#34c759;position:relative"><span style="position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff"></span></div></div>
+              <div style="padding:12px 15px;display:flex;align-items:center;gap:12px"><span style="width:29px;height:29px;border-radius:7px;background:#3b82f6;display:flex;align-items:center;justify-content:center">🔔</span><span style="flex:1;color:#fff;font-size:15px">תזכורות אימון</span><span style="color:#8e8e93;font-size:15px">א,ה ›</span></div>
+            </div>
+            <p style="font-size:12px;font-weight:600;color:#8e8e93;margin:0 4px 6px">ניהול</p>
+            <div style="background:#1c1c1e;border-radius:12px;overflow:hidden">
+              <div style="padding:12px 15px;display:flex;align-items:center;gap:12px;border-bottom:.5px solid #38383a"><span style="width:29px;height:29px;border-radius:7px;background:#8b5cf6;display:flex;align-items:center;justify-content:center">👥</span><span style="flex:1;color:#fff;font-size:15px">ניהול משתמשים</span><span style="color:#8e8e93;font-size:18px">›</span></div>
+              <div style="padding:12px 15px;display:flex;align-items:center;gap:12px;border-bottom:.5px solid #38383a"><span style="width:29px;height:29px;border-radius:7px;background:#06b6d4;display:flex;align-items:center;justify-content:center">🗂️</span><span style="flex:1;color:#fff;font-size:15px">ניהול טאבים</span><span style="color:#8e8e93;font-size:18px">›</span></div>
+              <div style="padding:12px 15px;display:flex;align-items:center;gap:12px"><span style="width:29px;height:29px;border-radius:7px;background:#ec4899;display:flex;align-items:center;justify-content:center">✉️</span><span style="flex:1;color:#fff;font-size:15px">מרכז התראות</span><span style="color:#8e8e93;font-size:18px">›</span></div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">18 · Inset-grouped lists <span class="tag live">LIVE</span><p>The iOS Settings look: rounded grouped sections, colored glyph tiles, chevrons + section headers. Shipped in the account menu (reusable primitive) — rolling across Settings & Profile next.</p></div>
+    </div>
+
+    <!-- 19. iOS segmented control + native sheet (Program) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark" style="background:#000">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div style="padding:6px 20px 10px"><span style="font-size:30px;font-weight:800;color:#fff">תוכנית</span></div>
+          <div class="body" dir="rtl" style="padding:0 16px">
+            <!-- iOS segmented control -->
+            <div style="background:#1c1c1e;border-radius:9px;padding:2px;display:flex;margin-bottom:16px">
+              <span style="flex:1;text-align:center;padding:7px;border-radius:7px;background:#636366;color:#fff;font-size:13px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.3)">אימונים</span>
+              <span style="flex:1;text-align:center;padding:7px;color:#8e8e93;font-size:13px;font-weight:500">תזונה</span>
+              <span style="flex:1;text-align:center;padding:7px;color:#8e8e93;font-size:13px;font-weight:500">חדר כושר</span>
+            </div>
+            <!-- week chip -->
+            <div style="display:flex;align-items:center;justify-content:space-between;background:#1c1c1e;border-radius:12px;padding:12px 15px;margin-bottom:12px"><div><div style="color:#fff;font-size:15px;font-weight:600">שבוע 10</div><div style="color:#8e8e93;font-size:12px">26.07 – 01.08</div></div><span style="background:#34c75922;color:#34c759;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px">נוכחי</span></div>
+            <!-- plan status cards (native) -->
+            <div style="background:#34c75915;border:.5px solid #34c75955;border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:11px;margin-bottom:8px"><span style="font-size:18px">🏃</span><div style="flex:1"><div style="color:#fff;font-size:15px;font-weight:600">תוכנית אימונים</div><div style="color:#34c759;font-size:12px">✅ הועלתה</div></div><span style="color:#3b82f6;font-size:14px">פתח ›</span></div>
+            <div style="background:#ff3b3015;border:.5px solid #ff3b3055;border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:11px"><span style="font-size:18px">🥗</span><div style="flex:1"><div style="color:#fff;font-size:15px;font-weight:600">תוכנית תזונה</div><div style="color:#ff453a;font-size:12px">❌ חסרה</div></div><span style="color:#3b82f6;font-size:14px">העלה ›</span></div>
+          </div>
+          <div style="position:absolute;bottom:0;left:0;right:0;height:78px;background:rgba(28,28,30,.92);backdrop-filter:blur(20px);border-top:.5px solid #38383a;display:flex;padding:8px 0 22px">
+            <div style="flex:1;text-align:center;color:#8e8e93;font-size:10px">🏠<br>בית</div>
+            <div style="flex:1;text-align:center;color:#3b82f6;font-size:10px;font-weight:600">📋<br>תוכנית</div>
+            <div style="flex:1;text-align:center;color:#8e8e93;font-size:10px">🏟️<br>נוכחות</div>
+            <div style="flex:1;text-align:center;color:#8e8e93;font-size:10px">💬<br>משוב</div>
+            <div style="flex:1;text-align:center;color:#8e8e93;font-size:10px">⋯<br>עוד</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">19 · Segmented control <span class="tag live">LIVE</span><p>The Training/Nutrition/Gym toggle is now a real iOS segmented control (also settings tabs + notification pickers); plan-status as native cards.</p></div>
+    </div>
+
+    <!-- 20. Native bottom sheet — the shipped view-as scenario picker -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <!-- dimmed content behind -->
+          <div class="statusbar d" style="opacity:.35"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div style="opacity:.35;padding:0 16px" dir="rtl"><div style="height:44px"></div><div class="dcard"><div class="h" dir="rtl">לוח בקרה</div></div></div>
+          <!-- the SHEET (matches the real vaul Sheet: slate, grabber, brand accents) -->
+          <div style="position:absolute;bottom:0;left:0;right:0;background:var(--slate800);border-radius:16px 16px 0 0;border-top:1px solid var(--slate700);padding:8px 0 24px;box-shadow:0 -10px 40px rgba(0,0,0,.5)" dir="rtl">
+            <div style="width:40px;height:6px;border-radius:99px;background:var(--slate700);margin:0 auto 12px"></div>
+            <h3 style="color:#fff;font-size:16px;font-weight:800;text-align:center;margin-bottom:4px">תצוגה כמשתמש</h3>
+            <p style="color:var(--slate400);font-size:12px;text-align:center;margin-bottom:14px">נשארים מחוברים כ‑Ofer — בוחרים איזו תצוגה לראות</p>
+            <div style="padding:0 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div style="background:var(--slate900);border:1px solid var(--slate700);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">🛡️</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">מנהל</div></div>
+              <div style="background:var(--slate900);border:1px solid var(--slate700);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">📣</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">מאמן</div></div>
+              <div style="background:rgba(67,56,255,.15);border:1px solid rgba(67,56,255,.5);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">👟</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">רץ</div></div>
+              <div style="background:var(--slate900);border:1px solid var(--slate700);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">👓</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">צופה</div></div>
+              <div style="grid-column:1/3;background:var(--slate900);border:1px solid var(--slate700);border-radius:12px;padding:14px;text-align:center"><div style="font-size:22px">🚧</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:5px">מסך תחזוקה</div></div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">20 · Bottom sheets <span class="tag live">LIVE</span><p>Modals slide up as native sheets with a grabber handle — view-as picker (shown), upload dialog, confirm/delete, workout detail. Swipe-down to dismiss, focus-trapped. Built on vaul.</p></div>
+    </div>
+
+    <!-- ==================== SECTION 7 ==================== -->
+    <div style="flex-basis:100%;width:100%;margin:8px 0 4px;padding-top:18px;border-top:2px solid #cbd5e1">
+      <h2 style="font-size:19px;font-weight:900;color:#0f172a">7 · Signature Features <span style="font-size:11px;font-weight:800;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:7px;vertical-align:middle;margin-inline-start:6px">LIVE</span></h2>
+      <p style="font-size:13px;color:#64748b;max-width:640px;margin:6px 0 0;line-height:1.55">What makes members love it — all auto-computed from the runs they already sync (Garmin/Strava), no manual entry: personal records, a week-streak + recap, and the דבוקה squad rivalry.</p>
+    </div>
+
+    <!-- 21. Personal Records -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t" dir="rtl">פרופיל</div></div>
+          <div class="body" dir="rtl">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="color:var(--indigo)">⚡</span><span style="color:#fff;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em">שיאים אישיים</span></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:11px;background:var(--slate900);border-radius:12px;padding:10px 12px"><span style="width:44px;text-align:center;font-size:11px;font-weight:900;color:#c7d2fe;background:rgba(67,56,255,.2);border-radius:8px;padding:6px 0">5K</span><div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:700">5K</div><div style="color:var(--slate400);font-size:11px">3 ביוני · Running</div></div><span style="color:#fff;font-size:17px;font-weight:900">24:14</span></div>
+              <div style="display:flex;align-items:center;gap:11px;background:var(--slate900);border-radius:12px;padding:10px 12px"><span style="width:44px;text-align:center;font-size:11px;font-weight:900;color:#c7d2fe;background:rgba(67,56,255,.2);border-radius:8px;padding:6px 0">10K</span><div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:700">10K</div><div style="color:var(--slate400);font-size:11px">30 במאי · Running</div></div><span style="color:#fff;font-size:17px;font-weight:900">34:11</span></div>
+              <div style="display:flex;align-items:center;gap:11px;background:var(--slate900);border-radius:12px;padding:10px 12px"><span style="width:44px;text-align:center;font-size:11px;font-weight:900;color:#c7d2fe;background:rgba(67,56,255,.2);border-radius:8px;padding:6px 0">HM</span><div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:700">חצי מרתון</div><div style="color:var(--slate400);font-size:11px">22 במאי · Running</div></div><span style="color:#fff;font-size:17px;font-weight:900">1:26:18</span></div>
+              <div style="display:flex;align-items:center;gap:11px;background:var(--slate900);border-radius:12px;padding:10px 12px"><span style="width:44px;text-align:center;font-size:11px;font-weight:900;color:#c7d2fe;background:rgba(67,56,255,.2);border-radius:8px;padding:6px 0">FM</span><div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:700">מרתון</div><div style="color:var(--slate400);font-size:11px">24 באפר׳ · Running</div></div><span style="color:#fff;font-size:17px;font-weight:900">2:47:10</span></div>
+              <div style="display:flex;align-items:center;gap:11px;background:var(--slate900);border-radius:12px;padding:10px 12px"><span style="width:44px;text-align:center;font-size:11px;font-weight:900;color:#6ee7b7;background:rgba(34,197,94,.2);border-radius:8px;padding:6px 0">MAX</span><div style="flex:1"><div style="color:#fff;font-size:13px;font-weight:700">הריצה הארוכה ביותר</div><div style="color:var(--slate400);font-size:11px">24 באפר׳ · Running</div></div><span style="color:#fff;font-size:17px;font-weight:900">42.2 ק״מ</span></div>
+            </div>
+            <p style="color:#64748b;font-size:10px;margin-top:12px">מחושב אוטומטית מהריצות שלך (גרמין / סטרבה)</p>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">21 · Personal Records <span class="tag live">LIVE</span><p>Fastest 5K/10K/Half/Marathon + longest run, auto-detected from full run history. Zero manual entry.</p></div>
+    </div>
+
+    <!-- 22. Momentum (streak + recap) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="dnav">
+            <div class="lft"><div class="mk"><img src="/images/logo-white.png"></div><span style="color:#fff;font-weight:900;font-size:13px">מדרגות</span></div>
+            <div class="icons"><span class="bell">🔔<span class="bdg">3</span></span><span class="avatar">רר</span></div>
+          </div>
+          <div class="body" dir="rtl">
+            <!-- momentum card -->
+            <div style="background:var(--slate800);border:1px solid var(--slate700);border-radius:16px;padding:16px;display:flex;align-items:center;gap:16px;margin-bottom:12px">
+              <div style="text-align:center;width:70px">
+                <div style="display:flex;align-items:center;justify-content:center;gap:3px"><span style="font-size:22px">🔥</span><span style="color:#fff;font-size:30px;font-weight:900">18</span></div>
+                <div style="color:var(--slate400);font-size:10px;margin-top:2px">שבועות רצף</div>
+              </div>
+              <div style="width:1px;align-self:stretch;background:var(--slate700)"></div>
+              <div style="flex:1">
+                <div style="display:flex;align-items:baseline;gap:6px"><span style="color:#fff;font-size:24px;font-weight:900">20</span><span style="color:var(--slate400);font-size:13px">ק״מ השבוע</span></div>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:4px;font-size:11px"><span style="color:var(--slate400)">1 ריצות</span><span style="color:#4ade80;font-weight:700">↗ +2.3 מהשבוע שעבר</span></div>
+              </div>
+            </div>
+            <div class="dcard"><div class="h" dir="rtl">האימון של היום</div><div class="r" dir="rtl">ריצת אינטרוולים · 8 ק"מ · 18:00</div></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">22 · Momentum: streak + recap <span class="tag live">LIVE</span><p>A week-streak flame and "this week vs last" recap on the dashboard — retention at a glance, from existing runs.</p></div>
+    </div>
+
+    <!-- 23. דבוקה Squad Battle -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="app-screen dark">
+          <div class="statusbar d"><span>9:41</span><span>▮▮ ▮</span></div>
+          <div class="appnav d"><div class="mk"><img src="/images/logo-white.png"></div><div class="t" dir="rtl">לוח בקרה</div></div>
+          <div class="body" dir="rtl">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="color:var(--indigo)">⚔️</span><span style="color:#fff;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;flex:1">מלחמת הדבוקות</span><span style="color:#64748b;font-size:10px">החודש</span></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <!-- #1 Group 3 (orange) -->
+              <div style="display:flex;align-items:center;gap:10px;background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.2);border-radius:12px;padding:11px">
+                <span style="width:22px;text-align:center">🥇</span>
+                <span style="display:flex;align-items:center;gap:6px;flex:1;min-width:0"><span style="width:9px;height:9px;border-radius:50%;background:#f97316"></span><span style="color:#fff;font-size:13px;font-weight:800">Group 3</span><span style="color:#64748b;font-size:10px">· 4 חברים</span></span>
+                <span style="text-align:center;width:38px"><b style="color:#fff;font-size:13px">21.6</b><br><span style="color:#64748b;font-size:8px">ק״מ ממוצע</span></span>
+                <span style="text-align:center;width:30px"><b style="color:#fff;font-size:13px">75%</b><br><span style="color:#64748b;font-size:8px">רצו השבוע</span></span>
+              </div>
+              <!-- #2 Group 2 (yellow) -->
+              <div style="display:flex;align-items:center;gap:10px;background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.2);border-radius:12px;padding:11px">
+                <span style="width:22px;text-align:center">🥈</span>
+                <span style="display:flex;align-items:center;gap:6px;flex:1;min-width:0"><span style="width:9px;height:9px;border-radius:50%;background:#eab308"></span><span style="color:#fff;font-size:13px;font-weight:800">Group 2</span><span style="color:#64748b;font-size:10px">· 5 חברים</span></span>
+                <span style="text-align:center;width:38px"><b style="color:#fff;font-size:13px">35.6</b><br><span style="color:#64748b;font-size:8px">ק״מ ממוצע</span></span>
+                <span style="text-align:center;width:30px"><b style="color:#fff;font-size:13px">80%</b><br><span style="color:#64748b;font-size:8px">רצו השבוע</span></span>
+              </div>
+              <!-- #3 Group 1 (green) -->
+              <div style="display:flex;align-items:center;gap:10px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:12px;padding:11px">
+                <span style="width:22px;text-align:center">🥉</span>
+                <span style="display:flex;align-items:center;gap:6px;flex:1;min-width:0"><span style="width:9px;height:9px;border-radius:50%;background:#22c55e"></span><span style="color:#fff;font-size:13px;font-weight:800">Group 1</span><span style="color:#64748b;font-size:10px">· 10 חברים</span></span>
+                <span style="text-align:center;width:38px"><b style="color:#fff;font-size:13px">34</b><br><span style="color:#64748b;font-size:8px">ק״מ ממוצע</span></span>
+                <span style="text-align:center;width:30px"><b style="color:#fff;font-size:13px">50%</b><br><span style="color:#64748b;font-size:8px">רצו השבוע</span></span>
+              </div>
+            </div>
+            <p style="color:#64748b;font-size:10px;margin-top:12px">דירוג לפי ממוצע לחבר — גודל הדבוקה לא משפיע.</p>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">23 · דבוקה Squad Battle <span class="tag live">LIVE</span><p>Squad-vs-squad standings (volume + attendance + consistency), per-member so size doesn't matter. The club's signature — no other app has your squads.</p></div>
+    </div>
+
+    <!-- ==================== SECTION 8 ==================== -->
+    <div style="flex-basis:100%;width:100%;margin:8px 0 4px;padding-top:18px;border-top:2px solid #cbd5e1">
+      <h2 style="font-size:19px;font-weight:900;color:#0f172a">8 · Latest Batch <span style="font-size:11px;font-weight:800;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:7px;vertical-align:middle;margin-inline-start:6px">LIVE</span></h2>
+      <p style="font-size:13px;color:#64748b;max-width:640px;margin:6px 0 0;line-height:1.55">The newest features — real screenshots from production. Editable workout time, a "biggest week" record, a coach-editable video library, planned-vs-actual pace, a coach↔athlete reply loop, automatic morning-workout detection, and weekly-volume trends for runners &amp; the whole team.</p>
+    </div>
+
+    <!-- 24. Editable workout time -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen"><div class="shotfill"><img src="/mockup/workout-time.png" alt="Editable workout time"></div></div></div>
+      <div class="cap">24 · Editable workout time <span class="tag live">LIVE</span><p>Coach sets the team workout's start time; it drives when the "coming today?" RSVP stops showing.</p></div>
+    </div>
+
+    <!-- 25. Biggest week -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen"><div class="shotfill"><img src="/mockup/momentum-full.png" alt="Biggest week"></div></div></div>
+      <div class="cap">25 · "Biggest week" record <span class="tag live">LIVE</span><p>Peak weekly volume on the Momentum card, from full run history — celebrates a new record when this week tops it.</p></div>
+    </div>
+
+    <!-- 26. Practice video library -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen"><div class="shotfill"><img src="/mockup/practice-grid.png" alt="Practice video library"></div></div></div>
+      <div class="cap">26 · Practice video library <span class="tag live">LIVE</span><p>Real Google-Drive thumbnails for published drills, a "coming soon" chip for placeholders. Coach-editable, no deploy.</p></div>
+    </div>
+
+    <!-- 27. Practice video editor -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen"><div class="shotfill"><img src="/mockup/practice-editor.png" alt="Practice video editor"></div></div></div>
+      <div class="cap">27 · Video editor (coach) <span class="tag live">LIVE</span><p>Swap in live Drive file IDs, edit title/category/duration/description, add or remove drills — saved server-side.</p></div>
+    </div>
+
+    <!-- 28. Planned-vs-actual pace -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen"><div class="shotfill"><img src="/mockup/pace-overlay.png" alt="Planned vs actual pace"></div></div></div>
+      <div class="cap">28 · Planned-vs-actual pace <span class="tag live">LIVE</span><p>Green dashed planned pace overlaid on the actual per-km line, aligned by real split distances so intervals line up.</p></div>
+    </div>
+
+    <!-- 29. Coach ↔ athlete reply -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen"><div class="shotfill"><img src="/mockup/coach-reply.png" alt="Coach reply loop"></div></div></div>
+      <div class="cap">29 · Coach ↔ athlete reply <span class="tag live">LIVE</span><p>Coach replies to a workout's feedback; the athlete gets a push and sees "תשובת המאמן" with a "new" badge.</p></div>
+    </div>
+
+    <!-- 30. Morning workout detection (push) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="lock">
+          <div class="time">6:52</div>
+          <div class="date">יום שלישי, 4 באוגוסט</div>
+          <div class="toast">
+            <div class="tic" style="background:var(--indigo);display:flex;align-items:center;justify-content:center;font-size:20px">🏃</div>
+            <div class="tbody">
+              <div class="tt" dir="rtl"><span>אימון חדש זוהה</span><span class="ago">עכשיו</span></div>
+              <div class="tx" dir="rtl">מנתחים את הנתונים — נשתף עוד מידע בקרוב</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">30 · Morning workout detection <span class="tag live">LIVE</span><p>On team days from 06:30, the app pulls Garmin and — the moment a run lands — pushes this teaser. Once per activity.</p></div>
+    </div>
+
+    <!-- 31. Weekly volume trend (runner) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen"><div class="shotfill"><img src="/mockup/volume-history.png" alt="Weekly volume trend"></div></div></div>
+      <div class="cap">31 · Weekly volume trend <span class="tag live">LIVE</span><p>12-week km-per-week bar chart on the profile, from the durable snapshot table — with peak, average &amp; trend.</p></div>
+    </div>
+
+    <!-- 32. Team volume overview (coach) -->
+    <div class="item">
+      <div class="phone"><div class="island"></div><div class="screen"><div class="shotfill"><img src="/mockup/team-volume.png" alt="Team volume overview"></div></div></div>
+      <div class="cap">32 · Team volume overview <span class="tag live">LIVE</span><p>Every athlete's weekly-volume sparkline + trend, sorted by this week — spot who's ramping up or dropping off.</p></div>
+    </div>
+
+  </div>
+</body>
+</html>
