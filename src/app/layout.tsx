@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, Heebo } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
+import { Providers } from './providers';
 import { AppSplash } from '@/components/AppSplash';
 import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { ImpersonationBar } from '@/components/ImpersonationBar';
@@ -61,7 +62,7 @@ export default async function RootLayout({
     <html lang={locale} dir={dir}>
       <body className={`${heebo.variable} ${inter.variable} font-sans`}>
         <NextIntlClientProvider locale={locale} messages={messages} key={locale}>
-          {children}
+          <Providers>{children}</Providers>
         </NextIntlClientProvider>
         <AppSplash />
         <MaintenanceGate />

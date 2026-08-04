@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { AlertTriangle, PartyPopper, Bell, Activity, Loader2 } from 'lucide-react';
+import { AlertTriangle, PartyPopper, Bell, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { formatTime } from '@/lib/academy/benchmark';
+import { useApi } from '@/lib/api';
 
 interface Attn {
   athleteId: string; name: string; avatarUrl: string | null; squad: string | null; squadColor: string | null;
@@ -17,21 +17,13 @@ interface Celeb {
 // Coach Pulse — a coach-facing radar at the top of the coach dashboard: who needs
 // attention (pain / wants-feedback / very hard) and who to celebrate (fresh PRs),
 // from existing feedback + activity data. Staff-only; hidden when nothing to show.
+interface PulseData { attention?: Attn[]; celebrate?: Celeb[]; }
+
 export function CoachPulse() {
-  const [attention, setAttention] = useState<Attn[]>([]);
-  const [celebrate, setCelebrate] = useState<Celeb[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data } = useApi<PulseData>('/api/coach/pulse?days=14');
+  const attention = data?.attention || [];
+  const celebrate = data?.celebrate || [];
 
-  useEffect(() => {
-    const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    fetch('/api/coach/pulse?days=14', { headers: email ? { 'x-user-email': email } : {} })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { setAttention(d?.attention || []); setCelebrate(d?.celebrate || []); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return null;
   if (attention.length === 0 && celebrate.length === 0) return null;
 
   const initials = (n: string) => (n.split(' ').map((x) => x[0]).join('').toUpperCase().slice(0, 2)) || '?';

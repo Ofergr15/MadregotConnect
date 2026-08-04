@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useApi } from '@/lib/api';
 
 interface Week {
   weekStart: string;
@@ -22,22 +22,11 @@ interface Data {
 // until there's at least one week with a run, so it never shows an empty shell.
 // Athlete-scoped via the same auth as /prs and /summary.
 export function VolumeHistory({ athleteId, weeks = 12 }: { athleteId: string; weeks?: number }) {
-  const [data, setData] = useState<Data | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data } = useApi<Data>(
+    athleteId ? `/api/athletes/volume-history?athleteId=${encodeURIComponent(athleteId)}&weeks=${weeks}` : null,
+  );
 
-  useEffect(() => {
-    if (!athleteId) { setLoading(false); return; }
-    const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    fetch(`/api/athletes/volume-history?athleteId=${encodeURIComponent(athleteId)}&weeks=${weeks}`, {
-      headers: email ? { 'x-user-email': email } : {},
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [athleteId, weeks]);
-
-  if (loading || !data) return null;
+  if (!data) return null;
   const series = data.series || [];
   const ran = series.filter((w) => w.runs > 0);
   if (ran.length === 0) return null; // no volume yet → hide entirely

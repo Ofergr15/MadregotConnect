@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Zap } from 'lucide-react';
 import { formatTime } from '@/lib/academy/benchmark';
+import { useApi } from '@/lib/api';
 
 interface DistanceBest {
   key: string;
@@ -24,25 +24,17 @@ interface LongestRun {
 // full run history (Garmin + Strava). Zero manual entry. Styled to match the
 // sibling "Your Best" (ProfileBest) card. Hidden entirely if the athlete has no
 // qualifying efforts yet, so it never shows an empty shell.
-export function PersonalRecords({ athleteId }: { athleteId: string }) {
-  const [bests, setBests] = useState<DistanceBest[]>([]);
-  const [longest, setLongest] = useState<LongestRun | null>(null);
-  const [loading, setLoading] = useState(true);
+interface PrData { distanceBests?: DistanceBest[]; longestRun?: LongestRun | null; }
 
-  useEffect(() => {
-    if (!athleteId) { setLoading(false); return; }
-    const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    fetch(`/api/athletes/prs?athleteId=${encodeURIComponent(athleteId)}`, {
-      headers: email ? { 'x-user-email': email } : {},
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { setBests(d?.distanceBests || []); setLongest(d?.longestRun || null); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [athleteId]);
+export function PersonalRecords({ athleteId }: { athleteId: string }) {
+  const { data } = useApi<PrData>(
+    athleteId ? `/api/athletes/prs?athleteId=${encodeURIComponent(athleteId)}` : null,
+  );
+  const bests = data?.distanceBests || [];
+  const longest = data?.longestRun || null;
 
   const achieved = bests.filter((b) => b.seconds != null);
-  if (loading || (achieved.length === 0 && !longest)) return null;
+  if (achieved.length === 0 && !longest) return null;
 
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: '2-digit' }) : '';

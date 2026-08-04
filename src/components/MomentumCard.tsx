@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Flame, TrendingUp, TrendingDown, Minus, Mountain, Trophy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useApi } from '@/lib/api';
 
 interface Summary {
   weekStreak: number;
@@ -14,25 +14,15 @@ interface Summary {
 
 // Momentum card for the runner dashboard: a week-streak flame + a "this week vs
 // last" recap. Derived from run history (no new capture). Hidden until the
-// athlete has any runs. Athlete-scoped via the same auth as /prs.
+// athlete has any runs. Athlete-scoped via the same auth as /prs. Cached via SWR
+// (shared with StatTiles/PersonalRecords) so it opens instantly on revisit.
 export function MomentumCard({ athleteId }: { athleteId: string }) {
   const t = useTranslations('momentum');
-  const [s, setS] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: s } = useApi<Summary>(
+    athleteId ? `/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}` : null,
+  );
 
-  useEffect(() => {
-    if (!athleteId) { setLoading(false); return; }
-    const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    fetch(`/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}`, {
-      headers: email ? { 'x-user-email': email } : {},
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setS(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [athleteId]);
-
-  if (loading || !s || s.totalRuns === 0) return null;
+  if (!s || s.totalRuns === 0) return null;
 
   const deltaKm = Math.round((s.thisWeek.km - s.lastWeek.km) * 10) / 10;
   const TrendIcon = deltaKm > 0.05 ? TrendingUp : deltaKm < -0.05 ? TrendingDown : Minus;

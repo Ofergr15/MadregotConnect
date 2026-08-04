@@ -1,25 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useApi } from '@/lib/api';
 
 interface Summary { totalKm: number; thisMonthRuns: number; totalRuns: number; }
 
 // Two headline stat tiles for the runner dashboard (design panel 4): all-time km
-// and workouts this month. Reads /api/athletes/summary (same auth as the other
-// athlete stats). Hidden until there's any run history.
+// and workouts this month. Reads /api/athletes/summary — SWR-cached and shared
+// with MomentumCard, so both render from one request. Hidden until any runs.
 export function StatTiles({ athleteId }: { athleteId: string }) {
-  const [s, setS] = useState<Summary | null>(null);
-
-  useEffect(() => {
-    if (!athleteId) return;
-    const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    fetch(`/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}`, {
-      headers: email ? { 'x-user-email': email } : {},
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setS(d))
-      .catch(() => {});
-  }, [athleteId]);
+  const { data: s } = useApi<Summary>(
+    athleteId ? `/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}` : null,
+  );
 
   if (!s || s.totalRuns === 0) return null;
 
