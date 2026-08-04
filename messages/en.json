@@ -563,5 +563,12 @@
     "thanks": "Thanks! 🙏",
     "comment": "Anything else?",
     "commentPlaceholder": "Add a comment (optional)"
+  },
+  "momentum": {
+    "weekStreak": "week streak",
+    "weekStreakOne": "week streak",
+    "kmThisWeek": "km this week",
+    "runs": "runs",
+    "vsLastWeek": "vs last week"
   }
 }

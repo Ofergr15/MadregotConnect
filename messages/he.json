@@ -563,5 +563,12 @@
     "thanks": "תודה! 🙏",
     "comment": "עוד משהו?",
     "commentPlaceholder": "הוסיפו הערה (רשות)"
+  },
+  "momentum": {
+    "weekStreak": "שבועות רצף",
+    "weekStreakOne": "שבוע רצף",
+    "kmThisWeek": "ק״מ השבוע",
+    "runs": "ריצות",
+    "vsLastWeek": "מהשבוע שעבר"
   }
 }
