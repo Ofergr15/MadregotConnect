@@ -8,7 +8,8 @@ import { MaintenanceToggle } from '@/components/MaintenanceToggle';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
-import { Sheet, SegmentedControl } from '@/components/ui';
+import { Sheet } from '@/components/ui';
+import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 
 interface User {
   id: string;
@@ -209,10 +210,11 @@ const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_run
 type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications';
 
 const settingsTabs = [
-  { key: 'users' as SettingsTab, label: 'User Manager', icon: Users },
-  { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout },
-  { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare },
-  { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell },
+  // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
+  { key: 'users' as SettingsTab, label: 'User Manager', icon: Users, iconBg: 'bg-indigo-500' },
+  { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout, iconBg: 'bg-amber-500' },
+  { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare, iconBg: 'bg-teal-500' },
+  { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell, iconBg: 'bg-rose-500' },
 ];
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
@@ -787,20 +789,28 @@ export default function SettingsPage() {
       {/* Configurable workout-reminder schedule */}
       <ReminderConfig />
 
-      {/* Settings Tabs */}
-      <SegmentedControl<SettingsTab>
-        className="mb-6"
-        value={activeTab}
-        onChange={setActiveTab}
-        options={settingsTabs.map(tab => ({
-          value: tab.key,
-          label: tab.key === 'users' ? t('userManager')
+      {/* Management — iOS-Settings inset list with colored glyph tiles (panel 18).
+          Each row selects a settings section; the active one is highlighted. */}
+      <InsetSection header={t('management')}>
+        {settingsTabs.map(tab => {
+          const label = tab.key === 'users' ? t('userManager')
             : tab.key === 'tabs' ? t('tabManager')
             : tab.key === 'feedback' ? t('feedback')
-            : tab.label,
-          icon: tab.icon,
-        }))}
-      />
+            : t('notificationCenter');
+          return (
+            <InsetRow
+              key={tab.key}
+              icon={tab.icon}
+              iconBg={tab.iconBg}
+              label={label}
+              onClick={() => setActiveTab(tab.key)}
+              trailing={activeTab === tab.key
+                ? <CheckCircle2 className="h-4 w-4 text-primary-400 shrink-0" />
+                : undefined}
+            />
+          );
+        })}
+      </InsetSection>
 
       {error && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">

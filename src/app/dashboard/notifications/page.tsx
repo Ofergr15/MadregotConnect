@@ -29,14 +29,16 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
 }
 
-// Icon by notification kind / content — a light heuristic on the title so custom
-// coach messages still get a sensible glyph.
-function iconFor(it: Item) {
-  if (/מאמן|תשובה|💬/.test(it.title + it.body)) return MessageSquare;
-  if (/מרוץ|מרתון|הרשמה|🏆/.test(it.title + it.body)) return Trophy;
-  if (/שיא|רצף|הישג|🎉|🔥/.test(it.title + it.body)) return Flame;
-  if (/אימון|נוכחות|מגיעים/.test(it.title + it.body)) return Calendar;
-  return Activity;
+// Icon + colored tile by notification kind / content — a light heuristic on the
+// title so custom coach messages still get a sensible glyph. Colors mirror the
+// design deck: coach=blue, race=gold, achievement=green, workout=indigo.
+function styleFor(it: Item): { Icon: typeof Activity; bg: string; fg: string } {
+  const s = it.title + ' ' + it.body;
+  if (/מאמן|תשובה|💬/.test(s)) return { Icon: MessageSquare, bg: 'bg-sky-500/18', fg: 'text-sky-300' };
+  if (/מרוץ|מרתון|הרשמה|🏆/.test(s)) return { Icon: Trophy, bg: 'bg-amber-500/18', fg: 'text-amber-300' };
+  if (/שיא|רצף|הישג|🎉|🔥|🎖/.test(s)) return { Icon: Flame, bg: 'bg-emerald-500/18', fg: 'text-emerald-300' };
+  if (/אימון|נוכחות|מגיעים/.test(s)) return { Icon: Calendar, bg: 'bg-primary-600/20', fg: 'text-primary-300' };
+  return { Icon: Activity, bg: 'bg-slate-600/30', fg: 'text-slate-300' };
 }
 
 // In-app notification inbox (PRD panel 5): the athlete's notification history —
@@ -76,7 +78,7 @@ export default function NotificationsInboxPage() {
       ) : (
         <div className="rounded-2xl border border-slate-700/60 bg-slate-800/50 overflow-hidden divide-y divide-slate-700/60">
           {items.map((it) => {
-            const Icon = iconFor(it);
+            const { Icon, bg, fg } = styleFor(it);
             return (
               <button
                 key={it.id}
@@ -84,8 +86,8 @@ export default function NotificationsInboxPage() {
                 className="w-full flex items-start gap-3 p-3.5 text-start active:bg-slate-700/40 transition-colors relative"
               >
                 {it.unread && <span className="absolute start-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-500" aria-hidden="true" />}
-                <span className="w-10 h-10 rounded-xl bg-primary-600/18 flex items-center justify-center shrink-0">
-                  <Icon className="h-5 w-5 text-primary-300" />
+                <span className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-5 w-5 ${fg}`} />
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">

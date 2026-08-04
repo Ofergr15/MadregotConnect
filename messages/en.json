@@ -284,7 +284,9 @@
     "priority": "Priority",
     "adminNotes": "Admin Notes",
     "addTagOrNote": "Add a tag or note...",
-    "all": "All"
+    "all": "All",
+    "management": "Management",
+    "notificationCenter": "Notification Center"
   },
   "groups": {
     "title": "Training Groups",

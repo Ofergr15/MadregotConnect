@@ -16,6 +16,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaCh
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { MomentumCard } from '@/components/MomentumCard';
+import { StatTiles } from '@/components/StatTiles';
 import { SquadStandings } from '@/components/SquadStandings';
 import { CoachPulse } from '@/components/CoachPulse';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
@@ -927,6 +928,13 @@ export default function DashboardPage() {
           </div>
 
         </section>
+      )}
+
+      {/* ═══ HEADLINE STAT TILES (total km · workouts this month) ═══ */}
+      {!isCoach && athleteId && (
+        <div className="mb-4">
+          <StatTiles athleteId={athleteId} />
+        </div>
       )}
 
       {/* ═══ MOMENTUM: week streak + this-week recap ═══ */}

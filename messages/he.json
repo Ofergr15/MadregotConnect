@@ -284,7 +284,9 @@
     "priority": "עדיפות",
     "adminNotes": "הערות מנהל",
     "addTagOrNote": "הוסף תגית או הערה...",
-    "all": "הכל"
+    "all": "הכל",
+    "management": "ניהול",
+    "notificationCenter": "מרכז התראות"
   },
   "groups": {
     "title": "קבוצות אימון",

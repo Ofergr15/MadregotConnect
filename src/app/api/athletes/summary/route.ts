@@ -45,6 +45,16 @@ export async function GET(request: Request) {
       (a: any) => a.distance > 0 && (!a.activity_type || RUN_TYPES.includes(a.activity_type))
     );
 
+    // All-time total km + this-calendar-month run count (dashboard stat tiles).
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    let totalKm = 0;
+    let thisMonthRuns = 0;
+    for (const r of runs) {
+      totalKm += r.distance / 1000;
+      if (new Date(r.start_time).getTime() >= monthStart) thisMonthRuns += 1;
+    }
+
     // Bucket runs by activity-week (Mon-based ISO date).
     const byWeek = new Map<string, { km: number; runs: number }>();
     for (const r of runs) {
@@ -82,7 +92,7 @@ export async function GET(request: Request) {
       else break;
     }
 
-    return NextResponse.json({ weekStreak: streak, thisWeek, lastWeek, biggestWeek, totalRuns: runs.length });
+    return NextResponse.json({ weekStreak: streak, thisWeek, lastWeek, biggestWeek, totalRuns: runs.length, totalKm: Math.round(totalKm), thisMonthRuns });
   } catch (err: any) {
     console.error('summary error:', err);
     return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
