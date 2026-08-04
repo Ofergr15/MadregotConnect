@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useTranslations, useLocale } from 'next-intl';
 import { ProfileBest } from '@/components/ProfileBest';
+import { PersonalRecords } from '@/components/PersonalRecords';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
@@ -386,6 +387,9 @@ function ProfileContent() {
 
       {/* Your Best (benchmark results) — hidden when the athlete has none */}
       <ProfileBest athleteId={athleteId} athleteName={athleteName} />
+
+      {/* Auto-detected Personal Records (5K/10K/HM) — hidden when none yet */}
+      <PersonalRecords athleteId={athleteId} />
 
       {/* This Week's Program */}
       <Link
