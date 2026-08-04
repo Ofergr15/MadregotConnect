@@ -576,7 +576,10 @@
     "weekStreakOne": "שבוע רצף",
     "kmThisWeek": "ק״מ השבוע",
     "runs": "ריצות",
-    "vsLastWeek": "מהשבוע שעבר"
+    "vsLastWeek": "מהשבוע שעבר",
+    "biggestWeek": "השבוע הכי גדול",
+    "newRecordWeek": "שיא חדש! {km} ק״מ השבוע 🎉",
+    "km": "ק״מ"
   },
   "squads": {
     "title": "מלחמת הדבוקות",

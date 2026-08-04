@@ -10,6 +10,8 @@ export const dynamic = 'force-dynamic';
 //  - weekStreak: consecutive activity-weeks (Mon-based) with ≥1 run, counting
 //    back from the current or previous week.
 //  - thisWeek / lastWeek: km + runs, for a "this week vs last" recap.
+//  - biggestWeek: the athlete's peak weekly volume ever (Mon-based), so the
+//    dashboard can celebrate "your biggest week: 62 ק״מ".
 // Scoped auth identical to /prs: own athlete, staff, or super-user.
 const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
 
@@ -59,6 +61,15 @@ export async function GET(request: Request) {
     const thisWeek = { km: round1(byWeek.get(thisWeekKey)?.km || 0), runs: byWeek.get(thisWeekKey)?.runs || 0 };
     const lastWeek = { km: round1(byWeek.get(lastWeekKey)?.km || 0), runs: byWeek.get(lastWeekKey)?.runs || 0 };
 
+    // Biggest week ever: the highest weekly volume across all activity-weeks.
+    // Null when there's no run history so the card can hide.
+    let biggestWeek: { weekStart: string; km: number; runs: number } | null = null;
+    for (const [wk, b] of byWeek) {
+      if (!biggestWeek || b.km > biggestWeek.km) {
+        biggestWeek = { weekStart: wk, km: round1(b.km), runs: b.runs };
+      }
+    }
+
     // Week streak: count consecutive prior weeks (stepping back 7 days) that have
     // ≥1 run. Start from the current week if it has a run, else from last week
     // (so the streak doesn't read 0 early in a new week before you've run yet).
@@ -71,7 +82,7 @@ export async function GET(request: Request) {
       else break;
     }
 
-    return NextResponse.json({ weekStreak: streak, thisWeek, lastWeek, totalRuns: runs.length });
+    return NextResponse.json({ weekStreak: streak, thisWeek, lastWeek, biggestWeek, totalRuns: runs.length });
   } catch (err: any) {
     console.error('summary error:', err);
     return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });

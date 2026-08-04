@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Flame, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Flame, TrendingUp, TrendingDown, Minus, Mountain, Trophy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface Summary {
   weekStreak: number;
   thisWeek: { km: number; runs: number };
   lastWeek: { km: number; runs: number };
+  biggestWeek: { weekStart: string; km: number; runs: number } | null;
   totalRuns: number;
 }
 
@@ -36,6 +37,12 @@ export function MomentumCard({ athleteId }: { athleteId: string }) {
   const deltaKm = Math.round((s.thisWeek.km - s.lastWeek.km) * 10) / 10;
   const TrendIcon = deltaKm > 0.05 ? TrendingUp : deltaKm < -0.05 ? TrendingDown : Minus;
   const trendColor = deltaKm > 0.05 ? 'text-emerald-400' : deltaKm < -0.05 ? 'text-amber-400' : 'text-slate-400';
+
+  // Biggest week ever. If this week IS the peak (and it's a real week, ≥2 runs so
+  // a single long run doesn't spuriously "win"), celebrate a new record.
+  const peak = s.biggestWeek;
+  const isRecordThisWeek =
+    !!peak && peak.km > 0 && s.thisWeek.km >= peak.km && s.thisWeek.runs >= 2;
 
   return (
     <div className="rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4 sm:p-5" dir="rtl">
@@ -68,6 +75,22 @@ export function MomentumCard({ athleteId }: { athleteId: string }) {
           </div>
         </div>
       </div>
+
+      {/* Biggest week ever — a new record this week, or the peak as a target. */}
+      {peak && peak.km > 0 && (
+        isRecordThisWeek ? (
+          <div className="mt-3 pt-3 border-t border-slate-700/60 flex items-center gap-2 text-xs font-bold text-amber-300">
+            <Trophy className="h-4 w-4 shrink-0" />
+            <span>{t('newRecordWeek', { km: peak.km })}</span>
+          </div>
+        ) : (
+          <div className="mt-3 pt-3 border-t border-slate-700/60 flex items-center gap-2 text-xs text-slate-400">
+            <Mountain className="h-4 w-4 shrink-0 text-slate-500" />
+            <span>{t('biggestWeek')}</span>
+            <span className="ms-auto font-bold text-slate-200 tabular-nums">{peak.km} {t('km')}</span>
+          </div>
+        )
+      )}
     </div>
   );
 }

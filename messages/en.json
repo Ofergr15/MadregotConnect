@@ -576,7 +576,10 @@
     "weekStreakOne": "week streak",
     "kmThisWeek": "km this week",
     "runs": "runs",
-    "vsLastWeek": "vs last week"
+    "vsLastWeek": "vs last week",
+    "biggestWeek": "Biggest week",
+    "newRecordWeek": "New record! {km} km this week 🎉",
+    "km": "km"
   },
   "squads": {
     "title": "Squad Battle",
