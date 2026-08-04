@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/tick",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/workout-watch",
+      "schedule": "*/15 3-10 * * *"
     }
   ]
 }

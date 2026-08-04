@@ -6,7 +6,10 @@ import { sendPushToSubscriptions } from '@/lib/push';
 
 export async function POST(request: Request) {
   try {
-    const { athleteId } = await request.json();
+    // suppressPush: skip the inline post-workout feedback nudge. Used by the
+    // morning workout-watch cron, which sends its own "new workout detected"
+    // teaser instead — so the athlete gets one morning push, not two.
+    const { athleteId, suppressPush } = await request.json().catch(() => ({}));
     const supabase = createServerClient();
 
     const query = supabase
@@ -136,8 +139,10 @@ export async function POST(request: Request) {
 
           // Post-workout nudge (PRD §1): push the athlete to fill the feedback
           // questionnaire for the newest run. Inline (not cron) so it's timely;
-          // never let a push failure break the sync.
+          // never let a push failure break the sync. Skipped when suppressPush is
+          // set (the morning workout-watch cron sends its own teaser instead).
           try {
+            if (suppressPush) throw new Error('suppressed');
             const newest = newActivities.reduce((a, b) =>
               new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b);
             const { data: subs } = await supabase
