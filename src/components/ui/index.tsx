@@ -147,6 +147,29 @@ export function SkeletonCard({ className }: { className?: string }) {
   );
 }
 
+// One list-row skeleton: avatar/glyph tile + two text lines (matches the app's
+// roster / feedback / inbox / volume rows). RTL-agnostic.
+export function SkeletonRow({ className }: { className?: string }) {
+  return (
+    <div className={cn('flex items-center gap-3 rounded-xl border border-slate-700/50 bg-slate-800/50 p-3.5', className)}>
+      <Skeleton className="h-9 w-9 rounded-full shrink-0" />
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-3.5 w-1/2" />
+        <Skeleton className="h-3 w-1/3" />
+      </div>
+    </div>
+  );
+}
+
+// A stack of row skeletons for list screens. Count defaults to 4.
+export function SkeletonList({ count = 4, className }: { count?: number; className?: string }) {
+  return (
+    <div className={cn('space-y-2.5', className)}>
+      {Array.from({ length: count }, (_, i) => <SkeletonRow key={i} />)}
+    </div>
+  );
+}
+
 // ── SegmentedControl ──────────────────────────────────────────────────────────
 // iOS-style segmented control: a track with equal segments and a highlighted
 // selected pill. Replaces the ad-hoc `flex bg-slate-800 rounded-xl p-1` toggles.
