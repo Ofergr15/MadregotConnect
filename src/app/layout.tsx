@@ -6,6 +6,7 @@ import { AppSplash } from '@/components/AppSplash';
 import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { ImpersonationBar } from '@/components/ImpersonationBar';
 import { UpdatePrompt } from '@/components/UpdatePrompt';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -66,6 +67,7 @@ export default async function RootLayout({
         <MaintenanceGate />
         <ImpersonationBar />
         <UpdatePrompt />
+        <SpeedInsights />
       </body>
     </html>
   );
