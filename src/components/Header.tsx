@@ -58,6 +58,7 @@ export function Header() {
   const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [pendingResults, setPendingResults] = useState<Array<{ id: string; athlete_name: string; test_name: string; time_seconds: number }>>([]);
+  const [inbox, setInbox] = useState<Array<{ id: string; title: string; body: string; url: string; sentAt: string; unread: boolean }>>([]);
   const [isSuper, setIsSuper] = useState(false);
 
   useEffect(() => {
@@ -111,6 +112,11 @@ export function Header() {
         .then(({ data }) => { setHasGarmin(!!data?.garmin_auth); });
       fetch('/api/groups').then(r => r.ok ? r.json() : null)
         .then(data => { if (data) setAvailableGroups(data.groups || data || []); })
+        .catch(() => {});
+      // Athlete notification history for the bell inbox (unread count + preview).
+      fetch(`/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (Array.isArray(data?.items)) setInbox(data.items); })
         .catch(() => {});
     }
   }, []);
@@ -312,51 +318,92 @@ export function Header() {
               </button>
             )}
 
+            {(() => {
+              const unreadInbox = inbox.filter(i => i.unread).length;
+              const badge = pendingResults.length + unreadInbox;
+              const empty = pendingResults.length === 0 && inbox.length === 0;
+              return (
             <div className="relative">
               <button
                 onClick={() => { setShowNotifications(!showNotifications); setShowGroupPicker(false); }}
                 className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               >
                 <Bell className="h-4.5 w-4.5" />
-                {pendingResults.length > 0 && (
+                {badge > 0 && (
                   <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                    {pendingResults.length}
+                    {badge}
                   </span>
                 )}
               </button>
               {showNotifications && (
                 <div className="absolute end-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[280px] max-w-[340px] z-50">
-                  {pendingResults.length === 0 ? (
+                  {empty ? (
                     <p className="text-xs text-slate-400 text-center py-3 px-5">{th('nothingNew')}</p>
                   ) : (
                     <>
-                      <div className="px-4 py-2 border-b border-slate-700 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                        <span className="text-xs font-bold text-white">{pendingResults.length} result{pendingResults.length !== 1 ? 's' : ''} awaiting approval</span>
-                      </div>
-                      <div className="max-h-64 overflow-y-auto py-1">
-                        {pendingResults.map(r => (
-                          <div key={r.id} className="px-4 py-2 flex items-center gap-2 text-xs">
-                            <span className="flex-1 min-w-0 truncate text-slate-200" dir="auto">{r.athlete_name}</span>
-                            <span className="text-slate-500">{r.test_name}</span>
-                            <span className="font-bold text-white tabular-nums">
-                              {Math.floor(r.time_seconds / 60)}:{(r.time_seconds % 60).toFixed(r.time_seconds % 1 ? 2 : 0).padStart(r.time_seconds % 1 ? 5 : 2, '0')}
-                            </span>
+                      {/* Staff: pending benchmark approvals. */}
+                      {pendingResults.length > 0 && (
+                        <>
+                          <div className="px-4 py-2 border-b border-slate-700 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            <span className="text-xs font-bold text-white">{pendingResults.length} result{pendingResults.length !== 1 ? 's' : ''} awaiting approval</span>
                           </div>
-                        ))}
-                      </div>
-                      <Link
-                        href="/dashboard/academy?tab=results"
-                        onClick={() => setShowNotifications(false)}
-                        className="block px-4 py-2.5 border-t border-slate-700 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
-                      >
-                        Review in Academy → Results
-                      </Link>
+                          <div className="max-h-40 overflow-y-auto py-1">
+                            {pendingResults.map(r => (
+                              <div key={r.id} className="px-4 py-2 flex items-center gap-2 text-xs">
+                                <span className="flex-1 min-w-0 truncate text-slate-200" dir="auto">{r.athlete_name}</span>
+                                <span className="text-slate-500">{r.test_name}</span>
+                                <span className="font-bold text-white tabular-nums">
+                                  {Math.floor(r.time_seconds / 60)}:{(r.time_seconds % 60).toFixed(r.time_seconds % 1 ? 2 : 0).padStart(r.time_seconds % 1 ? 5 : 2, '0')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          <Link
+                            href="/dashboard/academy?tab=results"
+                            onClick={() => setShowNotifications(false)}
+                            className="block px-4 py-2.5 border-t border-slate-700 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
+                          >
+                            Review in Academy → Results
+                          </Link>
+                        </>
+                      )}
+
+                      {/* Athlete: notification history preview. */}
+                      {inbox.length > 0 && (
+                        <>
+                          <div className="max-h-64 overflow-y-auto py-1">
+                            {inbox.slice(0, 6).map(n => (
+                              <Link
+                                key={n.id}
+                                href={n.url || '/dashboard'}
+                                onClick={() => setShowNotifications(false)}
+                                className="flex items-start gap-2 px-4 py-2 hover:bg-slate-700/40 transition-colors"
+                              >
+                                {n.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" />}
+                                <span className={`flex-1 min-w-0 ${n.unread ? '' : 'ps-3.5'}`}>
+                                  <span className={`block text-xs truncate ${n.unread ? 'font-bold text-white' : 'font-semibold text-slate-200'}`} dir="auto">{n.title}</span>
+                                  <span className="block text-[11px] text-slate-400 truncate" dir="auto">{n.body}</span>
+                                </span>
+                              </Link>
+                            ))}
+                          </div>
+                          <Link
+                            href="/dashboard/notifications"
+                            onClick={() => setShowNotifications(false)}
+                            className="block px-4 py-2.5 border-t border-slate-700 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
+                          >
+                            {th('viewAll')}
+                          </Link>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
               )}
             </div>
+              );
+            })()}
 
             <div className="bg-primary-600/20 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-primary-300 ring-1 ring-primary-500/20">
               {initials}

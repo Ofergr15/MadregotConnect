@@ -50,7 +50,8 @@
     "password": "Password",
     "signInAsAdmin": "Sign In as Admin",
     "account": "Account",
-    "viewAsUser": "View as user"
+    "viewAsUser": "View as user",
+    "viewAll": "View all"
   },
   "home": {
     "redefining": "Redefining",
