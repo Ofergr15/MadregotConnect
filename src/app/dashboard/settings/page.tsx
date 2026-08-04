@@ -169,7 +169,7 @@ function ConfirmDialog({ user, newRole, onConfirm, onCancel, t, tc }: ConfirmDia
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 text-sm text-white bg-[#4338ff] hover:bg-[#3730d4] rounded-lg transition-colors font-medium"
+            className="px-4 py-2 text-sm text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors font-medium"
           >
             {t('confirmChange')}
           </button>
@@ -820,7 +820,7 @@ export default function SettingsPage() {
               className={cn(
                 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
                 isActive
-                  ? 'bg-[#4338ff] text-white shadow-sm'
+                  ? 'bg-primary-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
               )}
             >
@@ -1050,8 +1050,8 @@ export default function SettingsPage() {
               <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="px-6 py-5 border-b border-slate-700/50 flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-full bg-[#4338ff]/15 flex items-center justify-center">
-                      <span className="text-sm font-bold text-[#4338ff]">
+                    <div className="w-11 h-11 rounded-full bg-primary-600/15 flex items-center justify-center">
+                      <span className="text-sm font-bold text-primary-600">
                         {selectedFeedback.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                       </span>
                     </div>
@@ -1152,12 +1152,12 @@ export default function SettingsPage() {
                           value={adminNotes}
                           onChange={e => setAdminNotes(e.target.value)}
                           placeholder={t('addTagOrNote')}
-                          className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#4338ff]/50"
+                          className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary-600/50"
                         />
                         <button
                           onClick={() => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status || 'new', selectedFeedback.priority || 'medium', adminNotes)}
                           disabled={updatingFeedback === selectedFeedback.id}
-                          className="px-3 py-2 rounded-lg bg-[#4338ff] hover:bg-[#3730d4] text-white text-xs font-bold transition-colors disabled:opacity-50"
+                          className="px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-colors disabled:opacity-50"
                         >
                           {tc('save')}
                         </button>
@@ -1187,7 +1187,7 @@ export default function SettingsPage() {
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <button
               onClick={() => setFilterCategory('all')}
-              className={cn('text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all', filterCategory === 'all' ? 'bg-[#4338ff]/10 border-[#4338ff]/30 text-[#4338ff]' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400')}
+              className={cn('text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all', filterCategory === 'all' ? 'bg-primary-600/10 border-primary-600/30 text-primary-600' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400')}
             >{t('all')}</button>
             {(['feature_request', 'bug_report', 'training_feedback', 'general'] as FeedbackCategory[]).map(cat => {
               const config = categoryConfig[cat];
@@ -1256,7 +1256,7 @@ export default function SettingsPage() {
                             onDragStart={() => setDraggedItem(item.id)}
                             onClick={() => { setSelectedFeedback(item); setAdminNotes(item.admin_notes || ''); }}
                             className={cn(
-                              'p-3 rounded-lg bg-slate-800/60 border border-slate-700/40 cursor-pointer hover:border-[#4338ff]/40 hover:bg-slate-800 transition-all',
+                              'p-3 rounded-lg bg-slate-800/60 border border-slate-700/40 cursor-pointer hover:border-primary-600/40 hover:bg-slate-800 transition-all',
                               draggedItem === item.id && 'opacity-50 scale-95'
                             )}
                           >
@@ -1304,7 +1304,7 @@ export default function SettingsPage() {
             <p className="text-xs text-slate-500 mt-1">Configure which tabs each role can access on web and mobile</p>
             <div className="flex items-center gap-4 mt-3 text-[10px] font-semibold text-slate-400">
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded bg-[#4338ff] flex items-center justify-center"><Layout className="w-2 h-2 text-white" /></div>
+                <div className="w-3 h-3 rounded bg-primary-600 flex items-center justify-center"><Layout className="w-2 h-2 text-white" /></div>
                 Web
               </div>
               <div className="flex items-center gap-1.5">
@@ -1352,7 +1352,7 @@ export default function SettingsPage() {
                                   onClick={() => togglePermission(role, tabKey, webEnabled)}
                                   className={cn(
                                     'w-5 h-5 rounded flex items-center justify-center transition-all',
-                                    webEnabled ? 'bg-[#4338ff] text-white' : 'bg-slate-700 text-slate-500 hover:bg-slate-600'
+                                    webEnabled ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-500 hover:bg-slate-600'
                                   )}
                                   title="Web"
                                 >
@@ -1381,7 +1381,7 @@ export default function SettingsPage() {
               })}
 
               {(hasPermissionChanges || hasMobilePermissionChanges) && (
-                <div className="flex items-center justify-between p-4 bg-slate-900 border border-[#4338ff]/30 rounded-xl">
+                <div className="flex items-center justify-between p-4 bg-slate-900 border border-primary-600/30 rounded-xl">
                   <p className="text-sm text-slate-300">{t('unsavedChanges')}</p>
                   <div className="flex items-center gap-3">
                     <button
@@ -1396,7 +1396,7 @@ export default function SettingsPage() {
                         if (hasMobilePermissionChanges) await saveMobilePermissions();
                       }}
                       disabled={savingPermissions || savingMobilePermissions}
-                      className="px-4 py-2 text-sm text-white bg-[#4338ff] hover:bg-[#3730d4] rounded-lg transition-colors font-medium flex items-center gap-2"
+                      className="px-4 py-2 text-sm text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors font-medium flex items-center gap-2"
                     >
                       {(savingPermissions || savingMobilePermissions) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       {tc('save')}

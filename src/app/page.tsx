@@ -117,7 +117,7 @@ export default function HomePage() {
   if (checking) {
     return (
       <div className="min-h-screen bg-[#f0f0f0] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4338ff]"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -129,14 +129,14 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="relative flex flex-col overflow-hidden">
         {/* Decorative brand glow */}
-        <div className="pointer-events-none absolute -top-40 end-[-10%] h-[520px] w-[520px] rounded-full bg-[#4338ff]/10 blur-3xl" aria-hidden="true"></div>
-        <div className="pointer-events-none absolute top-1/3 start-[-15%] h-[420px] w-[420px] rounded-full bg-[#4338ff]/5 blur-3xl" aria-hidden="true"></div>
+        <div className="pointer-events-none absolute -top-40 end-[-10%] h-[520px] w-[520px] rounded-full bg-primary-600/10 blur-3xl" aria-hidden="true"></div>
+        <div className="pointer-events-none absolute top-1/3 start-[-15%] h-[420px] w-[420px] rounded-full bg-primary-600/5 blur-3xl" aria-hidden="true"></div>
 
         {/* Nav — sticky glass bar, safe-area aware */}
         <nav className="sticky top-0 z-40 safe-top safe-inline-start safe-inline-end bg-[#f0f0f0]/80 backdrop-blur-md border-b border-black/5">
           <div className="flex items-center justify-between px-4 sm:px-8 lg:px-20 h-16">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-[#4338ff] shadow-lg shadow-[#4338ff]/25">
+              <span className="flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-primary-600 shadow-lg shadow-primary-600/25">
                 <img src="/images/logo-white.png" alt="Madregot After 2KM" className="h-6 w-6 sm:h-7 sm:w-7 object-contain" />
               </span>
               <div className="flex flex-col leading-none">
@@ -149,11 +149,11 @@ export default function HomePage() {
               <button
                 onClick={signIn}
                 disabled={signingIn}
-                className="whitespace-nowrap inline-flex items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full bg-[#4338ff] hover:bg-[#3730d4] active:scale-[0.98] text-white text-sm font-bold shadow-lg shadow-[#4338ff]/25 transition disabled:opacity-50"
+                className="whitespace-nowrap inline-flex items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-sm font-bold shadow-lg shadow-primary-600/25 transition disabled:opacity-50"
               >
                 {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                   <>
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#4338ff] text-[10px] font-black">G</span>
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-primary-600 text-[10px] font-black">G</span>
                     {tc('signIn')}
                   </>
                 )}
@@ -173,7 +173,7 @@ export default function HomePage() {
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 mb-4">
-              <Shield className="h-4 w-4 text-[#4338ff]" />
+              <Shield className="h-4 w-4 text-primary-600" />
               <span className="text-sm font-bold text-gray-800">{th('adminLogin')}</span>
             </div>
             <form onSubmit={handleAdminLogin} className="space-y-3">
@@ -181,7 +181,7 @@ export default function HomePage() {
                 type="email"
                 value={adminEmail}
                 onChange={e => setAdminEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-600"
                 placeholder="admin@madregot.club"
                 required
               />
@@ -189,7 +189,7 @@ export default function HomePage() {
                 type="password"
                 value={adminPassword}
                 onChange={e => setAdminPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4338ff]"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-600"
                 placeholder={th('password')}
                 required
               />
@@ -199,7 +199,7 @@ export default function HomePage() {
               <button
                 type="submit"
                 disabled={adminLoading}
-                className="w-full bg-[#4338ff] hover:bg-[#3730d4] text-white font-semibold px-4 py-2 rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {adminLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
                 {adminLoading ? tc('signingIn') : th('signInAsAdmin')}
@@ -225,16 +225,16 @@ export default function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-20 items-center w-full max-w-7xl mx-auto">
             {/* Text */}
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-[#4338ff]/10 text-[#4338ff] px-3.5 py-1.5 mb-6 sm:mb-8">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#4338ff]"></span>
+              <div className="inline-flex items-center gap-2 rounded-full bg-primary-600/10 text-primary-600 px-3.5 py-1.5 mb-6 sm:mb-8">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary-600"></span>
                 <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em]">{t('after2km')}</span>
               </div>
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] break-words hyphens-none">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-primary-600 break-words hyphens-none">
                 {t('redefining')}<br />
                 {t('running')}<br />
                 {t('culture')}
               </h1>
-              <div className="w-12 sm:w-16 h-1.5 bg-[#4338ff] mt-6 sm:mt-8 mb-4 sm:mb-6 rounded-full"></div>
+              <div className="w-12 sm:w-16 h-1.5 bg-primary-600 mt-6 sm:mt-8 mb-4 sm:mb-6 rounded-full"></div>
               <p className="text-lg sm:text-xl md:text-2xl text-gray-700 font-light leading-relaxed">
                 {t('connectingRunners')}<br />
                 {t('buildingCommunity')}
@@ -243,11 +243,11 @@ export default function HomePage() {
                 <button
                   onClick={signIn}
                   disabled={signingIn}
-                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-[#4338ff] hover:bg-[#3730d4] active:scale-[0.99] text-white text-base font-bold shadow-lg shadow-[#4338ff]/25 transition disabled:opacity-50"
+                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-primary-600 hover:bg-primary-700 active:scale-[0.99] text-white text-base font-bold shadow-lg shadow-primary-600/25 transition disabled:opacity-50"
                 >
                   {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                     <>
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[#4338ff] text-xs font-black">G</span>
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-primary-600 text-xs font-black">G</span>
                       {t('signInWithGoogle')}
                     </>
                   )}
@@ -267,7 +267,7 @@ export default function HomePage() {
 
             {/* Visual (desktop only) */}
             <div className="relative hidden lg:block">
-              <div className="absolute -inset-4 rounded-[2rem] bg-[#4338ff]/10 blur-2xl" aria-hidden="true"></div>
+              <div className="absolute -inset-4 rounded-[2rem] bg-primary-600/10 blur-2xl" aria-hidden="true"></div>
               <Figure
                 src="/images/hero-running.jpg"
                 alt={t('heroAlt')}
@@ -292,24 +292,24 @@ export default function HomePage() {
               )}
               <div className="grid grid-cols-3 gap-2 sm:gap-6">
                 <div className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
-                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-primary-600/10 text-primary-600">
                     <Route className="h-4 w-4 sm:h-7 sm:w-7" />
                   </div>
-                  <div className="text-2xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none" dir="ltr">{fmtNum(stats.totalKm, locale)}</div>
+                  <div className="text-2xl sm:text-5xl font-black text-primary-600 tabular-nums leading-none" dir="ltr">{fmtNum(stats.totalKm, locale)}</div>
                   <div className="text-[10px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-1 sm:mt-2">{t('statKm')}</div>
                 </div>
                 <div className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
-                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-primary-600/10 text-primary-600">
                     <Activity className="h-4 w-4 sm:h-7 sm:w-7" />
                   </div>
-                  <div className="text-2xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none" dir="ltr">{fmtNum(stats.workouts, locale)}</div>
+                  <div className="text-2xl sm:text-5xl font-black text-primary-600 tabular-nums leading-none" dir="ltr">{fmtNum(stats.workouts, locale)}</div>
                   <div className="text-[10px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-1 sm:mt-2">{t('statWorkouts')}</div>
                 </div>
                 <div className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
-                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-primary-600/10 text-primary-600">
                     <Clock className="h-4 w-4 sm:h-7 sm:w-7" />
                   </div>
-                  <div className="text-2xl sm:text-5xl font-black text-[#4338ff] tabular-nums leading-none" dir="ltr">{fmtNum(stats.totalHours, locale)}</div>
+                  <div className="text-2xl sm:text-5xl font-black text-primary-600 tabular-nums leading-none" dir="ltr">{fmtNum(stats.totalHours, locale)}</div>
                   <div className="text-[10px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-1 sm:mt-2">{t('statHours')}</div>
                 </div>
               </div>
@@ -320,7 +320,7 @@ export default function HomePage() {
               <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 sm:p-10 mt-3 sm:mt-6">
                 <div className="flex flex-col items-center gap-1 mb-8 sm:mb-10">
                   <div className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-[#4338ff]" />
+                    <Trophy className="h-5 w-5 text-primary-600" />
                     <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight text-black">
                       {stats.topResults[0].test} — {t('topThree')}
                     </h3>
@@ -344,7 +344,7 @@ export default function HomePage() {
                   {stats.topResults.length >= 1 && (
                     <div className="flex flex-1 max-w-[104px] flex-col items-center">
                       <span className="mb-0.5 text-xl sm:text-2xl leading-none">👑</span>
-                      <span className="mb-2 text-base sm:text-2xl font-black tabular-nums text-[#4338ff]">{fmtTime(stats.topResults[0].timeSeconds)}</span>
+                      <span className="mb-2 text-base sm:text-2xl font-black tabular-nums text-primary-600">{fmtTime(stats.topResults[0].timeSeconds)}</span>
                       <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-yellow-400 to-yellow-500 pt-3 shadow-md" style={{ height: '140px' }}>
                         <span className="text-xl font-black text-white">1</span>
                       </div>
@@ -371,7 +371,7 @@ export default function HomePage() {
       {/* Who We Are */}
       <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-8">
+          <h2 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-primary-600 mb-8">
             {t('whoWeAre')}<br />{t('weAre')}
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 mt-12 items-center">
@@ -379,7 +379,7 @@ export default function HomePage() {
               <h3 className="text-2xl sm:text-3xl font-bold text-black mb-6">
                 {t('fromTwoRunners')}
               </h3>
-              <div className="w-16 h-1.5 bg-[#4338ff] mb-8 rounded-full"></div>
+              <div className="w-16 h-1.5 bg-primary-600 mb-8 rounded-full"></div>
               <p className="text-lg text-gray-600 leading-relaxed mb-6">
                 {t('foundedDescription1')}
               </p>
@@ -401,35 +401,35 @@ export default function HomePage() {
       {/* Journey Timeline */}
       <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20 bg-white">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl sm:text-5xl md:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-16">
+          <h2 className="text-3xl sm:text-5xl md:text-7xl font-black uppercase leading-[0.9] tracking-tight text-primary-600 mb-16">
             {t('our')}<br />{t('journey')}
           </h2>
 
           {/* Timeline */}
           <div className="relative">
-            <div className="absolute top-8 inset-x-0 h-0.5 bg-gradient-to-r from-[#4338ff] to-[#4338ff]/20 hidden sm:block"></div>
+            <div className="absolute top-8 inset-x-0 h-0.5 bg-gradient-to-r from-primary-600 to-primary-600/20 hidden sm:block"></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
-                <div className="absolute top-[26px] start-4 sm:start-4 w-3.5 h-3.5 rounded-full bg-[#4338ff] ring-4 ring-white"></div>
-                <div className="text-2xl font-black text-[#4338ff]">{t('year2022')}</div>
+                <div className="absolute top-[26px] start-4 sm:start-4 w-3.5 h-3.5 rounded-full bg-primary-600 ring-4 ring-white"></div>
+                <div className="text-2xl font-black text-primary-600">{t('year2022')}</div>
                 <div className="text-sm font-bold mt-1">{t('founded')}</div>
                 <div className="text-sm text-gray-500 mt-2">{t('foundedDesc')}</div>
               </div>
               <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
-                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-[#4338ff] ring-4 ring-white"></div>
-                <div className="text-2xl font-black text-[#4338ff]">{t('year2023')}</div>
+                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-primary-600 ring-4 ring-white"></div>
+                <div className="text-2xl font-black text-primary-600">{t('year2023')}</div>
                 <div className="text-sm font-bold mt-1">{t('firstTeam')}</div>
                 <div className="text-sm text-gray-500 mt-2">{t('firstTeamDesc')}</div>
               </div>
               <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
-                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-[#4338ff] ring-4 ring-white"></div>
-                <div className="text-2xl font-black text-[#4338ff]">{t('year2025')}</div>
+                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-primary-600 ring-4 ring-white"></div>
+                <div className="text-2xl font-black text-primary-600">{t('year2025')}</div>
                 <div className="text-sm font-bold mt-1">{t('historicValencia')}</div>
                 <div className="text-sm text-gray-500 mt-2">{t('historicValenciaDesc')}</div>
               </div>
               <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
-                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-[#4338ff] ring-4 ring-white"></div>
-                <div className="text-2xl font-black text-[#4338ff]">{t('year2026')}</div>
+                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-primary-600 ring-4 ring-white"></div>
+                <div className="text-2xl font-black text-primary-600">{t('year2026')}</div>
                 <div className="text-sm font-bold mt-1">{t('nextLevel')}</div>
                 <div className="text-sm text-gray-500 mt-2">{t('nextLevelDesc')}</div>
               </div>
@@ -441,7 +441,7 @@ export default function HomePage() {
       {/* More Than a Running Team */}
       <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-[#4338ff] mb-6">
+          <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-primary-600 mb-6">
             {t('moreThanA')}<br />{t('runningTeam')}
           </h2>
           <p className="text-xl text-gray-600 mb-16 max-w-3xl">
@@ -450,7 +450,7 @@ export default function HomePage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
             <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
                 <Trophy className="h-6 w-6 stroke-[1.75]" />
               </div>
               <h3 className="text-lg font-bold mb-2">{t('performance')}</h3>
@@ -461,7 +461,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
                 <Heart className="h-6 w-6 stroke-[1.75]" />
               </div>
               <h3 className="text-lg font-bold mb-2">{t('recovery')}</h3>
@@ -472,7 +472,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
                 <Zap className="h-6 w-6 stroke-[1.75]" />
               </div>
               <h3 className="text-lg font-bold mb-2">{t('nutrition')}</h3>
@@ -483,7 +483,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
                 <Users className="h-6 w-6 stroke-[1.75]" />
               </div>
               <h3 className="text-lg font-bold mb-2">{t('community')}</h3>
@@ -494,7 +494,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg col-span-2 sm:col-span-1">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4338ff]/10 text-[#4338ff]">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
                 <Camera className="h-6 w-6 stroke-[1.75]" />
               </div>
               <h3 className="text-lg font-bold mb-2">{t('content')}</h3>
@@ -509,7 +509,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="relative overflow-hidden py-24 lg:py-32 px-4 sm:px-8 lg:px-20 bg-[#4338ff]">
+      <section className="relative overflow-hidden py-24 lg:py-32 px-4 sm:px-8 lg:px-20 bg-primary-600">
         <div className="pointer-events-none absolute -top-24 -start-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" aria-hidden="true"></div>
         <div className="pointer-events-none absolute -bottom-32 -end-16 h-96 w-96 rounded-full bg-black/10 blur-3xl" aria-hidden="true"></div>
         <div className="relative max-w-4xl mx-auto text-center">
@@ -522,22 +522,22 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <div
               aria-disabled="true"
-              className="inline-flex items-center gap-3 bg-white/40 text-[#4338ff]/50 font-bold px-8 py-4 sm:px-10 sm:py-5 rounded-xl text-lg cursor-not-allowed select-none"
+              className="inline-flex items-center gap-3 bg-white/40 text-primary-600/50 font-bold px-8 py-4 sm:px-10 sm:py-5 rounded-xl text-lg cursor-not-allowed select-none"
             >
               <GraduationCap className="h-5 w-5" />
               {t('joinAcademy')}
-              <span className="text-xs font-black uppercase tracking-wider bg-white/30 text-[#4338ff]/70 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-black uppercase tracking-wider bg-white/30 text-primary-600/70 px-2 py-0.5 rounded-full">
                 {t('comingSoon')}
               </span>
             </div>
             <button
               onClick={signIn}
               disabled={signingIn}
-              className="inline-flex items-center justify-center gap-2.5 bg-white text-[#4338ff] hover:bg-white/90 active:scale-[0.99] font-bold px-8 py-4 sm:py-5 rounded-xl text-lg transition disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2.5 bg-white text-primary-600 hover:bg-white/90 active:scale-[0.99] font-bold px-8 py-4 sm:py-5 rounded-xl text-lg transition disabled:opacity-50"
             >
               {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                 <>
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#4338ff] text-white text-xs font-black">G</span>
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-white text-xs font-black">G</span>
                   {t('signInWithGoogle')}
                 </>
               )}

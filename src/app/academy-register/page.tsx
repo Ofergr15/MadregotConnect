@@ -108,7 +108,7 @@ export default function AcademyRegisterPage() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4" dir="rtl">
         <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center">
-          <GraduationCap className="h-12 w-12 text-[#4338ff] mx-auto mb-3" />
+          <GraduationCap className="h-12 w-12 text-primary-600 mx-auto mb-3" />
           <h2 className="text-lg font-bold text-white">ההרשמה סגורה כרגע</h2>
           <p className="text-slate-400 text-sm mt-2 leading-relaxed">
             ההרשמה לאקדמיית הריצה של מדרגות סגורה כעת. עקבו אחרינו לפתיחת המחזור הבא.

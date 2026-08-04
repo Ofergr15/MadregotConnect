@@ -92,8 +92,8 @@ export default function ReviewPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#4338ff]/10 border border-[#4338ff]/20 mb-4">
-          <MessageSquare className="h-7 w-7 text-[#4338ff]" />
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-600/10 border border-primary-600/20 mb-4">
+          <MessageSquare className="h-7 w-7 text-primary-600" />
         </div>
         <h1 className="text-2xl sm:text-3xl font-black text-white">{t('title')}</h1>
         <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
@@ -132,7 +132,7 @@ export default function ReviewPage() {
           onChange={e => setMessage(e.target.value)}
           placeholder={t('placeholder')}
           rows={6}
-          className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#4338ff]/50 focus:border-[#4338ff]/50 transition-all"
+          className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-600/50 focus:border-primary-600/50 transition-all"
         />
 
         {imagePreview && (
@@ -155,8 +155,8 @@ export default function ReviewPage() {
           className={cn(
             'mt-4 w-full flex flex-col items-center justify-center gap-2 px-5 py-6 rounded-xl border-2 border-dashed cursor-pointer transition-all',
             dragging
-              ? 'border-[#4338ff] bg-[#4338ff]/10 text-[#4338ff]'
-              : 'border-slate-500/60 hover:border-[#4338ff] text-slate-200 hover:text-[#4338ff] bg-slate-800/40 hover:bg-[#4338ff]/5'
+              ? 'border-primary-600 bg-primary-600/10 text-primary-600'
+              : 'border-slate-500/60 hover:border-primary-600 text-slate-200 hover:text-primary-600 bg-slate-800/40 hover:bg-primary-600/5'
           )}
         >
           <Camera className="h-8 w-8" />
@@ -188,7 +188,7 @@ export default function ReviewPage() {
             className={cn(
               'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all',
               message.trim() && !sending
-                ? 'bg-[#4338ff] hover:bg-[#3730d4] text-white'
+                ? 'bg-primary-600 hover:bg-primary-700 text-white'
                 : 'bg-slate-700 text-slate-500 cursor-not-allowed'
             )}
           >

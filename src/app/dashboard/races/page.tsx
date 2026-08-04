@@ -253,7 +253,7 @@ export default function RacesPage() {
                   key={race.id}
                   className={cn(
                     'rounded-xl border transition-all cursor-pointer',
-                    isSelected ? 'border-[#4338ff]/50 bg-[#4338ff]/5' : 'border-slate-700/40 bg-slate-800/40 hover:bg-slate-800/60'
+                    isSelected ? 'border-primary-600/50 bg-primary-600/5' : 'border-slate-700/40 bg-slate-800/40 hover:bg-slate-800/60'
                   )}
                   onClick={() => { setSelectedRace(race.id); setExpandedRace(isExpanded ? null : race.id); }}
                 >
@@ -301,7 +301,7 @@ export default function RacesPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={e => e.stopPropagation()}
-                            className="inline-block text-xs text-[#4338ff] hover:text-[#5b54ff] font-medium mt-1"
+                            className="inline-block text-xs text-primary-600 hover:text-[#5b54ff] font-medium mt-1"
                           >
                             {t('website')} →
                           </a>

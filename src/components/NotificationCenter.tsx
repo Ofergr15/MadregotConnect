@@ -167,14 +167,14 @@ export function NotificationCenter() {
     loadList();
   };
 
-  const inputCls = 'w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4338ff]';
+  const inputCls = 'w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Compose */}
       <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Bell className="w-4 h-4 text-[#4338ff]" />
+          <Bell className="w-4 h-4 text-primary-600" />
           <h3 className="font-bold text-white">שליחת התראה / New notification</h3>
         </div>
 
@@ -185,7 +185,7 @@ export function NotificationCenter() {
             return (
               <button key={tpl.key} onClick={() => applyTemplate(tpl)}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700/40 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition" dir="rtl">
-                <Icon className="w-3.5 h-3.5 text-[#4338ff]" /> {tpl.label}
+                <Icon className="w-3.5 h-3.5 text-primary-600" /> {tpl.label}
               </button>
             );
           })}
@@ -200,14 +200,14 @@ export function NotificationCenter() {
                 <button key={w.dayOfWeek} onClick={() => remindWorkout(w)}
                   className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition text-right" dir="rtl">
                   <span className="text-xs text-slate-200 truncate">{w.dayName} · {w.name}</span>
-                  <span className="text-[10px] font-bold text-[#4338ff] shrink-0">שלח תזכורת ←</span>
+                  <span className="text-[10px] font-bold text-primary-600 shrink-0">שלח תזכורת ←</span>
                 </button>
               ))}
             </div>
           ) : (
             <div className="flex items-center justify-between gap-2 px-1 py-1.5" dir="rtl">
               <span className="text-xs text-slate-500">אין תוכנית לשבוע הזה עדיין</span>
-              <a href="/dashboard/program" className="text-[10px] font-bold text-[#4338ff] shrink-0">הוספת תוכנית ←</a>
+              <a href="/dashboard/program" className="text-[10px] font-bold text-primary-600 shrink-0">הוספת תוכנית ←</a>
             </div>
           )}
         </div>
@@ -246,7 +246,7 @@ export function NotificationCenter() {
                 return (
                   <button key={opt.v} onClick={() => { setAudienceType(opt.v); setAudienceId(''); }}
                     className={cn('flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-semibold transition',
-                      active ? 'bg-[#4338ff] border-[#4338ff] text-white' : 'bg-slate-900/40 border-slate-700 text-slate-300 hover:border-slate-500')} dir="rtl">
+                      active ? 'bg-primary-600 border-primary-600 text-white' : 'bg-slate-900/40 border-slate-700 text-slate-300 hover:border-slate-500')} dir="rtl">
                     <Icon className="w-4 h-4" /> {opt.label}
                   </button>
                 );
@@ -257,7 +257,7 @@ export function NotificationCenter() {
                 {groups.map(g => (
                   <button key={g.id} onClick={() => setAudienceId(g.id)}
                     className={cn('px-3 py-2 rounded-full text-xs font-bold transition',
-                      audienceId === g.id ? 'bg-[#4338ff] text-white' : 'bg-slate-700/40 text-slate-300 hover:bg-slate-700')} dir="rtl">
+                      audienceId === g.id ? 'bg-primary-600 text-white' : 'bg-slate-700/40 text-slate-300 hover:bg-slate-700')} dir="rtl">
                     {g.name}
                   </button>
                 ))}
@@ -279,7 +279,7 @@ export function NotificationCenter() {
               {(['now', 'once_at', 'recurring'] as const).map(s => (
                 <button key={s} onClick={() => setScheduleType(s)}
                   className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition',
-                    scheduleType === s ? 'bg-[#4338ff] text-white' : 'bg-slate-700/40 text-slate-400 hover:text-white')}>
+                    scheduleType === s ? 'bg-primary-600 text-white' : 'bg-slate-700/40 text-slate-400 hover:text-white')}>
                   {s === 'now' ? 'עכשיו / Now' : s === 'once_at' ? 'בזמן מסוים / At time' : 'חוזר / Recurring'}
                 </button>
               ))}
@@ -299,10 +299,10 @@ export function NotificationCenter() {
             </div>
           )}
 
-          {msg && <p className="text-sm text-[#4338ff]">{msg}</p>}
+          {msg && <p className="text-sm text-primary-600">{msg}</p>}
 
           <button onClick={submit} disabled={sending}
-            className="w-full inline-flex items-center justify-center gap-2 bg-[#4338ff] hover:bg-[#3730d4] disabled:opacity-50 text-white font-bold py-2.5 rounded-lg transition">
+            className="w-full inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg transition">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {scheduleType === 'now' ? 'שליחה עכשיו / Send now' : 'תזמון / Schedule'}
           </button>
@@ -326,7 +326,7 @@ export function NotificationCenter() {
                     <p className="text-xs text-slate-400 truncate" dir="auto">{n.body_he}</p>
                     <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
                       {n.status === 'sent' ? <CheckCircle className="w-3 h-3 text-green-400" />
-                        : n.schedule_type === 'recurring' ? <Repeat className="w-3 h-3 text-[#4338ff]" />
+                        : n.schedule_type === 'recurring' ? <Repeat className="w-3 h-3 text-primary-600" />
                         : <Clock className="w-3 h-3 text-amber-400" />}
                       <span>
                         {n.status === 'sent' ? `נשלח (${n.sent_count})`

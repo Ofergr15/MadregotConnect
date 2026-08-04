@@ -25,7 +25,7 @@ export function Figure({
 
   return (
     <div
-      className={`relative overflow-hidden ${ratio} bg-gradient-to-br from-[#4338ff] to-[#3730d4] ${className}`}
+      className={`relative overflow-hidden ${ratio} bg-gradient-to-br from-primary-600 to-primary-700 ${className}`}
     >
       {!failed && (
         <img
