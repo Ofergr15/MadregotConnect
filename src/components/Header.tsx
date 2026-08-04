@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, Trophy, MessageSquare, Watch, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, Trophy, MessageSquare, Watch, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3 } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
@@ -24,6 +24,7 @@ const allNavItems = [
   { href: '/dashboard/practice', tab: 'practice', labelKey: 'practice', icon: Dumbbell },
   { href: '/dashboard/practice-attendance', tab: 'practice-attendance', labelKey: 'practiceAttendance', icon: UserCheck },
   { href: '/dashboard/workout-feedback', tab: 'workout-feedback', labelKey: 'workoutFeedback', icon: ClipboardCheck },
+  { href: '/dashboard/team-volume', tab: 'team-volume', labelKey: 'teamVolume', icon: BarChart3 },
   { href: '/dashboard/races', tab: 'races', labelKey: 'races', icon: Trophy },
   { href: '/dashboard/history', tab: 'history', labelKey: 'history', icon: Clock },
   { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },

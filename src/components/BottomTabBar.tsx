@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, Trophy, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  MoreHorizontal, X,
+  BarChart3, MoreHorizontal, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
@@ -34,6 +34,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/practice', tab: 'practice', labelKey: 'practice', icon: Dumbbell },
   { href: '/dashboard/practice-attendance', tab: 'practice-attendance', labelKey: 'practiceAttendance', icon: UserCheck },
   { href: '/dashboard/workout-feedback', tab: 'workout-feedback', labelKey: 'workoutFeedback', icon: ClipboardCheck },
+  { href: '/dashboard/team-volume', tab: 'team-volume', labelKey: 'teamVolume', icon: BarChart3 },
   { href: '/dashboard/races', tab: 'races', labelKey: 'races', icon: Trophy },
   { href: '/dashboard/history', tab: 'history', labelKey: 'history', icon: Clock },
   { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },

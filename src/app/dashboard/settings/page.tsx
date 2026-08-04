@@ -184,6 +184,7 @@ const allTabs = [
   { key: 'groups', label: 'Groups' },
   { key: 'practice-attendance', label: 'Practice Attendance' },
   { key: 'workout-feedback', label: 'Workout Feedback' },
+  { key: 'team-volume', label: 'Team Volume' },
   { key: 'activities', label: 'Activities' },
   { key: 'races', label: 'Races' },
   { key: 'program', label: 'Program' },
