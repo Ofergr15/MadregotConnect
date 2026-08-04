@@ -9,6 +9,7 @@ import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
+import { InsetSection, InsetRow } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 const allNavItems = [
@@ -387,41 +388,40 @@ export function Header() {
           )}
         >
           <div className="py-3 px-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="bg-primary-600/30 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-primary-300">
+            {/* Identity header */}
+            <div className="flex items-center gap-3 mb-4 px-1">
+              <div className="bg-primary-600/30 w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-primary-300">
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-white truncate">{userName}</span>
+                  <span className="text-base font-semibold text-white truncate">{userName}</span>
                   {groupName && (
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg border flex-shrink-0" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded-md border flex-shrink-0" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
                       {groupName}
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-slate-400 truncate">{userEmail}</div>
+                <div className="text-xs text-slate-400 truncate" dir="ltr">{userEmail}</div>
               </div>
             </div>
-            <div className="flex items-center gap-2 mb-3">
+
+            {/* Inset-grouped account actions */}
+            <InsetSection>
+              <InsetRow icon={User} iconBg="bg-slate-600" label={t('profile')} href="/dashboard/profile" onClick={() => setMobileMenuOpen(false)} />
+              {isSuper && (
+                <InsetRow icon={Eye} iconBg="bg-amber-500" label={th('viewAsUser')} onClick={() => { setMobileMenuOpen(false); window.dispatchEvent(new Event('open-view-as')); }} />
+              )}
+            </InsetSection>
+
+            <div className="flex items-center justify-between px-1 mb-3">
+              <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">{tc('language') || 'Language'}</span>
               <LocaleSwitcher />
             </div>
-            {isSuper && (
-              <button
-                onClick={() => { setMobileMenuOpen(false); window.dispatchEvent(new Event('open-view-as')); }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 mb-2 rounded-lg bg-amber-400/10 text-amber-300 border border-amber-400/30 hover:bg-amber-400/20 transition-colors font-bold"
-              >
-                <Eye className="h-5 w-5" />
-                <span>צפייה כמשתמש</span>
-              </button>
-            )}
-            <button
-              onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
-            >
-              <LogOut className="h-5 w-5" />
-              <span className="font-medium">{tc('signOut')}</span>
-            </button>
+
+            <InsetSection>
+              <InsetRow icon={LogOut} iconBg="bg-red-500" label={tc('signOut')} danger onClick={() => { setMobileMenuOpen(false); handleLogout(); }} />
+            </InsetSection>
           </div>
         </div>
       </div>

@@ -9,6 +9,7 @@
 import { cn } from '@/lib/utils';
 
 export { Sheet } from './Sheet';
+export { InsetSection, InsetRow } from './InsetList';
 
 // ── Spinner ──────────────────────────────────────────────────────────────────
 // One brand-colored ring, replacing the mix of border-b-2 half-circles and
