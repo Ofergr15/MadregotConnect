@@ -16,6 +16,7 @@ import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { MomentumCard } from '@/components/MomentumCard';
 import { SquadStandings } from '@/components/SquadStandings';
+import { CoachPulse } from '@/components/CoachPulse';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { Sheet, Spinner } from '@/components/ui';
 
@@ -781,6 +782,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {/* ═══ COACH PULSE (attention + celebrate radar) ═══ */}
+      {isCoach && <CoachPulse />}
 
       {/* ═══ STATS ROW ═══ */}
       {isCoach ? (
