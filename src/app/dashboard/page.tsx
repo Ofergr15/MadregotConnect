@@ -8,7 +8,7 @@ import {
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
   Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
 } from 'lucide-react';
-import { cn, getActivityWeekStart, formatActivityTime, formatActivityDate, activityLocalHour, resolveGroup } from '@/lib/utils';
+import { cn, getActivityWeekStart, formatActivityTime, formatActivityDate, activityLocalHour, resolveGroup, israelNow } from '@/lib/utils';
 import { fetchActivities, fetchActivityDetails } from '@/lib/activities-client';
 import { groupPaceTokens } from '@/lib/garmin/pace';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
@@ -752,11 +752,16 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ═══ PRE-WORKOUT ATTENDANCE — team-workout days only (Tue=2, Fri=5) ═══ */}
+      {/* ═══ PRE-WORKOUT ATTENDANCE — team-workout days only (Tue=2, Fri=5), and
+          only BEFORE the workout. Team workouts are evening (~18:00 IL); after
+          20:00 IL the workout has passed, so it's no longer "pre-workout" — hide
+          the RSVP (the coach roster stays, so coaches can still review turnout). */}
       {(todayDow === 2 || todayDow === 5) && (
         isCoach
           ? <AttendanceRoster />
-          : <AttendanceRSVP workoutLabel={todayWorkout?.type ? `${todayWorkout.day} · ${todayWorkout.type}` : undefined} />
+          : israelNow().hour < 20
+            ? <AttendanceRSVP workoutLabel={todayWorkout?.type ? `${todayWorkout.day} · ${todayWorkout.type}` : undefined} />
+            : null
       )}
 
       {/* ═══ RACE COUNTDOWN — compact native strip (was a giant 8xl number) ═══ */}
