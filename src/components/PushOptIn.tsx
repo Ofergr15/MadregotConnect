@@ -72,7 +72,10 @@ export function PushOptIn() {
   if (!show) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 p-4 safe-bottom pointer-events-none">
+    // z-50 so it sits ABOVE the bottom tab bar (which is fixed bottom-0 z-40),
+    // and lifted clear of the ~72px tab bar on mobile so the Enable button is
+    // never hidden behind it. On desktop (no tab bar) it sits at the normal edge.
+    <div className="fixed inset-x-0 bottom-0 z-50 p-4 pb-[calc(72px+env(safe-area-inset-bottom)+8px)] md:pb-4 pointer-events-none">
       <div className="pointer-events-auto mx-auto max-w-md bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl p-4 flex items-start gap-3">
         <div className="bg-primary-500/20 w-11 h-11 rounded-xl flex items-center justify-center shrink-0">
           <Bell className="h-5 w-5 text-primary-400" />
