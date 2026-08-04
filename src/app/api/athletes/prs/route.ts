@@ -17,6 +17,7 @@ const BUCKETS: Array<{ key: string; label: string; meters: number; tolerance: nu
   { key: '5k', label: '5K', meters: 5000, tolerance: 0.06 },   // 4.70–5.30 km
   { key: '10k', label: '10K', meters: 10000, tolerance: 0.05 }, // 9.5–10.5 km
   { key: 'hm', label: 'Half Marathon', meters: 21097, tolerance: 0.04 }, // ~20.25–21.94 km
+  { key: 'fm', label: 'Marathon', meters: 42195, tolerance: 0.03 }, // ~40.9–43.5 km
 ];
 
 // Runs only — exclude walks/other; matches the sync-time run-type filter.
@@ -85,7 +86,18 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ distanceBests, totalRuns: runs.length });
+    // Longest run — max single-activity distance (a milestone, not a time bucket).
+    let longest: any = null;
+    for (const r of runs) {
+      if (!longest || r.distance > longest.distanceM) {
+        longest = { distanceM: r.distance, date: r.start_time, name: r.activity_name };
+      }
+    }
+    const longestRun = longest
+      ? { meters: longest.distanceM, km: Math.round((longest.distanceM / 1000) * 10) / 10, date: longest.date, activityName: longest.name }
+      : null;
+
+    return NextResponse.json({ distanceBests, longestRun, totalRuns: runs.length });
   } catch (err: any) {
     console.error('PRs error:', err);
     return NextResponse.json({ error: err.message || 'Failed to compute PRs' }, { status: 500 });
