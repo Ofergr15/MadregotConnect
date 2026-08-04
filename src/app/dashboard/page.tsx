@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn, getActivityWeekStart, formatActivityTime, formatActivityDate, activityLocalHour, resolveGroup, israelNow } from '@/lib/utils';
 import { fetchActivities, fetchActivityDetails } from '@/lib/activities-client';
+import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { groupPaceTokens } from '@/lib/garmin/pace';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
@@ -484,7 +485,13 @@ export default function DashboardPage() {
     const coachEmail = localStorage.getItem('coach_email');
     const storedAthleteId = localStorage.getItem('athlete_id');
     const name = localStorage.getItem('athlete_name') || '';
-    setIsCoach(!!coachEmail);
+    // Coach-vs-athlete body view must honour the super-user "view as" role, like
+    // the nav does — otherwise previewing as coach still shows the athlete RSVP
+    // (and previewing as runner still shows the coach roster). A role scenario
+    // wins; otherwise fall back to whether this is a real coach account.
+    const viewMode = getViewMode();
+    const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
+    setIsCoach(previewRole ? STAFF_ROLES.includes(previewRole) : !!coachEmail);
     setAthleteId(storedAthleteId);
     setAthleteName(name);
     // Admin-editable team-workout time → drives the pre-workout RSVP cutoff.
