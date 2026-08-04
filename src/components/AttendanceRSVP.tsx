@@ -17,6 +17,7 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
 
   const [attending, setAttending] = useState<boolean | null>(null);
   const [group, setGroup] = useState('');
+  const [customGroup, setCustomGroup] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -30,7 +31,10 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
       .then(data => {
         if (data?.rsvp) {
           setAttending(data.rsvp.attending);
-          setGroup(data.rsvp.groupLabel || '');
+          const label = data.rsvp.groupLabel || '';
+          setGroup(label);
+          // A saved label that isn't one of the presets came from the free-text box.
+          if (label && !GROUP_PRESETS.includes(label)) setCustomGroup(label);
         }
       })
       .catch(() => {})
@@ -101,7 +105,7 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
             {GROUP_PRESETS.map(g => (
               <button
                 key={g}
-                onClick={() => { setGroup(g); submitGroup(g, ''); }}
+                onClick={() => { setGroup(g); setCustomGroup(''); submitGroup(g, ''); }}
                 className={cn('px-3 py-2 rounded-full text-xs font-bold transition',
                   group === g ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
                 dir="rtl"
@@ -110,6 +114,18 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
               </button>
             ))}
           </div>
+          {/* Free-text "other group" — for anyone not in a preset דבוקה. Saves on
+              blur / Enter; typing here clears any preset selection. */}
+          <input
+            value={customGroup}
+            onChange={e => { setCustomGroup(e.target.value); if (e.target.value) setGroup(''); }}
+            onBlur={() => { if (customGroup.trim()) submitGroup('', customGroup); }}
+            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+            placeholder={t('otherGroup')}
+            dir="rtl"
+            className={cn('mt-2 w-full bg-slate-900/50 border rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600',
+              customGroup.trim() ? 'border-primary-500' : 'border-slate-700')}
+          />
         </div>
       )}
     </div>

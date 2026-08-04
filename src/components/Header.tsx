@@ -417,15 +417,32 @@ export function Header() {
             </button>
           </div>
 
-          {/* Mobile: avatar → account menu. Navigation lives in the bottom tab
-              bar now; this button only opens account actions (no nav list). */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden flex items-center justify-center w-9 h-9 rounded-full bg-primary-600/20 ring-1 ring-primary-500/20 text-sm font-bold text-primary-300 active:scale-95 transition-transform"
-            aria-label={mobileMenuOpen ? tc('close') : th('account')}
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : initials}
-          </button>
+          {/* Mobile: bell (→ notifications inbox) + avatar (→ account menu).
+              Navigation lives in the bottom tab bar; these are the only header
+              actions on the phone. */}
+          <div className="md:hidden flex items-center gap-2">
+            {isAthlete && (
+              <Link
+                href="/dashboard/notifications"
+                aria-label="התראות"
+                className="relative flex items-center justify-center w-9 h-9 rounded-full text-slate-300 active:scale-95 transition-transform"
+              >
+                <Bell className="h-5 w-5" />
+                {inbox.filter(i => i.unread).length > 0 && (
+                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {inbox.filter(i => i.unread).length}
+                  </span>
+                )}
+              </Link>
+            )}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-primary-600/20 ring-1 ring-primary-500/20 text-sm font-bold text-primary-300 active:scale-95 transition-transform"
+              aria-label={mobileMenuOpen ? tc('close') : th('account')}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : initials}
+            </button>
+          </div>
         </div>
 
         {/* Mobile account menu (no nav — the tab bar owns navigation) */}
