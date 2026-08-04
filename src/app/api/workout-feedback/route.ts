@@ -107,7 +107,7 @@ export async function GET(request: Request) {
     {
       const withReply = await supabase
         .from('workout_feedback')
-        .select('id, difficulty, feel, pain, pain_detail, wants_feedback, comment, coach_reply, coach_reply_at')
+        .select('id, difficulty, feel, pain, pain_detail, wants_feedback, comment, coach_reply, coach_reply_at, reply_seen_at')
         .eq('athlete_id', athleteId)
         .eq('garmin_activity_id', Number(activityId))
         .maybeSingle();

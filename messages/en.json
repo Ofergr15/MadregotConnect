@@ -579,7 +579,8 @@
     "thanks": "Thanks! 🙏",
     "comment": "Anything else?",
     "commentPlaceholder": "Add a comment (optional)",
-    "coachReply": "Coach reply"
+    "coachReply": "Coach reply",
+    "new": "New"
   },
   "momentum": {
     "weekStreak": "week streak",

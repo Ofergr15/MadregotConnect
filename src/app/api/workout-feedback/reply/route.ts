@@ -79,3 +79,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 }
+
+// PATCH /api/workout-feedback/reply { feedbackId, athleteId }
+// The athlete marks the coach's reply as seen (clears the "new reply" badge).
+// Owner-only: the athleteId must own the feedback row. Idempotent; only stamps
+// reply_seen_at once. Degrades gracefully if migration 036 isn't applied.
+export async function PATCH(request: Request) {
+  try {
+    const { feedbackId, athleteId } = await request.json();
+    if (!feedbackId || !athleteId) {
+      return NextResponse.json({ error: 'feedbackId and athleteId required' }, { status: 400 });
+    }
+    const supabase = createServerClient();
+
+    // Only stamp when this athlete owns the row and it isn't already seen.
+    const { data, error } = await supabase
+      .from('workout_feedback')
+      .update({ reply_seen_at: new Date().toISOString() })
+      .eq('id', feedbackId)
+      .eq('athlete_id', athleteId)
+      .is('reply_seen_at', null)
+      .select('id');
+    if (error) {
+      if ((error as { code?: string }).code === '42703' || /reply_seen_at/.test(error.message || '')) {
+        return NextResponse.json({ ok: true, migrated: false });
+      }
+      throw error;
+    }
+    return NextResponse.json({ ok: true, marked: (data || []).length });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  }
+}
