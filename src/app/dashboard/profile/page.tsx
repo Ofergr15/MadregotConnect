@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useTranslations, useLocale } from 'next-intl';
 import { ProfileBest } from '@/components/ProfileBest';
 import { PersonalRecords } from '@/components/PersonalRecords';
+import { VolumeHistory } from '@/components/VolumeHistory';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
@@ -390,6 +391,9 @@ function ProfileContent() {
 
       {/* Auto-detected Personal Records (5K/10K/HM) — hidden when none yet */}
       <PersonalRecords athleteId={athleteId} />
+
+      {/* Weekly training-volume trend (durable weekly_km_snapshots) — hidden when no runs */}
+      <VolumeHistory athleteId={athleteId} weeks={12} />
 
       {/* This Week's Program */}
       <Link
