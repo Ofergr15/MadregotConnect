@@ -5,7 +5,7 @@ import { GarminClient } from '@/lib/garmin/client';
 import { activityLocalDateStr } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
-import { flattenPlannedSteps, matchLapsToSteps, Lap } from '@/lib/academy/segments';
+import { flattenPlannedSteps, matchLapsToSteps, buildPlannedBands, Lap } from '@/lib/academy/segments';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,7 +69,16 @@ export async function GET(request: Request) {
     }
     const planned = workouts.find(w => w.dayOfWeek === dayOfWeek);
     if (!planned) {
+      if (searchParams.get('bands')) return NextResponse.json({ bands: null, reason: 'no planned workout for this day' });
       return NextResponse.json({ segments: [], aligned: false, reason: 'no planned workout for this day' });
+    }
+
+    // Chart-overlay mode: return the planned pace BANDS on a meter timeline. The
+    // client projects them onto the activity's actual split distances (splits are
+    // not always 1km). No lap fetch needed. bands:null → the day has no paced plan.
+    if (searchParams.get('bands')) {
+      const bands = buildPlannedBands(planned);
+      return NextResponse.json({ bands: bands.length ? bands : null, workoutName: planned.name });
     }
 
     // 2) The matched activity for that date, with its stored laps.

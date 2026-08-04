@@ -95,6 +95,81 @@ function lapPace(lap: Lap): number | null {
   return null;
 }
 
+// ── Planned pace bands + chart-overlay projection ───────────────────────────
+// The activity chart plots ACTUAL pace, one point per recorded split. Splits are
+// NOT always 1km — an interval workout auto-laps per step (e.g. 630m fast, 131m
+// slow). So to overlay the PLAN honestly we lay the planned steps out on a METER
+// timeline as pace bands, then project those bands onto whatever distance bins
+// the chart actually uses (the splits' cumulative ranges). Fast/slow planned
+// segments then line up with the real fast/slow laps regardless of split size.
+
+// A paced stretch of the plan on the meter timeline. sec/km; smaller = faster.
+export interface PlannedBand {
+  startM: number;
+  endM: number;
+  min: number; // fastest planned pace across this stretch
+  max: number; // slowest planned pace across this stretch
+}
+
+// A planned point aligned to one chart bin (or null = no paced plan there).
+export interface PlannedKmPoint {
+  pace: number; // sec/km — band midpoint, for the center line
+  min: number;  // sec/km — fastest
+  max: number;  // sec/km — slowest
+}
+
+// Flatten the workout onto a meter timeline of paced bands. Distance steps use
+// their meters; time steps estimate meters from target pace (m = s * 1000/pace);
+// steps with no placeable length are skipped. Rests advance the cursor but add
+// no band (leaving a gap the overlay honours).
+export function buildPlannedBands(workout: ParsedWorkout): PlannedBand[] {
+  const flat = flattenPlannedSteps(workout);
+  const bands: PlannedBand[] = [];
+  let cursor = 0;
+  for (const seg of flat) {
+    const mid = seg.paceMin && seg.paceMax ? (seg.paceMin + seg.paceMax) / 2 : (seg.paceMin || 0);
+    let meters = 0;
+    if (seg.distanceM && seg.distanceM > 0) meters = seg.distanceM;
+    else if (seg.durationSec && seg.durationSec > 0 && mid > 0) meters = (seg.durationSec * 1000) / mid;
+    if (meters <= 0) continue;
+    const startM = cursor;
+    cursor += meters;
+    if (seg.graded && seg.paceMin) {
+      bands.push({ startM, endM: cursor, min: seg.paceMin, max: seg.paceMax || seg.paceMin });
+    }
+  }
+  return bands;
+}
+
+// Project paced bands onto ordered distance bins (meters each). Returns one point
+// per bin, overlap-weighted; a bin less than half-covered by any paced band → null
+// (the overlay breaks rather than drawing a value it can't justify). Pure &
+// client-safe so the chart can call it directly.
+export function projectBandsToBins(bands: PlannedBand[], binMeters: number[]): (PlannedKmPoint | null)[] {
+  if (bands.length === 0) return binMeters.map(() => null);
+  const out: (PlannedKmPoint | null)[] = [];
+  let lo = 0;
+  for (const width of binMeters) {
+    const hi = lo + width;
+    let covered = 0, wMin = 0, wMax = 0;
+    for (const b of bands) {
+      const os = Math.max(lo, b.startM);
+      const oe = Math.min(hi, b.endM);
+      const overlap = oe - os;
+      if (overlap > 0) { covered += overlap; wMin += b.min * overlap; wMax += b.max * overlap; }
+    }
+    if (covered >= width * 0.5) {
+      const min = Math.round(wMin / covered);
+      const max = Math.round(wMax / covered);
+      out.push({ pace: Math.round((min + max) / 2), min, max });
+    } else {
+      out.push(null);
+    }
+    lo = hi;
+  }
+  return out;
+}
+
 /**
  * Align laps to planned steps positionally and grade each. Requires the lap count
  * to match the planned step count (Garmin auto-laps per step). If they don't line

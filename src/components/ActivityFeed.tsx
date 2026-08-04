@@ -6,8 +6,9 @@ import {
   MapPin, ChevronDown, ChevronUp, Zap, Footprints, Mountain,
   Flame, RefreshCw, Gauge,
 } from 'lucide-react';
-import { cn, formatActivityTime, formatActivityDate, activityLocalHour, activityLocalDay } from '@/lib/utils';
+import { cn, formatActivityTime, formatActivityDate, activityLocalHour, activityLocalDay, activityLocalDateStr } from '@/lib/utils';
 import { fetchActivityDetails } from '@/lib/activities-client';
+import { projectBandsToBins, PlannedKmPoint } from '@/lib/academy/segments';
 
 interface ActivityEntry {
   id: string;
@@ -46,13 +47,6 @@ interface Split {
   elevationLoss?: number | null;
 }
 
-interface PlannedStep {
-  type: string;
-  duration?: number;
-  distance?: number;
-  targetPace?: number;
-  label?: string;
-}
 
 interface ActivityDetailsData {
   gpsPoints: Array<{ lat: number; lng: number }>;
@@ -270,7 +264,7 @@ function useChartHover(pointCount: number) {
 
 // ─── Full-Width Pace Chart ─────────────────────────────────────────────────────
 
-function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep[] }) {
+function PaceChart({ splits, planned }: { splits: Split[]; planned?: (PlannedKmPoint | null)[] }) {
   const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
 
   if (splits.length < 2) return null;
@@ -282,8 +276,15 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep
   const chartH = height - pad.top - pad.bottom;
 
   const paces = splits.map(s => s.averagePace);
-  const maxPace = Math.max(...paces);
-  const minPace = Math.min(...paces);
+  // The planned band (aligned per-km with the splits) may sit outside the actual
+  // pace range — include its values in the y-domain so the plan is never clipped.
+  const hasPlan = Array.isArray(planned) && planned.some(p => p != null);
+  const domainVals = [...paces];
+  if (hasPlan) {
+    planned!.forEach(p => { if (p) { domainVals.push(p.min, p.max); } });
+  }
+  const maxPace = Math.max(...domainVals);
+  const minPace = Math.min(...domainVals);
   const dataRange = maxPace - minPace;
   const padding = Math.max(dataRange * 0.1, 15);
   const viewMin = minPace - padding;
@@ -304,26 +305,30 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep
 
   const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
 
-  // Build planned pace overlay
-  let plannedPoints: Array<{ x: number; y: number }> | null = null;
-  if (planned && planned.length > 0) {
-    const plannedPaces: number[] = [];
-    for (const step of planned) {
-      if (step.targetPace) {
-        const km = step.distance ? Math.round(step.distance / 1000) : 1;
-        for (let i = 0; i < km; i++) plannedPaces.push(step.targetPace);
-      }
-    }
-    if (plannedPaces.length > 0) {
-      plannedPoints = plannedPaces.slice(0, splits.length).map((p, i) => ({ x: toX(i + 1), y: toY(p) }));
-    }
+  // Planned overlay: split into contiguous runs of paced kms (gaps = null), so
+  // the dashed center line + shaded band break wherever the plan has no target.
+  const plannedRuns: Array<Array<{ i: number; p: PlannedKmPoint }>> = [];
+  if (hasPlan) {
+    let cur: Array<{ i: number; p: PlannedKmPoint }> = [];
+    planned!.slice(0, splits.length).forEach((p, i) => {
+      if (p) cur.push({ i, p });
+      else if (cur.length) { plannedRuns.push(cur); cur = []; }
+    });
+    if (cur.length) plannedRuns.push(cur);
   }
+  const bandArea = (run: Array<{ i: number; p: PlannedKmPoint }>): string => {
+    // Upper edge (fastest = smaller sec) left→right, lower edge (slowest) right→left.
+    const top = run.map(({ i, p }) => ({ x: toX(i + 1), y: toY(p.min) }));
+    const bot = run.map(({ i, p }) => ({ x: toX(i + 1), y: toY(p.max) })).reverse();
+    const pts = [...top, ...bot];
+    return 'M ' + pts.map(pt => `${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`).join(' L ') + ' Z';
+  };
 
   return (
     <div>
       <h4 className="text-3xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Timer className="h-3 w-3" /> Pace per KM
-        {planned && <span className="text-3xs text-slate-400 ms-2">— dashed = planned</span>}
+        {hasPlan && <span className="text-3xs text-emerald-400 ms-2">— dashed = planned</span>}
       </h4>
       <svg
         ref={svgRef}
@@ -343,9 +348,16 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep
           <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
         ))}
         <path d={areaPath} fill="url(#paceGradFW)" />
-        {plannedPoints && (
-          <path d={catmullRom(plannedPoints)} fill="none" stroke="#22c55e" strokeWidth="2" strokeDasharray="8 4" opacity={0.7} />
-        )}
+        {/* Planned pace band + dashed center, per contiguous paced run. */}
+        {plannedRuns.map((run, k) => (
+          <g key={`plan-${k}`}>
+            <path d={bandArea(run)} fill="#22c55e" opacity={0.1} />
+            <path
+              d={catmullRom(run.map(({ i, p }) => ({ x: toX(i + 1), y: toY(p.pace) })))}
+              fill="none" stroke="#22c55e" strokeWidth="2" strokeDasharray="8 4" opacity={0.75}
+            />
+          </g>
+        ))}
         <path d={linePath} fill="none" stroke="#4338ff" strokeWidth="3" strokeLinecap="round" />
         {points.map((p, i) => (
           <circle key={i} cx={p.x} cy={p.y} r={hoverIdx === i ? 6 : 3.5} fill="#4338ff" stroke="#1e1b4b" strokeWidth="2" className="transition-all" />
@@ -647,6 +659,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
   const [expanded, setExpanded] = useState(false);
   const [details, setDetails] = useState<ActivityDetailsData | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [planned, setPlanned] = useState<(PlannedKmPoint | null)[] | null>(null);
 
   const distKm = (activity.distance / 1000).toFixed(1);
   const distKmNum = activity.distance / 1000;
@@ -666,7 +679,30 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
     setLoadingDetails(true);
     try {
       const res = await fetchActivityDetails(activity.garmin_activity_id, activity.athlete_id);
-      if (res.ok) setDetails(await res.json());
+      let liveSplits: Split[] = [];
+      if (res.ok) {
+        const d = await res.json();
+        setDetails(d);
+        if (Array.isArray(d?.splits)) liveSplits = d.splits;
+      }
+      // Overlay the day's planned pace, aligned to the ACTUAL split distances
+      // (splits aren't always 1km — intervals auto-lap per step). Fetch the plan
+      // as meter bands, then project onto each split's distance. Best-effort:
+      // no plan / no paced steps → no overlay.
+      const useSplits = liveSplits.length ? liveSplits : (activity.splits || []);
+      if (useSplits.length >= 2) {
+        const date = activityLocalDateStr(activity.start_time);
+        try {
+          const pr = await fetch(`/api/academy/segments?athleteId=${encodeURIComponent(activity.athlete_id)}&date=${date}&bands=1`);
+          if (pr.ok) {
+            const pj = await pr.json();
+            if (Array.isArray(pj?.bands) && pj.bands.length) {
+              const binMeters = useSplits.map((s) => s.distance || 1000);
+              setPlanned(projectBandsToBins(pj.bands, binMeters));
+            }
+          }
+        } catch { /* plan overlay optional */ }
+      }
     } catch { /* silent */ }
     finally { setLoadingDetails(false); }
   };
@@ -904,7 +940,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
           {splits.length >= 2 && (
             <div className="space-y-4">
               <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/20">
-                <PaceChart splits={splits} />
+                <PaceChart splits={splits} planned={planned || undefined} />
               </div>
               {splits.some(s => s.averageHR) && (
                 <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/20">
