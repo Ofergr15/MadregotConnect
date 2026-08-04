@@ -8,6 +8,7 @@ interface Cfg {
   teamDays: number[];
   dayBefore: { enabled: boolean; hour: number };
   eveningBefore: { enabled: boolean; hour: number };
+  workoutHour?: number; // team workout start (IL); drives the RSVP cutoff
 }
 const DAYS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש']; // Sun..Sat (Hebrew initials)
 
@@ -79,6 +80,17 @@ export function ReminderConfig() {
             {d}
           </button>
         ))}
+      </div>
+
+      {/* Team workout start time — drives when the pre-workout RSVP stops showing */}
+      <div className="flex items-center gap-3 py-2 border-t border-slate-700/50">
+        <span className="text-sm text-slate-200 flex-1">שעת האימון הקבוצתי</span>
+        <select
+          value={cfg.workoutHour ?? 18}
+          onChange={e => save({ ...cfg, workoutHour: Number(e.target.value) })}
+          className="bg-slate-900/50 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white">
+          {hours.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+        </select>
       </div>
 
       <div className="border-t border-slate-700/50 pt-1">

@@ -4,7 +4,9 @@ import { canApprove } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
-const DEFAULT = { teamDays: [2, 5], dayBefore: { enabled: true, hour: 8 }, eveningBefore: { enabled: true, hour: 18 } };
+// workoutHour = the team workout's start time (Israel), admin-editable. Drives
+// the pre-workout RSVP cutoff (RSVP hides once the workout has passed).
+const DEFAULT = { teamDays: [2, 5], dayBefore: { enabled: true, hour: 8 }, eveningBefore: { enabled: true, hour: 18 }, workoutHour: 18 };
 
 export async function GET() {
   try {

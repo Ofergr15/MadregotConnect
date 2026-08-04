@@ -453,6 +453,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
   const [weather, setWeather] = useState<WeatherDay[]>([]);
+  const [workoutHour, setWorkoutHour] = useState<number>(18); // team workout start (IL), admin-editable
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState({ d: 0, h: 0, m: 0, s: 0 });
@@ -486,6 +487,10 @@ export default function DashboardPage() {
     setIsCoach(!!coachEmail);
     setAthleteId(storedAthleteId);
     setAthleteName(name);
+    // Admin-editable team-workout time → drives the pre-workout RSVP cutoff.
+    fetch('/api/reminder-config').then(r => r.ok ? r.json() : null)
+      .then(d => { if (typeof d?.config?.workoutHour === 'number') setWorkoutHour(d.config.workoutHour); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -752,14 +757,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ═══ PRE-WORKOUT ATTENDANCE — team-workout days only (Tue=2, Fri=5), and
-          only BEFORE the workout. Team workouts are evening (~18:00 IL); after
-          20:00 IL the workout has passed, so it's no longer "pre-workout" — hide
-          the RSVP (the coach roster stays, so coaches can still review turnout). */}
+      {/* ═══ PRE-WORKOUT ATTENDANCE — team-workout days only, and only BEFORE the
+          workout. Cutoff = the admin-set workoutHour + 2h grace; after that the
+          workout has passed, so the RSVP hides. Coach roster always shows so
+          coaches can review turnout. */}
       {(todayDow === 2 || todayDow === 5) && (
         isCoach
           ? <AttendanceRoster />
-          : israelNow().hour < 20
+          : israelNow().hour < workoutHour + 2
             ? <AttendanceRSVP workoutLabel={todayWorkout?.type ? `${todayWorkout.day} · ${todayWorkout.type}` : undefined} />
             : null
       )}
