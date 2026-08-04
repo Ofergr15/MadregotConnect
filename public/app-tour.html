@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>מדרגות · סיור באפליקציה</title>
+<style>
+  :root{--indigo:#4338ff;--indigo-l:#818cf8;--s950:#0b1120;--s900:#0f172a;--s800:#1e293b;--s700:#334155;--s400:#94a3b8;--s500:#64748b}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(120% 55% at 50% 0%,#16213b 0%,#0f172a 45%,#0b1120 100%);color:#fff;font-family:"Heebo","Rubik",-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding:44px 20px 90px}
+  .wrap{max-width:1240px;margin:0 auto}
+  header{text-align:center;margin-bottom:6px}
+  header .kick{color:var(--indigo-l);font-size:13px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+  header h1{font-size:36px;font-weight:900;letter-spacing:-.5px;margin-top:6px}
+  header p{color:var(--s400);font-size:15px;margin-top:8px}
+  .pill{display:inline-flex;align-items:center;gap:8px;margin-top:16px;background:rgba(67,56,255,.15);border:1px solid rgba(129,140,248,.3);color:var(--indigo-l);font-weight:800;font-size:13px;padding:7px 16px;border-radius:999px}
+
+  .sec{margin:46px 0 4px;display:flex;align-items:center;gap:12px}
+  .sec h2{font-size:22px;font-weight:900}
+  .sec .tag{font-size:12px;font-weight:800;padding:4px 11px;border-radius:999px}
+  .sec .tag.run{background:rgba(67,56,255,.18);color:var(--indigo-l)}
+  .sec .tag.coach{background:rgba(249,115,22,.16);color:#fdba74}
+  .sec .line{flex:1;height:1px;background:linear-gradient(90deg,rgba(51,65,85,.7),transparent)}
+
+  .grid{margin-top:22px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:28px}
+  .card{display:flex;flex-direction:column;gap:12px}
+  .frame{border-radius:30px;border:9px solid #0b1120;background:#0b1120;box-shadow:0 18px 40px rgba(0,0,0,.34);overflow:hidden;position:relative;max-height:620px}
+  .frame::before{content:'';position:absolute;top:9px;left:50%;transform:translateX(-50%);width:92px;height:20px;background:#000;border-radius:12px;z-index:3}
+  .frame img{width:100%;height:auto;display:block}
+  .frame.scroll{overflow-y:auto}
+  .frame.scroll::-webkit-scrollbar{width:0}
+  .cap{padding:0 6px}
+  .cap b{font-size:15px;font-weight:800;display:block}
+  .cap span{color:var(--s400);font-size:12.5px;line-height:1.5;display:block;margin-top:3px}
+  footer{text-align:center;color:var(--s500);font-size:12px;margin-top:52px;line-height:1.7}
+  footer b{color:var(--s400)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kick">Madregot · After 2KM Running Club</div>
+    <h1>סיור באפליקציה 🏃</h1>
+    <p>צילומי מסך אמיתיים מהאפליקציה החיה — לא הדמיות</p>
+    <div class="pill">✓ הכל חי בפרודקשן · madregot-connect.vercel.app</div>
+  </header>
+
+  <!-- RUNNER -->
+  <div class="sec"><h2>מסך הרץ</h2><span class="tag run">רץ</span><div class="line"></div></div>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="/app-tour/r-dashboard.png" alt=""></div><div class="cap"><b>לוח הבקרה</b><span>RSVP לאימון, ספירה למרוץ, אימון היום/מחר, התראות שעון, נפח שבועי ועומס אימונים.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/r-profile.png" alt=""></div><div class="cap"><b>פרופיל + שיאים</b><span>התוצאות שלך (2000מ׳), שיאים אישיים 5K/10K/HM/מרתון, ומגמת נפח שבועי — הכל אוטומטי.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/r-feedback.png" alt=""></div><div class="cap"><b>משוב אחרי אימון</b><span>קושי 1–10, תחושה, כאב, בקשת משוב מהמאמן והערה חופשית — מסתגל לפי נתוני השעון.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/r-activities.png" alt=""></div><div class="cap"><b>הפעילויות שלי</b><span>כל הריצות מגרמין/סטרבה, עם גרף קצב מתוכנן מול בפועל בכל אימון.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/r-inbox.png" alt=""></div><div class="cap"><b>מרכז התראות</b><span>היסטוריית ההתראות בתוך האפליקציה — נקודות ״לא נקרא״, הקשה פותחת את המסך המקושר.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/r-program.png" alt=""></div><div class="cap"><b>התוכנית</b><span>אימונים / תזונה / חדר כושר — מחליפים תצוגה בפקד מקטעים, סרטוני תרגול מוטמעים.</span></div></div>
+  </div>
+
+  <!-- COACH -->
+  <div class="sec"><h2>מסך המאמן</h2><span class="tag coach">מאמן</span><div class="line"></div></div>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="/app-tour/c-dashboard.png" alt=""></div><div class="cap"><b>לוח בקרה למאמן</b><span>דופק המאמן (מי דורש תשומת לב + למי לחגוג), רשימת נוכחות, סטטיסטיקות צוות ומלחמת הדבוקות.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/c-attendance.png" alt=""></div><div class="cap"><b>נוכחות באימון</b><span>לוח חודשי צבוע לפי כמות המגיעים, והקשה על יום פותחת את רשימת המגיעים לפי דבוקה.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/c-feedback.png" alt=""></div><div class="cap"><b>משוב אימונים + תשובה</b><span>כל המשובים ממויינים (כאב → קושי → ביקשו משוב), עם תיבת תשובה של המאמן לכל רץ.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/c-teamvolume.png" alt=""></div><div class="cap"><b>נפח הקבוצה</b><span>לכל ספורטאי ספארקליין נפח שבועי + מגמה — מי עולה ומי יורד, במבט אחד.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/c-practice.png" alt=""></div><div class="cap"><b>ספריית סרטונים</b><span>ניהול סרטוני תרגול — המאמן מחליף מזהי Google Drive חיים, ללא פריסת קוד.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="/app-tour/c-settings.png" alt=""></div><div class="cap"><b>הגדרות</b><span>מרכז התראות, ימי ושעת האימון, מצב תחזוקה, ניהול משתמשים וטאבים.</span></div></div>
+  </div>
+
+  <footer>
+    צילומי מסך אמיתיים מהאפליקציה בפרודקשן · <b>מדרגות</b><br>
+    גללו בתוך כל מסך לצפייה מלאה · אוגוסט 2026
+  </footer>
+</div>
+</body>
+</html>
