@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
-import { Card, Button, EmptyState } from '@/components/ui';
+import { Card, Button, EmptyState, SegmentedControl, Sheet } from '@/components/ui';
 
 interface ProgramWeek {
   id: string;
@@ -180,44 +180,15 @@ export default function ProgramPage() {
 
       {/* View Toggle — full width, sticky on mobile */}
       <div className={cn('flex flex-col gap-3', activeView === 'workout' && 'sticky top-0 z-30 bg-slate-900 -mx-4 px-4 pt-2 pb-3 sm:static sm:mx-0 sm:px-0 sm:pt-0 sm:pb-0 sm:bg-transparent')}>
-        <div className="flex gap-0.5 bg-slate-800 rounded-xl p-1 border border-slate-700 w-full">
-          <button
-            onClick={() => setActiveView('training')}
-            className={cn(
-              'flex-1 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5',
-              activeView === 'training'
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
-            )}
-          >
-            <Dumbbell className="h-4 w-4" />
-            {t('training')}
-          </button>
-          <button
-            onClick={() => setActiveView('nutrition')}
-            className={cn(
-              'flex-1 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5',
-              activeView === 'nutrition'
-                ? 'bg-green-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
-            )}
-          >
-            <Utensils className="h-4 w-4" />
-            {t('nutrition')}
-          </button>
-          <button
-            onClick={() => setActiveView('workout')}
-            className={cn(
-              'flex-1 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5',
-              activeView === 'workout'
-                ? 'bg-orange-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
-            )}
-          >
-            <Play className="h-4 w-4" />
-            Gym
-          </button>
-        </div>
+        <SegmentedControl
+          value={activeView}
+          onChange={setActiveView}
+          options={[
+            { value: 'training', label: t('training'), icon: Dumbbell },
+            { value: 'nutrition', label: t('nutrition'), icon: Utensils },
+            { value: 'workout', label: t('gym'), icon: Play },
+          ]}
+        />
 
         {/* Week Dropdown — only show for training/nutrition */}
         {activeView !== 'workout' && currentWeek && (
@@ -622,6 +593,7 @@ function UploadForm({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const t = useTranslations('program');
   const [weekNumber, setWeekNumber] = useState(nextWeekNumber);
   const [weekStartDate, setWeekStartDate] = useState('');
   const [trainingFile, setTrainingFile] = useState<File | null>(null);
@@ -687,13 +659,7 @@ function UploadForm({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md">
-        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <Upload className="h-5 w-5 text-primary-400" />
-          Add New Week
-        </h2>
-
+    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }} title={t('addNewWeek')}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -774,11 +740,10 @@ function UploadForm({
               className="flex-1 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {uploading ? 'Uploading...' : 'Upload'}
+              {uploading ? t('uploading') : t('upload')}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Sheet>
   );
 }

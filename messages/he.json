@@ -512,7 +512,11 @@
     "planMissing": "חסרה — יש להעלות",
     "uploadArrow": "העלאה ←",
     "noWeeks": "אין עדיין תוכניות שבועיות",
-    "addFirstWeek": "הוספת שבוע ראשון"
+    "addFirstWeek": "הוספת שבוע ראשון",
+    "gym": "חדר כושר",
+    "addNewWeek": "הוספת שבוע",
+    "upload": "העלאה",
+    "uploading": "מעלה…"
   },
   "install": {
     "title": "התקנת Madregot",
