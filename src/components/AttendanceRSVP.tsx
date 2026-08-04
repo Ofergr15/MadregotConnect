@@ -61,16 +61,21 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
   if (!loaded || !athleteId) return null;
 
   return (
-    <div className="rounded-2xl bg-slate-800/60 border border-slate-700/50 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Users className="h-4 w-4 text-primary-600" />
+    <div className="relative overflow-hidden rounded-2xl border border-primary-500/25 p-4"
+      style={{ background: 'linear-gradient(150deg, rgba(67,56,255,.22), rgba(30,41,59,.6) 72%)' }}
+    >
+      {/* soft brand glow — marks this as the focused "today" hero */}
+      <div className="pointer-events-none absolute -top-8 start-[-20px] w-40 h-40 rounded-full blur-2xl"
+        style={{ background: 'radial-gradient(circle, rgba(67,56,255,.4), transparent 70%)' }} aria-hidden="true" />
+      <div className="relative flex items-center gap-2 mb-1">
+        <Users className="h-4 w-4 text-primary-400" />
         <h3 className="text-sm font-bold text-white" dir="rtl">{t('title')}</h3>
         {saved && <CheckCircle2 className="h-4 w-4 text-green-400 ms-auto" />}
         {saving && <Loader2 className="h-4 w-4 text-slate-400 animate-spin ms-auto" />}
       </div>
-      {workoutLabel && <p className="text-xs text-slate-400 mb-3" dir="rtl">{workoutLabel}</p>}
+      {workoutLabel && <p className="relative text-[15px] font-semibold text-white mb-3" dir="rtl">{workoutLabel}</p>}
 
-      <div className="flex gap-2">
+      <div className="relative flex gap-2">
         <button
           onClick={() => submit(true)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition',
@@ -90,7 +95,7 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
       </div>
 
       {attending === true && (
-        <div className="mt-3">
+        <div className="relative mt-3">
           <p className="text-xs font-semibold text-slate-400 mb-2" dir="rtl">{t('whichGroup')}</p>
           <div className="flex flex-wrap gap-2">
             {GROUP_PRESETS.map(g => (

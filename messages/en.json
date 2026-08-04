@@ -161,7 +161,8 @@
     "goodMorning": "Good morning",
     "goodAfternoon": "Good afternoon",
     "goodEvening": "Good evening",
-    "preSeason": "Pre-season"
+    "preSeason": "Pre-season",
+    "myStats": "My stats"
   },
   "athletes": {
     "title": "Athletes",

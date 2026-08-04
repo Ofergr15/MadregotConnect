@@ -899,6 +899,11 @@ export default function DashboardPage() {
         <SquadStandings />
       </div>
 
+      {/* Section header groups the heavier stats/leaderboard below the fold */}
+      {!isCoach && runnerWeeklyVolumes.length > 1 && (
+        <p className="text-2xs font-bold uppercase tracking-wider text-slate-500 px-1 pt-1">{t('myStats')}</p>
+      )}
+
       {/* ═══ WEEKLY VOLUME + LEADERBOARD (side by side) ═══ */}
       {!isCoach && runnerWeeklyVolumes.length > 1 && (() => {
         const maxKm = Math.max(...runnerWeeklyVolumes.map(w => w.km));
