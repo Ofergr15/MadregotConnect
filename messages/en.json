@@ -491,7 +491,16 @@
     "activation": "Activation",
     "recovery": "Recovery",
     "power": "Power",
-    "videoComingSoon": "Video coming soon"
+    "videoComingSoon": "Video coming soon",
+    "editVideos": "Edit videos",
+    "editVideosHint": "Paste a Google Drive file ID (from the link: /file/d/<ID>/view). You can edit the title, category, and duration.",
+    "videoTitle": "Title",
+    "driveIdPlaceholder": "Google Drive file ID",
+    "videoDescription": "Description",
+    "duration": "Duration",
+    "addVideo": "Add video",
+    "saveVideos": "Save",
+    "cancel": "Cancel"
   },
   "program": {
     "weeklyProgram": "Weekly Program",

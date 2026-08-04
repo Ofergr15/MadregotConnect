@@ -491,7 +491,16 @@
     "activation": "הפעלה",
     "recovery": "שיקום",
     "power": "כוח",
-    "videoComingSoon": "סרטון בקרוב"
+    "videoComingSoon": "סרטון בקרוב",
+    "editVideos": "עריכת סרטונים",
+    "editVideosHint": "הדביקו מזהה קובץ של Google Drive (מתוך הקישור: /file/d/<המזהה>/view). ניתן לערוך כותרת, קטגוריה ומשך.",
+    "videoTitle": "כותרת",
+    "driveIdPlaceholder": "מזהה קובץ Google Drive",
+    "videoDescription": "תיאור",
+    "duration": "משך",
+    "addVideo": "הוספת סרטון",
+    "saveVideos": "שמירה",
+    "cancel": "ביטול"
   },
   "program": {
     "weeklyProgram": "תוכנית שבועית",
