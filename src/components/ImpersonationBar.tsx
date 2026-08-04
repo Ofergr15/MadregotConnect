@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Eye, X, LogOut, Shield, Megaphone, Footprints, Glasses, Construction } from 'lucide-react';
+import { Eye, LogOut, Shield, Megaphone, Footprints, Glasses, Construction } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { Sheet } from '@/components/ui';
 import {
   getViewMode,
   startViewAs,
@@ -159,70 +160,50 @@ export function ImpersonationBar() {
       )}
 
       {/* Scenario chooser */}
-      {chooserOpen && (
-        <div
-          className="fixed inset-0 z-[320] flex items-start justify-center p-4 pt-[16vh] bg-black/60 backdrop-blur-sm"
-          onClick={() => setChooserOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden"
-            dir="rtl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-700">
-              <Eye className="h-4 w-4 text-amber-400" />
-              <h2 className="text-sm font-bold text-white flex-1">תצוגה כמשתמש</h2>
-              <button
-                onClick={() => setChooserOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+      <Sheet open={chooserOpen} onOpenChange={setChooserOpen} title="תצוגה כמשתמש">
+        <div dir="rtl">
+          <p className="px-1 pt-1 text-xs text-slate-400 leading-relaxed">
+            נשארים מחוברים כ‑Ofer — בוחרים איזו תצוגה לראות:
+          </p>
 
-            <p className="px-4 pt-3 text-xs text-slate-400 leading-relaxed">
-              נשארים מחוברים כ‑Ofer — בוחרים איזו תצוגה לראות:
-            </p>
+          <div className="pt-3 grid grid-cols-2 gap-2">
+            {SCENARIOS.map((s) => {
+              const Icon = s.icon;
+              const activeMode = mode === s.mode;
+              const isMaint = s.mode === MAINTENANCE_MODE;
+              return (
+                <button
+                  key={s.mode}
+                  onClick={() => startViewAs(s.mode)}
+                  className={cn(
+                    'flex flex-col items-center justify-center gap-2 py-4 rounded-xl border transition-colors',
+                    isMaint ? 'col-span-2' : '',
+                    activeMode
+                      ? 'bg-amber-500/20 border-amber-500/50'
+                      : 'bg-slate-900/60 border-slate-700 hover:border-slate-500 hover:bg-slate-900'
+                  )}
+                >
+                  <Icon className={cn('h-6 w-6', s.tone)} />
+                  <span className="text-sm font-bold text-white">{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
 
-            <div className="p-3 grid grid-cols-2 gap-2">
-              {SCENARIOS.map((s) => {
-                const Icon = s.icon;
-                const activeMode = mode === s.mode;
-                const isMaint = s.mode === MAINTENANCE_MODE;
-                return (
-                  <button
-                    key={s.mode}
-                    onClick={() => startViewAs(s.mode)}
-                    className={cn(
-                      'flex flex-col items-center justify-center gap-2 py-4 rounded-xl border transition-colors',
-                      isMaint ? 'col-span-2' : '',
-                      activeMode
-                        ? 'bg-amber-500/20 border-amber-500/50'
-                        : 'bg-slate-900/60 border-slate-700 hover:border-slate-500 hover:bg-slate-900'
-                    )}
-                  >
-                    <Icon className={cn('h-6 w-6', s.tone)} />
-                    <span className="text-sm font-bold text-white">{s.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+          {mode && (
+            <button
+              onClick={() => stopViewAs()}
+              className="w-full flex items-center justify-center gap-2 mt-3 px-4 py-3 border-t border-slate-700 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors"
+            >
+              <LogOut className="h-4 w-4" /> חזרה לתצוגה שלי
+            </button>
+          )}
 
-            {mode && (
-              <button
-                onClick={() => stopViewAs()}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-t border-slate-700 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors"
-              >
-                <LogOut className="h-4 w-4" /> חזרה לתצוגה שלי
-              </button>
-            )}
-
-            <div className="px-4 py-2.5 border-t border-slate-700 text-[11px] text-slate-500 text-center leading-relaxed">
-              תצוגה בלבד — שמירת נתונים מושבתת במצב זה.
-            </div>
+          <div className="mt-3 px-4 py-2.5 border-t border-slate-700 text-[11px] text-slate-500 text-center leading-relaxed">
+            תצוגה בלבד — שמירת נתונים מושבתת במצב זה.
           </div>
         </div>
-      )}
+      </Sheet>
     </>
   );
 }

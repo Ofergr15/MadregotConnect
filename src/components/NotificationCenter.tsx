@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
+import { SegmentedControl } from '@/components/ui';
 
 interface Group { id: string; name: string; }
 interface Athlete { id: string; name: string; email: string; }
@@ -235,23 +236,16 @@ export function NotificationCenter() {
           {/* Audience — segmented control + contextual picker */}
           <div>
             <label className="text-xs font-semibold text-slate-400">קהל יעד / Audience</label>
-            <div className="grid grid-cols-3 gap-2 mt-1.5">
-              {([
-                { v: 'all', icon: Users, label: 'כל הרצים' },
-                { v: 'group', icon: Users, label: 'דבוקה' },
-                { v: 'athlete', icon: User, label: 'אדם' },
-              ] as const).map(opt => {
-                const Icon = opt.icon;
-                const active = audienceType === opt.v;
-                return (
-                  <button key={opt.v} onClick={() => { setAudienceType(opt.v); setAudienceId(''); }}
-                    className={cn('flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-semibold transition',
-                      active ? 'bg-primary-600 border-primary-600 text-white' : 'bg-slate-900/40 border-slate-700 text-slate-300 hover:border-slate-500')} dir="rtl">
-                    <Icon className="w-4 h-4" /> {opt.label}
-                  </button>
-                );
-              })}
-            </div>
+            <SegmentedControl
+              className="mt-1.5"
+              value={audienceType}
+              onChange={(v) => { setAudienceType(v); setAudienceId(''); }}
+              options={[
+                { value: 'all', icon: Users, label: 'כל הרצים' },
+                { value: 'group', icon: Users, label: 'דבוקה' },
+                { value: 'athlete', icon: User, label: 'אדם' },
+              ]}
+            />
             {audienceType === 'group' && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {groups.map(g => (
@@ -275,15 +269,16 @@ export function NotificationCenter() {
           {/* Schedule */}
           <div>
             <label className="text-xs font-semibold text-slate-400">תזמון / Schedule</label>
-            <div className="flex gap-2 mt-1 flex-wrap">
-              {(['now', 'once_at', 'recurring'] as const).map(s => (
-                <button key={s} onClick={() => setScheduleType(s)}
-                  className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition',
-                    scheduleType === s ? 'bg-primary-600 text-white' : 'bg-slate-700/40 text-slate-400 hover:text-white')}>
-                  {s === 'now' ? 'עכשיו / Now' : s === 'once_at' ? 'בזמן מסוים / At time' : 'חוזר / Recurring'}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              className="mt-1"
+              value={scheduleType}
+              onChange={setScheduleType}
+              options={[
+                { value: 'now', label: 'עכשיו / Now' },
+                { value: 'once_at', label: 'בזמן מסוים / At time' },
+                { value: 'recurring', label: 'חוזר / Recurring' },
+              ]}
+            />
           </div>
           {(scheduleType === 'once_at' || scheduleType === 'recurring') && (
             <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className={inputCls} />
