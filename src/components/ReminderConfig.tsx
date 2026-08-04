@@ -62,7 +62,7 @@ export function ReminderConfig() {
   );
 
   return (
-    <div className="mb-6 rounded-xl border border-slate-700/50 bg-slate-800/50 p-4">
+    <div className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4">
       <div className="flex items-center gap-2 mb-3">
         <Bell className="w-4 h-4 text-primary-600" />
         <h3 className="text-sm font-bold text-white">Workout reminders</h3>
@@ -85,7 +85,7 @@ export function ReminderConfig() {
         <StageRow label="תזכורת יום לפני (לכולם)" stage="dayBefore" />
         <StageRow label="ערב לפני — למי שלא ענה" stage="eveningBefore" />
       </div>
-      <p className="text-[11px] text-slate-500 mt-2">Israel time. Post-workout survey fires automatically after each run syncs.</p>
+      <p className="text-2xs text-slate-500 mt-2">Israel time. Post-workout survey fires automatically after each run syncs.</p>
     </div>
   );
 }

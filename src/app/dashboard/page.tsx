@@ -15,6 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaCh
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
+import { Spinner } from '@/components/ui';
 
 const RACE_DATE = new Date('2026-12-06T09:00:00');
 const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
@@ -727,7 +728,7 @@ export default function DashboardPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-[60vh]">
-      <div className="animate-spin h-10 w-10 border-[3px] border-primary-600/20 border-t-primary-600 rounded-full" />
+      <Spinner size={40} />
     </div>
   );
 
@@ -850,7 +851,7 @@ export default function DashboardPage() {
                           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('today')}</p>
                           <div className="flex items-center gap-1.5">
                             {done && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[todayW.type]}20`, color: typeColors[todayW.type] }}>
+                            <span className="text-3xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[todayW.type]}20`, color: typeColors[todayW.type] }}>
                               {typeLabels[todayW.type] || todayW.type}
                             </span>
                           </div>
@@ -860,7 +861,7 @@ export default function DashboardPage() {
                           <span className="text-sm font-medium text-slate-500 ms-1">{tc('km')}</span>
                           {todayKm > 0 && <span className="text-xs font-semibold text-emerald-400 ms-2">{Math.round(todayKm * 10) / 10} done</span>}
                         </p>
-                        {sessionName && <p className="text-[11px] text-slate-500 mt-0.5">{sessionName}</p>}
+                        {sessionName && <p className="text-2xs text-slate-500 mt-0.5">{sessionName}</p>}
                       </div>
                     );
                   })()}
@@ -870,7 +871,7 @@ export default function DashboardPage() {
                       <div className={todayW ? 'mt-3 pt-3 border-t border-slate-700/30' : ''}>
                         <div className="flex items-center justify-between">
                           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('tomorrow')}</p>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[tomorrowW.type]}20`, color: typeColors[tomorrowW.type] }}>
+                          <span className="text-3xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[tomorrowW.type]}20`, color: typeColors[tomorrowW.type] }}>
                             {typeLabels[tomorrowW.type] || tomorrowW.type}
                           </span>
                         </div>
@@ -878,7 +879,7 @@ export default function DashboardPage() {
                           {tomorrowW.min === tomorrowW.max ? tomorrowW.max : `${tomorrowW.min}–${tomorrowW.max}`}
                           <span className="text-sm font-medium text-slate-500 ms-1">{tc('km')}</span>
                         </p>
-                        {sessionName && <p className="text-[11px] text-slate-500 mt-0.5">{sessionName}</p>}
+                        {sessionName && <p className="text-2xs text-slate-500 mt-0.5">{sessionName}</p>}
                       </div>
                     );
                   })()}
@@ -915,7 +916,7 @@ export default function DashboardPage() {
                     <span className="text-xs font-semibold text-slate-300">Goal: {targetMin}–{targetMax} {tc('km')}</span>
                   )}
                   {trend !== 0 && (
-                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
+                    <span className={cn('text-3xs font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
                       {trend > 0 ? '+' : ''}{trend}%
                     </span>
                   )}
@@ -935,12 +936,12 @@ export default function DashboardPage() {
                   const barH = maxKm > 0 ? Math.max(10, Math.round((w.km / maxKm) * 65)) : 10;
                   return (
                     <div key={i} className="flex flex-col items-center justify-end" style={{ height: '100px', width: '28px' }}>
-                      <span className={cn('text-[10px] font-bold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-white/70')}>{w.km}</span>
+                      <span className={cn('text-3xs font-bold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-white/70')}>{w.km}</span>
                       <div
                         className={cn('rounded-full', isLast ? 'bg-[#fc5200]' : 'bg-slate-600')}
                         style={{ height: `${barH}px`, width: '12px' }}
                       />
-                      <span className={cn('text-[9px] mt-1', isLast ? 'text-white' : 'text-slate-400')}>{w.week}</span>
+                      <span className={cn('text-3xs mt-1', isLast ? 'text-white' : 'text-slate-400')}>{w.week}</span>
                     </div>
                   );
                 })}
@@ -957,9 +958,9 @@ export default function DashboardPage() {
                   </div>
                   {groups.length > 1 && (
                     <div className="flex items-center gap-1">
-                      <button onClick={() => setLeaderboardFilter('all')} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-primary-600 text-white bg-primary-600/10' : 'border-slate-600 text-slate-500')}>All</button>
+                      <button onClick={() => setLeaderboardFilter('all')} className={cn('text-3xs font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-primary-600 text-white bg-primary-600/10' : 'border-slate-600 text-slate-500')}>All</button>
                       {groups.map(g => (
-                        <button key={g.id} onClick={() => setLeaderboardFilter(g.id)} className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-primary-600 text-white bg-primary-600/10' : 'border-slate-600 text-slate-500')}>{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
+                        <button key={g.id} onClick={() => setLeaderboardFilter(g.id)} className={cn('text-3xs font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-primary-600 text-white bg-primary-600/10' : 'border-slate-600 text-slate-500')}>{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
                       ))}
                     </div>
                   )}
@@ -967,9 +968,9 @@ export default function DashboardPage() {
                 <div className="flex items-end justify-center gap-5 px-2" style={{ height: '100px' }}>
                   {top3.length >= 2 && (
                     <div className="flex flex-col items-center" style={{ width: '56px' }}>
-                      <span className="text-[11px] font-bold text-slate-300 mb-1 tabular-nums">{top3[1].distanceKm}</span>
+                      <span className="text-2xs font-bold text-slate-300 mb-1 tabular-nums">{top3[1].distanceKm}</span>
                       <div className="w-6 rounded-t bg-slate-400/80" style={{ height: '50px' }} />
-                      <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[1].name.split(' ')[0]}</span>
+                      <span className="text-2xs text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[1].name.split(' ')[0]}</span>
                     </div>
                   )}
                   {top3.length >= 1 && (
@@ -977,18 +978,18 @@ export default function DashboardPage() {
                       <span className="text-sm mb-0.5">👑</span>
                       <span className="text-xs font-black text-yellow-400 mb-1 tabular-nums">{top3[0].distanceKm}</span>
                       <div className="w-6 rounded-t bg-yellow-500" style={{ height: '70px' }} />
-                      <span className="text-[11px] text-white font-bold mt-1.5 whitespace-nowrap">{top3[0].name.split(' ')[0]}</span>
+                      <span className="text-2xs text-white font-bold mt-1.5 whitespace-nowrap">{top3[0].name.split(' ')[0]}</span>
                     </div>
                   )}
                   {top3.length >= 3 && (
                     <div className="flex flex-col items-center" style={{ width: '56px' }}>
-                      <span className="text-[11px] font-bold text-amber-500 mb-1 tabular-nums">{top3[2].distanceKm}</span>
+                      <span className="text-2xs font-bold text-amber-500 mb-1 tabular-nums">{top3[2].distanceKm}</span>
                       <div className="w-6 rounded-t bg-amber-600/80" style={{ height: '35px' }} />
-                      <span className="text-[11px] text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[2].name.split(' ')[0]}</span>
+                      <span className="text-2xs text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[2].name.split(' ')[0]}</span>
                     </div>
                   )}
                 </div>
-                {myRank > 3 && <p className="text-[10px] text-slate-500 text-center mt-2">You: #{myRank}</p>}
+                {myRank > 3 && <p className="text-3xs text-slate-500 text-center mt-2">You: #{myRank}</p>}
               </section>
             )}
           </div>
@@ -1028,7 +1029,7 @@ export default function DashboardPage() {
                     const maxVal = Math.max(...weekly!.dailyDistances.map(d => d.max), 1);
                     const topTick = Math.ceil(maxVal / 8) * 8;
                     return [topTick, Math.round(topTick * 0.75), Math.round(topTick * 0.5), Math.round(topTick * 0.25), 0].map(v => (
-                      <span key={v} className="text-[11px] text-slate-600 text-end leading-none">{v}</span>
+                      <span key={v} className="text-2xs text-slate-400 text-end leading-none">{v}</span>
                     ));
                   })()}
                 </div>
@@ -1058,7 +1059,7 @@ export default function DashboardPage() {
                         {isActive && d.max > 0 && (
                           <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 shadow-xl whitespace-nowrap pointer-events-none">
                             <p className="text-xs font-bold text-white">{d.day}{hasMultiple && ' (2 sessions)'}</p>
-                            <p className="text-[11px] text-slate-300">
+                            <p className="text-2xs text-slate-300">
                               {d.min && d.min !== d.max ? `${d.min}–${d.max}` : d.max} km · {typeLabels[d.type] || d.type}
                             </p>
                           </div>
@@ -1143,7 +1144,7 @@ export default function DashboardPage() {
                             ))}
                           </div>
                         ) : (
-                          <p className={cn("text-[10px] sm:text-xs mt-0.5 font-medium", d.max > 0 ? "text-slate-400" : "text-slate-600")}>
+                          <p className={cn("text-3xs sm:text-xs mt-0.5 font-medium", d.max > 0 ? "text-slate-400" : "text-slate-600")}>
                             {d.max > 0 ? typeLabels[d.type] || d.type : 'Rest'}
                           </p>
                         )}
@@ -1172,7 +1173,7 @@ export default function DashboardPage() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-white">{t('recentActivities')}</h2>
-            <Link href="/dashboard/activities" className="text-[11px] font-semibold text-[#fc5200] hover:text-[#ff7433] inline-flex items-center gap-0.5">
+            <Link href="/dashboard/activities" className="text-2xs font-semibold text-[#fc5200] hover:text-[#ff7433] inline-flex items-center gap-0.5">
               {t('viewAll')} <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
@@ -1201,13 +1202,13 @@ export default function DashboardPage() {
                           <span className="text-sm font-bold text-white">{a.athlete_name || initials}</span>
                           <span className="text-xs text-slate-500">{dateStr} · {timeStr}</span>
                         </div>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-2xs text-slate-500">
                           {activityLocalHour(a.start_time) < 12 ? 'Morning Run' : activityLocalHour(a.start_time) >= 17 ? 'Evening Run' : 'Afternoon Run'}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={cn('text-[11px] font-bold px-2.5 py-1 rounded-lg', runType.color, runType.bg)}>
+                      <span className={cn('text-2xs font-bold px-2.5 py-1 rounded-lg', runType.color, runType.bg)}>
                         {runType.label}
                       </span>
                       <ChevronRight className="h-4 w-4 text-slate-600" />
@@ -1222,22 +1223,22 @@ export default function DashboardPage() {
                   {/* Stats row — Strava style: Distance, Elev Gain, Time */}
                   <div className="flex items-baseline gap-8 px-5 pb-4 border-b border-slate-700/20">
                     <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">{t('distance')}</p>
+                      <p className="text-3xs text-slate-500 mb-0.5">{t('distance')}</p>
                       <p className="text-xl font-black text-white tabular-nums">{km} <span className="text-sm font-normal text-slate-500">{tc('km')}</span></p>
                     </div>
                     {a.elevation_gain && a.elevation_gain > 0 ? (
                       <div>
-                        <p className="text-[10px] text-slate-500 mb-0.5">{t('elevGain')}</p>
+                        <p className="text-3xs text-slate-500 mb-0.5">{t('elevGain')}</p>
                         <p className="text-xl font-black text-white tabular-nums">{Math.round(a.elevation_gain)} <span className="text-sm font-normal text-slate-500">m</span></p>
                       </div>
                     ) : pace ? (
                       <div>
-                        <p className="text-[10px] text-slate-500 mb-0.5">{t('pace')}</p>
+                        <p className="text-3xs text-slate-500 mb-0.5">{t('pace')}</p>
                         <p className="text-xl font-black text-white tabular-nums">{pace} <span className="text-sm font-normal text-slate-500">/{tc('km')}</span></p>
                       </div>
                     ) : null}
                     <div>
-                      <p className="text-[10px] text-slate-500 mb-0.5">{t('time')}</p>
+                      <p className="text-3xs text-slate-500 mb-0.5">{t('time')}</p>
                       <p className="text-xl font-black text-white tabular-nums">{durationStr}</p>
                     </div>
                   </div>

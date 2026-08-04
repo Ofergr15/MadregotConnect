@@ -53,13 +53,13 @@ export function AttendanceRoster() {
         <div className="space-y-3">
           {Object.entries(byGroup).map(([group, members]) => (
             <div key={group}>
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5" dir="rtl">{group} · {members.length}</p>
+              <p className="text-2xs font-bold text-slate-400 mb-1.5" dir="rtl">{group} · {members.length}</p>
               <div className="flex flex-wrap gap-1.5">
                 {members.map(m => (
                   <span key={m.athleteId} className="inline-flex items-center gap-1.5 bg-slate-900/50 rounded-full ps-1 pe-2.5 py-1">
                     {m.avatarUrl
                       ? <img src={m.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
-                      : <span className="w-5 h-5 rounded-full bg-primary-600/30 flex items-center justify-center text-[9px] font-bold text-white">{(m.name[0] || '?').toUpperCase()}</span>}
+                      : <span className="w-5 h-5 rounded-full bg-primary-600/30 flex items-center justify-center text-3xs font-bold text-white">{(m.name[0] || '?').toUpperCase()}</span>}
                     <span className="text-xs text-slate-200" dir="auto">{m.name.split(' ')[0]}</span>
                   </span>
                 ))}
@@ -67,7 +67,7 @@ export function AttendanceRoster() {
             </div>
           ))}
           {notGoing.length > 0 && (
-            <p className="text-[11px] text-slate-500 pt-1" dir="rtl">
+            <p className="text-2xs text-slate-500 pt-1" dir="rtl">
               {notGoing.length} {t('notComing')}
             </p>
           )}

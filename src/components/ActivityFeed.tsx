@@ -232,7 +232,7 @@ function RouteMap({ points, height = 300, splits }: {
         </button>
       )}
       {colorByPace && (
-        <div className="absolute bottom-3 start-3 z-[1000] bg-slate-800/90 rounded-lg px-3 py-2 flex items-center gap-2 text-[10px] font-medium shadow-lg">
+        <div className="absolute bottom-3 start-3 z-[1000] bg-slate-800/90 rounded-lg px-3 py-2 flex items-center gap-2 text-3xs font-medium shadow-lg">
           <span className="text-slate-400">Fast</span>
           <div className="flex gap-0.5">
             <div className="w-4 h-2 rounded-sm bg-[#22c55e]" />
@@ -321,9 +321,9 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: PlannedStep
 
   return (
     <div>
-      <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+      <h4 className="text-3xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Timer className="h-3 w-3" /> Pace per KM
-        {planned && <span className="text-[9px] text-slate-600 ms-2">— dashed = planned</span>}
+        {planned && <span className="text-3xs text-slate-400 ms-2">— dashed = planned</span>}
       </h4>
       <svg
         ref={svgRef}
@@ -424,7 +424,7 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
 
   return (
     <div>
-      <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+      <h4 className="text-3xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Heart className="h-3 w-3" /> Heart Rate
       </h4>
       <svg
@@ -514,9 +514,9 @@ function ElevationChart({ splits }: { splits: Split[] }) {
 
   return (
     <div>
-      <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+      <h4 className="text-3xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Mountain className="h-3 w-3" /> Elevation per KM
-        <span className="ms-2 flex items-center gap-2 text-[9px]">
+        <span className="ms-2 flex items-center gap-2 text-3xs">
           <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500/80" /> gain</span>
           <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-400/80" /> loss</span>
         </span>
@@ -595,11 +595,11 @@ function SplitsTable({ splits }: { splits: Split[] }) {
 
   return (
     <div>
-      <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+      <h4 className="text-3xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
         <Timer className="h-3 w-3" /> Splits
       </h4>
       <div className="space-y-1">
-        <div className="grid grid-cols-12 gap-2 text-[10px] font-semibold uppercase text-slate-500 px-3 pb-1">
+        <div className="grid grid-cols-12 gap-2 text-3xs font-semibold uppercase text-slate-500 px-3 pb-1">
           <span className="col-span-1">KM</span>
           <span className="col-span-4">Pace</span>
           <span className="col-span-3">Time</span>
@@ -703,7 +703,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
+            <span className={cn('text-3xs font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
               {runType.label}
             </span>
             {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
@@ -714,20 +714,20 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div>
-            <p className="text-[10px] text-slate-500 font-medium">Distance</p>
+            <p className="text-3xs text-slate-500 font-medium">Distance</p>
             <p className="text-lg font-black text-white tabular-nums">{distKm}<span className="text-xs text-slate-400 ms-0.5">km</span></p>
           </div>
           <div>
-            <p className="text-[10px] text-slate-500 font-medium">Pace</p>
+            <p className="text-3xs text-slate-500 font-medium">Pace</p>
             <p className="text-lg font-black text-white tabular-nums">{paceStr || '—'}<span className="text-xs text-slate-400 ms-0.5">/km</span></p>
           </div>
           <div>
-            <p className="text-[10px] text-slate-500 font-medium">Time</p>
+            <p className="text-3xs text-slate-500 font-medium">Time</p>
             <p className="text-lg font-black text-white tabular-nums">{durationStr}</p>
           </div>
           {activity.average_hr && (
             <div className="hidden lg:block">
-              <p className="text-[10px] text-slate-500 font-medium">Avg HR</p>
+              <p className="text-3xs text-slate-500 font-medium">Avg HR</p>
               <p className={cn("text-lg font-black tabular-nums flex items-center gap-1", hrZone?.color)}>
                 <Heart className="h-3.5 w-3.5" />{activity.average_hr}
               </p>
@@ -735,7 +735,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
           )}
           {activity.elevation_gain && activity.elevation_gain > 0 ? (
             <div className="hidden lg:block">
-              <p className="text-[10px] text-slate-500 font-medium">Elevation</p>
+              <p className="text-3xs text-slate-500 font-medium">Elevation</p>
               <p className="text-lg font-black text-white tabular-nums flex items-center gap-1">
                 <Mountain className="h-3.5 w-3.5 text-green-400" />{Math.round(activity.elevation_gain)}<span className="text-xs text-slate-400">m</span>
               </p>
@@ -760,7 +760,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
               <RouteMap points={routePoints} height={300} splits={splits} />
             </div>
           ) : (!loadingDetails && (knownNoRoute || details)) ? (
-            <div className="rounded-xl border border-slate-700/30 bg-slate-800/40 py-6 text-center">
+            <div className="rounded-2xl border border-slate-700/30 bg-slate-800/40 py-6 text-center">
               <MapPin className="h-5 w-5 text-slate-600 mx-auto mb-1" />
               <p className="text-xs text-slate-500">No route recorded (indoor/treadmill run)</p>
             </div>
@@ -781,14 +781,14 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
                 <p className="text-xs text-slate-400 mb-1">Time</p>
                 <p className="text-3xl font-black text-white tabular-nums">{durationStr}</p>
                 {movingStr && movingStr !== durationStr && (
-                  <p className="text-[10px] text-slate-500 mt-0.5">{movingStr} moving</p>
+                  <p className="text-3xs text-slate-500 mt-0.5">{movingStr} moving</p>
                 )}
               </div>
               {activity.average_hr && (
                 <div className="hidden lg:block">
                   <p className="text-xs text-slate-400 mb-1">Avg HR</p>
                   <p className={cn("text-3xl font-black tabular-nums", hrZone?.color)}>{activity.average_hr}</p>
-                  {hrZone && <p className="text-[10px] text-slate-500 mt-0.5">Zone {hrZone.zone} · {hrZone.label}</p>}
+                  {hrZone && <p className="text-3xs text-slate-500 mt-0.5">Zone {hrZone.zone} · {hrZone.label}</p>}
                 </div>
               )}
               {activity.elevation_gain ? (
@@ -806,71 +806,71 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
               <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Flame className="h-3.5 w-3.5 text-orange-400" />
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Calories</p>
+                  <p className="text-3xs font-bold uppercase text-slate-400">Calories</p>
                 </div>
                 <p className="text-2xl font-black text-white tabular-nums">{activity.calories || details?.summary?.calories}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">kcal</p>
+                <p className="text-3xs text-slate-500 mt-0.5">kcal</p>
               </div>
             )}
             {(activity.avg_cadence || details?.summary?.averageRunCadence) && (
               <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Footprints className="h-3.5 w-3.5 text-cyan-400" />
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Cadence</p>
+                  <p className="text-3xs font-bold uppercase text-slate-400">Cadence</p>
                 </div>
                 <p className="text-2xl font-black text-white tabular-nums">{Math.round(activity.avg_cadence || details?.summary?.averageRunCadence)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">steps/min</p>
+                <p className="text-3xs text-slate-500 mt-0.5">steps/min</p>
               </div>
             )}
             {(activity.avg_stride_length || details?.summary?.strideLength) && (
               <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
                 <div className="flex items-center gap-1.5 mb-2">
                   <TrendingUp className="h-3.5 w-3.5 text-purple-400" />
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Stride</p>
+                  <p className="text-3xs font-bold uppercase text-slate-400">Stride</p>
                 </div>
                 <p className="text-2xl font-black text-white tabular-nums">
                   {activity.avg_stride_length
                     ? (activity.avg_stride_length > 10 ? (activity.avg_stride_length / 100).toFixed(2) : activity.avg_stride_length.toFixed(2))
                     : details?.summary?.strideLength?.toFixed(2)}
                 </p>
-                <p className="text-[10px] text-slate-500 mt-0.5">meters</p>
+                <p className="text-3xs text-slate-500 mt-0.5">meters</p>
               </div>
             )}
             {(activity.vo2max || details?.summary?.vO2MaxValue) && (
               <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Zap className="h-3.5 w-3.5 text-yellow-400" />
-                  <p className="text-[10px] font-bold uppercase text-slate-400">VO2 Max</p>
+                  <p className="text-3xs font-bold uppercase text-slate-400">VO2 Max</p>
                 </div>
                 <p className="text-2xl font-black text-white tabular-nums">{activity.vo2max || details?.summary?.vO2MaxValue}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">ml/kg/min</p>
+                <p className="text-3xs text-slate-500 mt-0.5">ml/kg/min</p>
               </div>
             )}
             {activity.max_hr && (
               <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Heart className="h-3.5 w-3.5 text-red-400" />
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Max HR</p>
+                  <p className="text-3xs font-bold uppercase text-slate-400">Max HR</p>
                 </div>
                 <p className="text-2xl font-black text-white tabular-nums">{activity.max_hr}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">bpm</p>
+                <p className="text-3xs text-slate-500 mt-0.5">bpm</p>
               </div>
             )}
             {details?.summary?.trainingEffect && (
               <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Activity className="h-3.5 w-3.5 text-blue-400" />
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Training Effect</p>
+                  <p className="text-3xs font-bold uppercase text-slate-400">Training Effect</p>
                 </div>
                 <div className="flex items-baseline gap-3">
                   <div>
                     <p className="text-xl font-black text-blue-400 tabular-nums">{details.summary.trainingEffect.toFixed(1)}</p>
-                    <p className="text-[9px] text-slate-500">Aerobic</p>
+                    <p className="text-3xs text-slate-500">Aerobic</p>
                   </div>
                   {details.summary.anaerobicTrainingEffect && (
                     <div>
                       <p className="text-xl font-black text-orange-400 tabular-nums">{details.summary.anaerobicTrainingEffect.toFixed(1)}</p>
-                      <p className="text-[9px] text-slate-500">Anaerobic</p>
+                      <p className="text-3xs text-slate-500">Anaerobic</p>
                     </div>
                   )}
                 </div>
@@ -880,19 +880,19 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
               <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Gauge className="h-3.5 w-3.5 text-primary-400" />
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Self Evaluation</p>
+                  <p className="text-3xs font-bold uppercase text-slate-400">Self Evaluation</p>
                 </div>
                 <div className="flex items-baseline gap-3">
                   {details.summary.perceivedRpe != null && (
                     <div>
                       <p className="text-xl font-black text-primary-400 tabular-nums">{details.summary.perceivedRpe.toFixed(0)}<span className="text-xs text-slate-500">/10</span></p>
-                      <p className="text-[9px] text-slate-500">Effort</p>
+                      <p className="text-3xs text-slate-500">Effort</p>
                     </div>
                   )}
                   {details.summary.perceivedFeel != null && (
                     <div>
                       <p className="text-xl leading-none">{['😣','😕','😐','🙂','😄'][Math.round(details.summary.perceivedFeel)] ?? '—'}</p>
-                      <p className="text-[9px] text-slate-500 mt-1">Feel</p>
+                      <p className="text-3xs text-slate-500 mt-1">Feel</p>
                     </div>
                   )}
                 </div>
@@ -937,7 +937,7 @@ interface ActivityFeedProps {
 export function ActivityFeed({ activities, syncing }: ActivityFeedProps) {
   if (activities.length === 0 && !syncing) {
     return (
-      <div className="bg-slate-800/30 rounded-xl border border-slate-700/20 p-8 text-center">
+      <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-8 text-center">
         <Activity className="h-8 w-8 text-slate-600 mx-auto mb-3" />
         <p className="text-sm text-slate-400">No activities this week.</p>
       </div>

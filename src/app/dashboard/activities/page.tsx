@@ -7,6 +7,7 @@ import { RefreshCw, Activity, TrendingUp, ChevronLeft, ChevronRight, Timer, Hear
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { cn } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
+import { Spinner } from '@/components/ui';
 
 interface ActivityEntry {
   id: string;
@@ -206,7 +207,7 @@ export default function ActivitiesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <div className="animate-spin h-10 w-10 border-[3px] border-primary-600/20 border-t-primary-600 rounded-full" />
+        <Spinner size={40} />
       </div>
     );
   }
@@ -382,7 +383,7 @@ export default function ActivitiesPage() {
                       {t(d.dayKey)}
                     </p>
                     <p className={cn(
-                      'text-[11px] tabular-nums mt-0.5 font-medium',
+                      'text-2xs tabular-nums mt-0.5 font-medium',
                       d.distance > 0 ? 'text-slate-400' : 'text-slate-700'
                     )}>
                       {d.distance > 0 ? d.distance.toFixed(1) : '\u2014'}

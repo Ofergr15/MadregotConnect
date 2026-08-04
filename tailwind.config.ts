@@ -7,6 +7,12 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-heebo)', 'var(--font-inter)', 'sans-serif'],
       },
+      // Named small steps to absorb the ~200 arbitrary sub-xs pixel sizes
+      // (text-[9px]/[10px]/[11px]) into a consistent scale.
+      fontSize: {
+        '3xs': ['10px', { lineHeight: '13px' }],
+        '2xs': ['11px', { lineHeight: '14px' }],
+      },
       colors: {
         // Brand ramp anchored on the REAL Madregot indigo (#4338ff — matches
         // manifest theme_color and the ~192 hardcoded uses). Previously `600`

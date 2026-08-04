@@ -227,7 +227,7 @@ export default function RacesPage() {
           {/* Goal race overlay */}
           {goalRace && (
             <div className="absolute top-4 start-4 z-10 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-xl p-4 max-w-[280px]">
-              <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1">{t('goalRace')}</p>
+              <p className="text-3xs font-bold text-amber-400 uppercase tracking-wider mb-1">{t('goalRace')}</p>
               <p className="text-sm font-bold text-white">{goalRace.name}</p>
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-2xl font-black text-white tabular-nums">{goalRace.daysUntil}</span>
@@ -261,10 +261,10 @@ export default function RacesPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', style.bg, style.text)}>
+                          <span className={cn('text-3xs font-bold px-1.5 py-0.5 rounded', style.bg, style.text)}>
                             {t(typeLabelKeys[race.type])}
                           </span>
-                          <span className="text-[10px] text-slate-500">{weekday}</span>
+                          <span className="text-3xs text-slate-500">{weekday}</span>
                         </div>
                         <p className="text-sm font-bold text-white truncate">{race.name}</p>
                         <div className="flex items-center gap-2 mt-1">
@@ -274,7 +274,7 @@ export default function RacesPage() {
                       </div>
                       <div className="text-end shrink-0 ms-3">
                         <p className="text-lg font-black text-white tabular-nums leading-none">{race.daysUntil}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{t('days')}</p>
+                        <p className="text-3xs text-slate-500 mt-0.5">{t('days')}</p>
                       </div>
                     </div>
 
@@ -289,7 +289,7 @@ export default function RacesPage() {
                           <Route className="h-3.5 w-3.5 text-slate-500" />
                           <div className="flex flex-wrap gap-1">
                             {race.distances.map((d, i) => (
-                              <span key={i} className="text-[10px] font-medium text-white bg-slate-700/60 px-2 py-0.5 rounded">
+                              <span key={i} className="text-3xs font-medium text-white bg-slate-700/60 px-2 py-0.5 rounded">
                                 {d}
                               </span>
                             ))}

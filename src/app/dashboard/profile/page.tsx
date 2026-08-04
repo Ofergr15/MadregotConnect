@@ -561,7 +561,7 @@ function ProfileContent() {
                   </>
                 )}
               </button>
-              <p className="text-[11px] text-slate-500 mt-2 text-center">
+              <p className="text-2xs text-slate-500 mt-2 text-center">
                 Paces shown as ❶ (❷) ((❸)) for the three groups.
               </p>
             </>
@@ -591,11 +591,11 @@ function ProfileContent() {
                 <Watch className={cn('h-5 w-5', hasGarmin ? 'text-green-400' : 'text-slate-500')} />
                 <div>
                   <p className={cn('text-sm font-medium', hasGarmin ? 'text-white' : 'text-slate-400')}>{t('garminConnect')}</p>
-                  <p className="text-[11px] text-slate-500">{hasGarmin ? t('connected') : t('notConnected')}</p>
+                  <p className="text-2xs text-slate-500">{hasGarmin ? t('connected') : t('notConnected')}</p>
                 </div>
               </div>
               {hasGarmin ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">{t('connected')}</span>
+                <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">{t('connected')}</span>
               ) : (
                 <button
                   onClick={() => setConnectingGarmin(!connectingGarmin)}
@@ -732,11 +732,11 @@ function ProfileContent() {
                 <Activity className={cn('h-5 w-5', hasStrava ? 'text-orange-400' : 'text-slate-500')} />
                 <div>
                   <p className={cn('text-sm font-medium', hasStrava ? 'text-white' : 'text-slate-400')}>{t('strava')}</p>
-                  <p className="text-[11px] text-slate-500">{hasStrava ? t('connected') : t('notConnected')}</p>
+                  <p className="text-2xs text-slate-500">{hasStrava ? t('connected') : t('notConnected')}</p>
                 </div>
               </div>
               {hasStrava ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">{t('connected')}</span>
+                <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">{t('connected')}</span>
               ) : (
                 <button
                   onClick={async () => {

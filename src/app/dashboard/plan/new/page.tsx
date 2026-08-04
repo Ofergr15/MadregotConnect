@@ -1054,7 +1054,7 @@ export default function WeeklyPlannerPage() {
                   {workoutCount} workout{workoutCount !== 1 ? 's' : ''}
                 </span>
                 <span className={cn(
-                  'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium',
+                  'flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium',
                   currentPlan.status === 'pushed' ? 'text-green-400 bg-green-400/10' :
                   currentPlan.status === 'partial' ? 'text-orange-400 bg-orange-400/10' :
                   'text-yellow-400 bg-yellow-400/10'
@@ -1121,14 +1121,14 @@ export default function WeeklyPlannerPage() {
                     )}
                   >
                     <span className={cn(
-                      'inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold',
+                      'inline-flex items-center justify-center w-5 h-5 rounded-full text-3xs font-bold',
                       activeGroup === g ? colors.badge : 'bg-slate-700 text-slate-300'
                     )}>
                       {g}
                     </span>
                     <span>Group {g}</span>
                     {groupDist > 0 && (
-                      <span className="text-[10px] text-slate-500 font-normal ms-1">
+                      <span className="text-3xs text-slate-500 font-normal ms-1">
                         {(groupDist / 1000).toFixed(0)}km
                       </span>
                     )}
@@ -1194,7 +1194,7 @@ export default function WeeklyPlannerPage() {
       {/* Delete confirmation */}
       {confirmDelete && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6">
+          <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6">
             <div className="flex items-center gap-3 mb-4">
               <Trash2 className="w-5 h-5 text-red-400" />
               <h3 className="text-lg font-semibold text-white">Remove Plan</h3>
@@ -1308,7 +1308,7 @@ export default function WeeklyPlannerPage() {
                         {planDays.includes(new Date().getDay()) && (
                           <button
                             onClick={() => setPushDays([new Date().getDay()])}
-                            className="text-[11px] text-primary-400 hover:text-primary-300"
+                            className="text-2xs text-primary-400 hover:text-primary-300"
                           >
                             Today only
                           </button>
@@ -1316,7 +1316,7 @@ export default function WeeklyPlannerPage() {
                         <button
                           onClick={() => setPushDays(null)}
                           className={cn(
-                            'text-[11px]',
+                            'text-2xs',
                             pushDays === null ? 'text-primary-400 font-medium' : 'text-slate-500 hover:text-slate-300'
                           )}
                         >
@@ -1342,7 +1342,7 @@ export default function WeeklyPlannerPage() {
                               });
                             }}
                             className={cn(
-                              'px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors',
+                              'px-2.5 py-1 rounded-md text-2xs font-medium border transition-colors',
                               selected
                                 ? 'bg-primary-500/15 border-primary-500/50 text-primary-300'
                                 : 'border-slate-700 text-slate-500 hover:border-slate-600',
@@ -1355,7 +1355,7 @@ export default function WeeklyPlannerPage() {
                         );
                       })}
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-2">
+                    <p className="text-3xs text-slate-500 mt-2">
                       Sending {selectedDayCount} workout{selectedDayCount !== 1 ? 's' : ''} per athlete
                       {pushDays !== null && selectedDayCount === 0 && ' — select at least one day'}
                     </p>
@@ -1427,7 +1427,7 @@ export default function WeeklyPlannerPage() {
                                     <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', groupColor.dot)} />
                                     <div className="flex-1 text-start min-w-0">
                                       <span className="text-sm font-medium">{group.name}</span>
-                                      <span className={cn('ms-2 text-[10px] font-bold px-1.5 py-0.5 rounded', groupColor.badge)}>
+                                      <span className={cn('ms-2 text-3xs font-bold px-1.5 py-0.5 rounded', groupColor.badge)}>
                                         {groupColor.label}
                                       </span>
                                     </div>
@@ -1445,11 +1445,11 @@ export default function WeeklyPlannerPage() {
                                           <div key={a.id} className="flex items-center justify-between px-3 py-2 bg-slate-900/40">
                                             <span className="text-sm">{a.name}</span>
                                             {a.hasGarmin ? (
-                                              <span className="flex items-center gap-1 text-[11px] text-green-400">
+                                              <span className="flex items-center gap-1 text-2xs text-green-400">
                                                 <CheckCircle className="h-3.5 w-3.5" /> Garmin
                                               </span>
                                             ) : (
-                                              <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                                              <span className="flex items-center gap-1 text-2xs text-slate-500">
                                                 <XCircle className="h-3.5 w-3.5" /> Not connected
                                               </span>
                                             )}
@@ -1513,7 +1513,7 @@ export default function WeeklyPlannerPage() {
                                     <span className="text-sm font-medium">{group.name}</span>
                                   </div>
                                   <span className={cn(
-                                    'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                                    'text-3xs font-bold px-1.5 py-0.5 rounded',
                                     groupIdx === 0 ? 'bg-green-500/20 text-green-400' :
                                     groupIdx === 1 ? 'bg-yellow-500/20 text-yellow-400' :
                                     'bg-orange-500/20 text-orange-400'
@@ -1579,11 +1579,11 @@ export default function WeeklyPlannerPage() {
                                     <Watch className={cn('h-4 w-4 shrink-0', canPush ? 'text-emerald-400' : 'text-red-400/60')} />
                                     <div className="flex-1 min-w-0">
                                       <span className="text-sm">{athlete.name}</span>
-                                      {!canPush && <span className="ms-2 text-[10px] text-red-400/70">no Garmin</span>}
+                                      {!canPush && <span className="ms-2 text-3xs text-red-400/70">no Garmin</span>}
                                     </div>
                                     {athleteGroup && (
                                       <span className={cn(
-                                        'text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0',
+                                        'text-3xs font-bold px-1.5 py-0.5 rounded shrink-0',
                                         athleteGroupIdx === 0 ? 'bg-green-500/20 text-green-400' :
                                         athleteGroupIdx === 1 ? 'bg-yellow-500/20 text-yellow-400' :
                                         'bg-orange-500/20 text-orange-400'
