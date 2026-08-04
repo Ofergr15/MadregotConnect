@@ -14,6 +14,7 @@ import { groupPaceTokens } from '@/lib/garmin/pace';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
+import { MomentumCard } from '@/components/MomentumCard';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { Sheet, Spinner } from '@/components/ui';
 
@@ -886,6 +887,13 @@ export default function DashboardPage() {
           </div>
 
         </section>
+      )}
+
+      {/* ═══ MOMENTUM: week streak + this-week recap ═══ */}
+      {!isCoach && athleteId && (
+        <div className="mb-4">
+          <MomentumCard athleteId={athleteId} />
+        </div>
       )}
 
       {/* ═══ WEEKLY VOLUME + LEADERBOARD (side by side) ═══ */}
