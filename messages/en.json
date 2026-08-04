@@ -570,5 +570,14 @@
     "kmThisWeek": "km this week",
     "runs": "runs",
     "vsLastWeek": "vs last week"
+  },
+  "squads": {
+    "title": "Squad Battle",
+    "thisMonth": "this month",
+    "members": "members",
+    "kmAvg": "avg km",
+    "attendAvg": "attend",
+    "ranThisWeek": "ran this wk",
+    "footnote": "Ranked by per-member average — volume, attendance & consistency. Squad size does not affect it."
   }
 }

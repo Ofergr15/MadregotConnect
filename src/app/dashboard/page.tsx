@@ -15,6 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaCh
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { MomentumCard } from '@/components/MomentumCard';
+import { SquadStandings } from '@/components/SquadStandings';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { Sheet, Spinner } from '@/components/ui';
 
@@ -895,6 +896,11 @@ export default function DashboardPage() {
           <MomentumCard athleteId={athleteId} />
         </div>
       )}
+
+      {/* ═══ דבוקה SQUAD RIVALRY (team-wide — all roles) ═══ */}
+      <div className="mb-4">
+        <SquadStandings />
+      </div>
 
       {/* ═══ WEEKLY VOLUME + LEADERBOARD (side by side) ═══ */}
       {!isCoach && runnerWeeklyVolumes.length > 1 && (() => {
