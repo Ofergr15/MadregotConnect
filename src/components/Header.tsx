@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, Menu, X, Route, Trophy, MessageSquare, Watch, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, Trophy, MessageSquare, Watch, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
@@ -368,52 +368,25 @@ export function Header() {
             </button>
           </div>
 
-          {/* Mobile hamburger */}
+          {/* Mobile: avatar → account menu. Navigation lives in the bottom tab
+              bar now; this button only opens account actions (no nav list). */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
-            aria-label="Toggle menu"
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-full bg-primary-600/20 ring-1 ring-primary-500/20 text-sm font-bold text-primary-300 active:scale-95 transition-transform"
+            aria-label={mobileMenuOpen ? tc('close') : th('account')}
           >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : initials}
           </button>
         </div>
 
-        {/* Mobile menu */}
+        {/* Mobile account menu (no nav — the tab bar owns navigation) */}
         <div
           className={cn(
             'md:hidden overflow-hidden transition-all duration-300 ease-in-out',
             mobileMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
           )}
         >
-          <nav className="py-3 space-y-0.5">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              const isReview = item.tab === 'review';
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3 text-base font-medium rounded-lg transition-colors',
-                    isReview
-                      ? isActive
-                        ? 'bg-amber-400 text-slate-900 font-bold'
-                        : 'bg-amber-400/10 text-amber-300 border border-amber-400/30 font-bold'
-                      : isActive
-                        ? 'bg-primary-600 text-white'
-                        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span>{t(item.labelKey as any)}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="border-t border-slate-700 py-4 px-4">
+          <div className="py-3 px-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="bg-primary-600/30 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-primary-300">
                 {initials}

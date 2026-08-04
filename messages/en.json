@@ -36,7 +36,8 @@
     "settings": "Settings",
     "profile": "Profile",
     "practiceAttendance": "Attendance",
-    "workoutFeedback": "Workout Feedback"
+    "workoutFeedback": "Workout Feedback",
+    "more": "More"
   },
   "header": {
     "coach": "Coach",
@@ -45,7 +46,8 @@
     "nothingNew": "Nothing new",
     "adminLogin": "Admin Login",
     "password": "Password",
-    "signInAsAdmin": "Sign In as Admin"
+    "signInAsAdmin": "Sign In as Admin",
+    "account": "Account"
   },
   "home": {
     "redefining": "Redefining",
