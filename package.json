@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.24.0",
     "@supabase/supabase-js": "^2.43.0",
     "@types/web-push": "^3.6.4",
+    "@vercel/speed-insights": "^2.0.0",
     "clsx": "^2.1.0",
     "garmin-connect": "^1.6.0",
     "lucide-react": "^0.378.0",
