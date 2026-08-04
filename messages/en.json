@@ -560,7 +560,8 @@
     "whichGroup": "Which group?",
     "otherGroup": "Other group… (free text)",
     "goingCount": "attending",
-    "noRsvp": "No response"
+    "noRsvp": "No response",
+    "titleTomorrow": "Coming to tomorrow's workout?"
   },
   "workoutFeedback": {
     "title": "How was your workout?",

@@ -7,13 +7,15 @@ import { cn, getPlanWeekStart } from '@/lib/utils';
 
 const GROUP_PRESETS = ['דבוקה 1', 'דבוקה 2', 'דבוקה 3'];
 
-// Pre-workout RSVP for TODAY's workout (PRD §14). Shows only when there is a
-// workout scheduled today. Athlete answers: coming? + which דבוקה.
-export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
+// Pre-workout RSVP for a specific workout — TODAY's, or (the evening before) the
+// NEXT team-workout day. The dashboard picks the target (weekStart + day); when
+// omitted we default to today, so existing call sites keep working. Athlete
+// answers: coming? + which דבוקה.
+export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: dayProp, dayBefore }: { workoutLabel?: string; weekStart?: string; day?: number; dayBefore?: boolean }) {
   const t = useTranslations('attendance');
   const [athleteId, setAthleteId] = useState('');
-  const weekStart = getPlanWeekStart(new Date());
-  const day = new Date().getDay();
+  const weekStart = weekStartProp ?? getPlanWeekStart(new Date());
+  const day = dayProp ?? new Date().getDay();
 
   const [attending, setAttending] = useState<boolean | null>(null);
   const [group, setGroup] = useState('');
@@ -73,7 +75,7 @@ export function AttendanceRSVP({ workoutLabel }: { workoutLabel?: string }) {
         style={{ background: 'radial-gradient(circle, rgba(67,56,255,.4), transparent 70%)' }} aria-hidden="true" />
       <div className="relative flex items-center gap-2 mb-1">
         <Users className="h-4 w-4 text-primary-400" />
-        <h3 className="text-sm font-bold text-white" dir="rtl">{t('title')}</h3>
+        <h3 className="text-sm font-bold text-white" dir="rtl">{dayBefore ? t('titleTomorrow') : t('title')}</h3>
         {saved && <CheckCircle2 className="h-4 w-4 text-green-400 ms-auto" />}
         {saving && <Loader2 className="h-4 w-4 text-slate-400 animate-spin ms-auto" />}
       </div>

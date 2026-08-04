@@ -560,7 +560,8 @@
     "whichGroup": "באיזו דבוקה?",
     "otherGroup": "דבוקה אחרת… (טקסט חופשי)",
     "goingCount": "מגיעים",
-    "noRsvp": "לא ענו"
+    "noRsvp": "לא ענו",
+    "titleTomorrow": "מגיעים לאימון מחר?"
   },
   "workoutFeedback": {
     "title": "איך היה האימון?",

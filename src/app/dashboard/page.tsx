@@ -8,7 +8,7 @@ import {
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
   Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
 } from 'lucide-react';
-import { cn, getActivityWeekStart, formatActivityTime, formatActivityDate, activityLocalHour, resolveGroup, israelNow } from '@/lib/utils';
+import { cn, getActivityWeekStart, getPlanWeekStart, formatActivityTime, formatActivityDate, activityLocalHour, resolveGroup, israelNow } from '@/lib/utils';
 import { fetchActivities, fetchActivityDetails } from '@/lib/activities-client';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { groupPaceTokens } from '@/lib/garmin/pace';
@@ -455,6 +455,7 @@ export default function DashboardPage() {
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
   const [weather, setWeather] = useState<WeatherDay[]>([]);
   const [workoutHour, setWorkoutHour] = useState<number>(18); // team workout start (IL), admin-editable
+  const [teamDays, setTeamDays] = useState<number[]>([2, 5]); // team-workout days (0=Sun..6=Sat), admin-editable
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState({ d: 0, h: 0, m: 0, s: 0 });
@@ -494,9 +495,13 @@ export default function DashboardPage() {
     setIsCoach(previewRole ? STAFF_ROLES.includes(previewRole) : !!coachEmail);
     setAthleteId(storedAthleteId);
     setAthleteName(name);
-    // Admin-editable team-workout time → drives the pre-workout RSVP cutoff.
+    // Admin-editable team-workout config → drives the pre-workout RSVP cutoff
+    // (workoutHour) and which days it shows on (teamDays).
     fetch('/api/reminder-config').then(r => r.ok ? r.json() : null)
-      .then(d => { if (typeof d?.config?.workoutHour === 'number') setWorkoutHour(d.config.workoutHour); })
+      .then(d => {
+        if (typeof d?.config?.workoutHour === 'number') setWorkoutHour(d.config.workoutHour);
+        if (Array.isArray(d?.config?.teamDays)) setTeamDays(d.config.teamDays);
+      })
       .catch(() => {});
   }, []);
 
@@ -748,6 +753,26 @@ export default function DashboardPage() {
   const hasData = weekly && weekly.weekTotalMax > 0;
   const todayWeather = weather.find(w => new Date(w.date).getDay() === todayDow);
   const todayWorkout = weekly?.dailyDistances?.find(d => d.dayOfWeek === todayDow);
+
+  // Which workout does the pre-workout RSVP target? Today if it's a team day and
+  // we're still before the cutoff (workoutHour + 2h grace); otherwise the NEXT
+  // team day if it's tomorrow (the "day before" prompt). weekStart is derived
+  // from the TARGET date so the Sat→Sun plan-week boundary is handled.
+  const rsvpTarget = (() => {
+    const nowH = israelNow().hour;
+    if (teamDays.includes(todayDow) && nowH < workoutHour + 2) {
+      return { date: new Date(), dow: todayDow, dayBefore: false };
+    }
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowDow = tomorrow.getDay();
+    if (teamDays.includes(tomorrowDow)) {
+      return { date: tomorrow, dow: tomorrowDow, dayBefore: true };
+    }
+    return null;
+  })();
+  const rsvpWeekStart = rsvpTarget ? getPlanWeekStart(rsvpTarget.date) : '';
+  const rsvpWorkout = rsvpTarget ? weekly?.dailyDistances?.find(d => d.dayOfWeek === rsvpTarget.dow) : null;
   // Time-based greeting (Israel-ish local hour) for the large title.
   const greetHour = new Date().getHours();
   const greeting = greetHour < 12 ? t('goodMorning') : greetHour < 18 ? t('goodAfternoon') : t('goodEvening');
@@ -764,17 +789,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ═══ PRE-WORKOUT ATTENDANCE — team-workout days only, and only BEFORE the
-          workout. Cutoff = the admin-set workoutHour + 2h grace; after that the
-          workout has passed, so the RSVP hides. Coach roster always shows so
-          coaches can review turnout. */}
-      {(todayDow === 2 || todayDow === 5) && (
-        isCoach
-          ? <AttendanceRoster />
-          : israelNow().hour < workoutHour + 2
-            ? <AttendanceRSVP workoutLabel={todayWorkout?.type ? `${todayWorkout.day} · ${todayWorkout.type}` : undefined} />
-            : null
-      )}
+      {/* ═══ PRE-WORKOUT ATTENDANCE — the RSVP targets the next team workout:
+          today's (until workoutHour + 2h grace) or, the evening before, tomorrow's
+          (the "day before" prompt). Days come from the admin teamDays config.
+          Coaches see the roster for the same target. */}
+      {rsvpTarget && (() => {
+        // The title says "today"/"tomorrow"; the label just names the workout.
+        const label = rsvpWorkout?.type ? `${rsvpWorkout.day} · ${rsvpWorkout.type}` : rsvpWorkout?.day;
+        return isCoach
+          ? <AttendanceRoster weekStart={rsvpWeekStart} day={rsvpTarget.dow} />
+          : <AttendanceRSVP workoutLabel={label || undefined} weekStart={rsvpWeekStart} day={rsvpTarget.dow} dayBefore={rsvpTarget.dayBefore} />;
+      })()}
 
       {/* ═══ RACE COUNTDOWN — compact native strip (was a giant 8xl number) ═══ */}
       <section className="rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4 flex items-center gap-4">

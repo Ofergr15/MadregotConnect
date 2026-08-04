@@ -7,21 +7,22 @@ import { getPlanWeekStart } from '@/lib/utils';
 
 interface Row { athleteId: string; attending: boolean; groupLabel: string | null; name: string; avatarUrl: string | null; }
 
-// Coach view: who has RSVP'd for TODAY's workout, grouped by דבוקה.
-export function AttendanceRoster() {
+// Coach view: who has RSVP'd for a specific workout (today's, or the next team
+// day when previewing the day before), grouped by דבוקה. Defaults to today.
+export function AttendanceRoster({ weekStart: weekStartProp, day: dayProp }: { weekStart?: string; day?: number } = {}) {
   const t = useTranslations('attendance');
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const weekStart = getPlanWeekStart(new Date());
-    const day = new Date().getDay();
+    const weekStart = weekStartProp ?? getPlanWeekStart(new Date());
+    const day = dayProp ?? new Date().getDay();
     fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&roster=1`)
       .then(r => r.ok ? r.json() : null)
       .then(data => setRows(data?.attendance || []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [weekStartProp, dayProp]);
 
   const going = rows.filter(r => r.attending);
   const notGoing = rows.filter(r => !r.attending);
