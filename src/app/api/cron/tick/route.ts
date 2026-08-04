@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushToSubscriptions, resolveAudience, subscriptionsForAthletes, allAthleteIds } from '@/lib/push';
-import { israelNow, getPlanWeekStart } from '@/lib/utils';
+import { israelNow, getPlanWeekStart, getActivityWeekStart } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +16,8 @@ export const maxDuration = 60;
 //  - eveningBefore (default Mon/Thu 18:00): push only RSVP NON-responders.
 // Team days default Tue(2)/Fri(5); "day before" = teamDay-1. Idempotent per
 // (kind, day, week) via a scheduled_notifications ledger row.
+// Also: Saturday 20:00 plan-rollover push, and Sunday 19:00 personalized weekly
+// recap push (per-runner km + runs for the week that just ended).
 async function run(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
@@ -152,6 +154,56 @@ async function run(request: Request) {
         await markFired(tag, 0);
         fired.push(`${tag} → both plans present`);
       }
+    }
+  }
+
+  // Sunday 19:00 IL weekly recap: personalized "your week" push to each runner
+  // who ran this activity-week (Mon–Sun) — km + runs. Idempotent per activity
+  // week via one ledger tag; per-athlete content computed from one activities
+  // query. Runs only, both Garmin + Strava (same table).
+  if (weekday === 0 && hour === 19) {
+    const actWeekStart = getActivityWeekStart(now); // Monday of the week that just ended today (Sun)
+    const tag = `recap:${actWeekStart}`;
+    if (!(await already(tag))) {
+      const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
+      // Active athletes (id → push targets resolved later).
+      const { data: athletes } = await supabase
+        .from('athletes')
+        .select('id')
+        .eq('status', 'active');
+      const ids = (athletes || []).map((a: { id: string }) => a.id);
+      let totalSent = 0;
+      if (ids.length > 0) {
+        const { data: acts } = await supabase
+          .from('athlete_activities')
+          .select('athlete_id, activity_type, distance')
+          .in('athlete_id', ids)
+          .gte('start_time', actWeekStart);
+        // Fold per athlete: km + runs (runs only).
+        const per = new Map<string, { km: number; runs: number }>();
+        for (const r of (acts || []) as any[]) {
+          if (!(r.distance > 0) || (r.activity_type && !RUN_TYPES.includes(r.activity_type))) continue;
+          const b = per.get(r.athlete_id) || { km: 0, runs: 0 };
+          b.km += r.distance / 1000; b.runs += 1;
+          per.set(r.athlete_id, b);
+        }
+        // Push each runner who ran this week their own recap.
+        for (const [athleteId, s] of per.entries()) {
+          if (s.runs === 0) continue;
+          const km = Math.round(s.km * 10) / 10;
+          const subs = await subscriptionsForAthletes([athleteId]);
+          if (subs.length === 0) continue;
+          const sent = await sendPushToSubscriptions(subs, {
+            title: 'הסיכום השבועי שלך 🏅',
+            body: `השבוע רצת ${km} ק״מ ב-${s.runs} ${s.runs === 1 ? 'ריצה' : 'ריצות'}. כל הכבוד!`,
+            url: '/dashboard',
+            tag,
+          });
+          totalSent += sent;
+        }
+      }
+      await markFired(tag, totalSent);
+      fired.push(`${tag} → ${totalSent}`);
     }
   }
 
