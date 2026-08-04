@@ -8,6 +8,8 @@
 
 import { cn } from '@/lib/utils';
 
+export { Sheet } from './Sheet';
+
 // ── Spinner ──────────────────────────────────────────────────────────────────
 // One brand-colored ring, replacing the mix of border-b-2 half-circles and
 // ad-hoc rings across the app.
@@ -141,5 +143,43 @@ export function SkeletonCard({ className }: { className?: string }) {
       <Skeleton className="h-8 w-2/3" />
       <Skeleton className="h-3 w-1/2" />
     </Card>
+  );
+}
+
+// ── SegmentedControl ──────────────────────────────────────────────────────────
+// iOS-style segmented control: a track with equal segments and a highlighted
+// selected pill. Replaces the ad-hoc `flex bg-slate-800 rounded-xl p-1` toggles.
+// RTL-safe (uses flex order, no absolute thumb math). Generic over the value.
+export function SegmentedControl<T extends string>({
+  value,
+  onChange,
+  options,
+  className,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: Array<{ value: T; label: string; icon?: React.ComponentType<{ className?: string }> }>;
+  className?: string;
+}) {
+  return (
+    <div className={cn('flex gap-0.5 rounded-xl bg-slate-800 p-1 border border-slate-700', className)}>
+      {options.map((opt) => {
+        const Icon = opt.icon;
+        const active = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            onClick={() => { if (!active) { try { navigator.vibrate?.(6); } catch { /* no-op */ } onChange(opt.value); } }}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-semibold transition-colors min-h-[40px]',
+              active ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+            )}
+          >
+            {Icon && <Icon className="h-4 w-4" />}
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

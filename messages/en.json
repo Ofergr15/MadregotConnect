@@ -512,7 +512,11 @@
     "planMissing": "Missing — please upload",
     "uploadArrow": "Upload →",
     "noWeeks": "No program weeks yet",
-    "addFirstWeek": "Add first week"
+    "addFirstWeek": "Add first week",
+    "gym": "Gym",
+    "addNewWeek": "Add New Week",
+    "upload": "Upload",
+    "uploading": "Uploading…"
   },
   "install": {
     "title": "Install Madregot",
