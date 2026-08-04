@@ -14,8 +14,8 @@ const heebo = Heebo({ subsets: ['hebrew', 'latin'], variable: '--font-heebo' });
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Pinch-zoom left enabled (no maximumScale/userScalable) — disabling it is a
+  // WCAG 1.4.4 failure and blocks low-vision users.
   viewportFit: 'cover',
   themeColor: '#4338ff',
 };

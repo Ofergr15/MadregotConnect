@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useTranslations, useLocale } from 'next-intl';
 import { ProfileBest } from '@/components/ProfileBest';
 import { shareTextForDay } from '@/lib/workout-share';
+import { fetchActivities } from '@/lib/activities-client';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
 
 interface Group {
@@ -167,10 +168,12 @@ function ProfileContent() {
     }
 
     if (id) {
-      fetch('/api/garmin/sync-activities')
+      fetchActivities()
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           const acts = data?.activities || [];
+          // Endpoint is already scoped to this athlete; keep the filter as a
+          // belt-and-suspenders guard.
           const myActs = acts.filter((a: any) => a.athlete_id === id);
           if (myActs.length > 0) setHasActivities(true);
         })

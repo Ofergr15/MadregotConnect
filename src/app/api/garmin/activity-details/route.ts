@@ -14,6 +14,24 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
 
+    // Ownership check: the caller must be the target athlete OR verified staff.
+    // Identity is proven via x-user-email against the DB (not trusted from the
+    // client) so a user can't pull another athlete's activity via their Garmin
+    // creds by guessing athleteId (the prior authorization gap).
+    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
+    if (!email) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
+    const { data: caller } = await supabase
+      .from('athletes')
+      .select('id, role')
+      .eq('email', email)
+      .maybeSingle();
+    const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as any).role);
+    if (!caller || (!isStaff && (caller as any).id !== athleteId)) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+
     const { data: athlete, error } = await supabase
       .from('athletes')
       .select('garmin_auth')
