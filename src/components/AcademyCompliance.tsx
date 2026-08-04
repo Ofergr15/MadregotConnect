@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus, ListChecks } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
+import { useApi } from '@/lib/api';
 
 // Mirror of the adherence API response (kept structural to avoid importing server types).
 type MetricStatus = 'on_target' | 'under' | 'over' | 'unknown';
@@ -97,27 +98,12 @@ const metricLabel: Record<MetricStatus | PaceStatus, string> = {
 
 export function AcademyCompliance() {
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
-  const [data, setData] = useState<AthleteAdherence[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const { data: adherence, isLoading } = useApi<{ athletes: AthleteAdherence[] }>(
+    `/api/academy/adherence?weekStart=${weekStart}`,
+  );
 
-  const fetchAdherence = useCallback(async (week: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/academy/adherence?weekStart=${week}`);
-      const json = await res.json();
-      setData(json.athletes || []);
-    } catch (err) {
-      console.error('Failed to fetch adherence:', err);
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchAdherence(weekStart);
-  }, [weekStart, fetchAdherence]);
+  const data = adherence?.athletes ?? [];
 
   const isCurrentWeek = weekStart === sundayOf(new Date());
 
@@ -146,7 +132,7 @@ export function AcademyCompliance() {
         </button>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-7 w-7 text-primary-500 animate-spin" />
         </div>

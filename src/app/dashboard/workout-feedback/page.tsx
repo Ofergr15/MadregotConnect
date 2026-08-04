@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { MessageSquare, Loader2, AlertTriangle, MessageCircle, Bell, Send, Check, CornerDownLeft } from 'lucide-react';
 import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
 import { resolveGroup } from '@/lib/utils';
+import { useApi } from '@/lib/api';
 
 interface FeedbackItem {
   id: string;
@@ -33,23 +34,15 @@ type Filter = 'all' | 'pain' | 'wants' | 'comment';
 // (pain → hardest felt → wants-feedback → has-comment → rest) mirrors what a
 // coach needs first. Feel/RPE use the shared verified scales.
 export default function WorkoutFeedbackPage() {
-  const [items, setItems] = useState<FeedbackItem[]>([]);
-  const [counts, setCounts] = useState({ total: 0, pain: 0, wantsFeedback: 0, withComment: 0 });
-  const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
   const [filter, setFilter] = useState<Filter>('all');
 
-  useEffect(() => {
-    setLoading(true);
-    fetch(`/api/workout-feedback?list=1&days=${days}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        setItems(data?.items || []);
-        if (data?.counts) setCounts(data.counts);
-      })
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
-  }, [days]);
+  const { data } = useApi<{ items?: FeedbackItem[]; counts?: { total: number; pain: number; wantsFeedback: number; withComment: number } }>(
+    `/api/workout-feedback?list=1&days=${days}`,
+  );
+  const items = useMemo(() => data?.items || [], [data]);
+  const counts = data?.counts || { total: 0, pain: 0, wantsFeedback: 0, withComment: 0 };
+  const loading = !data;
 
   const filtered = useMemo(() => {
     let list = items;

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Loader2, Activity, Route, Clock, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useApi } from '@/lib/api';
 
 interface AthleteStat {
   athleteId: string;
@@ -31,27 +32,13 @@ function fmtDuration(min: number): string {
 }
 
 export function AcademyStats() {
-  const [athletes, setAthletes] = useState<AthleteStat[]>([]);
-  const [team, setTeam] = useState<TeamStat | null>(null);
   const [scope, setScope] = useState<'week' | 'total'>('week');
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useApi<{ athletes: AthleteStat[]; team: TeamStat | null }>('/api/academy/stats');
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/academy/stats');
-        const data = await res.json();
-        setAthletes(data.athletes || []);
-        setTeam(data.team || null);
-      } catch (err) {
-        console.error('Failed to fetch academy stats:', err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const athletes = data?.athletes ?? [];
+  const team = data?.team ?? null;
 
-  if (loading) {
+  if (isLoading && !data) {
     return <div className="flex items-center justify-center py-16"><Loader2 className="h-7 w-7 text-primary-500 animate-spin" /></div>;
   }
 

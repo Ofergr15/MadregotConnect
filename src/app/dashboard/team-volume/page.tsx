@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { TrendingUp, TrendingDown, Minus, Loader2, BarChart3 } from 'lucide-react';
+import { useApi } from '@/lib/api';
 
 interface Row {
   athleteId: string;
@@ -22,20 +23,10 @@ interface Row {
 // last-week trend so a coach can spot who's ramping up or dropping off.
 // Staff-only (server-enforced); this page assumes the coach nav gate.
 export default function TeamVolumePage() {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [weeks, setWeeks] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [range, setRange] = useState(8);
-
-  useEffect(() => {
-    setLoading(true);
-    const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    fetch(`/api/coach/volume?weeks=${range}`, { headers: email ? { 'x-user-email': email } : {} })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { setRows(d?.athletes || []); setWeeks(d?.weeks || []); })
-      .catch(() => setRows([]))
-      .finally(() => setLoading(false));
-  }, [range]);
+  const { data } = useApi<{ athletes?: Row[]; weeks?: string[] }>(`/api/coach/volume?weeks=${range}`);
+  const rows = data?.athletes || [];
+  const loading = !data;
 
   // Shared max across all athletes so sparklines are comparable.
   const globalMax = useMemo(() => Math.max(1, ...rows.flatMap((r) => r.series)), [rows]);

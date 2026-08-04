@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { Users, Loader2, Check, X, CalendarDays, ChevronRight, ChevronLeft, List, CalendarRange } from 'lucide-react';
 import { getPlanWeekStart, resolveGroup } from '@/lib/utils';
+import { useApi } from '@/lib/api';
 
 interface RosterRow {
   athleteId: string;
@@ -78,24 +79,17 @@ function ViewTab({ active, onClick, icon: Icon, label }: { active: boolean; onCl
 function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
   // Anchor = first of the visible month.
   const [anchor, setAnchor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
-  const [days, setDays] = useState<Record<string, DayCounts>>({});
-  const [loading, setLoading] = useState(true);
 
   const year = anchor.getFullYear();
   const month = anchor.getMonth();
 
-  const fetchMonth = useCallback(() => {
-    setLoading(true);
-    const first = new Date(year, month, 1);
-    const last = new Date(year, month + 1, 0);
-    fetch(`/api/attendance?calendar=1&from=${iso(first)}&to=${iso(last)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setDays(data?.days || {}))
-      .catch(() => setDays({}))
-      .finally(() => setLoading(false));
-  }, [year, month]);
-
-  useEffect(() => { fetchMonth(); }, [fetchMonth]);
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const { data } = useApi<{ days?: Record<string, DayCounts> }>(
+    `/api/attendance?calendar=1&from=${iso(first)}&to=${iso(last)}`,
+  );
+  const days = data?.days || {};
+  const loading = !data;
 
   // Build the grid: leading blanks for the first weekday, then each day.
   const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
@@ -196,21 +190,16 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
 
 // ────────────────────────── Day roster (single practice) ──────────────────────────
 function DayView({ date, setDate }: { date: string; setDate: (d: string) => void }) {
-  const [roster, setRoster] = useState<RosterRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'going' | 'no-response' | 'not-going'>('all');
 
-  useEffect(() => {
-    setLoading(true);
-    const d = new Date(date + 'T12:00:00');
-    const weekStart = getPlanWeekStart(d);
-    const day = d.getDay();
-    fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&roster=full`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setRoster(data?.roster || []))
-      .catch(() => setRoster([]))
-      .finally(() => setLoading(false));
-  }, [date]);
+  const d = new Date(date + 'T12:00:00');
+  const weekStart = getPlanWeekStart(d);
+  const day = d.getDay();
+  const { data } = useApi<{ roster?: RosterRow[] }>(
+    `/api/attendance?weekStart=${weekStart}&day=${day}&roster=full`,
+  );
+  const roster = useMemo(() => data?.roster || [], [data]);
+  const loading = !data;
 
   const dayIdx = new Date(date + 'T12:00:00').getDay();
   const isTeamDay = TEAM_DAYS.includes(dayIdx);

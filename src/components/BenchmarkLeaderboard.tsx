@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Trophy, Medal, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/academy/benchmark';
+import { useApi } from '@/lib/api';
 
 interface Result {
   id: string;
@@ -26,33 +27,19 @@ function initialsOf(name: string) {
 }
 
 export function BenchmarkLeaderboard() {
-  const [results, setResults] = useState<Result[]>([]);
-  const [tests, setTests] = useState<string[]>([]);
   const [test, setTest] = useState('');
-  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const { data } = useApi<{ results: Result[]; tests: string[] }>('/api/academy/benchmarks');
 
-  const fetchResults = useCallback(async () => {
-    try {
-      const res = await fetch('/api/academy/benchmarks');
-      const data = await res.json();
-      setResults(data.results || []);
-      const t: string[] = data.tests || [];
-      setTests(t);
-      setTest(prev => (t.includes(prev) ? prev : t[0] || ''));
-    } catch {
-      /* leaderboard is optional */
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchResults(); }, [fetchResults]);
+  const results = data?.results ?? [];
+  const tests = data?.tests ?? [];
+  // Selected test defaults to the first available; user selection wins once it's valid.
+  const activeTest = tests.includes(test) ? test : tests[0] || '';
 
   // Hide entirely when there's nothing to show (keeps the Races page clean).
-  if (loading || results.length === 0) return null;
+  if (!data || results.length === 0) return null;
 
-  const shown = results.filter(r => r.test_name === test);
+  const shown = results.filter(r => r.test_name === activeTest);
   const top3 = shown.slice(0, 3);
   const rest = shown.slice(3);
 
@@ -62,11 +49,11 @@ export function BenchmarkLeaderboard() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Trophy className="h-5 w-5 text-yellow-400" />
-            <h2 className="text-base font-semibold text-white">Time Trial · {test}</h2>
+            <h2 className="text-base font-semibold text-white">Time Trial · {activeTest}</h2>
           </div>
           {tests.length > 1 && (
             <select
-              value={test}
+              value={activeTest}
               onChange={e => { setTest(e.target.value); setExpanded(false); }}
               className="bg-slate-800 border border-slate-700 rounded-lg px-3 h-8 text-xs text-white"
             >

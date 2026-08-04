@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Swords, Medal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useApi } from '@/lib/api';
 
 interface Squad {
   groupId: string;
@@ -21,21 +21,13 @@ interface Squad {
 // Hidden until there are ≥2 squads with data. Squad colors from resolveGroup.
 export function SquadStandings() {
   const t = useTranslations('squads');
-  const [squads, setSquads] = useState<Squad[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data } = useApi<{ squads: Squad[] }>('/api/groups/standings');
 
-  useEffect(() => {
-    const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    fetch('/api/groups/standings', { headers: email ? { 'x-user-email': email } : {} })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setSquads(d?.squads || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const squads = data?.squads ?? [];
 
   // Only worth showing when at least 2 squads have some activity.
   const active = squads.filter((s) => s.volumeKmPerMember > 0 || s.attendancePerMember > 0);
-  if (loading || active.length < 2) return null;
+  if (!data || active.length < 2) return null;
 
   const medalColor = (rank: number) =>
     rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-300' : rank === 3 ? 'text-orange-400' : 'text-slate-500';

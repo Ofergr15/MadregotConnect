@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, Loader2, MessageSquare, Trophy, Flame, Calendar, Activity } from 'lucide-react';
+import { useApi } from '@/lib/api';
 
 interface Item {
   id: string;
@@ -45,18 +46,17 @@ function styleFor(it: Item): { Icon: typeof Activity; bg: string; fg: string } {
 // unread dots + tap to open the linked screen. Reads /api/notifications/inbox.
 export default function NotificationsInboxPage() {
   const router = useRouter();
-  const [items, setItems] = useState<Item[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const id = localStorage.getItem('athlete_id') || '';
-    if (!id) { setLoading(false); return; }
-    fetch(`/api/notifications/inbox?athleteId=${encodeURIComponent(id)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setItems(d?.items || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  // athleteId comes from localStorage (client-only); resolve on mount so the SWR
+  // key is SSR-safe. null = not yet resolved, '' = resolved but no athlete.
+  const [athleteId, setAthleteId] = useState<string | null>(null);
+  useEffect(() => { setAthleteId(localStorage.getItem('athlete_id') || ''); }, []);
+
+  const { data } = useApi<{ items?: Item[] }>(
+    athleteId ? `/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}` : null,
+  );
+  const items = data?.items || [];
+  const loading = athleteId === null || (!!athleteId && !data);
 
   return (
     <div className="max-w-2xl mx-auto" dir="rtl">
