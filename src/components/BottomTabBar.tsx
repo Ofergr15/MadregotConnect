@@ -135,8 +135,9 @@ export function BottomTabBar() {
             <Link
               key={item.tab}
               href={item.href}
+              onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } }}
               className={cn(
-                'flex-1 flex flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition-colors',
+                'flex-1 flex flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition-colors active:scale-[0.92]',
                 active ? 'text-primary-400' : 'text-slate-500'
               )}
             >
@@ -149,9 +150,9 @@ export function BottomTabBar() {
         })}
         {overflow.length > 0 && (
           <button
-            onClick={() => setMoreOpen(true)}
+            onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } setMoreOpen(true); }}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition-colors',
+              'flex-1 flex flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition-colors active:scale-[0.92]',
               overflowActive ? 'text-primary-400' : 'text-slate-500'
             )}
           >
@@ -168,7 +169,6 @@ export function BottomTabBar() {
           <div
             className="relative w-full bg-slate-800 rounded-t-2xl border-t border-slate-700 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 max-h-[70vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
-            dir="rtl"
           >
             <div className="w-9 h-1.5 rounded-full bg-slate-600 mx-auto mb-3" />
             <div className="flex items-center justify-between px-5 pb-2">

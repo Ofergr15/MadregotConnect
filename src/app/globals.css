@@ -67,23 +67,15 @@
   }
 }
 
+/* Slide in from the inline-end edge. Uses the logical `translate` axis via a
+   custom property so it flips automatically in RTL — the previous
+   `[dir="rtl"] @keyframes` was invalid CSS (a keyframes at-rule can't be
+   selector-scoped) and silently dead, so RTL slid the wrong way. */
 @keyframes slideInEnd {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+  from { transform: translateX(var(--slide-from, 100%)); }
+  to   { transform: translateX(0); }
 }
-
-[dir="rtl"] @keyframes slideInEnd {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
+[dir="rtl"] .animate-slide-in-right { --slide-from: -100%; }
 
 .animate-slide-in-right {
   animation: slideInEnd 0.2s ease-out;

@@ -36,7 +36,8 @@
     "settings": "הגדרות",
     "profile": "פרופיל",
     "practiceAttendance": "נוכחות",
-    "workoutFeedback": "משוב אימונים"
+    "workoutFeedback": "משוב אימונים",
+    "more": "עוד"
   },
   "header": {
     "coach": "מאמן",
@@ -45,7 +46,8 @@
     "nothingNew": "אין חדש",
     "adminLogin": "כניסת מנהל",
     "password": "סיסמה",
-    "signInAsAdmin": "כניסה כמנהל"
+    "signInAsAdmin": "כניסה כמנהל",
+    "account": "חשבון"
   },
   "home": {
     "redefining": "מגדירים מחדש",
