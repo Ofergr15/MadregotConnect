@@ -1,6 +1,6 @@
 # Academy Feature — Design & Research
 
-Status: **All phases (0–6) built. Pending: run migration 019 in Supabase.**
+Status: **All phases (0–6) built and live** (migrations 019/020/021 applied).
 This doc captures the design decisions and the codebase seams.
 
 Progress:
@@ -10,10 +10,14 @@ Progress:
 - ✅ P4 adherence engine (`src/lib/academy/adherence.ts` + `/api/academy/adherence`) — commit c96f872
 - ✅ P5 in-app compliance view (`src/components/AcademyCompliance.tsx`) — commit c96f872
 - ✅ P3 per-athlete plan authoring (`src/components/AcademyPlanComposer.tsx`, Plans tab;
-  `POST /api/plans` accepts `athlete_id`, `GET` scopes group vs individual plans)
-- ✅ P6 weekly report email (`sendAcademyWeeklyReport` in email.ts, cron
-  `/api/cron/academy-report`, Mon 05:00 UTC in vercel.json; shared compute in
-  `src/lib/academy/report.ts`)
+  `POST /api/plans` accepts `athlete_id`, `GET` scopes group vs individual plans).
+  The composer now LOADS the athlete's saved plan for the selected week for editing
+  (not always blank).
+- ✅ P6 weekly report email — SHIPPED (not deferred): `sendAcademyWeeklyReport` in
+  email.ts (real nodemailer send), cron `/api/cron/academy-report`. The cron is
+  pinged daily and gates the send on the coach-configured `report.day` (Israel
+  weekday) and sends to the configured `report.recipients` (falls back to
+  ADMIN_EMAIL). `?force=1`/`?weekStart=` bypass the day gate for testing.
 
 Week convention: **Sunday-based** everywhere (plans save a Sunday `week_start_date`,
 pushes date workouts as `week_start + dayOfWeek` with dayOfWeek 0=Sun). Adherence +
@@ -158,10 +162,11 @@ higher-touch coaching model:
   planned pace on each academy activity.
 - Weekly report = a summarized view of the above per week (drill-down by athlete).
 
-### Phase 6 (deferred) — Emailed weekly report
-- Add a cron route (or piggyback `src/app/api/cron/sync/route.ts`) that renders the weekly
-  report to HTML and emails the coach via `src/lib/email.ts` (nodemailer). `CRON_SECRET`
-  auth pattern already established in `vercel.json` crons.
+### Phase 6 — Emailed weekly report ✅ SHIPPED
+- `src/app/api/cron/academy-report/route.ts` renders the weekly report to HTML and emails
+  it via `src/lib/email.ts` (`sendAcademyWeeklyReport`, nodemailer). `CRON_SECRET`-authed.
+  Reports the previous completed week. Honors the coach's configured recipients + weekday
+  (`AcademySettings.report`); pinged daily, sends only on the chosen day.
 
 ## Critical files (reference)
 - Nav: `src/components/Header.tsx:12`; layout `src/app/dashboard/layout.tsx`
