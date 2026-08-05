@@ -97,11 +97,28 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
 
   useEffect(() => { fetchLibrary(); }, [fetchLibrary]);
 
-  // Reset the draft when switching athlete or week.
+  // Load the athlete's existing plan for the selected week so the coach edits it
+  // instead of always rebuilding from blank. Falls back to an empty draft when
+  // there's no saved plan (or the athlete_id column isn't migrated). Guards
+  // against races when the athlete/week changes mid-fetch.
   useEffect(() => {
-    setSlots({});
     setPushResult(null);
     setError(null);
+    if (!athleteId) { setSlots({}); return; }
+    let cancelled = false;
+    setSlots({});
+    fetch(`/api/plans?coach_id=${COACH_ID}&athlete_id=${athleteId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (cancelled) return;
+        const plan = (d?.plans || []).find((p: any) => p.week_start_date === weekStart);
+        const workouts: ParsedWorkout[] = plan?.parsed_workouts?.workouts || [];
+        const next: Record<number, ParsedWorkout> = {};
+        for (const w of workouts) if (typeof w?.dayOfWeek === 'number') next[w.dayOfWeek] = w;
+        setSlots(next);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [athleteId, weekStart]);
 
   const selected = athletes.find(a => a.id === athleteId);
