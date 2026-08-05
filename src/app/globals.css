@@ -56,6 +56,21 @@
   }
 }
 
+/* Per-route enter animation (Phase 4): a quick fade + slight rise on each
+   navigation so screens don't hard-swap. Applied by <PageTransition>, keyed on
+   pathname. Honors reduced-motion (see below). */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.mg-page-enter {
+  animation: pageEnter 0.26s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mg-page-enter { animation: none; }
+}
+
 @keyframes scaleIn {
   from {
     opacity: 0;
