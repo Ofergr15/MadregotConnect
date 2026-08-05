@@ -70,6 +70,7 @@ export async function POST(request: Request) {
           body: reply.trim().slice(0, 120),
           url,
           tag: `coach-reply-${feedbackId}`,
+          category: 'coach',
         });
       }
     } catch { /* push optional */ }

@@ -78,6 +78,7 @@ async function run(request: Request) {
           body: 'מחר יש אימון קבוצתי — נתראה!',
           url: '/dashboard',
           tag,
+          category: 'workouts',
         });
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
@@ -103,6 +104,7 @@ async function run(request: Request) {
           body: 'עדכנו אותנו אם אתם מגיעים',
           url: '/dashboard',
           tag,
+          category: 'workouts',
         });
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
@@ -146,6 +148,7 @@ async function run(request: Request) {
           body: `העלו את התוכניות: ${parts.join(' · ')}`,
           url: '/dashboard/program',
           tag,
+          category: 'program',
         });
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent} (training:${hasTraining} nutrition:${hasNutrition})`);
@@ -198,6 +201,7 @@ async function run(request: Request) {
             body: `השבוע רצת ${km} ק״מ ב-${s.runs} ${s.runs === 1 ? 'ריצה' : 'ריצות'}. כל הכבוד!`,
             url: '/dashboard',
             tag,
+            category: 'achievements',
           });
           totalSent += sent;
         }

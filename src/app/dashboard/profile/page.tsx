@@ -9,6 +9,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { ProfileBest } from '@/components/ProfileBest';
 import { PersonalRecords } from '@/components/PersonalRecords';
 import { VolumeHistory } from '@/components/VolumeHistory';
+import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
@@ -394,6 +395,9 @@ function ProfileContent() {
 
       {/* Weekly training-volume trend (durable weekly_km_snapshots) — hidden when no runs */}
       <VolumeHistory athleteId={athleteId} weeks={12} />
+
+      {/* Per-user notification preferences (which push categories to receive) */}
+      <NotificationPrefs athleteId={athleteId} />
 
       {/* This Week's Program */}
       <Link

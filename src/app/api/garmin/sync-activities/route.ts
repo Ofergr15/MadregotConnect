@@ -155,6 +155,7 @@ export async function POST(request: Request) {
                 body: 'איך היה? ספרו לנו במשוב קצר',
                 url: `/dashboard/feedback?activity=${newest.activityId}`,
                 tag: `post-workout-${newest.activityId}`,
+                category: 'workouts',
               });
             }
           } catch { /* push is best-effort */ }

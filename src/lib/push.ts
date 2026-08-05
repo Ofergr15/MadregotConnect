@@ -37,15 +37,46 @@ function ensureConfigured(): boolean {
   return true;
 }
 
+// Toggleable notification categories (per-user prefs). A payload's category lets
+// sendPushToSubscriptions drop athletes who muted it. Omit category → always sent
+// (e.g. critical/admin messages that shouldn't be silenceable).
+export type NotificationCategory = 'workouts' | 'coach' | 'achievements' | 'program';
+
 export interface PushPayload {
   title: string;
   body: string;
   url?: string;
   tag?: string;
   badge?: number; // app-icon badge count (iOS 16.4+ installed PWA). Defaults to 1.
+  category?: NotificationCategory; // which pref governs this push (unset = always send)
 }
 
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };
+
+/**
+ * Drop subscriptions whose athlete has muted this notification category. A
+ * missing prefs column, missing athlete row, or missing key = opted IN (default
+ * is receive-everything), so nothing is silenced unless explicitly turned off.
+ * Fails OPEN (returns subs unchanged) on any error.
+ */
+async function filterByCategory(subs: SubRow[], category?: NotificationCategory): Promise<SubRow[]> {
+  if (!category || subs.length === 0) return subs;
+  try {
+    const supabase = createServerClient();
+    const ids = [...new Set(subs.map(s => s.athlete_id).filter(Boolean))];
+    const { data, error } = await supabase.from('athletes').select('id, notification_prefs').in('id', ids);
+    if (error) return subs; // column not migrated yet → everyone opted in
+    const muted = new Set(
+      (data || [])
+        .filter((a: { notification_prefs?: Record<string, boolean> | null }) => a.notification_prefs && a.notification_prefs[category] === false)
+        .map((a: { id: string }) => a.id),
+    );
+    if (muted.size === 0) return subs;
+    return subs.filter(s => !muted.has(s.athlete_id));
+  } catch {
+    return subs; // fail open
+  }
+}
 
 /**
  * Per-athlete unread count = notifications sent to this athlete since they last
@@ -102,6 +133,10 @@ export async function sendPushToSubscriptions(subs: SubRow[], payload: PushPaylo
   // While maintenance mode is ON, only the allowlist (+ approvers) may receive
   // ANY push — everyone else is walled off from the app, so don't nag them.
   subs = await filterForMaintenance(subs);
+  if (subs.length === 0) return 0;
+
+  // Respect each athlete's per-category notification preference (default: on).
+  subs = await filterByCategory(subs, payload.category);
   if (subs.length === 0) return 0;
 
   // Badge is a per-athlete unread count (unless the caller pinned one explicitly).

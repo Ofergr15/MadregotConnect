@@ -116,6 +116,7 @@ async function run(request: Request) {
         body: 'מנתחים את הנתונים — נשתף עוד מידע בקרוב',
         url: `/dashboard/feedback?activity=${a.garmin_activity_id}`,
         tag: `workout-detected-${a.garmin_activity_id}`,
+        category: 'workouts',
       });
     }
     // Mark fired even when there were no subscriptions, so we never re-scan it.
