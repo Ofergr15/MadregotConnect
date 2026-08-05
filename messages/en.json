@@ -287,7 +287,8 @@
     "all": "All",
     "management": "Management",
     "notificationCenter": "Notification Center",
-    "workoutReminders": "Workout reminders"
+    "workoutReminders": "Workout reminders",
+    "notificationPrefs": "Notification preferences"
   },
   "groups": {
     "title": "Training Groups",

@@ -287,7 +287,8 @@
     "all": "הכל",
     "management": "ניהול",
     "notificationCenter": "מרכז התראות",
-    "workoutReminders": "תזכורות אימון"
+    "workoutReminders": "תזכורות אימון",
+    "notificationPrefs": "העדפות התראות"
   },
   "groups": {
     "title": "קבוצות אימון",

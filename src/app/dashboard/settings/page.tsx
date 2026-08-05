@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone, Bell } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone, Bell, BellRing } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
+import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
@@ -207,7 +208,7 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
@@ -278,6 +279,10 @@ export default function SettingsPage() {
 
   // null = the Settings landing (iOS-style list); a value = a detail screen open.
   const [activeTab, setActiveTab] = useState<SettingsTab | null>(null);
+  // The signed-in athlete's own id — powers the personal notification-prefs
+  // detail (coaches are athletes too; null if this account has no athlete row).
+  const [notifPrefsAthleteId, setNotifPrefsAthleteId] = useState('');
+  useEffect(() => { setNotifPrefsAthleteId(localStorage.getItem('athlete_id') || ''); }, []);
   // Day summary for the reminders landing row (e.g. "ג׳, ו׳"). Lightweight read.
   const [reminderSummary, setReminderSummary] = useState('');
   useEffect(() => {
@@ -812,6 +817,13 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('reminders')}
               trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
+            <InsetRow
+              icon={BellRing}
+              iconBg="bg-rose-500"
+              label={t('notificationPrefs')}
+              onClick={() => setActiveTab('notifprefs')}
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+            />
           </InsetSection>
 
           {/* Allowlist editor — only appears while maintenance is on. */}
@@ -841,6 +853,12 @@ export default function SettingsPage() {
 
       {/* Reminders detail */}
       {activeTab === 'reminders' && <ReminderConfig />}
+
+      {/* Notification preferences detail (per-user category toggles) */}
+      {activeTab === 'notifprefs' && notifPrefsAthleteId && <NotificationPrefs athleteId={notifPrefsAthleteId} />}
+      {activeTab === 'notifprefs' && !notifPrefsAthleteId && (
+        <p className="text-sm text-slate-500 text-center py-10" dir="rtl">התחברו כספורטאי כדי לנהל העדפות התראות אישיות.</p>
+      )}
 
       {error && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
