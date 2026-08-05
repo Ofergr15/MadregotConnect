@@ -585,7 +585,8 @@
     "comment": "Anything else?",
     "commentPlaceholder": "Add a comment (optional)",
     "coachReply": "Coach reply",
-    "new": "New"
+    "new": "New",
+    "submitError": "Save failed — please try again"
   },
   "momentum": {
     "weekStreak": "week streak",

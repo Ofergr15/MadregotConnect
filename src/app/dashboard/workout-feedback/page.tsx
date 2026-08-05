@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { MessageSquare, Loader2, AlertTriangle, MessageCircle, Bell, Send, Check, CornerDownLeft } from 'lucide-react';
+import { MessageSquare, AlertTriangle, MessageCircle, Bell, Send, Check, CornerDownLeft } from 'lucide-react';
 import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
 import { resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
@@ -133,14 +133,16 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
   // Coach reply: show the existing reply, or an inline composer to send one.
   const [reply, setReply] = useState(it.coachReply || '');
   const [sent, setSent] = useState(!!it.coachReply);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
 
   const sendReply = async () => {
     if (!reply.trim()) return;
-    setSaving(true);
+    // Optimistic: show the sent reply immediately; save in the background. On
+    // failure, drop back to the composer (text preserved) with an error.
     setError('');
+    setSent(true);
+    setEditing(false);
     try {
       const actorEmail = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
       const res = await fetch('/api/workout-feedback/reply', {
@@ -149,13 +151,9 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
         body: JSON.stringify({ feedbackId: it.id, reply, actorEmail }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(data?.error || 'שליחה נכשלה'); return; }
-      setSent(true);
-      setEditing(false);
+      if (!res.ok) { setSent(false); setEditing(true); setError(data?.error || 'שליחה נכשלה'); }
     } catch {
-      setError('שליחה נכשלה');
-    } finally {
-      setSaving(false);
+      setSent(false); setEditing(true); setError('שליחה נכשלה');
     }
   };
 
@@ -242,10 +240,10 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
             />
             <button
               onClick={sendReply}
-              disabled={saving || !reply.trim()}
+              disabled={!reply.trim()}
               className="min-h-[40px] px-3 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white font-bold flex items-center gap-1.5 shrink-0"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              <Send className="h-4 w-4" />
             </button>
           </div>
           {error && <p className="text-[11px] text-red-400 mt-1">{error}</p>}

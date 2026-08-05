@@ -585,7 +585,8 @@
     "comment": "עוד משהו?",
     "commentPlaceholder": "הוסיפו הערה (רשות)",
     "coachReply": "תשובת המאמן",
-    "new": "חדש"
+    "new": "חדש",
+    "submitError": "השמירה נכשלה — נסו שוב"
   },
   "momentum": {
     "weekStreak": "שבועות רצף",

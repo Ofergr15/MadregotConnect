@@ -28,8 +28,8 @@ function FeedbackForm() {
   const [comment, setComment] = useState('');
   const [coachReply, setCoachReply] = useState<string | null>(null);
   const [replyIsNew, setReplyIsNew] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
 
   useEffect(() => {
     const id = localStorage.getItem('athlete_id') || '';
@@ -74,17 +74,23 @@ function FeedbackForm() {
 
   const submit = async () => {
     if (!athleteId) return;
-    setSaving(true);
+    // Optimistic: show the "thanks" screen immediately and head back; the save
+    // runs in the background. If it fails, drop back to the form with an error
+    // so nothing is silently lost.
+    setDone(true);
+    const t = setTimeout(() => router.push('/dashboard'), 1500);
     try {
-      await fetch('/api/workout-feedback', {
+      const res = await fetch('/api/workout-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback, comment }),
       });
-      setDone(true);
-      setTimeout(() => router.push('/dashboard'), 1500);
-    } catch { /* ignore */ }
-    finally { setSaving(false); }
+      if (!res.ok) throw new Error('save failed');
+    } catch {
+      clearTimeout(t);
+      setDone(false);
+      setSubmitError(true);
+    }
   };
 
   if (loading) {
@@ -192,9 +198,11 @@ function FeedbackForm() {
         placeholder={t('commentPlaceholder')}
         className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600" />
 
-      <button onClick={submit} disabled={saving}
-        className="w-full mt-6 min-h-[52px] rounded-2xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold flex items-center justify-center gap-2">
-        {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : t('submit')}
+      {submitError && <p className="mt-4 text-sm text-red-400 text-center" dir="rtl">{t('submitError')}</p>}
+
+      <button onClick={submit}
+        className="w-full mt-6 min-h-[52px] rounded-2xl bg-primary-600 hover:bg-primary-700 text-white font-bold flex items-center justify-center gap-2">
+        {t('submit')}
       </button>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { CheckCircle2, XCircle, Loader2, Users } from 'lucide-react';
+import { CheckCircle2, XCircle, Users } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 
 const GROUP_PRESETS = ['דבוקה 1', 'דבוקה 2', 'דבוקה 3'];
@@ -20,7 +20,6 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
   const [attending, setAttending] = useState<boolean | null>(null);
   const [group, setGroup] = useState('');
   const [customGroup, setCustomGroup] = useState('');
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
   // On the workout day the card only nudges athletes who never answered; once
@@ -49,11 +48,13 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
 
   const submit = async (isAttending: boolean) => {
     if (!athleteId) return;
+    // Optimistic: flip the button immediately, save in the background. If the
+    // save fails, roll back to the previous choice so the UI never lies.
+    const prev = attending;
     setAttending(isAttending);
-    setSaving(true);
     setSaved(false);
     try {
-      await fetch('/api/attendance', {
+      const res = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -62,10 +63,12 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
           groupLabel: isAttending ? (group || null) : null,
         }),
       });
+      if (!res.ok) throw new Error('save failed');
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch { /* ignore */ }
-    finally { setSaving(false); }
+    } catch {
+      setAttending(prev); // roll back the optimistic flip
+    }
   };
 
   if (!loaded || !athleteId) return null;
@@ -83,7 +86,6 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
         <Users className="h-4 w-4 text-primary-400" />
         <h3 className="text-sm font-bold text-white" dir="rtl">{dayBefore ? t('titleTomorrow') : t('title')}</h3>
         {saved && <CheckCircle2 className="h-4 w-4 text-green-400 ms-auto" />}
-        {saving && <Loader2 className="h-4 w-4 text-slate-400 animate-spin ms-auto" />}
       </div>
       {workoutLabel && <p className="relative text-[15px] font-semibold text-white mb-3" dir="rtl">{workoutLabel}</p>}
 
@@ -139,12 +141,12 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
     </div>
   );
 
-  // Persist a group choice without flipping attendance (already true).
+  // Persist a group choice without flipping attendance (already true). The chip
+  // highlights instantly (setGroup); this saves in the background.
   async function submitGroup(preset: string, custom: string) {
     if (!athleteId) return;
-    setSaving(true);
     try {
-      await fetch('/api/attendance', {
+      const res = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -152,9 +154,9 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
           groupLabel: custom.trim() || preset || null,
         }),
       });
+      if (!res.ok) throw new Error('save failed');
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch { /* ignore */ }
-    finally { setSaving(false); }
+    } catch { /* leave the choice; a later save will retry */ }
   }
 }
