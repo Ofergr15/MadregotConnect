@@ -286,7 +286,8 @@
     "addTagOrNote": "הוסף תגית או הערה...",
     "all": "הכל",
     "management": "ניהול",
-    "notificationCenter": "מרכז התראות"
+    "notificationCenter": "מרכז התראות",
+    "workoutReminders": "תזכורות אימון"
   },
   "groups": {
     "title": "קבוצות אימון",

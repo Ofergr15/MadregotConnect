@@ -207,7 +207,7 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
@@ -276,7 +276,17 @@ export default function SettingsPage() {
     return t(priority);
   };
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('users');
+  // null = the Settings landing (iOS-style list); a value = a detail screen open.
+  const [activeTab, setActiveTab] = useState<SettingsTab | null>(null);
+  // Day summary for the reminders landing row (e.g. "ג׳, ו׳"). Lightweight read.
+  const [reminderSummary, setReminderSummary] = useState('');
+  useEffect(() => {
+    fetch('/api/reminder-config').then(r => r.ok ? r.json() : null).then(d => {
+      const days: number[] = Array.isArray(d?.config?.teamDays) ? d.config.teamDays : [];
+      const H = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+      setReminderSummary(days.map(n => H[n]).join(', '));
+    }).catch(() => {});
+  }, []);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   // Whether the signed-in account is allowed to approve registrations / grant
@@ -775,42 +785,62 @@ export default function SettingsPage() {
         </Sheet>
       )}
 
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <Settings className="w-6 h-6 text-slate-400" />
-          <h1 className="text-2xl font-bold text-white">{t('title')}</h1>
+      {/* ═══ HEADER — large title on the landing; back-nav on a detail screen ═══ */}
+      {activeTab === null ? (
+        <div className="mb-5">
+          <h1 className="text-3xl font-extrabold text-white tracking-tight" dir="rtl">{t('title')}</h1>
         </div>
-        <p className="text-slate-400 text-sm">{t('subtitle')}</p>
-      </div>
+      ) : (
+        <button onClick={() => setActiveTab(null)}
+          className="mb-4 flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-sm font-semibold" dir="rtl">
+          <ChevronRight className="h-4.5 w-4.5 rotate-180" />
+          <span>{t('title')}</span>
+        </button>
+      )}
 
-      {/* Maintenance / under-renovation gate control (admins/coaches) */}
-      <MaintenanceToggle />
+      {/* ═══ LANDING — iOS-Settings inset lists (drill into detail screens) ═══ */}
+      {activeTab === null && (
+        <>
+          {/* Maintenance toggle (renders its own inset row + allowlist when on) */}
+          <MaintenanceToggle />
 
-      {/* Configurable workout-reminder schedule */}
-      <ReminderConfig />
-
-      {/* Management — iOS-Settings inset list with colored glyph tiles (panel 18).
-          Each row selects a settings section; the active one is highlighted. */}
-      <InsetSection header={t('management')}>
-        {settingsTabs.map(tab => {
-          const label = tab.key === 'users' ? t('userManager')
-            : tab.key === 'tabs' ? t('tabManager')
-            : tab.key === 'feedback' ? t('feedback')
-            : t('notificationCenter');
-          return (
+          {/* Reminders → drill-in row with a day summary */}
+          <InsetSection>
             <InsetRow
-              key={tab.key}
-              icon={tab.icon}
-              iconBg={tab.iconBg}
-              label={label}
-              onClick={() => setActiveTab(tab.key)}
-              trailing={activeTab === tab.key
-                ? <CheckCircle2 className="h-4 w-4 text-primary-400 shrink-0" />
-                : undefined}
+              icon={Bell}
+              iconBg="bg-blue-500"
+              label={t('workoutReminders')}
+              value={reminderSummary}
+              onClick={() => setActiveTab('reminders')}
+              href={undefined}
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
-          );
-        })}
-      </InsetSection>
+          </InsetSection>
+
+          {/* Management section — colored glyph rows that drill in */}
+          <InsetSection header={t('management')}>
+            {settingsTabs.map(tab => {
+              const label = tab.key === 'users' ? t('userManager')
+                : tab.key === 'tabs' ? t('tabManager')
+                : tab.key === 'feedback' ? t('feedback')
+                : t('notificationCenter');
+              return (
+                <InsetRow
+                  key={tab.key}
+                  icon={tab.icon}
+                  iconBg={tab.iconBg}
+                  label={label}
+                  onClick={() => setActiveTab(tab.key)}
+                  trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+                />
+              );
+            })}
+          </InsetSection>
+        </>
+      )}
+
+      {/* Reminders detail */}
+      {activeTab === 'reminders' && <ReminderConfig />}
 
       {error && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">

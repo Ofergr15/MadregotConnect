@@ -286,7 +286,8 @@
     "addTagOrNote": "Add a tag or note...",
     "all": "All",
     "management": "Management",
-    "notificationCenter": "Notification Center"
+    "notificationCenter": "Notification Center",
+    "workoutReminders": "Workout reminders"
   },
   "groups": {
     "title": "Training Groups",
