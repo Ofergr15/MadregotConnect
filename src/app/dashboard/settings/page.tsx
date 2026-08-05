@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone, Bell } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
-import { MaintenanceToggle } from '@/components/MaintenanceToggle';
+import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
@@ -801,21 +801,21 @@ export default function SettingsPage() {
       {/* ═══ LANDING — iOS-Settings inset lists (drill into detail screens) ═══ */}
       {activeTab === null && (
         <>
-          {/* Maintenance toggle (renders its own inset row + allowlist when on) */}
-          <MaintenanceToggle />
-
-          {/* Reminders → drill-in row with a day summary */}
+          {/* First card: maintenance toggle + reminders, grouped like the reference. */}
           <InsetSection>
+            <MaintenanceRow />
             <InsetRow
               icon={Bell}
               iconBg="bg-blue-500"
               label={t('workoutReminders')}
               value={reminderSummary}
               onClick={() => setActiveTab('reminders')}
-              href={undefined}
               trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
           </InsetSection>
+
+          {/* Allowlist editor — only appears while maintenance is on. */}
+          <MaintenanceAllowlist />
 
           {/* Management section — colored glyph rows that drill in */}
           <InsetSection header={t('management')}>
