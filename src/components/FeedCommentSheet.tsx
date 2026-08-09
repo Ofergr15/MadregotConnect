@@ -3,22 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Send, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations, useFormatter } from 'next-intl';
 import { fetchComments, addComment, deleteComment } from '@/lib/feed-client';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed-client';
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'עכשיו';
-  if (mins < 60) return `לפני ${mins} דק׳`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `לפני ${hrs} שע׳`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return 'אתמול';
-  return `לפני ${days} ימים`;
-}
 
 interface Props {
   item: FeedItem;
@@ -26,6 +15,8 @@ interface Props {
 }
 
 export function FeedCommentSheet({ item, onClose }: Props) {
+  const t = useTranslations('feed');
+  const format = useFormatter();
   const [comments, setComments] = useState<FeedComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
@@ -61,20 +52,20 @@ export function FeedCommentSheet({ item, onClose }: Props) {
         listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
       }, 50);
     } catch (err: unknown) {
-      alert((err as Error).message || 'שגיאה בשליחת תגובה');
+      alert((err as Error).message || t('commentError'));
     } finally {
       setSending(false);
     }
-  }, [draft, sending, item.id]);
+  }, [draft, sending, item.id, t]);
 
   const handleDelete = useCallback(async (commentId: string) => {
     try {
       await deleteComment(commentId);
       setComments(prev => prev.filter(c => c.id !== commentId));
     } catch (err: unknown) {
-      alert((err as Error).message || 'שגיאה במחיקת תגובה');
+      alert((err as Error).message || t('commentDeleteError'));
     }
-  }, []);
+  }, [t]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -97,7 +88,7 @@ export function FeedCommentSheet({ item, onClose }: Props) {
         <div className="flex-none pt-2 pb-3 px-5 border-b border-slate-700/60">
           <div className="w-9 h-1.5 rounded-full bg-slate-600 mx-auto mb-3" />
           <div className="flex items-center justify-between">
-            <span className="text-base font-bold text-white">תגובות</span>
+            <span className="text-base font-bold text-white">{t('comments')}</span>
             <button
               onClick={handleClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
@@ -115,7 +106,7 @@ export function FeedCommentSheet({ item, onClose }: Props) {
             </div>
           )}
           {!loading && comments.length === 0 && (
-            <p className="text-center text-sm text-slate-500 py-8">היו הראשון להגיב</p>
+            <p className="text-center text-sm text-slate-500 py-8">{t('firstToComment')}</p>
           )}
           {comments.map(c => (
             <div key={c.id} className="flex gap-3">
@@ -130,7 +121,7 @@ export function FeedCommentSheet({ item, onClose }: Props) {
                   <p className="text-xs font-semibold text-primary-300 mb-0.5">{c.author.name}</p>
                   <p className="text-sm text-slate-200 leading-snug whitespace-pre-line">{c.body}</p>
                 </div>
-                <p className="text-[10px] text-slate-600 mt-1 ms-1">{timeAgo(c.createdAt)}</p>
+                <p className="text-[10px] text-slate-600 mt-1 ms-1">{format.relativeTime(new Date(c.createdAt))}</p>
               </div>
               {c.canDelete && (
                 <button
@@ -156,7 +147,7 @@ export function FeedCommentSheet({ item, onClose }: Props) {
               e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
             }}
             onKeyDown={handleKeyDown}
-            placeholder="הוסף תגובה..."
+            placeholder={t('addComment')}
             rows={1}
             className={cn(
               'flex-1 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5',

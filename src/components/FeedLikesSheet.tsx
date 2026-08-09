@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Heart } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { fetchLikers } from '@/lib/feed-client';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import type { FeedLiker } from '@/lib/feed/project';
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function FeedLikesSheet({ itemId, likeCount, seed = [], onClose }: Props) {
+  const t = useTranslations('feed');
   const [likers, setLikers] = useState<FeedLiker[]>(seed);
   const [loading, setLoading] = useState(true);
 
@@ -48,7 +50,7 @@ export function FeedLikesSheet({ itemId, likeCount, seed = [], onClose }: Props)
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-base font-bold text-white">
               <Heart className="h-4 w-4 fill-rose-400 text-rose-400" />
-              אהבו את זה
+              {t('likedBy')}
               {likeCount > 0 && (
                 <span className="text-sm font-medium text-slate-400 tabular-nums">{likeCount}</span>
               )}
@@ -56,7 +58,7 @@ export function FeedLikesSheet({ itemId, likeCount, seed = [], onClose }: Props)
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
-              aria-label="סגור"
+              aria-label={t('close')}
             >
               <X className="h-5 w-5" />
             </button>
@@ -71,7 +73,7 @@ export function FeedLikesSheet({ itemId, likeCount, seed = [], onClose }: Props)
             </div>
           )}
           {!loading && likers.length === 0 && (
-            <p className="text-center text-sm text-slate-500 py-8">עוד אף אחד לא אהב את זה</p>
+            <p className="text-center text-sm text-slate-500 py-8">{t('noLikesYet')}</p>
           )}
           {likers.map(l => (
             <div key={l.athleteId} className="flex items-center gap-3 py-2">
@@ -80,7 +82,7 @@ export function FeedLikesSheet({ itemId, likeCount, seed = [], onClose }: Props)
             </div>
           ))}
           {!loading && hidden > 0 && (
-            <p className="text-center text-xs text-slate-500 py-3">ועוד {hidden}</p>
+            <p className="text-center text-xs text-slate-500 py-3">{t('andMore', { count: hidden })}</p>
           )}
         </div>
       </div>

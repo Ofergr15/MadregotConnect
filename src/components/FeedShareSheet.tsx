@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Share2, ImagePlus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { renderShareCard, shareCard, SHARE_TEMPLATES } from '@/lib/feed/share-image';
+import { useTranslations, useLocale } from 'next-intl';
+import { renderShareCard, shareCard, SHARE_TEMPLATE_KEYS } from '@/lib/feed/share-image';
 import type { ShareTemplate } from '@/lib/feed/share-image';
 import type { FeedItem } from '@/lib/feed/project';
 
@@ -15,6 +16,9 @@ interface Props {
 }
 
 export function FeedShareSheet({ item, onClose }: Props) {
+  const t = useTranslations('feed');
+  const ts = useTranslations('feed.share');
+  const locale = useLocale();
   const [style, setStyle] = useState<Style>('photo');
   const [template, setTemplate] = useState<ShareTemplate>('classic');
   const [photo, setPhoto] = useState<File | null>(null);
@@ -35,7 +39,11 @@ export function FeedShareSheet({ item, onClose }: Props) {
     setError(null);
     setNotice(null);
 
-    renderShareCard(item, { background: photo, transparent: style === 'transparent', template })
+    renderShareCard(
+      item,
+      { locale, km: t('km'), perKm: t('perKm'), pace: ts('cardPace'), time: ts('cardTime'), hr: ts('cardHr') },
+      { background: photo, transparent: style === 'transparent', template },
+    )
       .then(blob => {
         if (cancelled) return;
         blobRef.current = blob;
@@ -45,7 +53,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
       })
       .catch(() => {
         if (cancelled) return;
-        setError('לא הצלחנו ליצור את התמונה');
+        setError(ts('renderError'));
         setRendering(false);
       });
 
@@ -53,7 +61,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [item, photo, style, template]);
+  }, [item, photo, style, template, locale, t, ts]);
 
   const handleShare = useCallback(async () => {
     const blob = blobRef.current;
@@ -66,18 +74,18 @@ export function FeedShareSheet({ item, onClose }: Props) {
       if (result === 'downloaded') {
         setNotice(
           style === 'transparent'
-            ? 'התמונה נשמרה. פתח אינסטגרם והוסף אותה כמדבקה מגלריית התמונות'
-            : 'התמונה נשמרה למכשיר',
+            ? ts('savedSticker')
+            : ts('saved'),
         );
       } else {
         onClose();
       }
     } catch {
-      setError('השיתוף נכשל');
+      setError(ts('shareError'));
     } finally {
       setBusy(false);
     }
-  }, [busy, item.id, style, onClose]);
+  }, [busy, item.id, style, onClose, ts]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end" onClick={onClose}>
@@ -91,11 +99,11 @@ export function FeedShareSheet({ item, onClose }: Props) {
         <div className="flex-none pt-2 pb-3 px-5 border-b border-slate-700/60">
           <div className="w-9 h-1.5 rounded-full bg-slate-600 mx-auto mb-3" />
           <div className="flex items-center justify-between">
-            <span className="text-base font-bold text-white">שתף את הריצה</span>
+            <span className="text-base font-bold text-white">{ts('title')}</span>
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
-              aria-label="סגור"
+              aria-label={t('close')}
             >
               <X className="h-5 w-5" />
             </button>
@@ -105,18 +113,18 @@ export function FeedShareSheet({ item, onClose }: Props) {
         <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
           {/* Layout picker */}
           <div className="flex gap-2 mb-2.5">
-            {SHARE_TEMPLATES.map(t => (
+            {SHARE_TEMPLATE_KEYS.map(key => (
               <button
-                key={t.key}
-                onClick={() => setTemplate(t.key)}
+                key={key}
+                onClick={() => setTemplate(key)}
                 className={cn(
                   'flex-1 py-2 rounded-xl text-sm font-semibold transition-colors',
-                  template === t.key
+                  template === key
                     ? 'bg-primary-600 text-white'
                     : 'bg-slate-900/60 text-slate-400 hover:text-slate-200',
                 )}
               >
-                {t.label}
+                {ts(`template${key.charAt(0).toUpperCase()}${key.slice(1)}` as never)}
               </button>
             ))}
           </div>
@@ -124,8 +132,8 @@ export function FeedShareSheet({ item, onClose }: Props) {
           {/* Background picker — orthogonal to the layout above. */}
           <div className="flex gap-2 mb-4">
             {([
-              { key: 'photo', label: 'רקע תמונה' },
-              { key: 'transparent', label: 'מדבקה שקופה' },
+              { key: 'photo', label: ts('backgroundPhoto') },
+              { key: 'transparent', label: ts('backgroundTransparent') },
             ] as const).map(o => (
               <button
                 key={o.key}
@@ -161,7 +169,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
           >
             {previewUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt="תצוגה מקדימה" className="w-full h-full object-contain" />
+              <img src={previewUrl} alt={ts('preview')} className="w-full h-full object-contain" />
             )}
             {rendering && (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50">
@@ -188,15 +196,14 @@ export function FeedShareSheet({ item, onClose }: Props) {
                 className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900/60 text-slate-300 text-sm font-medium hover:bg-slate-900 transition-colors"
               >
                 <ImagePlus className="h-4 w-4" />
-                {photo ? 'החלף תמונת רקע' : 'הוסף תמונת רקע'}
+                {photo ? ts('changePhoto') : ts('addPhoto')}
               </button>
             </>
           )}
 
           {style === 'transparent' && (
             <p className="mt-4 text-xs text-slate-500 leading-relaxed text-center">
-              שמור את התמונה, ואז באינסטגרם הוסף אותה לסטורי כמדבקה מגלריית התמונות.
-              אינסטגרם לא מאפשר להדביק תמונה ישירות לעורך הסטורי.
+              {ts('stickerHint')}
             </p>
           )}
 
@@ -219,7 +226,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
             {busy
               ? <Loader2 className="h-5 w-5 animate-spin" />
               : <Share2 className="h-5 w-5" />}
-            שתף
+            {ts('action')}
           </button>
         </div>
       </div>

@@ -14,11 +14,11 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const DEFAULT_LIMIT = 15;
+const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 40;
 
 /**
- * GET /api/feed?cursor=<occurredAt>,<id>&limit=15
+ * GET /api/feed?cursor=<occurredAt>,<id>&limit=20
  *
  * The club feed: runs and member posts interleaved, newest first.
  *
