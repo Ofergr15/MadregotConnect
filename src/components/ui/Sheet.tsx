@@ -14,14 +14,22 @@ export function Sheet({
   open,
   onOpenChange,
   title,
+  leadingAction,
+  trailingAction,
   children,
+  footer,
   className,
+  bodyClassName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  title?: string;
+  title?: React.ReactNode;
+  leadingAction?: React.ReactNode;
+  trailingAction?: React.ReactNode;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   className?: string;
+  bodyClassName?: string;
 }) {
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} shouldScaleBackground>
@@ -34,14 +42,24 @@ export function Sheet({
             className
           )}
         >
-          {/* grabber handle */}
           <div className="mx-auto mt-2.5 mb-1 h-1.5 w-10 rounded-full bg-slate-600" />
-          {title && (
+          {(leadingAction || trailingAction) ? (
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-slate-700/60 px-4 pb-3 pt-1">
+              <div className="justify-self-start">{leadingAction}</div>
+              {title && (
+                <Drawer.Title className="text-base font-bold text-white text-center">
+                  {title}
+                </Drawer.Title>
+              )}
+              <div className="justify-self-end">{trailingAction}</div>
+            </div>
+          ) : title ? (
             <Drawer.Title className="px-5 pt-2 pb-1 text-base font-bold text-white text-center">
               {title}
             </Drawer.Title>
-          )}
-          <div className="overflow-y-auto px-4 pb-4 pt-2">{children}</div>
+          ) : null}
+          <div className={cn('overflow-y-auto px-4 pb-4 pt-2', bodyClassName)}>{children}</div>
+          {footer}
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

@@ -231,15 +231,11 @@ BEGIN
     CREATE POLICY "Public read access for feed media"
       ON storage.objects FOR SELECT USING (bucket_id = 'feed-media');
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Service role upload for feed media') THEN
-    CREATE POLICY "Service role upload for feed media"
-      ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'feed-media');
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Service role delete for feed media') THEN
-    CREATE POLICY "Service role delete for feed media"
-      ON storage.objects FOR DELETE USING (bucket_id = 'feed-media');
-  END IF;
 END $$;
+
+-- Service-role requests bypass RLS; these policies would grant public writes.
+DROP POLICY IF EXISTS "Service role upload for feed media" ON storage.objects;
+DROP POLICY IF EXISTS "Service role delete for feed media" ON storage.objects;
 
 -- ─── RLS ─────────────────────────────────────────────────────────────────────────
 -- All feed access goes through API routes using the service role (which bypasses

@@ -24,11 +24,8 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/** next-intl's formatter handles the locale's own relative-time grammar. */
 type Translate = ReturnType<typeof useTranslations<'feed'>>;
 
-// SVG minimap from the ~60-point route_preview. No Leaflet in the list view —
-// Leaflet is only used in the full activity detail.
 function RouteMinimap({ points }: { points: Array<{ lat: number; lng: number }> }) {
   if (points.length < 2) return null;
   const lats = points.map(p => p.lat);
@@ -40,7 +37,6 @@ function RouteMinimap({ points }: { points: Array<{ lat: number; lng: number }> 
   const W = 300, H = 100, P = 10;
   const pts = points.map(p => ({
     x: P + ((p.lng - minLng) / lngRange) * (W - 2 * P),
-    // invert y so north is up
     y: P + ((maxLat - p.lat) / latRange) * (H - 2 * P),
   }));
   const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
@@ -70,16 +66,8 @@ function AuthorRow({ item }: { item: FeedItem }) {
   );
 }
 
-/**
- * "Tal, Ronit and 4 more" — the Facebook-style summary.
- *
- * Deliberately avoids a verb ("אוהב"/"אוהבת"), which in Hebrew would need the
- * liker's gender; a bare name list reads naturally for anyone. First names only,
- * so three likers still fit on one line on a phone.
- */
 function likeSummary(likers: FeedLiker[], total: number, t: Translate): string {
   const firstNames = likers.map(l => (l.name || '').split(' ')[0]).filter(Boolean);
-  // The preview can lag the count (a like landed after this page was fetched).
   if (firstNames.length === 0) return String(total);
 
   const rest = total - firstNames.length;
@@ -91,11 +79,6 @@ function likeSummary(likers: FeedLiker[], total: number, t: Translate): string {
   });
 }
 
-/**
- * Overlapping avatar cluster. Uses a logical `-ms-` margin rather than
- * `-space-x-* rtl:space-x-reverse` so the overlap direction follows the Hebrew RTL
- * layout without depending on variant config.
- */
 function LikerStack({ likers }: { likers: FeedLiker[] }) {
   if (likers.length === 0) return null;
   return (
@@ -137,15 +120,12 @@ function ActionRow({
     if (busy) return;
     setBusy(true);
     const next = !liked;
-    // Optimistic
     setLiked(next);
     setLikeCount(c => c + (next ? 1 : -1));
     try {
       const res = await toggleLike(item.id);
       setLiked(res.liked);
       setLikeCount(res.likeCount);
-      // Server-supplied so the summary names stay right without this component
-      // having to know who the viewer is.
       setLikers(res.likePreview);
     } catch {
       setLiked(!next);
@@ -159,11 +139,6 @@ function ActionRow({
     <>
       {likeCount > 0 && (
         <div className="pt-2">
-          {/*
-            Tap opens the full sheet on every device; the hover card is a desktop
-            bonus showing full names (the summary abbreviates to first names).
-            Hover alone would hide this from touch users entirely.
-          */}
           <button
             onClick={() => setSheetOpen(true)}
             className="group relative flex items-center gap-1.5 max-w-full text-start"
@@ -191,60 +166,58 @@ function ActionRow({
         </div>
       )}
 
-    <div className="flex items-center gap-1 pt-1 -ms-1">
-      <button
-        onClick={handleLike}
-        // Icon only — the summary line above carries both the count and the names.
-        aria-label={liked ? t('unlike') : t('like')}
-        aria-pressed={liked}
-        className={cn(
-          'flex items-center px-3 py-1.5 rounded-full transition-all active:scale-90',
-          liked ? 'text-rose-400 bg-rose-500/10' : 'text-slate-400 hover:text-slate-300 hover:bg-slate-700/50',
+      <div className="flex items-center gap-1 pt-1 -ms-1">
+        <button
+          onClick={handleLike}
+          aria-label={liked ? t('unlike') : t('like')}
+          aria-pressed={liked}
+          className={cn(
+            'flex items-center px-3 py-1.5 rounded-full transition-all active:scale-90',
+            liked ? 'text-rose-400 bg-rose-500/10' : 'text-slate-400 hover:text-slate-300 hover:bg-slate-700/50',
+          )}
+        >
+          <Heart className={cn('h-4 w-4', liked && 'fill-rose-400')} />
+        </button>
+
+        <button
+          onClick={onCommentPress}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 transition-all active:scale-90"
+        >
+          <MessageCircle className="h-4 w-4" />
+          {commentCount > 0 && <span className="tabular-nums text-xs">{commentCount}</span>}
+        </button>
+
+        {item.activity && (
+          <button
+            onClick={() => setShareOpen(true)}
+            aria-label={t('shareToStory')}
+            className="flex items-center px-3 py-1.5 rounded-full text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 transition-all active:scale-90"
+          >
+            <Share2 className="h-4 w-4" />
+          </button>
         )}
-      >
-        <Heart className={cn('h-4 w-4', liked && 'fill-rose-400')} />
-      </button>
 
-      <button
-        onClick={onCommentPress}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 transition-all active:scale-90"
-      >
-        <MessageCircle className="h-4 w-4" />
-        {commentCount > 0 && <span className="tabular-nums text-xs">{commentCount}</span>}
-      </button>
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            className="ms-auto p-2 rounded-full text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
+            aria-label={t('deletePost')}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
-      {/* Runs only — a text post has no stats worth a story card. */}
-      {item.activity && (
-        <button
-          onClick={() => setShareOpen(true)}
-          aria-label={t('shareToStory')}
-          className="flex items-center px-3 py-1.5 rounded-full text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 transition-all active:scale-90"
-        >
-          <Share2 className="h-4 w-4" />
-        </button>
+      {sheetOpen && (
+        <FeedLikesSheet
+          itemId={item.id}
+          likeCount={likeCount}
+          seed={likers}
+          onClose={() => setSheetOpen(false)}
+        />
       )}
 
-      {onDelete && (
-        <button
-          onClick={onDelete}
-          className="ms-auto p-2 rounded-full text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
-          aria-label={t('deletePost')}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      )}
-    </div>
-
-    {sheetOpen && (
-      <FeedLikesSheet
-        itemId={item.id}
-        likeCount={likeCount}
-        seed={likers}
-        onClose={() => setSheetOpen(false)}
-      />
-    )}
-
-    {shareOpen && <FeedShareSheet item={item} onClose={() => setShareOpen(false)} />}
+      {shareOpen && <FeedShareSheet item={item} onClose={() => setShareOpen(false)} />}
     </>
   );
 }
@@ -265,6 +238,7 @@ function ActivityCard({
   const distKm = (act.distance / 1000).toFixed(1);
   const paceStr = act.averagePace ? formatPace(act.averagePace) : null;
   const durationStr = formatDuration(act.duration);
+  const showElevation = (act.elevationGain ?? 0) > 5;
 
   return (
     <div className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden">
@@ -301,7 +275,7 @@ function ActivityCard({
           </div>
         </div>
 
-        {(act.averageHr || (act.elevationGain && act.elevationGain > 5) || act.locationName) && (
+        {(act.averageHr || showElevation || act.locationName) && (
           <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-slate-400">
             {act.averageHr && (
               <span className="flex items-center gap-1">
@@ -309,10 +283,10 @@ function ActivityCard({
                 {act.averageHr} bpm
               </span>
             )}
-            {act.elevationGain && act.elevationGain > 5 && (
+            {showElevation && (
               <span className="flex items-center gap-1">
                 <Mountain className="h-3 w-3 text-green-400" />
-                +{Math.round(act.elevationGain)}m
+                +{Math.round(act.elevationGain ?? 0)}m
               </span>
             )}
             {act.locationName && (
@@ -412,22 +386,41 @@ export function FeedCard({
   const handleComment = () => onComment(item);
   const handleDelete = item.canDelete ? () => onDelete?.(item) : undefined;
 
-  if (item.type === 'activity' && item.activity) {
-    return (
-      <ActivityCard
-        item={item}
-        commentCount={commentCount}
-        onComment={handleComment}
-        onDelete={handleDelete}
-      />
-    );
+  switch (item.type) {
+    case 'activity':
+      if (item.activity) {
+        return (
+          <ActivityCard
+            item={item}
+            commentCount={commentCount}
+            onComment={handleComment}
+            onDelete={handleDelete}
+          />
+        );
+      }
+      return (
+        <PostCard
+          item={item}
+          commentCount={commentCount}
+          onComment={handleComment}
+          onDelete={handleDelete}
+        />
+      );
+    case 'post':
+    case 'achievement':
+    case 'announcement':
+    case 'new_plan':
+      return (
+        <PostCard
+          item={item}
+          commentCount={commentCount}
+          onComment={handleComment}
+          onDelete={handleDelete}
+        />
+      );
+    default: {
+      const exhaustive: never = item.type;
+      throw new Error(`Unsupported feed item type: ${exhaustive}`);
+    }
   }
-  return (
-    <PostCard
-      item={item}
-      commentCount={commentCount}
-      onComment={handleComment}
-      onDelete={handleDelete}
-    />
-  );
 }

@@ -5,22 +5,12 @@ import { notifyFeedInteraction, loadFeedItemMeta } from '@/lib/feed/notify';
 import {
   LIKER_SELECT,
   LIKE_PREVIEW_COUNT,
-  projectLiker,
-  type FeedLiker,
-  type RawLikeRow,
+  projectLike,
 } from '@/lib/feed/project';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * POST /api/feed/like  { itemId }
- *
- * Toggles the caller's like. The athlete is taken from the verified JWT, never from
- * the request body — otherwise anyone could like as anyone.
- *
- * like_count is maintained by a DB trigger, so this route only inserts/deletes the
- * join row and then reads the authoritative count back.
- */
+/** POST /api/feed/like  { itemId } */
 export async function POST(request: Request) {
   const auth = await requireAthlete(request);
   if (!auth.ok) return authError(auth);
@@ -58,8 +48,7 @@ export async function POST(request: Request) {
       if (error && error.code !== '23505') throw error;
       liked = true;
 
-      // Only notify on the like, not on the un-like.
-      void notifyFeedInteraction({
+      await notifyFeedInteraction({
         feedItemId: itemId,
         authorAthleteId: meta.authorAthleteId,
         actorAthleteId: athleteId,
@@ -68,9 +57,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Read the trigger-maintained count back so the client never has to guess, and
-    // the refreshed preview with it — otherwise the "תל ועוד 3" line would have to
-    // invent the caller's own name to stay in sync after an optimistic toggle.
     const [{ data: item }, { data: topLikes }] = await Promise.all([
       supabase.from('feed_items').select('like_count').eq('id', itemId).maybeSingle(),
       supabase
@@ -81,9 +67,10 @@ export async function POST(request: Request) {
         .limit(LIKE_PREVIEW_COUNT),
     ]);
 
-    const likePreview = ((topLikes || []) as unknown as RawLikeRow[])
-      .map(projectLiker)
-      .filter((l): l is FeedLiker => l !== null);
+    const likePreview = (topLikes || [])
+      .map(projectLike)
+      .filter(projected => projected !== null)
+      .map(projected => projected.liker);
 
     return NextResponse.json({ liked, likeCount: item?.like_count ?? 0, likePreview });
   } catch (err: unknown) {

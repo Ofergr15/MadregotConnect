@@ -5,6 +5,7 @@ import { X, ImagePlus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 import { createPost, uploadMedia } from '@/lib/feed-client';
+import { Sheet } from '@/components/ui/Sheet';
 import type { FeedItem, FeedMedia } from '@/lib/feed/project';
 
 const MAX_IMAGES = 4;
@@ -61,41 +62,63 @@ export function FeedComposer({ onClose, onPost }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        className="relative w-full bg-slate-800 rounded-t-2xl border-t border-slate-700 flex flex-col"
-        style={{ maxHeight: '90vh', paddingBottom: 'env(safe-area-inset-bottom)' }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex-none pt-2 px-4 pb-3 border-b border-slate-700/60">
-          <div className="w-9 h-1.5 rounded-full bg-slate-600 mx-auto mb-3" />
-          <div className="flex items-center justify-between">
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <span className="text-base font-bold text-white">{t('newPost')}</span>
-            <button
-              onClick={handlePost}
-              disabled={!canPost}
-              className={cn(
-                'px-4 py-1.5 rounded-full text-sm font-bold transition-all',
-                canPost
-                  ? 'bg-primary-600 text-white active:scale-95'
-                  : 'bg-slate-700 text-slate-500',
-              )}
-            >
-              {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : t('publish')}
-            </button>
-          </div>
+    <Sheet
+      open
+      onOpenChange={open => { if (!open) onClose(); }}
+      title={t('newPost')}
+      leadingAction={
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          aria-label={t('close')}
+        >
+          <X className="h-5 w-5" />
+        </button>
+      }
+      trailingAction={
+        <button
+          onClick={handlePost}
+          disabled={!canPost}
+          className={cn(
+            'px-4 py-1.5 rounded-full text-sm font-bold transition-all',
+            canPost
+              ? 'bg-primary-600 text-white active:scale-95'
+              : 'bg-slate-700 text-slate-500',
+          )}
+        >
+          {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : t('publish')}
+        </button>
+      }
+      className="max-h-[90vh]"
+      bodyClassName="flex-1 min-h-0 p-0"
+      footer={
+        <div className="flex-none flex items-center gap-3 px-4 pt-2 pb-3 border-t border-slate-700/60">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,image/heic,image/heif"
+            multiple
+            className="hidden"
+            onChange={e => handleFiles(e.target.files)}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={media.length >= MAX_IMAGES || uploading}
+            className={cn(
+              'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all',
+              media.length < MAX_IMAGES && !uploading
+                ? 'text-primary-400 bg-primary-600/10 hover:bg-primary-600/20'
+                : 'text-slate-600',
+            )}
+          >
+            <ImagePlus className="h-5 w-5" />
+            <span>{t('image')}</span>
+            {media.length > 0 && <span className="text-xs text-slate-500">{media.length}/{MAX_IMAGES}</span>}
+          </button>
         </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 min-h-0">
+      }
+    >
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 min-h-0">
           <textarea
             autoFocus
             value={body}
@@ -105,7 +128,6 @@ export function FeedComposer({ onClose, onPost }: Props) {
             style={{ minHeight: '120px' }}
           />
 
-          {/* Media previews */}
           {media.length > 0 && (
             <div
               className={cn(
@@ -155,34 +177,7 @@ export function FeedComposer({ onClose, onPost }: Props) {
           {error && (
             <p className="mt-3 text-sm text-red-400">{error}</p>
           )}
-        </div>
-
-        {/* Footer toolbar */}
-        <div className="flex-none flex items-center gap-3 px-4 pt-2 pb-3 border-t border-slate-700/60">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*,image/heic,image/heif"
-            multiple
-            className="hidden"
-            onChange={e => handleFiles(e.target.files)}
-          />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={media.length >= MAX_IMAGES || uploading}
-            className={cn(
-              'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all',
-              media.length < MAX_IMAGES && !uploading
-                ? 'text-primary-400 bg-primary-600/10 hover:bg-primary-600/20'
-                : 'text-slate-600',
-            )}
-          >
-            <ImagePlus className="h-5 w-5" />
-            <span>{t('image')}</span>
-            {media.length > 0 && <span className="text-xs text-slate-500">{media.length}/{MAX_IMAGES}</span>}
-          </button>
-        </div>
       </div>
-    </div>
+    </Sheet>
   );
 }

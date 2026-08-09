@@ -22,10 +22,11 @@ interface RawComment {
 }
 
 function projectComment(
-  row: RawComment,
+  value: unknown,
   viewerAthleteId: string | null,
   viewerIsStaff: boolean,
 ) {
+  const row = value as RawComment;
   return {
     id: row.id,
     itemId: row.feed_item_id,
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
     if (error) throw error;
 
     const comments = (data || []).map((row) =>
-      projectComment(row as never, auth.user.athleteId, auth.user.isStaff),
+      projectComment(row, auth.user.athleteId, auth.user.isStaff),
     );
     return NextResponse.json({ comments });
   } catch (err: unknown) {
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
       .single();
     if (error) throw error;
 
-    void notifyFeedInteraction({
+    await notifyFeedInteraction({
       feedItemId: itemId,
       authorAthleteId: meta.authorAthleteId,
       actorAthleteId: auth.user.athleteId,
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     return NextResponse.json({
-      comment: projectComment(data as never, auth.user.athleteId, auth.user.isStaff),
+      comment: projectComment(data, auth.user.athleteId, auth.user.isStaff),
       commentCount: item?.comment_count ?? 0,
     });
   } catch (err: unknown) {
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
 
 /** DELETE /api/feed/comments?id=… — own comment, or any comment if staff. */
 export async function DELETE(request: Request) {
-  const auth = await requireAthlete(request);
+  const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
 
   try {
@@ -148,12 +149,10 @@ export async function DELETE(request: Request) {
     if (!comment || comment.deleted_at) {
       return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
     }
-    // Authorization derives from the verified JWT, not from anything the client sent.
     if (comment.athlete_id !== auth.user.athleteId && !auth.user.isStaff) {
       return NextResponse.json({ error: 'Not allowed to delete this comment' }, { status: 403 });
     }
 
-    // Soft delete — the trigger decrements comment_count on the deleted_at update.
     const { error } = await supabase
       .from('feed_comments')
       .update({ deleted_at: new Date().toISOString() })

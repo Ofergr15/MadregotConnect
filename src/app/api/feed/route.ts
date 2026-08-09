@@ -6,10 +6,9 @@ import {
   LIKER_SELECT,
   LIKE_PREVIEW_COUNT,
   projectFeedItem,
-  projectLiker,
+  projectLike,
   type FeedItem,
   type FeedLiker,
-  type RawLikeRow,
 } from '@/lib/feed/project';
 
 export const dynamic = 'force-dynamic';
@@ -85,13 +84,13 @@ export async function GET(request: Request) {
         .order('created_at', { ascending: false });
       if (likesError) throw likesError;
 
-      for (const raw of (likes || []) as unknown as RawLikeRow[]) {
-        const liker = projectLiker(raw);
-        if (!liker) continue;
-        if (liker.athleteId === auth.user.athleteId) likedItemIds.add(raw.feed_item_id);
-        const bucket = likersByItem.get(raw.feed_item_id);
-        // Only the first few are sent; like_count carries the true total.
-        if (!bucket) likersByItem.set(raw.feed_item_id, [liker]);
+      for (const raw of likes || []) {
+        const projected = projectLike(raw);
+        if (!projected) continue;
+        const { itemId, liker } = projected;
+        if (liker.athleteId === auth.user.athleteId) likedItemIds.add(itemId);
+        const bucket = likersByItem.get(itemId);
+        if (!bucket) likersByItem.set(itemId, [liker]);
         else if (bucket.length < LIKE_PREVIEW_COUNT) bucket.push(liker);
       }
     }
@@ -103,7 +102,7 @@ export async function GET(request: Request) {
       likersByItem,
     };
 
-    const items: FeedItem[] = page.map((row) => projectFeedItem(row as never, ctx));
+    const items: FeedItem[] = page.map((row) => projectFeedItem(row, ctx));
 
     const last = page[page.length - 1] as { occurred_at: string; id: string } | undefined;
     const nextCursor = hasMore && last ? `${last.occurred_at},${last.id}` : null;

@@ -5,7 +5,10 @@ import { cn } from '@/lib/utils';
 
 /** "Tal Borenstein" -> "TA". Used whenever there's no usable photo. */
 export function initialsOf(name: string, maxChars = 2): string {
-  return (name || '??').trim().slice(0, maxChars).toUpperCase();
+  const words = (name || '??').trim().split(/\s+/);
+  return words.length === 1
+    ? words[0].slice(0, maxChars).toUpperCase()
+    : words.slice(0, maxChars).map(word => word[0]).join('').toUpperCase();
 }
 
 interface Props {
@@ -19,18 +22,8 @@ interface Props {
   maxChars?: number;
 }
 
-/**
- * Profile photo with an initials fallback.
- *
- * Falls back on BOTH "no URL stored" and "URL stored but the image failed to
- * load" — the second case is the common one: Google serves every avatar from
- * lh3.googleusercontent.com, and drops the request when the browser sends a
- * Referer, so those photos 403 in-page while working fine over curl.
- * `referrerPolicy="no-referrer"` is what actually makes them load; onError is
- * the safety net for expired or deleted photos.
- */
+/** Profile photo with an initials fallback. */
 export function FeedAvatar({ name, url, className, textClassName, maxChars = 2 }: Props) {
-  // Keyed by URL rather than a boolean so a changed photo gets a fresh attempt.
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const showImage = !!url && failedUrl !== url;
 
@@ -42,8 +35,6 @@ export function FeedAvatar({ name, url, className, textClassName, maxChars = 2 }
       )}
     >
       {showImage ? (
-        // Avatar origins aren't known at build time (Google, Supabase storage),
-        // so next/image would need every domain allow-listed.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={url}

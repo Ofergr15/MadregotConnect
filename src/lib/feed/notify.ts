@@ -1,13 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushToSubscriptions, subscriptionsForAthletes } from '@/lib/push';
 
-/**
- * Push the author of a feed item when someone likes or comments on it (PRD §16
- * "תגובות ולייקים"). Reuses the existing web-push pipeline.
- *
- * Best-effort by design: a push failure must never fail the like/comment write that
- * the user is waiting on. Callers do not await the result for correctness.
- */
+/** Best-effort push to the author of a liked or commented feed item. */
 export async function notifyFeedInteraction(opts: {
   feedItemId: string;
   authorAthleteId: string | null;
@@ -40,8 +34,6 @@ export async function notifyFeedInteraction(opts: {
       title,
       body,
       url: `/dashboard/feed?item=${feedItemId}`,
-      // Collapse a burst of likes on the same item into one notification per kind
-      // instead of buzzing the phone once per liker.
       tag: `feed-${kind}-${feedItemId}`,
     });
   } catch {
@@ -49,20 +41,16 @@ export async function notifyFeedInteraction(opts: {
   }
 }
 
-/**
- * Look up a feed item's author and type. Used by the interaction routes to decide
- * who to notify and to reject writes against deleted items.
- */
 export async function loadFeedItemMeta(
   feedItemId: string,
-): Promise<{ authorAthleteId: string | null; type: string } | null> {
+): Promise<{ authorAthleteId: string | null } | null> {
   const supabase = createServerClient();
   const { data } = await supabase
     .from('feed_items')
-    .select('author_athlete_id, type, deleted_at')
+    .select('author_athlete_id, deleted_at')
     .eq('id', feedItemId)
     .is('deleted_at', null)
     .maybeSingle();
   if (!data) return null;
-  return { authorAthleteId: data.author_athlete_id, type: data.type };
+  return { authorAthleteId: data.author_athlete_id };
 }

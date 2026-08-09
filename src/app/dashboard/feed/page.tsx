@@ -8,20 +8,14 @@ import { fetchFeed, deletePost } from '@/lib/feed-client';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
+import { FeedAvatar } from '@/components/FeedAvatar';
 import type { FeedItem } from '@/lib/feed/project';
 
-// Maintains per-item comment counts separately so card re-renders are cheap.
-type CommentCounts = Record<string, number>;
-
-// Keyset-paginated in pages of this size, with an IntersectionObserver sentinel
-// pulling the next page as the athlete scrolls. Deliberately not a full load: the
-// club will accumulate thousands of activities.
 const PAGE_SIZE = 20;
 
 export default function FeedPage() {
   const t = useTranslations('feed');
   const [items, setItems] = useState<FeedItem[]>([]);
-  const [counts, setCounts] = useState<CommentCounts>({});
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -29,7 +23,6 @@ export default function FeedPage() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [commentItem, setCommentItem] = useState<FeedItem | null>(null);
 
-  // Avatar of the signed-in user, shown in the composer bar.
   const [myName, setMyName] = useState('');
 
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -49,7 +42,6 @@ export default function FeedPage() {
     try {
       const { items: page, nextCursor } = await fetchFeed(null, PAGE_SIZE);
       setItems(page);
-      setCounts(Object.fromEntries(page.map(i => [i.id, i.commentCount])));
       setCursor(nextCursor);
     } catch (err: unknown) {
       setError((err as Error).message || t('loadError'));
@@ -64,10 +56,6 @@ export default function FeedPage() {
     try {
       const { items: page, nextCursor } = await fetchFeed(cursor, PAGE_SIZE);
       setItems(prev => [...prev, ...page]);
-      setCounts(prev => ({
-        ...prev,
-        ...Object.fromEntries(page.map(i => [i.id, i.commentCount])),
-      }));
       setCursor(nextCursor);
     } catch { /* silent — user can scroll again */ }
     finally { setLoadingMore(false); }
@@ -75,7 +63,6 @@ export default function FeedPage() {
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
 
-  // Infinite scroll via IntersectionObserver on a sentinel div at the bottom.
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -98,32 +85,32 @@ export default function FeedPage() {
   };
 
   const handleCommentClose = (itemId: string, newCount: number) => {
-    setCounts(prev => ({ ...prev, [itemId]: newCount }));
+    setItems(prev => prev.map(item => (
+      item.id === itemId ? { ...item, commentCount: newCount } : item
+    )));
     setCommentItem(null);
   };
 
   const handlePost = (newItem: FeedItem) => {
     setItems(prev => [newItem, ...prev]);
-    setCounts(prev => ({ ...prev, [newItem.id]: 0 }));
   };
-
-  const initials = (myName || '??').slice(0, 2).toUpperCase();
 
   return (
     <div className="max-w-xl mx-auto">
-      {/* Composer trigger bar */}
       <div
         className="mb-4 bg-slate-800/50 rounded-2xl border border-slate-700/30 p-3 flex items-center gap-3 cursor-pointer hover:bg-slate-800/70 transition-colors active:scale-[0.98]"
         onClick={() => setComposerOpen(true)}
       >
-        <div className="w-9 h-9 rounded-full bg-primary-600/20 flex items-center justify-center shrink-0">
-          <span className="text-primary-400 text-xs font-bold">{initials}</span>
-        </div>
+        <FeedAvatar
+          name={myName}
+          url={null}
+          className="w-9 h-9 bg-primary-600/20"
+          textClassName="text-primary-400"
+        />
         <span className="flex-1 text-sm text-slate-500">{t('composerPlaceholder')}</span>
         <PenSquare className="h-4 w-4 text-slate-600" />
       </div>
 
-      {/* Feed */}
       {loading && (
         <div className="space-y-3">
           {[1, 2, 3].map(n => (
@@ -157,7 +144,7 @@ export default function FeedPage() {
             <FeedCard
               key={item.id}
               item={item}
-              commentCount={counts[item.id] ?? item.commentCount}
+              commentCount={item.commentCount}
               onComment={i => setCommentItem(i)}
               onDelete={handleDelete}
             />
@@ -165,7 +152,6 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* Infinite scroll sentinel */}
       <div ref={sentinelRef} className="h-1" />
 
       {loadingMore && (
@@ -178,7 +164,6 @@ export default function FeedPage() {
         <p className="text-center text-xs text-slate-600 py-6">{t('allLoaded')} ✓</p>
       )}
 
-      {/* Comment sheet */}
       {commentItem && (
         <FeedCommentSheet
           item={commentItem}
@@ -186,7 +171,6 @@ export default function FeedPage() {
         />
       )}
 
-      {/* Post composer */}
       {composerOpen && (
         <FeedComposer
           onClose={() => setComposerOpen(false)}
