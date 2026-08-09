@@ -1,7 +1,7 @@
 'use client';
 
 import { getSupabase } from '@/lib/supabase/client';
-import type { FeedItem, FeedMedia } from '@/lib/feed/project';
+import type { FeedItem, FeedLiker, FeedMedia } from '@/lib/feed/project';
 
 /**
  * Client helpers for the feed API.
@@ -46,7 +46,15 @@ export async function toggleLike(itemId: string) {
     headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ itemId }),
   });
-  return parse<{ liked: boolean; likeCount: number }>(res);
+  return parse<{ liked: boolean; likeCount: number; likePreview: FeedLiker[] }>(res);
+}
+
+/** Everyone who liked an item, newest first — backs the like sheet. */
+export async function fetchLikers(itemId: string) {
+  const res = await fetch(`/api/feed/likes?itemId=${encodeURIComponent(itemId)}`, {
+    headers: await authHeaders(),
+  });
+  return parse<{ likers: FeedLiker[] }>(res);
 }
 
 export async function fetchComments(itemId: string) {
@@ -139,4 +147,4 @@ export async function uploadMedia(file: File): Promise<FeedMedia> {
   return media;
 }
 
-export type { FeedItem, FeedMedia };
+export type { FeedItem, FeedLiker, FeedMedia };

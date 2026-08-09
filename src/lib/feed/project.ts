@@ -41,6 +41,13 @@ export interface FeedActivity {
   hasRoute: boolean;
 }
 
+/** A member who liked an item. Same shape whether inlined or fetched in full. */
+export interface FeedLiker {
+  athleteId: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
 export interface FeedMedia {
   path: string;
   url: string;
@@ -59,6 +66,12 @@ export interface FeedItem {
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
+  /**
+   * First few likers, for the "תל ועוד 3" summary line. Capped at
+   * LIKE_PREVIEW_COUNT — the full list comes from /api/feed/likes on tap, so a
+   * card with 200 likes still costs the same to render.
+   */
+  likePreview: FeedLiker[];
   canDelete: boolean;
   activity: FeedActivity | null;
 }
@@ -74,7 +87,12 @@ interface RawFeedRow {
   occurred_at: string;
   like_count: number;
   comment_count: number;
-  athletes?: { id: string; name: string | null; avatar_url: string | null; groups?: { name: string | null } | null } | null;
+  athletes?: {
+    id: string;
+    name: string | null;
+    avatar_url: string | null;
+    groups?: { name: string | null } | null;
+  } | null;
   athlete_activities?: RawActivityRow | null;
 }
 
@@ -167,7 +185,16 @@ export interface ProjectContext {
   viewerIsStaff: boolean;
   /** feed_item_ids the caller has liked, resolved in one query by the route. */
   likedItemIds: Set<string>;
+  /**
+   * feed_item_id -> first few likers, resolved in the same query as likedItemIds.
+   * Optional so callers projecting a single freshly-created item (which has no
+   * likes yet) don't have to build an empty map.
+   */
+  likersByItem?: Map<string, FeedLiker[]>;
 }
+
+/** How many likers ride along in the feed payload; the rest load on demand. */
+export const LIKE_PREVIEW_COUNT = 3;
 
 export function projectFeedItem(row: RawFeedRow, ctx: ProjectContext): FeedItem {
   const isOwn = !!row.author_athlete_id && row.author_athlete_id === ctx.viewerAthleteId;
@@ -189,6 +216,7 @@ export function projectFeedItem(row: RawFeedRow, ctx: ProjectContext): FeedItem 
     likeCount: row.like_count ?? 0,
     commentCount: row.comment_count ?? 0,
     likedByMe: ctx.likedItemIds.has(row.id),
+    likePreview: ctx.likersByItem?.get(row.id) ?? [],
     // Runs are auto-generated from Garmin, so they are not user-deletable; only
     // authored posts are. Staff may remove anything (moderation).
     canDelete: ctx.viewerIsStaff || (isOwn && row.type === 'post'),
@@ -196,11 +224,36 @@ export function projectFeedItem(row: RawFeedRow, ctx: ProjectContext): FeedItem 
   };
 }
 
+/**
+ * Columns the like-list queries select. Shared by /api/feed (to build the inline
+ * preview) and /api/feed/likes (the full list) so the two render identically.
+ */
+export const LIKER_SELECT = `
+  feed_item_id, created_at,
+  athletes ( id, name, avatar_url )
+`;
+
+export interface RawLikeRow {
+  feed_item_id: string;
+  created_at: string;
+  athletes?: { id: string; name: string | null; avatar_url: string | null } | null;
+}
+
+export function projectLiker(row: RawLikeRow): FeedLiker | null {
+  // A like whose athlete row vanished mid-query has nothing to show.
+  if (!row.athletes?.id) return null;
+  return {
+    athleteId: row.athletes.id,
+    name: row.athletes.name || 'Unknown',
+    avatarUrl: row.athletes.avatar_url || null,
+  };
+}
+
 /** Columns /api/feed selects. Kept next to the projection so the two can't drift. */
 export const FEED_SELECT = `
   id, type, author_athlete_id, body, media, payload, occurred_at,
   like_count, comment_count,
-  athletes!feed_items_author_athlete_id_fkey ( id, name, avatar_url, groups ( name ) ),
+  athletes ( id, name, avatar_url, groups ( name ) ),
   athlete_activities (
     id, athlete_id, garmin_activity_id, activity_name, activity_type, start_time,
     distance, duration, moving_duration, average_pace, average_hr, max_hr,

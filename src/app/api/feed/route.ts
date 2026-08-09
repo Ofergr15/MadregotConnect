@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
-import { FEED_SELECT, projectFeedItem, type FeedItem } from '@/lib/feed/project';
+import {
+  FEED_SELECT,
+  LIKER_SELECT,
+  LIKE_PREVIEW_COUNT,
+  projectFeedItem,
+  projectLiker,
+  type FeedItem,
+  type FeedLiker,
+  type RawLikeRow,
+} from '@/lib/feed/project';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,24 +69,38 @@ export async function GET(request: Request) {
     const page = (rows || []).slice(0, limit);
     const hasMore = (rows || []).length > limit;
 
-    // Resolve the caller's likes for this page in ONE query rather than per item.
+    // One query resolves BOTH the caller's likes and the "תל ועוד 3" preview for
+    // every item on the page — no per-item round trip. Newest-first so the preview
+    // names match what the like sheet shows at the top.
     const likedItemIds = new Set<string>();
-    if (auth.user.athleteId && page.length > 0) {
-      const { data: likes } = await supabase
+    const likersByItem = new Map<string, FeedLiker[]>();
+    if (page.length > 0) {
+      const { data: likes, error: likesError } = await supabase
         .from('feed_likes')
-        .select('feed_item_id')
-        .eq('athlete_id', auth.user.athleteId)
+        .select(LIKER_SELECT)
         .in(
           'feed_item_id',
           page.map((r: { id: string }) => r.id),
-        );
-      for (const l of likes || []) likedItemIds.add(l.feed_item_id);
+        )
+        .order('created_at', { ascending: false });
+      if (likesError) throw likesError;
+
+      for (const raw of (likes || []) as unknown as RawLikeRow[]) {
+        const liker = projectLiker(raw);
+        if (!liker) continue;
+        if (liker.athleteId === auth.user.athleteId) likedItemIds.add(raw.feed_item_id);
+        const bucket = likersByItem.get(raw.feed_item_id);
+        // Only the first few are sent; like_count carries the true total.
+        if (!bucket) likersByItem.set(raw.feed_item_id, [liker]);
+        else if (bucket.length < LIKE_PREVIEW_COUNT) bucket.push(liker);
+      }
     }
 
     const ctx = {
       viewerAthleteId: auth.user.athleteId,
       viewerIsStaff: auth.user.isStaff,
       likedItemIds,
+      likersByItem,
     };
 
     const items: FeedItem[] = page.map((row) => projectFeedItem(row as never, ctx));

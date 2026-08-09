@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Send, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchComments, addComment, deleteComment } from '@/lib/feed-client';
+import { FeedAvatar } from '@/components/FeedAvatar';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed-client';
 
@@ -118,9 +119,12 @@ export function FeedCommentSheet({ item, onClose }: Props) {
           )}
           {comments.map(c => (
             <div key={c.id} className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0 text-xs font-bold text-slate-300">
-                {(c.author.name || '?').slice(0, 2).toUpperCase()}
-              </div>
+              <FeedAvatar
+                name={c.author.name}
+                url={c.author.avatarUrl}
+                className="w-8 h-8 bg-slate-700"
+                textClassName="text-slate-300"
+              />
               <div className="flex-1 min-w-0">
                 <div className="bg-slate-700/50 rounded-2xl rounded-ss-sm px-3 py-2">
                   <p className="text-xs font-semibold text-primary-300 mb-0.5">{c.author.name}</p>
