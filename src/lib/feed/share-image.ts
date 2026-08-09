@@ -26,11 +26,24 @@ const LOGO_SRC = '/images/logo-white.png';
 /** Layout variants, mirroring the way Strava offers several story styles. */
 export type ShareTemplate = 'classic' | 'card' | 'minimal';
 
-export const SHARE_TEMPLATES: Array<{ key: ShareTemplate; label: string }> = [
-  { key: 'classic', label: 'קלאסי' },
-  { key: 'card', label: 'כרטיס' },
-  { key: 'minimal', label: 'מינימלי' },
-];
+export const SHARE_TEMPLATE_KEYS: ShareTemplate[] = ['classic', 'card', 'minimal'];
+
+/**
+ * Strings and locale for the rendered card.
+ *
+ * Passed in rather than read from next-intl: this module draws to a canvas and is
+ * deliberately not a React component, so it has no access to hooks. The caller
+ * (which does) supplies them.
+ */
+export interface ShareI18n {
+  /** BCP-47 tag for the date on the card, e.g. 'he' or 'en'. */
+  locale: string;
+  km: string;
+  perKm: string;
+  pace: string;
+  time: string;
+  hr: string;
+}
 
 export interface ShareCardOptions {
   /** Athlete-chosen background photo. Falls back to a brand gradient. */
@@ -212,11 +225,11 @@ interface Stat {
 }
 
 /** The secondary stats, in the order they read best. Pace and HR may be absent. */
-function secondaryStats(act: FeedActivity): Stat[] {
+function secondaryStats(act: FeedActivity, i18n: ShareI18n): Stat[] {
   const out: Stat[] = [];
-  if (act.averagePace) out.push({ value: formatPace(act.averagePace), label: 'קצב ממוצע' });
-  out.push({ value: formatDuration(act.duration), label: 'זמן' });
-  if (act.averageHr) out.push({ value: `${Math.round(act.averageHr)}`, label: 'דופק' });
+  if (act.averagePace) out.push({ value: formatPace(act.averagePace), label: i18n.pace });
+  out.push({ value: formatDuration(act.duration), label: i18n.time });
+  if (act.averageHr) out.push({ value: `${Math.round(act.averageHr)}`, label: i18n.hr });
   return out;
 }
 
@@ -224,8 +237,8 @@ function distanceKm(act: FeedActivity): string {
   return (act.distance / 1000).toFixed(2).replace(/\.?0+$/, '');
 }
 
-function metaLine(item: FeedItem, act: FeedActivity): string {
-  const dateStr = new Date(act.startTime).toLocaleDateString('he-IL', {
+function metaLine(item: FeedItem, act: FeedActivity, i18n: ShareI18n): string {
+  const dateStr = new Date(act.startTime).toLocaleDateString(i18n.locale, {
     day: 'numeric',
     month: 'long',
   });
@@ -240,6 +253,7 @@ interface LayoutCtx {
   logo: HTMLImageElement | null;
   shadow: string;
   shadowBlur: number;
+  i18n: ShareI18n;
 }
 
 /**
@@ -247,7 +261,7 @@ interface LayoutCtx {
  * The stack builds upward from the bottom margin so a run with no GPS simply
  * omits the route rather than leaving a hole.
  */
-function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCtx) {
+function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
   const right = STORY_W - MARGIN;
   let y = STORY_H - MARGIN;
 
@@ -272,7 +286,7 @@ function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur }: Layou
 
   ctx.font = `500 40px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  ctx.fillText(metaLine(item, act), right, y);
+  ctx.fillText(metaLine(item, act, i18n), right, y);
   y -= 62;
 
   ctx.font = `700 56px ${font}`;
@@ -291,7 +305,7 @@ function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur }: Layou
 
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur;
-  const secondary = secondaryStats(act);
+  const secondary = secondaryStats(act, i18n);
   const colW = (STORY_W - MARGIN * 2) / secondary.length;
   secondary.forEach((s, i) => {
     // Columns run right-to-left to match the Hebrew reading order.
@@ -307,8 +321,8 @@ function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur }: Layou
 
   ctx.font = `500 48px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText('ק״מ', right, y);
-  const unitW = ctx.measureText('ק״מ').width;
+  ctx.fillText(i18n.km, right, y);
+  const unitW = ctx.measureText(i18n.km).width;
 
   ctx.font = `800 180px ${font}`;
   ctx.fillStyle = '#ffffff';
@@ -344,7 +358,7 @@ function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur }: Layou
  * as a proper sticker over an arbitrary story background, so it's also the best
  * pairing with `transparent`.
  */
-function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCtx) {
+function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
   const hasRoute = !!act.routePreview && act.routePreview.length > 2;
 
   const PAD = 56;
@@ -406,7 +420,7 @@ function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCt
     ctx.fillText(item.author.name, cardX + PAD, y + logoH / 2 - 4);
     ctx.font = `500 32px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText(metaLine(item, act), cardX + PAD, y + logoH / 2 + 40);
+    ctx.fillText(metaLine(item, act, i18n), cardX + PAD, y + logoH / 2 + 40);
     y += logoH;
   }
 
@@ -433,8 +447,8 @@ function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCt
   const heroBaseline = y + 130;
   ctx.font = `500 44px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText('ק״מ', right, heroBaseline);
-  const unitW = ctx.measureText('ק״מ').width;
+  ctx.fillText(i18n.km, right, heroBaseline);
+  const unitW = ctx.measureText(i18n.km).width;
   ctx.font = `800 150px ${font}`;
   ctx.fillStyle = '#ffffff';
   ctx.fillText(distanceKm(act), right - unitW - 20, heroBaseline);
@@ -452,7 +466,7 @@ function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCt
   // Stats along the bottom of the panel.
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur / 2;
-  const secondary = secondaryStats(act);
+  const secondary = secondaryStats(act, i18n);
   const colW = (cardW - PAD * 2) / secondary.length;
   secondary.forEach((s, i) => {
     const cx = right - i * colW;
@@ -467,7 +481,7 @@ function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCt
 }
 
 /** Just the number. Centred, lots of air — the best pairing with a strong photo. */
-function layoutMinimal({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCtx) {
+function layoutMinimal({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
   const cx = STORY_W / 2;
 
   ctx.textBaseline = 'alphabetic';
@@ -484,7 +498,7 @@ function layoutMinimal({ ctx, font, item, act, logo, shadow, shadowBlur }: Layou
 
   ctx.font = `600 56px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fillText('ק״מ', cx, heroBaseline + 80);
+  ctx.fillText(i18n.km, cx, heroBaseline + 80);
 
   ctx.shadowBlur = 0;
   ctx.strokeStyle = 'rgba(255,255,255,0.3)';
@@ -496,7 +510,7 @@ function layoutMinimal({ ctx, font, item, act, logo, shadow, shadowBlur }: Layou
 
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur;
-  const pace = act.averagePace ? `${formatPace(act.averagePace)} /ק״מ` : null;
+  const pace = act.averagePace ? `${formatPace(act.averagePace)} ${i18n.perKm}` : null;
   const line = [pace, formatDuration(act.duration)].filter(Boolean).join('   ·   ');
   ctx.font = `600 48px ${font}`;
   ctx.fillStyle = '#ffffff';
@@ -504,7 +518,7 @@ function layoutMinimal({ ctx, font, item, act, logo, shadow, shadowBlur }: Layou
 
   ctx.font = `500 38px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText(`${item.author.name} · ${metaLine(item, act)}`, cx, heroBaseline + 286);
+  ctx.fillText(`${item.author.name} · ${metaLine(item, act, i18n)}`, cx, heroBaseline + 286);
   ctx.shadowBlur = 0;
 
   if (logo) {
@@ -525,6 +539,7 @@ const LAYOUTS: Record<ShareTemplate, (c: LayoutCtx) => void> = {
 /** Renders the card and returns a blob ready for navigator.share(). */
 export async function renderShareCard(
   item: FeedItem,
+  i18n: ShareI18n,
   opts: ShareCardOptions = {},
 ): Promise<Blob> {
   const act = item.activity;
@@ -572,6 +587,7 @@ export async function renderShareCard(
     logo,
     shadow: opts.transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)',
     shadowBlur: opts.transparent ? 28 : 16,
+    i18n,
   });
 
   // JPEG has no alpha channel — a transparent card exported as JPEG comes out with

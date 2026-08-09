@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Heart, MessageCircle, Trash2, Route, MapPin, Mountain, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations, useFormatter } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
 import { FeedLikesSheet } from '@/components/FeedLikesSheet';
 import { FeedAvatar } from '@/components/FeedAvatar';
@@ -23,18 +24,8 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'עכשיו';
-  if (mins < 60) return `לפני ${mins} דק׳`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `לפני ${hrs} שע׳`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return 'אתמול';
-  if (days < 7) return `לפני ${days} ימים`;
-  return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'long' });
-}
+/** next-intl's formatter handles the locale's own relative-time grammar. */
+type Translate = ReturnType<typeof useTranslations<'feed'>>;
 
 // SVG minimap from the ~60-point route_preview. No Leaflet in the list view —
 // Leaflet is only used in the full activity detail.
@@ -64,13 +55,15 @@ function RouteMinimap({ points }: { points: Array<{ lat: number; lng: number }> 
 }
 
 function AuthorRow({ item }: { item: FeedItem }) {
+  const format = useFormatter();
   return (
     <div className="flex items-center gap-3">
       <FeedAvatar name={item.author.name} url={item.author.avatarUrl} />
       <div className="min-w-0">
         <p className="text-sm font-semibold text-white leading-tight truncate">{item.author.name}</p>
         <p className="text-xs text-slate-500 leading-tight">
-          {item.author.groupName ? `${item.author.groupName} · ` : ''}{timeAgo(item.occurredAt)}
+          {item.author.groupName ? `${item.author.groupName} · ` : ''}
+          {format.relativeTime(new Date(item.occurredAt))}
         </p>
       </div>
     </div>
@@ -78,21 +71,24 @@ function AuthorRow({ item }: { item: FeedItem }) {
 }
 
 /**
- * "תל, רונית ועוד 4" — the Facebook-style summary.
+ * "Tal, Ronit and 4 more" — the Facebook-style summary.
  *
- * Deliberately avoids a verb ("אוהב"/"אוהבת"), which would need the liker's gender;
- * a bare name list reads naturally for anyone. First names only, so three likers
- * still fit on one line on a phone.
+ * Deliberately avoids a verb ("אוהב"/"אוהבת"), which in Hebrew would need the
+ * liker's gender; a bare name list reads naturally for anyone. First names only,
+ * so three likers still fit on one line on a phone.
  */
-function likeSummary(likers: FeedLiker[], total: number): string {
+function likeSummary(likers: FeedLiker[], total: number, t: Translate): string {
   const firstNames = likers.map(l => (l.name || '').split(' ')[0]).filter(Boolean);
   // The preview can lag the count (a like landed after this page was fetched).
   if (firstNames.length === 0) return String(total);
 
   const rest = total - firstNames.length;
-  if (rest > 0) return `${firstNames.join(', ')} ועוד ${rest}`;
+  if (rest > 0) return t('namesAndMore', { names: firstNames.join(', '), count: rest });
   if (firstNames.length === 1) return firstNames[0];
-  return `${firstNames.slice(0, -1).join(', ')} ו${firstNames[firstNames.length - 1]}`;
+  return t('namesAnd', {
+    head: firstNames.slice(0, -1).join(', '),
+    last: firstNames[firstNames.length - 1],
+  });
 }
 
 /**
@@ -132,6 +128,7 @@ function ActionRow({
   const [liked, setLiked] = useState(item.likedByMe);
   const [likeCount, setLikeCount] = useState(item.likeCount);
   const [likers, setLikers] = useState<FeedLiker[]>(item.likePreview);
+  const t = useTranslations('feed');
   const [busy, setBusy] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -173,7 +170,7 @@ function ActionRow({
           >
             <LikerStack likers={likers} />
             <span className="text-xs text-slate-500 group-hover:text-slate-300 transition-colors truncate">
-              {likeSummary(likers, likeCount)}
+              {likeSummary(likers, likeCount, t)}
             </span>
 
             {likers.length > 0 && (
@@ -185,7 +182,7 @@ function ActionRow({
                 ))}
                 {likeCount > likers.length && (
                   <span className="block text-[10px] text-slate-500 leading-relaxed">
-                    ועוד {likeCount - likers.length}
+                    {t('andMore', { count: likeCount - likers.length })}
                   </span>
                 )}
               </span>
@@ -198,7 +195,7 @@ function ActionRow({
       <button
         onClick={handleLike}
         // Icon only — the summary line above carries both the count and the names.
-        aria-label={liked ? 'בטל לייק' : 'אהבתי'}
+        aria-label={liked ? t('unlike') : t('like')}
         aria-pressed={liked}
         className={cn(
           'flex items-center px-3 py-1.5 rounded-full transition-all active:scale-90',
@@ -220,7 +217,7 @@ function ActionRow({
       {item.activity && (
         <button
           onClick={() => setShareOpen(true)}
-          aria-label="שתף לסטורי"
+          aria-label={t('shareToStory')}
           className="flex items-center px-3 py-1.5 rounded-full text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 transition-all active:scale-90"
         >
           <Share2 className="h-4 w-4" />
@@ -231,7 +228,7 @@ function ActionRow({
         <button
           onClick={onDelete}
           className="ms-auto p-2 rounded-full text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
-          aria-label="מחק פוסט"
+          aria-label={t('deletePost')}
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -263,6 +260,7 @@ function ActivityCard({
   onComment: () => void;
   onDelete?: () => void;
 }) {
+  const t = useTranslations('feed');
   const act = item.activity!;
   const distKm = (act.distance / 1000).toFixed(1);
   const paceStr = act.averagePace ? formatPace(act.averagePace) : null;
@@ -286,19 +284,19 @@ function ActivityCard({
 
         <div className="grid grid-cols-3 gap-2 mb-3">
           <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-slate-500 font-medium mb-0.5">מרחק</p>
+            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{t('statDistance')}</p>
             <p className="text-base font-black text-white tabular-nums">
-              {distKm}<span className="text-[10px] text-slate-400 ms-0.5">ק״מ</span>
+              {distKm}<span className="text-[10px] text-slate-400 ms-0.5">{t('km')}</span>
             </p>
           </div>
           <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-slate-500 font-medium mb-0.5">קצב</p>
+            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{t('statPace')}</p>
             <p className="text-base font-black text-white tabular-nums">
-              {paceStr || '—'}<span className="text-[10px] text-slate-400 ms-0.5">/ק״מ</span>
+              {paceStr || '—'}<span className="text-[10px] text-slate-400 ms-0.5">{t('perKm')}</span>
             </p>
           </div>
           <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-slate-500 font-medium mb-0.5">זמן</p>
+            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{t('statTime')}</p>
             <p className="text-base font-black text-white tabular-nums">{durationStr}</p>
           </div>
         </div>

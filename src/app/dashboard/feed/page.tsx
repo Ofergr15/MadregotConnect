@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { PenSquare, RefreshCw } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
+import { useTranslations } from 'next-intl';
 import { fetchFeed, deletePost } from '@/lib/feed-client';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
@@ -12,7 +13,13 @@ import type { FeedItem } from '@/lib/feed/project';
 // Maintains per-item comment counts separately so card re-renders are cheap.
 type CommentCounts = Record<string, number>;
 
+// Keyset-paginated in pages of this size, with an IntersectionObserver sentinel
+// pulling the next page as the athlete scrolls. Deliberately not a full load: the
+// club will accumulate thousands of activities.
+const PAGE_SIZE = 20;
+
 export default function FeedPage() {
+  const t = useTranslations('feed');
   const [items, setItems] = useState<FeedItem[]>([]);
   const [counts, setCounts] = useState<CommentCounts>({});
   const [cursor, setCursor] = useState<string | null>(null);
@@ -40,22 +47,22 @@ export default function FeedPage() {
     setLoading(true);
     setError(null);
     try {
-      const { items: page, nextCursor } = await fetchFeed(null, 15);
+      const { items: page, nextCursor } = await fetchFeed(null, PAGE_SIZE);
       setItems(page);
       setCounts(Object.fromEntries(page.map(i => [i.id, i.commentCount])));
       setCursor(nextCursor);
     } catch (err: unknown) {
-      setError((err as Error).message || 'שגיאה בטעינת הפיד');
+      setError((err as Error).message || t('loadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !cursor) return;
     setLoadingMore(true);
     try {
-      const { items: page, nextCursor } = await fetchFeed(cursor, 15);
+      const { items: page, nextCursor } = await fetchFeed(cursor, PAGE_SIZE);
       setItems(prev => [...prev, ...page]);
       setCounts(prev => ({
         ...prev,
@@ -86,7 +93,7 @@ export default function FeedPage() {
       await deletePost(item.id);
       setItems(prev => prev.filter(i => i.id !== item.id));
     } catch (err: unknown) {
-      alert((err as Error).message || 'שגיאה במחיקה');
+      alert((err as Error).message || t('deleteError'));
     }
   };
 
@@ -112,7 +119,7 @@ export default function FeedPage() {
         <div className="w-9 h-9 rounded-full bg-primary-600/20 flex items-center justify-center shrink-0">
           <span className="text-primary-400 text-xs font-bold">{initials}</span>
         </div>
-        <span className="flex-1 text-sm text-slate-500">מה חדש אצלך?</span>
+        <span className="flex-1 text-sm text-slate-500">{t('composerPlaceholder')}</span>
         <PenSquare className="h-4 w-4 text-slate-600" />
       </div>
 
@@ -132,15 +139,15 @@ export default function FeedPage() {
             onClick={loadInitial}
             className="flex items-center gap-2 mx-auto text-sm text-red-300 hover:text-white"
           >
-            <RefreshCw className="h-4 w-4" /> נסה שוב
+            <RefreshCw className="h-4 w-4" /> {t('retry')}
           </button>
         </div>
       )}
 
       {!loading && !error && items.length === 0 && (
         <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-10 text-center">
-          <p className="text-slate-400 text-sm mb-1">הפיד ריק כרגע</p>
-          <p className="text-slate-600 text-xs">רוצ חדש יופיע כאן אחרי הריצה הבאה</p>
+          <p className="text-slate-400 text-sm mb-1">{t('emptyTitle')}</p>
+          <p className="text-slate-600 text-xs">{t('emptyBody')}</p>
         </div>
       )}
 
@@ -168,7 +175,7 @@ export default function FeedPage() {
       )}
 
       {!hasMore && items.length > 0 && (
-        <p className="text-center text-xs text-slate-600 py-6">הכל נטען ✓</p>
+        <p className="text-center text-xs text-slate-600 py-6">{t('allLoaded')} ✓</p>
       )}
 
       {/* Comment sheet */}

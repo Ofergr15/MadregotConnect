@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { X, ImagePlus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 import { createPost, uploadMedia } from '@/lib/feed-client';
 import type { FeedItem, FeedMedia } from '@/lib/feed/project';
 
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function FeedComposer({ onClose, onPost }: Props) {
+  const t = useTranslations('feed');
   const [body, setBody] = useState('');
   const [media, setMedia] = useState<FeedMedia[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -34,11 +36,11 @@ export function FeedComposer({ onClose, onPost }: Props) {
       const uploaded = await Promise.all(toUpload.map(f => uploadMedia(f)));
       setMedia(prev => [...prev, ...uploaded]);
     } catch (err: unknown) {
-      setError((err as Error).message || 'שגיאה בהעלאת תמונה');
+      setError((err as Error).message || t('uploadError'));
     } finally {
       setUploading(false);
     }
-  }, [media.length]);
+  }, [media.length, t]);
 
   const removeMedia = (path: string) => {
     setMedia(prev => prev.filter(m => m.path !== path));
@@ -53,7 +55,7 @@ export function FeedComposer({ onClose, onPost }: Props) {
       onPost(item);
       onClose();
     } catch (err: unknown) {
-      setError((err as Error).message || 'שגיאה בפרסום');
+      setError((err as Error).message || t('postError'));
       setPosting(false);
     }
   };
@@ -76,7 +78,7 @@ export function FeedComposer({ onClose, onPost }: Props) {
             >
               <X className="h-5 w-5" />
             </button>
-            <span className="text-base font-bold text-white">פוסט חדש</span>
+            <span className="text-base font-bold text-white">{t('newPost')}</span>
             <button
               onClick={handlePost}
               disabled={!canPost}
@@ -87,7 +89,7 @@ export function FeedComposer({ onClose, onPost }: Props) {
                   : 'bg-slate-700 text-slate-500',
               )}
             >
-              {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'פרסם'}
+              {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : t('publish')}
             </button>
           </div>
         </div>
@@ -98,7 +100,7 @@ export function FeedComposer({ onClose, onPost }: Props) {
             autoFocus
             value={body}
             onChange={e => setBody(e.target.value)}
-            placeholder="מה חדש אצלך?"
+            placeholder={t('composerPlaceholder')}
             className="w-full bg-transparent text-white placeholder:text-slate-500 text-base leading-relaxed resize-none focus:outline-none"
             style={{ minHeight: '120px' }}
           />
@@ -146,7 +148,7 @@ export function FeedComposer({ onClose, onPost }: Props) {
           {uploading && (
             <div className="flex items-center gap-2 mt-3 text-sm text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" />
-              מעלה תמונה...
+              {t('uploadingImage')}
             </div>
           )}
 
@@ -176,7 +178,7 @@ export function FeedComposer({ onClose, onPost }: Props) {
             )}
           >
             <ImagePlus className="h-5 w-5" />
-            <span>תמונה</span>
+            <span>{t('image')}</span>
             {media.length > 0 && <span className="text-xs text-slate-500">{media.length}/{MAX_IMAGES}</span>}
           </button>
         </div>
