@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Share2, ImagePlus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { renderShareCard, shareCard } from '@/lib/feed/share-image';
+import { renderShareCard, shareCard, SHARE_TEMPLATES } from '@/lib/feed/share-image';
+import type { ShareTemplate } from '@/lib/feed/share-image';
 import type { FeedItem } from '@/lib/feed/project';
 
 type Style = 'photo' | 'transparent';
@@ -15,6 +16,7 @@ interface Props {
 
 export function FeedShareSheet({ item, onClose }: Props) {
   const [style, setStyle] = useState<Style>('photo');
+  const [template, setTemplate] = useState<ShareTemplate>('classic');
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [rendering, setRendering] = useState(true);
@@ -33,7 +35,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
     setError(null);
     setNotice(null);
 
-    renderShareCard(item, { background: photo, transparent: style === 'transparent' })
+    renderShareCard(item, { background: photo, transparent: style === 'transparent', template })
       .then(blob => {
         if (cancelled) return;
         blobRef.current = blob;
@@ -51,7 +53,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [item, photo, style]);
+  }, [item, photo, style, template]);
 
   const handleShare = useCallback(async () => {
     const blob = blobRef.current;
@@ -101,7 +103,25 @@ export function FeedShareSheet({ item, onClose }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
-          {/* Style picker */}
+          {/* Layout picker */}
+          <div className="flex gap-2 mb-2.5">
+            {SHARE_TEMPLATES.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setTemplate(t.key)}
+                className={cn(
+                  'flex-1 py-2 rounded-xl text-sm font-semibold transition-colors',
+                  template === t.key
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-slate-900/60 text-slate-400 hover:text-slate-200',
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Background picker — orthogonal to the layout above. */}
           <div className="flex gap-2 mb-4">
             {([
               { key: 'photo', label: 'רקע תמונה' },
@@ -111,10 +131,10 @@ export function FeedShareSheet({ item, onClose }: Props) {
                 key={o.key}
                 onClick={() => setStyle(o.key)}
                 className={cn(
-                  'flex-1 py-2 rounded-xl text-sm font-semibold transition-colors',
+                  'flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors border',
                   style === o.key
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-slate-900/60 text-slate-400 hover:text-slate-200',
+                    ? 'border-primary-500 text-primary-300 bg-primary-600/10'
+                    : 'border-slate-700 text-slate-500 hover:text-slate-300',
                 )}
               >
                 {o.label}

@@ -6,14 +6,15 @@
  * athlete's background photo never leaves the device, and Hebrew RTL layout is
  * fully under our control instead of at the mercy of a text shaper we can't debug.
  *
- * The card is deliberately OPAQUE. Strava's transparent story overlay works because
+ * The card is OPAQUE by default. Strava's transparent story overlay works because
  * a native app can hand Instagram a sticker via `com.instagram.sharedSticker.*`
  * (iOS pasteboard) or an ADD_TO_STORY intent (Android) — neither is reachable from
  * a PWA. Routed through navigator.share(), Instagram treats the PNG as a photo and
- * may flatten alpha, so we composite our own background and control the result.
+ * may flatten alpha, so by default we composite our own background and control the
+ * result. `transparent` opts into the save-then-add-as-photo-sticker flow instead.
  */
 
-import type { FeedItem } from './project';
+import type { FeedItem, FeedActivity } from './project';
 
 export const STORY_W = 1080;
 export const STORY_H = 1920;
@@ -21,6 +22,15 @@ export const STORY_H = 1920;
 const MARGIN = 80;
 const BRAND = '#4338ff';
 const LOGO_SRC = '/images/logo-white.png';
+
+/** Layout variants, mirroring the way Strava offers several story styles. */
+export type ShareTemplate = 'classic' | 'card' | 'minimal';
+
+export const SHARE_TEMPLATES: Array<{ key: ShareTemplate; label: string }> = [
+  { key: 'classic', label: 'קלאסי' },
+  { key: 'card', label: 'כרטיס' },
+  { key: 'minimal', label: 'מינימלי' },
+];
 
 export interface ShareCardOptions {
   /** Athlete-chosen background photo. Falls back to a brand gradient. */
@@ -34,6 +44,8 @@ export interface ShareCardOptions {
    * heavier shadow here because the background is whatever the athlete picks.
    */
   transparent?: boolean;
+  /** Defaults to 'classic'. */
+  template?: ShareTemplate;
 }
 
 function formatPace(secPerKm: number): string {
@@ -68,6 +80,25 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error(`Failed to load ${src}`));
     img.src = src;
   });
+}
+
+/** ctx.roundRect is Safari 16+ only; this keeps older iOS working. */
+function roundRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
 }
 
 /** Scale-to-fill with a centre crop, the way a story background should behave. */
@@ -117,6 +148,7 @@ function drawRoute(
   ctx: CanvasRenderingContext2D,
   points: Array<{ lat: number; lng: number }>,
   box: { x: number; y: number; w: number; h: number },
+  lineWidth = 10,
 ) {
   if (points.length < 2) return;
 
@@ -156,14 +188,15 @@ function drawRoute(
   ctx.moveTo(pts[0].x, pts[0].y);
   for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y);
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 10;
+  ctx.lineWidth = lineWidth;
   ctx.stroke();
 
   ctx.shadowBlur = 0;
   // Start (green) and finish (red) caps, same language as the feed minimap.
+  const capR = Math.max(8, lineWidth * 1.4);
   for (const [pt, color] of [[pts[0], '#22c55e'], [pts[pts.length - 1], '#ef4444']] as const) {
     ctx.beginPath();
-    ctx.arc(pt.x, pt.y, 14, 0, Math.PI * 2);
+    ctx.arc(pt.x, pt.y, capR, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
@@ -173,12 +206,323 @@ function drawRoute(
   ctx.restore();
 }
 
+interface Stat {
+  value: string;
+  label: string;
+}
+
+/** The secondary stats, in the order they read best. Pace and HR may be absent. */
+function secondaryStats(act: FeedActivity): Stat[] {
+  const out: Stat[] = [];
+  if (act.averagePace) out.push({ value: formatPace(act.averagePace), label: 'קצב ממוצע' });
+  out.push({ value: formatDuration(act.duration), label: 'זמן' });
+  if (act.averageHr) out.push({ value: `${Math.round(act.averageHr)}`, label: 'דופק' });
+  return out;
+}
+
+function distanceKm(act: FeedActivity): string {
+  return (act.distance / 1000).toFixed(2).replace(/\.?0+$/, '');
+}
+
+function metaLine(item: FeedItem, act: FeedActivity): string {
+  const dateStr = new Date(act.startTime).toLocaleDateString('he-IL', {
+    day: 'numeric',
+    month: 'long',
+  });
+  return [item.author.groupName, dateStr].filter(Boolean).join(' · ');
+}
+
+interface LayoutCtx {
+  ctx: CanvasRenderingContext2D;
+  font: string;
+  item: FeedItem;
+  act: FeedActivity;
+  logo: HTMLImageElement | null;
+  shadow: string;
+  shadowBlur: number;
+}
+
 /**
- * Renders the card and returns a JPEG blob ready for navigator.share().
- *
- * Bottom-anchored: the stack is laid out upward from the bottom margin so a run
- * with no GPS simply omits the route rather than leaving a hole.
+ * Bottom-anchored stats with the logo centred beneath, over the full frame.
+ * The stack builds upward from the bottom margin so a run with no GPS simply
+ * omits the route rather than leaving a hole.
  */
+function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCtx) {
+  const right = STORY_W - MARGIN;
+  let y = STORY_H - MARGIN;
+
+  if (logo) {
+    // The logo is a square badge with fine internal type ("EST. 2022"), not a
+    // wordmark — below ~140px on a 1080-wide canvas that inner text turns to mush.
+    const logoH = 178;
+    const logoW = (logo.width / logo.height) * logoH;
+    ctx.globalAlpha = 0.95;
+    ctx.drawImage(logo, (STORY_W - logoW) / 2, y - logoH, logoW, logoH);
+    ctx.globalAlpha = 1;
+    y -= logoH + 64;
+  } else {
+    y -= 24;
+  }
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+
+  ctx.font = `500 40px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.fillText(metaLine(item, act), right, y);
+  y -= 62;
+
+  ctx.font = `700 56px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(item.author.name, right, y);
+  y -= 56;
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(MARGIN, y);
+  ctx.lineTo(right, y);
+  ctx.stroke();
+  y -= 76;
+
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+  const secondary = secondaryStats(act);
+  const colW = (STORY_W - MARGIN * 2) / secondary.length;
+  secondary.forEach((s, i) => {
+    // Columns run right-to-left to match the Hebrew reading order.
+    const cx = right - i * colW;
+    ctx.font = `700 64px ${font}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(s.value, cx, y);
+    ctx.font = `500 32px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillText(s.label, cx, y + 44);
+  });
+  y -= 96;
+
+  ctx.font = `500 48px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillText('ק״מ', right, y);
+  const unitW = ctx.measureText('ק״מ').width;
+
+  ctx.font = `800 180px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(distanceKm(act), right - unitW - 24, y);
+  y -= 200;
+
+  if (act.activityName) {
+    ctx.font = `600 44px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillText(act.activityName, right, y);
+    y -= 72;
+  }
+  ctx.shadowBlur = 0;
+
+  if (act.routePreview && act.routePreview.length > 2) {
+    const boxTop = STORY_H * 0.16;
+    const available = y - boxTop - 48;
+    if (available > 160) {
+      drawRoute(ctx, act.routePreview, {
+        x: MARGIN,
+        y: boxTop,
+        w: STORY_W - MARGIN * 2,
+        h: available,
+      });
+    }
+  }
+}
+
+/**
+ * A self-contained panel: logo top-right, stats along the bottom.
+ *
+ * Because the panel carries its own background it's the one template that reads
+ * as a proper sticker over an arbitrary story background, so it's also the best
+ * pairing with `transparent`.
+ */
+function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCtx) {
+  const hasRoute = !!act.routePreview && act.routePreview.length > 2;
+
+  const PAD = 56;
+  const cardX = 70;
+  const cardW = STORY_W - cardX * 2;
+  const logoH = logo ? 112 : 0;
+  const routeH = hasRoute ? 380 : 0;
+  const titleH = act.activityName ? 62 : 0;
+
+  // Height is summed from the blocks that actually render, so a run with no GPS
+  // yields a shorter panel instead of an empty gap.
+  const cardH =
+    PAD +
+    logoH +
+    (routeH ? 36 + routeH : 0) +
+    36 +
+    titleH +
+    150 + // hero distance block
+    28 +
+    2 + // divider
+    36 +
+    110 + // stats block
+    PAD;
+
+  // Sits slightly below centre: Instagram's own header crowds the top of a story.
+  const cardY = Math.max(140, (STORY_H - cardH) / 2 + 90);
+  const right = cardX + cardW - PAD;
+
+  // Panel. Opaque enough to carry white text over any background.
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.45)';
+  ctx.shadowBlur = 40;
+  ctx.shadowOffsetY = 12;
+  roundRectPath(ctx, cardX, cardY, cardW, cardH, 56);
+  ctx.fillStyle = 'rgba(15,23,42,0.82)';
+  ctx.fill();
+  ctx.restore();
+
+  roundRectPath(ctx, cardX, cardY, cardW, cardH, 56);
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  let y = cardY + PAD;
+
+  // Logo, top-right inside the panel.
+  if (logo) {
+    const logoW = (logo.width / logo.height) * logoH;
+    ctx.globalAlpha = 0.95;
+    ctx.drawImage(logo, right - logoW, y, logoW, logoH);
+    ctx.globalAlpha = 1;
+
+    // Athlete name sits opposite the logo, on the same baseline band.
+    ctx.textBaseline = 'alphabetic';
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'left';
+    ctx.font = `700 44px ${font}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(item.author.name, cardX + PAD, y + logoH / 2 - 4);
+    ctx.font = `500 32px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(metaLine(item, act), cardX + PAD, y + logoH / 2 + 40);
+    y += logoH;
+  }
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+
+  if (hasRoute) {
+    y += 36;
+    drawRoute(ctx, act.routePreview!, { x: cardX + PAD, y, w: cardW - PAD * 2, h: routeH }, 8);
+    y += routeH;
+  }
+
+  y += 36;
+
+  if (act.activityName) {
+    ctx.font = `600 40px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText(act.activityName, right, y + 40);
+    y += titleH;
+  }
+
+  // Hero distance
+  const heroBaseline = y + 130;
+  ctx.font = `500 44px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillText('ק״מ', right, heroBaseline);
+  const unitW = ctx.measureText('ק״מ').width;
+  ctx.font = `800 150px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(distanceKm(act), right - unitW - 20, heroBaseline);
+  y += 150 + 28;
+
+  // Divider
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cardX + PAD, y);
+  ctx.lineTo(right, y);
+  ctx.stroke();
+  y += 36;
+
+  // Stats along the bottom of the panel.
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur / 2;
+  const secondary = secondaryStats(act);
+  const colW = (cardW - PAD * 2) / secondary.length;
+  secondary.forEach((s, i) => {
+    const cx = right - i * colW;
+    ctx.font = `700 58px ${font}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(s.value, cx, y + 58);
+    ctx.font = `500 30px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(s.label, cx, y + 100);
+  });
+  ctx.shadowBlur = 0;
+}
+
+/** Just the number. Centred, lots of air — the best pairing with a strong photo. */
+function layoutMinimal({ ctx, font, item, act, logo, shadow, shadowBlur }: LayoutCtx) {
+  const cx = STORY_W / 2;
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+
+  const heroBaseline = STORY_H * 0.55;
+
+  ctx.font = `800 260px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(distanceKm(act), cx, heroBaseline);
+
+  ctx.font = `600 56px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillText('ק״מ', cx, heroBaseline + 80);
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - 120, heroBaseline + 140);
+  ctx.lineTo(cx + 120, heroBaseline + 140);
+  ctx.stroke();
+
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+  const pace = act.averagePace ? `${formatPace(act.averagePace)} /ק״מ` : null;
+  const line = [pace, formatDuration(act.duration)].filter(Boolean).join('   ·   ');
+  ctx.font = `600 48px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(line, cx, heroBaseline + 220);
+
+  ctx.font = `500 38px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText(`${item.author.name} · ${metaLine(item, act)}`, cx, heroBaseline + 286);
+  ctx.shadowBlur = 0;
+
+  if (logo) {
+    const logoH = 148;
+    const logoW = (logo.width / logo.height) * logoH;
+    ctx.globalAlpha = 0.9;
+    ctx.drawImage(logo, cx - logoW / 2, STORY_H - MARGIN - logoH, logoW, logoH);
+    ctx.globalAlpha = 1;
+  }
+}
+
+const LAYOUTS: Record<ShareTemplate, (c: LayoutCtx) => void> = {
+  classic: layoutClassic,
+  card: layoutCard,
+  minimal: layoutMinimal,
+};
+
+/** Renders the card and returns a blob ready for navigator.share(). */
 export async function renderShareCard(
   item: FeedItem,
   opts: ShareCardOptions = {},
@@ -211,127 +555,24 @@ export async function renderShareCard(
       }
     }
     if (!drew) drawBrandGradient(ctx);
-    drawScrim(ctx);
+    // The card template brings its own panel, so a full-frame scrim would only
+    // mute the athlete's photo for no legibility gain.
+    if (opts.template !== 'card') drawScrim(ctx);
   }
+
+  const logo = await loadImage(LOGO_SRC).catch(() => null);
 
   // Over an unknown background the only thing keeping white text readable is the
   // shadow, so the transparent variant leans on it harder.
-  const shadow = opts.transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)';
-  const shadowBlur = opts.transparent ? 28 : 16;
-
-  // ── Text stack, built upward from the bottom ──────────────────────────────
-  const right = STORY_W - MARGIN;
-  let y = STORY_H - MARGIN;
-
-  // Logo, centred at the very bottom.
-  try {
-    const logo = await loadImage(LOGO_SRC);
-    // The logo is a square badge with fine internal type ("EST. 2022"), not a
-    // wordmark — below ~140px on a 1080-wide canvas that inner text turns to mush.
-    const logoH = 150;
-    const logoW = (logo.width / logo.height) * logoH;
-    ctx.globalAlpha = 0.95;
-    ctx.drawImage(logo, (STORY_W - logoW) / 2, y - logoH, logoW, logoH);
-    ctx.globalAlpha = 1;
-    y -= logoH + 64;
-  } catch {
-    y -= 24;
-  }
-
-  ctx.textBaseline = 'alphabetic';
-  ctx.direction = 'rtl';
-  ctx.textAlign = 'right';
-  ctx.shadowColor = shadow;
-  ctx.shadowBlur = shadowBlur;
-
-  // Group · date
-  const dateStr = new Date(act.startTime).toLocaleDateString('he-IL', {
-    day: 'numeric',
-    month: 'long',
+  LAYOUTS[opts.template ?? 'classic']({
+    ctx,
+    font,
+    item,
+    act,
+    logo,
+    shadow: opts.transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)',
+    shadowBlur: opts.transparent ? 28 : 16,
   });
-  const meta = [item.author.groupName, dateStr].filter(Boolean).join(' · ');
-  ctx.font = `500 40px ${font}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  ctx.fillText(meta, right, y);
-  y -= 62;
-
-  // Athlete name
-  ctx.font = `700 56px ${font}`;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(item.author.name, right, y);
-  y -= 56;
-
-  // Divider
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(MARGIN, y);
-  ctx.lineTo(right, y);
-  ctx.stroke();
-  y -= 76;
-
-  // Secondary stats: pace and time, side by side. Numbers are LTR even in an RTL
-  // layout, so each column is drawn left-aligned from its own anchor.
-  ctx.shadowColor = shadow;
-  ctx.shadowBlur = shadowBlur;
-  const secondary: Array<{ value: string; label: string }> = [];
-  if (act.averagePace) secondary.push({ value: formatPace(act.averagePace), label: 'קצב ממוצע' });
-  secondary.push({ value: formatDuration(act.duration), label: 'זמן' });
-  if (act.averageHr) secondary.push({ value: `${Math.round(act.averageHr)}`, label: 'דופק ממוצע' });
-
-  const colW = (STORY_W - MARGIN * 2) / secondary.length;
-  secondary.forEach((s, i) => {
-    // Lay columns out right-to-left to match the Hebrew reading order.
-    const cx = right - i * colW;
-    ctx.direction = 'rtl';
-    ctx.textAlign = 'right';
-    ctx.font = `700 64px ${font}`;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(s.value, cx, y);
-    ctx.font = `500 32px ${font}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    ctx.fillText(s.label, cx, y + 44);
-  });
-  y -= 96;
-
-  // Hero distance
-  const km = (act.distance / 1000).toFixed(2).replace(/\.?0+$/, '');
-  ctx.direction = 'rtl';
-  ctx.textAlign = 'right';
-  ctx.font = `500 48px ${font}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText('ק״מ', right, y);
-  const unitW = ctx.measureText('ק״מ').width;
-
-  ctx.font = `800 180px ${font}`;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(km, right - unitW - 24, y);
-  y -= 200;
-
-  // Activity title, if the athlete named the run.
-  if (act.activityName) {
-    ctx.font = `600 44px ${font}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillText(act.activityName, right, y);
-    y -= 72;
-  }
-
-  ctx.shadowBlur = 0;
-
-  // ── Route, in whatever vertical space is left above the text ───────────────
-  if (act.routePreview && act.routePreview.length > 2) {
-    const boxTop = STORY_H * 0.16;
-    const available = y - boxTop - 48;
-    if (available > 160) {
-      drawRoute(ctx, act.routePreview, {
-        x: MARGIN,
-        y: boxTop,
-        w: STORY_W - MARGIN * 2,
-        h: available,
-      });
-    }
-  }
 
   // JPEG has no alpha channel — a transparent card exported as JPEG comes out with
   // a black background, so the variant dictates the format.
