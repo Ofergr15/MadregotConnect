@@ -4,7 +4,9 @@ import { useState, useCallback } from 'react';
 import { Heart, MessageCircle, Trash2, Route, MapPin, Mountain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toggleLike } from '@/lib/feed-client';
-import type { FeedItem } from '@/lib/feed/project';
+import { FeedLikesSheet } from '@/components/FeedLikesSheet';
+import { FeedAvatar } from '@/components/FeedAvatar';
+import type { FeedItem, FeedLiker } from '@/lib/feed/project';
 
 function formatPace(secPerKm: number): string {
   const min = Math.floor(secPerKm / 60);
@@ -60,30 +62,57 @@ function RouteMinimap({ points }: { points: Array<{ lat: number; lng: number }> 
   );
 }
 
-function Avatar({ name, url }: { name: string; url: string | null }) {
-  const initials = (name || '??').slice(0, 2).toUpperCase();
-  return (
-    <div className="w-9 h-9 rounded-full bg-primary-600/20 flex items-center justify-center shrink-0 overflow-hidden">
-      {url
-        // Avatar URLs come from Garmin/Supabase storage — origin unknown at build time,
-        // so we can't use next/image without listing every possible domain.
-        // eslint-disable-next-line @next/next/no-img-element
-        ? <img src={url} alt={name} className="w-full h-full object-cover" />
-        : <span className="text-primary-400 text-xs font-bold">{initials}</span>}
-    </div>
-  );
-}
-
 function AuthorRow({ item }: { item: FeedItem }) {
   return (
     <div className="flex items-center gap-3">
-      <Avatar name={item.author.name} url={item.author.avatarUrl} />
+      <FeedAvatar name={item.author.name} url={item.author.avatarUrl} />
       <div className="min-w-0">
         <p className="text-sm font-semibold text-white leading-tight truncate">{item.author.name}</p>
         <p className="text-xs text-slate-500 leading-tight">
           {item.author.groupName ? `${item.author.groupName} · ` : ''}{timeAgo(item.occurredAt)}
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * "תל, רונית ועוד 4" — the Facebook-style summary.
+ *
+ * Deliberately avoids a verb ("אוהב"/"אוהבת"), which would need the liker's gender;
+ * a bare name list reads naturally for anyone. First names only, so three likers
+ * still fit on one line on a phone.
+ */
+function likeSummary(likers: FeedLiker[], total: number): string {
+  const firstNames = likers.map(l => (l.name || '').split(' ')[0]).filter(Boolean);
+  // The preview can lag the count (a like landed after this page was fetched).
+  if (firstNames.length === 0) return String(total);
+
+  const rest = total - firstNames.length;
+  if (rest > 0) return `${firstNames.join(', ')} ועוד ${rest}`;
+  if (firstNames.length === 1) return firstNames[0];
+  return `${firstNames.slice(0, -1).join(', ')} ו${firstNames[firstNames.length - 1]}`;
+}
+
+/**
+ * Overlapping avatar cluster. Uses a logical `-ms-` margin rather than
+ * `-space-x-* rtl:space-x-reverse` so the overlap direction follows the Hebrew RTL
+ * layout without depending on variant config.
+ */
+function LikerStack({ likers }: { likers: FeedLiker[] }) {
+  if (likers.length === 0) return null;
+  return (
+    <div className="flex shrink-0">
+      {likers.map((l, i) => (
+        <FeedAvatar
+          key={l.athleteId}
+          name={l.name}
+          url={l.avatarUrl}
+          maxChars={1}
+          className={cn('w-5 h-5 bg-primary-600/30 ring-2 ring-slate-800', i > 0 && '-ms-1.5')}
+          textClassName="text-[8px] text-primary-300"
+        />
+      ))}
     </div>
   );
 }
@@ -101,7 +130,9 @@ function ActionRow({
 }) {
   const [liked, setLiked] = useState(item.likedByMe);
   const [likeCount, setLikeCount] = useState(item.likeCount);
+  const [likers, setLikers] = useState<FeedLiker[]>(item.likePreview);
   const [busy, setBusy] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const handleLike = useCallback(async () => {
     if (busy) return;
@@ -114,6 +145,9 @@ function ActionRow({
       const res = await toggleLike(item.id);
       setLiked(res.liked);
       setLikeCount(res.likeCount);
+      // Server-supplied so the summary names stay right without this component
+      // having to know who the viewer is.
+      setLikers(res.likePreview);
     } catch {
       setLiked(!next);
       setLikeCount(c => c + (next ? -1 : 1));
@@ -123,16 +157,53 @@ function ActionRow({
   }, [busy, liked, item.id]);
 
   return (
+    <>
+      {likeCount > 0 && (
+        <div className="pt-2">
+          {/*
+            Tap opens the full sheet on every device; the hover card is a desktop
+            bonus showing full names (the summary abbreviates to first names).
+            Hover alone would hide this from touch users entirely.
+          */}
+          <button
+            onClick={() => setSheetOpen(true)}
+            className="group relative flex items-center gap-1.5 max-w-full text-start"
+          >
+            <LikerStack likers={likers} />
+            <span className="text-xs text-slate-500 group-hover:text-slate-300 transition-colors truncate">
+              {likeSummary(likers, likeCount)}
+            </span>
+
+            {likers.length > 0 && (
+              <span className="hidden md:block absolute bottom-full start-0 mb-1.5 px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50 text-start">
+                {likers.map(l => (
+                  <span key={l.athleteId} className="block text-xs text-slate-200 leading-relaxed">
+                    {l.name}
+                  </span>
+                ))}
+                {likeCount > likers.length && (
+                  <span className="block text-[10px] text-slate-500 leading-relaxed">
+                    ועוד {likeCount - likers.length}
+                  </span>
+                )}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
     <div className="flex items-center gap-1 pt-1 -ms-1">
       <button
         onClick={handleLike}
+        // Icon only — the summary line above carries both the count and the names.
+        aria-label={liked ? 'בטל לייק' : 'אהבתי'}
+        aria-pressed={liked}
         className={cn(
-          'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-90',
+          'flex items-center px-3 py-1.5 rounded-full transition-all active:scale-90',
           liked ? 'text-rose-400 bg-rose-500/10' : 'text-slate-400 hover:text-slate-300 hover:bg-slate-700/50',
         )}
       >
         <Heart className={cn('h-4 w-4', liked && 'fill-rose-400')} />
-        {likeCount > 0 && <span className="tabular-nums text-xs">{likeCount}</span>}
       </button>
 
       <button
@@ -153,6 +224,16 @@ function ActionRow({
         </button>
       )}
     </div>
+
+    {sheetOpen && (
+      <FeedLikesSheet
+        itemId={item.id}
+        likeCount={likeCount}
+        seed={likers}
+        onClose={() => setSheetOpen(false)}
+      />
+    )}
+    </>
   );
 }
 

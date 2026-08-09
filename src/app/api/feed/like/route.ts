@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { notifyFeedInteraction, loadFeedItemMeta } from '@/lib/feed/notify';
+import {
+  LIKER_SELECT,
+  LIKE_PREVIEW_COUNT,
+  projectLiker,
+  type FeedLiker,
+  type RawLikeRow,
+} from '@/lib/feed/project';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,14 +68,24 @@ export async function POST(request: Request) {
       });
     }
 
-    // Read the trigger-maintained count back so the client never has to guess.
-    const { data: item } = await supabase
-      .from('feed_items')
-      .select('like_count')
-      .eq('id', itemId)
-      .maybeSingle();
+    // Read the trigger-maintained count back so the client never has to guess, and
+    // the refreshed preview with it — otherwise the "תל ועוד 3" line would have to
+    // invent the caller's own name to stay in sync after an optimistic toggle.
+    const [{ data: item }, { data: topLikes }] = await Promise.all([
+      supabase.from('feed_items').select('like_count').eq('id', itemId).maybeSingle(),
+      supabase
+        .from('feed_likes')
+        .select(LIKER_SELECT)
+        .eq('feed_item_id', itemId)
+        .order('created_at', { ascending: false })
+        .limit(LIKE_PREVIEW_COUNT),
+    ]);
 
-    return NextResponse.json({ liked, likeCount: item?.like_count ?? 0 });
+    const likePreview = ((topLikes || []) as unknown as RawLikeRow[])
+      .map(projectLiker)
+      .filter((l): l is FeedLiker => l !== null);
+
+    return NextResponse.json({ liked, likeCount: item?.like_count ?? 0, likePreview });
   } catch (err: unknown) {
     console.error('Feed like error:', err);
     return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
