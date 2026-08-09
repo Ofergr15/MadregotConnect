@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Heart, MessageCircle, Trash2, Route, MapPin, Mountain } from 'lucide-react';
+import { Heart, MessageCircle, Trash2, Route, MapPin, Mountain, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toggleLike } from '@/lib/feed-client';
 import { FeedLikesSheet } from '@/components/FeedLikesSheet';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { FeedShareSheet } from '@/components/FeedShareSheet';
 import type { FeedItem, FeedLiker } from '@/lib/feed/project';
 
 function formatPace(secPerKm: number): string {
@@ -133,6 +134,7 @@ function ActionRow({
   const [likers, setLikers] = useState<FeedLiker[]>(item.likePreview);
   const [busy, setBusy] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const handleLike = useCallback(async () => {
     if (busy) return;
@@ -214,6 +216,17 @@ function ActionRow({
         {commentCount > 0 && <span className="tabular-nums text-xs">{commentCount}</span>}
       </button>
 
+      {/* Runs only — a text post has no stats worth a story card. */}
+      {item.activity && (
+        <button
+          onClick={() => setShareOpen(true)}
+          aria-label="שתף לסטורי"
+          className="flex items-center px-3 py-1.5 rounded-full text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 transition-all active:scale-90"
+        >
+          <Share2 className="h-4 w-4" />
+        </button>
+      )}
+
       {onDelete && (
         <button
           onClick={onDelete}
@@ -233,6 +246,8 @@ function ActionRow({
         onClose={() => setSheetOpen(false)}
       />
     )}
+
+    {shareOpen && <FeedShareSheet item={item} onClose={() => setShareOpen(false)} />}
     </>
   );
 }
