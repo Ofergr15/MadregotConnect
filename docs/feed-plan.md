@@ -140,14 +140,12 @@ loses typed text.
 
 ### UI
 
-- `/dashboard/feed` — new tab, infinite scroll, pull-to-refresh (`PullToRefresh`
-  already exists).
+- `/dashboard/feed` — new tab with infinite scroll.
 - **Composer** pinned at the top of the feed: avatar + "מה חדש?" tap target → bottom
   sheet with textarea, image picker (`capture` allowed so the camera is one tap), and
   thumbnail strip with per-image remove. Optimistic insert at the top of the feed on
   submit.
-- Activity cards reuse the existing `ActivityCard` body, wrapped with an author header
-  (avatar + name + דבוקה + relative time) and a `♥ / 💬 / ↪` action row.
+- Activity cards use a compact feed layout with an author header and action row.
 - Post cards are the same shell: author header, text, image grid (1 image full-width;
   2–4 in a grid), same action row.
 - Comment sheet — bottom sheet, matching the `BottomTabBar` "More" sheet pattern.
@@ -171,8 +169,7 @@ Like and comment both push to the item's author via the existing
 
 Ordered by (value × how much the feed foundation already gives us):
 
-1. **§6 Share to Instagram/Facebook** — templated summary image. Self-contained,
-   demo-friendly, touches no privacy or auth question.
+1. **§6 Share to Instagram/Facebook — shipped.** Templated summary image.
    *Reality check to set with the client:* direct-to-Story needs a native app with a
    registered Facebook App ID. From a PWA the path is generate image →
    `navigator.share({files})` → share sheet → user taps Instagram. One extra tap.
@@ -201,4 +198,4 @@ Ordered by (value × how much the feed foundation already gives us):
 - Threaded comments, reactions beyond a single like, @-mention tagging.
 - Video upload (images only in slice 1 — video needs transcoding and a size policy).
 - Post editing (delete + repost for now).
-- Achievements, share image, photos attached to runs.
+- Achievements and photos attached to runs.

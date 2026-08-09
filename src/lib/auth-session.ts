@@ -1,23 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 
-/**
- * Verified-identity helpers for the social feed routes.
- *
- * The rest of this app authorizes off a client-supplied `x-user-email` header and
- * `localStorage.athlete_id`. Both are forgeable — anyone can send any email — which
- * is tolerable when the worst case is reading your own data, but NOT for the feed:
- * comments are public writes attributed to a named member, so forgeable identity
- * means anyone can post as anyone.
- *
- * Every user signs in through Google OAuth (src/app/auth/resolve/page.tsx), so a real
- * Supabase session always exists. These helpers verify that session's JWT with
- * Supabase and derive the athlete from the *verified* email. Nothing here trusts a
- * value the client asserted.
- *
- * Client side, pair this with `authFetch()` from src/lib/feed-client.ts, which
- * attaches the bearer token.
- */
+/** Verified-identity helpers for the social feed routes. */
 
 export interface SessionUser {
   email: string;
@@ -26,6 +10,7 @@ export interface SessionUser {
   name: string;
   role: string;
   groupId: string | null;
+  athleteStatus: string | null;
   isStaff: boolean;
 }
 
@@ -35,7 +20,6 @@ export type AuthResult =
 
 const STAFF_ROLES = ['admin', 'coach', 'academy_coach'];
 
-/** Pull the bearer token out of the Authorization header. */
 function bearerToken(request: Request): string {
   const header = request.headers.get('authorization') || '';
   if (!/^bearer\s+/i.test(header)) return '';
@@ -55,8 +39,6 @@ export async function requireSession(request: Request): Promise<AuthResult> {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return { ok: false, status: 500, error: 'Supabase not configured' };
 
-  // The one step that makes the caller's identity trustworthy. Everything below
-  // derives from the email Supabase returns for this token.
   let email = '';
   try {
     const { data, error } = await createClient(url, anonKey).auth.getUser(token);
@@ -77,8 +59,6 @@ export async function requireSession(request: Request): Promise<AuthResult> {
 
   if (athlete) {
     const role = athlete.role || 'runner';
-    // A disconnected/invited athlete keeps read access but is not an active member;
-    // write helpers below reject them.
     return {
       ok: true,
       user: {
@@ -87,6 +67,7 @@ export async function requireSession(request: Request): Promise<AuthResult> {
         name: athlete.name || '',
         role,
         groupId: athlete.group_id || null,
+        athleteStatus: athlete.status || null,
         isStaff: STAFF_ROLES.includes(role),
       },
     };
@@ -110,6 +91,7 @@ export async function requireSession(request: Request): Promise<AuthResult> {
         name: coach.name || '',
         role,
         groupId: null,
+        athleteStatus: null,
         isStaff: true,
       },
     };
@@ -136,15 +118,7 @@ export async function requireAthlete(
     return { ok: false, status: 403, error: 'This account has no athlete profile' };
   }
 
-  // Re-read status: requireSession deliberately allows non-active athletes to read.
-  const supabase = createServerClient();
-  const { data } = await supabase
-    .from('athletes')
-    .select('status')
-    .eq('id', result.user.athleteId)
-    .maybeSingle();
-
-  if (data?.status !== 'active') {
+  if (result.user.athleteStatus !== 'active') {
     return { ok: false, status: 403, error: 'Account is not active' };
   }
 

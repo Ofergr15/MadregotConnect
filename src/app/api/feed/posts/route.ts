@@ -1,23 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireAthlete, authError } from '@/lib/auth-session';
+import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
+import type { FeedMedia } from '@/lib/feed/project';
 
 export const dynamic = 'force-dynamic';
 
 const MAX_BODY_LENGTH = 5000;
 const MAX_IMAGES = 4;
 
-/**
- * POST /api/feed/posts  { body?, media?: [{ path, url, w, h }] }
- *
- * A free member post — text, images, or both (PRD §10). The "just finished an ice
- * bath" case: not tied to any run.
- *
- * Media is uploaded separately via /api/feed/media first, so the composer can show
- * thumbnails and upload progress before the post is committed, and a failed upload
- * never loses typed text.
- */
+/** POST /api/feed/posts  { body?, media?: [{ path, url, w, h }] } */
 export async function POST(request: Request) {
   const auth = await requireAthlete(request);
   if (!auth.ok) return authError(auth);
@@ -25,7 +17,7 @@ export async function POST(request: Request) {
   try {
     const payload = await request.json();
     const body = typeof payload?.body === 'string' ? payload.body.trim() : '';
-    const rawMedia = Array.isArray(payload?.media) ? payload.media : [];
+    const rawMedia: unknown[] = Array.isArray(payload?.media) ? payload.media : [];
 
     if (body.length > MAX_BODY_LENGTH) {
       return NextResponse.json(
@@ -37,29 +29,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Up to ${MAX_IMAGES} images per post` }, { status: 400 });
     }
 
-    // Re-validate the media descriptors rather than trusting the client's shape, and
-    // keep only images that really live in our bucket — otherwise a crafted request
-    // could make the feed render arbitrary remote URLs.
+    const supabase = createServerClient();
     const media = rawMedia
       .map((m: unknown) => {
         const rec = m as { path?: unknown; url?: unknown; w?: unknown; h?: unknown };
-        if (typeof rec?.url !== 'string' || typeof rec?.path !== 'string') return null;
-        if (!rec.url.includes('/storage/v1/object/public/feed-media/')) return null;
+        if (
+          typeof rec?.path !== 'string' ||
+          !rec.path.startsWith(`${auth.user.athleteId}/`)
+        ) {
+          return null;
+        }
+        const { data } = supabase.storage.from('feed-media').getPublicUrl(rec.path);
         return {
           path: rec.path,
-          url: rec.url,
+          url: data.publicUrl,
           w: typeof rec.w === 'number' ? rec.w : null,
           h: typeof rec.h === 'number' ? rec.h : null,
         };
       })
-      .filter(Boolean);
+      .filter((item): item is FeedMedia => item !== null);
 
-    // A post with neither text nor a usable image is not a post.
     if (!body && media.length === 0) {
       return NextResponse.json({ error: 'Add some text or a photo' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
     const now = new Date().toISOString();
 
     const { data: created, error } = await supabase
@@ -76,7 +69,7 @@ export async function POST(request: Request) {
       .single();
     if (error) throw error;
 
-    const item = projectFeedItem(created as never, {
+    const item = projectFeedItem(created, {
       viewerAthleteId: auth.user.athleteId,
       viewerIsStaff: auth.user.isStaff,
       likedItemIds: new Set<string>(),
@@ -96,7 +89,7 @@ export async function POST(request: Request) {
  * would simply reappear, so hiding a run is a visibility concern, not a delete.
  */
 export async function DELETE(request: Request) {
-  const auth = await requireAthlete(request);
+  const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
 
   try {

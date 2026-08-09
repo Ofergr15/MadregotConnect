@@ -76,6 +76,19 @@ export interface FeedItem {
   activity: FeedActivity | null;
 }
 
+function toFeedItemType(type: string): FeedItem['type'] {
+  switch (type) {
+    case 'activity':
+    case 'post':
+    case 'achievement':
+    case 'announcement':
+    case 'new_plan':
+      return type;
+    default:
+      throw new Error(`Unsupported feed item type: ${type}`);
+  }
+}
+
 /** Shape of a joined feed_items row as selected by /api/feed. */
 interface RawFeedRow {
   id: string;
@@ -196,13 +209,14 @@ export interface ProjectContext {
 /** How many likers ride along in the feed payload; the rest load on demand. */
 export const LIKE_PREVIEW_COUNT = 3;
 
-export function projectFeedItem(row: RawFeedRow, ctx: ProjectContext): FeedItem {
+export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
+  const row = value as RawFeedRow;
   const isOwn = !!row.author_athlete_id && row.author_athlete_id === ctx.viewerAthleteId;
   const activity = row.athlete_activities ? projectActivity(row.athlete_activities) : null;
 
   return {
     id: row.id,
-    type: row.type as FeedItem['type'],
+    type: toFeedItemType(row.type),
     author: {
       athleteId: row.author_athlete_id,
       name: row.athletes?.name || 'Madregot',
@@ -217,9 +231,7 @@ export function projectFeedItem(row: RawFeedRow, ctx: ProjectContext): FeedItem 
     commentCount: row.comment_count ?? 0,
     likedByMe: ctx.likedItemIds.has(row.id),
     likePreview: ctx.likersByItem?.get(row.id) ?? [],
-    // Runs are auto-generated from Garmin, so they are not user-deletable; only
-    // authored posts are. Staff may remove anything (moderation).
-    canDelete: ctx.viewerIsStaff || (isOwn && row.type === 'post'),
+    canDelete: row.type === 'post' && (ctx.viewerIsStaff || isOwn),
     activity,
   };
 }
@@ -233,19 +245,22 @@ export const LIKER_SELECT = `
   athletes ( id, name, avatar_url )
 `;
 
-export interface RawLikeRow {
+interface RawLikeRow {
   feed_item_id: string;
   created_at: string;
   athletes?: { id: string; name: string | null; avatar_url: string | null } | null;
 }
 
-export function projectLiker(row: RawLikeRow): FeedLiker | null {
-  // A like whose athlete row vanished mid-query has nothing to show.
+export function projectLike(value: unknown): { itemId: string; liker: FeedLiker } | null {
+  const row = value as RawLikeRow;
   if (!row.athletes?.id) return null;
   return {
-    athleteId: row.athletes.id,
-    name: row.athletes.name || 'Unknown',
-    avatarUrl: row.athletes.avatar_url || null,
+    itemId: row.feed_item_id,
+    liker: {
+      athleteId: row.athletes.id,
+      name: row.athletes.name || 'Unknown',
+      avatarUrl: row.athletes.avatar_url || null,
+    },
   };
 }
 

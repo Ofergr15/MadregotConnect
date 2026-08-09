@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
-import { LIKER_SELECT, projectLiker, type FeedLiker, type RawLikeRow } from '@/lib/feed/project';
+import { LIKER_SELECT, projectLike } from '@/lib/feed/project';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,9 +39,10 @@ export async function GET(request: Request) {
       .limit(MAX_LIKERS);
     if (error) throw error;
 
-    const likers = ((data || []) as unknown as RawLikeRow[])
-      .map(projectLiker)
-      .filter((l): l is FeedLiker => l !== null);
+    const likers = (data || [])
+      .map(projectLike)
+      .filter(projected => projected !== null)
+      .map(projected => projected.liker);
 
     return NextResponse.json({ likers });
   } catch (err: unknown) {
