@@ -39,18 +39,23 @@ function fmtNum(n: number, locale: string): string {
   return n.toLocaleString(locale);
 }
 
-function useGoogleLogin() {
+function useStravaLogin() {
   const [loading, setLoading] = useState(false);
 
   const signIn = async () => {
     setLoading(true);
-    const supabase = getSupabase();
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/resolve`,
-      },
-    });
+    try {
+      // Drop Test Runner / stale JWT so /auth/resolve adopts the Strava user.
+      const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
+      await clearLocalIdentity();
+      const res = await fetch('/api/strava?mode=login');
+      const data = await res.json();
+      if (!res.ok || !data.authUrl) throw new Error(data.error || 'Strava login unavailable');
+      window.location.href = data.authUrl;
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
   };
 
   return { signIn, loading };
@@ -63,7 +68,7 @@ export default function HomePage() {
   const th = useTranslations('header');
   const locale = useLocale();
   const [checking, setChecking] = useState(true);
-  const { signIn, loading: signingIn } = useGoogleLogin();
+  const { signIn, loading: signingIn } = useStravaLogin();
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -153,8 +158,8 @@ export default function HomePage() {
               >
                 {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                   <>
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-primary-600 text-[10px] font-black">G</span>
-                    {tc('signIn')}
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#FC4C02] text-white text-[9px] font-black">S</span>
+                    {t('signInWithStrava')}
                   </>
                 )}
               </button>
@@ -248,7 +253,7 @@ export default function HomePage() {
                   {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                     <>
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-primary-600 text-xs font-black">G</span>
-                      {t('signInWithGoogle')}
+                      {t('signInWithStrava')}
                     </>
                   )}
                 </button>
@@ -538,7 +543,7 @@ export default function HomePage() {
               {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                 <>
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-white text-xs font-black">G</span>
-                  {t('signInWithGoogle')}
+                  {t('signInWithStrava')}
                 </>
               )}
             </button>

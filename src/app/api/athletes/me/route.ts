@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from('athletes')
-    .select('id, name, email, garmin_auth, onboarding_status, avatar_url, created_at')
+    .select('id, name, email, garmin_auth, strava_auth, data_source, onboarding_status, avatar_url, created_at')
     .eq('id', id)
     .single();
 
@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
       name: data.name,
       email: data.email,
       hasGarmin: !!data.garmin_auth,
+      hasStrava: !!data.strava_auth,
+      data_source: data.data_source || null,
       onboardingStatus: data.onboarding_status,
       avatarUrl: data.avatar_url || null,
       memberSince: data.created_at || null,

@@ -40,6 +40,7 @@ export interface RunFolder {
   id: string;       // Drive folder ID — used as the key in import/process calls
   name: string;     // Display name, e.g. "שישי 24.7"
   date: string;     // YYYY-MM-DD derived from createdTime
+  totalPhotos: number; // number of image files in this subfolder
 }
 
 export interface DrivePhoto {
@@ -66,10 +67,28 @@ export async function listRunFolders(): Promise<RunFolder[]> {
     orderBy: 'createdTime desc',
   });
 
-  return (res.data.files ?? []).map(f => ({
+  const folders = (res.data.files ?? []).map(f => ({
     id: f.id!,
     name: f.name ?? '',
     date: (f.createdTime ?? '').slice(0, 10),
+  }));
+
+  // Fetch photo counts for all folders in parallel (lightweight — only IDs returned)
+  const counts = await Promise.allSettled(
+    folders.map(f =>
+      drive.files.list({
+        q: `'${f.id}' in parents and mimeType contains 'image/' and trashed = false`,
+        fields: 'files(id)',
+        pageSize: 1000,
+      }).then(r => r.data.files?.length ?? 0)
+    )
+  );
+
+  return folders.map((f, i) => ({
+    ...f,
+    totalPhotos: counts[i].status === 'fulfilled'
+      ? (counts[i] as PromiseFulfilledResult<number>).value
+      : 0,
   }));
 }
 

@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { defaultCache } from '@serwist/next/worker';
+import { defaultCache } from '@serwist/turbopack/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { NetworkOnly, Serwist } from 'serwist';
 
@@ -37,7 +37,7 @@ const serwist = new Serwist({
     {
       matcher: ({ url, request }) =>
         request.mode === 'navigate' &&
-        (/^\/(auth|garmin-callback)(\/|$)/.test(url.pathname) ||
+        (/^\/(auth|garmin-callback|serwist)(\/|$)/.test(url.pathname) ||
           url.searchParams.has('code')),
       handler: new NetworkOnly(),
     },

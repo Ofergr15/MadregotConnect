@@ -38,7 +38,17 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (coachAthlete) {
-        return NextResponse.json({ role: coachAthlete.role || 'coach', coach });
+        // Include the athletes row — run-chat / Stream identify staff by athletes.id.
+        const { data: fullAthlete } = await supabase
+          .from('athletes')
+          .select('id, name, email, group_id')
+          .eq('id', coachAthlete.id)
+          .maybeSingle();
+        return NextResponse.json({
+          role: coachAthlete.role || 'coach',
+          coach,
+          athlete: fullAthlete || { id: coachAthlete.id, name: coach.name, email: lowerEmail, group_id: null },
+        });
       }
       // Coach record exists but no matching athlete — treat as new user (was deleted)
     }
@@ -48,12 +58,15 @@ export async function POST(req: NextRequest) {
     // multiple, prefer the most complete one (has Garmin, else most recent).
     const { data: activeRows } = await supabase
       .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth, approved, role, created_at')
+      .select('id, name, email, group_id, status, garmin_auth, strava_auth, approved, role, created_at')
       .eq('email', lowerEmail)
       .eq('status', 'active')
       .order('created_at', { ascending: false });
+    // Prefer Strava-connected rows (primary source), then Garmin legacy.
     const athlete = (activeRows || []).sort(
-      (a: any, b: any) => (b.garmin_auth ? 1 : 0) - (a.garmin_auth ? 1 : 0)
+      (a: any, b: any) =>
+        (b.strava_auth ? 2 : 0) + (b.garmin_auth ? 1 : 0) -
+        ((a.strava_auth ? 2 : 0) + (a.garmin_auth ? 1 : 0)),
     )[0];
 
     if (athlete) {
@@ -61,9 +74,21 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ pendingApproval: true, missingGarmin: false });
       }
       const hasGarmin = !!athlete.garmin_auth;
+      const hasStrava = !!athlete.strava_auth;
       // Honor the athlete's actual role (coach / academy_coach / academy_user / …),
       // not a hardcoded 'runner', so elevated roles resolve correctly on login.
-      return NextResponse.json({ role: athlete.role || 'runner', athlete: { ...athlete, garmin_auth: undefined, approved: undefined, role: undefined }, hasGarmin });
+      return NextResponse.json({
+        role: athlete.role || 'runner',
+        athlete: {
+          ...athlete,
+          garmin_auth: undefined,
+          strava_auth: undefined,
+          approved: undefined,
+          role: undefined,
+        },
+        hasGarmin,
+        hasStrava,
+      });
     }
 
     // Check invited athletes (need onboarding)

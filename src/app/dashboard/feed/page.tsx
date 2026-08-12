@@ -24,15 +24,57 @@ export default function FeedPage() {
   const [commentItem, setCommentItem] = useState<FeedItem | null>(null);
 
   const [myName, setMyName] = useState('');
+  const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
+  const [isStaff, setIsStaff] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const hasMore = cursor !== null;
 
   useEffect(() => {
-    getSupabase().auth.getSession().then(({ data }) => {
-      const name = data.session?.user?.user_metadata?.full_name ||
-        data.session?.user?.email?.split('@')[0] || '';
-      setMyName(name);
+    // Seed from localStorage for instant paint, then re-resolve from the live
+    // session so a Dev identity switch can't leave a stale athlete_id around.
+    const storedId = localStorage.getItem('athlete_id');
+    const storedName = localStorage.getItem('athlete_name');
+    if (storedId) setMyAthleteId(storedId);
+    if (storedName) setMyName(storedName);
+    if (localStorage.getItem('coach_email')) setIsStaff(true);
+
+    getSupabase().auth.getSession().then(async ({ data }) => {
+      const session = data.session;
+      const email = session?.user?.email;
+      const name = session?.user?.user_metadata?.full_name ||
+        email?.split('@')[0] ||
+        storedName ||
+        '';
+      if (name) setMyName(name);
+      if (!email) return;
+
+      try {
+        const res = await fetch('/api/auth/resolve-role', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, name }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const staff =
+          data.role === 'admin' ||
+          data.role === 'coach' ||
+          data.role === 'academy_coach' ||
+          !!data.coach ||
+          !!localStorage.getItem('coach_email');
+        setIsStaff(staff);
+        if (staff) localStorage.setItem('coach_email', email);
+        if (data.athlete?.id) {
+          setMyAthleteId(data.athlete.id);
+          localStorage.setItem('athlete_id', data.athlete.id);
+          if (data.athlete.name) {
+            setMyName(data.athlete.name);
+            localStorage.setItem('athlete_name', data.athlete.name);
+          }
+          localStorage.setItem('athlete_email', data.athlete.email || email);
+        }
+      } catch { /* keep localStorage fallback */ }
     });
   }, []);
 
@@ -145,6 +187,8 @@ export default function FeedPage() {
               key={item.id}
               item={item}
               commentCount={item.commentCount}
+              myAthleteId={myAthleteId}
+              isStaff={isStaff}
               onComment={i => setCommentItem(i)}
               onDelete={handleDelete}
             />

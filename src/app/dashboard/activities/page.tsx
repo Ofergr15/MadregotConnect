@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { RefreshCw, Activity, TrendingUp, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain } from 'lucide-react';
+import { RefreshCw, Activity, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain, TrendingUp } from 'lucide-react';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { cn } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
@@ -81,7 +81,6 @@ export default function ActivitiesPage() {
   const locale = useLocale();
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const [enriching, setEnriching] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffsetState] = useState(() => {
@@ -128,10 +127,12 @@ export default function ActivitiesPage() {
   const syncAndFetch = async () => {
     setSyncing(true);
     try {
-      await fetch('/api/garmin/sync-activities', {
+      const id = athleteId || localStorage.getItem('athlete_id');
+      if (!id) throw new Error('No athlete');
+      await fetch('/api/strava/sync-activities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ athleteId: id }),
       });
       const res = await fetchActivitiesScoped();
       if (res.ok) {
@@ -142,15 +143,6 @@ export default function ActivitiesPage() {
       setLastSyncTime(new Date().toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' }));
     } catch { /* silent */ }
     finally { setSyncing(false); }
-  };
-
-  const enrichActivities = async () => {
-    setEnriching(true);
-    try {
-      await fetch('/api/garmin/sync-activities', { method: 'PATCH' });
-      await fetchActivities();
-    } catch { /* silent */ }
-    finally { setEnriching(false); }
   };
 
   // Filter activities by role
@@ -259,16 +251,6 @@ export default function ActivitiesPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {isCoach && activities.some(a => !a.avg_cadence && !a.vo2max) && (
-              <button
-                onClick={enrichActivities}
-                disabled={enriching}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors disabled:opacity-50"
-              >
-                <TrendingUp className={cn("h-3.5 w-3.5", enriching && "animate-pulse")} />
-                {enriching ? t('enriching') : t('enrich')}
-              </button>
-            )}
             <button
               onClick={syncAndFetch}
               disabled={syncing}
@@ -401,6 +383,8 @@ export default function ActivitiesPage() {
           syncing={syncing}
           lastSyncTime={lastSyncTime}
           onSync={syncAndFetch}
+          myAthleteId={athleteId}
+          isStaff={isCoach}
         />
       </div>
     </div>

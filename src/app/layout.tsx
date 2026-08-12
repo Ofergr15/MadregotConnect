@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Heebo } from 'next/font/google';
+import { SerwistProvider } from '@serwist/turbopack/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { AppSplash } from '@/components/AppSplash';
 import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { ImpersonationBar } from '@/components/ImpersonationBar';
 import { UpdatePrompt } from '@/components/UpdatePrompt';
+import { DevIdentitySwitcher } from '@/components/DevIdentitySwitcher';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
 
@@ -60,13 +62,16 @@ export default async function RootLayout({
   return (
     <html lang={locale} dir={dir}>
       <body className={`${heebo.variable} ${inter.variable} font-sans`}>
-        <NextIntlClientProvider locale={locale} messages={messages} key={locale}>
-          {children}
-        </NextIntlClientProvider>
+        <SerwistProvider swUrl="/serwist/sw.js">
+          <NextIntlClientProvider locale={locale} messages={messages} key={locale}>
+            {children}
+          </NextIntlClientProvider>
+        </SerwistProvider>
         <AppSplash />
         <MaintenanceGate />
         <ImpersonationBar />
         <UpdatePrompt />
+        <DevIdentitySwitcher />
         <SpeedInsights />
       </body>
     </html>
