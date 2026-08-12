@@ -6,6 +6,20 @@ export interface ParsedWorkout {
   dayOfWeek: number; // 0=Sunday, 6=Saturday
   name: string;
   description?: string;
+  /** Stable across all three group variants; used by activity matching and clipboard paths. */
+  workoutKey?: string;
+  /** 1-based position when a day contains separately recorded workout parts. */
+  partIndex?: number;
+  partCount?: number;
+  partKind?: 'single' | 'warmup' | 'test' | 'main' | 'cooldown';
+  /** Matcher hints derived by the parser and normalized server-side. */
+  expectedDistanceM?: number;
+  expectedDurationSec?: number;
+  distanceToleranceM?: number;
+  activityNameTokens?: string[];
+  /** Published artifacts. The structured workout remains the source of truth. */
+  clipboardImageUrl?: string;
+  clipboardText?: string;
   distanceMinKm?: number;
   distanceMaxKm?: number;
   steps: WorkoutStep[];
@@ -14,6 +28,11 @@ export interface ParsedWorkout {
 export interface GroupPace {
   min: number; // seconds per km
   max: number; // seconds per km
+}
+
+export interface GroupHeartRate {
+  min: number; // percent of max HR
+  max: number; // percent of max HR
 }
 
 export interface WorkoutStep {
@@ -27,6 +46,10 @@ export interface WorkoutStep {
   targetPaceMaxPerKm?: number; // seconds per km (slower limit) — Group ❶
   group2Pace?: GroupPace; // Group ❷ pace
   group3Pace?: GroupPace; // Group ❸ pace
+  targetHrMinPct?: number; // Group ❶
+  targetHrMaxPct?: number; // Group ❶
+  group2HeartRate?: GroupHeartRate;
+  group3HeartRate?: GroupHeartRate;
   notes?: string;
   repeatCount?: number;
   repeatSteps?: WorkoutStep[];

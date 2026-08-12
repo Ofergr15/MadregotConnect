@@ -10,6 +10,14 @@ Return ONLY valid JSON matching this schema:
       "dayOfWeek": 0,
       "name": "Interval Session",
       "description": "Optional notes for the athlete",
+      "workoutKey": "day-2-part-1-warmup",
+      "partIndex": 1,
+      "partCount": 1,
+      "partKind": "single|warmup|test|main|cooldown",
+      "expectedDistanceM": 12000,
+      "expectedDurationSec": null,
+      "distanceToleranceM": 800,
+      "activityNameTokens": ["interval", "test"],
       "distanceMinKm": 12,
       "distanceMaxKm": 14,
       "steps": [
@@ -24,6 +32,10 @@ Return ONLY valid JSON matching this schema:
           "targetPaceMaxPerKm": null,
           "group2Pace": { "min": null, "max": null },
           "group3Pace": { "min": null, "max": null },
+          "targetHrMinPct": null,
+          "targetHrMaxPct": null,
+          "group2HeartRate": { "min": null, "max": null },
+          "group3HeartRate": { "min": null, "max": null },
           "notes": null,
           "repeatCount": null,
           "repeatSteps": null
@@ -98,6 +110,34 @@ Example with ranges:
 → { "durationType": "distance", "durationValue": 6000, "targetPaceMinPerKm": 255, "targetPaceMaxPerKm": 255, "group2Pace": {"min": 264, "max": 264}, "group3Pace": {"min": 276, "max": 276} }
 
 If all 3 columns have the SAME pace (e.g., easy runs, warmup at 5:00), set group2Pace and group3Pace to null.
+
+## Multiple separately recorded parts on one day
+
+The default is ONE workout object per day. Split a day into multiple workout objects
+only when the document clearly describes independently recorded efforts, especially:
+- warmup run + a named distance test/race + a separate remaining workout/cooldown
+- explicit morning/evening sessions
+- explicit instructions to stop/save/restart the watch
+
+All parts use the same dayOfWeek and MUST have:
+- the same partCount
+- sequential partIndex starting at 1
+- a deterministic workoutKey: "day-{dayOfWeek}-part-{partIndex}-{short-kind}"
+- partKind: warmup, test, main, cooldown, or single
+- expectedDistanceM/expectedDurationSec when the document gives enough information
+- distanceToleranceM (about 5-10%, minimum 150m)
+- concise activityNameTokens in Hebrew and/or English
+
+Each part contains ONLY its own steps. Do not repeat warmup/cooldown across parts.
+
+Example — Tuesday says warmup, "מבחן 3000", then the rest of the workout:
+1. Tuesday part 1: warmup only, partKind "warmup"
+2. Tuesday part 2: exactly 3000m test, partKind "test", expectedDistanceM 3000,
+   distanceToleranceM 200, tokens ["3000", "test", "מבחן"]
+3. Tuesday part 3: remaining work/cooldown, partKind "main"
+
+The three pace-group variants are NOT separate parts. Extract one canonical list,
+then use target/group2/group3 pace or heart-rate fields on each step.
 
 ## Hebrew Running Terminology
 

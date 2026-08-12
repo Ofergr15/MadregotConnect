@@ -79,11 +79,23 @@ function splitStep(step: WorkoutStep, group: 1 | 2 | 3): WorkoutStep {
     }
   }
 
+  if (group === 2 && step.group2HeartRate) {
+    result.targetHrMinPct = step.group2HeartRate.min;
+    result.targetHrMaxPct = step.group2HeartRate.max;
+    result.targetType = 'heart_rate';
+  } else if (group === 3 && step.group3HeartRate) {
+    result.targetHrMinPct = step.group3HeartRate.min;
+    result.targetHrMaxPct = step.group3HeartRate.max;
+    result.targetType = 'heart_rate';
+  }
+
   result.notes = rewriteNotesForGroup(result.notes, group);
 
   // Remove group pace fields from output
   delete result.group2Pace;
   delete result.group3Pace;
+  delete result.group2HeartRate;
+  delete result.group3HeartRate;
 
   // Recursively handle repeat steps
   if (result.repeatSteps) {

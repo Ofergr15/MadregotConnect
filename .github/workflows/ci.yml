@@ -1,0 +1,48 @@
+name: CI
+
+# Typecheck + tests + lint on every push and PR. These are the same checks
+# `npm run check` runs locally, so a green local run means a green CI run.
+#
+# Node 22 is required, not a preference: the vitest 4 toolchain pulls a native
+# rolldown binding whose engines field is "^20.19.0 || >=22.12.0". On an older
+# Node, npm SILENTLY SKIPS that optional dependency and the test suite fails to
+# start with a confusing "Cannot find module" error. .nvmrc pins the same major.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      # Catches build-time breakage (bad imports, server/client boundary
+      # violations) that tsc alone doesn't. Env vars are placeholders — the
+      # build must not need real credentials.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
+          SUPABASE_SERVICE_ROLE_KEY: placeholder
+          ANTHROPIC_API_KEY: placeholder

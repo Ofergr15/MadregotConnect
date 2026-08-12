@@ -800,22 +800,13 @@ function ProfileContent() {
                 setSyncing(true);
                 setSyncResult(null);
                 try {
-                  const fetches: Promise<Response>[] = [];
-                  if (hasGarmin && !hasActivities) {
-                    fetches.push(fetch('/api/garmin/sync-activities', {
+                  const results = await Promise.allSettled([
+                    fetch('/api/strava/sync-activities', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ athleteId }),
-                    }));
-                  }
-                  if (hasStrava) {
-                    fetches.push(fetch('/api/strava/sync-activities', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ athleteId }),
-                    }));
-                  }
-                  const results = await Promise.allSettled(fetches);
+                    }),
+                  ]);
                   let totalSynced = 0;
                   for (const r of results) {
                     if (r.status === 'fulfilled' && r.value.ok) {

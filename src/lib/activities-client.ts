@@ -13,21 +13,19 @@ export function fetchActivities(): Promise<Response> {
       ? localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || ''
       : '';
   const qs = athleteId ? `?athleteId=${encodeURIComponent(athleteId)}` : '';
-  return fetch(`/api/garmin/sync-activities${qs}`, {
+  return fetch(`/api/activities${qs}`, {
     headers: email ? { 'x-user-email': email } : {},
   });
 }
 
-// Fetch full details (GPS/splits) for one activity. The server verifies the
-// caller owns that athlete (or is staff) via the email header, so we always
-// send it.
+/** Fetch route/splits for one activity (DB uuid preferred). */
 export function fetchActivityDetails(activityId: number | string, athleteId: string): Promise<Response> {
   const email =
     typeof window !== 'undefined'
       ? localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || ''
       : '';
   return fetch(
-    `/api/garmin/activity-details?activityId=${activityId}&athleteId=${encodeURIComponent(athleteId)}`,
-    { headers: email ? { 'x-user-email': email } : {} }
+    `/api/activities/details?activityId=${encodeURIComponent(String(activityId))}&athleteId=${encodeURIComponent(athleteId)}`,
+    { headers: email ? { 'x-user-email': email } : {} },
   );
 }
