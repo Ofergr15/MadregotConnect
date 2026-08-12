@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users, Eye, EyeOff } from 'lucide-react';
 
 interface Group {
@@ -11,7 +12,8 @@ interface Group {
   marathonGoal?: string;
 }
 
-export default function JoinPage({ params }: { params: { token: string } }) {
+export default function JoinPage() {
+  const { token } = useParams<{ token: string }>();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
@@ -33,7 +35,7 @@ export default function JoinPage({ params }: { params: { token: string } }) {
     setStep('info');
     setAuthLoading(false);
 
-    fetch(`/api/join/groups?token=${params.token}`)
+    fetch(`/api/join/groups?token=${token}`)
       .then(res => res.json())
       .then(data => {
         const fetchedGroups = data.groups || [];
@@ -43,7 +45,7 @@ export default function JoinPage({ params }: { params: { token: string } }) {
         }
       })
       .catch(() => {});
-  }, [params.token]);
+  }, [token]);
 
 
   const saveConnection = async (auth: string) => {
@@ -51,7 +53,7 @@ export default function JoinPage({ params }: { params: { token: string } }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        inviteToken: params.token,
+        inviteToken: token,
         garminAuth: auth,
         name,
         email,
@@ -449,7 +451,7 @@ export default function JoinPage({ params }: { params: { token: string } }) {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      inviteToken: params.token,
+                      inviteToken: token,
                       name,
                       email,
                       groupId: selectedGroup || undefined,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, Trash2, Route, MapPin, Mountain, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations, useFormatter } from 'next-intl';
@@ -8,6 +9,7 @@ import { toggleLike } from '@/lib/feed-client';
 import { FeedLikesSheet } from '@/components/FeedLikesSheet';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedShareSheet } from '@/components/FeedShareSheet';
+import { RouteMinimap } from '@/components/RouteMinimap';
 import type { FeedItem, FeedLiker } from '@/lib/feed/project';
 
 function formatPace(secPerKm: number): string {
@@ -25,30 +27,6 @@ function formatDuration(seconds: number): string {
 }
 
 type Translate = ReturnType<typeof useTranslations<'feed'>>;
-
-function RouteMinimap({ points }: { points: Array<{ lat: number; lng: number }> }) {
-  if (points.length < 2) return null;
-  const lats = points.map(p => p.lat);
-  const lngs = points.map(p => p.lng);
-  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-  const latRange = maxLat - minLat || 0.001;
-  const lngRange = maxLng - minLng || 0.001;
-  const W = 300, H = 100, P = 10;
-  const pts = points.map(p => ({
-    x: P + ((p.lng - minLng) / lngRange) * (W - 2 * P),
-    y: P + ((maxLat - p.lat) / latRange) * (H - 2 * P),
-  }));
-  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-xl" style={{ height: 80 }}>
-      <rect width={W} height={H} rx="12" fill="#0f172a" />
-      <path d={d} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={pts[0].x.toFixed(1)} cy={pts[0].y.toFixed(1)} r="4" fill="#22c55e" stroke="#0f172a" strokeWidth="1.5" />
-      <circle cx={pts[pts.length - 1].x.toFixed(1)} cy={pts[pts.length - 1].y.toFixed(1)} r="4" fill="#ef4444" stroke="#0f172a" strokeWidth="1.5" />
-    </svg>
-  );
-}
 
 function AuthorRow({ item }: { item: FeedItem }) {
   const format = useFormatter();
@@ -100,21 +78,30 @@ function LikerStack({ likers }: { likers: FeedLiker[] }) {
 function ActionRow({
   item,
   commentCount,
+  myAthleteId,
+  isStaff,
   onCommentPress,
   onDelete,
 }: {
   item: FeedItem;
   commentCount: number;
+  myAthleteId: string | null;
+  isStaff: boolean;
   onCommentPress: () => void;
   onDelete?: () => void;
 }) {
+  const router = useRouter();
   const [liked, setLiked] = useState(item.likedByMe);
   const [likeCount, setLikeCount] = useState(item.likeCount);
   const [likers, setLikers] = useState<FeedLiker[]>(item.likePreview);
   const t = useTranslations('feed');
+  const tChat = useTranslations('runChat');
   const [busy, setBusy] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const isMyActivity = !!myAthleteId && item.activity?.athleteId === myAthleteId;
+  const canOpenRunChat = !!item.activity && (isMyActivity || isStaff);
+  const runChatLabel = isStaff && !isMyActivity ? tChat('chatWithRunner') : tChat('chatWithCoach');
 
   const handleLike = useCallback(async () => {
     if (busy) return;
@@ -197,6 +184,16 @@ function ActionRow({
           </button>
         )}
 
+        {canOpenRunChat && (
+          <button
+            onClick={() => router.push(`/dashboard/run-chat/${item.activity!.id}`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-400 hover:text-primary-400 hover:bg-primary-500/10 transition-all active:scale-90"
+          >
+            <MessageCircle className="h-4 w-4" />
+            <span className="text-xs">{runChatLabel}</span>
+          </button>
+        )}
+
         {onDelete && (
           <button
             onClick={onDelete}
@@ -225,11 +222,15 @@ function ActionRow({
 function ActivityCard({
   item,
   commentCount,
+  myAthleteId,
+  isStaff,
   onComment,
   onDelete,
 }: {
   item: FeedItem;
   commentCount: number;
+  myAthleteId: string | null;
+  isStaff: boolean;
   onComment: () => void;
   onDelete?: () => void;
 }) {
@@ -308,7 +309,14 @@ function ActivityCard({
           <p className="text-sm text-slate-300 mb-2 leading-relaxed">{item.body}</p>
         )}
 
-        <ActionRow item={item} commentCount={commentCount} onCommentPress={onComment} onDelete={onDelete} />
+        <ActionRow
+          item={item}
+          commentCount={commentCount}
+          myAthleteId={myAthleteId}
+          isStaff={isStaff}
+          onCommentPress={onComment}
+          onDelete={onDelete}
+        />
       </div>
     </div>
   );
@@ -366,7 +374,15 @@ function PostCard({
           </div>
         )}
 
-        <ActionRow item={item} commentCount={commentCount} onCommentPress={onComment} onDelete={onDelete} />
+        {/* Posts are never activities — no run-chat CTA */}
+        <ActionRow
+          item={item}
+          commentCount={commentCount}
+          myAthleteId={null}
+          isStaff={false}
+          onCommentPress={onComment}
+          onDelete={onDelete}
+        />
       </div>
     </div>
   );
@@ -375,11 +391,15 @@ function PostCard({
 export function FeedCard({
   item,
   commentCount,
+  myAthleteId = null,
+  isStaff = false,
   onComment,
   onDelete,
 }: {
   item: FeedItem;
   commentCount: number;
+  myAthleteId?: string | null;
+  isStaff?: boolean;
   onComment: (item: FeedItem) => void;
   onDelete?: (item: FeedItem) => void;
 }) {
@@ -393,6 +413,8 @@ export function FeedCard({
           <ActivityCard
             item={item}
             commentCount={commentCount}
+            myAthleteId={myAthleteId}
+            isStaff={isStaff}
             onComment={handleComment}
             onDelete={handleDelete}
           />

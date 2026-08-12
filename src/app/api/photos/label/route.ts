@@ -1,16 +1,13 @@
 /**
- * POST /api/photos/label
- * Body: { faceId: string, athleteId: string }
+ * POST /api/photos/label — tag a cluster (all faces of the same person at once).
+ * Body: { clusterId: string, athleteId?: string, personName?: string }
+ *   - athleteId: link to a registered athlete (promotes to reference + backfill)
+ *   - personName: label for a non-registered person; can be linked to athlete later
+ *
+ * DELETE /api/photos/label — untag a cluster.
+ * Body: { clusterId: string }
+ *
  * Staff only.
- *
- * Manually tags an unidentified detected face. If the athlete has no reference
- * face yet, this crop is promoted to a reference (origin='coach_label') and the
- * backfill runs so future photos auto-tag.
- *
- * DELETE /api/photos/label
- * Body: { faceId: string }
- * Staff only. Removes a wrong tag. If the face was also used as a reference face
- * it's deleted from the Rekognition collection too.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyRequest, isStaff } from '@/lib/auth/verify';
@@ -27,32 +24,33 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!isStaff(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    const { faceId: detectedFaceId, athleteId } = (await req.json()) as {
-      faceId?: string;
+    const { clusterId, athleteId, personName } = (await req.json()) as {
+      clusterId?: string;
       athleteId?: string;
+      personName?: string;
     };
-    if (!detectedFaceId || !athleteId) {
-      return NextResponse.json({ error: 'faceId and athleteId are required' }, { status: 400 });
+
+    if (!clusterId) return NextResponse.json({ error: 'clusterId is required' }, { status: 400 });
+    if (!athleteId && !personName) {
+      return NextResponse.json({ error: 'athleteId or personName is required' }, { status: 400 });
     }
 
     const supabase = createServerClient();
 
-    // Fetch the detected face record
-    const { data: face, error: faceErr } = await supabase
-      .from('detected_faces')
-      .select('id, crop_url, rekognition_face_id, athlete_id')
-      .eq('id', detectedFaceId)
-      .maybeSingle();
-
-    if (faceErr || !face) {
-      return NextResponse.json({ error: 'Face not found' }, { status: 404 });
+    if (personName && !athleteId) {
+      // Just a name — label the whole cluster, no Rekognition promotion needed
+      await supabase
+        .from('detected_faces')
+        .update({ person_name: personName, athlete_id: null, source: 'manual' })
+        .eq('cluster_id', clusterId);
+      return NextResponse.json({ labeled: true, photosTagged: 0 });
     }
 
-    // Tag it
+    // Tagging to an athlete — apply to whole cluster
     await supabase
       .from('detected_faces')
-      .update({ athlete_id: athleteId, source: 'manual', confidence: null })
-      .eq('id', detectedFaceId);
+      .update({ athlete_id: athleteId, person_name: null, source: 'manual', confidence: null })
+      .eq('cluster_id', clusterId);
 
     // Check if athlete already has a reference face
     const { data: existingRef } = await supabase
@@ -63,27 +61,33 @@ export async function POST(req: NextRequest) {
 
     let photosTagged = 0;
 
-    if (!existingRef && face.crop_url && face.rekognition_face_id) {
-      // Promote this crop to a reference face
-      // Re-index with ExternalImageId = athleteId (crops are small JPEGs from Storage;
-      // we need to re-fetch the buffer)
-      let refFaceId = face.rekognition_face_id;
-      try {
-        const cropRes = await fetch(face.crop_url);
-        const buffer = Buffer.from(await cropRes.arrayBuffer());
-        refFaceId = await indexFace(buffer, athleteId);
-      } catch {
-        // Fall back to using the already-indexed faceId as the reference
+    if (!existingRef) {
+      // Pick one representative face from the cluster to promote as reference
+      const { data: rep } = await supabase
+        .from('detected_faces')
+        .select('id, crop_url, rekognition_face_id')
+        .eq('cluster_id', clusterId)
+        .not('crop_url', 'is', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (rep?.rekognition_face_id) {
+        let refFaceId = rep.rekognition_face_id;
+        try {
+          const cropRes = await fetch(rep.crop_url!);
+          const buffer = Buffer.from(await cropRes.arrayBuffer());
+          refFaceId = await indexFace(buffer, athleteId);
+        } catch { /* fall back to existing faceId */ }
+
+        await supabase.from('athlete_faces').insert({
+          athlete_id: athleteId,
+          rekognition_face_id: refFaceId,
+          origin: 'coach_label',
+          source_face_id: rep.id,
+        });
+
+        photosTagged = await backfillAthlete(athleteId!, refFaceId);
       }
-
-      await supabase.from('athlete_faces').insert({
-        athlete_id: athleteId,
-        rekognition_face_id: refFaceId,
-        origin: 'coach_label',
-        source_face_id: detectedFaceId,
-      });
-
-      photosTagged = await backfillAthlete(athleteId, refFaceId);
     }
 
     return NextResponse.json({ labeled: true, photosTagged });
@@ -99,26 +103,22 @@ export async function DELETE(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!isStaff(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    const { faceId: detectedFaceId } = (await req.json()) as { faceId?: string };
-    if (!detectedFaceId) {
-      return NextResponse.json({ error: 'faceId is required' }, { status: 400 });
-    }
+    const { clusterId } = (await req.json()) as { clusterId?: string };
+    if (!clusterId) return NextResponse.json({ error: 'clusterId is required' }, { status: 400 });
 
     const supabase = createServerClient();
 
-    // Fetch to check if this face is also a reference
-    const { data: face } = await supabase
+    // Remove any reference faces promoted from this cluster
+    const { data: clusterFaces } = await supabase
       .from('detected_faces')
-      .select('rekognition_face_id')
-      .eq('id', detectedFaceId)
-      .maybeSingle();
+      .select('id, rekognition_face_id')
+      .eq('cluster_id', clusterId);
 
-    if (face?.rekognition_face_id) {
-      // Remove from Rekognition collection if it was used as a reference
+    for (const face of clusterFaces ?? []) {
       const { data: ref } = await supabase
         .from('athlete_faces')
         .select('id, rekognition_face_id')
-        .eq('source_face_id', detectedFaceId)
+        .eq('source_face_id', face.id)
         .maybeSingle();
       if (ref) {
         try { await deleteFace(ref.rekognition_face_id); } catch { /* ignore */ }
@@ -126,11 +126,11 @@ export async function DELETE(req: NextRequest) {
       }
     }
 
-    // Clear the tag (keep the detected face row, just remove the athlete link)
+    // Clear the tag from the whole cluster
     await supabase
       .from('detected_faces')
-      .update({ athlete_id: null, confidence: null, source: 'auto' })
-      .eq('id', detectedFaceId);
+      .update({ athlete_id: null, person_name: null, confidence: null, source: 'auto' })
+      .eq('cluster_id', clusterId);
 
     return NextResponse.json({ untagged: true });
   } catch (error: unknown) {

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, Trophy, MessageSquare, Watch, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, Newspaper, Image } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, Trophy, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, Newspaper, Image } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
@@ -54,7 +54,6 @@ export function Header() {
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [groupName, setGroupName] = useState<string | null>(null);
   const [groupColor, setGroupColor] = useState<string>('#6366f1');
-  const [hasGarmin, setHasGarmin] = useState<boolean | null>(null);
   const [showGroupPicker, setShowGroupPicker] = useState(false);
   const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -107,9 +106,6 @@ export function Header() {
     }
 
     if (athleteId) {
-      const supabaseClient = getSupabase();
-      supabaseClient.from('athletes').select('garmin_auth').eq('id', athleteId).single()
-        .then(({ data }) => { setHasGarmin(!!data?.garmin_auth); });
       fetch('/api/groups').then(r => r.ok ? r.json() : null)
         .then(data => { if (data) setAvailableGroups(data.groups || data || []); })
         .catch(() => {});
@@ -288,15 +284,6 @@ export function Header() {
                     })}
                   </div>
                 )}
-              </div>
-            )}
-
-            {isAthlete && hasGarmin !== null && (
-              <div className={cn('relative group p-2 rounded-lg', hasGarmin ? 'text-emerald-400' : 'text-red-400')}>
-                <Watch className="h-4.5 w-4.5" />
-                <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
-                  {hasGarmin ? th('garminConnected') : th('garminNotConnected')}
-                </span>
               </div>
             )}
 

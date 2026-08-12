@@ -1,28 +1,26 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
+const FROM = process.env.RESEND_FROM_EMAIL || 'Madregot <onboarding@resend.dev>';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'madregot.club@gmail.com';
-const GMAIL_USER = process.env.GMAIL_USER || 'madregot.club@gmail.com';
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://madregot-connect.vercel.app';
 
-function getTransporter() {
-  if (!GMAIL_APP_PASSWORD) throw new Error('GMAIL_APP_PASSWORD not configured');
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
-  });
+function isConfigured() {
+  return !!process.env.RESEND_API_KEY;
+}
+
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY!);
 }
 
 export async function notifyAdminNewUser(user: { name: string; email: string; onboardingStatus: string; hasGarmin?: boolean }) {
+  if (!isConfigured()) return;
   const authStatusMap: Record<string, string> = {
     'garmin_authed': '✅ Google + Garmin Connected',
     'google_authed': '⚠️ Google Only (skipped Garmin)',
   };
   const authStatus = authStatusMap[user.onboardingStatus] || (user.hasGarmin ? '✅ Google + Garmin' : '⚠️ Google only');
-  await getTransporter().sendMail({
-    from: `Madregot <${GMAIL_USER}>`,
+  await getResend().emails.send({
+    from: FROM,
     to: ADMIN_EMAIL,
     subject: `🏃 New user waiting for approval: ${user.name}`,
     html: `
@@ -35,7 +33,7 @@ export async function notifyAdminNewUser(user: { name: string; email: string; on
           <tr><td style="padding: 8px 0; color: #64748b;">Status</td><td style="padding: 8px 0;">${user.onboardingStatus}</td></tr>
         </table>
         <p style="margin-top: 20px;">
-          <a href="https://madregot-connect.vercel.app/dashboard/settings" style="background: #4338ff; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="${APP_URL}/dashboard/settings" style="background: #4338ff; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Review & Approve →
           </a>
         </p>
@@ -45,8 +43,9 @@ export async function notifyAdminNewUser(user: { name: string; email: string; on
 }
 
 export async function notifyUserApproved(user: { name: string; email: string }) {
-  await getTransporter().sendMail({
-    from: `Madregot <${GMAIL_USER}>`,
+  if (!isConfigured()) return;
+  await getResend().emails.send({
+    from: FROM,
     to: user.email,
     subject: `✅ Welcome to Madregot! You're approved`,
     html: `
@@ -56,7 +55,7 @@ export async function notifyUserApproved(user: { name: string; email: string }) 
           Your account has been approved. You can now access the full Madregot training platform.
         </p>
         <p style="margin-top: 20px;">
-          <a href="https://madregot-connect.vercel.app/dashboard" style="background: #4338ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="${APP_URL}/dashboard" style="background: #4338ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Open Madregot →
           </a>
         </p>
@@ -69,8 +68,9 @@ export async function notifyUserApproved(user: { name: string; email: string }) 
 }
 
 export async function notifyAdminUserApproved(admin: { email: string }, user: { name: string; email: string }) {
-  await getTransporter().sendMail({
-    from: `Madregot <${GMAIL_USER}>`,
+  if (!isConfigured()) return;
+  await getResend().emails.send({
+    from: FROM,
     to: admin.email,
     subject: `✅ User approved: ${user.name}`,
     html: `
@@ -81,12 +81,10 @@ export async function notifyAdminUserApproved(admin: { email: string }, user: { 
   });
 }
 
-const APP_URL = 'https://madregot-connect.vercel.app';
-
-// New academy self-registration → notify the coach/admin to review.
 export async function notifyAdminNewAcademyRegistration(user: { name: string; email: string; phone?: string }) {
-  await getTransporter().sendMail({
-    from: `Madregot <${GMAIL_USER}>`,
+  if (!isConfigured()) return;
+  await getResend().emails.send({
+    from: FROM,
     to: ADMIN_EMAIL,
     subject: `🎓 New academy registration: ${user.name}`,
     html: `
@@ -107,12 +105,11 @@ export async function notifyAdminNewAcademyRegistration(user: { name: string; em
   });
 }
 
-// Academy applicant approved → send them the Garmin-onboarding link (different
-// entry than normal users, who just go to /dashboard).
 export async function notifyAcademyApproved(user: { name: string; email: string; token: string }) {
+  if (!isConfigured()) return;
   const link = `${APP_URL}/join/academy/${user.token}`;
-  await getTransporter().sendMail({
-    from: `Madregot <${GMAIL_USER}>`,
+  await getResend().emails.send({
+    from: FROM,
     to: user.email,
     subject: `✅ You're in the Madregot Academy — connect your watch`,
     html: `
@@ -153,18 +150,14 @@ function rateColor(rate: number): string {
   return '#ef4444';
 }
 
-/**
- * Weekly academy compliance digest to the coach. Skips silently (returns false)
- * when there's nothing to report or email isn't configured.
- */
 export async function sendAcademyWeeklyReport(params: {
   weekStart: string;
   weekEnd: string;
   rows: AcademyReportRow[];
   to?: string;
 }): Promise<boolean> {
+  if (!isConfigured() || params.rows.length === 0) return false;
   const { weekStart, weekEnd, rows } = params;
-  if (!GMAIL_APP_PASSWORD || rows.length === 0) return false;
 
   const fmt = (d: string) =>
     new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -175,7 +168,7 @@ export async function sendAcademyWeeklyReport(params: {
 
   const tableRows = rows
     .slice()
-    .sort((a, b) => a.completionRate - b.completionRate) // worst first — needs attention
+    .sort((a, b) => a.completionRate - b.completionRate)
     .map(r => `
       <tr>
         <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">${r.name}</td>
@@ -185,8 +178,8 @@ export async function sendAcademyWeeklyReport(params: {
       </tr>`)
     .join('');
 
-  await getTransporter().sendMail({
-    from: `Madregot <${GMAIL_USER}>`,
+  await getResend().emails.send({
+    from: FROM,
     to: params.to || ADMIN_EMAIL,
     subject: `🎓 Academy weekly report — ${fmt(weekStart)}–${fmt(weekEnd)}`,
     html: `
@@ -209,7 +202,7 @@ export async function sendAcademyWeeklyReport(params: {
           <tbody>${tableRows}</tbody>
         </table>
         <p style="margin-top: 20px;">
-          <a href="https://madregot-connect.vercel.app/dashboard/academy" style="background: #4338ff; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="${APP_URL}/dashboard/academy" style="background: #4338ff; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Open Academy →
           </a>
         </p>

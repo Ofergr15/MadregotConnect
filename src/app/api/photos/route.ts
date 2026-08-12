@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     const date = searchParams.get('date');
     const rawAthleteId = searchParams.get('athleteId');
     const importedDates = searchParams.get('importedDates');
+    const folderId = searchParams.get('folderId');
 
     const supabase = createServerClient();
 
@@ -32,6 +33,18 @@ export async function GET(req: NextRequest) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const dates = [...new Set((data ?? []).map(r => r.run_date))];
       return NextResponse.json({ dates });
+    }
+
+    // Photos for a specific Drive folder (Import tab preview)
+    if (folderId) {
+      if (!isStaff(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      const { data, error } = await supabase
+        .from('run_photos')
+        .select('id, thumbnail_url, drive_url, filename, processed_at, faces_detected')
+        .eq('drive_folder_id', folderId)
+        .order('taken_at', { ascending: true });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ photos: data });
     }
 
     if (date) {
@@ -74,7 +87,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ faces: data });
     }
 
-    // No filter — staff gets all unidentified faces (for the Unknown faces tab)
+    // No filter — staff gets unidentified faces grouped by cluster
     if (!isStaff(user.role)) {
       return NextResponse.json({ error: 'athleteId param required' }, { status: 400 });
     }
@@ -82,15 +95,41 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from('detected_faces')
       .select(`
-        id, crop_url, bounding_box,
-        run_photos ( id, drive_url, thumbnail_url, run_date )
+        id, cluster_id, crop_url, person_name,
+        run_photos ( id, run_date )
       `)
       .is('athlete_id', null)
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(500);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ unidentified: data });
+
+    // Group into clusters (null cluster_id = one card per face)
+    const clusterMap = new Map<string, {
+      clusterId: string;
+      faces: Array<{ id: string; crop_url: string | null; run_date: string | null }>;
+      personName: string | null;
+    }>();
+
+    for (const face of data ?? []) {
+      const key = face.cluster_id ?? face.id;
+      if (!clusterMap.has(key)) {
+        clusterMap.set(key, { clusterId: key, faces: [], personName: face.person_name ?? null });
+      }
+      const rp = face.run_photos as { run_date?: string } | null;
+      clusterMap.get(key)!.faces.push({
+        id: face.id,
+        crop_url: face.crop_url ?? null,
+        run_date: rp?.run_date ?? null,
+      });
+    }
+
+    const clusters = Array.from(clusterMap.values()).map(c => ({
+      ...c,
+      runDates: [...new Set(c.faces.map(f => f.run_date).filter(Boolean))].sort(),
+    }));
+
+    return NextResponse.json({ clusters });
   } catch (error: unknown) {
     console.error('GET /api/photos error:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });

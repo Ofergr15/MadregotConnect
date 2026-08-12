@@ -1,173 +1,309 @@
+/**
+ * POST /api/strava/sync-activities
+ * Body: { athleteId?: string }
+ *
+ * Syncs Strava runs into athlete_activities (laps + gps_points + GPX).
+ * When athleteId is omitted, syncs every athlete with data_source=strava.
+ */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { decrypt, encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
+import {
+  StravaClient,
+  refreshStravaToken,
+  tokenNeedsRefresh,
+  streamsToGpx,
+  streamsToGpsPoints,
+  type StravaTokens,
+} from '@/lib/strava/client';
+import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 
-interface StravaAuth {
-  access_token: string;
-  refresh_token: string;
-  expires_at: number;
-  athlete_id: number;
-}
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
-async function refreshStravaToken(auth: StravaAuth): Promise<StravaAuth | null> {
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
+const BUCKET = 'run-chat';
 
-  const res = await fetch('https://www.strava.com/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: 'refresh_token',
-      refresh_token: auth.refresh_token,
-    }),
-  });
-
-  if (!res.ok) return null;
-  const data = await res.json();
-  return {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_at: data.expires_at,
-    athlete_id: auth.athlete_id,
-  };
-}
-
-async function getValidToken(auth: StravaAuth, athleteId: string, supabase: any): Promise<string | null> {
-  const now = Math.floor(Date.now() / 1000);
-  if (auth.expires_at > now + 60) {
-    return auth.access_token;
+async function ensureBucket(supabase: ReturnType<typeof createServerClient>) {
+  const { data } = await supabase.storage.getBucket(BUCKET);
+  if (!data) {
+    await supabase.storage.createBucket(BUCKET, { public: true, fileSizeLimit: 20_000_000 });
   }
+}
 
-  const refreshed = await refreshStravaToken(auth);
+async function getValidToken(
+  auth: StravaTokens,
+  athleteId: string,
+  supabase: ReturnType<typeof createServerClient>,
+): Promise<string | null> {
+  if (!tokenNeedsRefresh(auth.expires_at)) return auth.access_token;
+
+  const refreshed = await refreshStravaToken(auth.refresh_token);
   if (!refreshed) return null;
 
-  const encrypted = encrypt(refreshed);
-  await supabase.from('athletes').update({ strava_auth: encrypted }).eq('id', athleteId);
-  return refreshed.access_token;
+  const next: StravaTokens = {
+    ...refreshed,
+    athlete_id: auth.athlete_id || refreshed.athlete_id,
+  };
+  await supabase.from('athletes').update({ strava_auth: encrypt(next) }).eq('id', athleteId);
+  return next.access_token;
+}
+
+async function enrichActivity(
+  supabase: ReturnType<typeof createServerClient>,
+  client: StravaClient,
+  athleteId: string,
+  stravaActivityId: number,
+  activityName: string,
+  startTimeLocal: string,
+  rowId: string | null,
+) {
+  try {
+    const laps = await client.getActivityLaps(stravaActivityId);
+    const streams = await client.getActivityStreams(stravaActivityId);
+    const gps_points = streamsToGpsPoints(streams);
+    const gpx = streamsToGpx(streams, {
+      name: activityName,
+      startTimeIso: new Date(startTimeLocal).toISOString(),
+      activityId: stravaActivityId,
+    });
+
+    await ensureBucket(supabase);
+    const gpxPath = `${athleteId}/${stravaActivityId}.gpx`;
+    await supabase.storage
+      .from(BUCKET)
+      .upload(gpxPath, Buffer.from(gpx, 'utf8'), {
+        contentType: 'application/gpx+xml',
+        upsert: true,
+      });
+    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(gpxPath);
+    const strava_gpx_url = urlData.publicUrl;
+
+    const patch: Record<string, unknown> = {
+      laps: laps?.length ? laps : null,
+      gps_points: gps_points.length ? gps_points : null,
+      strava_gpx_url,
+      // Keep streams compact — drop latlng (already in gps_points) if huge
+      strava_streams: {
+        time: streams.time?.data?.length ?? 0,
+        heartrate: streams.heartrate?.data?.length ?? 0,
+        altitude: streams.altitude?.data?.length ?? 0,
+        has_latlng: !!streams.latlng?.data?.length,
+      },
+      has_polyline: gps_points.length > 0,
+    };
+
+    if (rowId) {
+      await supabase.from('athlete_activities').update(patch).eq('id', rowId);
+    } else {
+      await supabase
+        .from('athlete_activities')
+        .update(patch)
+        .eq('strava_activity_id', stravaActivityId)
+        .eq('athlete_id', athleteId);
+    }
+  } catch (err) {
+    console.warn(`enrichActivity ${stravaActivityId} failed:`, err);
+  }
 }
 
 export async function POST(request: Request) {
   try {
-    const { athleteId } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const athleteId = body?.athleteId as string | undefined;
     const supabase = createServerClient();
 
-    const query = supabase
-      .from('athletes')
-      .select('id, name, strava_auth, data_source')
-      .eq('coach_id', COACH_ID)
-      .eq('data_source', 'strava');
-
-    if (athleteId) {
-      query.eq('id', athleteId);
-    } else {
-      query.not('strava_auth', 'is', null);
-    }
-
-    const { data: athletes, error: athError } = await query;
+    const selectCols = 'id, name, strava_auth, data_source';
+    const { data: athletes, error: athError } = athleteId
+      ? await supabase
+          .from('athletes')
+          .select(selectCols)
+          .eq('id', athleteId)
+          .not('strava_auth', 'is', null)
+      : await supabase
+          .from('athletes')
+          .select(selectCols)
+          .eq('data_source', 'strava')
+          .not('strava_auth', 'is', null)
+          .or(`coach_id.eq.${COACH_ID},coach_id.is.null`);
     if (athError) throw athError;
-    if (!athletes || athletes.length === 0) {
+    if (!athletes?.length) {
       return NextResponse.json({ synced: 0, message: 'No athletes with Strava auth found' });
     }
 
     let totalSynced = 0;
-    const results: Array<{ athleteId: string; name: string; synced: number; error?: string }> = [];
+    const results: Array<{
+      athleteId: string;
+      name: string;
+      synced: number;
+      fetched?: number;
+      runs?: number;
+      planMatches?: number;
+      error?: string;
+    }> = [];
+
+    const isRun = (a: { type?: string; sport_type?: string }) => {
+      const t = a.type || a.sport_type || '';
+      return t === 'Run' || t === 'TrailRun' || t === 'VirtualRun';
+    };
 
     for (const athlete of athletes) {
       if (!athlete.strava_auth) continue;
-
       try {
-        const auth = decrypt(athlete.strava_auth as string) as StravaAuth;
+        const auth = decrypt(athlete.strava_auth as string) as StravaTokens;
         const token = await getValidToken(auth, athlete.id, supabase);
         if (!token) {
-          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: 'Token refresh failed' });
+          results.push({
+            athleteId: athlete.id,
+            name: athlete.name,
+            synced: 0,
+            error: 'Token refresh failed',
+          });
           continue;
         }
 
-        const after = Math.floor((Date.now() - 90 * 24 * 60 * 60 * 1000) / 1000);
-        const activitiesRes = await fetch(
-          `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=100`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        if (!activitiesRes.ok) {
-          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: `Strava API ${activitiesRes.status}` });
-          continue;
-        }
-
-        const activities = await activitiesRes.json();
-        const runActivities = activities.filter((a: any) =>
-          a.type === 'Run' || a.type === 'TrailRun' || a.type === 'VirtualRun'
-        );
-
-        if (runActivities.length === 0) {
-          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0 });
-          continue;
-        }
+        const client = new StravaClient(token);
+        // Rolling 180 days on login/cron; paginate within that window
+        const after = Math.floor((Date.now() - 180 * 24 * 60 * 60 * 1000) / 1000);
+        const activities = await client.getAllActivities({ after, maxPages: 5, perPage: 100 });
+        const runActivities = activities.filter(isRun);
 
         const { data: existing } = await supabase
           .from('athlete_activities')
-          .select('strava_activity_id, start_time, distance')
+          .select('id, strava_activity_id, start_time, strava_gpx_url')
           .eq('athlete_id', athlete.id);
 
-        const existingStravaIds = new Set((existing || []).filter((e: any) => e.strava_activity_id).map((e: any) => e.strava_activity_id));
-        const existingTimes = new Set((existing || []).map((e: any) => new Date(e.start_time).getTime()));
-
-        const newActivities = runActivities.filter((a: any) => {
-          if (existingStravaIds.has(a.id)) return false;
-          const actTime = new Date(a.start_date_local).getTime();
-          if (existingTimes.has(actTime)) return false;
-          return true;
-        });
-
-        if (newActivities.length > 0) {
-          const rows = newActivities.map((a: any) => {
-            const durationSec = a.moving_time || a.elapsed_time;
-            const distanceM = a.distance;
-            return {
-              athlete_id: athlete.id,
-              strava_activity_id: a.id,
-              garmin_activity_id: null,
-              source: 'strava',
-              activity_name: a.name,
-              activity_type: a.type === 'TrailRun' ? 'trail_running' : 'running',
-              start_time: a.start_date_local,
-              distance: Math.round(distanceM),
-              duration: Math.round(durationSec),
-              average_pace: distanceM > 0 ? Math.round(durationSec / (distanceM / 1000)) : null,
-              average_hr: a.average_heartrate || null,
-              max_hr: a.max_heartrate || null,
-              calories: a.calories || null,
-              elevation_gain: a.total_elevation_gain || null,
-              start_lat: a.start_latlng?.[0] || null,
-              start_lng: a.start_latlng?.[1] || null,
-              end_lat: a.end_latlng?.[0] || null,
-              end_lng: a.end_latlng?.[1] || null,
-              moving_duration: a.moving_time ? Math.round(a.moving_time) : null,
-              has_polyline: !!a.map?.summary_polyline,
-            };
-          });
-
-          const { error: insertError } = await supabase
-            .from('athlete_activities')
-            .insert(rows);
-
-          if (insertError) throw insertError;
-          totalSynced += newActivities.length;
+        const existingByStrava = new Map<number, { id: string; strava_gpx_url?: string | null }>();
+        for (const e of existing || []) {
+          if (e.strava_activity_id) {
+            existingByStrava.set(e.strava_activity_id, {
+              id: e.id,
+              strava_gpx_url: e.strava_gpx_url,
+            });
+          }
         }
 
-        results.push({ athleteId: athlete.id, name: athlete.name, synced: newActivities.length });
-      } catch (e: any) {
-        results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: e.message });
+        let synced = 0;
+        const insertErrors: string[] = [];
+        // Enrich (laps/GPX) is rate-limit heavy — only for the newest N runs.
+        const ENRICH_LIMIT = 15;
+        let enrichCount = 0;
+        const shouldEnrich = (startLocal: string) => {
+          if (enrichCount >= ENRICH_LIMIT) return false;
+          const ageMs = Date.now() - new Date(startLocal).getTime();
+          return ageMs < 45 * 24 * 60 * 60 * 1000; // ~45 days
+        };
+
+        for (const a of runActivities) {
+          const known = existingByStrava.get(a.id);
+          if (known) {
+            if (!known.strava_gpx_url && shouldEnrich(a.start_date_local)) {
+              enrichCount++;
+              await enrichActivity(
+                supabase,
+                client,
+                athlete.id,
+                a.id,
+                a.name,
+                a.start_date_local,
+                known.id,
+              );
+            }
+            continue;
+          }
+
+          const durationSec = a.moving_time || a.elapsed_time;
+          const distanceM = a.distance;
+          // garmin_activity_id is NOT NULL + UNIQUE(athlete_id, garmin_activity_id).
+          // Never reuse a shared sentinel like -1 — that only lets one Strava row insert.
+          // Negative Strava id stays out of the positive Garmin id space.
+          const row = {
+            athlete_id: athlete.id,
+            strava_activity_id: a.id,
+            garmin_activity_id: -a.id,
+            source: 'strava',
+            activity_name: a.name,
+            activity_type:
+              a.type === 'TrailRun' || a.sport_type === 'TrailRun'
+                ? 'trail_running'
+                : 'running',
+            start_time: a.start_date_local,
+            distance: Math.round(distanceM),
+            duration: Math.round(durationSec),
+            average_pace: distanceM > 0 ? Math.round(durationSec / (distanceM / 1000)) : null,
+            average_hr: a.average_heartrate || null,
+            max_hr: a.max_heartrate || null,
+            calories: a.calories || null,
+            elevation_gain: a.total_elevation_gain || null,
+            start_lat: a.start_latlng?.[0] || null,
+            start_lng: a.start_latlng?.[1] || null,
+            end_lat: a.end_latlng?.[0] || null,
+            end_lng: a.end_latlng?.[1] || null,
+            moving_duration: a.moving_time ? Math.round(a.moving_time) : null,
+            has_polyline: !!a.map?.summary_polyline,
+          };
+
+          const { data: inserted, error: insertError } = await supabase
+            .from('athlete_activities')
+            .upsert(row, {
+              onConflict: 'athlete_id,garmin_activity_id',
+              ignoreDuplicates: true,
+            })
+            .select('id')
+            .maybeSingle();
+          if (insertError) {
+            insertErrors.push(`${a.id}: ${insertError.message}`);
+            console.error('Strava activity insert failed:', a.id, insertError);
+            continue;
+          }
+          // Another overlapping sync inserted it after our initial lookup.
+          if (!inserted) continue;
+
+          if (shouldEnrich(a.start_date_local)) {
+            enrichCount++;
+            await enrichActivity(
+              supabase,
+              client,
+              athlete.id,
+              a.id,
+              a.name,
+              a.start_date_local,
+              inserted?.id ?? null,
+            );
+          }
+          synced++;
+        }
+
+        let planMatches = 0;
+        try {
+          planMatches = (await matchAthleteActivities(supabase, athlete.id)).matched;
+        } catch (matchError) {
+          // Migration 043 may not be applied yet; activity sync itself should still succeed.
+          console.warn(`Plan matching for ${athlete.id} skipped:`, matchError);
+        }
+
+        totalSynced += synced;
+        results.push({
+          athleteId: athlete.id,
+          name: athlete.name,
+          synced,
+          fetched: activities.length,
+          runs: runActivities.length,
+          planMatches,
+          ...(insertErrors.length
+            ? { error: `${insertErrors.length} insert failures: ${insertErrors[0]}` }
+            : {}),
+        });
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: message });
       }
     }
 
     return NextResponse.json({ synced: totalSynced, results });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Sync failed';
     console.error('Strava sync error:', error);
-    return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

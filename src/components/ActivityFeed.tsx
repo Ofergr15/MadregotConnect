@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Activity, Heart, Timer, Route, TrendingUp,
   MapPin, ChevronDown, ChevronUp, Zap, Footprints, Mountain,
-  Flame, RefreshCw, Gauge,
+  Flame, RefreshCw, Gauge, MessageCircle,
 } from 'lucide-react';
 import { cn, formatActivityTime, formatActivityDate, activityLocalHour, activityLocalDay } from '@/lib/utils';
 import { fetchActivityDetails } from '@/lib/activities-client';
@@ -643,8 +644,19 @@ function SplitsTable({ splits }: { splits: Split[] }) {
 
 // ─── Activity Card ─────────────────────────────────────────────────────────────
 
-function ActivityCard({ activity }: { activity: ActivityEntry }) {
+function ActivityCard({
+  activity,
+  myAthleteId,
+  isStaff,
+}: {
+  activity: ActivityEntry;
+  myAthleteId: string | null;
+  isStaff: boolean;
+}) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
+  const isMyActivity = !!myAthleteId && activity.athlete_id === myAthleteId;
+  const runChatLabel = isStaff && !isMyActivity ? 'שוחח עם הרץ' : 'שוחח עם המאמן';
   const [details, setDetails] = useState<ActivityDetailsData | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
@@ -665,7 +677,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
     if (details || loadingDetails) return;
     setLoadingDetails(true);
     try {
-      const res = await fetchActivityDetails(activity.garmin_activity_id, activity.athlete_id);
+      const res = await fetchActivityDetails(activity.id, activity.athlete_id);
       if (res.ok) setDetails(await res.json());
     } catch { /* silent */ }
     finally { setLoadingDetails(false); }
@@ -703,6 +715,18 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                router.push(`/dashboard/run-chat/${activity.id}`);
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-primary-500/30 bg-primary-500/10 px-2.5 py-1.5 text-xs font-semibold text-primary-300 transition-colors hover:bg-primary-500/20 hover:text-primary-200"
+              aria-label={runChatLabel}
+              title={runChatLabel}
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{runChatLabel}</span>
+            </button>
             <span className={cn('text-3xs font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
               {runType.label}
             </span>
@@ -742,6 +766,7 @@ function ActivityCard({ activity }: { activity: ActivityEntry }) {
             </div>
           ) : null}
         </div>
+
       </div>
 
       {/* Expanded detail */}
@@ -932,9 +957,16 @@ interface ActivityFeedProps {
   syncing: boolean;
   lastSyncTime: string | null;
   onSync: () => void;
+  myAthleteId?: string | null;
+  isStaff?: boolean;
 }
 
-export function ActivityFeed({ activities, syncing }: ActivityFeedProps) {
+export function ActivityFeed({
+  activities,
+  syncing,
+  myAthleteId = null,
+  isStaff = false,
+}: ActivityFeedProps) {
   if (activities.length === 0 && !syncing) {
     return (
       <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-8 text-center">
@@ -947,7 +979,12 @@ export function ActivityFeed({ activities, syncing }: ActivityFeedProps) {
   return (
     <div className="space-y-3">
       {activities.map(act => (
-        <ActivityCard key={act.id} activity={act} />
+        <ActivityCard
+          key={act.id}
+          activity={act}
+          myAthleteId={myAthleteId}
+          isStaff={isStaff}
+        />
       ))}
     </div>
   );

@@ -47,8 +47,9 @@ export async function POST(req: NextRequest) {
     // Upsert — idempotent on drive_file_id
     const rows = photos.map(p => ({
       drive_file_id: p.id,
+      drive_folder_id: folderId,
       drive_url: p.webViewLink,
-      thumbnail_url: p.thumbnailLink ?? null,
+      thumbnail_url: null, // set to a real JPEG only during /process
       filename: p.name,
       taken_at: p.createdTime,
       run_date: runDate,

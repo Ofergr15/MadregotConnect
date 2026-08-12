@@ -29,12 +29,17 @@ import {
   Plus,
   Watch,
   RefreshCw,
+  ClipboardList,
+  Sparkles,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
+import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { totalDistanceMeters } from '@/lib/workout-distance';
 import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import { cn } from '@/lib/utils';
+import { getSupabase } from '@/lib/supabase/client';
 
 const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
 
@@ -79,6 +84,24 @@ interface PushResultItem {
   error?: string;
 }
 
+interface MatchReviewData {
+  workouts: ParsedWorkout[];
+  activities: Array<{
+    id: string;
+    athlete_id: string;
+    start_time: string;
+    activity_name: string | null;
+    distance: number | null;
+  }>;
+  matches: Array<{
+    activity_id: string;
+    workout_key: string;
+    match_method: 'auto' | 'manual';
+    score: number | null;
+  }>;
+  athletes: Array<{ id: string; name: string }>;
+}
+
 function getCurrentWeekSunday(offset: number = 0): string {
   const now = new Date();
   const dayOfWeek = now.getDay();
@@ -102,6 +125,15 @@ function getWeekLabel(dateStr: string): string {
   const startLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const endLabel = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return `${startLabel} – ${endLabel}`;
+}
+
+async function bearerHeaders(includeJson = true): Promise<Record<string, string>> {
+  const { data } = await getSupabase().auth.getSession();
+  const token = data.session?.access_token;
+  return {
+    ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
 }
 
 export default function WeeklyPlannerPage() {
@@ -151,6 +183,17 @@ export default function WeeklyPlannerPage() {
   const [groupedPlans, setGroupedPlans] = useState<GroupedWeeklyPlans | null>(null);
   const [activeGroup, setActiveGroup] = useState<1 | 2 | 3>(1);
   const [parsedPlan, setParsedPlan] = useState<ParsedWeeklyPlan | null>(null);
+  const [showClipboardReview, setShowClipboardReview] = useState(false);
+  const [clipboardWorkoutIndex, setClipboardWorkoutIndex] = useState(0);
+  const [clipboardPreview, setClipboardPreview] = useState<string | null>(null);
+  const [clipboardText, setClipboardText] = useState('');
+  const [clipboardLoading, setClipboardLoading] = useState(false);
+  const [clipboardInstruction, setClipboardInstruction] = useState('');
+  const [clipboardRefineScope, setClipboardRefineScope] = useState<'current' | 'all'>('all');
+  const [clipboardEditing, setClipboardEditing] = useState(false);
+  const [showMatchReview, setShowMatchReview] = useState(false);
+  const [matchReview, setMatchReview] = useState<MatchReviewData | null>(null);
+  const [matchReviewLoading, setMatchReviewLoading] = useState(false);
 
   // --- Save state ---
   const [saving, setSaving] = useState(false);
@@ -543,6 +586,166 @@ export default function WeeklyPlannerPage() {
       ...groupedPlans,
       [groupKey]: { workouts: newWorkouts },
     });
+  };
+
+  const loadClipboardPreview = useCallback(async (workout: ParsedWorkout) => {
+    if (!savedPlanId) return;
+    setClipboardLoading(true);
+    try {
+      const res = await fetch(`/api/plans/${savedPlanId}/clipboards`, {
+        method: 'POST',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ action: 'preview', workout }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to render clipboard');
+      setClipboardPreview(body.previewDataUrl || null);
+      setClipboardText(body.clipboardText || '');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to render clipboard');
+    } finally {
+      setClipboardLoading(false);
+    }
+  }, [savedPlanId]);
+
+  useEffect(() => {
+    if (!showClipboardReview || !groupedPlans) return;
+    const workouts = groupedPlans[`group${activeGroup}`].workouts;
+    const safeIndex = Math.min(clipboardWorkoutIndex, Math.max(0, workouts.length - 1));
+    if (safeIndex !== clipboardWorkoutIndex) {
+      setClipboardWorkoutIndex(safeIndex);
+      return;
+    }
+    const workout = workouts[safeIndex];
+    if (workout) void loadClipboardPreview(workout);
+  }, [
+    activeGroup,
+    clipboardWorkoutIndex,
+    groupedPlans,
+    loadClipboardPreview,
+    showClipboardReview,
+  ]);
+
+  const refineClipboard = async () => {
+    if (!groupedPlans || !savedPlanId || !clipboardInstruction.trim()) return;
+    setClipboardLoading(true);
+    setError(null);
+    try {
+      const groupsToRefine = clipboardRefineScope === 'all'
+        ? ([1, 2, 3] as const)
+        : ([activeGroup] as const);
+      const next = structuredClone(groupedPlans);
+      let activePreview: { previewDataUrl?: string; clipboardText?: string } | null = null;
+      for (const group of groupsToRefine) {
+        const workout = next[`group${group}`].workouts[clipboardWorkoutIndex];
+        if (!workout) continue;
+        const res = await fetch(`/api/plans/${savedPlanId}/clipboards`, {
+          method: 'POST',
+          headers: await bearerHeaders(),
+          body: JSON.stringify({
+            action: 'refine',
+            workout,
+            instruction: clipboardInstruction.trim(),
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || `Could not refine Group ${group}`);
+        next[`group${group}`].workouts[clipboardWorkoutIndex] = body.workout;
+        if (group === activeGroup) activePreview = body;
+      }
+      setGroupedPlans(next);
+      setParsedPlan(next.group1);
+      setClipboardInstruction('');
+      if (activePreview) {
+        setClipboardPreview(activePreview.previewDataUrl || null);
+        setClipboardText(activePreview.clipboardText || '');
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not refine clipboard');
+    } finally {
+      setClipboardLoading(false);
+    }
+  };
+
+  const publishClipboards = async () => {
+    if (!groupedPlans || !savedPlanId) return;
+    setClipboardLoading(true);
+    setError(null);
+    try {
+      const saveRes = await fetch('/api/plans', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan_id: savedPlanId,
+          parsed_workouts: groupedPlans,
+          status: 'draft',
+        }),
+      });
+      if (!saveRes.ok) throw new Error('Could not save the reviewed plan');
+
+      const res = await fetch(`/api/plans/${savedPlanId}/clipboards`, {
+        method: 'POST',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ action: 'publish' }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Clipboard publishing failed');
+      const published = body.plan.parsed_workouts as GroupedWeeklyPlans;
+      setGroupedPlans(published);
+      setParsedPlan(published.group1);
+      setAllPlans((prev) =>
+        prev.map((plan) =>
+          plan.id === savedPlanId
+            ? { ...plan, parsed_workouts: published, status: 'pushed' }
+            : plan,
+        ),
+      );
+      setLastSavedAt(new Date());
+      setShowClipboardReview(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Clipboard publishing failed');
+    } finally {
+      setClipboardLoading(false);
+    }
+  };
+
+  const loadMatchReview = useCallback(async () => {
+    if (!savedPlanId) return;
+    setMatchReviewLoading(true);
+    try {
+      const res = await fetch(`/api/plans/${savedPlanId}/matches`, {
+        headers: await bearerHeaders(false),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not load activity matches');
+      setMatchReview(body as MatchReviewData);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not load activity matches');
+    } finally {
+      setMatchReviewLoading(false);
+    }
+  }, [savedPlanId]);
+
+  useEffect(() => {
+    if (showMatchReview) void loadMatchReview();
+  }, [loadMatchReview, showMatchReview]);
+
+  const setManualMatch = async (activityId: string, workoutKey: string | null) => {
+    if (!savedPlanId) return;
+    setMatchReviewLoading(true);
+    try {
+      const res = await fetch(`/api/plans/${savedPlanId}/matches`, {
+        method: 'PUT',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ activityId, workoutKey }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not update match');
+      await loadMatchReview();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not update match');
+      setMatchReviewLoading(false);
+    }
   };
 
   const saveDraft = async () => {
@@ -1100,8 +1303,7 @@ export default function WeeklyPlannerPage() {
           <div className="border-b border-slate-700/50 px-6 bg-slate-800/20">
             <div className="flex gap-1 max-w-7xl mx-auto py-2">
               {([1, 2, 3] as const).map((g) => {
-                const groupWorkouts = groupedPlans[`group${g}` as keyof GroupedWeeklyPlans].workouts
-                  .filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
+                const groupWorkouts = groupedPlans[`group${g}` as keyof GroupedWeeklyPlans].workouts;
                 // Coach-aware total (matches dashboard + WeekView).
                 const groupDist = totalDistanceMeters(groupWorkouts);
                 const colors = g === 1
@@ -1147,7 +1349,7 @@ export default function WeeklyPlannerPage() {
             )}
 
             <WeekView
-              workouts={groupedPlans[`group${activeGroup}` as keyof GroupedWeeklyPlans].workouts.filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i)}
+              workouts={groupedPlans[`group${activeGroup}` as keyof GroupedWeeklyPlans].workouts}
               editable={editMode}
               onWorkoutChange={handleWorkoutChange}
             />
@@ -1177,14 +1379,365 @@ export default function WeeklyPlannerPage() {
               <button
                 onClick={() => {
                   setError(null);
-                  setPushResults(null);
-                  setPushDays(null); // default: whole week
-                  setShowPush(true);
+                  setClipboardWorkoutIndex(0);
+                  setShowClipboardReview(true);
                 }}
                 className="btn-primary flex items-center gap-2 px-6 py-2.5"
               >
-                <Send className="h-4 w-4" />
-                Push to Athletes
+                <ClipboardList className="h-4 w-4" />
+                Review & Publish Clipboards
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showClipboardReview && groupedPlans && savedPlanId && (
+        <div className="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm p-4 md:p-8">
+          <div className="mx-auto flex h-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-700 px-5 py-4">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+                  <ClipboardList className="h-5 w-5 text-primary-400" />
+                  Clipboard Review Studio
+                </h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Review every independently recorded part. Publishing stores both structured text and a group-specific image.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowClipboardReview(false)}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+                aria-label="Close clipboard review"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 border-b border-slate-700 bg-slate-800/30 px-5 py-3">
+              {([1, 2, 3] as const).map((group) => (
+                <button
+                  key={group}
+                  onClick={() => setActiveGroup(group)}
+                  className={cn(
+                    'rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
+                    activeGroup === group
+                      ? 'border-primary-500 bg-primary-500/15 text-primary-300'
+                      : 'border-slate-700 text-slate-400 hover:text-white',
+                  )}
+                >
+                  Group {group}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid min-h-0 flex-1 md:grid-cols-[300px_1fr]">
+              <aside className="overflow-y-auto border-e border-slate-700 p-3">
+                <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  Workout parts
+                </p>
+                <div className="space-y-2">
+                  {groupedPlans[`group${activeGroup}`].workouts.map((workout, index) => (
+                    <button
+                      key={workout.workoutKey || `${workout.dayOfWeek}-${index}`}
+                      onClick={() => setClipboardWorkoutIndex(index)}
+                      className={cn(
+                        'w-full rounded-xl border p-3 text-start transition-colors',
+                        clipboardWorkoutIndex === index
+                          ? 'border-primary-500 bg-primary-500/10'
+                          : 'border-slate-700 bg-slate-800/40 hover:border-slate-600',
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-semibold uppercase text-slate-500">
+                          {DAY_SHORT[workout.dayOfWeek]}
+                          {workout.partCount && workout.partCount > 1
+                            ? ` · Part ${workout.partIndex}/${workout.partCount}`
+                            : ''}
+                        </span>
+                        {workout.clipboardImageUrl && (
+                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold text-emerald-400">
+                            Published
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 truncate text-sm font-medium text-white">{workout.name}</p>
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        {workout.expectedDistanceM
+                          ? `${(workout.expectedDistanceM / 1000).toFixed(1)} km expected`
+                          : workout.partKind || 'single'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </aside>
+
+              <main className="min-h-0 overflow-y-auto p-5">
+                {(() => {
+                  const workout =
+                    groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex];
+                  if (!workout) return null;
+                  return (
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      <section>
+                        <div className="mb-3 flex items-center justify-between">
+                          <div>
+                            <h3 className="font-semibold text-white">{workout.name}</h3>
+                            <p className="text-xs text-slate-500">
+                              {workout.workoutKey} · Group {activeGroup}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setClipboardEditing(true)}
+                            className="btn-secondary flex items-center gap-2 text-sm"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                            Edit steps
+                          </button>
+                        </div>
+                        <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                          {clipboardLoading && !clipboardPreview ? (
+                            <Loader2 className="h-7 w-7 animate-spin text-primary-400" />
+                          ) : clipboardPreview ? (
+                            <img
+                              src={clipboardPreview}
+                              alt={`Clipboard preview for ${workout.name}`}
+                              className="max-h-[560px] max-w-full rounded-lg object-contain"
+                            />
+                          ) : (
+                            <div className="text-center text-sm text-slate-500">
+                              <ImageIcon className="mx-auto mb-2 h-8 w-8" />
+                              Preview unavailable
+                            </div>
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="space-y-5">
+                        <div>
+                          <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                            AI-readable workout text
+                          </h4>
+                          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-slate-700 bg-slate-950/60 p-4 text-xs leading-6 text-slate-200">
+                            {clipboardText || workout.clipboardText || 'Rendering…'}
+                          </pre>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-700 bg-slate-800/35 p-4">
+                          <h4 className="flex items-center gap-2 text-sm font-semibold text-white">
+                            <Sparkles className="h-4 w-4 text-purple-400" />
+                            Refine with AI
+                          </h4>
+                          <textarea
+                            value={clipboardInstruction}
+                            onChange={(event) => setClipboardInstruction(event.target.value)}
+                            placeholder="For example: split recovery into 90 seconds, keep the 3000m test as one open effort…"
+                            className="mt-3 min-h-24 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-primary-500 focus:outline-none"
+                          />
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <label className="flex items-center gap-2 text-xs text-slate-400">
+                              Apply to
+                              <select
+                                value={clipboardRefineScope}
+                                onChange={(event) =>
+                                  setClipboardRefineScope(event.target.value as 'current' | 'all')
+                                }
+                                className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-white"
+                              >
+                                <option value="all">all groups</option>
+                                <option value="current">current group only</option>
+                              </select>
+                            </label>
+                            <button
+                              onClick={refineClipboard}
+                              disabled={clipboardLoading || !clipboardInstruction.trim()}
+                              className="btn-secondary flex items-center gap-2 text-sm"
+                            >
+                              {clipboardLoading
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <Sparkles className="h-4 w-4" />}
+                              Refine
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-primary-500/30 bg-primary-500/5 p-4 text-xs text-slate-300">
+                          The PNG is an attachment for people. The structured workout and the text above are saved alongside it for matching and AI Coach analysis.
+                        </div>
+                      </section>
+                    </div>
+                  );
+                })()}
+              </main>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-700 bg-slate-800/30 px-5 py-4">
+              <span className="text-xs text-slate-500">
+                {groupedPlans.group1.workouts.length} parts × 3 groups
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setShowClipboardReview(false);
+                    setShowMatchReview(true);
+                  }}
+                  disabled={clipboardLoading}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  <Search className="h-4 w-4" />
+                  Activity matches
+                </button>
+                <button
+                  onClick={saveDraft}
+                  disabled={saving || clipboardLoading}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  Save draft
+                </button>
+                <button
+                  onClick={publishClipboards}
+                  disabled={clipboardLoading}
+                  className="btn-primary flex items-center gap-2 px-5"
+                >
+                  {clipboardLoading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <CheckCircle2 className="h-4 w-4" />}
+                  Publish all clipboards
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clipboardEditing && groupedPlans && (
+        <WorkoutEditorPanel
+          workout={groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex]}
+          dayName={DAY_NAMES[groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex]?.dayOfWeek]}
+          onChange={(workout) => handleWorkoutChange(clipboardWorkoutIndex, workout)}
+          onClose={() => setClipboardEditing(false)}
+        />
+      )}
+
+      {showMatchReview && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-700 p-5">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Activity → workout matches</h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Automatic matches use date, part order, distance tolerance, and activity name. A staff selection becomes the durable override.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowMatchReview(false)}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              {matchReviewLoading && !matchReview ? (
+                <div className="flex h-52 items-center justify-center">
+                  <Loader2 className="h-7 w-7 animate-spin text-primary-400" />
+                </div>
+              ) : matchReview?.activities.length ? (
+                <div className="space-y-2">
+                  {matchReview.activities.map((activity) => {
+                    const match = matchReview.matches.find(
+                      (candidate) => candidate.activity_id === activity.id,
+                    );
+                    const athlete = matchReview.athletes.find(
+                      (candidate) => candidate.id === activity.athlete_id,
+                    );
+                    const day = new Date(activity.start_time).getUTCDay();
+                    const candidates = matchReview.workouts.filter(
+                      (workout) => workout.dayOfWeek === day,
+                    );
+                    return (
+                      <div
+                        key={activity.id}
+                        className="grid gap-3 rounded-xl border border-slate-700 bg-slate-800/35 p-4 md:grid-cols-[1fr_1.3fr]"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-white">
+                              {athlete?.name || activity.athlete_id}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {new Date(activity.start_time).toLocaleString('en-GB', {
+                                weekday: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                timeZone: 'UTC',
+                              })}
+                            </span>
+                            {match && (
+                              <span className={cn(
+                                'rounded-full px-2 py-0.5 text-[9px] font-bold uppercase',
+                                match.match_method === 'manual'
+                                  ? 'bg-purple-500/15 text-purple-300'
+                                  : 'bg-emerald-500/15 text-emerald-300',
+                              )}>
+                                {match.match_method}
+                                {match.score != null ? ` ${Math.round(match.score)}` : ''}
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 truncate text-sm text-slate-300">
+                            {activity.activity_name || 'Run'} ·{' '}
+                            {activity.distance ? `${(activity.distance / 1000).toFixed(2)} km` : '—'}
+                          </p>
+                        </div>
+                        <select
+                          value={match?.workout_key || ''}
+                          onChange={(event) =>
+                            void setManualMatch(activity.id, event.target.value || null)
+                          }
+                          disabled={matchReviewLoading}
+                          className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white focus:border-primary-500 focus:outline-none"
+                        >
+                          <option value="">No matched workout</option>
+                          {candidates.map((workout) => (
+                            <option key={workout.workoutKey} value={workout.workoutKey}>
+                              {DAY_SHORT[workout.dayOfWeek]} ·{' '}
+                              {workout.partCount && workout.partCount > 1
+                                ? `Part ${workout.partIndex}/${workout.partCount} · `
+                                : ''}
+                              {workout.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-16 text-center text-sm text-slate-500">
+                  No activities are stored for this plan week yet.
+                </div>
+              )}
+            </div>
+            <div className="flex justify-between border-t border-slate-700 bg-slate-800/30 p-4">
+              <button
+                onClick={() => {
+                  setShowMatchReview(false);
+                  setShowClipboardReview(true);
+                }}
+                className="btn-secondary"
+              >
+                Back to clipboards
+              </button>
+              <button
+                onClick={() => void loadMatchReview()}
+                disabled={matchReviewLoading}
+                className="btn-secondary flex items-center gap-2"
+              >
+                {matchReviewLoading
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <RefreshCw className="h-4 w-4" />}
+                Refresh matches
               </button>
             </div>
           </div>

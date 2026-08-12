@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Image, Upload, Search, Eye, Loader2, CheckCircle2, AlertCircle, X, Tag } from 'lucide-react';
+import { Image, Upload, Search, Eye, Loader2, CheckCircle2, AlertCircle, X, Tag, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getSupabase } from '@/lib/supabase/client';
@@ -21,18 +21,6 @@ interface DetectedFace {
     taken_at: string | null;
   } | null;
   athletes?: { id: string; name: string; email: string } | null;
-}
-
-interface UnidentifiedFace {
-  id: string;
-  crop_url: string | null;
-  bounding_box: object | null;
-  run_photos?: {
-    id: string;
-    drive_url: string;
-    thumbnail_url: string | null;
-    run_date: string;
-  } | null;
 }
 
 interface Athlete {
@@ -142,147 +130,261 @@ export default function PhotosPage() {
 
 // ─── Import Tab ───────────────────────────────────────────────────────────────
 
-interface RunFolder { id: string; name: string; date: string }
+interface RunFolder {
+  id: string; name: string; date: string;
+  totalPhotos: number;
+  imported?: boolean; importedCount?: number; unprocessedCount?: number;
+}
+type FolderState = 'idle' | 'importing' | 'processing' | 'grouping' | 'done' | 'error';
+
+interface FolderPhoto {
+  id: string; thumbnail_url: string | null; drive_url: string;
+  filename: string; processed_at: string | null; faces_detected: number | null;
+}
 
 function ImportTab() {
   const [folders, setFolders] = useState<RunFolder[]>([]);
-  const [foldersLoading, setFoldersLoading] = useState(true);
-  const [selectedFolder, setSelectedFolder] = useState<RunFolder | null>(null);
-  const [status, setStatus] = useState<'idle' | 'importing' | 'processing' | 'done' | 'error'>('idle');
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [states, setStates] = useState<Record<string, FolderState>>({});
+  const [progress, setProgress] = useState<Record<string, { done: number; total: number }>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [folderPhotos, setFolderPhotos] = useState<Record<string, FolderPhoto[]>>({});
+  const [photosLoading, setPhotosLoading] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
+  const loadFolders = () => {
+    setLoading(true);
     authedFetch('/api/photos/drive-dates')
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.folders) setFolders(d.folders); })
       .catch(() => {})
-      .finally(() => setFoldersLoading(false));
-  }, []);
+      .finally(() => setLoading(false));
+  };
 
-  const run = async () => {
-    if (!selectedFolder) return;
-    setStatus('importing');
-    setErrorMsg('');
-    setProgress({ done: 0, total: 0 });
+  useEffect(() => { loadFolders(); }, []);
 
+  const loadFolderPhotos = (folderId: string) => {
+    if (folderPhotos[folderId]) return;
+    setPhotosLoading(p => ({ ...p, [folderId]: true }));
+    authedFetch(`/api/photos?folderId=${folderId}`)
+      .then(r => r.ok ? r.json() : { photos: [] })
+      .then(d => setFolderPhotos(p => ({ ...p, [folderId]: d.photos || [] })))
+      .finally(() => setPhotosLoading(p => ({ ...p, [folderId]: false })));
+  };
+
+  const toggleExpand = (folderId: string, isImported: boolean) => {
+    if (expanded === folderId) { setExpanded(null); return; }
+    setExpanded(folderId);
+    if (isImported) loadFolderPhotos(folderId);
+  };
+
+  const importFolder = async (folder: RunFolder) => {
+    setStates(s => ({ ...s, [folder.id]: 'importing' }));
+    setErrors(e => ({ ...e, [folder.id]: '' }));
     try {
-      // 1. Import metadata from Drive
       const importRes = await authedFetch('/api/photos/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderId: selectedFolder.id, folderName: selectedFolder.name }),
+        body: JSON.stringify({ folderId: folder.id, folderName: folder.name }),
       });
       const importData = await importRes.json();
       if (!importRes.ok) throw new Error(importData.error || 'Import failed');
 
       const { photoIds } = importData as { photoIds: string[] };
-      if (photoIds.length === 0) {
-        setStatus('done');
-        return;
-      }
 
-      // 2. Process one photo at a time (Vercel 300s ceiling)
-      setStatus('processing');
-      setProgress({ done: 0, total: photoIds.length });
+      if (photoIds.length > 0) {
+        setStates(s => ({ ...s, [folder.id]: 'processing' }));
+        setProgress(p => ({ ...p, [folder.id]: { done: 0, total: photoIds.length } }));
 
-      for (let i = 0; i < photoIds.length; i++) {
-        await authedFetch('/api/photos/process', {
+        for (let i = 0; i < photoIds.length; i++) {
+          await authedFetch('/api/photos/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoId: photoIds[i] }),
+          });
+          setProgress(p => ({ ...p, [folder.id]: { done: i + 1, total: photoIds.length } }));
+        }
+
+        // Auto-recluster any faces that weren't grouped during processing
+        setStates(s => ({ ...s, [folder.id]: 'grouping' }));
+        await authedFetch('/api/photos/clusters', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ photoId: photoIds[i] }),
+          body: JSON.stringify({ action: 'recluster' }),
         });
-        setProgress({ done: i + 1, total: photoIds.length });
       }
 
-      setStatus('done');
+      setStates(s => ({ ...s, [folder.id]: 'done' }));
+      setFolders(fs => fs.map(f => f.id === folder.id
+        ? { ...f, imported: true, importedCount: f.totalPhotos, unprocessedCount: 0 }
+        : f));
+      // Refresh photo grid for this folder
+      setFolderPhotos(p => { const n = { ...p }; delete n[folder.id]; return n; });
+      if (expanded === folder.id) loadFolderPhotos(folder.id);
     } catch (err: unknown) {
-      setErrorMsg(String(err));
-      setStatus('error');
+      setErrors(e => ({ ...e, [folder.id]: String(err) }));
+      setStates(s => ({ ...s, [folder.id]: 'error' }));
     }
   };
 
+  const importAll = async () => {
+    for (const folder of folders.filter(f => !f.imported || (f.unprocessedCount ?? 0) > 0)) {
+      await importFolder(folder);
+    }
+  };
+
+  const pendingCount = folders.filter(f => !f.imported || (f.unprocessedCount ?? 0) > 0).length;
+  const anyRunning = Object.values(states).some(s => s === 'importing' || s === 'processing' || s === 'grouping');
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-slate-400 py-8">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading runs from Drive...
+      </div>
+    );
+  }
+
+  if (folders.length === 0) return <p className="text-slate-400">No run folders found in Drive.</p>;
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-        <h2 className="text-lg font-semibold text-white mb-4">Import from Google Drive</h2>
-
-        {foldersLoading ? (
-          <div className="flex items-center gap-2 text-slate-400">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading runs...
-          </div>
-        ) : folders.length === 0 ? (
-          <p className="text-slate-400">No run folders found in Drive.</p>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-slate-300 mb-2">Select run</label>
-              <select
-                value={selectedFolder?.id ?? ''}
-                onChange={e => {
-                  const f = folders.find(x => x.id === e.target.value) ?? null;
-                  setSelectedFolder(f);
-                  setStatus('idle');
-                }}
-                className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm min-w-[260px]"
-              >
-                <option value="">Choose a run...</option>
-                {folders.map(f => (
-                  <option key={f.id} value={f.id}>{f.name} ({f.date})</option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              onClick={run}
-              disabled={!selectedFolder || status === 'importing' || status === 'processing'}
-              className={cn(
-                'flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm transition-colors',
-                status === 'idle' || status === 'done' || status === 'error'
-                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                  : 'bg-white/10 text-slate-400 cursor-not-allowed'
-              )}
-            >
-              {(status === 'importing' || status === 'processing') ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4" />
-              )}
-              {status === 'importing' && 'Importing...'}
-              {status === 'processing' && `Processing ${progress.done}/${progress.total}...`}
-              {(status === 'idle' || status === 'done' || status === 'error') && 'Import & Process'}
-            </button>
-
-            {/* Progress bar */}
-            {status === 'processing' && progress.total > 0 && (
-              <div className="space-y-1">
-                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-indigo-500 transition-all duration-300"
-                    style={{ width: `${(progress.done / progress.total) * 100}%` }}
-                  />
-                </div>
-                <p className="text-xs text-slate-400">
-                  {progress.done} of {progress.total} photos processed
-                </p>
-              </div>
-            )}
-
-            {status === 'done' && (
-              <div className="flex items-center gap-2 text-green-400 text-sm">
-                <CheckCircle2 className="w-4 h-4" />
-                Done! {progress.total} photos processed.
-              </div>
-            )}
-
-            {status === 'error' && (
-              <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle className="w-4 h-4" />
-                {errorMsg}
-              </div>
-            )}
-          </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-400">
+          {pendingCount > 0 ? `${pendingCount} folder${pendingCount !== 1 ? 's' : ''} not yet fully imported` : 'All folders imported'}
+        </p>
+        {pendingCount > 0 && (
+          <button onClick={importAll} disabled={anyRunning}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors">
+            <Upload className="w-4 h-4" /> Import All
+          </button>
         )}
+      </div>
+
+      <div className="space-y-2">
+        {folders.map(folder => {
+          const state = states[folder.id] ?? 'idle';
+          const prog = progress[folder.id];
+          const isRunning = state === 'importing' || state === 'processing' || state === 'grouping';
+          const isImported = folder.imported || state === 'done';
+          const hasPending = isImported && (folder.unprocessedCount ?? 0) > 0 && state !== 'done';
+          const isExpanded = expanded === folder.id;
+          const photos = folderPhotos[folder.id] ?? [];
+          const importedCount = state === 'done' ? folder.totalPhotos : (folder.importedCount ?? 0);
+
+          return (
+            <div key={folder.id} className={cn(
+              'rounded-xl border overflow-hidden transition-colors',
+              isImported ? 'bg-green-500/5 border-green-500/20' : 'bg-white/5 border-white/10'
+            )}>
+              {/* Folder row */}
+              <div className="flex items-center gap-3 p-4">
+                <div className="flex-none w-5 h-5 flex items-center justify-center">
+                  {isImported && !hasPending ? (
+                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  ) : isRunning ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-white truncate">{folder.name}</p>
+                    {/* x/y count */}
+                    <span className={cn('text-xs px-1.5 py-0.5 rounded font-mono',
+                      isImported && !hasPending ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-slate-400'
+                    )}>
+                      {isImported ? importedCount : 0}/{folder.totalPhotos}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">{folder.date}</p>
+
+                  {state === 'processing' && prog && (
+                    <div className="mt-1.5 space-y-0.5">
+                      <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 transition-all duration-300"
+                          style={{ width: `${(prog.done / prog.total) * 100}%` }} />
+                      </div>
+                      <p className="text-xs text-slate-400">{prog.done}/{prog.total} photos processed</p>
+                    </div>
+                  )}
+                  {state === 'grouping' && (
+                    <p className="text-xs text-indigo-300 mt-0.5">Grouping faces...</p>
+                  )}
+                  {state === 'error' && errors[folder.id] && (
+                    <p className="text-xs text-red-400 mt-0.5 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 flex-none" /> {errors[folder.id]}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex-none flex items-center gap-2">
+                  {hasPending && !isRunning && (
+                    <button onClick={() => importFolder(folder)} disabled={anyRunning}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 disabled:opacity-40 text-white text-xs font-medium transition-colors">
+                      <Upload className="w-3 h-3" /> Process {folder.unprocessedCount}
+                    </button>
+                  )}
+                  {!isImported && !isRunning && (
+                    <button onClick={() => importFolder(folder)} disabled={anyRunning}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 disabled:opacity-40 text-white text-xs font-medium transition-colors">
+                      <Upload className="w-3 h-3" /> Import
+                    </button>
+                  )}
+                  {/* Expand toggle for imported folders */}
+                  {(isImported || photos.length > 0) && (
+                    <button onClick={() => toggleExpand(folder.id, isImported)}
+                      className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Photo grid (expanded) */}
+              {isExpanded && (
+                <div className="border-t border-white/10 px-4 pb-4 pt-3">
+                  {photosLoading[folder.id] ? (
+                    <div className="flex items-center gap-2 text-slate-400 text-xs py-2">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Loading photos...
+                    </div>
+                  ) : photos.length === 0 ? (
+                    <p className="text-xs text-slate-400">No photos imported yet.</p>
+                  ) : (
+                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
+                      {photos.map(p => (
+                        <a key={p.id} href={p.drive_url} target="_blank" rel="noopener noreferrer"
+                          className="relative group aspect-square rounded overflow-hidden bg-white/5 border border-white/10 hover:border-indigo-500/40 transition-colors">
+                          {p.thumbnail_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={p.thumbnail_url} alt={p.filename} className="w-full h-full object-cover"
+                              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Image className="w-4 h-4 text-slate-600" />
+                            </div>
+                          )}
+                          {/* Faces badge */}
+                          {p.processed_at && (
+                            <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[9px] px-1 rounded leading-tight">
+                              {p.faces_detected ?? 0}
+                            </span>
+                          )}
+                          {!p.processed_at && (
+                            <span className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <Loader2 className="w-3 h-3 text-white/60 animate-spin" />
+                            </span>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -290,52 +392,68 @@ function ImportTab() {
 
 // ─── Unknown Faces Tab ────────────────────────────────────────────────────────
 
+interface FaceCluster {
+  clusterId: string;
+  faces: Array<{ id: string; crop_url: string | null; run_date: string | null }>;
+  personName: string | null;
+  runDates: string[];
+}
+
 function UnknownFacesTab() {
-  const [faces, setFaces] = useState<UnidentifiedFace[]>([]);
+  const [clusters, setClusters] = useState<FaceCluster[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  // merge mode: first selected cluster, waiting for second
+  const [mergeSource, setMergeSource] = useState<string | null>(null);
   const [labeling, setLabeling] = useState<string | null>(null);
+  const [nameInputs, setNameInputs] = useState<Record<string, string>>({});
   const [athleteSearch, setAthleteSearch] = useState<Record<string, string>>({});
-  const [saved, setSaved] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
+  const loadClusters = () => {
+    setLoading(true);
     Promise.all([
-      authedFetch('/api/photos').then(r => r.ok ? r.json() : { unidentified: [] }),
+      authedFetch('/api/photos').then(r => r.ok ? r.json() : { clusters: [] }),
       fetch('/api/athletes').then(r => r.ok ? r.json() : { athletes: [] }),
-    ]).then(([photosData, athletesData]) => {
-      setFaces(photosData.unidentified || []);
-      setAthletes(athletesData.athletes || []);
+    ]).then(([pd, ad]) => {
+      setClusters(pd.clusters || []);
+      setAthletes(ad.athletes || []);
     }).finally(() => setLoading(false));
-  }, []);
+  };
 
-  const label = async (faceId: string, selectedAthleteId: string) => {
-    if (!selectedAthleteId) return;
-    setLabeling(faceId);
+  useEffect(() => { loadClusters(); }, []);
+
+  const label = async (clusterId: string, athleteId?: string, personName?: string) => {
+    setLabeling(clusterId);
     try {
       const res = await authedFetch('/api/photos/label', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ faceId, athleteId: selectedAthleteId }),
+        body: JSON.stringify({ clusterId, athleteId, personName }),
       });
       if (res.ok) {
-        setFaces(prev => prev.filter(f => f.id !== faceId));
-        setSaved(s => new Set([...s, faceId]));
+        setClusters(prev => prev.filter(c => c.clusterId !== clusterId));
+        setExpanded(null);
       }
     } finally {
       setLabeling(null);
     }
   };
 
-  const filteredAthletes = (faceId: string) => {
-    const q = (athleteSearch[faceId] || '').toLowerCase();
-    return athletes.filter(a =>
-      !q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q)
-    );
+  const merge = async (targetClusterId: string) => {
+    if (!mergeSource || mergeSource === targetClusterId) { setMergeSource(null); return; }
+    await authedFetch('/api/photos/clusters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'merge', sourceClusterId: mergeSource, targetClusterId }),
+    });
+    setMergeSource(null);
+    loadClusters();
   };
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>;
 
-  if (faces.length === 0) {
+  if (clusters.length === 0) {
     return (
       <div className="text-center py-16 text-slate-400">
         <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-green-400/60" />
@@ -344,52 +462,158 @@ function UnknownFacesTab() {
     );
   }
 
+  const expandedCluster = clusters.find(c => c.clusterId === expanded);
+
   return (
-    <div>
-      <p className="text-slate-400 text-sm mb-4">{faces.length} unidentified face{faces.length !== 1 ? 's' : ''}</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {faces.map(face => (
-          <div key={face.id} className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
-            <div className="aspect-square relative">
-              {face.crop_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={face.crop_url} alt="Unknown face" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-white/5">
-                  <Search className="w-8 h-8 text-slate-600" />
-                </div>
-              )}
-              {face.run_photos?.run_date && (
-                <span className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
-                  {face.run_photos.run_date}
-                </span>
-              )}
-            </div>
-            <div className="p-2 space-y-1.5">
-              <input
-                type="text"
-                placeholder="Search athlete..."
-                value={athleteSearch[face.id] || ''}
-                onChange={e => setAthleteSearch(s => ({ ...s, [face.id]: e.target.value }))}
-                className="w-full bg-white/10 border border-white/20 rounded text-xs px-2 py-1 text-white placeholder-slate-500"
-              />
-              <select
-                onChange={e => label(face.id, e.target.value)}
-                defaultValue=""
-                disabled={labeling === face.id}
-                className="w-full bg-white/10 border border-white/20 rounded text-xs px-2 py-1 text-white"
-              >
-                <option value="">Tag as...</option>
-                {filteredAthletes(face.id).slice(0, 20).map(a => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-              {labeling === face.id && (
-                <div className="flex justify-center"><Loader2 className="w-3 h-3 animate-spin text-indigo-400" /></div>
-              )}
-            </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-slate-400 text-sm">
+          {clusters.length} unknown person{clusters.length !== 1 ? 's' : ''}
+          {mergeSource && <span className="ml-2 text-indigo-400">— pick a second person to merge with</span>}
+        </p>
+        {mergeSource && (
+          <button onClick={() => setMergeSource(null)} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded border border-white/10">
+            Cancel merge
+          </button>
+        )}
+      </div>
+
+      {/* Expanded cluster detail */}
+      {expandedCluster && (
+        <div className="bg-white/5 border border-indigo-500/30 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-white">
+              {expandedCluster.faces.length} photo{expandedCluster.faces.length !== 1 ? 's' : ''} · {expandedCluster.runDates.join(', ')}
+            </p>
+            <button onClick={() => setExpanded(null)} className="text-slate-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        ))}
+          <div className="flex gap-2 flex-wrap">
+            {expandedCluster.faces.map(f => (
+              <div key={f.id} className="relative">
+                {f.crop_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={f.crop_url} alt="face" className="w-20 h-20 rounded-lg object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-lg bg-white/10 flex items-center justify-center">
+                    <Search className="w-5 h-5 text-slate-600" />
+                  </div>
+                )}
+                {f.run_date && (
+                  <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[10px] px-1 rounded">
+                    {f.run_date.slice(5)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cluster grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        {clusters.map(cluster => {
+          const primary = cluster.faces[0];
+          const extra = cluster.faces.length - 1;
+          const isMergeSource = mergeSource === cluster.clusterId;
+          const filteredAthletes = athletes.filter(a => {
+            const q = (athleteSearch[cluster.clusterId] || '').toLowerCase();
+            return !q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q);
+          });
+
+          return (
+            <div
+              key={cluster.clusterId}
+              className={cn(
+                'bg-white/5 rounded-xl border overflow-hidden transition-colors',
+                isMergeSource ? 'border-indigo-500' : mergeSource ? 'border-white/10 hover:border-indigo-400 cursor-pointer' : 'border-white/10'
+              )}
+              onClick={mergeSource && !isMergeSource ? () => merge(cluster.clusterId) : undefined}
+            >
+              {/* Face preview strip */}
+              <div className="aspect-square relative cursor-pointer" onClick={mergeSource ? undefined : () => setExpanded(expanded === cluster.clusterId ? null : cluster.clusterId)}>
+                {primary?.crop_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={primary.crop_url} alt="face" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-white/5">
+                    <Search className="w-8 h-8 text-slate-600" />
+                  </div>
+                )}
+                {extra > 0 && (
+                  <span className="absolute top-1.5 right-1.5 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
+                    +{extra}
+                  </span>
+                )}
+                <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                  {cluster.runDates.slice(-1)[0]?.slice(5) ?? ''}
+                </span>
+              </div>
+
+              {/* Tag controls */}
+              <div className="p-2 space-y-1.5">
+                {cluster.personName ? (
+                  <p className="text-xs text-indigo-300 font-medium truncate">{cluster.personName}</p>
+                ) : null}
+
+                {/* Name input (for non-registered person) */}
+                <input
+                  type="text"
+                  placeholder="Name (if not registered)"
+                  value={nameInputs[cluster.clusterId] || ''}
+                  onChange={e => setNameInputs(n => ({ ...n, [cluster.clusterId]: e.target.value }))}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && nameInputs[cluster.clusterId]?.trim()) {
+                      label(cluster.clusterId, undefined, nameInputs[cluster.clusterId].trim());
+                    }
+                  }}
+                  className="w-full bg-white/10 border border-white/20 rounded text-xs px-2 py-1 text-white placeholder-slate-500"
+                  onClick={e => e.stopPropagation()}
+                />
+
+                {/* Athlete search + select */}
+                <input
+                  type="text"
+                  placeholder="Search athlete..."
+                  value={athleteSearch[cluster.clusterId] || ''}
+                  onChange={e => setAthleteSearch(s => ({ ...s, [cluster.clusterId]: e.target.value }))}
+                  className="w-full bg-white/10 border border-white/20 rounded text-xs px-2 py-1 text-white placeholder-slate-500"
+                  onClick={e => e.stopPropagation()}
+                />
+                <select
+                  onChange={e => e.target.value && label(cluster.clusterId, e.target.value)}
+                  value=""
+                  disabled={labeling === cluster.clusterId}
+                  className="w-full bg-white/10 border border-white/20 rounded text-xs px-2 py-1 text-white"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <option value="">Tag as athlete...</option>
+                  {filteredAthletes.slice(0, 20).map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+
+                {/* Merge button */}
+                <button
+                  onClick={e => { e.stopPropagation(); setMergeSource(isMergeSource ? null : cluster.clusterId); }}
+                  className={cn(
+                    'w-full text-xs py-1 rounded transition-colors',
+                    isMergeSource
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
+                  )}
+                >
+                  {isMergeSource ? 'Merging — pick target' : 'Same person?'}
+                </button>
+
+                {labeling === cluster.clusterId && (
+                  <div className="flex justify-center"><Loader2 className="w-3 h-3 animate-spin text-indigo-400" /></div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -399,19 +623,10 @@ function UnknownFacesTab() {
 
 function BrowseTab() {
   const [runDate, setRunDate] = useState('');
-  const [folders, setFolders] = useState<RunFolder[]>([]);
   const [photos, setPhotos] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    authedFetch('/api/photos/drive-dates')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.folders) setFolders(d.folders); })
-      .catch(() => {});
-  }, []);
-
-  // Unique imported run_dates from DB
   const [importedDates, setImportedDates] = useState<string[]>([]);
+
   useEffect(() => {
     authedFetch('/api/photos?importedDates=1')
       .then(r => r.ok ? r.json() : null)

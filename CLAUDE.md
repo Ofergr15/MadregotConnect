@@ -7,7 +7,7 @@ Guidance for Claude Code working in this repo.
 
 ## What this is
 
-A Next.js 14 app for the Madregot running club. A coach pastes or uploads a weekly
+A Next.js 16 app for the Madregot running club. A coach pastes or uploads a weekly
 training plan (usually a **Hebrew RTL PDF/image table**); Claude parses it into
 structured workouts; the coach reviews/edits; the app pushes them to athletes'
 **Garmin** watches. It also syncs completed activities back from Garmin/Strava to
@@ -251,3 +251,13 @@ already working in there.
 
 **Docs:** `docs/academy-feature.md` is a genuinely useful design doc with a
 file-by-file seam map. `GROUPS_REDESIGN_SUMMARY.md` covers the pace-offset group model.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
