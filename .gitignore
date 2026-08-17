@@ -24,6 +24,12 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env.local.*
+!.env.local.example
+
+# local Supabase sandbox secrets (db password, create logs)
+.supabase-sandbox/
+supabase/.temp/
 
 # vercel
 .vercel
@@ -38,3 +44,6 @@ public/swe-worker-*.js
 next-env.d.ts
 eng.traineddata
 heb.traineddata
+
+# claude code — personal overrides (.claude/settings.json IS committed)
+.claude/settings.local.json

@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import {
   Calendar, Users, ArrowRight, TrendingUp, TrendingDown, Heart, Route,
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
-  Loader2, CheckCircle2, AlertCircle, RefreshCw, Dumbbell, Trophy,
+  Loader2, CheckCircle2, Dumbbell, Trophy,
 } from 'lucide-react';
 import { cn, getActivityWeekStart, getPlanWeekStart, formatActivityTime, formatActivityDate, activityLocalHour, resolveGroup, israelNow } from '@/lib/utils';
 import { fetchActivities, fetchActivityDetails } from '@/lib/activities-client';
@@ -376,79 +376,6 @@ interface RecentActivity {
   garmin_activity_id?: number;
 }
 
-type SyncStatus = 'syncing' | 'done' | 'error';
-
-function FirstSyncModal({ status, syncedCount, error, onClose }: {
-  status: SyncStatus;
-  syncedCount: number;
-  error?: string;
-  onClose: () => void;
-}) {
-  const t = useTranslations('dashboard');
-  return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm mx-4 p-6 text-center">
-        <div className="flex flex-col items-center">
-          {status === 'syncing' && (
-            <>
-              <div className="bg-primary-600/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                <RefreshCw className="h-8 w-8 text-primary-600 animate-spin" />
-              </div>
-              <h2 className="text-lg font-bold text-white">{t('syncingData')}</h2>
-              <p className="text-sm text-slate-400 mt-2">
-                {t('syncingDescription')}
-              </p>
-              <div className="mt-4 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
-                <div className="h-full bg-primary-600 rounded-full animate-pulse" style={{ width: '60%' }} />
-              </div>
-              {/* Safety valve: never trap the user on the spinner if sync stalls. */}
-              <button onClick={onClose} className="mt-4 text-xs text-slate-500 hover:text-slate-300 transition-colors">
-                {t('dismiss')}
-              </button>
-            </>
-          )}
-          {status === 'done' && (
-            <>
-              <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle2 className="h-8 w-8 text-green-400" />
-              </div>
-              <h2 className="text-lg font-bold text-white">{t('allSet')}</h2>
-              <p className="text-sm text-slate-400 mt-2">
-                {syncedCount > 0
-                  ? `Synced ${syncedCount} activities from Garmin.`
-                  : 'Your dashboard is ready. Activities will appear after your next run!'}
-              </p>
-              <button
-                onClick={onClose}
-                className="mt-5 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
-              >
-                {t('letsGo')}
-              </button>
-            </>
-          )}
-          {status === 'error' && (
-            <>
-              <div className="bg-amber-500/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                <AlertCircle className="h-8 w-8 text-amber-400" />
-              </div>
-              <h2 className="text-lg font-bold text-white">{t('syncIssue')}</h2>
-              <p className="text-sm text-slate-400 mt-2">
-                {error || 'Could not sync activities. Your dashboard will update once data is available.'}
-              </p>
-              <button
-                onClick={onClose}
-                className="mt-5 px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
-              >
-                {t('continueToDashboard')}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
@@ -467,10 +394,6 @@ export default function DashboardPage() {
   const [isCoach, setIsCoach] = useState(false);
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [athleteName, setAthleteName] = useState<string>('');
-  const [showSyncModal, setShowSyncModal] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing');
-  const [syncedCount, setSyncedCount] = useState(0);
-  const [syncError, setSyncError] = useState<string | undefined>();
   const [weeklyKm, setWeeklyKm] = useState(0);
   const [weeklyRuns, setWeeklyRuns] = useState(0);
   const [runnerWeeklyVolumes, setRunnerWeeklyVolumes] = useState<Array<{ week: string; km: number; runs: number }>>([]);
@@ -523,39 +446,32 @@ export default function DashboardPage() {
     async function load() {
       const myAthleteId = localStorage.getItem('athlete_id');
       const myIsCoach = !!localStorage.getItem('coach_email');
-      const isFirstVisit = !localStorage.getItem('dashboard_synced');
-      // Super-user "view as" preview is read-only (sync POST is blocked), so
-      // never show the syncing modal while previewing another role.
+      const syncKey = myAthleteId ? `dashboard_synced:${myAthleteId}` : 'dashboard_synced';
+      // Super-user "view as" preview is read-only (sync POST is blocked).
       const isPreviewing = !!localStorage.getItem('view_as_role');
 
-      let hasGarminOrStrava = false;
-      // Snapshot of "will we run the sync this load?" — decided ONCE here and
-      // reused for the actual sync below, so the optimistic flag writes can't
-      // make the two disagree (which previously left the modal stuck spinning
-      // for a returning user who just connected Garmin).
+      let hasStrava = false;
+      // Snapshot of "will we run the sync this load?" — decided once here and
+      // reused for the background sync below.
       let willSync = false;
       if (myAthleteId && !myIsCoach && !isPreviewing) {
         try {
           const meRes = await fetch(`/api/athletes/me?id=${myAthleteId}`);
           const meData = await meRes.json();
-          hasGarminOrStrava = meData.athlete?.hasGarmin || false;
+          hasStrava = meData.athlete?.hasStrava || false;
         } catch {}
 
-        const needsSync = isFirstVisit && hasGarminOrStrava;
-        const garminNewlyConnected = hasGarminOrStrava && !isFirstVisit && !localStorage.getItem('dashboard_synced_with_garmin');
-        willSync = needsSync || garminNewlyConnected;
+        // Re-check after the async profile lookup. In React Strict Mode two
+        // effects can start together; the first one sets this lock before the
+        // second proceeds, preventing duplicate concurrent imports.
+        willSync = !localStorage.getItem(syncKey) && hasStrava;
 
         if (willSync) {
-          setShowSyncModal(true);
-          setSyncStatus('syncing');
-          // Persist the flags NOW, not only after the long sync chain finishes.
-          // Otherwise a reload / pull-to-refresh mid-sync re-shows the modal every
-          // time, because these were previously only written at the very end.
+          // Mark before starting so Strict Mode cannot launch a duplicate sync.
           // On a real sync error we re-arm below so it retries next visit.
-          localStorage.setItem('dashboard_synced', '1');
-          localStorage.setItem('dashboard_synced_with_garmin', '1');
-        } else if (!hasGarminOrStrava) {
-          localStorage.setItem('dashboard_synced', '1');
+          localStorage.setItem(syncKey, '1');
+        } else if (!hasStrava) {
+          localStorage.setItem(syncKey, '1');
         }
       }
 
@@ -644,40 +560,19 @@ export default function DashboardPage() {
           }
         }
 
-        // Sync Garmin/Strava in background — use the SAME decision made when the
-        // modal opened (willSync), so the modal always advances to done/error.
+        // Sync Strava in the background without blocking the dashboard UI.
         if (willSync && myAthleteId && !myIsCoach) {
           try {
-            const [syncRes, stravaSyncRes] = await Promise.allSettled([
-              fetch('/api/garmin/sync-activities', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ athleteId: myAthleteId }),
-              }),
-              fetch('/api/strava/sync-activities', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ athleteId: myAthleteId }),
-              }),
-            ]);
-            const garminResult = syncRes.status === 'fulfilled' && syncRes.value.ok ? await syncRes.value.json() : null;
-            const stravaResult = stravaSyncRes.status === 'fulfilled' && stravaSyncRes.value.ok ? await stravaSyncRes.value.json() : null;
-            const totalSynced = (garminResult?.synced || 0) + (stravaResult?.synced || 0);
-            if (totalSynced >= 0) {
-              setSyncedCount(totalSynced);
-              setSyncStatus('done');
-            } else {
-              setSyncStatus('done');
-              setSyncedCount(0);
-            }
+            const stravaSyncRes = await fetch('/api/strava/sync-activities', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ athleteId: myAthleteId }),
+            });
+            if (!stravaSyncRes.ok) throw new Error('Strava sync failed');
           } catch {
-            setSyncStatus('error');
-            setSyncError('Could not sync Garmin data.');
-            // Re-arm so a failed sync retries on the next visit (the flags were
-            // set optimistically when the modal opened).
-            localStorage.removeItem('dashboard_synced_with_garmin');
+            // Re-arm so a failed sync retries on the next visit.
+            localStorage.removeItem(syncKey);
           }
-          localStorage.setItem('dashboard_synced', '1');
 
           // Refresh activities after sync completes
           try {
@@ -1309,11 +1204,11 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Map — always visible if available */}
-                  {a.has_polyline && a.garmin_activity_id && (
+                  {a.has_polyline && a.id && (
                     <div className="h-[220px] w-full" id={`map-${a.id}`} ref={(el) => {
                       if (el && !el.dataset.loaded) {
                         el.dataset.loaded = '1';
-                        fetchActivityDetails(a.garmin_activity_id!, a.athlete_id)
+                        fetchActivityDetails(a.id, a.athlete_id)
                           .then(r => r.ok ? r.json() : null)
                           .then(data => {
                             if (!data?.gpsPoints?.length) return;
@@ -1350,15 +1245,6 @@ export default function DashboardPage() {
             })}
           </div>
         </section>
-      )}
-
-      {showSyncModal && (
-        <FirstSyncModal
-          status={syncStatus}
-          syncedCount={syncedCount}
-          error={syncError}
-          onClose={() => setShowSyncModal(false)}
-        />
       )}
 
       {selectedSession && (

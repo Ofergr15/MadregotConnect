@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const response = NextResponse.next();
 
   if (!request.cookies.get('NEXT_LOCALE')) {
@@ -19,5 +19,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next|images|.*\\..*).*)'],
+  matcher: ['/((?!api|serwist|_next|images|.*\\..*).*)'],
 };

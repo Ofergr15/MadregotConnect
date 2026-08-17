@@ -1,0 +1,605 @@
+/* Run-chat Stream overrides — dark + RTL + compact metadata */
+
+.run-chat-shell,
+.run-chat-shell .str-chat,
+.run-chat-shell .str-chat__channel {
+  height: 100%;
+  min-height: 0;
+  background: transparent !important;
+  direction: rtl;
+  /* Centered conversation column (messages + composer share this) */
+  --run-chat-column-width: min(720px, 100%);
+  /*
+   * Must be a definite length (px/vw) — NOT calc(...100%...).
+   * Stream uses fit-content(var(--str-chat__message-max-width)); a % here
+   * goes cyclic on shrink-wrapped bubbles and Hebrew collapses to 1ch.
+   */
+  --str-chat__message-max-width: min(640px, 72vw);
+  --str-chat__message-with-attachment-max-width: min(640px, 72vw);
+  --str-chat__message-composer-max-width: var(--run-chat-column-width);
+}
+
+.run-chat-shell .str-chat__main-panel,
+.run-chat-shell .str-chat__list,
+.run-chat-shell .str-chat__message-list,
+.run-chat-shell .str-chat__message-list-scroll {
+  background: rgb(15 23 42) !important;
+}
+
+/* Center the message list + composer as one column */
+.run-chat-shell .str-chat__list .str-chat__ul,
+.run-chat-shell .str-chat__virtual-list .str-chat__ul,
+.run-chat-shell .str-chat__message-list-scroll {
+  width: var(--run-chat-column-width);
+  max-width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
+  padding-inline: 0.75rem;
+}
+
+.run-chat-shell .run-chat-composer-row {
+  width: var(--run-chat-column-width);
+  max-width: 100%;
+}
+
+/* Keep reactions and timestamps from stacking on top of each other */
+.run-chat-shell .str-chat__message-metadata {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  height: auto;
+  min-height: var(--str-chat__size-24);
+  max-width: 100%;
+}
+
+/* We render our own header, so Stream's reserved ChannelHeader gap is empty. */
+.run-chat-shell .str-chat__main-panel .str-chat__ul .str-chat__li:first-of-type {
+  padding-top: var(--str-chat__spacing-xs);
+}
+
+.run-chat-shell .str-chat__message-simple-timestamp,
+.run-chat-shell .str-chat__message-timestamp,
+.run-chat-shell time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: 11px !important;
+  opacity: 0.7;
+}
+
+.run-chat-shell .str-chat__message-reactions {
+  position: relative;
+  z-index: 1;
+  margin-block: 0.15rem;
+}
+
+.run-chat-shell .str-chat__message--other .str-chat__message-bubble {
+  background: #142f63 !important;
+  border: 1px solid rgb(147 197 253 / 0.16);
+}
+
+.run-chat-shell .str-chat__message--me .str-chat__message-bubble {
+  border: 1px solid rgb(147 197 253 / 0.16);
+}
+
+/* Stream defaults reactions to a row above the bubble; Slack-style puts them below. */
+.run-chat-shell .str-chat__message--with-reactions .str-chat__message-inner {
+  grid-template-areas:
+    "reminder reminder"
+    "options message-bubble"
+    ". reactions"
+    "replies replies" !important;
+  grid-template-rows: auto auto auto auto !important;
+}
+
+.run-chat-shell .str-chat__message--with-reactions .str-chat__message-reactions-host {
+  position: relative !important;
+  inset: auto !important;
+  grid-area: reactions !important;
+  margin: 0.25rem 0 0 !important;
+  align-self: start;
+}
+
+.run-chat-shell .str-chat__message--me .str-chat__message-reactions-host {
+  justify-self: end;
+}
+
+.run-chat-shell .str-chat__message-options,
+.run-chat-shell .str-chat__message-simple__actions {
+  z-index: 2;
+}
+
+/* Message bubbles — RTL-friendly text */
+.run-chat-shell .str-chat__message-text,
+.run-chat-shell .str-chat__message-text-inner,
+.run-chat-shell .str-chat__message-bubble {
+  text-align: start;
+  unicode-bidi: plaintext;
+}
+
+/* Tool trace, run attachments, and answer are one Stream message. */
+.run-chat-shell .str-chat__message-inner:has(.run-chat-strava-card) {
+  width: min(28rem, 100%) !important;
+  max-width: 28rem !important;
+  justify-self: end;
+}
+
+.run-chat-shell .str-chat__message-bubble:has(.run-chat-strava-card) {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0.5rem !important;
+  border: 1px solid rgb(147 197 253 / 0.18) !important;
+  border-radius: 20px 20px 0 20px;
+  background: #142f63 !important;
+  box-shadow: 0 8px 24px rgb(2 6 23 / 0.16) !important;
+}
+
+.run-chat-shell .str-chat__message-bubble:has(.run-chat-strava-card) .run-chat-attachments {
+  width: 100%;
+  margin: 0;
+}
+
+.run-chat-shell .str-chat__message-bubble:has(.run-chat-strava-card) .str-chat__message-text {
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.75rem 0.5rem 0.25rem !important;
+  border: 0;
+  border-top: 1px solid rgb(147 197 253 / 0.14);
+  border-radius: 0;
+  background: transparent !important;
+}
+
+/*
+ * Full clipboard thumbnail (no crop).
+ * Stream's attachment CSS uses object-fit:cover + a fixed height calc and wins
+ * on specificity — beat it explicitly so the whole card is visible.
+ */
+.run-chat-shell .str-chat__attachment-list .str-chat__message-attachment--image {
+  width: auto !important;
+  max-width: min(160px, 48vw) !important;
+  height: auto !important;
+  overflow: visible !important;
+  background: transparent !important;
+  align-self: flex-start;
+}
+
+.run-chat-shell .run-chat-clipboard-thumb {
+  display: block;
+  padding: 0;
+  margin: 0.25rem 0;
+  border: none;
+  background: #fff;
+  border-radius: 12px;
+  cursor: zoom-in;
+  overflow: hidden;
+  width: min(160px, 48vw);
+  max-width: 100%;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.35);
+}
+
+.run-chat-shell .str-chat__attachment-list .str-chat__message-attachment--image .run-chat-clipboard-thumb img,
+.run-chat-shell .run-chat-clipboard-thumb img {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: top center !important;
+  background: #fff;
+}
+
+.run-chat-shell .run-chat-laps-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0.5rem;
+  border: 1px solid rgb(147 197 253 / 0.16);
+  border-radius: 12px;
+  background: #0b1830;
+  box-shadow: none;
+}
+
+.run-chat-shell .run-chat-laps-panel img {
+  width: 100% !important;
+  border-radius: 8px;
+  background: #0b1830 !important;
+}
+
+/* Lightbox — portaled to <body>; click dimmed area / Escape / × to close */
+.run-chat-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  box-sizing: border-box;
+  background: rgb(2 6 23 / 0.9);
+  cursor: zoom-out;
+}
+
+.run-chat-lightbox__img {
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  max-width: min(420px, 92vw) !important;
+  max-height: min(88vh, 900px) !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.5);
+  cursor: default;
+}
+
+.run-chat-lightbox__close {
+  position: absolute;
+  top: 1rem;
+  inset-inline-end: 1rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.run-chat-lightbox__close:hover {
+  background: rgb(255 255 255 / 0.22);
+}
+
+/* ── Message chrome — stable physical columns, independent of RTL ────────── */
+/*
+ * Stream shrink-wraps each message and reserves an action-menu gutter.
+ * Combining that with another shrink-wrapped flex row made messages choose
+ * different horizontal origins and recalculate their width on hover.
+ *
+ * Keep the row geometry fixed:
+ *   mine  = avatar | full-width message lane
+ *   other = full-width message lane | avatar
+ * The bubble itself can still shrink-wrap within its stable lane.
+ */
+.run-chat-shell .run-chat-msg {
+  --run-chat-avatar-size: 32px;
+  direction: ltr;
+  display: grid;
+  grid-template-rows: auto;
+  align-items: start;
+  column-gap: 0.5rem;
+  width: 100%;
+}
+
+.run-chat-shell .run-chat-msg--me {
+  grid-template-columns: var(--run-chat-avatar-size) minmax(0, 1fr);
+}
+
+.run-chat-shell .run-chat-msg--other {
+  grid-template-columns: minmax(0, 1fr) var(--run-chat-avatar-size);
+}
+
+.run-chat-shell .run-chat-msg--me .run-chat-msg__avatar {
+  grid-column: 1;
+}
+
+.run-chat-shell .run-chat-msg--me .run-chat-msg__main {
+  grid-column: 2;
+}
+
+.run-chat-shell .run-chat-msg--other .run-chat-msg__avatar {
+  grid-column: 2;
+}
+
+.run-chat-shell .run-chat-msg--other .run-chat-msg__main {
+  grid-column: 1;
+}
+
+.run-chat-shell .run-chat-msg__avatar,
+.run-chat-shell .run-chat-msg__main {
+  grid-row: 1;
+}
+
+.run-chat-shell .run-chat-msg__avatar {
+  /* Align with the bubble, below the compact name line. */
+  margin-top: 1.15rem;
+}
+
+.run-chat-shell .run-chat-msg__main {
+  direction: rtl;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+/*
+ * Stream's outer grid has RTL-sensitive named areas. A vertical flex lane
+ * makes the physical side explicit and keeps metadata with its bubble.
+ */
+.run-chat-shell .run-chat-msg .str-chat__message {
+  direction: ltr;
+  display: flex !important;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100% !important;
+  padding-inline: 0;
+}
+
+.run-chat-shell .run-chat-msg--me .str-chat__message {
+  align-items: flex-start;
+}
+
+.run-chat-shell .run-chat-msg--other .str-chat__message {
+  align-items: flex-end;
+}
+
+.run-chat-shell .run-chat-msg .str-chat__message-inner,
+.run-chat-shell .run-chat-msg .str-chat__message-bubble {
+  max-width: 100% !important;
+}
+
+.run-chat-shell .run-chat-msg .str-chat__message-inner,
+.run-chat-shell .run-chat-msg .str-chat__message-metadata {
+  direction: rtl;
+}
+
+.run-chat-shell .run-chat-msg .str-chat__message-text,
+.run-chat-shell .run-chat-msg .str-chat__message-text-inner {
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.run-chat-shell .run-chat-msg__name {
+  font-size: 11px;
+  line-height: 1.2;
+  color: rgb(148 163 184);
+  padding-inline: 0.25rem;
+}
+
+.run-chat-shell .run-chat-msg--me .run-chat-msg__name {
+  text-align: left;
+}
+
+.run-chat-shell .run-chat-msg--other .run-chat-msg__name {
+  text-align: right;
+}
+
+/* The custom name row replaces Stream's duplicate metadata name. */
+.run-chat-shell .run-chat-msg .str-chat__message-metadata__name {
+  display: none !important;
+}
+
+/* Hide Stream's built-in avatar — we render our own in the outer grid. */
+.run-chat-shell .run-chat-msg .str-chat__message > .str-chat__avatar {
+  display: none !important;
+}
+
+.run-chat-shell .str-chat__li,
+.run-chat-shell .run-chat-msg,
+.run-chat-shell .run-chat-msg__main,
+.run-chat-shell .str-chat__message,
+.run-chat-shell .str-chat__message-inner {
+  overflow: visible !important;
+}
+
+/* The toolbar is an overlay; it must never participate in message sizing. */
+.run-chat-shell .run-chat-msg .str-chat__message-inner {
+  margin-inline-start: 0 !important;
+  margin-inline-end: 0 !important;
+  position: relative;
+}
+
+.run-chat-shell .str-chat__message-options {
+  position: absolute !important;
+  top: 0;
+  z-index: 6;
+  /* width still set by Stream via --str-chat-message-options-size */
+}
+
+/* Me bubbles sit on the left → toolbar floats to the right of the bubble */
+.run-chat-shell .str-chat__message--me .str-chat__message-options {
+  left: calc(100% + 0.25rem);
+  right: auto;
+}
+
+/* Other (AI) on the right → toolbar floats to the left of the bubble */
+.run-chat-shell .str-chat__message--other .str-chat__message-options {
+  right: calc(100% + 0.25rem);
+  left: auto;
+}
+
+.run-chat-shell .str-chat__message--other
+  .str-chat__message-inner:has(.run-chat-strava-card)
+  .str-chat__message-options {
+  top: 0.25rem;
+  right: calc(100% + 0.5rem);
+  left: auto;
+}
+
+/* Thread links must not collapse into one character per line on short bubbles. */
+.run-chat-shell .str-chat__message-replies-count-button-wrapper,
+.run-chat-shell .str-chat__message-replies-count-button {
+  width: max-content;
+  white-space: nowrap;
+}
+
+.run-chat-shell .run-chat-msg--me .str-chat__message-replies-count-button-wrapper {
+  justify-self: left;
+}
+
+.run-chat-shell .run-chat-msg--other .str-chat__message-replies-count-button-wrapper {
+  justify-self: right;
+}
+
+.run-chat-shell .str-chat__message-replies-count-button .str-chat__avatar-stack {
+  flex-shrink: 0;
+}
+
+/* Tool traces are agent execution rows, not AI chat bubbles. */
+.run-chat-shell .run-chat-tool-event {
+  direction: rtl;
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  padding-inline: calc(var(--run-chat-avatar-size, 32px) + 0.5rem);
+}
+
+.run-chat-shell .run-chat-tool-event .str-chat__message,
+.run-chat-shell .run-chat-tool-event .str-chat__message-inner,
+.run-chat-shell .run-chat-tool-event .str-chat__message-bubble,
+.run-chat-shell .run-chat-tool-event .str-chat__attachment-list {
+  width: fit-content !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.run-chat-shell .run-chat-tool-event .str-chat__message-text,
+.run-chat-shell .run-chat-tool-event .str-chat__message-metadata,
+.run-chat-shell .run-chat-tool-event .str-chat__message-options,
+.run-chat-shell .run-chat-tool-event .str-chat__message-reactions {
+  display: none !important;
+}
+
+/* ── Avatars ─────────────────────────────────────────────────────────────── */
+.run-chat-avatar {
+  /* size comes from Stream's --avatar-size (md = 32px) via size class */
+  width: var(--avatar-size, 32px) !important;
+  height: var(--avatar-size, 32px) !important;
+  background: transparent !important;
+  overflow: visible !important; /* allow hover scale outside the cell */
+  z-index: 1;
+}
+
+.run-chat-avatar::after {
+  /* Stream draws an opaque ring — skip it so AI alpha looks clean */
+  display: none !important;
+}
+
+.run-chat-avatar__face {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: transparent;
+  transform-origin: center center;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  box-shadow: 0 0 0 1px rgb(148 163 184 / 0.25);
+}
+
+.run-chat-avatar:hover .run-chat-avatar__face,
+.run-chat-avatar:focus-within .run-chat-avatar__face {
+  transform: scale(1.35);
+  z-index: 40;
+  position: relative;
+  box-shadow: 0 0 0 1px rgb(148 163 184 / 0.35), 0 8px 22px rgb(0 0 0 / 0.5);
+}
+
+.run-chat-avatar__img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center 18%;
+  background: transparent !important;
+}
+
+.run-chat-avatar--ai .run-chat-avatar__img {
+  object-fit: contain;
+  object-position: center center;
+}
+
+.run-chat-avatar__fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+}
+
+.run-chat-avatar__google {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.run-chat-avatar__initials {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgb(165 180 252);
+}
+
+/* Composer — one clean surface with an aligned mention-avatar rail. */
+.run-chat-shell .run-chat-composer-shell {
+  border-top: 1px solid rgb(51 65 85 / 0.55);
+  background: rgb(15 23 42);
+}
+
+.run-chat-shell .str-chat__message-composer-container {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.run-chat-shell .str-chat__message-composer {
+  min-height: 46px;
+  padding: 0.25rem 0.5rem !important;
+  border: 1px solid rgb(51 65 85 / 0.8) !important;
+  border-radius: 16px !important;
+  background: rgb(15 23 42) !important;
+  box-shadow: none !important;
+}
+
+.run-chat-shell .str-chat__message-composer-compose-area,
+.run-chat-shell .str-chat__message-composer-controls,
+.run-chat-shell .str-chat__message-composer-controls__text-composition-controls,
+.run-chat-shell .str-chat__message-composer-controls__text-composition-controls__text,
+.run-chat-shell .str-chat__textarea,
+.run-chat-shell .str-chat__message-textarea {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.run-chat-shell .str-chat__textarea__textarea {
+  color: rgb(241 245 249) !important;
+  background: transparent !important;
+}
+
+.run-chat-shell .str-chat__textarea__textarea::placeholder {
+  color: rgb(100 116 139) !important;
+}
+
+.run-chat-shell .run-chat-mention-rail {
+  min-height: 46px;
+}
+
+/* Thread panel sits beside the main window on desktop */
+.run-chat-shell .str-chat__thread {
+  max-width: 100%;
+  border-inline-start: 1px solid rgb(51 65 85 / 0.6);
+  background: rgb(15 23 42);
+}
+
+.run-chat-shell .str-chat__thread .run-chat-msg {
+  width: calc(100% - 1.5rem);
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .run-chat-shell .str-chat__thread {
+    max-width: 40%;
+  }
+}

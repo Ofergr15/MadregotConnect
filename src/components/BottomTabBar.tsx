@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, Trophy, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, MoreHorizontal, X,
+  BarChart3, MoreHorizontal, X, Newspaper,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
@@ -24,6 +24,7 @@ interface NavItem { href: string; tab: string; labelKey: string; icon: any; }
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
+  { href: '/dashboard/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
   { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
@@ -43,7 +44,7 @@ const PROFILE_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labe
 
 // Preferred order of PRIMARY tabs shown in the bar (first 4 that the role has).
 // The rest overflow into "More". Dashboard is always first.
-const PRIMARY_ORDER = ['dashboard', 'program', 'practice-attendance', 'workout-feedback', 'activities', 'athletes', 'review'];
+const PRIMARY_ORDER = ['dashboard', 'feed', 'program', 'practice-attendance', 'workout-feedback', 'activities', 'athletes', 'review'];
 
 interface TabPermission { role: string; tab: string; enabled: boolean; }
 

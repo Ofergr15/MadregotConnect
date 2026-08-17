@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
-import { GarminReminderPopup } from '@/components/GarminReminderPopup';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PushOptIn } from '@/components/PushOptIn';
 import { PullToRefresh } from '@/components/PullToRefresh';
@@ -75,7 +74,6 @@ export default function DashboardLayout({
     <div className="min-h-[100dvh] flex flex-col">
       <PullToRefresh />
       <Header />
-      <GarminReminderPopup />
       <InstallPrompt />
       <PushOptIn />
       {/* Bottom padding on mobile clears the fixed tab bar (~64px + safe area);

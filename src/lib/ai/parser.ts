@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ParsedWeeklyPlan, ParsedWorkout, WorkoutStep } from './types';
 import { WORKOUT_PARSER_SYSTEM_PROMPT } from './prompt';
+import { workoutDistanceMeters } from '@/lib/workout-distance';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -114,13 +115,92 @@ function validateAndFixStep(step: WorkoutStep): WorkoutStep {
   return fixed;
 }
 
-function validatePlan(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
+function inferPartKind(
+  workout: ParsedWorkout,
+  partCount: number,
+): NonNullable<ParsedWorkout['partKind']> {
+  if (workout.partKind) return workout.partKind;
+  if (partCount === 1) return 'single';
+  const text = `${workout.name} ${workout.description || ''}`.toLowerCase();
+  if (/מבחן|test|race|time trial|3000/.test(text)) return 'test';
+  if (workout.steps.every((step) => step.type === 'warmup')) return 'warmup';
+  if (workout.steps.every((step) => step.type === 'cooldown' || step.type === 'recovery')) {
+    return 'cooldown';
+  }
+  return 'main';
+}
+
+function expectedDuration(steps: WorkoutStep[]): number | undefined {
+  let total = 0;
+  let hasTime = false;
+  for (const step of steps) {
+    if (step.repeatCount && step.repeatSteps) {
+      const nested = expectedDuration(step.repeatSteps);
+      if (nested) {
+        total += nested * step.repeatCount;
+        hasTime = true;
+      }
+    } else if (step.durationType === 'time' && step.durationValue) {
+      total += step.durationValue;
+      hasTime = true;
+    }
+  }
+  return hasTime ? total : undefined;
+}
+
+export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
+  const perDay = new Map<number, ParsedWorkout[]>();
+  for (const workout of plan.workouts) {
+    const list = perDay.get(workout.dayOfWeek) || [];
+    list.push(workout);
+    perDay.set(workout.dayOfWeek, list);
+  }
+
   return {
+    workouts: plan.workouts.map((workout) => {
+      const siblings = perDay.get(workout.dayOfWeek) || [workout];
+      const inferredIndex = siblings.indexOf(workout) + 1;
+      const partIndex = workout.partIndex || inferredIndex;
+      const partCount = siblings.length;
+      const partKind = inferPartKind(workout, partCount);
+      const measuredDistance = workoutDistanceMeters(workout);
+      const expectedDistanceM = workout.expectedDistanceM || measuredDistance || undefined;
+      const expectedDurationSec = workout.expectedDurationSec || expectedDuration(workout.steps);
+      const distanceToleranceM =
+        workout.distanceToleranceM ||
+        (expectedDistanceM ? Math.max(150, Math.round(expectedDistanceM * 0.08)) : undefined);
+      const defaultTokens = [
+        partKind,
+        partKind === 'test' ? 'מבחן' : '',
+        expectedDistanceM ? String(Math.round(expectedDistanceM)) : '',
+      ].filter(Boolean);
+
+      return {
+        ...workout,
+        workoutKey: `day-${workout.dayOfWeek}-part-${partIndex}-${partKind}`,
+        partIndex,
+        partCount,
+        partKind,
+        expectedDistanceM,
+        expectedDurationSec,
+        distanceToleranceM,
+        activityNameTokens:
+          workout.activityNameTokens?.filter(Boolean).length
+            ? workout.activityNameTokens.filter(Boolean)
+            : defaultTokens,
+      };
+    }),
+  };
+}
+
+function validatePlan(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
+  const validated = {
     workouts: plan.workouts.map(workout => ({
       ...workout,
       steps: workout.steps.map(validateAndFixStep),
     })),
   };
+  return normalizeWorkoutParts(validated);
 }
 
 /**
@@ -432,7 +512,7 @@ function parseWithRegex(text: string): ParsedWeeklyPlan | null {
       }
     }
 
-    return workouts.length > 0 ? { workouts } : null;
+    return workouts.length > 0 ? validatePlan({ workouts }) : null;
   } catch {
     return null;
   }
