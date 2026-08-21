@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Eye } from 'lucide-react';
+import Link from 'next/link';
+import { Eye, LogIn } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { isSuperUser } from '@/lib/constants';
@@ -35,6 +36,11 @@ export function MaintenanceGate() {
   // so switching scenarios is obvious even while the maintenance screen is up
   // (the tiny floating pill was easy to miss).
   const [isSuper, setIsSuper] = useState(false);
+  // No email could be resolved at all (fresh device/PWA install, cleared
+  // Safari data, expired session) — the allowlist/super-user checks can never
+  // let this viewer through since they depend on knowing who's asking. Their
+  // only way out is to actually sign in, which the gate can't do for them.
+  const [noIdentity, setNoIdentity] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -67,6 +73,7 @@ export function MaintenanceGate() {
         if (!cancelled) {
           setIsAsaf(email.toLowerCase().trim() === ASAF_EMAIL);
           setIsSuper(superUser);
+          setNoIdentity(!email);
           setBlocked(!superUser && !!maintenance && !allowed);
         }
       } catch {
@@ -123,6 +130,19 @@ export function MaintenanceGate() {
           >
             <Eye className="h-4 w-4" /> תצוגה כמשתמש אחר
           </button>
+        )}
+
+        {/* No resolvable identity at all (fresh install, cleared session) — the
+            allowlist can't recognize a viewer it knows nothing about, so the
+            only way through is to actually sign back in. */}
+        {!isSuper && noIdentity && (
+          <Link
+            href="/"
+            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-700/50 border border-slate-600/60 text-slate-200 text-sm font-bold hover:bg-slate-700/80 transition-colors"
+            dir="rtl"
+          >
+            <LogIn className="h-4 w-4" /> התחברות מחדש
+          </Link>
         )}
       </div>
 
