@@ -768,7 +768,12 @@
     "selectWeek": "בחירת שבוע",
     "addNewWeek": "הוספת שבוע",
     "upload": "העלאה",
-    "uploading": "מעלה…"
+    "uploading": "מעלה…",
+    "weekClimbTitle": "המדרגות של השבוע",
+    "weekKm": "ק\"מ השבוע",
+    "trainingDays": "ימי אימון",
+    "longestSession": "האימון הארוך",
+    "todayBadge": "היום"
   },
   "install": {
     "title": "התקנת Madregot",

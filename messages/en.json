@@ -768,7 +768,12 @@
     "selectWeek": "Select Week",
     "addNewWeek": "Add New Week",
     "upload": "Upload",
-    "uploading": "Uploading…"
+    "uploading": "Uploading…",
+    "weekClimbTitle": "This week's climb",
+    "weekKm": "km this week",
+    "trainingDays": "training days",
+    "longestSession": "longest session",
+    "todayBadge": "Today"
   },
   "install": {
     "title": "Install Madregot",

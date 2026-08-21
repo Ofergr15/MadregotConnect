@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
-import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection } from '@/components/ui';
+import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, BigStat } from '@/components/ui';
 import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
 
 interface WeekPlanDay {
@@ -551,47 +551,7 @@ export default function ProgramPage() {
           <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
         </div>
       ) : activeView === 'training' && weekPlan?.hasPlan ? (
-        <div className="space-y-3">
-          <InsetSection>
-            {weekPlan.dailyDistances.map((d) => {
-              const session = weekPlan.keySessions.find(s => s.dayOfWeek === d.dayOfWeek);
-              const hasWorkout = d.max > 0;
-              return (
-                <button
-                  key={d.dayOfWeek}
-                  onClick={() => session && setSelectedSession(session)}
-                  disabled={!session}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-4 py-3.5 min-h-[52px] text-start transition-colors',
-                    session && 'active:bg-slate-700/40'
-                  )}
-                >
-                  <span
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ background: WORKOUT_TYPE_COLORS[d.type] || '#6366f1' }}
-                  />
-                  <span className="flex-1 min-w-0">
-                    <span className={cn('block text-[15px] font-semibold', d.dayOfWeek === new Date().getDay() ? 'text-primary-400' : 'text-white')}>
-                      {d.day}
-                    </span>
-                    <span className="block text-xs text-slate-400 truncate">
-                      {hasWorkout
-                        ? `${WORKOUT_TYPE_LABELS[d.type] || d.type}${session?.highlight ? ' · ' + session.highlight : ''}`
-                        : t('restDay')}
-                    </span>
-                  </span>
-                  {hasWorkout && (
-                    <span dir="ltr" className="text-[15px] font-bold text-white tabular-nums shrink-0">
-                      {d.min !== d.max ? `${d.min}–${d.max}` : d.max}
-                      <span className="text-xs text-slate-400 font-normal"> km</span>
-                    </span>
-                  )}
-                  {session && <ChevronLeft className="h-4 w-4 text-slate-500 shrink-0" />}
-                </button>
-              );
-            })}
-          </InsetSection>
-        </div>
+        <WeekClimb weekPlan={weekPlan} onSelectSession={setSelectedSession} t={t} />
       ) : currentWeek ? (
         <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-700/60">
@@ -683,6 +643,106 @@ function deriveDateRange(sundayISO: string): string {
 function getPdfUrl(week: ProgramWeek, view: 'training' | 'nutrition' | 'workout'): string | null {
   if (view === 'workout') return null;
   return view === 'training' ? week.training_pdf_url : week.nutrition_pdf_url;
+}
+
+// The week rendered as an ascending/descending "climb" — Madregot means
+// stairs, so each day is a step whose height reflects that day's real
+// distance (a genuine hard/easy/hard week reads as an uneven climb, not a
+// fake smooth ramp — we never reorder days to force a monotonic staircase).
+// Replaces the old flat, uniform-row day list with real visual hierarchy:
+// a hero stat row up top, then steps sized by intensity, today highlighted.
+function WeekClimb({
+  weekPlan,
+  onSelectSession,
+  t,
+}: {
+  weekPlan: WeekPlanResponse;
+  onSelectSession: (s: WeekPlanSession) => void;
+  t: (k: any, values?: any) => string;
+}) {
+  const todayDow = new Date().getDay();
+  const totalKm = weekPlan.dailyDistances.reduce((sum, d) => sum + d.max, 0);
+  const trainingDaysCount = weekPlan.dailyDistances.filter((d) => d.max > 0).length;
+  const longest = Math.max(0, ...weekPlan.dailyDistances.map((d) => d.max));
+  const weekMax = Math.max(longest, 1);
+  const STEP_MIN = 8;
+  const STEP_MAX = 48;
+
+  return (
+    <div className="space-y-3">
+      <Card>
+        <p className="text-2xs font-bold uppercase tracking-wider text-primary-400/80 mb-3">
+          {t('weekClimbTitle')}
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <BigStat value={totalKm} label={t('weekKm')} />
+          <BigStat value={trainingDaysCount} label={t('trainingDays')} />
+          <BigStat value={longest} label={t('longestSession')} />
+        </div>
+      </Card>
+
+      <InsetSection>
+        {weekPlan.dailyDistances.map((d) => {
+          const session = weekPlan.keySessions.find((s) => s.dayOfWeek === d.dayOfWeek);
+          const hasWorkout = d.max > 0;
+          const isToday = d.dayOfWeek === todayDow;
+          const stepColor = WORKOUT_TYPE_COLORS[d.type] || '#6366f1';
+          const stepHeight = hasWorkout
+            ? Math.round(STEP_MIN + (d.max / weekMax) * (STEP_MAX - STEP_MIN))
+            : STEP_MIN;
+
+          return (
+            <button
+              key={d.dayOfWeek}
+              onClick={() => session && onSelectSession(session)}
+              disabled={!session}
+              className={cn(
+                'w-full flex items-center gap-3.5 px-4 py-3.5 min-h-[56px] text-start transition-colors',
+                session && 'active:bg-slate-700/40',
+                isToday && 'bg-primary-500/[0.07]'
+              )}
+            >
+              {/* Step indicator: a rail with a bar rising from the bottom,
+                  height proportional to that day's real distance. */}
+              <span className="relative w-6 shrink-0 self-stretch flex items-end justify-center py-1">
+                <span className="absolute top-0 bottom-0 start-1/2 w-px -translate-x-1/2 bg-slate-700/50" />
+                <span
+                  className="relative w-2 rounded-full"
+                  style={{ height: stepHeight, background: hasWorkout ? stepColor : '#334155' }}
+                />
+              </span>
+
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center gap-1.5">
+                  <span className={cn('text-[15px] font-semibold', isToday ? 'text-primary-400' : 'text-white')}>
+                    {d.day}
+                  </span>
+                  {isToday && (
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-primary-500/20 text-primary-400 shrink-0">
+                      {t('todayBadge')}
+                    </span>
+                  )}
+                </span>
+                <span className="block text-xs text-slate-400 truncate mt-0.5">
+                  {hasWorkout
+                    ? `${WORKOUT_TYPE_LABELS[d.type] || d.type}${session?.highlight ? ' · ' + session.highlight : ''}`
+                    : t('restDay')}
+                </span>
+              </span>
+
+              {hasWorkout && (
+                <span dir="ltr" className="text-[15px] font-bold text-white tabular-nums shrink-0">
+                  {d.min !== d.max ? `${d.min}–${d.max}` : d.max}
+                  <span className="text-xs text-slate-400 font-normal"> km</span>
+                </span>
+              )}
+              {session && <ChevronLeft className="h-4 w-4 text-slate-500 shrink-0" />}
+            </button>
+          );
+        })}
+      </InsetSection>
+    </div>
+  );
 }
 
 // A single plan-status row (training / nutrition) — green when uploaded, red +
