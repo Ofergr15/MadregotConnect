@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   Upload,
   FileText,
@@ -40,11 +41,11 @@ import { totalDistanceMeters } from '@/lib/workout-distance';
 import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
+import { Sheet, ConfirmSheet, SegmentedControl, Card, Button } from '@/components/ui';
 
 const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 type PushTab = 'all' | 'groups' | 'athletes';
 
@@ -118,12 +119,13 @@ function getDefaultOffset(): number {
   return isSaturday() ? 1 : 0;
 }
 
-function getWeekLabel(dateStr: string): string {
+function getWeekLabel(dateStr: string, locale: string): string {
   const date = new Date(dateStr + 'T00:00:00');
   const endDate = new Date(date);
   endDate.setDate(date.getDate() + 6);
-  const startLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const endLabel = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
+  const startLabel = date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
+  const endLabel = endDate.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   return `${startLabel} – ${endLabel}`;
 }
 
@@ -139,6 +141,13 @@ async function bearerHeaders(includeJson = true): Promise<Record<string, string>
 export default function WeeklyPlannerPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const t = useTranslations('planner');
+  const tDays = useTranslations('activities');
+  const locale = useLocale();
+  const DAY_LABELS = [
+    tDays('daySun'), tDays('dayMon'), tDays('dayTue'), tDays('dayWed'),
+    tDays('dayThu'), tDays('dayFri'), tDays('daySat'),
+  ];
 
   // --- Week navigation ---
   const [weekOffset, setWeekOffsetState] = useState(() => {
@@ -159,7 +168,7 @@ export default function WeeklyPlannerPage() {
   };
 
   const weekStartDate = getCurrentWeekSunday(weekOffset);
-  const weekLabel = getWeekLabel(weekStartDate);
+  const weekLabel = getWeekLabel(weekStartDate, locale);
 
   // --- Plans data ---
   const [allPlans, setAllPlans] = useState<SavedPlanSummary[]>([]);
@@ -203,6 +212,9 @@ export default function WeeklyPlannerPage() {
   // --- Delete ---
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // --- Sync-from-program overwrite confirmation ---
+  const [confirmSyncFromProgram, setConfirmSyncFromProgram] = useState(false);
 
   // --- Push ---
   const [showPush, setShowPush] = useState(false);
@@ -446,13 +458,13 @@ export default function WeeklyPlannerPage() {
       if (!res.ok) {
         if (parsedBody?.error) throw new Error(parsedBody.error);
         if (res.status === 504) {
-          throw new Error('Parsing timed out. The plan may be too large or complex — try a clearer photo or paste the text.');
+          throw new Error(t('errors.parsingTimedOut'));
         }
-        throw new Error(`Failed to parse plan (server error ${res.status}). Please try again.`);
+        throw new Error(t('errors.failedToParseServer', { status: res.status }));
       }
 
       if (!parsedBody) {
-        throw new Error('The server returned an unexpected response. Please try again.');
+        throw new Error(t('errors.unexpectedResponse'));
       }
 
       const data: ParsedWeeklyPlan = parsedBody;
@@ -485,7 +497,7 @@ export default function WeeklyPlannerPage() {
       setImageFile(null);
       setImagePreview(null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      setError(err instanceof Error ? err.message : t('errors.unexpectedError'));
     } finally {
       setParsing(false);
     }
@@ -494,14 +506,15 @@ export default function WeeklyPlannerPage() {
   // Pull this week's uploaded training PDF from the Program page, parse it, and
   // save it as the planner's plan for the week. Confirms before overwriting an
   // existing plan so manual edits/pushes aren't silently lost.
-  const syncFromProgram = async () => {
+  const syncFromProgram = () => {
     if (currentPlan) {
-      const ok = window.confirm(
-        `A plan already exists for ${weekLabel}. Replace it with the program for this week? Any edits you made will be lost.`
-      );
-      if (!ok) return;
+      setConfirmSyncFromProgram(true);
+      return;
     }
+    void doSyncFromProgram();
+  };
 
+  const doSyncFromProgram = async () => {
     setError(null);
     setParsing(true);
     try {
@@ -522,12 +535,12 @@ export default function WeeklyPlannerPage() {
       if (!res.ok) {
         if (parsedBody?.error) throw new Error(parsedBody.error);
         if (res.status === 504) {
-          throw new Error('Parsing timed out. The program PDF may be too large — try again.');
+          throw new Error(t('errors.parsingTimedOutProgram'));
         }
-        throw new Error(`Failed to sync from program (server error ${res.status}).`);
+        throw new Error(t('errors.failedToSyncServer', { status: res.status }));
       }
       if (!parsedBody) {
-        throw new Error('The server returned an unexpected response. Please try again.');
+        throw new Error(t('errors.unexpectedResponse'));
       }
 
       const data: ParsedWeeklyPlan = parsedBody;
@@ -570,7 +583,7 @@ export default function WeeklyPlannerPage() {
 
       setShowCreate(false);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to sync from program');
+      setError(err instanceof Error ? err.message : t('errors.failedToSyncProgram'));
     } finally {
       setParsing(false);
     }
@@ -598,15 +611,15 @@ export default function WeeklyPlannerPage() {
         body: JSON.stringify({ action: 'preview', workout }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Failed to render clipboard');
+      if (!res.ok) throw new Error(body.error || t('errors.failedToRenderClipboard'));
       setClipboardPreview(body.previewDataUrl || null);
       setClipboardText(body.clipboardText || '');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to render clipboard');
+      setError(err instanceof Error ? err.message : t('errors.failedToRenderClipboard'));
     } finally {
       setClipboardLoading(false);
     }
-  }, [savedPlanId]);
+  }, [savedPlanId, t]);
 
   useEffect(() => {
     if (!showClipboardReview || !groupedPlans) return;
@@ -649,7 +662,7 @@ export default function WeeklyPlannerPage() {
           }),
         });
         const body = await res.json();
-        if (!res.ok) throw new Error(body.error || `Could not refine Group ${group}`);
+        if (!res.ok) throw new Error(body.error || t('errors.couldNotRefineGroup', { group }));
         next[`group${group}`].workouts[clipboardWorkoutIndex] = body.workout;
         if (group === activeGroup) activePreview = body;
       }
@@ -661,7 +674,7 @@ export default function WeeklyPlannerPage() {
         setClipboardText(activePreview.clipboardText || '');
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not refine clipboard');
+      setError(err instanceof Error ? err.message : t('errors.couldNotRefineClipboard'));
     } finally {
       setClipboardLoading(false);
     }
@@ -681,7 +694,7 @@ export default function WeeklyPlannerPage() {
           status: 'draft',
         }),
       });
-      if (!saveRes.ok) throw new Error('Could not save the reviewed plan');
+      if (!saveRes.ok) throw new Error(t('errors.couldNotSaveReviewed'));
 
       const res = await fetch(`/api/plans/${savedPlanId}/clipboards`, {
         method: 'POST',
@@ -689,7 +702,7 @@ export default function WeeklyPlannerPage() {
         body: JSON.stringify({ action: 'publish' }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Clipboard publishing failed');
+      if (!res.ok) throw new Error(body.error || t('errors.clipboardPublishingFailed'));
       const published = body.plan.parsed_workouts as GroupedWeeklyPlans;
       setGroupedPlans(published);
       setParsedPlan(published.group1);
@@ -703,7 +716,7 @@ export default function WeeklyPlannerPage() {
       setLastSavedAt(new Date());
       setShowClipboardReview(false);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Clipboard publishing failed');
+      setError(err instanceof Error ? err.message : t('errors.clipboardPublishingFailed'));
     } finally {
       setClipboardLoading(false);
     }
@@ -717,14 +730,14 @@ export default function WeeklyPlannerPage() {
         headers: await bearerHeaders(false),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Could not load activity matches');
+      if (!res.ok) throw new Error(body.error || t('errors.couldNotLoadMatches'));
       setMatchReview(body as MatchReviewData);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not load activity matches');
+      setError(err instanceof Error ? err.message : t('errors.couldNotLoadMatches'));
     } finally {
       setMatchReviewLoading(false);
     }
-  }, [savedPlanId]);
+  }, [savedPlanId, t]);
 
   useEffect(() => {
     if (showMatchReview) void loadMatchReview();
@@ -740,10 +753,10 @@ export default function WeeklyPlannerPage() {
         body: JSON.stringify({ activityId, workoutKey }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Could not update match');
+      if (!res.ok) throw new Error(body.error || t('errors.couldNotUpdateMatch'));
       await loadMatchReview();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not update match');
+      setError(err instanceof Error ? err.message : t('errors.couldNotUpdateMatch'));
       setMatchReviewLoading(false);
     }
   };
@@ -764,14 +777,14 @@ export default function WeeklyPlannerPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || 'Failed to save');
+        throw new Error(err.error || t('errors.failedToSaveDraft'));
       }
       setLastSavedAt(new Date());
       setAllPlans((prev) =>
         prev.map((p) => (p.id === savedPlanId ? { ...p, parsed_workouts: groupedPlans } : p))
       );
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save draft');
+      setError(err instanceof Error ? err.message : t('errors.failedToSaveDraft'));
     } finally {
       setSaving(false);
     }
@@ -786,14 +799,14 @@ export default function WeeklyPlannerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan_id: savedPlanId }),
       });
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res.ok) throw new Error(t('errors.failedToDeletePlan'));
       setAllPlans((prev) => prev.filter((p) => p.id !== savedPlanId));
       setSavedPlanId(null);
       setGroupedPlans(null);
       setParsedPlan(null);
       setConfirmDelete(false);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to delete plan');
+      setError(err instanceof Error ? err.message : t('errors.failedToDeletePlan'));
     } finally {
       setDeleting(false);
     }
@@ -821,7 +834,7 @@ export default function WeeklyPlannerPage() {
       targetAthletes = targetAthletes.filter((a) => a.hasGarmin);
 
       if (targetAthletes.length === 0) {
-        throw new Error('No athletes with Garmin connected selected');
+        throw new Error(t('errors.noGarminSelected'));
       }
 
       const sortedGroups = [...groups].sort((a, b) => {
@@ -866,7 +879,7 @@ export default function WeeklyPlannerPage() {
 
         if (!res.ok) {
           const err = await res.json();
-          throw new Error(err.error || 'Failed to push workouts');
+          throw new Error(err.error || t('errors.failedToPushWorkouts'));
         }
 
         const data = await res.json();
@@ -889,7 +902,7 @@ export default function WeeklyPlannerPage() {
         prev.map((p) => (p.id === savedPlanId ? { ...p, status: newStatus as 'draft' | 'pushed' | 'partial' } : p))
       );
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Push failed');
+      setError(err instanceof Error ? err.message : t('errors.pushFailed'));
     } finally {
       setPushing(false);
     }
@@ -922,7 +935,7 @@ export default function WeeklyPlannerPage() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || 'Retry failed');
+        throw new Error(err.error || t('errors.retryFailedErr'));
       }
 
       const data = await res.json();
@@ -936,7 +949,7 @@ export default function WeeklyPlannerPage() {
 
       setPushResults(merged);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Retry failed');
+      setError(err instanceof Error ? err.message : t('errors.retryFailedErr'));
     } finally {
       setPushing(false);
     }
@@ -965,7 +978,7 @@ export default function WeeklyPlannerPage() {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
             <Calendar className="h-5 w-5 text-primary-400" />
-            <h1 className="text-lg font-semibold text-white">Weekly Planner</h1>
+            <h1 className="text-lg font-semibold text-white">{t('title')}</h1>
           </div>
 
           <div className="flex items-center gap-3">
@@ -979,7 +992,7 @@ export default function WeeklyPlannerPage() {
             <div className="text-center min-w-[180px]">
               <p className="text-sm font-medium text-white">{weekLabel}</p>
               <p className="text-xs text-slate-500">
-                {weekOffset === 0 ? 'This week' : weekOffset === 1 ? 'Next week' : weekOffset === -1 ? 'Last week' : ''}
+                {weekOffset === 0 ? t('thisWeek') : weekOffset === 1 ? t('nextWeek') : weekOffset === -1 ? t('lastWeek') : ''}
               </p>
             </div>
 
@@ -995,7 +1008,7 @@ export default function WeeklyPlannerPage() {
                 onClick={() => setWeekOffset(getDefaultOffset())}
                 className="text-xs text-primary-400 hover:text-primary-300 ms-2"
               >
-                Current
+                {t('current')}
               </button>
             )}
           </div>
@@ -1019,32 +1032,34 @@ export default function WeeklyPlannerPage() {
               <Calendar className="h-7 w-7 text-slate-500" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-white mb-2">No plan for this week</h2>
+              <h2 className="text-xl font-semibold text-white mb-2">{t('noPlan')}</h2>
               <p className="text-sm text-slate-400">
                 {programPdfUrl
-                  ? `The training program for ${weekLabel} is uploaded — sync it into a plan, or create one manually.`
-                  : `Upload a training plan image or paste text to create one for ${weekLabel}.`}
+                  ? t('uploadDescriptionProgram', { group: weekLabel })
+                  : t('uploadDescription', { group: weekLabel })}
               </p>
             </div>
             <div className="flex flex-col gap-3 items-center">
               {programPdfUrl && (
-                <button
-                  onClick={syncFromProgram}
-                  className="btn-primary flex items-center gap-2 px-6 py-3"
-                >
+                <Button onClick={syncFromProgram} size="lg">
                   <RefreshCw className="h-5 w-5" />
-                  Sync from Program
-                </button>
+                  {t('syncFromProgram')}
+                </Button>
               )}
-              <button
-                onClick={() => setShowCreate(true)}
-                className={programPdfUrl
-                  ? 'text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg border border-slate-700/50 transition-colors flex items-center gap-2'
-                  : 'btn-primary flex items-center gap-2 px-6 py-3'}
-              >
-                <Plus className={programPdfUrl ? 'h-4 w-4' : 'h-5 w-5'} />
-                {programPdfUrl ? 'Create manually' : 'Create Plan'}
-              </button>
+              {programPdfUrl ? (
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="text-sm text-slate-400 hover:text-white hover:bg-slate-800 min-h-[44px] px-4 py-2 rounded-lg border border-slate-700/50 transition-colors flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  {t('createManually')}
+                </button>
+              ) : (
+                <Button onClick={() => setShowCreate(true)} size="lg">
+                  <Plus className="h-5 w-5" />
+                  {t('createPlan')}
+                </Button>
+              )}
               <button
                 onClick={async () => {
                   setParsing(true);
@@ -1059,17 +1074,17 @@ export default function WeeklyPlannerPage() {
                         setAllPlans(plansData.plans || []);
                       }
                     } else {
-                      setError(data.results?.map((r: any) => `${r.week}: ${r.status}`).join(', ') || 'No plans imported');
+                      setError(data.results?.map((r: any) => `${r.week}: ${r.status}`).join(', ') || t('noPlansImported'));
                     }
                   } catch (err: any) {
-                    setError(err.message || 'Import failed');
+                    setError(err.message || t('importFailed'));
                   } finally {
                     setParsing(false);
                   }
                 }}
                 className="text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg border border-slate-700/50 transition-colors"
               >
-                Import from Program PDFs
+                {t('importFromProgram')}
               </button>
             </div>
           </div>
@@ -1081,7 +1096,7 @@ export default function WeeklyPlannerPage() {
         <div className="flex-1 flex items-center justify-center px-4 py-12">
           <div className="w-full max-w-2xl space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Create Plan for {weekLabel}</h2>
+              <h2 className="text-xl font-semibold">{t('createPlanFor', { group: weekLabel })}</h2>
               <button
                 onClick={() => { setShowCreate(false); setError(null); }}
                 className="text-slate-400 hover:text-white"
@@ -1096,14 +1111,14 @@ export default function WeeklyPlannerPage() {
                 <div className="flex items-center justify-between px-4 py-2.5">
                   <div className="flex items-center gap-2 text-sm text-slate-300">
                     <FileText className="h-4 w-4 text-primary-400" />
-                    Program for {weekLabel}
+                    {t('programFor', { group: weekLabel })}
                   </div>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setShowProgramViewer((v) => !v)}
                       className="text-xs text-primary-400 hover:text-primary-300"
                     >
-                      {showProgramViewer ? 'Hide' : 'View'}
+                      {showProgramViewer ? t('hide') : t('view')}
                     </button>
                     <a
                       href={programPdfUrl}
@@ -1111,7 +1126,7 @@ export default function WeeklyPlannerPage() {
                       rel="noopener noreferrer"
                       className="text-xs text-slate-400 hover:text-white"
                     >
-                      Open ↗
+                      {t('openArrow')}
                     </a>
                   </div>
                 </div>
@@ -1120,7 +1135,7 @@ export default function WeeklyPlannerPage() {
                     src={programPdfUrl}
                     className="w-full border-0 border-t border-slate-700 bg-white"
                     style={{ height: '60vh' }}
-                    title={`Training program for ${weekLabel}`}
+                    title={t('programFor', { group: weekLabel })}
                   />
                 )}
                 <div className="px-4 py-2 border-t border-slate-700/60">
@@ -1129,7 +1144,7 @@ export default function WeeklyPlannerPage() {
                     className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1.5"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
-                    Parse this program automatically
+                    {t('parseProgramAutomatically')}
                   </button>
                 </div>
               </div>
@@ -1138,9 +1153,9 @@ export default function WeeklyPlannerPage() {
             <textarea
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Paste your training plan from the coach..."
+              placeholder={t('pasteYourPlan')}
               rows={8}
-              className="input w-full resize-none text-base leading-relaxed"
+              className="w-full resize-none text-base leading-relaxed bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
             />
 
             <div
@@ -1161,7 +1176,7 @@ export default function WeeklyPlannerPage() {
                   </div>
                   <div className="text-start">
                     <p className="text-sm text-slate-300">{imageFile?.name}</p>
-                    <p className="text-xs text-slate-500">Ready to parse</p>
+                    <p className="text-xs text-slate-500">{t('readyToParse')}</p>
                   </div>
                 </div>
               ) : imagePreview ? (
@@ -1169,7 +1184,7 @@ export default function WeeklyPlannerPage() {
               ) : (
                 <div className="flex flex-col items-center gap-2 py-2">
                   <Upload className="h-6 w-6 text-slate-500" />
-                  <p className="text-sm text-slate-400">Drop an image or PDF here, or click to browse</p>
+                  <p className="text-sm text-slate-400">{t('dropImage')}</p>
                 </div>
               )}
               <input
@@ -1187,14 +1202,10 @@ export default function WeeklyPlannerPage() {
               </div>
             )}
 
-            <button
-              onClick={parsePlan}
-              disabled={!hasInput}
-              className="btn-primary w-full py-3 text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <Button onClick={parsePlan} disabled={!hasInput} size="lg" className="w-full">
               <FileText className="h-5 w-5" />
-              Parse Plan
-            </button>
+              {t('parsePlan')}
+            </Button>
           </div>
         </div>
       )}
@@ -1236,8 +1247,8 @@ export default function WeeklyPlannerPage() {
               </svg>
             </div>
             <div className="space-y-2">
-              <h2 className="text-xl font-semibold text-white">Parsing your plan...</h2>
-              <p className="text-sm text-slate-400">Reading workouts and building your week</p>
+              <h2 className="text-xl font-semibold text-white">{t('parsingPlan')}</h2>
+              <p className="text-sm text-slate-400">{t('readingWorkouts')}</p>
             </div>
             <div className="w-48 mx-auto h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-primary-600 via-purple-500 to-primary-600 rounded-full animate-progress-indeterminate" />
@@ -1254,7 +1265,7 @@ export default function WeeklyPlannerPage() {
             <div className="flex items-center justify-between max-w-7xl mx-auto">
               <div className="flex items-center gap-3">
                 <span className="text-sm text-slate-300">
-                  {workoutCount} workout{workoutCount !== 1 ? 's' : ''}
+                  {workoutCount} {t('workouts')}
                 </span>
                 <span className={cn(
                   'flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium',
@@ -1265,36 +1276,38 @@ export default function WeeklyPlannerPage() {
                   {currentPlan.status === 'pushed' ? <CheckCircle2 className="h-3 w-3" /> :
                    currentPlan.status === 'partial' ? <AlertCircle className="h-3 w-3" /> :
                    <Clock className="h-3 w-3" />}
-                  {currentPlan.status}
+                  {currentPlan.status === 'pushed' ? t('pushed') : currentPlan.status === 'partial' ? t('partial') : t('draft')}
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={syncFromProgram}
-                  className="btn-secondary flex items-center gap-2 text-sm"
-                  title="Re-parse this week's training PDF from the Program page"
+                  title={t('syncFromProgram')}
                 >
                   <RefreshCw className="h-4 w-4" />
-                  Sync
-                </button>
-                <button
+                  {t('sync')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setEditMode(!editMode)}
-                  className={cn(
-                    'btn-secondary flex items-center gap-2 text-sm',
-                    editMode && 'ring-1 ring-primary-500'
-                  )}
+                  className={cn(editMode && 'ring-1 ring-primary-500')}
                 >
                   <Edit3 className="h-4 w-4" />
-                  {editMode ? 'Done' : 'Edit'}
-                </button>
-                <button
+                  {editMode ? t('done') : t('edit')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setConfirmDelete(true)}
-                  className="btn-secondary flex items-center gap-2 text-sm text-red-400 hover:text-red-300"
+                  className="text-red-400 hover:text-red-300"
                 >
                   <Trash2 className="h-4 w-4" />
-                  Remove
-                </button>
+                  {t('remove')}
+                </Button>
               </div>
             </div>
           </div>
@@ -1328,7 +1341,7 @@ export default function WeeklyPlannerPage() {
                     )}>
                       {g}
                     </span>
-                    <span>Group {g}</span>
+                    <span>{t('groupLabel', { n: g })}</span>
                     {groupDist > 0 && (
                       <span className="text-3xs text-slate-500 font-normal ms-1">
                         {(groupDist / 1000).toFixed(0)}km
@@ -1360,81 +1373,87 @@ export default function WeeklyPlannerPage() {
             <div className="flex items-center justify-between max-w-7xl mx-auto">
               <div className="flex items-center gap-3">
                 {editMode && (
-                  <button
-                    onClick={saveDraft}
-                    disabled={saving}
-                    className="btn-secondary flex items-center gap-2 text-sm"
-                  >
+                  <Button variant="secondary" size="sm" onClick={saveDraft} disabled={saving}>
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    {saving ? 'Saving...' : 'Save Changes'}
-                  </button>
+                    {t('saveChanges')}
+                  </Button>
                 )}
                 {lastSavedAt && (
                   <span className="text-xs text-slate-500 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3 text-green-500" />
-                    Saved {lastSavedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    {t('savedAt', { time: lastSavedAt.toLocaleTimeString(locale === 'he' ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit' }) })}
                   </span>
                 )}
               </div>
-              <button
+              <Button
                 onClick={() => {
                   setError(null);
                   setClipboardWorkoutIndex(0);
                   setShowClipboardReview(true);
                 }}
-                className="btn-primary flex items-center gap-2 px-6 py-2.5"
+                className="px-6"
               >
                 <ClipboardList className="h-4 w-4" />
-                Review & Publish Clipboards
-              </button>
+                {t('reviewAndPublish')}
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      {showClipboardReview && groupedPlans && savedPlanId && (
-        <div className="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm p-4 md:p-8">
-          <div className="mx-auto flex h-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-700 px-5 py-4">
-              <div>
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-                  <ClipboardList className="h-5 w-5 text-primary-400" />
-                  Clipboard Review Studio
-                </h2>
-                <p className="mt-1 text-xs text-slate-400">
-                  Review every independently recorded part. Publishing stores both structured text and a group-specific image.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowClipboardReview(false)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
-                aria-label="Close clipboard review"
+      <Sheet
+        open={!!(showClipboardReview && groupedPlans && savedPlanId)}
+        onOpenChange={(o) => { if (!o) setShowClipboardReview(false); }}
+        title={t('clipboardStudioTitle')}
+        className="md:max-w-5xl md:mx-auto"
+        footer={groupedPlans && (
+          <div className="flex items-center justify-between border-t border-slate-700 bg-slate-800/30 px-5 py-4">
+            <span className="text-xs text-slate-500">
+              {t('partsTimesGroups', { parts: groupedPlans.group1.workouts.length })}
+            </span>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowClipboardReview(false);
+                  setShowMatchReview(true);
+                }}
+                disabled={clipboardLoading}
               >
-                <X className="h-5 w-5" />
-              </button>
+                <Search className="h-4 w-4" />
+                {t('activityMatches')}
+              </Button>
+              <Button variant="secondary" onClick={saveDraft} disabled={saving || clipboardLoading}>
+                <Save className="h-4 w-4" />
+                {t('saveDraft')}
+              </Button>
+              <Button onClick={publishClipboards} disabled={clipboardLoading} className="px-5">
+                {clipboardLoading
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <CheckCircle2 className="h-4 w-4" />}
+                {t('publishAllClipboards')}
+              </Button>
             </div>
+          </div>
+        )}
+      >
+        {groupedPlans && savedPlanId && (
+          <>
+            <p className="mb-3 text-xs text-slate-400">
+              {t('clipboardStudioDesc')}
+            </p>
 
-            <div className="flex items-center gap-2 border-b border-slate-700 bg-slate-800/30 px-5 py-3">
-              {([1, 2, 3] as const).map((group) => (
-                <button
-                  key={group}
-                  onClick={() => setActiveGroup(group)}
-                  className={cn(
-                    'rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                    activeGroup === group
-                      ? 'border-primary-500 bg-primary-500/15 text-primary-300'
-                      : 'border-slate-700 text-slate-400 hover:text-white',
-                  )}
-                >
-                  Group {group}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              value={String(activeGroup)}
+              onChange={(v) => setActiveGroup(Number(v) as 1 | 2 | 3)}
+              options={[1, 2, 3].map((group) => ({ value: String(group), label: t('groupLabel', { n: group }) }))}
+              className="mb-4"
+            />
 
-            <div className="grid min-h-0 flex-1 md:grid-cols-[300px_1fr]">
-              <aside className="overflow-y-auto border-e border-slate-700 p-3">
+            <div className="grid md:grid-cols-[260px_1fr] gap-4">
+              <aside className="md:border-e border-slate-700 md:pe-3">
                 <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                  Workout parts
+                  {t('workoutParts')}
                 </p>
                 <div className="space-y-2">
                   {groupedPlans[`group${activeGroup}`].workouts.map((workout, index) => (
@@ -1450,29 +1469,29 @@ export default function WeeklyPlannerPage() {
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-semibold uppercase text-slate-500">
-                          {DAY_SHORT[workout.dayOfWeek]}
+                          {DAY_LABELS[workout.dayOfWeek]}
                           {workout.partCount && workout.partCount > 1
-                            ? ` · Part ${workout.partIndex}/${workout.partCount}`
+                            ? ` · ${t('partLabel', { index: workout.partIndex ?? 0, count: workout.partCount })}`
                             : ''}
                         </span>
                         {workout.clipboardImageUrl && (
                           <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold text-emerald-400">
-                            Published
+                            {t('published')}
                           </span>
                         )}
                       </div>
                       <p className="mt-1 truncate text-sm font-medium text-white">{workout.name}</p>
                       <p className="mt-1 text-[10px] text-slate-500">
                         {workout.expectedDistanceM
-                          ? `${(workout.expectedDistanceM / 1000).toFixed(1)} km expected`
-                          : workout.partKind || 'single'}
+                          ? t('expectedKm', { km: (workout.expectedDistanceM / 1000).toFixed(1) })
+                          : workout.partKind || t('single')}
                       </p>
                     </button>
                   ))}
                 </div>
               </aside>
 
-              <main className="min-h-0 overflow-y-auto p-5">
+              <main className="min-w-0">
                 {(() => {
                   const workout =
                     groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex];
@@ -1484,16 +1503,13 @@ export default function WeeklyPlannerPage() {
                           <div>
                             <h3 className="font-semibold text-white">{workout.name}</h3>
                             <p className="text-xs text-slate-500">
-                              {workout.workoutKey} · Group {activeGroup}
+                              {workout.workoutKey} · {t('groupLabel', { n: activeGroup })}
                             </p>
                           </div>
-                          <button
-                            onClick={() => setClipboardEditing(true)}
-                            className="btn-secondary flex items-center gap-2 text-sm"
-                          >
+                          <Button variant="secondary" size="sm" onClick={() => setClipboardEditing(true)}>
                             <Edit3 className="h-4 w-4" />
-                            Edit steps
-                          </button>
+                            {t('editSteps')}
+                          </Button>
                         </div>
                         <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                           {clipboardLoading && !clipboardPreview ? (
@@ -1501,13 +1517,13 @@ export default function WeeklyPlannerPage() {
                           ) : clipboardPreview ? (
                             <img
                               src={clipboardPreview}
-                              alt={`Clipboard preview for ${workout.name}`}
+                              alt={workout.name}
                               className="max-h-[560px] max-w-full rounded-lg object-contain"
                             />
                           ) : (
                             <div className="text-center text-sm text-slate-500">
                               <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                              Preview unavailable
+                              {t('previewUnavailable')}
                             </div>
                           )}
                         </div>
@@ -1516,53 +1532,50 @@ export default function WeeklyPlannerPage() {
                       <section className="space-y-5">
                         <div>
                           <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-                            AI-readable workout text
+                            {t('aiReadableText')}
                           </h4>
                           <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-slate-700 bg-slate-950/60 p-4 text-xs leading-6 text-slate-200">
-                            {clipboardText || workout.clipboardText || 'Rendering…'}
+                            {clipboardText || workout.clipboardText || t('rendering')}
                           </pre>
                         </div>
 
                         <div className="rounded-xl border border-slate-700 bg-slate-800/35 p-4">
                           <h4 className="flex items-center gap-2 text-sm font-semibold text-white">
                             <Sparkles className="h-4 w-4 text-purple-400" />
-                            Refine with AI
+                            {t('refineWithAi')}
                           </h4>
                           <textarea
                             value={clipboardInstruction}
                             onChange={(event) => setClipboardInstruction(event.target.value)}
-                            placeholder="For example: split recovery into 90 seconds, keep the 3000m test as one open effort…"
+                            placeholder={t('refinePlaceholder')}
                             className="mt-3 min-h-24 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-primary-500 focus:outline-none"
                           />
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                            <label className="flex items-center gap-2 text-xs text-slate-400">
-                              Apply to
-                              <select
-                                value={clipboardRefineScope}
-                                onChange={(event) =>
-                                  setClipboardRefineScope(event.target.value as 'current' | 'all')
-                                }
-                                className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-white"
-                              >
-                                <option value="all">all groups</option>
-                                <option value="current">current group only</option>
-                              </select>
-                            </label>
-                            <button
+                            <SegmentedControl
+                              value={clipboardRefineScope}
+                              onChange={setClipboardRefineScope}
+                              options={[
+                                { value: 'all', label: t('allGroups') },
+                                { value: 'current', label: t('currentGroupOnly') },
+                              ]}
+                              className="w-fit"
+                            />
+                            <Button
+                              variant="secondary"
+                              size="sm"
                               onClick={refineClipboard}
                               disabled={clipboardLoading || !clipboardInstruction.trim()}
-                              className="btn-secondary flex items-center gap-2 text-sm"
                             >
                               {clipboardLoading
                                 ? <Loader2 className="h-4 w-4 animate-spin" />
                                 : <Sparkles className="h-4 w-4" />}
-                              Refine
-                            </button>
+                              {t('refine')}
+                            </Button>
                           </div>
                         </div>
 
                         <div className="rounded-xl border border-primary-500/30 bg-primary-500/5 p-4 text-xs text-slate-300">
-                          The PNG is an attachment for people. The structured workout and the text above are saved alongside it for matching and AI Coach analysis.
+                          {t('pngNote')}
                         </div>
                       </section>
                     </div>
@@ -1570,46 +1583,9 @@ export default function WeeklyPlannerPage() {
                 })()}
               </main>
             </div>
-
-            <div className="flex items-center justify-between border-t border-slate-700 bg-slate-800/30 px-5 py-4">
-              <span className="text-xs text-slate-500">
-                {groupedPlans.group1.workouts.length} parts × 3 groups
-              </span>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    setShowClipboardReview(false);
-                    setShowMatchReview(true);
-                  }}
-                  disabled={clipboardLoading}
-                  className="btn-secondary flex items-center gap-2"
-                >
-                  <Search className="h-4 w-4" />
-                  Activity matches
-                </button>
-                <button
-                  onClick={saveDraft}
-                  disabled={saving || clipboardLoading}
-                  className="btn-secondary flex items-center gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  Save draft
-                </button>
-                <button
-                  onClick={publishClipboards}
-                  disabled={clipboardLoading}
-                  className="btn-primary flex items-center gap-2 px-5"
-                >
-                  {clipboardLoading
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <CheckCircle2 className="h-4 w-4" />}
-                  Publish all clipboards
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Sheet>
 
       {clipboardEditing && groupedPlans && (
         <WorkoutEditorPanel
@@ -1620,24 +1596,39 @@ export default function WeeklyPlannerPage() {
         />
       )}
 
-      {showMatchReview && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-700 p-5">
-              <div>
-                <h2 className="text-lg font-semibold text-white">Activity → workout matches</h2>
-                <p className="mt-1 text-xs text-slate-400">
-                  Automatic matches use date, part order, distance tolerance, and activity name. A staff selection becomes the durable override.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowMatchReview(false)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+      <Sheet
+        open={showMatchReview}
+        onOpenChange={setShowMatchReview}
+        title={t('matchReviewTitle')}
+        footer={
+          <div className="flex justify-between border-t border-slate-700 bg-slate-800/30 p-4">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowMatchReview(false);
+                setShowClipboardReview(true);
+              }}
+            >
+              {t('backToClipboards')}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void loadMatchReview()}
+              disabled={matchReviewLoading}
+            >
+              {matchReviewLoading
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <RefreshCw className="h-4 w-4" />}
+              {t('refreshMatches')}
+            </Button>
+          </div>
+        }
+      >
+        <>
+            <p className="mb-4 text-xs text-slate-400">
+              {t('matchReviewDesc')}
+            </p>
+            <div className="min-h-0">
               {matchReviewLoading && !matchReview ? (
                 <div className="flex h-52 items-center justify-center">
                   <Loader2 className="h-7 w-7 animate-spin text-primary-400" />
@@ -1666,7 +1657,7 @@ export default function WeeklyPlannerPage() {
                               {athlete?.name || activity.athlete_id}
                             </span>
                             <span className="text-xs text-slate-500">
-                              {new Date(activity.start_time).toLocaleString('en-GB', {
+                              {new Date(activity.start_time).toLocaleString(locale === 'he' ? 'he-IL' : 'en-GB', {
                                 weekday: 'short',
                                 hour: '2-digit',
                                 minute: '2-digit',
@@ -1680,13 +1671,13 @@ export default function WeeklyPlannerPage() {
                                   ? 'bg-purple-500/15 text-purple-300'
                                   : 'bg-emerald-500/15 text-emerald-300',
                               )}>
-                                {match.match_method}
+                                {match.match_method === 'manual' ? t('matchManual') : t('matchAuto')}
                                 {match.score != null ? ` ${Math.round(match.score)}` : ''}
                               </span>
                             )}
                           </div>
                           <p className="mt-1 truncate text-sm text-slate-300">
-                            {activity.activity_name || 'Run'} ·{' '}
+                            {activity.activity_name || t('runFallback')} ·{' '}
                             {activity.distance ? `${(activity.distance / 1000).toFixed(2)} km` : '—'}
                           </p>
                         </div>
@@ -1698,12 +1689,12 @@ export default function WeeklyPlannerPage() {
                           disabled={matchReviewLoading}
                           className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white focus:border-primary-500 focus:outline-none"
                         >
-                          <option value="">No matched workout</option>
+                          <option value="">{t('noMatchedWorkout')}</option>
                           {candidates.map((workout) => (
                             <option key={workout.workoutKey} value={workout.workoutKey}>
-                              {DAY_SHORT[workout.dayOfWeek]} ·{' '}
+                              {DAY_LABELS[workout.dayOfWeek]} ·{' '}
                               {workout.partCount && workout.partCount > 1
-                                ? `Part ${workout.partIndex}/${workout.partCount} · `
+                                ? `${t('partLabel', { index: workout.partIndex ?? 0, count: workout.partCount })} · `
                                 : ''}
                               {workout.name}
                             </option>
@@ -1715,94 +1706,56 @@ export default function WeeklyPlannerPage() {
                 </div>
               ) : (
                 <div className="py-16 text-center text-sm text-slate-500">
-                  No activities are stored for this plan week yet.
+                  {t('noActivitiesStored')}
                 </div>
               )}
             </div>
-            <div className="flex justify-between border-t border-slate-700 bg-slate-800/30 p-4">
-              <button
-                onClick={() => {
-                  setShowMatchReview(false);
-                  setShowClipboardReview(true);
-                }}
-                className="btn-secondary"
-              >
-                Back to clipboards
-              </button>
-              <button
-                onClick={() => void loadMatchReview()}
-                disabled={matchReviewLoading}
-                className="btn-secondary flex items-center gap-2"
-              >
-                {matchReviewLoading
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <RefreshCw className="h-4 w-4" />}
-                Refresh matches
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        </>
+      </Sheet>
 
       {/* Delete confirmation */}
-      {confirmDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Trash2 className="w-5 h-5 text-red-400" />
-              <h3 className="text-lg font-semibold text-white">Remove Plan</h3>
-            </div>
-            <p className="text-slate-300 text-sm mb-6">
-              Are you sure you want to remove the plan for <span className="font-medium text-white">{weekLabel}</span>? This cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={deletePlan}
-                disabled={deleting}
-                className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors font-medium flex items-center gap-2"
-              >
-                {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmSheet
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={t('removePlanTitle')}
+        description={t('removeConfirm', { group: weekLabel })}
+        confirmLabel={t('remove')}
+        cancelLabel={t('cancel')}
+        onConfirm={deletePlan}
+      />
+
+      {/* Sync-from-program overwrite confirmation */}
+      <ConfirmSheet
+        open={confirmSyncFromProgram}
+        onOpenChange={setConfirmSyncFromProgram}
+        title={t('syncFromProgram')}
+        description={t('errors.confirmReplacePlan', { group: weekLabel })}
+        confirmLabel={t('sync')}
+        cancelLabel={t('cancel')}
+        danger={false}
+        onConfirm={() => void doSyncFromProgram()}
+      />
 
       {/* Push Modal */}
-      {showPush && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="card max-w-xl w-full max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-700">
-              <h2 className="text-lg font-semibold">Push to Athletes</h2>
-              <button
-                onClick={() => { setShowPush(false); setPushResults(null); setError(null); }}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
+      <Sheet
+        open={showPush}
+        onOpenChange={(o) => { if (!o) { setShowPush(false); setPushResults(null); setError(null); } }}
+        title={t('pushToAthletes')}
+      >
             {pushResults ? (
-              <div className="flex-1 overflow-y-auto py-4 space-y-4">
+              <div className="space-y-4">
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2 text-green-400">
                     <CheckCircle className="h-5 w-5" />
                     <span className="font-medium">
-                      {pushResults.filter((r) => r.status === 'success').length} succeeded
+                      {pushResults.filter((r) => r.status === 'success').length} {t('succeeded')}
                     </span>
                   </div>
                   {pushResults.some((r) => r.status === 'failed') && (
                     <div className="flex items-center gap-2 text-red-400">
                       <XCircle className="h-5 w-5" />
                       <span className="font-medium">
-                        {pushResults.filter((r) => r.status === 'failed').length} failed
+                        {pushResults.filter((r) => r.status === 'failed').length} {t('failed')}
                       </span>
                     </div>
                   )}
@@ -1836,18 +1789,14 @@ export default function WeeklyPlannerPage() {
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-700">
                   {pushResults.some((r) => r.status === 'failed') && (
-                    <button
-                      onClick={retryFailed}
-                      disabled={pushing}
-                      className="btn-secondary flex items-center gap-2"
-                    >
+                    <Button variant="secondary" onClick={retryFailed} disabled={pushing}>
                       {pushing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                      Retry Failed
-                    </button>
+                      {t('retryFailed')}
+                    </Button>
                   )}
-                  <button onClick={() => { setShowPush(false); setPushResults(null); }} className="btn-primary">
-                    Done
-                  </button>
+                  <Button onClick={() => { setShowPush(false); setPushResults(null); }}>
+                    {t('done')}
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -1856,14 +1805,14 @@ export default function WeeklyPlannerPage() {
                 {planDays.length > 0 && (
                   <div className="mt-4 pb-4 border-b border-slate-700">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-slate-400">Workouts to send</span>
+                      <span className="text-xs font-medium text-slate-400">{t('workoutsToSend')}</span>
                       <div className="flex items-center gap-2">
                         {planDays.includes(new Date().getDay()) && (
                           <button
                             onClick={() => setPushDays([new Date().getDay()])}
                             className="text-2xs text-primary-400 hover:text-primary-300"
                           >
-                            Today only
+                            {t('todayOnly')}
                           </button>
                         )}
                         <button
@@ -1873,7 +1822,7 @@ export default function WeeklyPlannerPage() {
                             pushDays === null ? 'text-primary-400 font-medium' : 'text-slate-500 hover:text-slate-300'
                           )}
                         >
-                          Whole week
+                          {t('wholeWeek')}
                         </button>
                       </div>
                     </div>
@@ -1901,43 +1850,32 @@ export default function WeeklyPlannerPage() {
                                 : 'border-slate-700 text-slate-500 hover:border-slate-600',
                               isToday && 'ring-1 ring-primary-500/40'
                             )}
-                            title={DAY_NAMES[d]}
+                            title={DAY_LABELS[d]}
                           >
-                            {DAY_SHORT[d]}{isToday ? ' •' : ''}
+                            {DAY_LABELS[d]}{isToday ? ' •' : ''}
                           </button>
                         );
                       })}
                     </div>
                     <p className="text-3xs text-slate-500 mt-2">
-                      Sending {selectedDayCount} workout{selectedDayCount !== 1 ? 's' : ''} per athlete
-                      {pushDays !== null && selectedDayCount === 0 && ' — select at least one day'}
+                      {t('sendingWorkouts', { count: selectedDayCount })}
+                      {pushDays !== null && selectedDayCount === 0 && t('selectAtLeastOneDay')}
                     </p>
                   </div>
                 )}
 
-                <div className="flex border-b border-slate-700 mt-4">
-                  {([
-                    { key: 'all', icon: Users, label: 'All Athletes' },
-                    { key: 'groups', icon: Layers, label: 'By Group' },
-                    { key: 'athletes', icon: UserCheck, label: 'Specific' },
-                  ] as const).map(({ key, icon: Icon, label }) => (
-                    <button
-                      key={key}
-                      onClick={() => setPushTab(key)}
-                      className={cn(
-                        'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
-                        pushTab === key
-                          ? 'border-primary-500 text-primary-400'
-                          : 'border-transparent text-slate-400 hover:text-slate-200'
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  value={pushTab}
+                  onChange={setPushTab}
+                  options={[
+                    { value: 'all', icon: Users, label: t('allAthletes') },
+                    { value: 'groups', icon: Layers, label: t('byGroup') },
+                    { value: 'athletes', icon: UserCheck, label: t('specific') },
+                  ]}
+                  className="mt-4"
+                />
 
-                <div className="flex-1 overflow-y-auto py-4 min-h-[200px]">
+                <div className="py-4 min-h-[200px]">
                   {loadingAthletes ? (
                     <div className="flex items-center justify-center py-12">
                       <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
@@ -1951,23 +1889,23 @@ export default function WeeklyPlannerPage() {
                             return (
                               <div className="text-center">
                                 <p className="text-lg font-medium">
-                                  {activeAthletes.length} active athlete{activeAthletes.length !== 1 ? 's' : ''}
+                                  {t('activeAthletesCount', { count: activeAthletes.length })}
                                 </p>
                                 <p className="text-sm text-slate-400 mt-0.5">
-                                  {readyCount} Garmin-connected · will receive {workoutCount} workout{workoutCount !== 1 ? 's' : ''}
+                                  {t('garminWillReceive', { ready: readyCount, count: workoutCount })}
                                 </p>
                               </div>
                             );
                           })()}
 
                           {groups.length === 0 ? (
-                            <p className="text-sm text-slate-400 text-center py-6">No groups found</p>
+                            <p className="text-sm text-slate-400 text-center py-6">{t('noGroupsFound')}</p>
                           ) : (
                             groups.map((group, groupIdx) => {
                               const groupColor =
-                                groupIdx === 0 ? { dot: 'bg-green-400', badge: 'bg-green-500/20 text-green-400', label: 'Group 1' } :
-                                groupIdx === 1 ? { dot: 'bg-yellow-400', badge: 'bg-yellow-500/20 text-yellow-400', label: 'Group 2' } :
-                                { dot: 'bg-orange-400', badge: 'bg-orange-500/20 text-orange-400', label: 'Group 3' };
+                                groupIdx === 0 ? { dot: 'bg-green-400', badge: 'bg-green-500/20 text-green-400', label: t('groupLabel', { n: 1 }) } :
+                                groupIdx === 1 ? { dot: 'bg-yellow-400', badge: 'bg-yellow-500/20 text-yellow-400', label: t('groupLabel', { n: 2 }) } :
+                                { dot: 'bg-orange-400', badge: 'bg-orange-500/20 text-orange-400', label: t('groupLabel', { n: 3 }) };
                               const members = activeAthletes.filter((a) => a.group_id === group.id);
                               const readyMembers = members.filter((a) => a.hasGarmin);
                               const isOpen = expandedAllGroup === group.id;
@@ -1985,25 +1923,25 @@ export default function WeeklyPlannerPage() {
                                       </span>
                                     </div>
                                     <span className="text-xs text-slate-400 shrink-0">
-                                      {readyMembers.length}/{members.length} ready
+                                      {t('readyOfTotal', { ready: readyMembers.length, total: members.length })}
                                     </span>
                                     {isOpen ? <ChevronUp className="h-4 w-4 text-slate-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-500 shrink-0" />}
                                   </button>
                                   {isOpen && (
                                     <div className="border-t border-slate-700/50 divide-y divide-slate-800">
                                       {members.length === 0 ? (
-                                        <p className="text-xs text-slate-500 text-center py-3">No athletes in this group</p>
+                                        <p className="text-xs text-slate-500 text-center py-3">{t('noAthletesInGroup')}</p>
                                       ) : (
                                         members.map((a) => (
                                           <div key={a.id} className="flex items-center justify-between px-3 py-2 bg-slate-900/40">
                                             <span className="text-sm">{a.name}</span>
                                             {a.hasGarmin ? (
                                               <span className="flex items-center gap-1 text-2xs text-green-400">
-                                                <CheckCircle className="h-3.5 w-3.5" /> Garmin
+                                                <CheckCircle className="h-3.5 w-3.5" /> {t('garmin')}
                                               </span>
                                             ) : (
                                               <span className="flex items-center gap-1 text-2xs text-slate-500">
-                                                <XCircle className="h-3.5 w-3.5" /> Not connected
+                                                <XCircle className="h-3.5 w-3.5" /> {t('notConnected')}
                                               </span>
                                             )}
                                           </div>
@@ -2022,7 +1960,7 @@ export default function WeeklyPlannerPage() {
                             if (ungrouped.length === 0) return null;
                             return (
                               <p className="text-xs text-slate-500 text-center pt-1">
-                                {ungrouped.length} athlete{ungrouped.length !== 1 ? 's' : ''} without a group (get Group 1 plan by default)
+                                {t('withoutGroupNote', { count: ungrouped.length })}
                               </p>
                             );
                           })()}
@@ -2032,7 +1970,7 @@ export default function WeeklyPlannerPage() {
                       {pushTab === 'groups' && (
                         <div className="space-y-2">
                           {groups.length === 0 ? (
-                            <p className="text-sm text-slate-400 text-center py-8">No groups found</p>
+                            <p className="text-sm text-slate-400 text-center py-8">{t('noGroupsFound')}</p>
                           ) : (
                             [...groups].sort((a, b) => {
                               const aGoal = a.marathonGoal ? parseFloat(a.marathonGoal) : 999;
@@ -2041,7 +1979,7 @@ export default function WeeklyPlannerPage() {
                             }).map((group, groupIdx) => {
                               const count = activeAthletes.filter((a) => a.group_id === group.id).length;
                               const isSelected = selectedGroupIds.includes(group.id);
-                              const groupLabel = `Group ${Math.min(groupIdx + 1, 3)}`;
+                              const groupLabel = t('groupLabel', { n: Math.min(groupIdx + 1, 3) });
                               return (
                                 <label
                                   key={group.id}
@@ -2074,7 +2012,7 @@ export default function WeeklyPlannerPage() {
                                     {groupLabel}
                                   </span>
                                   <span className="text-xs text-slate-400">
-                                    {count} athlete{count !== 1 ? 's' : ''}
+                                    {t('athleteCount', { count })}
                                   </span>
                                 </label>
                               );
@@ -2091,14 +2029,14 @@ export default function WeeklyPlannerPage() {
                               type="text"
                               value={athleteSearch}
                               onChange={(e) => setAthleteSearch(e.target.value)}
-                              placeholder="Search athletes..."
-                              className="input w-full ps-9 text-sm"
+                              placeholder={t('searchAthletes')}
+                              className="w-full min-h-[44px] ps-9 text-sm bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                             />
                           </div>
 
                           <div className="space-y-1 max-h-[300px] overflow-y-auto">
                             {filteredAthletes.length === 0 ? (
-                              <p className="text-sm text-slate-400 text-center py-6">No athletes found</p>
+                              <p className="text-sm text-slate-400 text-center py-6">{t('noAthletesFound')}</p>
                             ) : (
                               filteredAthletes.map((athlete) => {
                                 const isSelected = selectedAthleteIds.includes(athlete.id);
@@ -2114,7 +2052,7 @@ export default function WeeklyPlannerPage() {
                                       !canPush ? 'opacity-50 cursor-not-allowed' :
                                         isSelected ? 'bg-primary-500/10 cursor-pointer' : 'hover:bg-slate-800 cursor-pointer'
                                     )}
-                                    title={canPush ? '' : 'No Garmin connected — cannot push'}
+                                    title={canPush ? '' : t('noGarminTitle')}
                                   >
                                     <input
                                       type="checkbox"
@@ -2132,7 +2070,7 @@ export default function WeeklyPlannerPage() {
                                     <Watch className={cn('h-4 w-4 shrink-0', canPush ? 'text-emerald-400' : 'text-red-400/60')} />
                                     <div className="flex-1 min-w-0">
                                       <span className="text-sm">{athlete.name}</span>
-                                      {!canPush && <span className="ms-2 text-3xs text-red-400/70">no Garmin</span>}
+                                      {!canPush && <span className="ms-2 text-3xs text-red-400/70">{t('noGarminTag')}</span>}
                                     </div>
                                     {athleteGroup && (
                                       <span className={cn(
@@ -2163,33 +2101,30 @@ export default function WeeklyPlannerPage() {
 
                 <div className="flex items-center justify-between pt-4 border-t border-slate-700">
                   <span className="text-sm text-slate-400">
-                    {pushTargetCount} athlete{pushTargetCount !== 1 ? 's' : ''} selected
+                    {t('athletesSelected', { count: pushTargetCount })}
                   </span>
-                  <button
+                  <Button
                     onClick={executePush}
                     disabled={pushing || pushTargetCount === 0 || selectedDayCount === 0}
-                    className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {pushing ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Pushing to {pushTargetCount} athlete{pushTargetCount !== 1 ? 's' : ''}...
+                        {t('pushingTo', { count: pushTargetCount })}
                       </>
                     ) : (
                       <>
                         <Send className="h-4 w-4" />
                         {pushDays === null
-                          ? 'Push Workouts'
-                          : `Push ${selectedDayCount} Day${selectedDayCount !== 1 ? 's' : ''}`}
+                          ? t('pushWorkouts')
+                          : t('pushDaysBtn', { count: selectedDayCount })}
                       </>
                     )}
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
-          </div>
-        </div>
-      )}
+      </Sheet>
     </div>
   );
 }

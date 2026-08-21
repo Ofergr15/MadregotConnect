@@ -3,6 +3,20 @@ import { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from '@/lib/garmin/client';
 import { COACH_ID } from '@/lib/constants';
 import { sendPushToSubscriptions } from '@/lib/push';
+import { checkAndAwardBadges } from '@/lib/badges/award-engine';
+
+// Hebrew label per run sub-type for the post-workout feedback nudge (same map
+// as the workout-watch cron's teaser). Anything outside this map falls back to
+// the generic 'ריצה'.
+const RUN_TYPE_LABELS: Record<string, string> = {
+  running: 'ריצה',
+  trail_running: 'ריצת שטח',
+  treadmill_running: 'ריצת הליכון',
+  track_running: 'ריצת מסלול',
+  virtual_run: 'ריצה וירטואלית',
+  street_running: 'ריצת רחוב',
+  indoor_running: 'ריצה באולם',
+};
 
 export async function POST(request: Request) {
   try {
@@ -150,15 +164,30 @@ export async function POST(request: Request) {
               .select('id, endpoint, p256dh, auth, athlete_id')
               .eq('athlete_id', athlete.id);
             if (subs && subs.length > 0) {
+              // Concrete detail already in scope: the just-synced activity's
+              // distance + sub-type (same fields used to build `rows` above).
+              const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;
+              const label = RUN_TYPE_LABELS[newest.activityType] || 'ריצה';
+              const body = km
+                ? `${label} של ${km} ק״מ — איך היה? ספרו לנו במשוב קצר`
+                : 'איך היה? ספרו לנו במשוב קצר';
               await sendPushToSubscriptions(subs as any, {
                 title: 'כל הכבוד על האימון! 🏃',
-                body: 'איך היה? ספרו לנו במשוב קצר',
+                body,
                 url: `/dashboard/feedback?activity=${newest.activityId}`,
                 tag: `post-workout-${newest.activityId}`,
                 category: 'workouts',
               });
             }
           } catch { /* push is best-effort */ }
+
+          // New activities can move a PR bucket, the cumulative-distance total,
+          // or the run streak — all evaluated in TypeScript (not SQL), so this
+          // is "instant enough" right after sync instead of a DB trigger. Never
+          // let a badge-check failure break the sync itself.
+          try {
+            await checkAndAwardBadges(athlete.id);
+          } catch { /* badge check is best-effort */ }
         }
 
         results.push({ athleteId: athlete.id, name: athlete.name, synced: newActivities.length });

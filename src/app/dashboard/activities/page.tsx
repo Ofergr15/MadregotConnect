@@ -3,11 +3,12 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { RefreshCw, Activity, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain, TrendingUp } from 'lucide-react';
+import { RefreshCw, Activity, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain, TrendingUp, Plus } from 'lucide-react';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { cn } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
 import { Spinner } from '@/components/ui';
+import { ManualActivitySheet } from '@/components/ManualActivitySheet';
 
 interface ActivityEntry {
   id: string;
@@ -89,6 +90,10 @@ export default function ActivitiesPage() {
   });
   const [isCoach, setIsCoach] = useState(false);
   const [athleteId, setAthleteId] = useState<string | null>(null);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  // Which day's tooltip is shown by TAP (touch has no :hover) — independent of
+  // the CSS-only `group-hover` still driving the desktop/mouse experience.
+  const [tappedDay, setTappedDay] = useState<number | null>(null);
 
   const dayKeys = ['daySun', 'dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat'] as const;
 
@@ -110,12 +115,25 @@ export default function ActivitiesPage() {
     setIsCoach(!!coachEmail);
     setAthleteId(storedAthleteId);
     fetchActivities();
+
+    // Deep link from ConnectDataSourcePopup's "log manually instead" option.
+    if (searchParams.get('logManual') === '1') {
+      setShowManualEntry(true);
+      const params = new URLSearchParams(window.location.search);
+      params.delete('logManual');
+      const qs = params.toString();
+      router.replace(`/dashboard/activities${qs ? `?${qs}` : ''}`, { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const res = await fetchActivitiesScoped();
+      // ActivityFeed prefers the route stored at sync time (activity.gps_points)
+      // over its lazy per-card /api/activities/details fetch, so this page
+      // needs gps_points inlined in the list response.
+      const res = await fetchActivitiesScoped({ includeGps: true });
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities || []);
@@ -134,7 +152,7 @@ export default function ActivitiesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ athleteId: id }),
       });
-      const res = await fetchActivitiesScoped();
+      const res = await fetchActivitiesScoped({ includeGps: true });
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities || []);
@@ -214,15 +232,15 @@ export default function ActivitiesPage() {
             <h1 className="text-lg font-semibold text-white">{t('title')}</h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <button
               onClick={() => setWeekOffset(o => o - 1)}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
 
-            <div className="text-center min-w-[180px]">
+            <div className="text-center min-w-[140px] sm:min-w-[180px]">
               <p className="text-sm font-medium text-white">{weekLabel}</p>
               <p className="text-xs text-slate-500">
                 {weekOffset === 0 ? t('thisWeek') : weekOffset === -1 ? t('lastWeek') : ''}
@@ -232,8 +250,8 @@ export default function ActivitiesPage() {
             <button
               onClick={() => setWeekOffset(o => Math.min(o + 1, 0))}
               className={cn(
-                "p-2 rounded-lg transition-colors",
-                weekOffset >= 0 ? "text-slate-700 cursor-not-allowed" : "text-slate-400 hover:text-white hover:bg-slate-700"
+                "flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg transition-all",
+                weekOffset >= 0 ? "text-slate-700 cursor-not-allowed" : "text-slate-400 hover:text-white hover:bg-slate-700 active:scale-[0.92]"
               )}
               disabled={weekOffset >= 0}
             >
@@ -243,7 +261,7 @@ export default function ActivitiesPage() {
             {weekOffset !== 0 && (
               <button
                 onClick={() => setWeekOffset(0)}
-                className="text-xs text-primary-400 hover:text-primary-300 ms-2"
+                className="text-xs text-primary-400 hover:text-primary-300 active:scale-95 transition-transform ms-1 min-h-[44px] px-1"
               >
                 {t('current')}
               </button>
@@ -251,10 +269,19 @@ export default function ActivitiesPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {!isCoach && athleteId && (
+              <button
+                onClick={() => setShowManualEntry(true)}
+                className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-sm font-semibold text-slate-300 border border-slate-700 hover:border-slate-500 hover:text-white active:scale-[0.97] transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                {t('logActivity')}
+              </button>
+            )}
             <button
               onClick={syncAndFetch}
               disabled={syncing}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 min-h-[44px] rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.97] transition-all disabled:opacity-50"
             >
               <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
               {syncing ? t('syncing') : t('sync')}
@@ -319,11 +346,20 @@ export default function ActivitiesPage() {
               const isToday = d.date === new Date().toISOString().split('T')[0];
               const hasMultiple = d.perActivity.length > 1;
               const barH = maxDist > 0 ? (d.distance / maxDist) * 100 : 0;
+              const tapped = tappedDay === i;
               return (
-                <div key={i} className="flex-1 flex flex-col items-center h-full group relative">
-                  {/* Tooltip */}
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => d.distance > 0 && setTappedDay(t => (t === i ? null : i))}
+                  className="flex-1 flex flex-col items-center h-full group relative"
+                >
+                  {/* Tooltip — shown on hover (desktop) OR tap (touch, no :hover) */}
                   {d.distance > 0 && (
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-xl">
+                    <div className={cn(
+                      'absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-opacity whitespace-nowrap z-10 shadow-xl',
+                      tapped ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    )}>
                       {d.distance.toFixed(1)} {t('km')}{hasMultiple ? ` · ${d.perActivity.length} ${t('runs')}` : ''}
                     </div>
                   )}
@@ -371,7 +407,7 @@ export default function ActivitiesPage() {
                       {d.distance > 0 ? d.distance.toFixed(1) : '\u2014'}
                     </p>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -387,6 +423,15 @@ export default function ActivitiesPage() {
           isStaff={isCoach}
         />
       </div>
+
+      {athleteId && (
+        <ManualActivitySheet
+          open={showManualEntry}
+          onOpenChange={setShowManualEntry}
+          athleteId={athleteId}
+          onSaved={fetchActivities}
+        />
+      )}
     </div>
   );
 }

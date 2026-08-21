@@ -6,21 +6,23 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Start of the ACTIVITY week (Monday), matching how Garmin and Strava report
- * weekly mileage. Use this for anything that sums real activity distance
- * (leaderboard, runner weekly km) so our numbers line up with the watch.
+ * Start of the ACTIVITY week (Sunday) — matches the club's PLAN week
+ * (`getPlanWeekStart`/`weekly_plans.week_start_date`) so every week-boundary
+ * concept in the app agrees. Use this for anything that sums real activity
+ * distance (leaderboard, runner weekly km, streaks).
  *
- * NOTE: This is intentionally different from the coach's PLAN week, which runs
- * Sunday–Saturday and is keyed by `weekly_plans.week_start_date`. Do NOT use
- * this helper to look up plans.
+ * Changed from Monday to Sunday on 2026-08-21 (explicit product decision, no
+ * longer trying to mirror Garmin/Strava's own weekly-mileage boundary).
+ * Pre-existing `weekly_km_snapshots` rows computed before this change keep
+ * their old Monday-keyed `week_start` values — only the current/previous week
+ * gets re-snapshotted on each sync, so historical rows are not rewritten. A
+ * one-time backfill would be needed to re-key old rows onto the new boundary.
  *
- * Returns a YYYY-MM-DD string for the Monday on/before `date`.
+ * Returns a YYYY-MM-DD string for the Sunday on/before `date`.
  */
 export function getActivityWeekStart(date: Date): string {
   const d = new Date(date);
-  const day = d.getDay(); // 0=Sun … 6=Sat
-  const diff = day === 0 ? 6 : day - 1; // days since Monday
-  d.setDate(d.getDate() - diff);
+  d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun → subtract to land on Sunday
   return d.toISOString().split('T')[0];
 }
 
@@ -34,6 +36,30 @@ export function getPlanWeekStart(date: Date): string {
   const d = new Date(date);
   d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun → subtract to land on Sunday
   return d.toISOString().split('T')[0];
+}
+
+/**
+ * Consecutive-week run streak: counts back week-by-week (7-day steps, keyed by
+ * `getActivityWeekStart`) from the current activity-week — or the previous one
+ * if the current week has no qualifying run yet, so the streak doesn't read 0
+ * early in a new week before you've run — stopping at the first gap.
+ *
+ * `weekKeys` is the set of activity-week keys (YYYY-MM-DD Sundays) that have
+ * ≥1 qualifying run. Shared by the personal momentum card (one athlete) and
+ * the streak leaderboard (many athletes) so streak math is defined ONCE — see
+ * /api/athletes/summary and /api/groups/leaderboard.
+ */
+export function computeWeekStreak(weekKeys: Set<string>, now: Date = new Date()): number {
+  let streak = 0;
+  let cursor = now;
+  const thisWeekKey = getActivityWeekStart(now);
+  if (!weekKeys.has(thisWeekKey)) cursor = new Date(now.getTime() - 7 * 86400_000);
+  for (let i = 0; i < 260; i++) { // cap ~5 years
+    const key = getActivityWeekStart(cursor);
+    if (weekKeys.has(key)) { streak++; cursor = new Date(cursor.getTime() - 7 * 86400_000); }
+    else break;
+  }
+  return streak;
 }
 
 /**
@@ -171,4 +197,21 @@ export function resolveGroup(name?: string | null): ResolvedGroup {
 /** Convenience: canonical display name only. */
 export function groupDisplayName(name?: string | null): string {
   return resolveGroup(name).displayName;
+}
+
+/**
+ * ASCII slug from a free-text name — lowercase, non-alphanumerics collapsed to
+ * a single underscore, leading/trailing underscores trimmed. Used to derive a
+ * stable machine `code` (e.g. badges.code) from an admin-typed display name
+ * instead of asking the admin to type one. Hebrew (or any non-Latin) input
+ * slugifies to '' — callers should fall back to a generic prefix + suffix in
+ * that case.
+ */
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '') // strip accents (combining diacritical marks)
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }

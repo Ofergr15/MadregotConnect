@@ -4,7 +4,35 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
-import { Card, Button, EmptyState, SegmentedControl, Sheet } from '@/components/ui';
+import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
+import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection } from '@/components/ui';
+import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
+
+interface WeekPlanDay {
+  day: string;
+  dayOfWeek: number;
+  min: number;
+  max: number;
+  type: string;
+  sessions: Array<{ min: number; max: number; type: string; name: string }>;
+}
+
+interface WeekPlanSession {
+  day: string;
+  dayOfWeek: number;
+  name: string;
+  type: string;
+  totalKm: number;
+  highlight: string;
+  steps: any[];
+}
+
+interface WeekPlanResponse {
+  hasPlan: boolean;
+  weekStart: string;
+  dailyDistances: WeekPlanDay[];
+  keySessions: WeekPlanSession[];
+}
 
 interface ProgramWeek {
   id: string;
@@ -53,32 +81,73 @@ export default function ProgramPage() {
   const [loading, setLoading] = useState(true);
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [activeView, setActiveView] = useState<'training' | 'nutrition' | 'workout'>('training');
-  const [weekDropdownOpen, setWeekDropdownOpen] = useState(false);
+  // Controls the native week-picker Sheet (replaces an anchored web-style
+  // dropdown menu — see the Sheet render below).
+  const [weekPickerOpen, setWeekPickerOpen] = useState(false);
   const [selectedVideoIndex, setSelectedVideoIndex] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<'all' | ExerciseCategory>('all');
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Weeks that have AI-parsed structured data in `weekly_plans` (regardless of
+  // whether a `program_weeks` PDF row also exists) — used both to add
+  // PDF-less weeks to the picker and to make the "training plan uploaded"
+  // status row honest when a native plan exists but no PDF was ever attached.
+  const [structuredWeekStarts, setStructuredWeekStarts] = useState<Set<string>>(new Set());
+  const [weekPlan, setWeekPlan] = useState<WeekPlanResponse | null>(null);
+  const [weekPlanLoading, setWeekPlanLoading] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<WeekPlanSession | null>(null);
+  // Which group's pace is highlighted in the workout-detail sheet — mirrors the
+  // dashboard's own remembered pick (localStorage `view_group`) rather than
+  // re-deriving it from the athlete's group assignment on this page too.
+  const [viewGroup, setViewGroup] = useState(0);
 
   useEffect(() => {
     const adminSession = localStorage.getItem('admin_session') === 'true';
     const coachEmail = localStorage.getItem('coach_email');
     setIsAdmin(adminSession || !!coachEmail);
+    const storedGroup = parseInt(localStorage.getItem('view_group') || '', 10);
+    if (storedGroup >= 0 && storedGroup <= 2) setViewGroup(storedGroup);
     fetchWeeks();
   }, []);
 
+  const pickViewGroup = (idx: number) => {
+    setViewGroup(idx);
+    try { localStorage.setItem('view_group', String(idx)); } catch { /* ignore */ }
+  };
+
   async function fetchWeeks() {
     try {
-      const res = await fetch('/api/program-weeks');
-      if (res.ok) {
-        const data: ProgramWeek[] = await res.json();
-        setWeeks(data);
-        // Select the week that actually CONTAINS today (by plan-week Sunday), not
-        // just the most-recently-uploaded one — otherwise last week shows as
-        // "Current" and its plans mask that this week's are missing.
-        const thisWeekStart = getPlanWeekStart(new Date());
-        const idx = data.findIndex(w => w.week_start_date === thisWeekStart);
-        if (idx >= 0) setSelectedWeek(idx);
-      }
+      const [pwRes, wpRes] = await Promise.all([
+        fetch('/api/program-weeks'),
+        fetch('/api/plans/weeks'),
+      ]);
+      const pwData: ProgramWeek[] = pwRes.ok ? await pwRes.json() : [];
+      const wpWeekStarts: string[] = wpRes.ok ? (await wpRes.json()).weekStarts || [] : [];
+      setStructuredWeekStarts(new Set(wpWeekStarts));
+
+      // A week with a parsed plan but no PDF upload has no `program_weeks` row
+      // at all — synthesize one so it still shows up in the week picker.
+      const existingStarts = new Set(pwData.map(w => w.week_start_date));
+      const synthetic: ProgramWeek[] = wpWeekStarts
+        .filter(ws => !existingStarts.has(ws))
+        .map(ws => ({
+          id: `wp-${ws}`,
+          week_number: 0, // unknown for synthetic entries — label falls back to the date range
+          date_range: deriveDateRange(ws),
+          week_start_date: ws,
+          training_pdf_url: null,
+          nutrition_pdf_url: null,
+        }));
+
+      // Newest-first, matching /api/program-weeks' own ordering.
+      const data = [...pwData, ...synthetic].sort((a, b) => b.week_start_date.localeCompare(a.week_start_date));
+      setWeeks(data);
+      // Select the week that actually CONTAINS today (by plan-week Sunday), not
+      // just the most-recently-uploaded one — otherwise last week shows as
+      // "Current" and its plans mask that this week's are missing.
+      const thisWeekStart = getPlanWeekStart(new Date());
+      const idx = data.findIndex(w => w.week_start_date === thisWeekStart);
+      if (idx >= 0) setSelectedWeek(idx);
     } finally {
       setLoading(false);
     }
@@ -90,6 +159,21 @@ export default function ProgramPage() {
   const isCurrentWeek = !!currentWeek && currentWeek.week_start_date === thisWeekStart;
   // Does a program row for the actual current week exist at all?
   const currentWeekExists = weeks.some(w => w.week_start_date === thisWeekStart);
+
+  // Fetch the selected week's AI-parsed structured plan (native day cards) —
+  // independent of the program_weeks PDF row, so a week with a parsed plan but
+  // no PDF still renders real content instead of "no plan uploaded".
+  useEffect(() => {
+    if (!currentWeek) { setWeekPlan(null); return; }
+    let cancelled = false;
+    setWeekPlanLoading(true);
+    fetch(`/api/plans/week?weekStart=${currentWeek.week_start_date}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (!cancelled) setWeekPlan(data); })
+      .catch(() => { if (!cancelled) setWeekPlan(null); })
+      .finally(() => { if (!cancelled) setWeekPlanLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentWeek?.week_start_date]);
 
   // Filter exercises based on category
   const filteredExercises = categoryFilter === 'all'
@@ -168,13 +252,10 @@ export default function ProgramPage() {
           <p className="text-slate-400 mt-1 text-sm">{t('subtitle')}</p>
         </div>
         {isAdmin && activeView !== 'workout' && (
-          <button
-            onClick={() => setShowUploadForm(true)}
-            className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-medium"
-          >
+          <Button onClick={() => setShowUploadForm(true)}>
             <Plus className="h-4 w-4" />
             New Week
-          </button>
+          </Button>
         )}
       </div>
 
@@ -190,55 +271,58 @@ export default function ProgramPage() {
           ]}
         />
 
-        {/* Week Dropdown — only show for training/nutrition */}
+        {/* Week Picker trigger — only show for training/nutrition. Opens a
+            native bottom sheet to choose a week, instead of an anchored
+            web-style dropdown menu — the same "pick one from a list"
+            pattern already used app-wide (impersonation chooser, role
+            picker, etc). */}
         {activeView !== 'workout' && currentWeek && (
-        <div className="relative">
           <button
-            onClick={() => setWeekDropdownOpen(!weekDropdownOpen)}
-            className="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 hover:border-slate-600 transition-colors w-full sm:w-auto sm:min-w-[240px]"
+            onClick={() => setWeekPickerOpen(true)}
+            className="flex items-center gap-3 bg-slate-800/60 border border-slate-700/60 rounded-2xl px-4 py-3.5 min-h-[44px] hover:border-slate-600 active:scale-[0.98] transition-all w-full sm:w-auto sm:min-w-[240px]"
           >
             <div className="flex-1 text-start">
-              <div className="font-semibold text-white">Week {currentWeek.week_number}</div>
+              <div className="font-semibold text-white">{currentWeek.week_number > 0 ? `Week ${currentWeek.week_number}` : t('trainingWeek')}</div>
               <div className="text-xs text-slate-400">{currentWeek.date_range}</div>
             </div>
             {isCurrentWeek && (
-              <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium">
+              <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
                 {t('current')}
               </span>
             )}
-            <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", weekDropdownOpen && "rotate-180")} />
+            <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
           </button>
-
-          {weekDropdownOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setWeekDropdownOpen(false)} />
-              <div className="absolute top-full start-0 mt-2 z-50 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden min-w-[240px] max-h-[300px] overflow-y-auto">
-                {weeks.map((week, i) => (
-                  <button
-                    key={week.id}
-                    onClick={() => { setSelectedWeek(i); setWeekDropdownOpen(false); }}
-                    className={cn(
-                      "w-full text-start px-4 py-3 flex items-center justify-between hover:bg-slate-700/50 transition-colors",
-                      i === selectedWeek && "bg-primary-600/20 border-s-2 border-primary-500"
-                    )}
-                  >
-                    <div>
-                      <div className="font-medium text-white text-sm">Week {week.week_number}</div>
-                      <div className="text-xs text-slate-400">{week.date_range}</div>
-                    </div>
-                    {week.week_start_date === thisWeekStart && (
-                      <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium">
-                        {t('current')}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
         )}
       </div>
+
+      {/* Week Picker Sheet — native list picker (grabber handle, swipe-to-
+          dismiss, focus trap) replacing the old anchored dropdown menu. */}
+      <Sheet open={weekPickerOpen} onOpenChange={setWeekPickerOpen} title={t('selectWeek')}>
+        <div className="space-y-1.5">
+          {weeks.map((week, i) => (
+            <button
+              key={week.id}
+              onClick={() => { setSelectedWeek(i); setWeekPickerOpen(false); }}
+              className={cn(
+                'w-full text-start px-4 py-3.5 min-h-[44px] rounded-xl flex items-center justify-between gap-3 transition-colors active:scale-[0.98]',
+                i === selectedWeek
+                  ? 'bg-primary-600/20 border border-primary-500/40'
+                  : 'border border-transparent hover:bg-slate-700/50'
+              )}
+            >
+              <div>
+                <div className="font-semibold text-white text-sm">{week.week_number > 0 ? `Week ${week.week_number}` : t('trainingWeek')}</div>
+                <div className="text-xs text-slate-400">{week.date_range}</div>
+              </div>
+              {week.week_start_date === thisWeekStart && (
+                <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
+                  {t('current')}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </Sheet>
 
       {/* THIS calendar week's plan status — mirrors the Saturday 20:00 "new week"
           push (training ✅/❌ · nutrition ✅/❌). Driven by the week that actually
@@ -251,7 +335,7 @@ export default function ProgramPage() {
             <PlanStatusRow
               icon="🏃"
               label={t('trainingProgram')}
-              present={!!cw?.training_pdf_url}
+              present={!!cw?.training_pdf_url || structuredWeekStarts.has(thisWeekStart)}
               isAdmin={isAdmin}
               onUpload={() => setShowUploadForm(true)}
               t={t}
@@ -462,9 +546,55 @@ export default function ProgramPage() {
             })}
           </div>
         </div>
+      ) : activeView === 'training' && weekPlanLoading ? (
+        <div className="flex items-center justify-center h-40">
+          <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+        </div>
+      ) : activeView === 'training' && weekPlan?.hasPlan ? (
+        <div className="space-y-3">
+          <InsetSection>
+            {weekPlan.dailyDistances.map((d) => {
+              const session = weekPlan.keySessions.find(s => s.dayOfWeek === d.dayOfWeek);
+              const hasWorkout = d.max > 0;
+              return (
+                <button
+                  key={d.dayOfWeek}
+                  onClick={() => session && setSelectedSession(session)}
+                  disabled={!session}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-4 py-3.5 min-h-[52px] text-start transition-colors',
+                    session && 'active:bg-slate-700/40'
+                  )}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ background: WORKOUT_TYPE_COLORS[d.type] || '#6366f1' }}
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className={cn('block text-[15px] font-semibold', d.dayOfWeek === new Date().getDay() ? 'text-primary-400' : 'text-white')}>
+                      {d.day}
+                    </span>
+                    <span className="block text-xs text-slate-400 truncate">
+                      {hasWorkout
+                        ? `${WORKOUT_TYPE_LABELS[d.type] || d.type}${session?.highlight ? ' · ' + session.highlight : ''}`
+                        : t('restDay')}
+                    </span>
+                  </span>
+                  {hasWorkout && (
+                    <span dir="ltr" className="text-[15px] font-bold text-white tabular-nums shrink-0">
+                      {d.min !== d.max ? `${d.min}–${d.max}` : d.max}
+                      <span className="text-xs text-slate-400 font-normal"> km</span>
+                    </span>
+                  )}
+                  {session && <ChevronLeft className="h-4 w-4 text-slate-500 shrink-0" />}
+                </button>
+              );
+            })}
+          </InsetSection>
+        </div>
       ) : currentWeek ? (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700">
+        <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-700/60">
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-slate-400" />
               <span className="text-sm font-medium">
@@ -493,7 +623,7 @@ export default function ProgramPage() {
               />
             ) : (
               <div className="flex items-center justify-center h-full text-slate-400">
-                No {activeView} plan uploaded for this week yet.
+                {activeView === 'training' ? t('noStructuredPlan') : `No ${activeView} plan uploaded for this week yet.`}
               </div>
             )}
           </div>
@@ -512,10 +642,21 @@ export default function ProgramPage() {
         </Card>
       )}
 
+      {/* Workout Detail Sheet — same rich step breakdown as the dashboard's
+          weekly chart, for whichever day card was tapped. */}
+      {selectedSession && (
+        <WorkoutDetailModal
+          session={selectedSession}
+          viewGroup={viewGroup}
+          onPickGroup={pickViewGroup}
+          onClose={() => setSelectedSession(null)}
+        />
+      )}
+
       {/* Upload Modal */}
       {showUploadForm && (
         <UploadForm
-          nextWeekNumber={weeks.length > 0 ? weeks[0].week_number + 1 : 1}
+          nextWeekNumber={weeks.length > 0 ? Math.max(0, ...weeks.map(w => w.week_number)) + 1 : 1}
           onClose={() => setShowUploadForm(false)}
           onSuccess={() => { setShowUploadForm(false); fetchWeeks(); }}
         />
@@ -668,7 +809,7 @@ function UploadForm({
                 type="number"
                 value={weekNumber}
                 onChange={e => setWeekNumber(Number(e.target.value))}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                className="w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-xl px-3 py-3 text-white"
                 min={1}
                 required
               />
@@ -680,7 +821,7 @@ function UploadForm({
                 value={dateRange}
                 readOnly
                 placeholder="pick a start date"
-                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-slate-300 cursor-not-allowed"
+                className="w-full min-h-[44px] bg-slate-700/50 border border-slate-600 rounded-xl px-3 py-3 text-slate-300 cursor-not-allowed"
                 title="Auto-set from the week start date (Sunday → Saturday)"
               />
             </div>
@@ -692,7 +833,7 @@ function UploadForm({
               type="date"
               value={weekStartDate}
               onChange={e => handleStartDateChange(e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
+              className="w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-xl px-3 py-3 text-white"
               required
             />
             <p className="text-xs text-slate-500 mt-1">
@@ -706,7 +847,7 @@ function UploadForm({
               type="file"
               accept="application/pdf"
               onChange={e => setTrainingFile(e.target.files?.[0] || null)}
-              className="w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-primary-500"
+              className="w-full text-sm text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:bg-primary-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-primary-500"
             />
           </div>
 
@@ -716,7 +857,7 @@ function UploadForm({
               type="file"
               accept="application/pdf"
               onChange={e => setNutritionFile(e.target.files?.[0] || null)}
-              className="w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-green-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-green-500"
+              className="w-full text-sm text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:bg-green-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-green-500"
             />
           </div>
 
@@ -727,21 +868,13 @@ function UploadForm({
           )}
 
           <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium"
-            >
+            <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={uploading}
-              className="flex-1 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-            >
+            </Button>
+            <Button type="submit" disabled={uploading} className="flex-1">
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               {uploading ? t('uploading') : t('upload')}
-            </button>
+            </Button>
           </div>
         </form>
     </Sheet>

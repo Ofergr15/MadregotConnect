@@ -170,12 +170,16 @@ export async function POST(request: Request) {
     const flag = (difficulty != null && difficulty >= 9) || pain === true || wantsFeedback === true;
     if (flag) {
       try {
+        // Same row already loaded for the alert's name — widen to avatar_url too
+        // (no new join/table) so the coach's push shows the flagging athlete's
+        // own photo, the same "who is this about" treatment as the coach-reply push.
         const { data: athlete } = await supabase
           .from('athletes')
-          .select('name')
+          .select('name, avatar_url')
           .eq('id', athleteId)
           .maybeSingle();
         const name = athlete?.name || 'רץ/ה';
+        const athleteAvatarUrl = athlete?.avatar_url?.trim() || '';
         const reason = pain ? 'דיווח/ה על כאב' : (difficulty >= 9 ? 'קושי גבוה מאוד' : 'ביקש/ה משוב');
         // Coaches are the athletes whose email is on the approver allowlist.
         const { data: coaches } = await supabase
@@ -195,6 +199,7 @@ export async function POST(request: Request) {
               url: '/dashboard/review',
               tag: `feedback-alert-${athleteId}`,
               badge: 1,
+              ...(athleteAvatarUrl ? { icon: athleteAvatarUrl } : {}),
             });
           }
         }

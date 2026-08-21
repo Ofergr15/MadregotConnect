@@ -113,7 +113,7 @@ export default function ReviewPage() {
                   key={cat.value}
                   onClick={() => setCategory(cat.value)}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all',
+                    'flex items-center gap-2 px-3 py-2.5 min-h-[44px] rounded-xl border text-sm font-medium transition-all active:scale-[0.97]',
                     isSelected
                       ? `${cat.bg} ${cat.border} ${cat.color}`
                       : 'bg-slate-900/30 border-slate-700/30 text-slate-500 hover:border-slate-600 hover:text-slate-400'
@@ -186,7 +186,7 @@ export default function ReviewPage() {
             onClick={handleSubmit}
             disabled={!message.trim() || sending}
             className={cn(
-              'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all',
+              'flex items-center gap-2 px-5 py-2.5 min-h-[44px] rounded-xl text-sm font-bold transition-all active:scale-[0.97]',
               message.trim() && !sending
                 ? 'bg-primary-600 hover:bg-primary-700 text-white'
                 : 'bg-slate-700 text-slate-500 cursor-not-allowed'

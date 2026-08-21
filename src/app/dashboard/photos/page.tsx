@@ -5,6 +5,7 @@ import { Image, Upload, Search, Eye, Loader2, CheckCircle2, AlertCircle, X, Tag,
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getSupabase } from '@/lib/supabase/client';
+import { SegmentedControl } from '@/components/ui';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,23 +102,14 @@ export default function PhotosPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6 border-b border-white/10 pb-0">
-        {tabs.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors',
-              tab === key
-                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10'
-                : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'
-            )}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </button>
-        ))}
-      </div>
+      {tabs.length > 1 && (
+        <SegmentedControl
+          value={tab}
+          onChange={setTab}
+          options={tabs.map(({ key, label, icon }) => ({ value: key, label, icon }))}
+          className="mb-6"
+        />
+      )}
 
       {/* Tab content */}
       {tab === 'import' && isStaff && <ImportTab />}

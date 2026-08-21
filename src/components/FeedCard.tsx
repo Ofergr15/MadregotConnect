@@ -2,15 +2,16 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, Trash2, Route, MapPin, Mountain, Share2 } from 'lucide-react';
+import { Heart, MessageCircle, Trash2, Route, MapPin, Mountain, Share2, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTranslations, useFormatter } from 'next-intl';
+import { useTranslations, useFormatter, useLocale } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
 import { FeedLikesSheet } from '@/components/FeedLikesSheet';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedShareSheet } from '@/components/FeedShareSheet';
 import { RouteMinimap } from '@/components/RouteMinimap';
-import type { FeedItem, FeedLiker } from '@/lib/feed/project';
+import { toAchievementPayload } from '@/lib/feed/project';
+import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 
 function formatPace(secPerKm: number): string {
   const min = Math.floor(secPerKm / 60);
@@ -24,6 +25,14 @@ function formatDuration(seconds: number): string {
   const s = Math.round(seconds % 60);
   if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// The award engine collapses a badge's admin-uploaded artwork and its emoji
+// fallback into one `badgeIcon` string (`icon_url || icon` — see
+// lib/badges/award-engine.ts's awardBadge). This tells the two apart so the
+// card can render an <img> for real artwork and plain text for an emoji.
+function isImageUrl(value: string): boolean {
+  return /^https?:\/\//.test(value) || value.startsWith('/');
 }
 
 type Translate = ReturnType<typeof useTranslations<'feed'>>;
@@ -322,6 +331,76 @@ function ActivityCard({
   );
 }
 
+// Celebratory card for badges/achievements (roadmap #11). Reads the award-
+// engine's fixed `payload` contract (badgeCode/badgeIcon/badgeNameHe/
+// badgeNameEn — see toAchievementPayload) and gives it its own amber/gold
+// treatment — a decorative glow, an "achievement unlocked" label, and the
+// badge's real icon/name front and center — distinct from the plain PostCard
+// shell used for free posts, announcements, and new-plan notices.
+function AchievementCard({
+  item,
+  achievement,
+  commentCount,
+  onComment,
+  onDelete,
+}: {
+  item: FeedItem;
+  achievement: AchievementPayload;
+  commentCount: number;
+  onComment: () => void;
+  onDelete?: () => void;
+}) {
+  const t = useTranslations('feed');
+  const locale = useLocale();
+  const badgeName = locale === 'he' ? achievement.badgeNameHe : achievement.badgeNameEn;
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/15 via-slate-800/90 to-slate-800 p-4">
+      <div className="absolute top-0 end-0 w-28 h-28 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
+
+      <div className="relative">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <AuthorRow item={item} />
+          </div>
+          <div className="w-7 h-7 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0 mt-1">
+            <Award className="h-3.5 w-3.5 text-amber-400" />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-3xl shrink-0 shadow-lg shadow-amber-500/10 overflow-hidden">
+            {isImageUrl(achievement.badgeIcon) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={achievement.badgeIcon} alt={badgeName} className="h-9 w-9 object-contain" />
+            ) : (
+              achievement.badgeIcon
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-2xs font-bold uppercase tracking-wider text-amber-400">{t('newBadgeEarned')}</p>
+            <p className="text-lg font-black text-white truncate" dir="auto">{badgeName}</p>
+          </div>
+        </div>
+
+        {item.body && (
+          <p className="mt-3 text-sm text-slate-300 whitespace-pre-line leading-relaxed">{item.body}</p>
+        )}
+
+        {/* Achievements are never activities — no run-chat CTA */}
+        <ActionRow
+          item={item}
+          commentCount={commentCount}
+          myAthleteId={null}
+          isStaff={false}
+          onCommentPress={onComment}
+          onDelete={onDelete}
+        />
+      </div>
+    </div>
+  );
+}
+
 function PostCard({
   item,
   commentCount,
@@ -428,8 +507,31 @@ export function FeedCard({
           onDelete={handleDelete}
         />
       );
+    case 'achievement': {
+      const achievement = toAchievementPayload(item.payload);
+      if (achievement) {
+        return (
+          <AchievementCard
+            item={item}
+            achievement={achievement}
+            commentCount={commentCount}
+            onComment={handleComment}
+            onDelete={handleDelete}
+          />
+        );
+      }
+      // Malformed/missing payload (shouldn't happen once the award engine is
+      // live) — fall back to the generic shell rather than render broken text.
+      return (
+        <PostCard
+          item={item}
+          commentCount={commentCount}
+          onComment={handleComment}
+          onDelete={handleDelete}
+        />
+      );
+    }
     case 'post':
-    case 'achievement':
     case 'announcement':
     case 'new_plan':
       return (

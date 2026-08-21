@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Calendar, CheckCircle2, AlertCircle, Clock, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PlanDetail } from '@/components/PlanDetail';
+import { Card, Button } from '@/components/ui';
 
 interface PlanHistory {
   id: string;
@@ -107,10 +108,10 @@ export default function HistoryPage() {
           <h1 className="text-2xl font-bold">{t('title')}</h1>
           <p className="text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
-        <div className="card text-center py-12">
+        <Card className="text-center py-12">
           <RefreshCw className="h-12 w-12 text-slate-600 mx-auto mb-3 animate-spin" />
           <p className="text-slate-400">{t('loading')}</p>
-        </div>
+        </Card>
       </div>
     );
   }
@@ -122,17 +123,14 @@ export default function HistoryPage() {
           <h1 className="text-2xl font-bold">{t('title')}</h1>
           <p className="text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
-        <div className="card text-center py-12">
+        <Card className="text-center py-12">
           <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
           <p className="text-red-400 mb-2">{t('errorLoading')}</p>
           <p className="text-slate-400 text-sm mb-4">{error}</p>
-          <button
-            onClick={loadPlans}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg text-sm font-medium transition-colors"
-          >
+          <Button onClick={loadPlans}>
             {t('tryAgain')}
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -152,7 +150,7 @@ export default function HistoryPage() {
             const isExpanded = expandedPlanId === plan.id;
 
             return (
-              <div key={plan.id} className="card hover:border-slate-600 transition-colors">
+              <Card key={plan.id} className="hover:border-slate-600 transition-colors">
                 <div
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => handleTogglePlan(plan.id)}
@@ -201,17 +199,17 @@ export default function HistoryPage() {
                     onRepush={(athleteIds) => handleRepush(plan.id, athleteIds)}
                   />
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>
       ) : (
-        <div className="card text-center py-12">
+        <Card className="text-center py-12">
           <Clock className="h-12 w-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400">
             {t('emptyState')}
           </p>
-        </div>
+        </Card>
       )}
     </div>
   );

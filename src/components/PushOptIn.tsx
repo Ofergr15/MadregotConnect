@@ -5,6 +5,24 @@ import { useTranslations } from 'next-intl';
 import { Bell, X } from 'lucide-react';
 
 const DISMISS_KEY = 'push_optin_dismissed';
+// Set once a concrete push benefit is imminent for this athlete (see
+// requestPushOptInPrompt below). We gate on this instead of showing the ask on
+// every dashboard load, so it only surfaces right when the value is obvious —
+// e.g. right after submitting workout feedback ("we'll notify you when your
+// coach replies").
+const TRIGGER_KEY = 'push_optin_trigger';
+const RECHECK_EVENT = 'push-optin-recheck';
+
+// Call this at the moment push notifications become concretely useful — e.g.
+// immediately after an athlete submits workout feedback, so the next thing
+// that could happen (a coach reply) is exactly what the prompt promises.
+// Flips a persisted flag and asks any mounted PushOptIn to re-evaluate; it
+// still won't show if the athlete already granted/denied/dismissed.
+export function requestPushOptInPrompt() {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(TRIGGER_KEY, '1');
+  window.dispatchEvent(new Event(RECHECK_EVENT));
+}
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -22,15 +40,25 @@ export function PushOptIn() {
 
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    if (Notification.permission === 'granted' || Notification.permission === 'denied') return;
-    if (localStorage.getItem(DISMISS_KEY) === '1') return;
-    if (!localStorage.getItem('athlete_id')) return; // only athletes have a subscription target
 
-    // Don't nag if this device is already subscribed.
-    navigator.serviceWorker.ready
-      .then((reg) => reg.pushManager.getSubscription())
-      .then((sub) => { if (!sub) setShow(true); })
-      .catch(() => {});
+    const check = () => {
+      if (Notification.permission === 'granted' || Notification.permission === 'denied') return;
+      if (localStorage.getItem(DISMISS_KEY) === '1') return;
+      if (!localStorage.getItem('athlete_id')) return; // only athletes have a subscription target
+      // Only ask once a concrete benefit is imminent (see requestPushOptInPrompt)
+      // — not as a blanket ask on every dashboard visit.
+      if (localStorage.getItem(TRIGGER_KEY) !== '1') return;
+
+      // Don't nag if this device is already subscribed.
+      navigator.serviceWorker.ready
+        .then((reg) => reg.pushManager.getSubscription())
+        .then((sub) => { if (!sub) setShow(true); })
+        .catch(() => {});
+    };
+
+    check(); // covers the trigger having already fired earlier this session
+    window.addEventListener(RECHECK_EVENT, check);
+    return () => window.removeEventListener(RECHECK_EVENT, check);
   }, []);
 
   const dismiss = () => {

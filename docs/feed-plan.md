@@ -86,7 +86,7 @@ Should be deleted or gated — tracked separately.
 
 ## Slice 1 — group feed + likes + comments + free posts
 
-### Schema (`supabase/migrations/036_social_feed.sql`)
+### Schema (`supabase/migrations/047_social_feed.sql`)
 
 ```
 feed_items      id, type, author_athlete_id, activity_id, body, media, payload,

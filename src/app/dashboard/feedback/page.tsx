@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Loader2, CheckCircle2, Gauge, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { requestPushOptInPrompt } from '@/components/PushOptIn';
 
 const FEEL_FACES = ['😣', '😕', '😐', '🙂', '😄'];
 
@@ -86,6 +87,11 @@ function FeedbackForm() {
         body: JSON.stringify({ athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback, comment }),
       });
       if (!res.ok) throw new Error('save failed');
+      // Right now is the moment push notifications become concretely useful —
+      // a coach reply could land any time after this. Ask for the permission
+      // here (if not already granted/denied/dismissed) instead of on every
+      // dashboard visit.
+      requestPushOptInPrompt();
     } catch {
       clearTimeout(t);
       setDone(false);

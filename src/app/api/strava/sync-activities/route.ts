@@ -18,6 +18,7 @@ import {
   type StravaTokens,
 } from '@/lib/strava/client';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
+import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -280,6 +281,18 @@ export async function POST(request: Request) {
         } catch (matchError) {
           // Migration 043 may not be applied yet; activity sync itself should still succeed.
           console.warn(`Plan matching for ${athlete.id} skipped:`, matchError);
+        }
+
+        // New activities can move a PR bucket, the cumulative-distance total,
+        // or the run streak — all evaluated in TypeScript (not SQL), so this
+        // is "instant enough" right after sync instead of a DB trigger. Never
+        // let a badge-check failure break the sync itself.
+        if (synced > 0) {
+          try {
+            await checkAndAwardBadges(athlete.id);
+          } catch (badgeError) {
+            console.warn(`Badge check for ${athlete.id} skipped:`, badgeError);
+          }
         }
 
         totalSynced += synced;

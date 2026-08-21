@@ -99,6 +99,38 @@ export async function deletePost(id: string) {
 }
 
 /**
+ * Look up the feed_item auto-created for a given activity (see
+ * trg_feed_item_for_activity, migration 047). Used right after a Garmin/Strava
+ * sync, when the caller has the new activity's id but not yet the feed_item
+ * id it was matched to.
+ */
+export async function fetchFeedItemByActivity(activityId: string) {
+  const res = await fetch(`/api/feed/items/${encodeURIComponent(activityId)}?by=activity`, {
+    headers: await authHeaders(),
+  });
+  return parse<{ item: FeedItem }>(res);
+}
+
+export type FeedHiddenField = 'calories' | 'heart_rate' | 'pace' | 'power';
+
+export interface UpdateFeedItemInput {
+  body?: string;
+  visibility?: 'club' | 'group' | 'private';
+  media?: FeedMedia[];
+  hiddenFields?: FeedHiddenField[];
+}
+
+/** PATCH an existing feed_item — caption, audience, media, or hidden stats. */
+export async function updateFeedItem(id: string, patch: UpdateFeedItemInput) {
+  const res = await fetch(`/api/feed/items/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(patch),
+  });
+  return parse<{ item: FeedItem }>(res);
+}
+
+/**
  * Downscale an image in the browser before upload. Phone photos are 3–8MB; sending
  * them raw is slow on mobile data and wasteful in Storage. Long edge 1600px at q0.82
  * is indistinguishable in a feed card.

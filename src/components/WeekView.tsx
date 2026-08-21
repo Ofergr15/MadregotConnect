@@ -87,7 +87,7 @@ function WorkoutDetailModal({ workout, dayName, onClose }: { workout: ParsedWork
   const totalTime = estimateWorkoutTime(workout.steps);
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal="true">
       <div className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-700/50 shrink-0">
@@ -111,10 +111,10 @@ function WorkoutDetailModal({ workout, dayName, onClose }: { workout: ParsedWork
                     {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
                   </span>
                 )}
-                <span className="text-xs text-slate-500">{workout.steps.length} steps</span>
+                <span className="text-xs text-slate-400">{workout.steps.length} steps</span>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Close">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -138,9 +138,9 @@ function WorkoutDetailModal({ workout, dayName, onClose }: { workout: ParsedWork
                       return (
                         <div key={j} className="flex items-center gap-2 text-sm">
                           <div className="w-1 h-4 rounded-full shrink-0" style={{ background: stepTypeColors[sub.type] || '#64748b' }} />
-                          <span className={cn("font-medium shrink-0", isRest ? "text-slate-500" : "text-white")}>{dur}</span>
+                          <span className={cn("font-medium shrink-0", isRest ? "text-slate-400" : "text-white")}>{dur}</span>
                           {sub.notes && <span className="text-slate-400 truncate flex-1 text-xs">{sub.notes}</span>}
-                          {pace && <span className="text-xs text-slate-500 tabular-nums shrink-0 ms-auto">{pace}</span>}
+                          {pace && <span className="text-xs text-slate-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
                         </div>
                       );
                     })}
@@ -157,7 +157,7 @@ function WorkoutDetailModal({ workout, dayName, onClose }: { workout: ParsedWork
                 <div className="w-1 h-5 rounded-full shrink-0" style={{ background: stepTypeColors[step.type] || '#64748b' }} />
                 <span className="font-medium text-white shrink-0">{dur}</span>
                 <span className="text-slate-400 truncate flex-1 text-xs">{label}</span>
-                {pace && <span className="text-xs text-slate-500 tabular-nums shrink-0 ms-auto">{pace}</span>}
+                {pace && <span className="text-xs text-slate-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
               </div>
             );
           })}

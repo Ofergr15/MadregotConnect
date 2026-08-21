@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone, Bell, BellRing } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone, Bell, BellRing, User as UserIcon, Award } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
+import { PersonalInfo } from '@/components/PersonalInfo';
+import { BadgeManager } from '@/components/BadgeManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
@@ -188,7 +190,6 @@ const allTabs = [
   { key: 'workout-feedback', label: 'Workout Feedback' },
   { key: 'team-volume', label: 'Team Volume' },
   { key: 'activities', label: 'Activities' },
-  { key: 'races', label: 'Races' },
   { key: 'program', label: 'Program' },
   { key: 'review', label: 'Review' },
   { key: 'history', label: 'History' },
@@ -203,14 +204,13 @@ const allMobileTabs = [
   { key: 'activities', label: 'Activities' },
   { key: 'program', label: 'Program' },
   { key: 'practice', label: 'Practice' },
-  { key: 'races', label: 'Races' },
   { key: 'photos', label: 'Photos' },
   { key: 'settings', label: 'Settings' },
 ];
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
@@ -218,6 +218,7 @@ const settingsTabs = [
   { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout, iconBg: 'bg-amber-500' },
   { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare, iconBg: 'bg-teal-500' },
   { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell, iconBg: 'bg-rose-500' },
+  { key: 'badges' as SettingsTab, label: 'Badge Manager', icon: Award, iconBg: 'bg-fuchsia-500' },
 ];
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
@@ -812,6 +813,13 @@ export default function SettingsPage() {
           <InsetSection>
             <MaintenanceRow />
             <InsetRow
+              icon={UserIcon}
+              iconBg="bg-violet-500"
+              label={t('personalInfo')}
+              onClick={() => setActiveTab('personalInfo')}
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+            />
+            <InsetRow
               icon={Bell}
               iconBg="bg-blue-500"
               label={t('workoutReminders')}
@@ -837,6 +845,7 @@ export default function SettingsPage() {
               const label = tab.key === 'users' ? t('userManager')
                 : tab.key === 'tabs' ? t('tabManager')
                 : tab.key === 'feedback' ? t('feedback')
+                : tab.key === 'badges' ? t('badgeManager')
                 : t('notificationCenter');
               return (
                 <InsetRow
@@ -860,6 +869,12 @@ export default function SettingsPage() {
       {activeTab === 'notifprefs' && notifPrefsAthleteId && <NotificationPrefs athleteId={notifPrefsAthleteId} />}
       {activeTab === 'notifprefs' && !notifPrefsAthleteId && (
         <p className="text-sm text-slate-500 text-center py-10" dir="rtl">התחברו כספורטאי כדי לנהל העדפות התראות אישיות.</p>
+      )}
+
+      {/* Personal info detail (birth date / gender / shoe size) */}
+      {activeTab === 'personalInfo' && notifPrefsAthleteId && <PersonalInfo athleteId={notifPrefsAthleteId} />}
+      {activeTab === 'personalInfo' && !notifPrefsAthleteId && (
+        <p className="text-sm text-slate-500 text-center py-10" dir="rtl">התחברו כספורטאי כדי לערוך פרטים אישיים.</p>
       )}
 
       {error && (
@@ -1438,6 +1453,9 @@ export default function SettingsPage() {
       {activeTab === 'notifications' && (
         <NotificationCenter />
       )}
+
+      {/* Badge Manager detail (create additional milestone badges by distance/time) */}
+      {activeTab === 'badges' && <BadgeManager />}
     </div>
   );
 }

@@ -1,0 +1,446 @@
+'use client';
+
+import { useEffect, useRef, useState, useCallback } from 'react';
+import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import {
+  X, Loader2, ImagePlus, ChevronRight, Globe, Lock, Users,
+  Flame, Heart, Gauge, Zap, Share2,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  fetchFeedItemByActivity, updateFeedItem, uploadMedia,
+  type FeedHiddenField,
+} from '@/lib/feed-client';
+import { Sheet, Spinner } from '@/components/ui';
+import { RouteMinimap } from '@/components/RouteMinimap';
+import { FeedShareSheet } from '@/components/FeedShareSheet';
+import type { FeedItem, FeedMedia } from '@/lib/feed/project';
+
+const MAX_IMAGES = 4;
+
+/**
+ * Minimal shape this component needs from an athlete_activities row. The
+ * dashboard's own `RecentActivity` (already fetched for the recap cards)
+ * satisfies this directly — no extra round trip for the stats themselves.
+ */
+export interface SyncedActivity {
+  id: string;
+  activity_name: string | null;
+  distance: number;
+  duration: number;
+  average_pace: number | null;
+  average_hr?: number | null;
+  calories?: number | null;
+  elevation_gain?: number | null;
+}
+
+function formatPace(secPerKm: number): string {
+  const min = Math.floor(secPerKm / 60);
+  const sec = Math.round(secPerKm % 60);
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.round(seconds % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+const HIDDEN_FIELD_DEFS: Array<{ key: FeedHiddenField; labelKey: string; icon: typeof Flame }> = [
+  { key: 'calories', labelKey: 'hideCalories', icon: Flame },
+  { key: 'heart_rate', labelKey: 'hideHeartRate', icon: Heart },
+  { key: 'pace', labelKey: 'hidePace', icon: Gauge },
+  { key: 'power', labelKey: 'hidePower', icon: Zap },
+];
+
+function isFeedHiddenField(v: unknown): v is FeedHiddenField {
+  return v === 'calories' || v === 'heart_rate' || v === 'pace' || v === 'power';
+}
+
+/**
+ * Strava-style bottom sheet shown right after a new Garmin/Strava activity
+ * syncs, letting the athlete customize how the auto-created feed post looks
+ * before it's out in the club feed.
+ *
+ * Title is READ-ONLY here by design: `activity_name` lives on
+ * `athlete_activities` (Garmin/Strava's own name), and letting it be edited
+ * from this sheet would mean also PATCHing that table from a feed-focused
+ * route. Caption/audience/photos/hidden-stats are all feed_items concerns and
+ * go through the one PATCH below — a smaller, safer v1 surface.
+ *
+ * NOTE: this only works once migration 047_social_feed.sql has been applied —
+ * until then `fetchFeedItemByActivity` 404s/500s (no feed_items table yet)
+ * and the sheet degrades to a read-only stats recap (see loadError below).
+ */
+export function ActivitySyncEditor({
+  activity,
+  extraCount = 0,
+  onClose,
+}: {
+  activity: SyncedActivity;
+  /** How many OTHER newly-synced activities are being skipped past this one. */
+  extraCount?: number;
+  onClose: () => void;
+}) {
+  const t = useTranslations('feed.syncEditor');
+  const tFeed = useTranslations('feed');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [feedItem, setFeedItem] = useState<FeedItem | null>(null);
+
+  const [caption, setCaption] = useState('');
+  const [media, setMedia] = useState<FeedMedia[]>([]);
+  const [visibility, setVisibility] = useState<'club' | 'private'>('club');
+  const [hidden, setHidden] = useState<Set<FeedHiddenField>>(new Set());
+
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showShare, setShowShare] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const { item } = await fetchFeedItemByActivity(activity.id);
+      setFeedItem(item);
+      setCaption(item.body || '');
+      setMedia(item.media);
+      const rawHidden = (item.payload?.hiddenFields as unknown[]) || [];
+      setHidden(new Set(rawHidden.filter(isFeedHiddenField)));
+    } catch (err: unknown) {
+      setLoadError((err as Error).message || t('loadError'));
+    } finally {
+      setLoading(false);
+    }
+  }, [activity.id, t]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const distKm = (activity.distance / 1000).toFixed(1);
+  const paceStr = activity.average_pace ? formatPace(activity.average_pace) : null;
+  const durationStr = formatDuration(activity.duration);
+  const routePoints = feedItem?.activity?.routePreview ?? null;
+
+  const toggleHidden = (field: FeedHiddenField) => {
+    setHidden(prev => {
+      const next = new Set(prev);
+      if (next.has(field)) next.delete(field);
+      else next.add(field);
+      return next;
+    });
+  };
+
+  const handleFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const remaining = MAX_IMAGES - media.length;
+    if (remaining <= 0) return;
+    const toUpload = Array.from(files).slice(0, remaining);
+    setUploading(true);
+    setSaveError(null);
+    try {
+      const uploaded = await Promise.all(toUpload.map(f => uploadMedia(f)));
+      setMedia(prev => [...prev, ...uploaded]);
+    } catch (err: unknown) {
+      setSaveError((err as Error).message || t('saveError'));
+    } finally {
+      setUploading(false);
+    }
+  }, [media.length, t]);
+
+  const removeMedia = (path: string) => {
+    setMedia(prev => prev.filter(m => m.path !== path));
+  };
+
+  const handleDone = async () => {
+    // No feed_item to attach edits to (load failed, e.g. migration 047 isn't
+    // applied yet) — just dismiss; there is nothing safe to save.
+    if (!feedItem) { onClose(); return; }
+
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await updateFeedItem(feedItem.id, {
+        body: caption,
+        visibility,
+        media,
+        hiddenFields: Array.from(hidden),
+      });
+      onClose();
+    } catch (err: unknown) {
+      setSaveError((err as Error).message || t('saveError'));
+      setSaving(false);
+    }
+  };
+
+  const editable = !loading && !loadError && !!feedItem;
+
+  return (
+    <>
+    <Sheet
+      open
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      leadingAction={
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          aria-label={tFeed('close')}
+        >
+          <X className="h-5 w-5" />
+        </button>
+      }
+      trailingAction={
+        <button
+          onClick={handleDone}
+          disabled={saving || uploading}
+          className={cn(
+            'px-4 py-1.5 rounded-full text-sm font-bold transition-all',
+            !saving && !uploading
+              ? 'bg-primary-600 text-white active:scale-95'
+              : 'bg-slate-700 text-slate-500',
+          )}
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t('done')}
+        </button>
+      }
+      className="max-h-[92vh]"
+      bodyClassName="flex-1 min-h-0"
+      footer={
+        <div className="flex-none flex items-center justify-between gap-3 px-4 pt-2 pb-3 border-t border-slate-700/60">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,image/heic,image/heif"
+            multiple
+            className="hidden"
+            onChange={e => handleFiles(e.target.files)}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={!editable || media.length >= MAX_IMAGES || uploading}
+            className={cn(
+              'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all',
+              editable && media.length < MAX_IMAGES && !uploading
+                ? 'text-primary-400 bg-primary-600/10 hover:bg-primary-600/20'
+                : 'text-slate-600',
+            )}
+          >
+            <ImagePlus className="h-5 w-5" />
+            <span>{t('addPhoto')}</span>
+            {media.length > 0 && <span className="text-xs text-slate-500">{media.length}/{MAX_IMAGES}</span>}
+          </button>
+
+          <button
+            onClick={() => setShowShare(true)}
+            disabled={!feedItem}
+            aria-label={tFeed('shareToStory')}
+            className={cn(
+              'flex items-center justify-center p-2 rounded-xl transition-all',
+              feedItem ? 'text-primary-400 bg-primary-600/10 hover:bg-primary-600/20' : 'text-slate-600',
+            )}
+          >
+            <Share2 className="h-5 w-5" />
+          </button>
+
+          <Link
+            href="/dashboard/activities"
+            onClick={onClose}
+            className="text-sm font-semibold text-slate-400 hover:text-primary-400 inline-flex items-center gap-0.5 transition-colors"
+          >
+            {t('advancedEdit')} <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      }
+    >
+      <div className="px-1 pb-2 space-y-4">
+        {/* Activity name — read-only (Garmin/Strava's own title, lives on
+            athlete_activities; editing it is out of scope for this sheet). */}
+        <div>
+          <p className="text-lg font-bold text-white">{activity.activity_name || 'Run'}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t('titleHint')}</p>
+          {extraCount > 0 && (
+            <span className="inline-block mt-2 text-2xs font-bold px-2 py-0.5 rounded-full bg-primary-600/10 text-primary-400 border border-primary-600/20">
+              {t('moreActivities', { count: extraCount })}
+            </span>
+          )}
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{tFeed('statDistance')}</p>
+            <p className="text-base font-black text-white tabular-nums">
+              {distKm}<span className="text-[10px] text-slate-400 ms-0.5">{tFeed('km')}</span>
+            </p>
+          </div>
+          <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{tFeed('statPace')}</p>
+            <p className="text-base font-black text-white tabular-nums">
+              {paceStr || '—'}<span className="text-[10px] text-slate-400 ms-0.5">{tFeed('perKm')}</span>
+            </p>
+          </div>
+          <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{tFeed('statTime')}</p>
+            <p className="text-base font-black text-white tabular-nums">{durationStr}</p>
+          </div>
+        </div>
+
+        {/* Route thumbnail — reuses the existing RouteMinimap (already the
+            feed's route-preview renderer); omitted entirely if the feed_item
+            didn't load or the activity has no route. */}
+        {routePoints && routePoints.length > 2 && (
+          <RouteMinimap points={routePoints} />
+        )}
+
+        {loading && (
+          <div className="flex items-center justify-center py-6">
+            <Spinner size={28} />
+          </div>
+        )}
+
+        {loadError && !loading && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+            <p className="text-sm text-amber-300">{loadError}</p>
+            <button onClick={load} className="mt-2 text-xs font-semibold text-amber-200 underline">
+              {t('retry')}
+            </button>
+          </div>
+        )}
+
+        {editable && (
+          <>
+            {/* Caption */}
+            <textarea
+              value={caption}
+              onChange={e => setCaption(e.target.value)}
+              placeholder={t('captionPlaceholder')}
+              className="w-full bg-slate-900/50 border border-slate-700/60 rounded-xl p-3 text-white placeholder:text-slate-500 text-sm leading-relaxed resize-none focus:outline-none focus:border-primary-600/60"
+              style={{ minHeight: '80px' }}
+            />
+
+            {/* Media thumbnails */}
+            {media.length > 0 && (
+              <div
+                className={cn(
+                  'gap-1.5',
+                  media.length === 1 && 'block',
+                  media.length >= 2 && 'grid',
+                  media.length === 2 && 'grid-cols-2',
+                  media.length >= 3 && 'grid-cols-2',
+                )}
+              >
+                {media.map((m, i) => (
+                  <div
+                    key={m.path}
+                    className={cn(
+                      'relative overflow-hidden rounded-xl bg-slate-900',
+                      media.length === 3 && i === 0 && 'col-span-2',
+                    )}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={m.url}
+                      alt=""
+                      className="w-full object-cover"
+                      style={{
+                        aspectRatio: m.w && m.h ? `${m.w}/${m.h}` : '4/3',
+                        maxHeight: media.length === 1 ? '280px' : '160px',
+                      }}
+                    />
+                    <button
+                      onClick={() => removeMedia(m.path)}
+                      className="absolute top-2 end-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {uploading && (
+              <div className="flex items-center gap-2 text-sm text-slate-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {tFeed('uploadingImage')}
+              </div>
+            )}
+
+            {/* Audience selector — "Followers" is visibly disabled: the
+                follow-graph feature (#21) doesn't exist yet, so a real
+                Followers audience would silently do nothing. */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">{t('audienceTitle')}</p>
+              <div className="flex gap-0.5 rounded-xl bg-slate-800 p-1 border border-slate-700">
+                <button
+                  onClick={() => setVisibility('club')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors min-h-[40px]',
+                    visibility === 'club' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white',
+                  )}
+                >
+                  <Globe className="h-3.5 w-3.5" /> {t('audienceEveryone')}
+                </button>
+                <button
+                  onClick={() => setVisibility('private')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors min-h-[40px]',
+                    visibility === 'private' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white',
+                  )}
+                >
+                  <Lock className="h-3.5 w-3.5" /> {t('audienceOnlyYou')}
+                </button>
+                <button
+                  disabled
+                  aria-disabled
+                  title={t('audienceComingSoon')}
+                  className="flex-1 flex flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 cursor-not-allowed min-h-[40px]"
+                >
+                  <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {t('audienceFollowers')}</span>
+                  <span className="text-[9px] text-slate-700">{t('audienceComingSoon')}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Hidden Details toggles */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">{t('hiddenDetailsTitle')}</p>
+              <div className="flex flex-wrap gap-2">
+                {HIDDEN_FIELD_DEFS.map(({ key, labelKey, icon: Icon }) => {
+                  const active = hidden.has(key);
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => toggleHidden(key)}
+                      aria-pressed={active}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+                        active
+                          ? 'border-primary-600 text-white bg-primary-600/10'
+                          : 'border-slate-600 text-slate-400 hover:text-slate-200',
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" /> {t(labelKey)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        {saveError && <p className="text-sm text-red-400">{saveError}</p>}
+      </div>
+    </Sheet>
+    {showShare && feedItem && (
+      <FeedShareSheet item={feedItem} onClose={() => setShowShare(false)} />
+    )}
+    </>
+  );
+}

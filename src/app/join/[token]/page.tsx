@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users, Eye, EyeOff } from 'lucide-react';
 
 interface Group {
@@ -14,6 +15,9 @@ interface Group {
 
 export default function JoinPage() {
   const { token } = useParams<{ token: string }>();
+  const t = useTranslations('join');
+  const to = useTranslations('onboarding');
+  const tc = useTranslations('common');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
@@ -63,7 +67,7 @@ export default function JoinPage() {
 
     if (!saveRes.ok) {
       const err = await saveRes.json();
-      throw new Error(err.error || 'Failed to save connection');
+      throw new Error(err.error || to('failedToSaveConnection'));
     }
 
     const data = await saveRes.json();
@@ -80,7 +84,7 @@ export default function JoinPage() {
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (groups.length > 0 && !selectedGroup) {
-      setError('Please select a pace group');
+      setError(t('selectPaceGroupError'));
       return;
     }
     setError(null);
@@ -110,7 +114,7 @@ export default function JoinPage() {
       }
 
       if (!authRes.ok) {
-        throw new Error(authData.error || 'Failed to connect to Garmin');
+        throw new Error(authData.error || to('failedToConnectGarmin'));
       }
 
       await saveConnection(authData.auth);
@@ -135,7 +139,7 @@ export default function JoinPage() {
       const authData = await authRes.json();
 
       if (!authRes.ok) {
-        throw new Error(authData.error || 'Verification failed');
+        throw new Error(authData.error || to('verificationFailed'));
       }
 
       await saveConnection(authData.auth);
@@ -155,7 +159,7 @@ export default function JoinPage() {
               <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain invert" />
               <span className="text-lg font-bold text-white uppercase tracking-tight">Madregot After 2KM</span>
             </div>
-            <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">Running Club</span>
+            <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">{t('runningClub')}</span>
           </div>
 
           {/* Success Icon */}
@@ -165,27 +169,27 @@ export default function JoinPage() {
 
           {/* Success Message */}
           <h1 className="text-2xl font-bold text-white text-center">
-            {skippedGarmin ? 'Registration Complete!' : 'You\u0027re Connected!'}
+            {skippedGarmin ? to('registrationComplete') : t('youreConnected')}
           </h1>
           <p className="text-slate-400 mt-3 text-center">
             {skippedGarmin
-              ? 'You can connect your Garmin watch anytime from your profile settings.'
-              : 'Your Garmin account is now linked. Your coach will push workouts directly to your Garmin training calendar.'}
+              ? to('canConnectLater')
+              : t('garminLinkedCoach')}
           </p>
 
           {/* What's Next Section */}
           {!skippedGarmin && (
             <div className="mt-8 space-y-3">
-              <h2 className="text-sm font-semibold text-white mb-3">What&apos;s next?</h2>
+              <h2 className="text-sm font-semibold text-white mb-3">{t('whatsNext')}</h2>
 
               <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
                 <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
                   <Calendar className="h-5 w-5 text-primary-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-white">Receive Workouts</h3>
+                  <h3 className="text-sm font-medium text-white">{t('receiveWorkouts')}</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Your coach will push workouts to your Garmin training calendar
+                    {t('receiveWorkoutsDesc')}
                   </p>
                 </div>
               </div>
@@ -195,9 +199,9 @@ export default function JoinPage() {
                   <Smartphone className="h-5 w-5 text-primary-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-white">Sync Your Phone</h3>
+                  <h3 className="text-sm font-medium text-white">{t('syncPhone')}</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Open Garmin Connect Mobile on your phone to sync the workouts
+                    {t('syncPhoneDesc')}
                   </p>
                 </div>
               </div>
@@ -207,9 +211,9 @@ export default function JoinPage() {
                   <Watch className="h-5 w-5 text-primary-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-white">Find on Your Watch</h3>
+                  <h3 className="text-sm font-medium text-white">{t('findOnWatch')}</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Workouts appear in Training &rarr; My Workouts on your Garmin watch
+                    {t('findOnWatchDesc')}
                   </p>
                 </div>
               </div>
@@ -222,14 +226,14 @@ export default function JoinPage() {
               href="/dashboard/program"
               className="block w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center"
             >
-              {skippedGarmin ? 'Go to Dashboard' : 'View Training Program'}
+              {skippedGarmin ? t('goToDashboard') : t('viewProgram')}
             </a>
           </div>
 
           {!skippedGarmin && (
             <div className="mt-4 pt-4 border-t border-slate-700">
               <p className="text-xs text-slate-500 text-center">
-                Make sure Garmin Connect Mobile is running with Bluetooth enabled for automatic syncing
+                {t('bluetoothNote')}
               </p>
             </div>
           )}
@@ -250,14 +254,14 @@ export default function JoinPage() {
               <span className="text-xs font-medium tracking-wide text-slate-400">After 2KM Running Club</span>
             </div>
           </div>
-          <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">Running Club</span>
+          <span className="text-xs text-primary-400 uppercase tracking-wide font-medium">{t('runningClub')}</span>
         </div>
 
         {/* Header */}
         <div className="text-center mb-6">
-          <h1 className="text-xl font-bold text-white">Join Your Team</h1>
+          <h1 className="text-xl font-bold text-white">{t('joinYourTeam')}</h1>
           <p className="text-slate-400 mt-2 text-sm">
-            Connect your Garmin to receive workouts from your coach
+            {t('connectGarminDesc')}
           </p>
         </div>
 
@@ -273,7 +277,7 @@ export default function JoinPage() {
           <form onSubmit={handleInfoSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Your Name
+                {to('yourName')}
               </label>
               <input
                 type="text"
@@ -286,7 +290,7 @@ export default function JoinPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Email
+                {to('emailLabel')}
               </label>
               <input
                 type="email"
@@ -301,7 +305,7 @@ export default function JoinPage() {
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   <Users className="inline h-4 w-4 me-1" />
-                  Your Pace Group
+                  {to('yourPaceGroup')}
                 </label>
                 <div className="space-y-2">
                   {groups.map(g => {
@@ -332,7 +336,7 @@ export default function JoinPage() {
                             <div className="font-medium text-white">{g.name}</div>
                             {g.marathonGoal && (
                               <div className="text-xs text-slate-400 mt-0.5">
-                                Marathon Goal: <span className="font-mono text-slate-300">{g.marathonGoal}</span>
+                                {to('marathonGoal')} <span className="font-mono text-slate-300">{g.marathonGoal}</span>
                               </div>
                             )}
                           </div>
@@ -345,7 +349,7 @@ export default function JoinPage() {
                   })}
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
-                  Your coach will assign workouts based on your group&apos;s pace offset
+                  {t('groupPaceNote')}
                 </p>
               </div>
             )}
@@ -358,7 +362,7 @@ export default function JoinPage() {
               type="submit"
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors"
             >
-              Continue
+              {tc('continue')}
             </button>
           </form>
         )}
@@ -369,13 +373,13 @@ export default function JoinPage() {
             <div className="bg-slate-700/50 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-primary-400 mt-0.5 shrink-0" />
               <p className="text-xs text-slate-400">
-                <span className="text-white font-medium">One-time setup:</span> Enter your Garmin Connect credentials to link your watch. This is only needed once — you won&apos;t need to enter these again.
+                <span className="text-white font-medium">{to('oneTimeSetup')}</span> {to('garminHelper')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Garmin Connect Email
+                {to('garminEmail')}
               </label>
               <input
                 type="email"
@@ -389,7 +393,7 @@ export default function JoinPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Garmin Connect Password
+                {to('garminPassword')}
               </label>
               <div className="relative">
                 <input
@@ -409,7 +413,7 @@ export default function JoinPage() {
                 </button>
               </div>
               <p className="text-xs text-slate-500 mt-1.5">
-                Tap the eye to show your password and verify it
+                {t('tapEye')}
               </p>
             </div>
 
@@ -427,10 +431,10 @@ export default function JoinPage() {
               {step === 'connecting' ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Connecting to Garmin...
+                  {to('connectingGarmin')}
                 </>
               ) : (
-                'Connect Garmin Account'
+                to('connectGarmin')
               )}
             </button>
 
@@ -439,7 +443,7 @@ export default function JoinPage() {
               onClick={() => setStep('info')}
               className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
             >
-              Back
+              {tc('back')}
             </button>
 
             <button
@@ -459,7 +463,7 @@ export default function JoinPage() {
                   });
                   if (!saveRes.ok) {
                     const err = await saveRes.json();
-                    throw new Error(err.error || 'Failed to save');
+                    throw new Error(err.error || to('failedToSave'));
                   }
                   const data = await saveRes.json();
                   if (data.athlete) {
@@ -478,7 +482,7 @@ export default function JoinPage() {
               disabled={step === 'connecting'}
               className="w-full border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors"
             >
-              I&apos;ll connect Garmin later
+              {to('connectLater')}
             </button>
           </form>
         )}
@@ -489,19 +493,19 @@ export default function JoinPage() {
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
               <p className="text-xs text-slate-300">
-                <span className="text-amber-400 font-medium">Verification required:</span> A code was sent to your Garmin email. Enter it below to complete the connection.
+                <span className="text-amber-400 font-medium">{to('verificationRequired')}</span> {to('mfaHelper')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Verification Code
+                {to('verificationCode')}
               </label>
               <input
                 type="text"
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}
-                placeholder="Enter 6-digit code"
+                placeholder={to('enterCode')}
                 maxLength={6}
                 className="w-full bg-slate-700 border border-amber-500/50 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-center text-xl tracking-widest"
                 required
@@ -520,7 +524,7 @@ export default function JoinPage() {
               disabled={!mfaCode || mfaCode.length < 6}
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Verify & Connect
+              {to('verifyConnect')}
             </button>
 
             <button
@@ -528,7 +532,7 @@ export default function JoinPage() {
               onClick={() => { setStep('garmin'); setMfaRequired(false); setMfaCode(''); }}
               className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
             >
-              Back to login
+              {to('backToLogin')}
             </button>
           </form>
         )}

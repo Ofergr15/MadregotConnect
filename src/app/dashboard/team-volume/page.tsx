@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { SkeletonList } from '@/components/ui';
+import { SkeletonList, SegmentedControl } from '@/components/ui';
 
 interface Row {
   athleteId: string;
@@ -41,17 +41,12 @@ export default function TeamVolumePage() {
         <p className="text-sm text-slate-400 mt-1">נפח שבועי לכל ספורטאי — מי עולה ומי יורד</p>
       </div>
 
-      <div className="flex items-center gap-1.5 mb-4">
-        {[8, 12, 16].map((w) => (
-          <button
-            key={w}
-            onClick={() => setRange(w)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${range === w ? 'bg-primary-600/25 text-primary-200 border-primary-500/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}`}
-          >
-            {w} שבועות
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        value={String(range)}
+        onChange={(v) => setRange(Number(v))}
+        options={[8, 12, 16].map((w) => ({ value: String(w), label: `${w} שבועות` }))}
+        className="mb-4 w-fit"
+      />
 
       {loading ? (
         <SkeletonList count={6} />

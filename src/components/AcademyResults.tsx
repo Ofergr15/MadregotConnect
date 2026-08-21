@@ -192,11 +192,11 @@ export function AcademyResults() {
 
       {/* Add/edit modal */}
       {editing && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={() => setEditing(null)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={() => setEditing(null)} role="dialog" aria-modal="true">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-700">
               <h2 className="text-lg font-bold text-white">{editing.id ? 'Edit result' : 'Add result'}</h2>
-              <button onClick={() => setEditing(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700"><X className="h-5 w-5" /></button>
+              <button onClick={() => setEditing(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700" aria-label="Close"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-5 space-y-3">
               <Field label="Test">

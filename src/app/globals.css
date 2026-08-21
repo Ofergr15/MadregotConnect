@@ -25,18 +25,6 @@
 }
 
 @layer components {
-  .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-2 rounded-lg transition-colors;
-  }
-  .btn-secondary {
-    @apply bg-slate-700 hover:bg-slate-600 text-white font-medium px-4 py-2 rounded-lg transition-colors;
-  }
-  .card {
-    @apply bg-slate-800 rounded-xl border border-slate-700 p-6;
-  }
-  .input {
-    @apply bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
-  }
   .animate-fade-in {
     animation: fadeIn 0.5s ease-out;
   }
@@ -96,6 +84,17 @@
   animation: slideInEnd 0.2s ease-out;
 }
 
+/* These three are one-shot entrance transforms (translate/scale + opacity),
+   not simple color fades, so under reduced motion the content should just
+   appear at its final position instead of animating into place. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-scale-in,
+  .animate-slide-in-right {
+    animation: none;
+  }
+}
+
 @keyframes runner {
   0% { inset-inline-start: -10%; }
   100% { inset-inline-start: 100%; }
@@ -116,6 +115,19 @@
   animation: progressIndeterminate 2s ease-in-out infinite;
 }
 
+/* An indeterminate bar sliding back and forth is exactly the kind of ambient
+   motion prefers-reduced-motion asks us to avoid, but a fully static/empty
+   bar would silently drop the "still working" signal. Freeze it mid-sweep
+   (same width/offset as the animation's 50% keyframe) so it still reads as
+   an in-progress bar, just without the back-and-forth motion. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-progress-indeterminate {
+    animation: none;
+    width: 60%;
+    margin-inline-start: 20%;
+  }
+}
+
 @keyframes spinSlow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -128,6 +140,12 @@
 
 .animate-spin-slow {
   animation: spinSlow 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin-slow {
+    animation: none;
+  }
 }
 
 /* Maintenance screen — "rebuilding the Madregot stairs" (Madregot = stairs).
@@ -237,6 +255,34 @@
 
 .animate-bounce-gentle {
   animation: bounceGentle 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-bounce-gentle {
+    animation: none;
+  }
+}
+
+/* Tailwind's built-in loading spinner (`animate-spin`) is used throughout the
+   app as the sole "this is loading" signal, so unlike the decorative
+   animations above we don't fully remove it under reduced motion — that
+   would silently remove the loading affordance. Slow it down instead. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation-duration: 2s;
+  }
+}
+
+/* Tap/press "squish" feedback (`active:scale-*` utilities, used across
+   buttons/cards/tab-bar items) is a transform-based micro-animation. Under
+   reduced motion, cancel the scale on press — the existing color/background
+   hover-active states still provide feedback. Matches against the literal
+   class-attribute substring, so it applies wherever the utility is used
+   without having to touch every component. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="active:scale"]:active {
+    transform: none !important;
+  }
 }
 
 .recharts-wrapper,

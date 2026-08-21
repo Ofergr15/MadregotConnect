@@ -7,6 +7,7 @@
 // color comes from the `primary` token (now the real #4338ff), never hardcoded.
 
 import { cn } from '@/lib/utils';
+import { Sheet } from './Sheet';
 
 export { Sheet } from './Sheet';
 export { InsetSection, InsetRow } from './InsetList';
@@ -166,6 +167,77 @@ export function SkeletonList({ count = 4, className }: { count?: number; classNa
   return (
     <div className={cn('space-y-2.5', className)}>
       {Array.from({ length: count }, (_, i) => <SkeletonRow key={i} />)}
+    </div>
+  );
+}
+
+// ── ConfirmSheet ──────────────────────────────────────────────────────────────
+// Native destructive-confirmation pattern: one full-width verb row (red when
+// `danger`) + a plain Cancel row below it, in a bottom sheet — replacing every
+// `window.confirm()` in the app (no native iOS equivalent of a browser confirm
+// dialog exists, and it can't be styled/localized/RTL-fixed).
+export function ConfirmSheet({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel,
+  cancelLabel = 'Cancel',
+  danger = true,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description?: string;
+  confirmLabel: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  onConfirm: () => void;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title={title}>
+      {description && <p className="text-sm text-slate-400 text-center px-2 pb-4">{description}</p>}
+      <div className="space-y-2">
+        <button
+          onClick={() => { onOpenChange(false); onConfirm(); }}
+          className={cn(
+            'w-full min-h-[48px] rounded-xl font-bold text-base transition-colors active:scale-[0.98]',
+            danger ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-primary-600 hover:bg-primary-700 text-white'
+          )}
+        >
+          {confirmLabel}
+        </button>
+        <button
+          onClick={() => onOpenChange(false)}
+          className="w-full min-h-[48px] rounded-xl font-semibold text-base bg-slate-700 hover:bg-slate-600 text-white transition-colors active:scale-[0.98]"
+        >
+          {cancelLabel}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+// ── BigStat ──────────────────────────────────────────────────────────────────
+// The hero-number pattern already hand-copied across StatTiles/MomentumCard
+// (text-3xl font-black tabular-nums) — promoted here so every future stat
+// surface (Statistics screen, leaderboards, analytics) inherits one look.
+export function BigStat({
+  value,
+  label,
+  className,
+  valueClassName,
+}: {
+  value: React.ReactNode;
+  label: string;
+  className?: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className={cn('flex flex-col items-center text-center', className)}>
+      <span className={cn('text-3xl font-black tabular-nums text-primary-400 leading-none', valueClassName)}>{value}</span>
+      <span className="mt-1.5 text-xs font-medium text-slate-400">{label}</span>
     </div>
   );
 }

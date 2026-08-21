@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, FileText, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera } from 'lucide-react';
-import Link from 'next/link';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, BarChart3, Route } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations, useLocale } from 'next-intl';
-import { ProfileBest } from '@/components/ProfileBest';
-import { PersonalRecords } from '@/components/PersonalRecords';
-import { VolumeHistory } from '@/components/VolumeHistory';
+import { StatisticsScreen } from '@/components/StatisticsScreen';
+import { BadgesGrid } from '@/components/BadgesGrid';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
+import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
@@ -61,6 +60,12 @@ const WEEKS: WeekProgram[] = [
   },
 ];
 
+// iOS-Settings-style drill-down tabs. null = the Profile landing (avatar/name +
+// row list); a value = a detail screen open. Mirrors the mechanism in
+// dashboard/settings/page.tsx (SettingsTab / activeTab) so both "app-native
+// settings-style" screens share one navigation pattern.
+type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'share' | 'notifications';
+
 export default function ProfilePage() {
   return (
     <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mt-20"></div>}>
@@ -75,6 +80,8 @@ function ProfileContent() {
   const tCommon = useTranslations('common');
   const locale = useLocale();
   const searchParams = useSearchParams();
+  // null = landing (iOS-style list); a value = a detail screen open.
+  const [activeTab, setActiveTab] = useState<ProfileTab | null>(null);
   const [athleteId, setAthleteId] = useState('');
   const [athleteName, setAthleteName] = useState('');
   const [athleteEmail, setAthleteEmail] = useState('');
@@ -135,6 +142,10 @@ function ProfileContent() {
 
   useEffect(() => {
     if (searchParams.get('connectGarmin') === '1') {
+      // Deep-link (from onboarding / the Garmin reminder popup / the incoming
+      // Google-sign-in link) — jump straight into the Data Source sub-screen so
+      // the connect form is visible, then scroll it into view as before.
+      setActiveTab('datasource');
       setConnectingGarmin(true);
       setTimeout(() => {
         garminSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -289,6 +300,14 @@ function ProfileContent() {
     }
   };
 
+  // Trailing value preview for the Data Source landing row (which source is
+  // actually active right now, in one word).
+  const dataSourceLabel = !hasGarmin && !hasStrava
+    ? t('noConnection')
+    : hasGarmin && hasStrava
+      ? (dataSource === 'strava' ? t('strava') : t('garminConnect'))
+      : hasGarmin ? t('garminConnect') : t('strava');
+
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-8">
       {showSyncModal && (
@@ -325,200 +344,524 @@ function ProfileContent() {
         </div>
       )}
 
-      {/* Profile Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
-        <div className="absolute top-0 end-0 w-32 h-32 bg-primary-600/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-        <div className="relative flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => photoInputRef.current?.click()}
-            className="relative w-16 h-16 rounded-full shrink-0 shadow-lg shadow-primary-600/20 overflow-hidden group"
-            title="Change photo"
-          >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={athleteName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-            ) : (
-              <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-600 to-primary-700 text-xl font-bold text-white">{initials}</span>
-            )}
-            <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-              {uploadingPhoto ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Camera className="h-4 w-4 text-white" />}
-            </span>
-          </button>
-          <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-white truncate">{athleteName}</h1>
-            <div className="flex items-center gap-1.5 mt-1">
-              <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-              <span className="text-sm text-slate-400 truncate">{athleteEmail}</span>
+      {/* ═══ HEADER — back-nav on a detail screen only (the Hero below already
+          anchors the landing, like the reference Settings screen's h1) ═══ */}
+      {activeTab !== null && (
+        <button onClick={() => setActiveTab(null)}
+          className="mb-1 flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-sm font-semibold" dir="rtl">
+          <ChevronRight className="h-4.5 w-4.5 rotate-180" />
+          <span>{t('title')}</span>
+        </button>
+      )}
+
+      {/* ═══ LANDING — hero (most-important info at a glance) + iOS-Settings
+          inset list of rows that drill into detail screens ═══ */}
+      {activeTab === null && (
+        <>
+          {/* Profile Hero */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
+            <div className="absolute top-0 end-0 w-32 h-32 bg-primary-600/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+            <div className="relative flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="relative w-16 h-16 rounded-full shrink-0 shadow-lg shadow-primary-600/20 overflow-hidden group"
+                title="Change photo"
+              >
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={athleteName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-600 to-primary-700 text-xl font-bold text-white">{initials}</span>
+                )}
+                <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  {uploadingPhoto ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Camera className="h-4 w-4 text-white" />}
+                </span>
+              </button>
+              <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-bold text-white truncate">{athleteName}</h1>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span className="text-sm text-slate-400 truncate">{athleteEmail}</span>
+                </div>
+                {memberSince && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {t('memberSince')} {new Date(memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
+                  </p>
+                )}
+                {currentGroup && (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <Target className="h-3.5 w-3.5 text-primary-600 shrink-0" />
+                    <span className="text-sm font-medium text-primary-600">{currentGroup.marathonGoal || currentGroup.name}</span>
+                  </div>
+                )}
+              </div>
             </div>
-            {memberSince && (
-              <p className="text-xs text-slate-500 mt-1">
-                {t('memberSince')} {new Date(memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
-              </p>
+
+            <div className="mt-4 flex items-center gap-2">
+              {hasGarmin && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
+                  <Watch className="h-3.5 w-3.5 text-green-400" />
+                  <span className="text-xs font-medium text-green-400">{tHeader('garminConnected')}</span>
+                </div>
+              )}
+              {hasStrava && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20">
+                  <Activity className="h-3.5 w-3.5 text-orange-400" />
+                  <span className="text-xs font-medium text-orange-400">{t('connected')}</span>
+                </div>
+              )}
+              {!hasGarmin && !hasStrava && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                  <WifiOff className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="text-xs font-medium text-amber-400">{t('noConnection')}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Everything else lives one tap away, iOS-Settings style. */}
+          <InsetSection>
+            <InsetRow
+              icon={Dumbbell}
+              iconBg="bg-primary-600"
+              label={t('thisWeeksProgram')}
+              value={currentWeek.weekLabel}
+              href="/dashboard/program"
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+            />
+            <InsetRow
+              icon={Users}
+              iconBg="bg-blue-500"
+              label={t('paceGroup')}
+              value={currentGroup?.name}
+              onClick={() => setActiveTab('group')}
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+            />
+            <InsetRow
+              icon={Activity}
+              iconBg="bg-green-500"
+              label={t('activityDataSource')}
+              value={dataSourceLabel}
+              onClick={() => setActiveTab('datasource')}
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+            />
+            <InsetRow
+              icon={BarChart3}
+              iconBg="bg-amber-500"
+              label={t('statistics')}
+              onClick={() => setActiveTab('statistics')}
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+            />
+            <InsetRow
+              icon={Award}
+              iconBg="bg-yellow-500"
+              label={t('badges')}
+              onClick={() => setActiveTab('badges')}
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+            />
+            <InsetRow
+              icon={Route}
+              iconBg="bg-cyan-500"
+              label={t('myActivities')}
+              href="/dashboard/activities"
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+            />
+            {planWorkouts && workoutDays.length > 0 && (
+              <InsetRow
+                icon={Share2}
+                iconBg="bg-teal-500"
+                label={t('shareWorkout')}
+                onClick={() => setActiveTab('share')}
+                trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+              />
             )}
-            {currentGroup && (
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <Target className="h-3.5 w-3.5 text-primary-600 shrink-0" />
-                <span className="text-sm font-medium text-primary-600">{currentGroup.marathonGoal || currentGroup.name}</span>
+            <InsetRow
+              icon={BellRing}
+              iconBg="bg-rose-500"
+              label={t('notificationPrefs')}
+              onClick={() => setActiveTab('notifications')}
+              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+            />
+          </InsetSection>
+        </>
+      )}
+
+      {/* ═══ DETAIL: Pace Group Selection ═══ */}
+      {activeTab === 'group' && (
+        <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
+                <Users className="h-4.5 w-4.5 text-primary-600" />
+              </div>
+              <h2 className="font-semibold text-white">{t('paceGroup')}</h2>
+            </div>
+            {saved && (
+              <div className="flex items-center gap-1.5 text-green-400">
+                <CheckCircle2 className="h-4 w-4" />
+                <span className="text-xs font-medium">{t('saved')}</span>
               </div>
             )}
           </div>
-        </div>
 
-        <div className="mt-4 flex items-center gap-2">
-          {hasGarmin && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
-              <Watch className="h-3.5 w-3.5 text-green-400" />
-              <span className="text-xs font-medium text-green-400">{tHeader('garminConnected')}</span>
-            </div>
-          )}
-          {hasStrava && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20">
-              <Activity className="h-3.5 w-3.5 text-orange-400" />
-              <span className="text-xs font-medium text-orange-400">{t('connected')}</span>
-            </div>
-          )}
-          {!hasGarmin && !hasStrava && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-              <WifiOff className="h-3.5 w-3.5 text-amber-400" />
-              <span className="text-xs font-medium text-amber-400">{t('noConnection')}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Your Best (benchmark results) — hidden when the athlete has none */}
-      <ProfileBest athleteId={athleteId} athleteName={athleteName} />
-
-      {/* Auto-detected Personal Records (5K/10K/HM) — hidden when none yet */}
-      <PersonalRecords athleteId={athleteId} />
-
-      {/* Weekly training-volume trend (durable weekly_km_snapshots) — hidden when no runs */}
-      <VolumeHistory athleteId={athleteId} weeks={12} />
-
-      {/* Per-user notification preferences (which push categories to receive) */}
-      <NotificationPrefs athleteId={athleteId} />
-
-      {/* This Week's Program */}
-      <Link
-        href="/dashboard/program"
-        className="block rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5 hover:border-primary-600/30 hover:bg-slate-800 transition-all group"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
-              <Dumbbell className="h-4.5 w-4.5 text-primary-600" />
-            </div>
-            <h2 className="font-semibold text-white">{t('thisWeeksProgram')}</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-primary-600 bg-primary-600/10 px-2.5 py-1 rounded-full">
-              {currentWeek.weekLabel}
-            </span>
-            <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-primary-600 transition-colors" />
-          </div>
-        </div>
-
-        <div className="bg-slate-900/50 rounded-xl p-4 flex items-center gap-3">
-          <FileText className="h-5 w-5 text-slate-400 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-white">{t('trainingAndNutrition')}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{currentWeek.dateRange}</p>
-          </div>
-        </div>
-      </Link>
-
-      {/* Pace Group Selection */}
-      <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
-              <Users className="h-4.5 w-4.5 text-primary-600" />
-            </div>
-            <h2 className="font-semibold text-white">{t('paceGroup')}</h2>
-          </div>
-          {saved && (
-            <div className="flex items-center gap-1.5 text-green-400">
-              <CheckCircle2 className="h-4 w-4" />
-              <span className="text-xs font-medium">{t('saved')}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          {groups.map(g => {
-            const isSelected = selectedGroupId === g.id;
-            const isCurrent = currentGroupId === g.id;
-            const levelColor = g.level === 'fast' ? 'green' : g.level === 'medium' ? 'amber' : 'orange';
-            return (
-              <button
-                key={g.id}
-                onClick={() => setSelectedGroupId(g.id)}
-                disabled={saving || hasActivities}
-                className={cn(
-                  'w-full text-start px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3',
-                  hasActivities && 'opacity-60 cursor-not-allowed',
-                  isSelected
-                    ? 'border-primary-600/60 bg-primary-600/5 shadow-sm shadow-primary-600/10'
-                    : 'border-slate-700/50 bg-slate-900/30 hover:bg-slate-700/30 hover:border-slate-600'
-                )}
-              >
-                <div className={cn(
-                  'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
-                  isSelected ? 'bg-primary-600/20' : 'bg-slate-700/50'
-                )}>
-                  <Users className={cn('h-4 w-4', isSelected ? 'text-primary-600' : 'text-slate-400')} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className={cn('font-medium block', isSelected ? 'text-white' : 'text-slate-300')}>
-                    {g.name}
-                  </span>
-                </div>
-                {g.marathonGoal && (
-                  <span className={cn(
-                    'text-xs px-2 py-1 rounded-md font-bold shrink-0',
-                    levelColor === 'green' && 'bg-green-500/15 text-green-400',
-                    levelColor === 'amber' && 'bg-amber-500/15 text-amber-400',
-                    levelColor === 'orange' && 'bg-orange-500/15 text-orange-400',
+          <div className="space-y-2">
+            {groups.map(g => {
+              const isSelected = selectedGroupId === g.id;
+              const levelColor = g.level === 'fast' ? 'green' : g.level === 'medium' ? 'amber' : 'orange';
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => setSelectedGroupId(g.id)}
+                  disabled={saving || hasActivities}
+                  className={cn(
+                    'w-full text-start px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3',
+                    hasActivities && 'opacity-60 cursor-not-allowed',
+                    isSelected
+                      ? 'border-primary-600/60 bg-primary-600/5 shadow-sm shadow-primary-600/10'
+                      : 'border-slate-700/50 bg-slate-900/30 hover:bg-slate-700/30 hover:border-slate-600'
+                  )}
+                >
+                  <div className={cn(
+                    'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+                    isSelected ? 'bg-primary-600/20' : 'bg-slate-700/50'
                   )}>
-                    {g.marathonGoal}
-                  </span>
+                    <Users className={cn('h-4 w-4', isSelected ? 'text-primary-600' : 'text-slate-400')} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className={cn('font-medium block', isSelected ? 'text-white' : 'text-slate-300')}>
+                      {g.name}
+                    </span>
+                  </div>
+                  {g.marathonGoal && (
+                    <span className={cn(
+                      'text-xs px-2 py-1 rounded-md font-bold shrink-0',
+                      levelColor === 'green' && 'bg-green-500/15 text-green-400',
+                      levelColor === 'amber' && 'bg-amber-500/15 text-amber-400',
+                      levelColor === 'orange' && 'bg-orange-500/15 text-orange-400',
+                    )}>
+                      {g.marathonGoal}
+                    </span>
+                  )}
+                  {isSelected && (
+                    <CheckCircle2 className="h-5 w-5 text-primary-600 shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {hasActivities && (
+            <p className="text-xs text-slate-500 mt-3 text-center">{t('groupLocked')}</p>
+          )}
+
+          {hasChanges && !hasActivities && (
+            <button
+              onClick={saveGroup}
+              disabled={saving}
+              className="mt-4 w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t('saving')}
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  {t('saveGroupChange')}
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ═══ DETAIL: Data Source - Connect Strava/Garmin ═══ */}
+      {activeTab === 'datasource' && (
+        <div ref={garminSectionRef} className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
+              <Activity className="h-4.5 w-4.5 text-primary-600" />
+            </div>
+            <h2 className="font-semibold text-white">{t('activityDataSource')}</h2>
+          </div>
+
+          <div className="space-y-3">
+            {/* Garmin status */}
+            <div className={cn(
+              'rounded-xl border overflow-hidden',
+              hasGarmin ? 'border-green-500/30 bg-green-500/5' : 'border-slate-700/50 bg-slate-900/30'
+            )}>
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <Watch className={cn('h-5 w-5', hasGarmin ? 'text-green-400' : 'text-slate-500')} />
+                  <div>
+                    <p className={cn('text-sm font-medium', hasGarmin ? 'text-white' : 'text-slate-400')}>{t('garminConnect')}</p>
+                    <p className="text-2xs text-slate-500">{hasGarmin ? t('connected') : t('notConnected')}</p>
+                  </div>
+                </div>
+                {hasGarmin ? (
+                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">{t('connected')}</span>
+                ) : (
+                  <button
+                    onClick={() => setConnectingGarmin(!connectingGarmin)}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-primary-600/10 text-primary-600 hover:bg-primary-600/20 transition-colors"
+                  >
+                    {t('connect')}
+                  </button>
                 )}
-                {isSelected && (
-                  <CheckCircle2 className="h-5 w-5 text-primary-600 shrink-0" />
+              </div>
+              {connectingGarmin && !hasGarmin && (
+                <div className="px-4 pb-4 space-y-3 border-t border-slate-700/30 pt-3">
+                  <input
+                    type="email"
+                    placeholder={t('garminEmail')}
+                    value={garminEmail}
+                    onChange={e => setGarminEmail(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+                  />
+                  {!mfaRequired && (
+                    <input
+                      type="password"
+                      placeholder={t('garminPassword')}
+                      value={garminPassword}
+                      onChange={e => setGarminPassword(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+                    />
+                  )}
+                  {mfaRequired && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-amber-400">{t('verificationCodeSent')}</p>
+                      <input
+                        type="text"
+                        placeholder={t('sixDigitCode')}
+                        value={mfaCode}
+                        onChange={e => setMfaCode(e.target.value)}
+                        maxLength={6}
+                        className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-amber-500/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-center text-lg tracking-widest"
+                      />
+                    </div>
+                  )}
+                  {garminError && (
+                    <p className="text-xs text-red-400">{garminError}</p>
+                  )}
+                  <button
+                    onClick={async () => {
+                      setGarminError(null);
+                      setGarminLoading(true);
+                      try {
+                        let authRes;
+                        if (mfaRequired && mfaCode) {
+                          authRes = await fetch('/api/garmin/authenticate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
+                          });
+                        } else {
+                          if (!garminEmail || !garminPassword) { setGarminLoading(false); return; }
+                          authRes = await fetch('/api/garmin/authenticate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: garminEmail, password: garminPassword }),
+                          });
+                        }
+                        const authData = await authRes.json();
+                        if (authData.mfaRequired) {
+                          setMfaRequired(true);
+                          setMfaSessionId(authData.sessionId);
+                          setGarminLoading(false);
+                          return;
+                        }
+                        if (!authRes.ok) {
+                          setGarminError(authData.error || 'Authentication failed');
+                          setGarminLoading(false);
+                          return;
+                        }
+                        const connectRes = await fetch('/api/athletes/connect', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ garminAuth: authData.auth, name: athleteName, email: athleteEmail }),
+                        });
+                        if (connectRes.ok) {
+                          setHasGarmin(true);
+                          setConnectingGarmin(false);
+                          setMfaRequired(false);
+                          setMfaCode('');
+                          setGarminEmail('');
+                          setGarminPassword('');
+                          setShowSyncModal(true);
+                          setSyncModalStatus('syncing');
+                          try {
+                            const syncRes = await fetch('/api/garmin/sync-activities', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ athleteId }),
+                            });
+                            if (syncRes.ok) {
+                              const syncData = await syncRes.json();
+                              setSyncModalCount(syncData.synced || 0);
+                              if (syncData.synced > 0) setHasActivities(true);
+                            }
+                          } catch {}
+                          setSyncModalStatus('done');
+                          setHasSynced(true);
+                        } else {
+                          setGarminError('Failed to save connection');
+                        }
+                      } catch {
+                        setGarminError('Connection failed. Try again.');
+                      } finally {
+                        setGarminLoading(false);
+                      }
+                    }}
+                    disabled={garminLoading || (mfaRequired ? !mfaCode : (!garminEmail || !garminPassword))}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  >
+                    {garminLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Watch className="h-4 w-4" />
+                    )}
+                    {garminLoading ? t('connecting') : mfaRequired ? t('verifyCode') : t('connectGarmin')}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Strava status - only show if admin enabled or already connected */}
+            {(stravaEnabled || hasStrava) && (
+              <div className={cn(
+                'flex items-center justify-between px-4 py-3 rounded-xl border',
+                hasStrava ? 'border-orange-500/30 bg-orange-500/5' : 'border-slate-700/50 bg-slate-900/30'
+              )}>
+                <div className="flex items-center gap-3">
+                  <Activity className={cn('h-5 w-5', hasStrava ? 'text-orange-400' : 'text-slate-500')} />
+                  <div>
+                    <p className={cn('text-sm font-medium', hasStrava ? 'text-white' : 'text-slate-400')}>{t('strava')}</p>
+                    <p className="text-2xs text-slate-500">{hasStrava ? t('connected') : t('notConnected')}</p>
+                  </div>
+                </div>
+                {hasStrava ? (
+                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">{t('connected')}</span>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setConnectingStrava(true);
+                      try {
+                        const res = await fetch(`/api/strava?athleteId=${athleteId}`);
+                        const data = await res.json();
+                        if (data.authUrl) {
+                          window.location.href = data.authUrl;
+                        }
+                      } catch {
+                        setConnectingStrava(false);
+                      }
+                    }}
+                    disabled={connectingStrava}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#fc5200]/10 text-[#fc5200] hover:bg-[#fc5200]/20 transition-colors disabled:opacity-50"
+                  >
+                    {connectingStrava ? t('connecting') : t('connect')}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+
+          {/* Switch source (shown if both connected) */}
+          {hasStrava && hasGarmin && (
+            <button
+              onClick={async () => {
+                const newSource = dataSource === 'strava' ? 'garmin' : 'strava';
+                await fetch('/api/admin/athlete-source', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ athleteId, dataSource: newSource }),
+                });
+                setDataSource(newSource);
+              }}
+              className="mt-4 w-full border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              <Activity className="h-4 w-4" />
+              {dataSource === 'strava' ? t('switchToGarmin') : t('switchToStrava')}
+            </button>
+          )}
+
+          {!hasGarmin && !hasStrava && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+              <WifiOff className="h-4 w-4 shrink-0" />
+              <span>{t('noDataSource')}</span>
+            </div>
+          )}
+
+          {/* Manual Sync button - only for Strava if Garmin already has activities */}
+          {!hasSynced && (hasStrava || (hasGarmin && !hasActivities)) && (
+            <div className="mt-4 pt-4 border-t border-slate-700/30">
+              <button
+                onClick={async () => {
+                  setSyncing(true);
+                  setSyncResult(null);
+                  try {
+                    const results = await Promise.allSettled([
+                      fetch('/api/strava/sync-activities', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ athleteId }),
+                      }),
+                    ]);
+                    let totalSynced = 0;
+                    for (const r of results) {
+                      if (r.status === 'fulfilled' && r.value.ok) {
+                        const d = await r.value.json();
+                        totalSynced += d.synced || 0;
+                      }
+                    }
+                    setSyncResult(t('syncedNewActivities', { count: totalSynced }));
+                  } catch {
+                    setSyncResult(t('syncFailed'));
+                  } finally {
+                    setSyncing(false);
+                    setTimeout(() => setSyncResult(null), 4000);
+                  }
+                }}
+                disabled={syncing}
+                className="w-full border border-slate-600 hover:border-primary-600/50 hover:bg-primary-600/5 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {syncing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t('syncing')}
+                  </>
+                ) : (
+                  <>
+                    <Activity className="h-4 w-4" />
+                    {hasStrava && hasActivities ? t('syncStravaActivities') : t('syncActivitiesNow')}
+                  </>
                 )}
               </button>
-            );
-          })}
+              {syncResult && (
+                <p className={cn('text-xs mt-2 text-center', syncResult.includes(t('syncFailed')) ? 'text-red-400' : 'text-green-400')}>
+                  {syncResult}
+                </p>
+              )}
+            </div>
+          )}
         </div>
+      )}
 
-        {hasActivities && (
-          <p className="text-xs text-slate-500 mt-3 text-center">{t('groupLocked')}</p>
-        )}
+      {/* ═══ DETAIL: Statistics — all-time numbers, PRs, volume, races, streaks ═══ */}
+      {activeTab === 'statistics' && (
+        <StatisticsScreen athleteId={athleteId} athleteName={athleteName} />
+      )}
 
-        {hasChanges && !hasActivities && (
-          <button
-            onClick={saveGroup}
-            disabled={saving}
-            className="mt-4 w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t('saving')}
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                {t('saveGroupChange')}
-              </>
-            )}
-          </button>
-        )}
-      </div>
+      {/* ═══ DETAIL: Badges & Achievements ═══ */}
+      {activeTab === 'badges' && (
+        <BadgesGrid athleteId={athleteId} />
+      )}
 
-      {/* Copy your workout — shareable text for WhatsApp / social */}
-      {planWorkouts && workoutDays.length > 0 && (
+      {/* ═══ DETAIL: Share a workout — shareable text for WhatsApp / social ═══ */}
+      {activeTab === 'share' && planWorkouts && workoutDays.length > 0 && (
         <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
@@ -583,276 +926,10 @@ function ProfileContent() {
         </div>
       )}
 
-      {/* Data Source - Connect Strava */}
-      <div ref={garminSectionRef} className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
-        <div className="flex items-center gap-2.5 mb-4">
-          <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
-            <Activity className="h-4.5 w-4.5 text-primary-600" />
-          </div>
-          <h2 className="font-semibold text-white">{t('activityDataSource')}</h2>
-        </div>
-
-        <div className="space-y-3">
-          {/* Garmin status */}
-          <div className={cn(
-            'rounded-xl border overflow-hidden',
-            hasGarmin ? 'border-green-500/30 bg-green-500/5' : 'border-slate-700/50 bg-slate-900/30'
-          )}>
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-3">
-                <Watch className={cn('h-5 w-5', hasGarmin ? 'text-green-400' : 'text-slate-500')} />
-                <div>
-                  <p className={cn('text-sm font-medium', hasGarmin ? 'text-white' : 'text-slate-400')}>{t('garminConnect')}</p>
-                  <p className="text-2xs text-slate-500">{hasGarmin ? t('connected') : t('notConnected')}</p>
-                </div>
-              </div>
-              {hasGarmin ? (
-                <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">{t('connected')}</span>
-              ) : (
-                <button
-                  onClick={() => setConnectingGarmin(!connectingGarmin)}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-primary-600/10 text-primary-600 hover:bg-primary-600/20 transition-colors"
-                >
-                  {t('connect')}
-                </button>
-              )}
-            </div>
-            {connectingGarmin && !hasGarmin && (
-              <div className="px-4 pb-4 space-y-3 border-t border-slate-700/30 pt-3">
-                <input
-                  type="email"
-                  placeholder={t('garminEmail')}
-                  value={garminEmail}
-                  onChange={e => setGarminEmail(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
-                />
-                {!mfaRequired && (
-                  <input
-                    type="password"
-                    placeholder={t('garminPassword')}
-                    value={garminPassword}
-                    onChange={e => setGarminPassword(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
-                  />
-                )}
-                {mfaRequired && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-amber-400">{t('verificationCodeSent')}</p>
-                    <input
-                      type="text"
-                      placeholder={t('sixDigitCode')}
-                      value={mfaCode}
-                      onChange={e => setMfaCode(e.target.value)}
-                      maxLength={6}
-                      className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-amber-500/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-center text-lg tracking-widest"
-                    />
-                  </div>
-                )}
-                {garminError && (
-                  <p className="text-xs text-red-400">{garminError}</p>
-                )}
-                <button
-                  onClick={async () => {
-                    setGarminError(null);
-                    setGarminLoading(true);
-                    try {
-                      let authRes;
-                      if (mfaRequired && mfaCode) {
-                        authRes = await fetch('/api/garmin/authenticate', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
-                        });
-                      } else {
-                        if (!garminEmail || !garminPassword) { setGarminLoading(false); return; }
-                        authRes = await fetch('/api/garmin/authenticate', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ email: garminEmail, password: garminPassword }),
-                        });
-                      }
-                      const authData = await authRes.json();
-                      if (authData.mfaRequired) {
-                        setMfaRequired(true);
-                        setMfaSessionId(authData.sessionId);
-                        setGarminLoading(false);
-                        return;
-                      }
-                      if (!authRes.ok) {
-                        setGarminError(authData.error || 'Authentication failed');
-                        setGarminLoading(false);
-                        return;
-                      }
-                      const connectRes = await fetch('/api/athletes/connect', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ garminAuth: authData.auth, name: athleteName, email: athleteEmail }),
-                      });
-                      if (connectRes.ok) {
-                        setHasGarmin(true);
-                        setConnectingGarmin(false);
-                        setMfaRequired(false);
-                        setMfaCode('');
-                        setGarminEmail('');
-                        setGarminPassword('');
-                        setShowSyncModal(true);
-                        setSyncModalStatus('syncing');
-                        try {
-                          const syncRes = await fetch('/api/garmin/sync-activities', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ athleteId }),
-                          });
-                          if (syncRes.ok) {
-                            const syncData = await syncRes.json();
-                            setSyncModalCount(syncData.synced || 0);
-                            if (syncData.synced > 0) setHasActivities(true);
-                          }
-                        } catch {}
-                        setSyncModalStatus('done');
-                        setHasSynced(true);
-                      } else {
-                        setGarminError('Failed to save connection');
-                      }
-                    } catch {
-                      setGarminError('Connection failed. Try again.');
-                    } finally {
-                      setGarminLoading(false);
-                    }
-                  }}
-                  disabled={garminLoading || (mfaRequired ? !mfaCode : (!garminEmail || !garminPassword))}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-                >
-                  {garminLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Watch className="h-4 w-4" />
-                  )}
-                  {garminLoading ? t('connecting') : mfaRequired ? t('verifyCode') : t('connectGarmin')}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Strava status - only show if admin enabled or already connected */}
-          {(stravaEnabled || hasStrava) && (
-            <div className={cn(
-              'flex items-center justify-between px-4 py-3 rounded-xl border',
-              hasStrava ? 'border-orange-500/30 bg-orange-500/5' : 'border-slate-700/50 bg-slate-900/30'
-            )}>
-              <div className="flex items-center gap-3">
-                <Activity className={cn('h-5 w-5', hasStrava ? 'text-orange-400' : 'text-slate-500')} />
-                <div>
-                  <p className={cn('text-sm font-medium', hasStrava ? 'text-white' : 'text-slate-400')}>{t('strava')}</p>
-                  <p className="text-2xs text-slate-500">{hasStrava ? t('connected') : t('notConnected')}</p>
-                </div>
-              </div>
-              {hasStrava ? (
-                <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">{t('connected')}</span>
-              ) : (
-                <button
-                  onClick={async () => {
-                    setConnectingStrava(true);
-                    try {
-                      const res = await fetch(`/api/strava?athleteId=${athleteId}`);
-                      const data = await res.json();
-                      if (data.authUrl) {
-                        window.location.href = data.authUrl;
-                      }
-                    } catch {
-                      setConnectingStrava(false);
-                    }
-                  }}
-                  disabled={connectingStrava}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#fc5200]/10 text-[#fc5200] hover:bg-[#fc5200]/20 transition-colors disabled:opacity-50"
-                >
-                  {connectingStrava ? t('connecting') : t('connect')}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-
-        {/* Switch source (shown if both connected) */}
-        {hasStrava && hasGarmin && (
-          <button
-            onClick={async () => {
-              const newSource = dataSource === 'strava' ? 'garmin' : 'strava';
-              await fetch('/api/admin/athlete-source', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ athleteId, dataSource: newSource }),
-              });
-              setDataSource(newSource);
-            }}
-            className="mt-4 w-full border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
-            <Activity className="h-4 w-4" />
-            {dataSource === 'strava' ? t('switchToGarmin') : t('switchToStrava')}
-          </button>
-        )}
-
-        {!hasGarmin && !hasStrava && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
-            <WifiOff className="h-4 w-4 shrink-0" />
-            <span>{t('noDataSource')}</span>
-          </div>
-        )}
-
-        {/* Manual Sync button - only for Strava if Garmin already has activities */}
-        {!hasSynced && (hasStrava || (hasGarmin && !hasActivities)) && (
-          <div className="mt-4 pt-4 border-t border-slate-700/30">
-            <button
-              onClick={async () => {
-                setSyncing(true);
-                setSyncResult(null);
-                try {
-                  const results = await Promise.allSettled([
-                    fetch('/api/strava/sync-activities', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ athleteId }),
-                    }),
-                  ]);
-                  let totalSynced = 0;
-                  for (const r of results) {
-                    if (r.status === 'fulfilled' && r.value.ok) {
-                      const d = await r.value.json();
-                      totalSynced += d.synced || 0;
-                    }
-                  }
-                  setSyncResult(t('syncedNewActivities', { count: totalSynced }));
-                } catch {
-                  setSyncResult(t('syncFailed'));
-                } finally {
-                  setSyncing(false);
-                  setTimeout(() => setSyncResult(null), 4000);
-                }
-              }}
-              disabled={syncing}
-              className="w-full border border-slate-600 hover:border-primary-600/50 hover:bg-primary-600/5 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {syncing ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t('syncing')}
-                </>
-              ) : (
-                <>
-                  <Activity className="h-4 w-4" />
-                  {hasStrava && hasActivities ? t('syncStravaActivities') : t('syncActivitiesNow')}
-                </>
-              )}
-            </button>
-            {syncResult && (
-              <p className={cn('text-xs mt-2 text-center', syncResult.includes(t('syncFailed')) ? 'text-red-400' : 'text-green-400')}>
-                {syncResult}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+      {/* ═══ DETAIL: Notification preferences (per-user category toggles) ═══ */}
+      {activeTab === 'notifications' && (
+        <NotificationPrefs athleteId={athleteId} />
+      )}
     </div>
   );
 }

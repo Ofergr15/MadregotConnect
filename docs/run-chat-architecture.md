@@ -26,8 +26,8 @@ actual activity data, AI tool traces, related historical runs, and normal chat.
 ## Data and identity
 
 `run_chats` links an `athlete_activities` row to a Stream channel and stores the
-matched plan text/workout. Migration `038_run_chat.sql` creates the core tables;
-`039_run_chat_clipboard.sql` adds clipboard state.
+matched plan text/workout. Migration `049_run_chat.sql` creates the core tables;
+`050_run_chat_clipboard.sql` adds clipboard state.
 
 Stream IDs are not interchangeable with database coach IDs. Resolve the coach
 through `resolveCoachStreamUser()` and always add the runner, resolved human

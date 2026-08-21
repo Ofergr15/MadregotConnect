@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Play, X, Pencil, Loader2, Check, Plus, Trash2 } from 'lucide-react';
+import { Sheet } from '@/components/ui';
 
 interface Video {
   id: string;
@@ -145,25 +146,15 @@ export default function PracticePage() {
         ))}
       </div>
 
-      {/* Video Player Modal */}
-      {selectedVideo && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-4xl overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-slate-700">
-              <div>
-                <h2 className="text-lg font-bold text-white">{selectedVideo.title}</h2>
-                <p className="text-sm text-slate-400 mt-0.5">{selectedVideo.category} &middot; {selectedVideo.duration}</p>
-              </div>
-              <button
-                onClick={() => setSelectedVideo(null)}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X className="h-5 w-5 text-slate-400" />
-              </button>
-            </div>
-
-            {/* Video Embed */}
+      {/* Video Player Sheet */}
+      <Sheet
+        open={!!selectedVideo}
+        onOpenChange={(o) => { if (!o) setSelectedVideo(null); }}
+        title={selectedVideo ? `${selectedVideo.title} · ${selectedVideo.duration}` : undefined}
+        bodyClassName="px-0 pb-0"
+      >
+        {selectedVideo && (
+          <>
             <div className="aspect-video bg-black">
               {isPlaceholder(selectedVideo.driveId) ? (
                 <div className="w-full h-full flex items-center justify-center text-slate-500">
@@ -181,14 +172,12 @@ export default function PracticePage() {
                 />
               )}
             </div>
-
-            {/* Description */}
-            <div className="p-4 border-t border-slate-700">
+            <div className="p-4">
               <p className="text-sm text-slate-300">{selectedVideo.description}</p>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Sheet>
     </div>
   );
 }

@@ -28,6 +28,7 @@ export default function OnboardPage() {
 
 function OnboardContent() {
   const t = useTranslations('onboarding');
+  const tc = useTranslations('common');
   const searchParams = useSearchParams();
   const skipGroup = searchParams.get('skipGroup') === '1';
   const skipGarmin = searchParams.get('skipGarmin') === '1';
@@ -83,7 +84,7 @@ function OnboardContent() {
       });
       if (!saveRes.ok) {
         const err = await saveRes.json();
-        throw new Error(err.error || 'Failed to save');
+        throw new Error(err.error || t('failedToSave'));
       }
       const data = await saveRes.json();
       if (data.athlete) {
@@ -113,7 +114,7 @@ function OnboardContent() {
 
       const authData = await authRes.json();
       if (!authRes.ok) {
-        throw new Error(authData.error || 'Verification failed');
+        throw new Error(authData.error || t('verificationFailed'));
       }
 
       const auth = authData.auth;
@@ -124,7 +125,7 @@ function OnboardContent() {
       });
       if (!saveRes.ok) {
         const err = await saveRes.json();
-        throw new Error(err.error || 'Failed to save connection');
+        throw new Error(err.error || t('failedToSaveConnection'));
       }
       const data = await saveRes.json();
       if (data.athlete) {
@@ -162,7 +163,7 @@ function OnboardContent() {
       }
 
       if (!authRes.ok) {
-        throw new Error(authData.error || 'Failed to connect to Garmin');
+        throw new Error(authData.error || t('failedToConnectGarmin'));
       }
 
       const auth = authData.auth;
@@ -180,7 +181,7 @@ function OnboardContent() {
 
       if (!saveRes.ok) {
         const err = await saveRes.json();
-        throw new Error(err.error || 'Failed to save connection');
+        throw new Error(err.error || t('failedToSaveConnection'));
       }
 
       const data = await saveRes.json();
@@ -436,7 +437,7 @@ function OnboardContent() {
               onClick={() => setStep('info')}
               className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
             >
-              Back
+              {tc('back')}
             </button>
 
             <button
@@ -455,7 +456,7 @@ function OnboardContent() {
                   });
                   if (!saveRes.ok) {
                     const err = await saveRes.json();
-                    throw new Error(err.error || 'Failed to save');
+                    throw new Error(err.error || t('failedToSave'));
                   }
                   const data = await saveRes.json();
                   if (data.athlete) {

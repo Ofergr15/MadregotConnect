@@ -2,10 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Loader2, Shield } from 'lucide-react';
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const t = useTranslations('adminLogin');
+  const th = useTranslations('header');
+  const tc = useTranslations('common');
+  const ta = useTranslations('athletes');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,7 +31,7 @@ export default function AdminLoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Login failed');
+        throw new Error(data.error || t('loginFailed'));
       }
 
       localStorage.setItem('coach_email', data.email);
@@ -47,12 +52,12 @@ export default function AdminLoginPage() {
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8 w-full max-w-sm">
         <div className="flex items-center justify-center gap-3 mb-6">
           <Shield className="h-6 w-6 text-primary-400" />
-          <h1 className="text-xl font-bold text-white">Admin Login</h1>
+          <h1 className="text-xl font-bold text-white">{th('adminLogin')}</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1">{ta('email')}</label>
             <input
               type="email"
               value={email}
@@ -63,7 +68,7 @@ export default function AdminLoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1">{th('password')}</label>
             <input
               type="password"
               value={password}
@@ -86,12 +91,12 @@ export default function AdminLoginPage() {
             className="w-full bg-primary-600 hover:bg-primary-500 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-            {loading ? 'Signing in...' : 'Sign In as Admin'}
+            {loading ? tc('signingIn') : th('signInAsAdmin')}
           </button>
         </form>
 
         <p className="text-xs text-slate-500 text-center mt-4">
-          This is a separate admin session. Your regular Google account is unaffected.
+          {t('footnote')}
         </p>
       </div>
     </div>

@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>מדרגות · מפת הדרכים המלאה</title>
+<style>
+  :root{--indigo:#4338ff;--indigo-l:#818cf8;--s950:#0b1120;--s900:#0f172a;--s800:#1e293b;--s700:#334155;--s400:#94a3b8;--s500:#64748b;--green:#22c55e;--amber:#f59e0b;--orange:#fc4c02}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:radial-gradient(120% 55% at 50% 0%,#16213b 0%,#0f172a 45%,#0b1120 100%);color:#fff;font-family:"Heebo","Rubik",-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding:0 20px 90px}
+  .wrap{max-width:1260px;margin:0 auto}
+  header{text-align:center;margin:44px 0 8px}
+  header .kick{color:var(--indigo-l);font-size:13px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+  header h1{font-size:36px;font-weight:900;letter-spacing:-.6px;margin-top:6px}
+  header p{color:var(--s400);font-size:15px;margin-top:8px}
+  .pill{display:inline-flex;align-items:center;gap:8px;margin-top:16px;background:rgba(67,56,255,.15);border:1px solid rgba(129,140,248,.3);color:var(--indigo-l);font-weight:800;font-size:13px;padding:7px 16px;border-radius:999px}
+
+  /* sticky TOC */
+  .toc{position:sticky;top:0;z-index:20;background:rgba(11,17,32,.92);backdrop-filter:blur(10px);border-bottom:1px solid rgba(51,65,85,.5);padding:11px 0;margin:26px -20px 34px}
+  .toc-inner{max-width:1260px;margin:0 auto;padding:0 20px;display:flex;gap:6px;overflow-x:auto}
+  .toc-inner::-webkit-scrollbar{height:0}
+  .toc-link{flex-shrink:0;font-size:11px;font-weight:700;padding:5px 11px;border-radius:999px;text-decoration:none;white-space:nowrap;border:1px solid transparent}
+  .toc-link.live{background:rgba(34,197,94,.12);color:#4ade80;border-color:rgba(34,197,94,.28)}
+  .toc-link.blocked{background:rgba(245,158,11,.12);color:#fbbf24;border-color:rgba(245,158,11,.28)}
+  .toc-link.partial{background:rgba(129,140,248,.12);color:var(--indigo-l);border-color:rgba(129,140,248,.28)}
+  .toc-link.planned{background:rgba(100,116,139,.12);color:#94a3b8;border-color:rgba(100,116,139,.32)}
+
+  .legend{display:flex;justify-content:center;flex-wrap:wrap;gap:16px;margin-bottom:6px}
+  .legend span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--s400);font-weight:700}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .dot.live{background:var(--green)}
+  .dot.blocked{background:var(--amber)}
+  .dot.partial{background:var(--indigo-l)}
+  .dot.planned{background:var(--s500)}
+
+  .sec{margin:52px 0 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;scroll-margin-top:64px}
+  .sec-num{font-size:12.5px;font-weight:900;color:var(--s500);background:rgba(51,65,85,.45);border-radius:8px;padding:3px 9px;flex-shrink:0}
+  .sec h2{font-size:21px;font-weight:900}
+  .sec .status{font-size:11px;font-weight:800;padding:4px 12px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+  .status.live{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.3)}
+  .status.blocked{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+  .status.partial{background:rgba(129,140,248,.15);color:var(--indigo-l);border:1px solid rgba(129,140,248,.3)}
+  .status.planned{background:rgba(100,116,139,.15);color:#94a3b8;border:1px solid rgba(100,116,139,.35)}
+  .sec .line{flex:1;height:1px;background:linear-gradient(90deg,rgba(51,65,85,.7),transparent);min-width:24px}
+  .sec-desc{color:var(--s400);font-size:13px;margin-top:4px;line-height:1.6;max-width:900px}
+
+  .grid{margin-top:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:28px}
+  .card{display:flex;flex-direction:column;gap:12px}
+  .frame{border-radius:32px;border:9px solid #0b1120;background:#0b1120;box-shadow:0 20px 44px rgba(0,0,0,.36);overflow:hidden;position:relative;max-height:600px;height:600px}
+  .frame::before{content:'';position:absolute;top:9px;left:50%;transform:translateX(-50%);width:96px;height:20px;background:#000;border-radius:12px;z-index:3}
+  .frame.scroll{overflow-y:auto}
+  .frame.scroll::-webkit-scrollbar{width:0}
+  .frame img{width:100%;height:auto;display:block}
+  .cap-t{padding:0 6px}
+  .cap-t b{font-size:14.5px;font-weight:800;display:block}
+  .cap-t span{color:var(--s400);font-size:12px;line-height:1.55;display:block;margin-top:3px}
+  footer{text-align:center;color:var(--s500);font-size:12px;margin-top:60px;line-height:1.7}
+  footer b{color:var(--s400)}
+
+  /* ── mockup atoms ─────────────────────────────────────────────── */
+  .mock{background:#0f172a;height:100%;display:flex;flex-direction:column;font-size:13px;padding-top:30px}
+  .mock-top{padding:12px 16px 10px;border-bottom:1px solid rgba(51,65,85,.5);display:flex;align-items:center;gap:10px}
+  .mock-top b{font-size:13.5px;font-weight:800}
+  .mock-body{padding:14px 16px 20px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+  .mock-body::-webkit-scrollbar{width:0}
+  .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--indigo),#a78bfa);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;flex-shrink:0}
+  .avatar.sm{width:26px;height:26px;font-size:11px}
+  .avatar.gray{background:rgba(51,65,85,.7)}
+  .chip2{font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:rgba(129,140,248,.15);color:var(--indigo-l);white-space:nowrap}
+  .chip2.dashed{background:transparent;border:1px dashed rgba(148,163,184,.4);color:var(--s400)}
+  .chip2.g{background:rgba(148,163,184,.12);color:#cbd5e1}
+  .btn2{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--indigo);color:#fff;font-weight:800;font-size:12px;padding:9px 16px;border-radius:12px;border:none}
+  .btn2.ghost{background:rgba(51,65,85,.55);color:#cbd5e1}
+  .btn2.strava{background:var(--orange)}
+  .btn2.disabled{background:rgba(51,65,85,.35);color:var(--s500)}
+  .btn2.block{width:100%}
+  .card2{background:rgba(30,41,59,.55);border:1px solid rgba(51,65,85,.55);border-radius:14px;padding:12px}
+  .row2{display:flex;align-items:center;gap:10px}
+  .between{justify-content:space-between}
+  .col{display:flex;flex-direction:column;gap:8px}
+  .bar{height:7px;background:rgba(51,65,85,.6);border-radius:99px;overflow:hidden;flex:1}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--indigo),var(--indigo-l));border-radius:99px}
+  .bar.g>i{background:linear-gradient(90deg,#16a34a,var(--green))}
+  .muted{color:var(--s400);font-size:11px}
+  .strong{font-weight:800;font-size:13px}
+  .stat-tile{background:rgba(30,41,59,.5);border:1px solid rgba(51,65,85,.5);border-radius:12px;padding:9px;text-align:center;flex:1}
+  .stat-tile b{display:block;font-size:15px;font-weight:900}
+  .stat-tile span{font-size:9.5px;color:var(--s400)}
+  .badge-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center}
+  .badge-circ{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;background:linear-gradient(135deg,var(--indigo),#a78bfa);margin:0 auto;position:relative}
+  .badge-circ.locked{background:rgba(51,65,85,.5);filter:grayscale(1) opacity(.5)}
+  .badge-circ .lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;filter:none;opacity:1}
+  .badge-name{font-size:10px;color:var(--s400);margin-top:5px;line-height:1.3}
+  .msg2{max-width:78%;padding:9px 13px;border-radius:15px;font-size:12px;line-height:1.5}
+  .msg2.them{background:rgba(51,65,85,.6);align-self:flex-start;border-bottom-left-radius:4px}
+  .msg2.me{background:var(--indigo);align-self:flex-end;border-bottom-right-radius:4px}
+  .msg2.ai{background:rgba(34,197,94,.13);border:1px solid rgba(34,197,94,.3);align-self:flex-start;color:#bbf7d0}
+  .donut{width:76px;height:76px;border-radius:50%;background:conic-gradient(var(--green) 0 78%,rgba(51,65,85,.5) 0 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .donut i{width:58px;height:58px;border-radius:50%;background:#0f172a;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;font-style:normal}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal .d{aspect-ratio:1;border-radius:8px;background:rgba(51,65,85,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:var(--s400);position:relative}
+  .cal .d.today{background:rgba(67,56,255,.3);color:#fff;font-weight:800}
+  .cal .d .dotr{position:absolute;bottom:3px;display:flex;gap:2px}
+  .cal .d .dotr span{width:4px;height:4px;border-radius:50%}
+  .heat{display:flex;gap:3px;flex-wrap:wrap}
+  .heat span{width:14px;height:14px;border-radius:4px}
+  .route-svg{width:100%;height:64px}
+  .divider{height:1px;background:rgba(51,65,85,.5);margin:2px 0}
+  .accordion{border:1px solid rgba(51,65,85,.55);border-radius:12px;padding:10px 12px}
+  .accordion b{font-size:12px;display:block}
+  .accordion p{color:var(--s400);font-size:11px;margin-top:5px;line-height:1.5}
+  .thumb{width:100%;aspect-ratio:1;border-radius:10px;background:linear-gradient(135deg,rgba(67,56,255,.35),rgba(148,163,184,.15))}
+  .list-row{display:flex;align-items:center;gap:10px}
+  .list-row .meta{flex:1;min-width:0}
+  .list-row .meta b{font-size:12.5px;font-weight:700;display:block}
+  .list-row .meta span{font-size:10.5px;color:var(--s400)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kick">Madregot · After 2KM Running Club</div>
+    <h1>מפת הדרכים המלאה 🗺️</h1>
+    <p>כל 22 היכולות של האפליקציה — מה חי, מה חסום, מה בפיתוח ומה מתוכנן</p>
+    <div class="pill">📋 מבוסס על ה־Roadmap המאושר · 11 שלבים</div>
+  </header>
+</div>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <a class="toc-link blocked" href="#s1">🟡 1 · צ׳אט ומשוב</a>
+    <a class="toc-link live" href="#s2">🟢 2 · תוכנית שבועית</a>
+    <a class="toc-link blocked" href="#s3">🟡 3 · פיד הבית</a>
+    <a class="toc-link blocked" href="#s4">🟡 4 · יומן</a>
+    <a class="toc-link planned" href="#s5">⚪ 5 · הטבות</a>
+    <a class="toc-link live" href="#s6">🟢 6 · שיתוף ברשתות</a>
+    <a class="toc-link live" href="#s7">🟢 7 · פרופיל</a>
+    <a class="toc-link blocked" href="#s8">🟡 8 · דפי אירוע</a>
+    <a class="toc-link planned" href="#s9">⚪ 9 · חנות</a>
+    <a class="toc-link blocked" href="#s10">🟡 10 · פיד קהילתי</a>
+    <a class="toc-link blocked" href="#s11">🟡 11 · הישגים</a>
+    <a class="toc-link live" href="#s12">🟢 12 · לוחות מובילים</a>
+    <a class="toc-link planned" href="#s13">⚪ 13 · אתגרים</a>
+    <a class="toc-link live" href="#s14">🟢 14 · נוכחות</a>
+    <a class="toc-link blocked" href="#s15">🟡 15 · הרשמה לאירועים</a>
+    <a class="toc-link partial" href="#s16">🔵 16 · התראות</a>
+    <a class="toc-link planned" href="#s17">⚪ 17 · חיפוש</a>
+    <a class="toc-link partial" href="#s18">🔵 18 · הגדרות</a>
+    <a class="toc-link live" href="#s19">🟢 19 · פאנל ניהול</a>
+    <a class="toc-link partial" href="#s20">🔵 20 · אנליטיקס</a>
+    <a class="toc-link planned" href="#s21">⚪ 21 · גילוי חברים</a>
+    <a class="toc-link blocked" href="#s22">🟡 22 · התחברות</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="legend">
+    <span><i class="dot live"></i> חי בפרודקשן</span>
+    <span><i class="dot blocked"></i> חסום · Phase 0</span>
+    <span><i class="dot partial"></i> בפיתוח · חלקי</span>
+    <span><i class="dot planned"></i> מתוכנן · Phase 3–10</span>
+  </div>
+
+  <!-- UX polish pass, outside the 22-item numbering — cross-cutting work, not a single roadmap item -->
+  <div class="card2" style="margin:0 0 44px;padding:20px 22px">
+    <div class="row2 between" style="margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <b class="strong" style="font-size:15px">🎨 מחקר UX וסבב שיפורים — 20.08.2026</b>
+      <span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">5 שיפורים נשלחו</span>
+    </div>
+    <p class="muted" style="margin-bottom:14px;line-height:1.6">
+      מבוסס על מחקר על שתי אפליקציות ייחוס: <b style="color:#cbd5e1">Talos Barbershop</b> (אפליקציית תורים חיה — נבדקה ישירות דרך צילומי מסך) ו־
+      <b style="color:#cbd5e1">My Disney Experience</b> (App Store + ידע כללי) — עם תובנה מרכזית משותפת לשתיהן: לרכז "מה הבא שלי" לכרטיס אחד עם פעולות מוטבעות, במקום לפזר את המידע על כמה מסכים.
+    </p>
+    <div class="col" style="gap:9px">
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">כרטיס "האימון הבא" מרוכז בדשבורד — RSVP מוטבע + הוספה ליומן + CTA מותאם-הקשר <span class="muted">(משפיע על <a href="#s14" style="color:var(--indigo-l);text-decoration:none">פריט 14</a>)</span></span></div>
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">כפתור פעולה מרכזי ומורם בפס הניווט התחתון, בהשראת כפתור "קביעת תור" של Talos</span></div>
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">ניסוח התראות פוש חד וממוקד-זמן — שם היום, ספירת RSVP חברתית, סוג אימון, שם המאמן <span class="muted">(<a href="#s16" style="color:var(--indigo-l);text-decoration:none">פריט 16</a>)</span></span></div>
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">בקשת הרשאת Push עברה מ"בקשה גורפת בטעינה" ל"בקשה בהקשר" — מופיעה רק לאחר שליחת משוב על אימון</span></div>
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">סבב נגישות חוצה-אפליקציה: prefers-reduced-motion, ARIA על 7 מודלים + כ-15 כפתורי-אייקון, תיקוני ניגודיות</span></div>
+    </div>
+    <p class="muted" style="margin-top:14px;font-size:11px">כל 5 השיפורים אומתו: 0 שגיאות typecheck/lint, 134/134 טסטים עוברים. עדיין לא הועברו ל-commit.</p>
+  </div>
+
+  <!-- Performance pass, outside the 22-item numbering — infra work, not a screen -->
+  <div class="card2" style="margin:0 0 44px;padding:20px 22px">
+    <div class="row2 between" style="margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <b class="strong" style="font-size:15px">⚡ סבב ביצועים — 21.08.2026</b>
+      <span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">6 תיקונים · אומתו</span>
+    </div>
+    <p class="muted" style="margin-bottom:14px;line-height:1.6">
+      נבדק לפני תיקון (לא ניחוש) — שני סבבי audit על הקוד + שאילתות live ל-DB. הבעיה המרכזית לא הייתה עומס-שרת אלא <b style="color:#cbd5e1">רצף בקשות מיותר בטעינת הדשבורד</b> וחסר-cache על נתונים שסבלנות של דקה-שתיים בהם לא מורגשת.
+    </p>
+    <div class="col" style="gap:9px">
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">טעינת הדשבורד: 4 שלבי fetch עוקבים → 6 בקשות מקבילות; <code style="font-size:11px">/api/dashboard/stats</code> מ-8 שאילתות עוקבות ל-1 batch + 1 תלויה</span></div>
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">הוסרו נתוני GPS (30-60KB לפעילות) משאילתת רשימת הפעילויות — נמשכו על 200 שורות ולא שומשו כלל, פרט למסך אחד שקיבל דגל ‎?include=gps‎ ייעודי</span></div>
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">Service Worker: תיקרת precache הופחתה מ-12MB/109 קבצים ל-8.2MB/107 (הוצא בנדל הצ'אט + תמונת ה-AI Coach, 2MB) + timeout של 4 שנ׳ לניווט כך שביקור חוזר לא "נתקע" כמו טעינה קרה</span></div>
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">Cache מבוקר (60-300 שנ׳) על leaderboard/standings/תוכנית שבועית — כולל תיקון מקרה שבו שינוי נאיבי היה "no-op" שקט בגלל cache:'no-store' גלובלי</span></div>
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">שאילתת תוכנית שבועית: הגבלה ל-20 תוכניות אחרונות + מיזוג שני מעברי-לופ כפולים למעבר אחד + אינדקס חדש (056)</span></div>
+      <div class="row2"><span style="color:#4ade80;flex-shrink:0">✓</span><span style="font-size:12.5px">הוסרו imports מתים של recharts מהדשבורד</span></div>
+    </div>
+    <p class="muted" style="margin-top:14px;font-size:11px">אותר בנוסף (לא תוקן — פרויקט אסטרטגי): כל 60+ המסכים מוגשים כ-Dynamic (0 עמודים סטטיים), כי root layout קורא cookies() לכל בקשה עבור next-intl. זה התקרה האמיתית הגדולה ביותר — דורש שינוי ארכיטקטוני (middleware/[locale] segment), לא תיקון מהיר.</p>
+  </div>
+
+  <!-- 1 -->
+  <div class="sec" id="s1">
+    <span class="sec-num">1</span><h2>צ׳אט אישי ומשוב</h2>
+    <span class="status blocked">🟡 חסום · Phase 0</span><span class="status live">🟢 שאלון חי</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">צ׳אט אמיתי בין רץ למאמן דרך Stream Chat, בנוי ב־100% אבל חסום על חשבון GetStream שלא נוצר עדיין. שאלון המשוב האוטומטי אחרי אימון עובד כבר היום.</p>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="tour/r-feedback.png" alt=""></div><div class="cap-t"><b>שאלון אחרי אימון</b><span>קושי, תחושה, כאב, בקשת משוב — חי בפרודקשן.</span></div></div>
+    <div class="card"><div class="frame scroll"><img src="tour/c-feedback.png" alt=""></div><div class="cap-t"><b>לוח משובים למאמן</b><span>ממויין לפי דחיפות, עם תיבת תשובה — חי בפרודקשן.</span></div></div>
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><div class="avatar sm">רץ</div><b>ריצה · 10 ק״מ · שבת</b></div>
+        <div class="mock-body">
+          <div class="card2"><div class="row2 between"><span class="muted">קצב מתוכנן</span><span class="strong">5:15/ק״מ</span></div></div>
+          <div class="msg2 them">איך היה ה־400 מטר האחרונים? הרגשת כבד ברגליים</div>
+          <div class="msg2 me">כן קצת, אבל עמדתי בקצב 🙂</div>
+          <div class="msg2 them">@aicoach מה הקצב הממוצע שלי בסגמנט המהיר?</div>
+          <div class="msg2 ai">🤖 הקצב הממוצע בסגמנטים המהירים היה 4:58/ק״מ — 8 שניות מהר מהמתוכנן.</div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>צ׳אט אימון (מוקאפ)</b><span>רץ + מאמן אנושי + 🤖 aicoach על ערוץ Stream לכל ריצה.</span></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="sec" id="s2">
+    <span class="sec-num">2</span><h2>תוכנית שבועית</h2>
+    <span class="status live">🟢 חי</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">עודכן 21.08 (רדיזיין אמיתי, לא רק ניקוי כפתורים): מסך "אימון" הפך מ-PDF בתוך iframe למסך native — כרטיסיות יום-ביום (א׳-ש׳) עם מרחק/סוג אימון/נקודה צבעונית, בנויות על הנתון המפורק (weekly_plans) ולא על ה-PDF הגולמי. לחיצה על יום עם אימון מפתחת את אותו Sheet עם פירוק שלבים מלא (חימום/אינטרוולים/קירור + קצב לכל קבוצה) שכבר קיים בדשבורד — קוד משותף אחד, לא שני מימושים. בורר השבועות עצמו מאחד גם שבועות שקיימים רק כ-JSON מפורק (בלי PDF) עם אלו שהועלו כ-PDF — כך שבוע עם תוכנית מפורקת אבל בלי PDF עדיין מציג תוכן אמיתי במקום "חסר". תזונה נשארה PDF (אין עדיין מודל מבני לתזונה) — עם הודעת "אין תוכנית" נקייה כשחסר.</p>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="tour/r-program.png" alt=""></div><div class="cap-t"><b>התוכנית שלי — כרטיסיות native (חי בקוד)</b><span>יום-יום עם מרחק/סוג/הדגשה, לחיצה לפירוק אימון מלא.</span></div></div>
+  </div>
+
+  <!-- 3 -->
+  <div class="sec" id="s3">
+    <span class="sec-num">3</span><h2>מסך הבית — פיד בסטייל Strava</h2>
+    <span class="status blocked">🟡 מוכן לפריסה · מחכה ל-Deploy</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">21.08: מיגרציית feed_items הודבקה בהצלחה ✓ (feed_items/likes/comments חיים ב-DB, 1,718 פעילויות קיימות backfilled אוטומטית) — כל מה שנשאר הוא push+deploy של הקוד. בנוסף נבנה מסך חדש: "עורך פעילות" בסטייל Strava שנפתח מיד לאחר סנכרון — כותרת/תיאור, קהל (כולם/רק אני — "עוקבים" מנוטרל, אין עדיין גרף עוקבים), הסתרת שדות (קלוריות/דופק/קצב/הספק), הוספת תמונה.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><div class="avatar sm">דנה</div><b>דנה כהן</b><span class="chip2">דבוקה 2</span></div>
+        <div class="mock-body">
+          <svg class="route-svg" viewBox="0 0 200 60"><path d="M5 40 Q40 5 70 35 T130 20 T195 45" fill="none" stroke="#818cf8" stroke-width="3" stroke-linecap="round"/></svg>
+          <div class="row2 between"><div class="stat-tile"><b>8.2</b><span>ק״מ</span></div><div class="stat-tile"><b>5:32</b><span>קצב</span></div><div class="stat-tile"><b>45:20</b><span>זמן</span></div></div>
+          <div class="row2"><div class="thumb"></div><div class="thumb"></div><div class="thumb"></div></div>
+          <div class="row2 between muted"><span>❤️ 12 · 💬 3 · ↗️ שיתוף</span></div>
+          <div class="divider"></div>
+          <div class="card2 row2"><span>🏆</span><div class="meta"><b>שיא אישי חדש!</b><span class="muted">10K תחת 50 דקות</span></div></div>
+          <div class="card2 row2"><span>📢</span><div class="meta"><b>הודעה מהצוות</b><span class="muted">אימון מיוחד בשבת בפארק הירקון</span></div></div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>פיד הבית (מוקאפ)</b><span>פעילויות, הישגים והודעות צוות — טעינה אוטומטית מכל סנכרון.</span></div>
+    </div>
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>פעילות חדשה זוהתה</b></div>
+        <div class="mock-body">
+          <div class="card2 col">
+            <input class="chip2 g" style="width:100%;text-align:right;background:transparent;border:none" value="ריצת בוקר" readonly>
+            <textarea class="chip2 g" style="width:100%;text-align:right;background:transparent;border:none;resize:none" rows="2" placeholder="הוסף תיאור..."></textarea>
+          </div>
+          <div class="row2 between"><div class="stat-tile"><b>21.3</b><span>ק״מ</span></div><div class="stat-tile"><b>4:23</b><span>קצב</span></div><div class="stat-tile"><b>1:33</b><span>זמן</span></div></div>
+          <div class="row2"><div class="thumb" style="flex:1"></div><div class="card2" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:11px" >📷 הוסף תמונה</div></div>
+          <span class="muted">קהל</span>
+          <div class="row2" style="gap:6px"><span class="chip2">כולם</span><span class="chip2 dashed">עוקבים · בקרוב</span><span class="chip2 g">רק אני</span></div>
+          <span class="muted">הסתר שדות</span>
+          <div class="row2" style="gap:6px"><span class="chip2 g">קלוריות</span><span class="chip2 g">דופק</span><span class="chip2 g">קצב</span><span class="chip2 g">הספק</span></div>
+          <button class="btn2 block">סיום</button>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>עורך פעילות בסטייל Strava (חדש, 21.08)</b><span>נפתח אוטומטית לאחר סנכרון גרמין/Strava; "עוקבים" מוצג מנוטרל — Phase 6.</span></div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="sec" id="s4">
+    <span class="sec-num">4</span><h2>עמוד יומן</h2>
+    <span class="status blocked">🟡 מוכן לפריסה · נבנה במלואו</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">נבנה במלואו (Phase 3) — לא מוקאפ יותר. טבלת events גנרית (race/camp/lecture/social/photo_shoot/sponsor/workout) חיה ב-DB, מיגרציית 055 אומתה כמיושמת. מסך יומן אמיתי: רשת חודשית + נקודות לפי סוג, טופס הוספת אירוע לאדמין. מחכה ל-push+deploy בלבד.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>אוגוסט 2026</b></div>
+        <div class="mock-body">
+          <div class="cal">
+            <div class="d">א</div><div class="d">ב</div><div class="d">ג</div><div class="d">ד</div><div class="d">ה</div><div class="d">ו</div><div class="d">ש</div>
+            <div class="d">1</div><div class="d">2</div><div class="d">3</div><div class="d today">4<span class="dotr"><span style="background:var(--indigo-l)"></span></span></div><div class="d">5</div><div class="d">6<span class="dotr"><span style="background:var(--amber)"></span></span></div><div class="d">7</div>
+            <div class="d">8</div><div class="d">9</div><div class="d">10<span class="dotr"><span style="background:var(--green)"></span></span></div><div class="d">11</div><div class="d">12</div><div class="d">13</div><div class="d">14</div>
+          </div>
+          <div class="card2 col">
+            <div class="row2 between"><b class="strong">אימון קבוצתי</b><span class="chip2">06:00</span></div>
+            <span class="muted">📍 פארק הירקון</span>
+          </div>
+          <div class="card2 col">
+            <div class="row2 between"><b class="strong">מחנה אימונים</b><span class="chip2">כל היום</span></div>
+            <span class="muted">📍 אילת</span>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>יומן קבוצתי (חי בקוד)</b><span>נקודות צבע = סוג אירוע; הקשה על יום פותחת פירוט. /dashboard/calendar אמיתי.</span></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="sec" id="s5">
+    <span class="sec-num">5</span><h2>הטבות ומועדון הנחות</h2>
+    <span class="status planned">⚪ מתוכנן · Phase 8</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">בניגוד לצ׳ק־ליסט — לא קיים כלל היום, אפילו לא גרסה בסיסית. Phase 8 בגלל תלות עסקית/עלות נמוכה.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>הטבות לחברי המועדון</b></div>
+        <div class="mock-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="card2 col"><div class="thumb" style="aspect-ratio:2/1"></div><b class="strong">20% הנחה</b><span class="muted">ציוד ריצה</span><span class="chip2 dashed">MADREGOT20</span><span class="muted">פג תוקף 31.12</span></div>
+          <div class="card2 col"><div class="thumb" style="aspect-ratio:2/1"></div><b class="strong">10% קפה</b><span class="muted">בית קפה השכונה</span><span class="chip2 dashed">RUN10</span><span class="muted">פג תוקף 01.03</span></div>
+          <div class="card2 col"><div class="thumb" style="aspect-ratio:2/1"></div><b class="strong">מסאז׳ ספורט</b><span class="muted">קליניקת פיזיו</span><span class="chip2 dashed">MADREGOT15</span><span class="muted">ללא הגבלה</span></div>
+          <div class="card2 col"><div class="thumb" style="aspect-ratio:2/1"></div><b class="strong">15% נעליים</b><span class="muted">חנות הריצה</span><span class="chip2 dashed">SHOE15</span><span class="muted">פג תוקף 15.09</span></div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>עמוד הטבות (מוקאפ)</b><span>לוגו, תיאור, קוד קופון וקישור לאתר לכל ספונסר.</span></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="sec" id="s6">
+    <span class="sec-num">6</span><h2>שיתוף ברשתות חברתיות</h2>
+    <span class="status live">🟢 חי</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">בניגוד לצ׳ק־ליסט (שסימן "חסר") — כבר בנוי ועובד. יצירת תמונה מלאה בצד הלקוח (canvas), ללא תלות שרת.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>שיתוף לסטורי</b></div>
+        <div class="mock-body">
+          <div class="row2">
+            <div class="thumb" style="border:2px solid var(--indigo-l)"></div>
+            <div class="thumb"></div>
+            <div class="thumb"></div>
+          </div>
+          <div class="muted" style="text-align:center">קלאסי · כרטיס · מינימל</div>
+          <div style="aspect-ratio:9/16;max-width:140px;margin:0 auto;border-radius:16px;background:linear-gradient(160deg,#0b1120,#1e293b);border:1px solid rgba(129,140,248,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px">
+            <svg width="70" height="30" viewBox="0 0 100 30"><path d="M2 25 Q25 3 50 20 T98 8" fill="none" stroke="#818cf8" stroke-width="2"/></svg>
+            <b style="font-size:16px">8.2 ק״מ</b>
+            <span class="muted">קצב 5:32/ק״מ</span>
+            <span style="font-size:9px;color:var(--s500);margin-top:4px">מדרגות · After 2KM</span>
+          </div>
+          <button class="btn2 block">↗️ שתף</button>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>גיליון שיתוף (מוקאפ)</b><span>3 תבניות + תצוגה מקדימה בפורמט סטורי 9:16.</span></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="sec" id="s7">
+    <span class="sec-num">7</span><h2>פרופיל אישי</h2>
+    <span class="status live">🟢 חי · שודרג 21.08</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">21.08: עמוד הפרופיל עוצב מחדש בסטייל iOS-Settings (מסך נחיתה → מסכי פירוט), עם טאב "מדליות" חדש. גיל/מגדר/מידת נעל נבנו וחיים ב-DB — אך במתכוון בהגדרות (Personal Info), לא על מסך הפרופיל, ששומר בכוונה על נחיתה מצומצמת (תמונה/שם/אימייל/חבר-מאז בלבד). סטטיסטיקות (אימונים/ק״מ/רצף) עדיין רק בדשבורד.</p>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="tour/r-profile.png" alt=""></div><div class="cap-t"><b>פרופיל · שיאים · נפח — צילום ישן</b><span>קיים היום: תמונה, שם, דבוקה, אימייל, שיאים אוטומטיים.</span></div></div>
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>הגדרות → מידע אישי</b><span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">חי</span></div>
+        <div class="mock-body">
+          <div class="card2 col"><div class="row2 between"><span class="muted">תאריך לידה</span><span class="strong">12.03.1994</span></div><div class="row2 between"><span class="muted">מגדר</span><span class="strong">זכר</span></div><div class="row2 between"><span class="muted">מידת נעל</span><span class="strong">43</span></div></div>
+          <p class="muted">גיל/מגדר לא משמשים לסינון לוחות מובילים — נתוני פרופיל בלבד, לפי בקשה מפורשת.</p>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>מידע אישי (חי, 21.08)</b><span>נמצא בהגדרות, לא בפרופיל — ראו סעיף 18.</span></div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="sec" id="s8">
+    <span class="sec-num">8</span><h2>דפי אירוע ייעודיים</h2>
+    <span class="status blocked">🟡 מוכן לפריסה · נבנה במלואו</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">נבנה במלואו (Phase 3) — דף אירוע ייעודי אמיתי ב-/dashboard/calendar/[id], לא row-expand יותר. כל מה שמתואר במוקאפ למטה קיים בקוד בפועל: תיאור, לו״ז, קישור וויז (נגזר מ-lat/lng אם אין waze_url), ציוד, רשימת נרשמים (אווטארים), הרשמה+בר קיבולת, אקורדיון FAQ חדש שנבנה מאפס (לא היה ברכיבי האפליקציה קודם).</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame scroll"><div class="mock" style="height:auto">
+        <div class="mock-top"><b>מרוץ תל אביב 2026</b></div>
+        <div class="mock-body">
+          <div class="thumb" style="aspect-ratio:16/8"></div>
+          <p class="muted">מרוץ השנתי הגדול של תל אביב — מסלול לאורך החוף, עם תחנות מים כל 2.5 ק״מ ואווירה קהילתית.</p>
+          <div class="card2 col">
+            <b class="strong">לו״ז</b>
+            <div class="row2 between muted"><span>05:30</span><span>פתיחת שערים</span></div>
+            <div class="row2 between muted"><span>06:15</span><span>זינוק</span></div>
+          </div>
+          <button class="btn2 ghost block">📍 מפה · פתח בוויז</button>
+          <div class="card2"><b class="strong">ציוד מומלץ</b><div class="muted">☑ נעלי ריצה ☑ בקבוק מים ☑ כובע</div></div>
+          <div class="row2"><div class="avatar sm">א</div><div class="avatar sm gray">ב</div><div class="avatar sm gray">ג</div><span class="muted">+38 נרשמו</span></div>
+          <button class="btn2 block">✓ הרשמה למרוץ</button>
+          <div class="accordion"><b>מה כלול במחיר?</b><p>חולצת ריצה, מדליה, ביטוח וגישה לתחנות מים.</p></div>
+          <div class="accordion"><b>איפה איסוף החולצות?</b><p>יום שישי 14:00–20:00 במשרדי המועדון.</p></div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>דף אירוע מלא (חי בקוד)</b><span>תיאור, לו״ז, מפה, ציוד, נרשמים, הרשמה ו־FAQ — הכל אמיתי.</span></div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="sec" id="s9">
+    <span class="sec-num">9</span><h2>חנות</h2>
+    <span class="status planned">⚪ מתוכנן · Phase 7</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">אין שום תלות תשלומים בקוד היום — Phase 7 מחייבת בחירת ספק סליקה (סטרייפ מומלץ).</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>חנות המועדון</b><span class="chip2">🛒 2</span></div>
+        <div class="mock-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="card2 col"><div class="thumb"></div><b class="strong">חולצת ריצה</b><span class="muted">₪89</span></div>
+          <div class="card2 col"><div class="thumb"></div><b class="strong">כובע מצחייה</b><span class="muted">₪49</span></div>
+          <div class="card2 col"><div class="thumb"></div><b class="strong">בקבוק ריצה</b><span class="muted">₪39</span></div>
+          <div class="card2 col"><div class="thumb"></div><b class="strong">גרביים טכניים</b><span class="muted">₪29</span></div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>קטלוג מוצרים (מוקאפ)</b><span>4 מוצרי מרצ׳נדייז לדוגמה.</span></div>
+    </div>
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>עגלת קניות</b></div>
+        <div class="mock-body">
+          <div class="row2 between card2"><div class="row2"><div class="thumb" style="width:40px"></div><span>חולצת ריצה (M)</span></div><b>₪89</b></div>
+          <div class="row2 between card2"><div class="row2"><div class="thumb" style="width:40px"></div><span>כובע מצחייה</span></div><b>₪49</b></div>
+          <div class="divider"></div>
+          <div class="row2 between"><span class="muted">סה״כ</span><b class="strong">₪138</b></div>
+          <button class="btn2 block">💳 מעבר לתשלום</button>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>עגלה + תשלום (מוקאפ)</b></div>
+    </div>
+  </div>
+
+  <!-- 10 -->
+  <div class="sec" id="s10">
+    <span class="sec-num">10</span><h2>פיד קהילתי ("פרסומים")</h2>
+    <span class="status blocked">🟡 מוכן לפריסה · מחכה ל-Deploy</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">אותה טבלת feed_items שסעיף 3, ואותה מיגרציה שהודבקה 21.08 — פוסטים חופשיים עם תמונות, לייקים ותגובות. תיוג חברים נדחה (deferred) בכוונה.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><div class="avatar sm">א</div><b>מה קורה?</b></div>
+        <div class="mock-body">
+          <div class="card2" style="min-height:60px">היום היה אימון מטורף בפארק! 💪</div>
+          <div class="row2"><div class="thumb"></div><div class="thumb"></div></div>
+          <div class="row2 between">
+            <span class="muted">תג חבר קבוצה</span>
+            <span class="chip2 dashed">בקרוב</span>
+          </div>
+          <div class="row2"><span class="chip2 dashed">@דנה</span><span class="chip2 dashed">@יוסי</span></div>
+          <button class="btn2 block">פרסם</button>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>יוצר פוסט (מוקאפ)</b><span>טקסט + תמונות; תיוג חברים מוצג כ"בקרוב".</span></div>
+    </div>
+  </div>
+
+  <!-- 11 -->
+  <div class="sec" id="s11">
+    <span class="sec-num">11</span><h2>הישגים ומדליות</h2>
+    <span class="status blocked">🟡 מוכן לפריסה · Phase 3 נבנה 21.08</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">נבנה במלואו 21.08: קטלוג 11 מדליות + טבלת הענקה (מיגרציית 059, מחכה להדבקה), מנוע הענקה אוטומטי (5 סוגי חוק: שיא-מרחק/מרחק-מצטבר/זמן-מצטבר/רצף/מרוצים/נוכחות מושלמת), פוסט חגיגי בפיד + פוש, וכלי ניהול לאדמין ליצירת מדליות חדשות (לפי ק״מ או שעות, עם העלאת תמונה).</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>קיר ההישגים</b><span class="chip2">4/11</span></div>
+        <div class="mock-body">
+          <div class="badge-grid">
+            <div><div class="badge-circ">🏃</div><div class="badge-name">5 ק״מ ראשונים</div></div>
+            <div><div class="badge-circ">🏃</div><div class="badge-name">10 ק״מ ראשונים</div></div>
+            <div><div class="badge-circ">📏</div><div class="badge-name">100 ק״מ</div></div>
+            <div><div class="badge-circ">🔥</div><div class="badge-name">רצף חודש</div></div>
+            <div><div class="badge-circ locked">🥈<span class="lock">🔒</span></div><div class="badge-name">חצי מרתון ראשון</div></div>
+            <div><div class="badge-circ locked">🥇<span class="lock">🔒</span></div><div class="badge-name">מרתון ראשון</div></div>
+            <div><div class="badge-circ locked">📏<span class="lock">🔒</span></div><div class="badge-name">500 ק״מ</div></div>
+            <div><div class="badge-circ locked">🏁<span class="lock">🔒</span></div><div class="badge-name">מרוץ ראשון</div></div>
+            <div><div class="badge-circ locked">✅<span class="lock">🔒</span></div><div class="badge-name">נוכחות מושלמת</div></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>קיר מדליות — הקטלוג האמיתי (חי בקוד, 21.08)</b><span>צבעוני = נפתח, אפור עם מנעול = נעול. מסך אמיתי בפרופיל, לא מוקאפ.</span></div>
+    </div>
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>הגדרות → ניהול מדליות</b><span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">חי</span></div>
+        <div class="mock-body">
+          <div class="card2 col">
+            <div class="row2 between"><span class="strong">מדליה חדשה</span></div>
+            <div class="row2" style="gap:6px"><span class="chip2">לפי מרחק (ק״מ)</span><span class="chip2 g">לפי זמן (שעות)</span></div>
+            <div class="card2" style="display:flex;align-items:center;justify-content:center;font-size:11px">📷 העלאת תמונה למדליה</div>
+            <button class="btn2 block">צור מדליה</button>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>ניהול מדליות לאדמין (חי, 21.08)</b><span>יצירת מדליות מרחק/זמן + תמונה מותאמת — לא רק אימוג׳י.</span></div>
+    </div>
+  </div>
+
+  <!-- 12 -->
+  <div class="sec" id="s12">
+    <span class="sec-num">12</span><h2>לוחות מובילים</h2>
+    <span class="status live">🟢 חי · הורחב 21.08</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">21.08: נוספו לוח "רצף" ולוח "מספר אימונים" (טאבים באותו מסך, ליד לוח המרחק הקיים) — כולם real-time, לא מוקאפ. סינון גיל/מגדר נשאר במתכוון בחוץ: לפי בקשה מפורשת, אלו נתוני פרופיל בלבד ולא משמשים לסינון לוחות.</p>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="tour/c-teamvolume.png" alt=""></div><div class="cap-t"><b>מלחמת הדבוקות</b><span>לוח חודשי — קיים היום.</span></div></div>
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top row2 between"><b>לוח מובילים (חי)</b></div>
+        <div class="mock-body">
+          <div class="row2" style="gap:6px">
+            <span class="chip2">מרחק</span><span class="chip2 g">רצף</span><span class="chip2 g">אימונים</span>
+          </div>
+          <div class="col">
+            <div class="list-row"><b class="strong">1</b><div class="avatar sm">ד</div><div class="meta"><b>דנה כהן</b></div><b>142 ק״מ</b><span style="color:var(--green)">▲</span></div>
+            <div class="list-row"><b class="strong">2</b><div class="avatar sm gray">י</div><div class="meta"><b>יוסי לוי</b></div><b>128 ק״מ</b><span style="color:var(--amber)">▼</span></div>
+            <div class="list-row"><b class="strong">3</b><div class="avatar sm gray">ר</div><div class="meta"><b>רון אבני</b></div><b>119 ק״מ</b><span style="color:var(--green)">▲</span></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>לוח חודשי אישי (מוקאפ)</b><span>טאבים שבועי/חודשי/רצף/אימונים — Phase 2.</span></div>
+    </div>
+  </div>
+
+  <!-- 13 -->
+  <div class="sec" id="s13">
+    <span class="sec-num">13</span><h2>מערכת אתגרים</h2>
+    <span class="status planned">⚪ מתוכנן · Phase 5 · דגל "עדיפות גבוהה" בצ׳ק־ליסט</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">נבנה אחרי שלב ההישגים (Phase 4) כי מנגנון הפרסים תלוי בפרימיטיב מדליות שעדיין לא קיים.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>אתגרים פעילים</b></div>
+        <div class="mock-body">
+          <div class="card2 col">
+            <div class="row2 between"><b class="strong">100 ק״מ בחודש</b><span class="muted">62/100</span></div>
+            <div class="bar"><i style="width:62%"></i></div>
+            <button class="btn2 ghost">הצטרף</button>
+          </div>
+          <div class="card2 col">
+            <div class="row2 between"><b class="strong">4 אימונים בשבוע</b><span class="muted">3/4</span></div>
+            <div class="bar g"><i style="width:75%"></i></div>
+          </div>
+          <div class="card2 col">
+            <b class="strong">דבוקה 1 מול דבוקה 2</b>
+            <div class="row2 between muted"><span>דבוקה 1</span><span>72%</span></div>
+            <div class="bar"><i style="width:72%"></i></div>
+            <div class="row2 between muted"><span>דבוקה 2</span><span>58%</span></div>
+            <div class="bar"><i style="width:58%;background:linear-gradient(90deg,#f97316,#fdba74)"></i></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>כרטיסי אתגר (מוקאפ)</b><span>אישי + דבוקה מול דבוקה, עם התקדמות.</span></div>
+    </div>
+  </div>
+
+  <!-- 14 -->
+  <div class="sec" id="s14">
+    <span class="sec-num">14</span><h2>מעקב נוכחות באימונים</h2>
+    <span class="status live">🟢 חי · אומת 21.08</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">21.08: הבדיקה האוטומטית נבנתה — גרסת v1 מכוונת (לא donut % מדומיין): אם ספורטאי אישר "מגיע" ויש לו ריצה מסונכרנת באותו יום קלנדרי, הרשומה מסומנת "מאומתת" ✓ ברשימת המאמן. לפי בקשה מפורשת: אין חלון-זמן מדויק מול שעת האימון ואין מצבי no-show/walk-in נפרדים ב-v1 — התאמה יומית פשוטה.</p>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="tour/c-attendance.png" alt=""></div><div class="cap-t"><b>לוח נוכחות (RSVP) — צילום ישן</b><span>מערכת אישור-מראש — קיימת וחיה היום, עודכנה היום לכרטיס מרוכז.</span></div></div>
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>רשימת נוכחות למאמן</b><span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">חי</span></div>
+        <div class="mock-body">
+          <div class="list-row card2"><div class="avatar sm">ד</div><div class="meta"><b>דנה כהן</b><span class="muted">מגיעה</span></div><span style="color:#4ade80">✓ מאומת</span></div>
+          <div class="list-row card2"><div class="avatar sm gray">י</div><div class="meta"><b>יוסי לוי</b><span class="muted">מגיע</span></div><span class="muted">ממתין לריצה</span></div>
+          <p class="muted" style="text-align:center">8/12 מאומתים — RSVP + ריצה תואמת אותו יום.</p>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>אימות נוכחות (חי, 21.08)</b><span>התאמה בזמן קריאה — RSVP × athlete_activities, אין מיגרציה חדשה.</span></div>
+    </div>
+  </div>
+
+  <!-- 15 -->
+  <div class="sec" id="s15">
+    <span class="sec-num">15</span><h2>מערכת הרשמה לאירועים</h2>
+    <span class="status blocked">🟡 מוכן לפריסה · נבנה במלואו</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">נבנה במלואו (Phase 3) — event_registrations חי, כולל לוגיקת קיבולת+רשימת המתנה אמיתית: מבטל "registered" מקדם אוטומטית את הבא בתור מ-"waitlisted" (לפי created_at). אומת ידנית: הרשמה חוזרת לא סופרת את הרשומה של המשתמש עצמו בחישוב הקיבולת.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>הרשמה למרוץ</b></div>
+        <div class="mock-body">
+          <div class="card2 col">
+            <div class="row2 between muted"><span>מקומות</span><span>42/50 נרשמו</span></div>
+            <div class="bar"><i style="width:84%"></i></div>
+            <button class="btn2 block">✓ הירשם</button>
+          </div>
+          <div class="card2 col" style="opacity:.55">
+            <div class="row2 between muted"><span>מקומות</span><span>50/50 נרשמו</span></div>
+            <div class="bar"><i style="width:100%;background:var(--s500)"></i></div>
+            <button class="btn2 disabled block">⏳ רשימת המתנה</button>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>פאנל הרשמה (חי בקוד)</b><span>מקומות פנויים לעומת רשימת המתנה — לוגיקה אמיתית ב-/api/events/[id]/register.</span></div>
+    </div>
+  </div>
+
+  <!-- 16 -->
+  <div class="sec" id="s16">
+    <span class="sec-num">16</span><h2>מערכת התראות חכמה</h2>
+    <span class="status partial">🔵 בפיתוח · Phase 1</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">עודכן 20-21.08: ניסוח מדויק וממוקד-זמן לכל ההתראות (שם יום, ספירת RSVP, סוג אימון, שם המאמן) + בקשת Push עברה לבקשה-בהקשר. <b style="color:#cbd5e1">חדש:</b> לוגו לפי שולח (מאמן = תמונת המאמן, כללי/מערכת = לוגו מדרגות, tag יציב כך שהתראות חוזרות מחליפות ולא נערמות) + מרכז ההתראות באפליקציה עבר לקיבוץ לפי קטגוריה (אימונים/מאמן/הישגים/תוכנית) עם כותרות מתקפלות וכפתור "נקה" לכל קבוצה — בדיוק בסטייל ה-iOS שהוצג. עוד חסר: פוש על לייק/תגובה בפיד ועל הישג חדש.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>התראות</b></div>
+        <div class="mock-body">
+          <div class="row2 between"><b class="strong">אימונים</b><span class="chip2 g">3 ‹</span></div>
+          <div class="card2 row2"><div class="avatar sm" style="background:rgba(67,56,255,.3)">🏃</div><div class="meta"><b>תזכורת אימון ליום שלישי</b><span class="muted">8 חברים כבר אישרו הגעה</span></div></div>
+          <div class="divider"></div>
+          <div class="row2 between"><b class="strong">מאמן</b><span class="chip2 g">1 ‹</span></div>
+          <div class="card2 row2"><div class="avatar sm">ד</div><div class="meta"><b>תשובה מדני</b><span class="muted">💬 לגבי המשוב על האימון</span></div></div>
+          <div class="divider"></div>
+          <div class="row2 between muted" style="opacity:.6"><span>הישגים · הכל נקרא</span><span>✓</span></div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>מרכז התראות — מקובץ לפי קטגוריה (חדש, 21.08)</b><span>מחליף את הרשימה השטוחה; "נקה" מנקה סטטוס לא-נקרא, לא מוחק היסטוריה.</span></div>
+    </div>
+    <div class="card">
+      <div class="frame"><div class="mock" style="justify-content:center;padding-top:0">
+        <div class="mock-body" style="justify-content:center;gap:14px">
+          <div class="card2 row2" style="background:rgba(15,23,42,.95);border:1px solid rgba(148,163,184,.25)">
+            <div class="avatar sm" style="background:rgba(67,56,255,.3)">M</div>
+            <div class="meta"><b>מדרגות</b><span class="muted" style="display:block">אימון מתחיל בעוד שעה — נראה אותך! 💪</span></div>
+          </div>
+          <div class="card2 row2" style="background:rgba(15,23,42,.95);border:1px solid rgba(148,163,184,.25)">
+            <div class="avatar sm">ד</div>
+            <div class="meta"><b>דני (מאמן)</b><span class="muted" style="display:block">💬 תשובה חדשה למשוב שלך</span></div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>פוש למסך הנעילה — לוגו לפי שולח (עודכן 21.08)</b><span>כללי = לוגו מדרגות · ממאמן = תמונת המאמן.</span></div>
+    </div>
+  </div>
+
+  <!-- 17 -->
+  <div class="sec" id="s17">
+    <span class="sec-num">17</span><h2>חיפוש גלובלי באפליקציה</h2>
+    <span class="status planned">⚪ מתוכנן · Phase 9 · אחרון בכוונה</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">אחרון בתוכנית — מאנדקס ישויות (חברים/פוסטים/אירועים/חנות) שצריכות להתייצב בצורה לפני שכדאי לבנות עליהן חיפוש.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><input style="width:100%;background:rgba(51,65,85,.5);border:none;border-radius:10px;padding:8px 12px;color:#fff" placeholder="🔍 חפש..." value="דנה" readonly></div>
+        <div class="mock-body">
+          <span class="muted">חברים</span>
+          <div class="list-row"><div class="avatar sm">ד</div><div class="meta"><b>דנה כהן</b><span>דבוקה 2</span></div></div>
+          <div class="divider"></div>
+          <span class="muted">פוסטים</span>
+          <div class="list-row"><div class="thumb" style="width:36px"></div><div class="meta"><b>ריצת בוקר עם דנה</b></div></div>
+          <div class="divider"></div>
+          <span class="muted">אירועים</span>
+          <div class="list-row"><span>📅</span><div class="meta"><b>מרוץ עם דנה — קבוצתי</b></div></div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>תוצאות חיפוש (מוקאפ)</b><span>מקובץ לפי סוג: חברים, פוסטים, אירועים, חנות.</span></div>
+    </div>
+  </div>
+
+  <!-- 18 -->
+  <div class="sec" id="s18">
+    <span class="sec-num">18</span><h2>הגדרות משתמש</h2>
+    <span class="status partial">🔵 בפיתוח · הורחב 21.08</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">21.08: נוספו שתי שורות ניהול חדשות בהגדרות — "מידע אישי" (חי, תאריך לידה/מגדר/מידת נעל, self-service) ו"ניהול מדליות" (חי, ראו סעיף 11). פרטיות (חוסם/visibility) נשארת בתכנון — תלויה ב-Phase 6 (גילוי חברים), אין מה להיות פרטי ממנו לפני שיש פרופיל ציבורי.</p>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="tour/c-settings.png" alt=""></div><div class="cap-t"><b>מרכז הגדרות — צילום ישן</b><span>קיים היום — אך ~90% ממשק ניהול, לא הגדרות אישיות.</span></div></div>
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>הגדרות אישיות</b><span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">חלקי חי</span></div>
+        <div class="mock-body">
+          <div class="list-row card2" style="opacity:.5"><span>🔒</span><div class="meta"><b>פרטיות</b></div><span class="muted">Phase 6</span></div>
+          <div class="list-row card2"><span>✏️</span><div class="meta"><b>מידע אישי</b></div><span style="color:#4ade80">✓ חי</span></div>
+          <div class="list-row card2"><span>🏅</span><div class="meta"><b>ניהול מדליות</b></div><span style="color:#4ade80">✓ חי</span></div>
+          <div class="list-row card2"><span>🌐</span><div class="meta"><b>שפה</b></div><span class="muted">בהדר, לא כאן</span></div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>שורות הגדרה אישיות (חי, 21.08)</b><span>מידע אישי + ניהול מדליות אמיתיים; פרטיות עדיין ⚪.</span></div>
+    </div>
+  </div>
+
+  <!-- 19 -->
+  <div class="sec" id="s19">
+    <span class="sec-num">19</span><h2>פאנל ניהול</h2>
+    <span class="status live">🟢 חי</span>
+    <div class="line"></div>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="tour/c-settings.png" alt=""></div><div class="cap-t"><b>ניהול משתמשים, טאבים, התראות</b><span>קיים ופעיל היום.</span></div></div>
+  </div>
+
+  <!-- 20 -->
+  <div class="sec" id="s20">
+    <span class="sec-num">20</span><h2>התקדמות ואנליטיקס אישי</h2>
+    <span class="status partial">🔵 בפיתוח · ספירת מרוצים חיה 21.08</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">21.08: ספירת מרוצים נבנתה — התאמה אוטומטית בין athlete_activities ל-events(kind='race') לפי תאריך, עם תיקון ידני, מוצג במסך "שיאים" בפרופיל (ראו race_matches). שיא נפח חודשי (לא שבועי) וימי פעילות מול מנוחה — עדיין לא נבנו.</p>
+  <div class="grid">
+    <div class="card"><div class="frame scroll"><img src="tour/r-dashboard.png" alt=""></div><div class="cap-t"><b>דשבורד + מגמת נפח</b><span>קיים היום.</span></div></div>
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>נפח חודשי לאורך זמן</b></div>
+        <div class="mock-body">
+          <div class="card2 row2 between" style="background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3)"><span>🏁 מרוצים הושלמו</span><span class="strong" style="color:#4ade80">4 ✓ חי</span></div>
+          <div class="row2" style="align-items:flex-end;height:70px;gap:6px">
+            <div style="flex:1;background:rgba(129,140,248,.4);height:40%;border-radius:4px 4px 0 0"></div>
+            <div style="flex:1;background:rgba(129,140,248,.5);height:60%;border-radius:4px 4px 0 0"></div>
+            <div style="flex:1;background:rgba(129,140,248,.6);height:52%;border-radius:4px 4px 0 0"></div>
+            <div style="flex:1;background:var(--indigo-l);height:85%;border-radius:4px 4px 0 0"></div>
+          </div>
+          <div class="muted">ימי פעילות מול מנוחה — עדיין מוקאפ</div>
+          <div class="heat">
+            <span style="background:var(--green)"></span><span style="background:var(--green)"></span><span style="background:rgba(51,65,85,.5)"></span><span style="background:var(--green)"></span><span style="background:var(--green)"></span><span style="background:rgba(51,65,85,.5)"></span><span style="background:rgba(51,65,85,.5)"></span>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>ספירת מרוצים חיה + שאר מוקאפ</b><span>עוד חסר: שיא נפח חודשי, heatmap פעילות/מנוחה.</span></div>
+    </div>
+  </div>
+
+  <!-- 21 -->
+  <div class="sec" id="s21">
+    <span class="sec-num">21</span><h2>גילוי חברים ורשת חברתית</h2>
+    <span class="status planned">⚪ מתוכנן · Phase 6</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">לפי docs/feed-plan.md — תוספת קלה מעל feed_items ("טבלת follow + WHERE clause"), אבל ממוקמת אחרי Phase 4 כדי שיהיו מדליות להציג בפרופיל הציבורי.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock">
+        <div class="mock-top"><b>חברי המועדון</b></div>
+        <div class="mock-body">
+          <div class="row2" style="gap:6px"><span class="chip2 g">כל הקבוצה</span><span class="chip2">דבוקה 1</span><span class="chip2">דבוקה 2</span><span class="chip2">דבוקה 3</span></div>
+          <div class="list-row"><div class="avatar sm">ד</div><div class="meta"><b>דנה כהן</b><span>דבוקה 2</span></div><button class="btn2 ghost">עקוב</button></div>
+          <div class="list-row"><div class="avatar sm gray">י</div><div class="meta"><b>יוסי לוי</b><span>דבוקה 1</span></div><button class="btn2 ghost">עקוב</button></div>
+          <div class="list-row"><div class="avatar sm gray">ר</div><div class="meta"><b>רון אבני</b><span>דבוקה 3</span></div><button class="btn2">עוקב ✓</button></div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>מדריך חברים (מוקאפ)</b><span>חיפוש לפי שם/דבוקה + כפתור עקוב.</span></div>
+    </div>
+  </div>
+
+  <!-- 22 -->
+  <div class="sec" id="s22">
+    <span class="sec-num">22</span><h2>התחברות והרשאות</h2>
+    <span class="status blocked">🟡 קוד מוכן · מחכה לקונפיג ב-Supabase</span>
+    <div class="line"></div>
+  </div>
+  <p class="sec-desc">21.08: כפתורי Google ו-Apple נבנו במלואם — signInWithOAuth אמיתי, מנותב דרך /auth/resolve (אומת מול הגרסה המותקנת של supabase-js: flowType='implicit' כברירת מחדל, לא PKCE). חסום רק על הפעלת ה-provider בדשבורד Supabase (Google + Apple, כל אחד עם קרדנציאלס משלו) — אין עוד שורת קוד חסרה.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="frame"><div class="mock" style="justify-content:center;padding-top:0">
+        <div class="mock-body" style="justify-content:center">
+          <div class="card2 col" style="align-items:center;text-align:center">
+            <b style="font-size:16px">ברוכים הבאים למדרגות 🏃</b>
+            <button class="btn2 strava block">התחבר עם Strava</button>
+            <button class="btn2 ghost block">התחבר עם Google</button>
+            <button class="btn2 ghost block">התחבר עם Apple</button>
+            <div class="row2" style="justify-content:center;gap:6px;margin-top:6px">
+              <span class="chip2 g">רץ</span><span class="chip2 g">מאמן אקדמיה</span><span class="chip2 g">מאמן</span><span class="chip2 g">אדמין</span>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap-t"><b>מסך התחברות (חי בקוד, 21.08)</b><span>שלושה כפתורים אמיתיים; Google/Apple מחכים ל-provider config בלבד.</span></div>
+    </div>
+  </div>
+
+  <!-- Auth/data-source flow diagram — supplements #22, not a 23rd checklist item.
+       Decision deliberately deferred (owner chose to test Strava-as-is first). -->
+  <div class="card2" style="margin:24px 0 44px;padding:20px 22px">
+    <div class="row2 between" style="margin-bottom:6px;flex-wrap:wrap;gap:8px">
+      <b class="strong" style="font-size:15px">🔐 זרימת הרשמה + חיבור מקור אימונים — מצב נוכחי מול מומלץ</b>
+      <span class="chip2 dashed">החלטה נדחתה בכוונה · לא נבנה</span>
+    </div>
+    <p class="muted" style="margin-bottom:16px;line-height:1.6">
+      נבדק בקוד: קיימים היום <b style="color:#cbd5e1">שני זרמים לא-מחוברים</b> — (1) קישור הזמנה מהמאמן ← הזנת שם-משתמש/סיסמה של גרמין ידנית (המקורי), (2) כפתור "התחברות עם Strava" בעמוד הנחיתה ← יוצר חשבון ישירות דרך Strava OAuth. Google קיים בקוד (resolve-role) אך <b style="color:#cbd5e1">אין לו כפתור בשום מקום</b> — רדום לחלוטין. כל 22 החברים הפעילים כיום הם על גרמין; 0 קישרו Strava. מנהל יכול להחליף מקור-נתונים (גרמין↔Strava) פר-ספורטאי מ־Settings, אך זו פעולת אדמין, לא self-service.
+    </p>
+    <div class="row2 between" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div class="col" style="flex:1;min-width:260px;gap:8px">
+        <span class="chip2" style="background:rgba(245,158,11,.15);color:#fbbf24">מצב נוכחי</span>
+        <div class="card2 col" style="gap:6px">
+          <div class="row2 between muted"><span>זרם א׳ (מקורי)</span><span>קישור מאמן</span></div>
+          <div class="row2" style="gap:6px"><span class="chip2 g">הזמנה</span><span>→</span><span class="chip2 g">פרטי גרמין</span><span>→</span><span class="chip2 g">חשבון</span></div>
+          <div class="divider"></div>
+          <div class="row2 between muted"><span>זרם ב׳ (חדש יותר)</span><span>עצמי</span></div>
+          <div class="row2" style="gap:6px"><span class="chip2 strava" style="background:rgba(252,76,2,.15);color:#fc4c02">Strava OAuth</span><span>→</span><span class="chip2 g">חשבון אוטומטי</span></div>
+          <p class="muted" style="margin-top:4px">Google: קיים בקוד, ⚪ בלי כפתור — אף אחד לא יכול להשתמש בו.</p>
+        </div>
+      </div>
+      <div class="col" style="flex:1;min-width:260px;gap:8px">
+        <span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">מומלץ (תבנית מקובלת — Strava/Runna/NRC)</span>
+        <div class="card2 col" style="gap:6px">
+          <div class="row2" style="gap:6px"><span class="chip2">הרשמה עם Google</span><span>→</span><span class="chip2 g">זהות/חשבון</span></div>
+          <div class="row2" style="gap:6px"><span>→</span><span class="chip2 dashed">חיבור מקור אימונים (אופציונלי)</span></div>
+          <div class="row2" style="gap:6px;padding-inline-start:18px"><span class="chip2 strava" style="background:rgba(252,76,2,.15);color:#fc4c02">Strava</span><span class="chip2 g">Garmin</span><span class="chip2 dashed">דלג לעכשיו</span></div>
+          <div class="divider"></div>
+          <div class="row2 between muted"><span>⚠️ אם דילג / אין לו Strava/Garmin</span></div>
+          <p class="muted">גישה מלאה לפיד/צ׳אט/RSVP/אירועים ללא חסימה; אימונים מוזנים <b style="color:#cbd5e1">ידנית</b> (תאריך/מרחק/זמן); תזכורת עדינה ולא-חוסמת ב-Settings לחבר מאוחר יותר.</p>
+        </div>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:14px;font-size:11px">הבעלים בחר לבדוק את זרם ה-Strava הקיים כמו שהוא הערב, ולדחות את החלטת Google-כראשי להמשך נפרד — הדיאגרמה הזו היא קלט להחלטה, לא שינוי שנבנה.</p>
+  </div>
+
+  <footer>
+    מוקאפים חלקיים ומצב חי חלקי — הכל בהתאם ל־Roadmap המאושר (11 שלבים) · <b>מדרגות</b><br>
+    <a href="/tour.html" style="color:var(--s400)">← בחזרה לגלריית המסכים החיים</a> · אוגוסט 2026
+  </footer>
+</div>
+</body>
+</html>

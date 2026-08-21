@@ -9,42 +9,73 @@ export async function GET() {
     const supabase = createServerClient();
     const DEMO_COACH_ID = COACH_ID;
 
-    // Get athlete count (active athletes only)
-    const { count: athleteCount } = await supabase
-      .from('athletes')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', DEMO_COACH_ID)
-      .eq('status', 'active');
-
-    // Get total athlete count including invited
-    const { count: totalAthletes } = await supabase
-      .from('athletes')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', DEMO_COACH_ID);
-
-    // Get group count
-    const { count: groupCount } = await supabase
-      .from('groups')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', DEMO_COACH_ID);
-
-    // Get plan count (this month)
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const { count: planCount } = await supabase
-      .from('weekly_plans')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', DEMO_COACH_ID)
-      .gte('created_at', startOfMonth.toISOString());
+    // None of these depend on one another, so fire them all at once instead
+    // of awaiting each in turn. Only the delivery success rate below genuinely
+    // depends on a prior result (athleteIds), so it stays sequential.
+    const [
+      { count: athleteCount },
+      { count: totalAthletes },
+      { count: groupCount },
+      { count: planCount },
+      { data: athleteIds },
+      { data: recentPlans },
+      { data: recentAthletes },
+    ] = await Promise.all([
+      // Get athlete count (active athletes only)
+      supabase
+        .from('athletes')
+        .select('*', { count: 'exact', head: true })
+        .eq('coach_id', DEMO_COACH_ID)
+        .eq('status', 'active'),
 
-    // Get delivery success rate
-    const { data: athleteIds } = await supabase
-      .from('athletes')
-      .select('id')
-      .eq('coach_id', DEMO_COACH_ID);
+      // Get total athlete count including invited
+      supabase
+        .from('athletes')
+        .select('*', { count: 'exact', head: true })
+        .eq('coach_id', DEMO_COACH_ID),
 
+      // Get group count
+      supabase
+        .from('groups')
+        .select('*', { count: 'exact', head: true })
+        .eq('coach_id', DEMO_COACH_ID),
+
+      // Get plan count (this month)
+      supabase
+        .from('weekly_plans')
+        .select('*', { count: 'exact', head: true })
+        .eq('coach_id', DEMO_COACH_ID)
+        .gte('created_at', startOfMonth.toISOString()),
+
+      // Athlete ids — needed for the delivery success rate lookup below
+      supabase
+        .from('athletes')
+        .select('id')
+        .eq('coach_id', DEMO_COACH_ID),
+
+      // Get recent plans (last 3)
+      supabase
+        .from('weekly_plans')
+        .select('id, week_start_date, status, created_at')
+        .eq('coach_id', DEMO_COACH_ID)
+        .order('created_at', { ascending: false })
+        .limit(3),
+
+      // Get recent athletes joined
+      supabase
+        .from('athletes')
+        .select('name, created_at, status')
+        .eq('coach_id', DEMO_COACH_ID)
+        .order('created_at', { ascending: false })
+        .limit(2),
+    ]);
+
+    // Get delivery success rate — depends on athleteIds above, so this one
+    // has to wait for it and can't join the Promise.all above.
     let deliveries: any[] = [];
     if (athleteIds && athleteIds.length > 0) {
       const athleteIdList = athleteIds.map(a => a.id);
@@ -61,24 +92,8 @@ export async function GET() {
       deliverySuccessRate = Math.round((successCount / deliveries.length) * 100);
     }
 
-    // Get recent plans (last 3)
-    const { data: recentPlans } = await supabase
-      .from('weekly_plans')
-      .select('id, week_start_date, status, created_at')
-      .eq('coach_id', DEMO_COACH_ID)
-      .order('created_at', { ascending: false })
-      .limit(3);
-
     // Get recent activity (last 5 events)
     const recentActivity: Array<{ type: string; description: string; timestamp: string }> = [];
-
-    // Get recent athletes joined
-    const { data: recentAthletes } = await supabase
-      .from('athletes')
-      .select('name, created_at, status')
-      .eq('coach_id', DEMO_COACH_ID)
-      .order('created_at', { ascending: false })
-      .limit(2);
 
     if (recentAthletes) {
       recentAthletes.forEach(athlete => {
