@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>מדרגות · מפת האפליקציה החדשה</title>
+<style>
+  :root{--indigo:#4338ff;--indigo-l:#818cf8;--s950:#0b1120;--s900:#0f172a;--s800:#1e293b;--s700:#334155;--s400:#94a3b8;--s500:#64748b;--green:#22c55e;--amber:#f59e0b;--orange:#fb923c}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(120% 55% at 50% 0%,#16213b 0%,#0f172a 45%,#0b1120 100%);color:#fff;font-family:"Heebo","Rubik",-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding:44px 20px 90px}
+  .wrap{max-width:1180px;margin:0 auto}
+  header{text-align:center;margin-bottom:8px}
+  header .kick{color:var(--indigo-l);font-size:13px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+  header h1{font-size:34px;font-weight:900;letter-spacing:-.5px;margin-top:6px}
+  header p{color:var(--s400);font-size:15px;margin-top:8px;max-width:640px;margin-inline:auto;line-height:1.6}
+  .pill{display:inline-flex;align-items:center;gap:8px;margin-top:18px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.3);color:var(--amber);font-weight:800;font-size:13px;padding:8px 18px;border-radius:999px}
+  .cta{display:flex;justify-content:center;margin-top:22px}
+  .cta a{background:var(--indigo);color:#fff;font-weight:800;font-size:15px;padding:13px 26px;border-radius:14px;text-decoration:none;box-shadow:0 10px 24px rgba(67,56,255,.35);transition:transform .15s}
+  .cta a:active{transform:scale(.97)}
+
+  .sec{margin:54px 0 6px;display:flex;align-items:center;gap:12px}
+  .sec h2{font-size:21px;font-weight:900}
+  .sec .tag{font-size:11.5px;font-weight:800;padding:4px 11px;border-radius:999px;white-space:nowrap}
+  .sec .tag.run{background:rgba(67,56,255,.18);color:var(--indigo-l)}
+  .sec .tag.coach{background:rgba(249,115,22,.16);color:var(--orange)}
+  .sec .tag.pub{background:rgba(100,116,139,.2);color:var(--s400)}
+  .sec .line{flex:1;height:1px;background:linear-gradient(90deg,rgba(51,65,85,.7),transparent)}
+  .sec-note{color:var(--s500);font-size:13px;margin-top:6px;line-height:1.6}
+
+  .tabbar{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+  .tabitem{flex:1 1 150px;background:rgba(30,41,59,.55);border:1px solid rgba(51,65,85,.6);border-radius:16px;padding:16px;text-decoration:none;color:inherit;transition:border-color .15s,transform .15s;display:flex;flex-direction:column;gap:4px}
+  .tabitem:hover{border-color:var(--indigo-l);transform:translateY(-2px)}
+  .tabitem .ic{font-size:22px}
+  .tabitem b{font-size:14.5px;font-weight:800}
+  .tabitem span{color:var(--s400);font-size:12px;line-height:1.5}
+  .tabitem.fab{border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.08)}
+  .tabitem.fab b{color:var(--amber)}
+
+  .subgrid{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .subcard{background:rgba(15,23,42,.55);border:1px solid rgba(51,65,85,.5);border-radius:14px;padding:14px 16px}
+  .subcard h3{font-size:13px;font-weight:800;color:var(--s400);text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px}
+  .subcard a{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:8px 0;border-top:1px solid rgba(51,65,85,.35)}
+  .subcard a:first-of-type{border-top:none}
+  .subcard a:hover{color:var(--indigo-l)}
+  .subcard a .go{color:var(--s500);font-size:12px}
+
+  .flat{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .flatcard{background:rgba(30,41,59,.5);border:1px solid rgba(51,65,85,.55);border-radius:14px;padding:14px 16px;text-decoration:none;color:inherit;display:block;transition:border-color .15s}
+  .flatcard:hover{border-color:var(--indigo-l)}
+  .flatcard b{font-size:14px;font-weight:800;display:block}
+  .flatcard span{color:var(--s500);font-size:12px;display:block;margin-top:4px;line-height:1.5}
+
+  .retired{margin-top:26px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.22);border-radius:14px;padding:16px 18px}
+  .retired h3{font-size:13px;font-weight:800;color:#f87171;margin-bottom:6px}
+  .retired p{color:var(--s400);font-size:13px;line-height:1.6}
+
+  footer{text-align:center;color:var(--s500);font-size:12px;margin-top:60px;line-height:1.8}
+  footer b{color:var(--s400)}
+  footer a{color:var(--indigo-l);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kick">Madregot · After 2KM Running Club</div>
+    <h1>מפת האפליקציה החדשה 🗺️</h1>
+    <p>המראה החדש — Native iOS Makeover. כל המסכים נבנו מחדש: ניווט לפי תפקיד, Sheet אחיד לכל המודלים, ומסך סטטיסטיקות חדש בסטייל Strava. לחצו על כל מסך כדי לפתוח אותו חי בגרסת התצוגה המקדימה.</p>
+    <div class="pill">⚠ תצוגה מקדימה (Preview) — לא בפרודקשן עדיין</div>
+    <div class="cta">
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">פתח את האפליקציה החדשה →</a>
+    </div>
+  </header>
+
+  <!-- Athlete -->
+  <div class="sec">
+    <h2>תפריט תחתון · ספורטאי</h2>
+    <span class="tag run">4 טאבים + FAB</span>
+    <div class="line"></div>
+  </div>
+  <div class="sec-note">Home · Program · Feed · Profile — Activities ירד מהתפריט התחתון והפך לשורה בתוך Profile.</div>
+  <div class="tabbar">
+    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">
+      <span class="ic">🏠</span><b>בית</b><span>לוח הבקרה היומי — האימון הקרוב, סטרייק, RSVP</span>
+    </a>
+    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/program" target="_blank" rel="noopener">
+      <span class="ic">📅</span><b>תוכנית</b><span>כרטיסי יום טבעיים (הוחלף ה-PDF הישן)</span>
+    </a>
+    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/feed" target="_blank" rel="noopener">
+      <span class="ic">📣</span><b>פיד</b><span>עדכונים ותמונות מהקבוצה</span>
+    </a>
+    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/profile" target="_blank" rel="noopener">
+      <span class="ic">👤</span><b>פרופיל</b><span>סטטיסטיקות, פעילויות, הגדרות</span>
+    </a>
+    <a class="tabitem fab" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">
+      <span class="ic">✓</span><b>FAB · אישור הגעה</b><span>RSVP לאימון הקרוב</span>
+    </a>
+  </div>
+
+  <div class="subgrid">
+    <div class="subcard">
+      <h3>פרופיל · שורות</h3>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/profile" target="_blank" rel="noopener">סטטיסטיקות <span class="go">חדש · Strava-style ↗</span></a>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/activities" target="_blank" rel="noopener">הפעילויות שלי <span class="go">↗</span></a>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/settings" target="_blank" rel="noopener">הגדרות <span class="go">↗</span></a>
+    </div>
+    <div class="subcard">
+      <h3>עוד (Sheet)</h3>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/calendar" target="_blank" rel="noopener">לוח שנה <span class="go">כולל מרוצים ↗</span></a>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/notifications" target="_blank" rel="noopener">התראות <span class="go">↗</span></a>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/review" target="_blank" rel="noopener">משוב על האפליקציה <span class="go">↗</span></a>
+    </div>
+  </div>
+
+  <!-- Coach -->
+  <div class="sec">
+    <h2>תפריט תחתון · מאמן / צוות</h2>
+    <span class="tag coach">4 טאבים + FAB</span>
+    <div class="line"></div>
+  </div>
+  <div class="sec-note">Home · Athletes · Workout Feedback · Coach Tools — כל שאר כלי הניהול עברו לתוך "כלי מאמן" (היה תפריט גלישה עמוס, הפך לעמוד מלא).</div>
+  <div class="tabbar">
+    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">
+      <span class="ic">🏠</span><b>בית</b><span>Coach pulse — תמונת מצב של הקבוצה</span>
+    </a>
+    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/athletes" target="_blank" rel="noopener">
+      <span class="ic">🏃</span><b>ספורטאים</b><span>כרטיסים + Sheet פעולות (הוחלפו טבלה ותפריטים)</span>
+    </a>
+    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/workout-feedback" target="_blank" rel="noopener">
+      <span class="ic">💬</span><b>משוב אימונים</b><span>תגובות הספורטאים לאימונים</span>
+    </a>
+    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/coach-tools" target="_blank" rel="noopener">
+      <span class="ic">🧰</span><b>כלי מאמן</b><span>חדש · כל כלי הניהול במקום אחד</span>
+    </a>
+    <a class="tabitem fab" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/practice-attendance" target="_blank" rel="noopener">
+      <span class="ic">📋</span><b>FAB · רשימת נוכחות</b><span>סימון נוכחות לאימון</span>
+    </a>
+  </div>
+
+  <div class="subgrid">
+    <div class="subcard">
+      <h3>כלי מאמן · תכנון</h3>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/plan/new" target="_blank" rel="noopener">מתכנן שבועי <span class="go">עברית מלאה ↗</span></a>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/history" target="_blank" rel="noopener">היסטוריית תוכניות <span class="go">↗</span></a>
+    </div>
+    <div class="subcard">
+      <h3>כלי מאמן · קבוצות וחניכים</h3>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/groups" target="_blank" rel="noopener">קבוצות <span class="go">↗</span></a>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/academy" target="_blank" rel="noopener">אקדמיה <span class="go">↗</span></a>
+    </div>
+    <div class="subcard">
+      <h3>כלי מאמן · תובנות</h3>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/team-volume" target="_blank" rel="noopener">נפח קבוצתי <span class="go">↗</span></a>
+      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/calendar" target="_blank" rel="noopener">לוח שנה <span class="go">↗</span></a>
+    </div>
+  </div>
+
+  <div class="retired">
+    <h3>🗑 בוטל / התמזג</h3>
+    <p><b>עמוד "מרוצים" הישן</b> (רשימה קשיחה עם דוגמאות) נמחק — המרוצים האמיתיים (מ-<code>events</code>) עברו ללוח השנה, עם תצוגת רשימה/מפה. <b>"תיעדוף" ו"נפח שבועי"</b> בפרופיל התמזגו למסך <b>סטטיסטיקות</b> אחד, בסטייל Strava/Garmin.</p>
+  </div>
+
+  <!-- Public -->
+  <div class="sec">
+    <h2>ציבורי · הרשמה והתחברות</h2>
+    <span class="tag pub">לא מחייב התחברות</span>
+    <div class="line"></div>
+  </div>
+  <div class="flat">
+    <a class="flatcard" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/" target="_blank" rel="noopener">
+      <b>דף נחיתה</b><span>העמוד הראשי הציבורי</span>
+    </a>
+    <a class="flatcard" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/admin/login" target="_blank" rel="noopener">
+      <b>כניסת מנהל</b><span>עברית מלאה (חדש)</span>
+    </a>
+    <a class="flatcard" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/pending-approval" target="_blank" rel="noopener">
+      <b>ממתין לאישור</b><span>עברית מלאה (חדש)</span>
+    </a>
+    <a class="flatcard" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/academy-register" target="_blank" rel="noopener">
+      <b>הרשמה לאקדמיה</b><span>טופס ציבורי</span>
+    </a>
+  </div>
+  <div class="sec-note" style="margin-top:14px">קישורי הצטרפות (<code>/join/[token]</code>, <code>/join/onboard</code>, <code>/join/academy/[token]</code>) מגיעים ממייל הזמנה אישי ולכן לא מקושרים כאן ישירות — גם הם תורגמו לעברית מלאה במעבר הזה.</div>
+
+  <footer>
+    <p><b>הערה:</b> חלק מהעמודים דורשים התחברות אמיתית — אם מגיעים למסך התחברות זה תקין, זו הגרסה החיה על נתונים אמיתיים.</p>
+    <p style="margin-top:6px">נבנה כחלק ממהפך ה-Native iOS Makeover · <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/app-map.html">מפה זו</a> תתעדכן בכל דחיפה לענף התצוגה המקדימה</p>
+  </footer>
+</div>
+</body>
+</html>
