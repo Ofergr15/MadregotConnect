@@ -776,7 +776,10 @@
     "weekKm": "ק\"מ השבוע",
     "trainingDays": "ימי אימון",
     "longestSession": "האימון הארוך",
-    "todayBadge": "היום"
+    "todayBadge": "היום",
+    "noNutritionPlanYet": "אין עדיין תוכנית תזונה לשבוע זה.",
+    "planUploadSoon": "המאמן עדיין לא העלה עבור {range} — בדקו שוב בקרוב.",
+    "weekLabel": "שבוע {n}"
   },
   "install": {
     "title": "התקנת Madregot",

@@ -139,13 +139,31 @@ export default function ProgramPage() {
           nutrition_pdf_url: null,
         }));
 
+      const data = [...pwData, ...synthetic];
+
+      // Guarantee an entry for the actual current week even when nothing has
+      // been uploaded/parsed for it yet. Without this, if the coach hasn't
+      // posted this week's plan, the picker silently defaults to whichever
+      // week happens to sort first (the most recent PAST upload) — which
+      // reads as "here's your plan" when it's really an unrelated old week.
+      const thisWeekStart = getPlanWeekStart(new Date());
+      if (!data.some(w => w.week_start_date === thisWeekStart)) {
+        data.push({
+          id: `current-${thisWeekStart}`,
+          week_number: 0,
+          date_range: deriveDateRange(thisWeekStart),
+          week_start_date: thisWeekStart,
+          training_pdf_url: null,
+          nutrition_pdf_url: null,
+        });
+      }
+
       // Newest-first, matching /api/program-weeks' own ordering.
-      const data = [...pwData, ...synthetic].sort((a, b) => b.week_start_date.localeCompare(a.week_start_date));
+      data.sort((a, b) => b.week_start_date.localeCompare(a.week_start_date));
       setWeeks(data);
       // Select the week that actually CONTAINS today (by plan-week Sunday), not
       // just the most-recently-uploaded one — otherwise last week shows as
       // "Current" and its plans mask that this week's are missing.
-      const thisWeekStart = getPlanWeekStart(new Date());
       const idx = data.findIndex(w => w.week_start_date === thisWeekStart);
       if (idx >= 0) setSelectedWeek(idx);
     } finally {
@@ -282,8 +300,8 @@ export default function ProgramPage() {
             className="flex items-center gap-3 bg-slate-800/60 border border-slate-700/60 rounded-2xl px-4 py-3.5 min-h-[44px] hover:border-slate-600 active:scale-[0.98] transition-all w-full sm:w-auto sm:min-w-[240px]"
           >
             <div className="flex-1 text-start">
-              <div className="font-semibold text-white">{currentWeek.week_number > 0 ? `Week ${currentWeek.week_number}` : t('trainingWeek')}</div>
-              <div className="text-xs text-slate-400">{currentWeek.date_range}</div>
+              <div className="font-semibold text-white">{currentWeek.week_number > 0 ? t('weekLabel', { n: currentWeek.week_number }) : t('trainingWeek')}</div>
+              <div dir="ltr" className="text-xs text-slate-400 text-end">{currentWeek.date_range}</div>
             </div>
             {isCurrentWeek && (
               <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
@@ -311,8 +329,8 @@ export default function ProgramPage() {
               )}
             >
               <div>
-                <div className="font-semibold text-white text-sm">{week.week_number > 0 ? `Week ${week.week_number}` : t('trainingWeek')}</div>
-                <div className="text-xs text-slate-400">{week.date_range}</div>
+                <div className="font-semibold text-white text-sm">{week.week_number > 0 ? t('weekLabel', { n: week.week_number }) : t('trainingWeek')}</div>
+                <div dir="ltr" className="text-xs text-slate-400 text-end">{week.date_range}</div>
               </div>
               {week.week_start_date === thisWeekStart && (
                 <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
@@ -552,42 +570,42 @@ export default function ProgramPage() {
         </div>
       ) : activeView === 'training' && weekPlan?.hasPlan ? (
         <WeekClimb weekPlan={weekPlan} onSelectSession={setSelectedSession} t={t} />
-      ) : currentWeek ? (
+      ) : currentWeek && getPdfUrl(currentWeek, activeView) ? (
         <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-700/60">
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-slate-400" />
               <span className="text-sm font-medium">
-                {activeView === 'training' ? t('trainingProgram') : t('nutritionPlan')} — {currentWeek.date_range}
+                {activeView === 'training' ? t('trainingProgram') : t('nutritionPlan')} — <span dir="ltr">{currentWeek.date_range}</span>
               </span>
             </div>
-            {getPdfUrl(currentWeek, activeView) && (
-              <a
-                href={getPdfUrl(currentWeek, activeView)!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-primary-400 hover:text-primary-300 transition-colors"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t('openInNewTab')}
-              </a>
-            )}
+            <a
+              href={getPdfUrl(currentWeek, activeView)!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs text-primary-400 hover:text-primary-300 transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {t('openInNewTab')}
+            </a>
           </div>
 
           <div className="w-full" style={{ height: '80vh' }}>
-            {getPdfUrl(currentWeek, activeView) ? (
-              <iframe
-                src={getPdfUrl(currentWeek, activeView)!}
-                className="w-full h-full border-0"
-                title={`${activeView} plan for Week ${currentWeek.week_number}`}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-slate-400">
-                {activeView === 'training' ? t('noStructuredPlan') : `No ${activeView} plan uploaded for this week yet.`}
-              </div>
-            )}
+            <iframe
+              src={getPdfUrl(currentWeek, activeView)!}
+              className="w-full h-full border-0"
+              title={`${activeView} plan for Week ${currentWeek.week_number}`}
+            />
           </div>
         </div>
+      ) : currentWeek ? (
+        <Card variant="muted">
+          <EmptyState
+            icon={activeView === 'training' ? Dumbbell : Utensils}
+            title={activeView === 'training' ? t('noStructuredPlan') : t('noNutritionPlanYet')}
+            description={t('planUploadSoon', { range: `‪${currentWeek.date_range}‬` })}
+          />
+        </Card>
       ) : (
         <Card variant="muted">
           <EmptyState

@@ -776,7 +776,10 @@
     "weekKm": "km this week",
     "trainingDays": "training days",
     "longestSession": "longest session",
-    "todayBadge": "Today"
+    "todayBadge": "Today",
+    "noNutritionPlanYet": "No nutrition plan for this week yet.",
+    "planUploadSoon": "Your coach hasn't posted it for {range} yet — check back soon.",
+    "weekLabel": "Week {n}"
   },
   "install": {
     "title": "Install Madregot",
