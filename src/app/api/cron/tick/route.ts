@@ -7,6 +7,19 @@ import { APPROVER_EMAILS } from '@/lib/constants';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+// 0=Sun..6=Sat, matching israelNow()/getDay(). Used to make reminder copy name
+// the actual day instead of a generic "tomorrow" (same convention as
+// practice-attendance/page.tsx and NotificationCenter.tsx).
+const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+/** Format seconds-per-km as m:ss (e.g. 312 -> "5:12"), for the weekly recap. */
+function formatPace(secPerKm: number): string {
+  let m = Math.floor(secPerKm / 60);
+  let s = Math.round(secPerKm % 60);
+  if (s === 60) { m += 1; s = 0; }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 // External scheduler tick (Supabase pg_cron hits this every ~15 min). All timing
 // logic lives here in Israel local time; the scheduler stays a dumb pinger.
 // Secured with CRON_SECRET like the other crons.
@@ -72,10 +85,11 @@ async function run(request: Request) {
     if (dayBefore.enabled && weekday === dayBeforeWeekday && hour === dayBefore.hour) {
       const tag = `dayBefore:${weekStart}:${teamDay}`;
       if (!(await already(tag))) {
+        const dayName = DAY_NAMES[teamDay];
         const subs = await resolveAudience('all', null);
         const sent = await sendPushToSubscriptions(subs, {
-          title: 'תזכורת אימון 🏃',
-          body: 'מחר יש אימון קבוצתי — נתראה!',
+          title: `תזכורת אימון ליום ${dayName} 🏃`,
+          body: `מחר, יום ${dayName}, אימון קבוצתי — נתראה!`,
           url: '/dashboard',
           tag,
           category: 'workouts',
@@ -89,19 +103,28 @@ async function run(request: Request) {
     if (eveningBefore.enabled && weekday === dayBeforeWeekday && hour === eveningBefore.hour) {
       const tag = `eveningBefore:${weekStart}:${teamDay}`;
       if (!(await already(tag))) {
-        // Who already answered for that team day this week?
+        // Who already answered for that team day this week? (also grab `attending`
+        // so the nudge can tell non-responders how many teammates already confirmed —
+        // same query, one extra already-tracked column, no new plumbing.)
         const { data: answered } = await supabase
           .from('workout_attendance')
-          .select('athlete_id')
+          .select('athlete_id, attending')
           .eq('week_start_date', weekStart)
           .eq('day_of_week', teamDay);
-        const answeredIds = new Set((answered || []).map((r: { athlete_id: string }) => r.athlete_id));
+        const answeredRows = answered || [];
+        const answeredIds = new Set(answeredRows.map((r: { athlete_id: string }) => r.athlete_id));
+        const goingCount = answeredRows.filter((r: { attending: boolean }) => r.attending).length;
         const all = await allAthleteIds();
         const nonResponders = all.filter(id => !answeredIds.has(id));
         const subs = await subscriptionsForAthletes(nonResponders);
+        const dayName = DAY_NAMES[teamDay];
+        const rsvpPhrase = goingCount === 1 ? 'חבר אחד כבר אישר הגעה' : `${goingCount} חברים כבר אישרו הגעה`;
+        const body = goingCount > 0
+          ? `${rsvpPhrase} לאימון יום ${dayName} — ומה איתך?`
+          : `עדכנו אותנו אם אתם מגיעים לאימון יום ${dayName}`;
         const sent = await sendPushToSubscriptions(subs, {
           title: 'מגיעים מחר לאימון? 🏟️',
-          body: 'עדכנו אותנו אם אתם מגיעים',
+          body,
           url: '/dashboard',
           tag,
           category: 'workouts',
@@ -139,13 +162,17 @@ async function run(request: Request) {
           `אימונים ${hasTraining ? '✅' : '❌'}`,
           `תזונה ${hasNutrition ? '✅' : '❌'}`,
         ];
+        // Upcoming week's date (DD.MM), so the nag names the actual week instead
+        // of a generic "new week" — upcomingWeek is already computed above.
+        const [, upMM, upDD] = upcomingWeek.split('-');
+        const upcomingDateLabel = `${upDD}.${upMM}`;
         // Coaches = approver accounts.
         const { data: coaches } = await supabase.from('athletes').select('id').in('email', APPROVER_EMAILS);
         const coachIds = (coaches || []).map((c: { id: string }) => c.id);
         const subs = await subscriptionsForAthletes(coachIds);
         const sent = await sendPushToSubscriptions(subs, {
-          title: 'שבוע חדש מתחיל 📅',
-          body: `העלו את התוכניות: ${parts.join(' · ')}`,
+          title: `שבוע חדש מתחיל (${upcomingDateLabel}) 📅`,
+          body: `העלו את התוכניות לשבוע ${upcomingDateLabel}: ${parts.join(' · ')}`,
           url: '/dashboard/program',
           tag,
           category: 'program',
@@ -161,12 +188,19 @@ async function run(request: Request) {
   }
 
   // Sunday 19:00 IL weekly recap: personalized "your week" push to each runner
-  // who ran this activity-week (Mon–Sun) — km + runs. Idempotent per activity
+  // who ran LAST activity-week (Sun–Sat) — km + runs. Idempotent per activity
   // week via one ledger tag; per-athlete content computed from one activities
   // query. Runs only, both Garmin + Strava (same table).
+  //
+  // Activity weeks now start Sunday (changed 2026-08-21 from Monday), so firing
+  // on Sunday evening means `now` already sits in the NEW week that just
+  // started today — the week being recapped is the previous one. Bound the
+  // query on both ends (start of last week ≤ x < start of this week) so it
+  // can't bleed into today's activities, which belong to the new week.
   if (weekday === 0 && hour === 19) {
-    const actWeekStart = getActivityWeekStart(now); // Monday of the week that just ended today (Sun)
-    const tag = `recap:${actWeekStart}`;
+    const thisWeekStart = getActivityWeekStart(now); // today — the new week that just started
+    const recapWeekStart = getActivityWeekStart(new Date(now.getTime() - 7 * 86400_000)); // last week, being recapped
+    const tag = `recap:${recapWeekStart}`;
     if (!(await already(tag))) {
       const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
       // Active athletes (id → push targets resolved later).
@@ -179,26 +213,34 @@ async function run(request: Request) {
       if (ids.length > 0) {
         const { data: acts } = await supabase
           .from('athlete_activities')
-          .select('athlete_id, activity_type, distance')
+          .select('athlete_id, activity_type, distance, duration')
           .in('athlete_id', ids)
-          .gte('start_time', actWeekStart);
-        // Fold per athlete: km + runs (runs only).
-        const per = new Map<string, { km: number; runs: number }>();
+          .gte('start_time', recapWeekStart)
+          .lt('start_time', thisWeekStart);
+        // Fold per athlete: km + runs + total seconds (runs only). Total seconds
+        // (not per-activity average_pace) so the weekly pace is a true distance-
+        // weighted average, not an average of averages.
+        const per = new Map<string, { km: number; runs: number; sec: number }>();
         for (const r of (acts || []) as any[]) {
           if (!(r.distance > 0) || (r.activity_type && !RUN_TYPES.includes(r.activity_type))) continue;
-          const b = per.get(r.athlete_id) || { km: 0, runs: 0 };
-          b.km += r.distance / 1000; b.runs += 1;
+          const b = per.get(r.athlete_id) || { km: 0, runs: 0, sec: 0 };
+          b.km += r.distance / 1000; b.runs += 1; b.sec += (r.duration || 0);
           per.set(r.athlete_id, b);
         }
         // Push each runner who ran this week their own recap.
         for (const [athleteId, s] of per.entries()) {
           if (s.runs === 0) continue;
           const km = Math.round(s.km * 10) / 10;
+          const runsLabel = s.runs === 1 ? 'ריצה' : 'ריצות';
+          const paceStr = s.sec > 0 && s.km > 0 ? formatPace(s.sec / s.km) : null;
+          const body = paceStr
+            ? `השבוע רצת ${km} ק״מ ב-${s.runs} ${runsLabel}, בקצב ממוצע של ${paceStr} לק״מ. כל הכבוד!`
+            : `השבוע רצת ${km} ק״מ ב-${s.runs} ${runsLabel}. כל הכבוד!`;
           const subs = await subscriptionsForAthletes([athleteId]);
           if (subs.length === 0) continue;
           const sent = await sendPushToSubscriptions(subs, {
             title: 'הסיכום השבועי שלך 🏅',
-            body: `השבוע רצת ${km} ק״מ ב-${s.runs} ${s.runs === 1 ? 'ריצה' : 'ריצות'}. כל הכבוד!`,
+            body,
             url: '/dashboard',
             tag,
             category: 'achievements',

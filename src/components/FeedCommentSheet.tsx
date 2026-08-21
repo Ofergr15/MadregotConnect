@@ -118,6 +118,7 @@ export function FeedCommentSheet({ item, onClose }: Props) {
           <button
             onClick={handleSend}
             disabled={!draft.trim() || sending}
+            aria-label="Send"
             className={cn(
               'shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all',
               draft.trim() && !sending
@@ -159,6 +160,7 @@ export function FeedCommentSheet({ item, onClose }: Props) {
             {c.canDelete && (
               <button
                 onClick={() => handleDelete(c.id)}
+                aria-label="Delete comment"
                 className="shrink-0 self-start mt-1.5 p-1.5 rounded-full text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
               >
                 <Trash2 className="h-3.5 w-3.5" />

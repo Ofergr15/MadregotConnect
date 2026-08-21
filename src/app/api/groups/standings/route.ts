@@ -3,7 +3,12 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveGroup, getActivityWeekStart } from '@/lib/utils';
 
-export const dynamic = 'force-dynamic';
+// Monthly squad rivalry, rolled up — a few minutes of staleness is invisible
+// against a month-long window, so this participates in Next's Data Cache
+// instead of forcing dynamic rendering on every request. See
+// src/lib/supabase/server.ts for how `revalidateSeconds` maps to the
+// underlying fetch's cache behavior.
+export const revalidate = 300;
 
 // GET /api/groups/standings
 // דבוקה squad rivalry — this-month (rolling 1st→now) squad-vs-squad standings.
@@ -20,10 +25,10 @@ const iso = (d: Date) =>
 
 export async function GET() {
   try {
-    const supabase = createServerClient();
+    const supabase = createServerClient({ revalidateSeconds: 300 });
     const now = new Date();
     const monthStart = iso(new Date(now.getFullYear(), now.getMonth(), 1));
-    const weekStart = getActivityWeekStart(now); // Monday, for the consistency metric
+    const weekStart = getActivityWeekStart(now); // Sunday, for the consistency metric
 
     // 1) Active athletes with a squad.
     const { data: athletes, error: aErr } = await supabase

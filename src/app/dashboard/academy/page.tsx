@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import {
-  GraduationCap, Loader2, Watch, Plus, X, Search, UserMinus, Users, ClipboardCheck, CalendarPlus,
+  GraduationCap, Loader2, Watch, Plus, Search, UserMinus, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Sheet } from '@/components/ui';
 import { AcademyCompliance } from '@/components/AcademyCompliance';
 import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
 import { AcademyStats } from '@/components/AcademyStats';
@@ -133,8 +134,11 @@ export default function AcademyPage() {
         )}
       </div>
 
-      {/* View toggle */}
-      <div className="flex items-center gap-1 mb-6 bg-slate-800/50 border border-slate-700/50 rounded-xl p-1 w-fit flex-wrap">
+      {/* View toggle — 7 sections is too many for a single-row segmented
+          control, so this is a horizontally-scrollable chip strip (same
+          pattern as the Program page's category filter), not a wrapping grid
+          that reflows awkwardly on narrow screens. */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 mb-6 scrollbar-hide">
         {([
           { key: 'roster', label: 'Roster', icon: Users },
           { key: 'registrations', label: 'Registrations', icon: UserPlus },
@@ -150,8 +154,10 @@ export default function AcademyPage() {
               key={tab.key}
               onClick={() => setView(tab.key)}
               className={cn(
-                'flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
-                view === tab.key ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+                'flex items-center gap-2 px-4 h-10 min-h-[44px] rounded-xl text-sm font-semibold transition-all active:scale-[0.96] shrink-0 border',
+                view === tab.key
+                  ? 'bg-primary-600 text-white border-primary-600'
+                  : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:text-white'
               )}
             >
               <Icon className="h-4 w-4" /> {tab.label}
@@ -253,68 +259,63 @@ export default function AcademyPage() {
       </>
       )}
 
-      {/* Add modal */}
-      {showAdd && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAdd(false)}>
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-slate-700">
-              <h2 className="text-lg font-bold text-white">Add to Academy</h2>
-              <button onClick={() => setShowAdd(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-4 border-b border-slate-700">
-              <div className="relative">
-                <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                <input
-                  autoFocus
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search athletes…"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl ps-9 pe-3 h-10 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
-                />
-              </div>
-            </div>
-            <div className="overflow-y-auto p-2">
-              {addableAthletes.length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-8">
-                  {search ? 'No matching athletes.' : 'All athletes are already in the academy.'}
-                </p>
-              ) : (
-                addableAthletes.map(a => {
-                  const gs = getGroupStyle(a.groupName);
-                  return (
-                    <button
-                      key={a.id}
-                      onClick={() => setAcademy(a.id, true)}
-                      disabled={saving === a.id}
-                      className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-700/50 transition-colors text-start disabled:opacity-50"
-                    >
-                      <div className="bg-slate-700 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
-                        {initialsOf(a.name)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-white text-sm truncate">{a.name}</div>
-                        <div className="text-xs text-slate-400 truncate">{a.email}</div>
-                      </div>
-                      {a.groupName && gs && (
-                        <span className={cn('text-3xs font-bold px-2 py-0.5 rounded-md border', gs.bg, gs.text, gs.border)}>
-                          {a.groupName}
-                        </span>
-                      )}
-                      {saving === a.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-primary-400 shrink-0" />
-                      ) : (
-                        <Plus className="h-4 w-4 text-primary-400 shrink-0" />
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
+      {/* Add Sheet */}
+      <Sheet
+        open={showAdd}
+        onOpenChange={(o) => { if (!o) setShowAdd(false); }}
+        title="Add to Academy"
+        bodyClassName="px-2"
+      >
+        <div className="px-2 pb-3">
+          <div className="relative">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search athletes…"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl ps-9 pe-3 min-h-[44px] text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
+            />
           </div>
         </div>
-      )}
+        <div className="max-h-[60vh] overflow-y-auto">
+          {addableAthletes.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-8">
+              {search ? 'No matching athletes.' : 'All athletes are already in the academy.'}
+            </p>
+          ) : (
+            addableAthletes.map(a => {
+              const gs = getGroupStyle(a.groupName);
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => setAcademy(a.id, true)}
+                  disabled={saving === a.id}
+                  className="w-full flex items-center gap-3 p-3 min-h-[44px] rounded-xl hover:bg-slate-700/50 active:scale-[0.98] transition-all text-start disabled:opacity-50"
+                >
+                  <div className="bg-slate-700 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                    {initialsOf(a.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-white text-sm truncate">{a.name}</div>
+                    <div className="text-xs text-slate-400 truncate">{a.email}</div>
+                  </div>
+                  {a.groupName && gs && (
+                    <span className={cn('text-3xs font-bold px-2 py-0.5 rounded-md border', gs.bg, gs.text, gs.border)}>
+                      {a.groupName}
+                    </span>
+                  )}
+                  {saving === a.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary-400 shrink-0" />
+                  ) : (
+                    <Plus className="h-4 w-4 text-primary-400 shrink-0" />
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </Sheet>
     </div>
   );
 }

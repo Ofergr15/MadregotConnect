@@ -1,9 +1,11 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Clock } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 
 export default function PendingApprovalPage() {
+  const t = useTranslations('onboarding');
   const handleBackHome = async () => {
     const supabase = getSupabase();
     await supabase.auth.signOut();
@@ -22,19 +24,16 @@ export default function PendingApprovalPage() {
           <Clock className="h-8 w-8 text-amber-400" />
         </div>
 
-        <h1 className="text-xl font-bold text-white">Waiting for Approval</h1>
+        <h1 className="text-xl font-bold text-white">{t('waitingApproval')}</h1>
         <p className="text-slate-400 mt-3 text-sm leading-relaxed">
-          Your account has been created successfully. An admin will review and approve your access shortly.
-        </p>
-        <p className="text-slate-500 mt-2 text-xs">
-          You&apos;ll receive an email once you&apos;re approved.
+          {t('approvalMessage')}
         </p>
 
         <button
           onClick={handleBackHome}
           className="inline-block mt-6 px-6 py-3 text-sm font-medium text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
         >
-          Back to Home
+          {t('backHome')}
         </button>
       </div>
     </div>

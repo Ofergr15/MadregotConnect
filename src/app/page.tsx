@@ -61,6 +61,113 @@ function useStravaLogin() {
   return { signIn, loading };
 }
 
+/**
+ * Google Sign-In (roadmap flow #22: Google creates the account; Strava/Garmin
+ * connect is a separate, optional step from the dashboard/profile page).
+ *
+ * Uses Supabase's standard OAuth redirect. `getSupabase()` doesn't set an
+ * explicit `flowType`, so it defaults to `implicit` — Supabase redirects back
+ * with the session tokens in the URL *hash fragment*
+ * (`#access_token=…&refresh_token=…`), which `/auth/resolve` already knows how
+ * to consume (it's the same shape the Strava synthetic-session bootstrap
+ * produces). Deliberately NOT routed through `/auth/callback` (the `?code=`
+ * PKCE exchange route): that route builds a fresh server-side Supabase client
+ * with no access to the browser's localStorage-held `code_verifier`, so the
+ * exchange would fail with AuthPKCECodeVerifierMissingError regardless of
+ * provider config. Landing straight on `/auth/resolve` reuses working,
+ * already-tested plumbing instead.
+ *
+ * NOTE: this call will fail until the Supabase dashboard's Google provider is
+ * enabled with a real Google Cloud OAuth Client ID/Secret + authorized
+ * redirect URI (Authentication → Providers → Google) and `/auth/resolve` is
+ * added to the dashboard's redirect URL allow-list — entirely outside this
+ * codebase.
+ */
+function useGoogleLogin() {
+  const [loading, setLoading] = useState(false);
+
+  const signIn = async () => {
+    setLoading(true);
+    try {
+      const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
+      await clearLocalIdentity();
+      const supabase = getSupabase();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/auth/resolve` },
+      });
+      if (error) throw error;
+      // On success the browser navigates away to Google; nothing else to do here.
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
+  };
+
+  return { signIn, loading };
+}
+
+function GoogleBadge({ className = 'bg-white text-[#4285F4]' }: { className?: string }) {
+  return (
+    <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-black ${className}`}>
+      G
+    </span>
+  );
+}
+
+/**
+ * Apple Sign-In. Mirrors {@link useGoogleLogin} exactly (same implicit-flow
+ * redirect to `/auth/resolve`, same "clear stale local identity first"
+ * bootstrap) — only the OAuth `provider` differs. See the comment above
+ * `useGoogleLogin` for why this deliberately lands on `/auth/resolve` rather
+ * than `/auth/callback`.
+ *
+ * NOTE: like Google, this will fail until Supabase's Apple provider is
+ * configured (Authentication → Providers → Apple, Sign in with Apple Services
+ * ID + private key) and `/auth/resolve` is in the redirect URL allow-list.
+ *
+ * Known v1 edge case (accepted product decision, not handled here): an
+ * existing member's first Apple sign-in via Apple's private-relay email won't
+ * match their existing `athletes.email` row, so they'd go through onboarding
+ * again rather than being linked to their old account.
+ */
+function useAppleLogin() {
+  const [loading, setLoading] = useState(false);
+
+  const signIn = async () => {
+    setLoading(true);
+    try {
+      const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
+      await clearLocalIdentity();
+      const supabase = getSupabase();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
+        options: { redirectTo: `${window.location.origin}/auth/resolve` },
+      });
+      if (error) throw error;
+      // On success the browser navigates away to Apple; nothing else to do here.
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
+  };
+
+  return { signIn, loading };
+}
+
+function AppleBadge({ className = 'text-black' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 384 512"
+      aria-hidden="true"
+      className={`h-4 w-4 ${className}`}
+      fill="currentColor"
+    >
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.4-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.5-90-61.5-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1-2 49.9-15.2 69.5-34.3z" />
+    </svg>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
   const t = useTranslations('home');
@@ -69,6 +176,8 @@ export default function HomePage() {
   const locale = useLocale();
   const [checking, setChecking] = useState(true);
   const { signIn, loading: signingIn } = useStravaLogin();
+  const { signIn: signInWithGoogle, loading: signingInWithGoogle } = useGoogleLogin();
+  const { signIn: signInWithApple, loading: signingInWithApple } = useAppleLogin();
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -151,6 +260,30 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <LocaleSwitcher />
+              <button
+                onClick={signInWithGoogle}
+                disabled={signingInWithGoogle}
+                className="hidden sm:inline-flex whitespace-nowrap items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full border-2 border-gray-300 hover:border-gray-400 active:scale-[0.98] text-gray-700 text-sm font-bold transition disabled:opacity-50"
+              >
+                {signingInWithGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                  <>
+                    <GoogleBadge className="bg-gray-100 text-[#4285F4]" />
+                    {t('signInWithGoogle')}
+                  </>
+                )}
+              </button>
+              <button
+                onClick={signInWithApple}
+                disabled={signingInWithApple}
+                className="hidden sm:inline-flex whitespace-nowrap items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full border-2 border-gray-300 hover:border-gray-400 active:scale-[0.98] text-gray-700 text-sm font-bold transition disabled:opacity-50"
+              >
+                {signingInWithApple ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                  <>
+                    <AppleBadge className="text-black" />
+                    {t('signInWithApple')}
+                  </>
+                )}
+              </button>
               <button
                 onClick={signIn}
                 disabled={signingIn}
@@ -254,6 +387,30 @@ export default function HomePage() {
                     <>
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-primary-600 text-xs font-black">G</span>
                       {t('signInWithStrava')}
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={signInWithGoogle}
+                  disabled={signingInWithGoogle}
+                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[46px] rounded-2xl border-2 border-gray-300 hover:border-gray-400 bg-white active:scale-[0.99] text-gray-700 text-sm font-bold transition disabled:opacity-50"
+                >
+                  {signingInWithGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                    <>
+                      <GoogleBadge className="bg-gray-100 text-[#4285F4]" />
+                      {t('signInWithGoogle')}
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={signInWithApple}
+                  disabled={signingInWithApple}
+                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[46px] rounded-2xl border-2 border-gray-300 hover:border-gray-400 bg-white active:scale-[0.99] text-gray-700 text-sm font-bold transition disabled:opacity-50"
+                >
+                  {signingInWithApple ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                    <>
+                      <AppleBadge className="text-black" />
+                      {t('signInWithApple')}
                     </>
                   )}
                 </button>
@@ -453,23 +610,51 @@ export default function HomePage() {
             {t('supportSystem')}
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
-            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+          {/* Two real-proof hero cards — actual numbers, not stock copy. */}
+          <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
+            <div className="group relative overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="pointer-events-none absolute -top-10 -end-10 h-40 w-40 rounded-full bg-primary-600/[0.06] blur-2xl" aria-hidden="true" />
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
                 <Trophy className="h-6 w-6 stroke-[1.75]" />
               </div>
-              <h3 className="text-lg font-bold mb-2">{t('performance')}</h3>
+              <h3 className="text-lg font-bold mb-1">{t('performance')}</h3>
+              <div className="flex items-baseline gap-2 mb-3">
+                <span className="text-4xl sm:text-5xl font-black text-primary-600 tabular-nums" dir="ltr">17</span>
+                <span className="text-sm text-gray-500">{t('videoGuidedExercises')}</span>
+              </div>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('professionalCoach')}</li>
                 <li>{t('gymAccess')}</li>
                 <li>{t('personalizedPrograms')}</li>
               </ul>
             </div>
-            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+            <div className="group relative overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="pointer-events-none absolute -top-10 -end-10 h-40 w-40 rounded-full bg-primary-600/[0.06] blur-2xl" aria-hidden="true" />
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
-                <Heart className="h-6 w-6 stroke-[1.75]" />
+                <Users className="h-6 w-6 stroke-[1.75]" />
               </div>
-              <h3 className="text-lg font-bold mb-2">{t('recovery')}</h3>
+              <h3 className="text-lg font-bold mb-1">{t('community')}</h3>
+              <div className="flex items-baseline gap-2 mb-3">
+                <span className="text-4xl sm:text-5xl font-black text-primary-600 tabular-nums" dir="ltr">
+                  {stats && stats.athletes > 0 ? fmtNum(stats.athletes, locale) : '20+'}
+                </span>
+                <span className="text-sm text-gray-500">{t('activeRunnersThisSeason')}</span>
+              </div>
+              <ul className="text-sm text-gray-500 space-y-1">
+                <li>{t('trainingPartners')}</li>
+                <li>{t('raceTravel')}</li>
+                <li>{t('memberBenefits')}</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Three smaller supporting cards. */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600">
+                <Heart className="h-5 w-5 stroke-[1.75]" />
+              </div>
+              <h3 className="text-base font-bold mb-2">{t('recovery')}</h3>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('physiotherapy')}</li>
                 <li>{t('orthopedicCare')}</li>
@@ -477,10 +662,10 @@ export default function HomePage() {
               </ul>
             </div>
             <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
-                <Zap className="h-6 w-6 stroke-[1.75]" />
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
+                <Zap className="h-5 w-5 stroke-[1.75]" />
               </div>
-              <h3 className="text-lg font-bold mb-2">{t('nutrition')}</h3>
+              <h3 className="text-base font-bold mb-2">{t('nutrition')}</h3>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('sportsNutrition')}</li>
                 <li>{t('energyProducts')}</li>
@@ -488,26 +673,11 @@ export default function HomePage() {
               </ul>
             </div>
             <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
-                <Users className="h-6 w-6 stroke-[1.75]" />
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600">
+                <Camera className="h-5 w-5 stroke-[1.75]" />
               </div>
-              <h3 className="text-lg font-bold mb-2">{t('community')}</h3>
-              <ul className="text-sm text-gray-500 space-y-1">
-                <li>{t('trainingPartners')}</li>
-                <li>{t('raceTravel')}</li>
-                <li>{t('memberBenefits')}</li>
-              </ul>
-            </div>
-            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg col-span-2 sm:col-span-1">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
-                <Camera className="h-6 w-6 stroke-[1.75]" />
-              </div>
-              <h3 className="text-lg font-bold mb-2">{t('content')}</h3>
-              <ul className="text-sm text-gray-500 space-y-1">
-                <li>{t('professionalPhotography')}</li>
-                <li>{t('socialMedia')}</li>
-                <li>{t('raceCoverage')}</li>
-              </ul>
+              <h3 className="text-base font-bold mb-2">{t('content')}</h3>
+              <p className="text-sm text-gray-500">{t('feedProof')}</p>
             </div>
           </div>
         </div>
@@ -544,6 +714,30 @@ export default function HomePage() {
                 <>
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-white text-xs font-black">G</span>
                   {t('signInWithStrava')}
+                </>
+              )}
+            </button>
+            <button
+              onClick={signInWithGoogle}
+              disabled={signingInWithGoogle}
+              className="inline-flex items-center justify-center gap-2.5 bg-white/10 hover:bg-white/20 border-2 border-white/30 active:scale-[0.99] text-white font-bold px-8 py-4 sm:py-5 rounded-xl text-lg transition disabled:opacity-50"
+            >
+              {signingInWithGoogle ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                <>
+                  <GoogleBadge />
+                  {t('signInWithGoogle')}
+                </>
+              )}
+            </button>
+            <button
+              onClick={signInWithApple}
+              disabled={signingInWithApple}
+              className="inline-flex items-center justify-center gap-2.5 bg-white/10 hover:bg-white/20 border-2 border-white/30 active:scale-[0.99] text-white font-bold px-8 py-4 sm:py-5 rounded-xl text-lg transition disabled:opacity-50"
+            >
+              {signingInWithApple ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                <>
+                  <AppleBadge className="text-white" />
+                  {t('signInWithApple')}
                 </>
               )}
             </button>

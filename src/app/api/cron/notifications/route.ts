@@ -49,7 +49,17 @@ async function run(request: Request) {
       // Prefer Hebrew (app default); fall back to English if only that was filled.
       const title = n.title_he || n.title_en || 'Madregot';
       const body = n.body_he || n.body_en || '';
-      const sent = await sendPushToSubscriptions(subs, { title, body, url: n.url, tag: `notif-${n.id}` });
+      // Recurring notifications reuse the same `notif-${n.id}` tag on every
+      // fire (one-time ones only ever send once), so each new occurrence
+      // REPLACES the prior one on the lock screen — set renotify so that
+      // replacement still alerts the athlete instead of silently swapping it.
+      const sent = await sendPushToSubscriptions(subs, {
+        title,
+        body,
+        url: n.url,
+        tag: `notif-${n.id}`,
+        renotify: n.schedule_type === 'recurring',
+      });
 
       if (n.schedule_type === 'recurring' && n.recur_interval && n.recur_unit) {
         await supabase

@@ -20,7 +20,7 @@ interface AthleteStat {
 /**
  * GET /api/academy/stats
  * Per-academy-athlete + team totals of REAL completed activity: workouts (runs),
- * km, and time — both this (Monday-based, activity) week and all-time.
+ * km, and time — both this (Sunday-based, activity) week and all-time.
  * Reuses the leaderboard Map-accumulate aggregation, scoped to academy athletes.
  */
 export async function GET() {

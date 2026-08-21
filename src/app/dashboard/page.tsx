@@ -1,26 +1,29 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import {
   Calendar, Users, ArrowRight, TrendingUp, TrendingDown, Heart, Route,
-  Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind, X, Repeat,
-  Loader2, CheckCircle2, Dumbbell, Trophy,
+  Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind,
+  Loader2, Dumbbell, Trophy,
 } from 'lucide-react';
 import { cn, getActivityWeekStart, getPlanWeekStart, formatActivityTime, formatActivityDate, activityLocalHour, resolveGroup, israelNow } from '@/lib/utils';
 import { fetchActivities, fetchActivityDetails } from '@/lib/activities-client';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
-import { groupPaceTokens } from '@/lib/garmin/pace';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
-import { AttendanceRSVP } from '@/components/AttendanceRSVP';
+import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRSVP';
+import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { MomentumCard } from '@/components/MomentumCard';
 import { StatTiles } from '@/components/StatTiles';
 import { SquadStandings } from '@/components/SquadStandings';
 import { CoachPulse } from '@/components/CoachPulse';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
-import { Sheet, Spinner } from '@/components/ui';
+import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
+import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
+import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_LABELS as typeLabels } from '@/lib/plans/workout-parsing';
+import { Spinner } from '@/components/ui';
 
 const RACE_DATE = new Date('2026-12-06T09:00:00');
 const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
@@ -61,11 +64,6 @@ interface WeatherDay {
   precipitation: number; windSpeed: number; humidity: number; code: number;
 }
 
-const typeColors: Record<string, string> = {
-  intervals: '#ef4444', long_run: '#a855f7', tempo: '#f97316',
-  fartlek: '#ec4899', progressive: '#14b8a6', easy: '#6366f1', rest: '#1e293b',
-};
-
 function inferRunTypeFromActivity(distanceKm: number, avgPaceSec: number | null): { type: string; label: string; color: string; bg: string } {
   const types: Record<string, { label: string; color: string; bg: string }> = {
     long_run: { label: 'Long Run', color: 'text-purple-400', bg: 'bg-purple-500/15' },
@@ -81,11 +79,6 @@ function inferRunTypeFromActivity(distanceKm: number, avgPaceSec: number | null)
   if (distanceKm < 7 && avgPaceSec && avgPaceSec > 330) return { type: 'recovery', ...types.recovery };
   return { type: 'easy', ...types.easy };
 }
-
-const typeLabels: Record<string, string> = {
-  intervals: 'Intervals', long_run: 'Long Run', tempo: 'Tempo',
-  fartlek: 'Fartlek', progressive: 'Progressive', easy: 'Easy', rest: 'Rest',
-};
 
 function WeatherIcon({ code, className = "h-5 w-5" }: { code: number; className?: string }) {
   if (code <= 1) return <Sun className={cn(className, "text-amber-400")} />;
@@ -105,260 +98,6 @@ function formatPace(secPerKm: number): string {
   const min = Math.floor(secPerKm / 60);
   const sec = Math.round(secPerKm % 60);
   return `${min}:${String(sec).padStart(2, '0')}`;
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds >= 60) {
-    const min = Math.floor(seconds / 60);
-    const sec = seconds % 60;
-    return sec > 0 ? `${min}:${String(sec).padStart(2, '0')}` : `${min} min`;
-  }
-  return `${seconds}s`;
-}
-
-function getStepLabel(step: any): string {
-  if (step.notes) return step.notes;
-  const labels: Record<string, string> = {
-    warmup: 'Warmup', cooldown: 'Cooldown', interval: 'Hard',
-    active: 'Run', rest: 'Recovery', recovery: 'Recovery',
-  };
-  return labels[step.type] || step.type;
-}
-
-function getStepColor(step: any): string {
-  if (step.type === 'warmup' || step.type === 'cooldown') return '#f59e0b';
-  if (step.type === 'interval' || step.type === 'active') return '#ef4444';
-  return '#64748b';
-}
-
-function summarizeSteps(steps: any[]): any[] {
-  const summary: any[] = [];
-
-  for (const step of steps) {
-    if (step.repeatCount && step.repeatSteps) {
-      // Check if repeat substeps are effort-based (no pace numbers in notes)
-      const subsAreEffortBased = step.repeatSteps.every((sub: any) =>
-        !sub.notes || !/\d:\d\d/.test(sub.notes)
-      );
-      // If parent has warmup-like duration+pace and substeps are effort-only,
-      // extract the warmup as a separate phase
-      if (subsAreEffortBased && step.notes && /דקות|דק/.test(step.notes) && /\d:\d\d/.test(step.notes) && step.durationValue && step.durationValue >= 300) {
-        summary.push({
-          type: 'phase',
-          phase: 'warmup',
-          steps: [{
-            type: 'warmup',
-            durationType: 'time',
-            durationValue: step.durationValue,
-            targetPaceMinPerKm: step.targetPaceMinPerKm,
-            targetPaceMaxPerKm: step.targetPaceMaxPerKm,
-          }],
-        });
-      }
-      summary.push({ type: 'repeat', count: step.repeatCount, notes: step.notes, substeps: step.repeatSteps });
-    } else if (step.type === 'warmup' || step.type === 'cooldown') {
-      const prev = summary[summary.length - 1];
-      if (prev?.type === 'phase' && prev.phase === step.type) {
-        prev.steps.push(step);
-      } else {
-        summary.push({ type: 'phase', phase: step.type, steps: [step] });
-      }
-    } else if (step.type === 'rest' || step.type === 'recovery') {
-      summary.push({ type: 'rest', step });
-    } else {
-      summary.push({ type: 'step', step });
-    }
-  }
-  return summary;
-}
-
-function formatStepDuration(step: any): string {
-  if (step.durationType === 'distance' && step.durationValue) {
-    return step.durationValue >= 1000 ? `${step.durationValue / 1000} km` : `${step.durationValue}m`;
-  }
-  if (step.durationType === 'time' && step.durationValue) {
-    return formatDuration(step.durationValue);
-  }
-  return '';
-}
-
-function isEffortBased(step: any): boolean {
-  if (!step.notes) return false;
-  const effortWords = /קל|מתון|בינוני|קשה|נוח|מתום/;
-  return effortWords.test(step.notes);
-}
-
-function formatStepPace(step: any): string {
-  if (isEffortBased(step)) return '';
-  if (step.targetPaceMinPerKm && step.targetPaceMaxPerKm) {
-    return `${formatPace(step.targetPaceMinPerKm)}–${formatPace(step.targetPaceMaxPerKm)}`;
-  }
-  if (step.targetPaceMinPerKm) return formatPace(step.targetPaceMinPerKm);
-  return '';
-}
-
-// Renders a step's pace for all three groups: Group 1 plain, Group 2 in single
-// brackets, Group 3 in double brackets — "3:30 (3:40) ((3:50))" — with the
-// athlete's own group highlighted. Falls back to the step's single pace when a
-// plan has no per-group data. Returns null when the step has no pace at all.
-function GroupPaces({ step, viewGroup }: { step: any; viewGroup: number }) {
-  if (isEffortBased(step)) return null;
-  const gp = step.groupPaces as Array<{ min: number; max: number } | null> | undefined;
-  const tokens: [string, string, string] = gp
-    ? groupPaceTokens(gp[0], gp[1], gp[2])
-    : [formatStepPace(step), '', ''];
-  if (!tokens.some(Boolean)) return null;
-
-  return (
-    <span dir="ltr" className="inline-flex items-center gap-1 tabular-nums">
-      {tokens.map((tok, g) => {
-        if (!tok) return null;
-        const text = g === 0 ? tok : g === 1 ? `(${tok})` : `((${tok}))`;
-        const mine = g === viewGroup;
-        return (
-          <span
-            key={g}
-            className={cn(
-              'text-xs',
-              mine ? 'text-primary-600 font-bold' : 'text-slate-500'
-            )}
-          >
-            {text}
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
-  session: any;
-  viewGroup: number;
-  onPickGroup: (idx: number) => void;
-  onClose: () => void;
-}) {
-  const blocks = summarizeSteps(session.steps || []);
-  // Only show the group toggle when the plan actually carries per-group paces.
-  const hasGroupPaces = (session.steps || []).some((s: any) =>
-    Array.isArray(s.groupPaces) && s.groupPaces.filter(Boolean).length > 1
-    || (s.repeatSteps || []).some((r: any) => Array.isArray(r.groupPaces) && r.groupPaces.filter(Boolean).length > 1)
-  );
-
-  return (
-    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }} title={session.name}>
-        {/* Header */}
-        <div className="pb-3 flex items-start justify-between shrink-0">
-          <div>
-            <p className="text-xs font-bold text-primary-600 uppercase tracking-wider">{session.day}</p>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="text-sm font-bold text-white">{session.totalKm} km</span>
-              {session.highlight && (
-                <code className="text-xs font-bold text-primary-600 bg-primary-600/10 px-2 py-0.5 rounded">{session.highlight}</code>
-              )}
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Group selector — pick which group's pace is highlighted (display only) */}
-        {hasGroupPaces && (
-          <div className="pb-3 shrink-0">
-            <div className="flex items-center gap-1 bg-slate-800/60 border border-slate-700/50 rounded-lg p-1 w-fit">
-              {[0, 1, 2].map(g => (
-                <button
-                  key={g}
-                  onClick={() => onPickGroup(g)}
-                  className={cn(
-                    'px-3 h-7 rounded-md text-xs font-semibold transition-colors',
-                    g === viewGroup ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
-                  )}
-                >
-                  Group {g + 1}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Compact Workout Structure */}
-        <div className="pb-1 space-y-2">
-          {blocks.map((block, i) => {
-            if (block.type === 'phase') {
-              const step0 = block.steps[0];
-              const durLabel = formatStepDuration(step0);
-              return (
-                <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-slate-800/40">
-                  <div className="w-1 h-5 rounded-full bg-amber-500 flex-shrink-0" />
-                  <span className="text-sm text-white font-medium">{block.phase === 'warmup' ? 'Warmup' : 'Cooldown'}</span>
-                  {durLabel && <span className="text-sm text-slate-400">{durLabel}</span>}
-                  <span className="ms-auto"><GroupPaces step={step0} viewGroup={viewGroup} /></span>
-                </div>
-              );
-            }
-
-            if (block.type === 'repeat') {
-              const substeps = block.substeps || [];
-              const summary = substeps.map((sub: any) => {
-                const dur = formatStepDuration(sub);
-                const label = getStepLabel(sub);
-                return { dur, label, isRest: sub.type === 'rest' || sub.type === 'recovery', step: sub };
-              });
-
-              return (
-                <div key={i} className="rounded-lg border border-primary-600/20 bg-primary-600/5 px-3 py-2.5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Repeat className="h-3.5 w-3.5 text-primary-600" />
-                    <span className="text-sm font-bold text-white">{block.count}x</span>
-                  </div>
-                  <div className="space-y-1">
-                    {summary.map((s: any, j: number) => (
-                      <div key={j} dir="ltr" className="flex items-center gap-2 text-sm">
-                        <div className="w-1 h-4 rounded-full flex-shrink-0" style={{ background: getStepColor(s.step) }} />
-                        <span className={cn("font-medium flex-shrink-0", s.isRest ? "text-slate-500" : "text-white")}>
-                          {s.dur}
-                        </span>
-                        <span className="text-slate-400 truncate flex-1 text-end" dir="rtl">{s.label}</span>
-                        <span className="flex-shrink-0"><GroupPaces step={s.step} viewGroup={viewGroup} /></span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-
-            if (block.type === 'rest') {
-              const s = block.step;
-              const dur = formatStepDuration(s) || 'Open';
-              return (
-                <div key={i} className="flex items-center gap-2 py-1.5 px-3 text-sm text-slate-500">
-                  <div className="w-1 h-4 rounded-full bg-slate-600" />
-                  <span>{s.notes || 'Recovery'}</span>
-                  <span className="ms-auto">{dur}</span>
-                </div>
-              );
-            }
-
-            const s = block.step;
-            const dur = formatStepDuration(s) || 'Open';
-            const label = getStepLabel(s);
-            return (
-              <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-slate-800/40 text-sm">
-                <div className="w-1 h-5 rounded-full flex-shrink-0" style={{ background: getStepColor(s) }} />
-                <span className="font-medium text-white">{label}</span>
-                <span className="text-slate-400">{dur}</span>
-                <span className="ms-auto"><GroupPaces step={s} viewGroup={viewGroup} /></span>
-              </div>
-            );
-          })}
-
-          {(!session.steps || session.steps.length === 0) && (
-            <p className="text-sm text-slate-500 text-center py-8">No step details available</p>
-          )}
-        </div>
-    </Sheet>
-  );
 }
 
 interface RecentActivity {
@@ -383,7 +122,17 @@ export default function DashboardPage() {
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
   const [weather, setWeather] = useState<WeatherDay[]>([]);
   const [teamDays, setTeamDays] = useState<number[]>([2, 5]); // team-workout days (0=Sun..6=Sat), admin-editable
+  const [workoutHour, setWorkoutHour] = useState(18); // team workout start hour (Israel), admin-editable — used for the "add to calendar" event time
+  const [rsvpAnswered, setRsvpAnswered] = useState(false); // has the athlete answered the current RSVP target? drives the hero card's CTA
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  // The single most-recently-synced activity from the background Strava sync
+  // below, shown once in the Strava-style customization sheet right after it
+  // lands. Only set for a genuinely NEW activity from THIS sync (never for
+  // activities already on the page), and only when it started within the
+  // last 24h — otherwise a first-time 180-day Strava backfill would pop the
+  // sheet for a run from months ago.
+  const [syncedActivity, setSyncedActivity] = useState<RecentActivity | null>(null);
+  const [syncedExtraCount, setSyncedExtraCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState({ d: 0, h: 0, m: 0, s: 0 });
   const [week, setWeek] = useState(0);
@@ -420,8 +169,17 @@ export default function DashboardPage() {
     setAthleteName(name);
     // Admin-editable team-workout days → which days the RSVP card shows on.
     fetch('/api/reminder-config').then(r => r.ok ? r.json() : null)
-      .then(d => { if (Array.isArray(d?.config?.teamDays)) setTeamDays(d.config.teamDays); })
+      .then(d => {
+        if (Array.isArray(d?.config?.teamDays)) setTeamDays(d.config.teamDays);
+        if (typeof d?.config?.workoutHour === 'number') setWorkoutHour(d.config.workoutHour);
+      })
       .catch(() => {});
+  }, []);
+
+  // Stable identity so AttendanceRSVP's status effect doesn't refire on every
+  // unrelated parent re-render (e.g. the countdown ticking every second).
+  const handleRsvpStatus = useCallback((status: AttendanceStatus) => {
+    setRsvpAnswered(status.answered);
   }, []);
 
   useEffect(() => {
@@ -449,89 +207,101 @@ export default function DashboardPage() {
       const syncKey = myAthleteId ? `dashboard_synced:${myAthleteId}` : 'dashboard_synced';
       // Super-user "view as" preview is read-only (sync POST is blocked).
       const isPreviewing = !!localStorage.getItem('view_as_role');
+      const canSync = !!myAthleteId && !myIsCoach && !isPreviewing;
 
-      let hasStrava = false;
-      // Snapshot of "will we run the sync this load?" — decided once here and
-      // reused for the background sync below.
-      let willSync = false;
-      if (myAthleteId && !myIsCoach && !isPreviewing) {
-        try {
-          const meRes = await fetch(`/api/athletes/me?id=${myAthleteId}`);
-          const meData = await meRes.json();
-          hasStrava = meData.athlete?.hasStrava || false;
-        } catch {}
+      // Fire every independent request up front — none of these wait on each
+      // other's response body, so there's no reason to stage them. The only
+      // real ordering constraints are downstream: the activities snapshot must
+      // be read BEFORE the background sync starts, and the sync must finish
+      // before refetching — both handled below, after these all resolve.
+      const mePromise = canSync ? fetch(`/api/athletes/me?id=${myAthleteId}`) : null;
+      const statsPromise = fetch('/api/dashboard/stats');
+      const weeklyPromise = fetch('/api/dashboard/weekly');
+      const activitiesPromise = fetchActivities();
+      const leaderboardPromise = !myIsCoach ? fetch('/api/groups/leaderboard') : null;
+      const groupsPromise = !myIsCoach ? fetch('/api/groups') : null;
 
-        // Re-check after the async profile lookup. In React Strict Mode two
-        // effects can start together; the first one sets this lock before the
-        // second proceeds, preventing duplicate concurrent imports.
-        willSync = !localStorage.getItem(syncKey) && hasStrava;
-
-        if (willSync) {
-          // Mark before starting so Strict Mode cannot launch a duplicate sync.
-          // On a real sync error we re-arm below so it retries next visit.
-          localStorage.setItem(syncKey, '1');
-        } else if (!hasStrava) {
-          localStorage.setItem(syncKey, '1');
-        }
-      }
+      // Weather — fully non-blocking; renders when it arrives (UI guards empty).
+      fetch(
+        'https://api.open-meteo.com/v1/forecast?latitude=32.08&longitude=34.78&hourly=temperature_2m,relativehumidity_2m,precipitation,windspeed_10m,weathercode&timezone=Asia/Jerusalem&forecast_days=7'
+      )
+        .then(r => (r.ok ? r.json() : null))
+        .then(wr => {
+          if (!wr?.hourly) return;
+          const dn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          const map: Record<string, { t: number[]; h: number[]; p: number[]; w: number[]; c: number[] }> = {};
+          wr.hourly.time.forEach((time: string, i: number) => {
+            const hr = new Date(time).getHours();
+            if (hr >= 5 && hr <= 8) {
+              const dk = time.split('T')[0];
+              if (!map[dk]) map[dk] = { t: [], h: [], p: [], w: [], c: [] };
+              map[dk].t.push(wr.hourly.temperature_2m[i]);
+              map[dk].h.push(wr.hourly.relativehumidity_2m?.[i] ?? 0);
+              map[dk].p.push(wr.hourly.precipitation[i]);
+              map[dk].w.push(wr.hourly.windspeed_10m[i]);
+              map[dk].c.push(wr.hourly.weathercode[i]);
+            }
+          });
+          setWeather(Object.entries(map).map(([date, d]) => ({
+            date, day: dn[new Date(date).getDay()],
+            tempMin: Math.round(Math.min(...d.t)), tempMax: Math.round(Math.max(...d.t)),
+            humidity: Math.round(d.h.reduce((a, b) => a + b, 0) / d.h.length),
+            precipitation: Math.round(d.p.reduce((a, b) => a + b, 0) * 10) / 10,
+            windSpeed: Math.round(Math.max(...d.w)),
+            code: d.c.sort((a, b) => b - a)[0],
+          })));
+        })
+        .catch(() => {});
 
       try {
         // Gate on res.ok so a 5xx doesn't get parsed as {error} and rendered as
         // zeros / "no plan"; leave the prior state so the UI degrades gracefully.
-        const [sRes, wRes] = await Promise.all([
-          fetch('/api/dashboard/stats'),
-          fetch('/api/dashboard/weekly'),
-        ]);
+        const [sRes, wRes] = await Promise.all([statsPromise, weeklyPromise]);
         if (sRes.ok) setStats(await sRes.json());
         if (wRes.ok) setWeekly(await wRes.json());
 
-        // Show the dashboard as soon as stats+plan are in hand. Weather is a
-        // third-party API and must NOT block first paint (open-meteo being slow
-        // previously hung the whole spinner). Fetch it independently below.
+        // Show the dashboard as soon as stats+plan are in hand — don't wait on
+        // activities/leaderboard/groups, which render into sections further
+        // down the page once they land.
         setLoading(false);
 
-        // Weather — fully non-blocking; renders when it arrives (UI guards empty).
-        fetch(
-          'https://api.open-meteo.com/v1/forecast?latitude=32.08&longitude=34.78&hourly=temperature_2m,relativehumidity_2m,precipitation,windspeed_10m,weathercode&timezone=Asia/Jerusalem&forecast_days=7'
-        )
-          .then(r => (r.ok ? r.json() : null))
-          .then(wr => {
-            if (!wr?.hourly) return;
-            const dn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const map: Record<string, { t: number[]; h: number[]; p: number[]; w: number[]; c: number[] }> = {};
-            wr.hourly.time.forEach((time: string, i: number) => {
-              const hr = new Date(time).getHours();
-              if (hr >= 5 && hr <= 8) {
-                const dk = time.split('T')[0];
-                if (!map[dk]) map[dk] = { t: [], h: [], p: [], w: [], c: [] };
-                map[dk].t.push(wr.hourly.temperature_2m[i]);
-                map[dk].h.push(wr.hourly.relativehumidity_2m?.[i] ?? 0);
-                map[dk].p.push(wr.hourly.precipitation[i]);
-                map[dk].w.push(wr.hourly.windspeed_10m[i]);
-                map[dk].c.push(wr.hourly.weathercode[i]);
-              }
-            });
-            setWeather(Object.entries(map).map(([date, d]) => ({
-              date, day: dn[new Date(date).getDay()],
-              tempMin: Math.round(Math.min(...d.t)), tempMax: Math.round(Math.max(...d.t)),
-              humidity: Math.round(d.h.reduce((a, b) => a + b, 0) / d.h.length),
-              precipitation: Math.round(d.p.reduce((a, b) => a + b, 0) * 10) / 10,
-              windSpeed: Math.round(Math.max(...d.w)),
-              code: d.c.sort((a, b) => b - a)[0],
-            })));
-          })
-          .catch(() => {});
+        let hasStrava = false;
+        if (mePromise) {
+          try {
+            const meRes = await mePromise;
+            const meData = await meRes.json();
+            hasStrava = meData.athlete?.hasStrava || false;
+          } catch {}
+        }
+        // Decided once here and reused for the background sync below. Re-check
+        // happens naturally since this runs after the concurrent fetches above
+        // resolve; in React Strict Mode two effects can still start together,
+        // so the localStorage lock below still guards against a duplicate sync.
+        let willSync = false;
+        if (canSync) {
+          willSync = !localStorage.getItem(syncKey) && hasStrava;
+          if (willSync) {
+            // Mark before starting so Strict Mode cannot launch a duplicate sync.
+            // On a real sync error we re-arm below so it retries next visit.
+            localStorage.setItem(syncKey, '1');
+          } else if (!hasStrava) {
+            localStorage.setItem(syncKey, '1');
+          }
+        }
 
-        // Load existing activities first (non-blocking for UI)
-        const actRes = await fetchActivities();
+        const actRes = await activitiesPromise;
+        // Snapshot of ids seen BEFORE the background sync below, so any activity
+        // that shows up after it is provably new — not just "new to this page load".
+        let preSyncActivityIds = new Set<string>();
         if (actRes.ok) {
           const actData = await actRes.json();
           const allActs = actData.activities || [];
           const filtered = myIsCoach ? allActs : allActs.filter((a: any) => a.athlete_id === myAthleteId);
           setRecentActivities(filtered.slice(0, 3));
+          preSyncActivityIds = new Set(filtered.map((a: any) => a.id));
 
           if (!myIsCoach && myAthleteId) {
-            // Monday-based week so weekly km matches Garmin/Strava.
+            // Activity week (Sunday-based, matches the club's plan week).
             const weekStart = new Date(getActivityWeekStart(new Date()));
 
             const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
@@ -542,7 +312,7 @@ export default function DashboardPage() {
             const weekMap: Record<string, { km: number; runs: number }> = {};
             filtered.forEach((a: any) => {
               const key = getActivityWeekStart(new Date(a.start_time))
-                .split('-').reverse().slice(0, 2).join('/'); // DD/MM of the Monday
+                .split('-').reverse().slice(0, 2).join('/'); // DD/MM of the week-start Sunday
               if (!weekMap[key]) weekMap[key] = { km: 0, runs: 0 };
               weekMap[key].km += (a.distance || 0) / 1000;
               weekMap[key].runs += 1;
@@ -589,6 +359,22 @@ export default function DashboardPage() {
               const totalKm = thisWeekActs.reduce((sum: number, a: any) => sum + (a.distance || 0), 0) / 1000;
               setWeeklyKm(Math.round(totalKm * 10) / 10);
               setWeeklyRuns(thisWeekActs.length);
+
+              // This is the "sync just completed" moment: activities present now
+              // that weren't in the pre-sync snapshot are genuinely new. `filtered`
+              // is already start_time-desc (server order), so the first match is
+              // the most recent. Skip anything older than 24h so a first-time
+              // 180-day Strava backfill doesn't pop the customization sheet for a
+              // run from months ago.
+              const newActivities = filtered.filter((a: any) => !preSyncActivityIds.has(a.id));
+              const RECENT_MS = 24 * 60 * 60 * 1000;
+              const justSynced = newActivities.find(
+                (a: any) => Date.now() - new Date(a.start_time).getTime() < RECENT_MS,
+              );
+              if (justSynced) {
+                setSyncedActivity(justSynced);
+                setSyncedExtraCount(newActivities.length - 1);
+              }
             }
           } catch {}
         }
@@ -665,6 +451,9 @@ export default function DashboardPage() {
   })();
   const rsvpWeekStart = rsvpTarget ? getPlanWeekStart(rsvpTarget.date) : '';
   const rsvpWorkout = rsvpTarget ? weekly?.dailyDistances?.find(d => d.dayOfWeek === rsvpTarget.dow) : null;
+  // The title says "today"/"tomorrow" (via AttendanceRSVP's own dayBefore prop);
+  // this label just names the workout itself.
+  const rsvpLabel = rsvpWorkout?.type ? `${rsvpWorkout.day} · ${rsvpWorkout.type}` : rsvpWorkout?.day;
   // Time-based greeting (Israel-ish local hour) for the large title.
   const greetHour = new Date().getHours();
   const greeting = greetHour < 12 ? t('goodMorning') : greetHour < 18 ? t('goodAfternoon') : t('goodEvening');
@@ -681,23 +470,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ═══ ATTENDANCE — RSVP is a DAY-BEFORE flow (matches the Mon 08:00 + 18:00
-          pushes for a Tue workout). Day before → ask everyone. Workout day → the
-          athlete card only nudges those who never answered (hideIfAnswered), while
-          the coach roster always shows. Days come from the admin teamDays config. */}
-      {rsvpTarget && (() => {
-        // The title says "today"/"tomorrow"; the label just names the workout.
-        const label = rsvpWorkout?.type ? `${rsvpWorkout.day} · ${rsvpWorkout.type}` : rsvpWorkout?.day;
-        return isCoach
-          ? <AttendanceRoster weekStart={rsvpWeekStart} day={rsvpTarget.dow} />
-          : <AttendanceRSVP
-              workoutLabel={label || undefined}
-              weekStart={rsvpWeekStart}
-              day={rsvpTarget.dow}
-              dayBefore={rsvpTarget.dayBefore}
-              hideIfAnswered={!rsvpTarget.dayBefore}
-            />;
-      })()}
+      {/* ═══ ATTENDANCE (coach) — RSVP is a DAY-BEFORE flow (matches the Mon 08:00 +
+          18:00 pushes for a Tue workout); the coach roster always shows, regardless
+          of who's answered. Days come from the admin teamDays config. The athlete's
+          own RSVP now lives inside the "next workout" hero card further down (same
+          rsvpTarget/weekStart/day/dayBefore targeting — only the display moved). */}
+      {rsvpTarget && isCoach && (
+        <AttendanceRoster weekStart={rsvpWeekStart} day={rsvpTarget.dow} />
+      )}
 
       {/* ═══ RACE COUNTDOWN — compact native strip (was a giant 8xl number) ═══ */}
       <section className="rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4 flex items-center gap-4">
@@ -759,71 +539,61 @@ export default function DashboardPage() {
         </section>
       ) : (
         <section className="space-y-3 sm:space-y-4">
-          {/* Training Days + Next Workout */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('trainingDays')}</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-                {weeklyRuns}<span className="text-sm font-medium text-slate-500 ms-1">/ {hasData ? weekly!.trainingDays : 7}</span>
-              </p>
-              <p className="text-sm text-slate-500 mt-1">{t('completed')}</p>
-            </div>
-            {(() => {
-              const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-              const todayW = weekly?.dailyDistances?.find(d => d.dayOfWeek === todayDow && d.max > 0);
-              const tomorrowDow = (todayDow + 1) % 7;
-              const tomorrowW = weekly?.dailyDistances?.find(d => d.dayOfWeek === tomorrowDow && d.max > 0);
-              if (!todayW && !tomorrowW) return null;
-              return (
-                <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30 flex flex-col justify-between">
-                  {todayW && (() => {
-                    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-                    const todayKm = recentActivities.filter(a => new Date(a.start_time) >= todayStart).reduce((s, a) => s + (a.distance || 0) / 1000, 0);
-                    const done = todayKm >= todayW.min;
-                    const sessionName = todayW.sessions?.[0]?.name || '';
-                    return (
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('today')}</p>
-                          <div className="flex items-center gap-1.5">
-                            {done && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
-                            <span className="text-3xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[todayW.type]}20`, color: typeColors[todayW.type] }}>
-                              {typeLabels[todayW.type] || todayW.type}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-xl font-black text-white mt-1 tabular-nums">
-                          {todayW.min === todayW.max ? todayW.max : `${todayW.min}–${todayW.max}`}
-                          <span className="text-sm font-medium text-slate-500 ms-1">{tc('km')}</span>
-                          {todayKm > 0 && <span className="text-xs font-semibold text-emerald-400 ms-2">{Math.round(todayKm * 10) / 10} done</span>}
-                        </p>
-                        {sessionName && <p className="text-2xs text-slate-500 mt-0.5">{sessionName}</p>}
-                      </div>
-                    );
-                  })()}
-                  {tomorrowW && (() => {
-                    const sessionName = tomorrowW.sessions?.[0]?.name || '';
-                    return (
-                      <div className={todayW ? 'mt-3 pt-3 border-t border-slate-700/30' : ''}>
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('tomorrow')}</p>
-                          <span className="text-3xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${typeColors[tomorrowW.type]}20`, color: typeColors[tomorrowW.type] }}>
-                            {typeLabels[tomorrowW.type] || tomorrowW.type}
-                          </span>
-                        </div>
-                        <p className="text-lg font-black text-white mt-1 tabular-nums">
-                          {tomorrowW.min === tomorrowW.max ? tomorrowW.max : `${tomorrowW.min}–${tomorrowW.max}`}
-                          <span className="text-sm font-medium text-slate-500 ms-1">{tc('km')}</span>
-                        </p>
-                        {sessionName && <p className="text-2xs text-slate-500 mt-0.5">{sessionName}</p>}
-                      </div>
-                    );
-                  })()}
-                </div>
-              );
-            })()}
+          {/* Training days completed this week — a standalone stat (unrelated to
+              which specific workout is "next", so it stays outside the hero card). */}
+          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('trainingDays')}</p>
+            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
+              {weeklyRuns}<span className="text-sm font-medium text-slate-500 ms-1">/ {hasData ? weekly!.trainingDays : 7}</span>
+            </p>
+            <p className="text-sm text-slate-500 mt-1">{t('completed')}</p>
           </div>
 
+          {/* ═══ NEXT WORKOUT hero card — consolidates the RSVP + the today/tomorrow
+              workout tile into one card: next relevant workout, inline "add to
+              calendar" + embedded RSVP, and a context-aware CTA bar below it. ═══ */}
+          {(() => {
+            const todayW = weekly?.dailyDistances?.find(d => d.dayOfWeek === todayDow && d.max > 0);
+            const tomorrowDow = (todayDow + 1) % 7;
+            const tomorrowW = weekly?.dailyDistances?.find(d => d.dayOfWeek === tomorrowDow && d.max > 0);
+            if (!todayW && !tomorrowW) return null;
+
+            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+            const todayKm = recentActivities.filter(a => new Date(a.start_time) >= todayStart).reduce((s, a) => s + (a.distance || 0) / 1000, 0);
+            const todayDone = !!todayW && todayKm >= todayW.min;
+            // Next relevant workout: today's if it isn't done yet; otherwise
+            // tomorrow's; falling back to today's (as a completed recap) if
+            // there's no workout scheduled tomorrow.
+            const nextWorkout = (todayW && !todayDone) ? todayW : (tomorrowW || todayW)!;
+            const showingToday = nextWorkout === todayW;
+            const nextDate = showingToday ? new Date() : (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; })();
+
+            return (
+              <NextWorkoutCard
+                isToday={showingToday}
+                workout={nextWorkout}
+                typeLabel={typeLabels[nextWorkout.type] || nextWorkout.type}
+                typeColor={typeColors[nextWorkout.type] || '#6366f1'}
+                done={showingToday && todayDone}
+                doneKm={showingToday ? todayKm : undefined}
+                date={nextDate}
+                workoutHour={workoutHour}
+                hasRsvpTarget={!!rsvpTarget}
+                rsvpAnswered={rsvpAnswered}
+              >
+                {rsvpTarget && (
+                  <AttendanceRSVP
+                    workoutLabel={rsvpLabel || undefined}
+                    weekStart={rsvpWeekStart}
+                    day={rsvpTarget.dow}
+                    dayBefore={rsvpTarget.dayBefore}
+                    hideIfAnswered={!rsvpTarget.dayBefore}
+                    onStatusChange={handleRsvpStatus}
+                  />
+                )}
+              </NextWorkoutCard>
+            );
+          })()}
         </section>
       )}
 
@@ -1253,6 +1023,19 @@ export default function DashboardPage() {
           viewGroup={viewGroup}
           onPickGroup={pickViewGroup}
           onClose={() => setSelectedSession(null)}
+        />
+      )}
+
+      {/* ═══ ACTIVITY SYNC EDITOR — Strava-style bottom sheet shown once, right
+          after a background Garmin/Strava sync detects a genuinely new activity
+          (set above in load()). Lets the athlete customize the auto-created
+          feed post (caption/audience/photos/hidden stats) before it's out in
+          the club feed. ═══ */}
+      {syncedActivity && (
+        <ActivitySyncEditor
+          activity={syncedActivity}
+          extraCount={syncedExtraCount}
+          onClose={() => { setSyncedActivity(null); setSyncedExtraCount(0); }}
         />
       )}
 

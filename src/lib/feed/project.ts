@@ -76,6 +76,36 @@ export interface FeedItem {
   activity: FeedActivity | null;
 }
 
+/**
+ * `payload` shape for `type === 'achievement'` items, per the award-evaluation
+ * engine's fixed contract (a separate task — this file only reads it). Narrowed
+ * here rather than trusted as-is by the client, since `payload` is stored as
+ * opaque JSONB with no DB-level shape guarantee.
+ */
+export interface AchievementPayload {
+  badgeCode: string;
+  badgeIcon: string;
+  badgeNameHe: string;
+  badgeNameEn: string;
+}
+
+/** Safely narrows a feed item's generic payload to the achievement contract.
+ * Returns null on anything malformed/missing so the card can fall back to the
+ * generic PostCard rather than render broken text. */
+export function toAchievementPayload(payload: Record<string, unknown> | null): AchievementPayload | null {
+  if (!payload) return null;
+  const { badgeCode, badgeIcon, badgeNameHe, badgeNameEn } = payload;
+  if (
+    typeof badgeCode !== 'string' ||
+    typeof badgeIcon !== 'string' ||
+    typeof badgeNameHe !== 'string' ||
+    typeof badgeNameEn !== 'string'
+  ) {
+    return null;
+  }
+  return { badgeCode, badgeIcon, badgeNameHe, badgeNameEn };
+}
+
 function toFeedItemType(type: string): FeedItem['type'] {
   switch (type) {
     case 'activity':

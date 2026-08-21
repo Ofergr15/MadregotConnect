@@ -5,7 +5,7 @@ import { MessageSquare, AlertTriangle, MessageCircle, Bell, Send, Check, CornerD
 import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
 import { resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
-import { SkeletonList } from '@/components/ui';
+import { SkeletonList, SegmentedControl } from '@/components/ui';
 
 interface FeedbackItem {
   id: string;
@@ -71,17 +71,12 @@ export default function WorkoutFeedbackPage() {
       </div>
 
       {/* Range selector */}
-      <div className="flex items-center gap-1.5 mb-4">
-        {[7, 30, 90].map((d) => (
-          <button
-            key={d}
-            onClick={() => setDays(d)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${days === d ? 'bg-primary-600/25 text-primary-200 border-primary-500/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}`}
-          >
-            {d} ימים
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        value={String(days)}
+        onChange={(v) => setDays(Number(v))}
+        options={[7, 30, 90].map((d) => ({ value: String(d), label: `${d} ימים` }))}
+        className="mb-4 w-fit"
+      />
 
       {loading ? (
         <SkeletonList count={5} />
@@ -241,7 +236,7 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
             <button
               onClick={sendReply}
               disabled={!reply.trim()}
-              className="min-h-[40px] px-3 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white font-bold flex items-center gap-1.5 shrink-0"
+              className="min-h-[44px] px-3 rounded-lg bg-primary-600 hover:bg-primary-700 active:scale-[0.95] disabled:opacity-40 text-white font-bold flex items-center gap-1.5 shrink-0 transition-transform"
             >
               <Send className="h-4 w-4" />
             </button>

@@ -34,7 +34,20 @@ import { cookies } from 'next/headers';
  * }
  * ```
  */
-export function createServerClient() {
+export interface ServerClientOptions {
+  /**
+   * Opt a route OUT of the default `cache: 'no-store'` behavior by tagging the
+   * underlying `fetch()` calls with Next.js's Data Cache `next.revalidate`
+   * instead. Only pass this for routes that have a genuinely tolerable
+   * staleness window — everything else must stay real-time (the default).
+   *
+   * Note: this only has an effect on GET queries (e.g. `.select()`), since
+   * Next's fetch cache does not apply to non-GET requests (insert/update/etc).
+   */
+  revalidateSeconds?: number;
+}
+
+export function createServerClient(options?: ServerClientOptions) {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -44,8 +57,11 @@ export function createServerClient() {
         autoRefreshToken: false,
       },
       global: {
-        fetch: (url, options = {}) => {
-          return fetch(url, { ...options, cache: 'no-store' });
+        fetch: (url, fetchOptions = {}) => {
+          if (options?.revalidateSeconds !== undefined) {
+            return fetch(url, { ...fetchOptions, next: { revalidate: options.revalidateSeconds } });
+          }
+          return fetch(url, { ...fetchOptions, cache: 'no-store' });
         },
       },
     }

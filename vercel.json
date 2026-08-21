@@ -8,6 +8,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/badges",
+      "schedule": "30 3 * * *"
+    },
+    {
       "path": "/api/cron/academy-report",
       "schedule": "0 5 * * *"
     },

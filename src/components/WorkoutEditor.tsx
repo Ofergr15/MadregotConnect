@@ -273,7 +273,7 @@ function SubStepEditor({
             />
           </div>
         )}
-        <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto">
+        <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto" aria-label="Delete">
           <Trash2 className="h-3 w-3" />
         </button>
       </div>
@@ -588,10 +588,10 @@ function StepRow({
           </div>
 
           <div className="flex items-center gap-1 pt-1">
-            <button onClick={onMoveUp} disabled={index === 0} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
-            <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
-            <button onClick={onDuplicate} className="p-1 rounded hover:bg-slate-700 text-slate-400"><Copy className="h-3.5 w-3.5" /></button>
-            <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto"><Trash2 className="h-3.5 w-3.5" /></button>
+            <button onClick={onMoveUp} disabled={index === 0} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30" aria-label="Move up"><ArrowUp className="h-3.5 w-3.5" /></button>
+            <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30" aria-label="Move down"><ArrowDown className="h-3.5 w-3.5" /></button>
+            <button onClick={onDuplicate} className="p-1 rounded hover:bg-slate-700 text-slate-400" aria-label="Duplicate"><Copy className="h-3.5 w-3.5" /></button>
+            <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto" aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
         </div>
       )}
@@ -745,7 +745,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-[2000] flex justify-end" onClick={handleClose}>
+    <div className="fixed inset-0 bg-black/60 z-[2000] flex justify-end" onClick={handleClose} role="dialog" aria-modal="true">
       <div
         className="w-full max-w-lg bg-slate-900 border-s border-slate-700 h-full overflow-hidden flex flex-col animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}
@@ -761,7 +761,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
               placeholder="Workout name"
             />
           </div>
-          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400">
+          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -813,7 +813,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
 
       {/* Confirm dialog with a diff of what will change */}
       {confirming && (
-        <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/70 p-4" onClick={(e) => { e.stopPropagation(); setConfirming(false); }}>
+        <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/70 p-4" onClick={(e) => { e.stopPropagation(); setConfirming(false); }} role="dialog" aria-modal="true">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-slate-700 shrink-0 flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-primary-400" />
@@ -840,9 +840,9 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
                     <div className="space-y-1">
                       {c.fields.map((f, j) => (
                         <div key={j} className="flex items-center gap-2 text-xs flex-wrap">
-                          {f.label && <span className="text-slate-500 min-w-[70px]">{f.label}</span>}
+                          {f.label && <span className="text-slate-400 min-w-[70px]">{f.label}</span>}
                           {f.from !== undefined && <span className="text-red-300/80 line-through">{f.from}</span>}
-                          {f.from !== undefined && f.to !== undefined && <span className="text-slate-500">→</span>}
+                          {f.from !== undefined && f.to !== undefined && <span className="text-slate-400">→</span>}
                           {f.to !== undefined && <span className="text-green-300">{f.to}</span>}
                         </div>
                       ))}

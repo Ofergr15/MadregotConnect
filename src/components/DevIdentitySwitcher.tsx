@@ -11,7 +11,7 @@ const TEST_ACCOUNTS = [
   { label: 'Test Coach',  email: 'test-coach@madregot.local' },
 ] as const;
 
-/** Seeded in supabase/migrations/038_run_chat.sql */
+/** Seeded in supabase/migrations/049_run_chat.sql */
 const TEST_ACTIVITY_ID = 'bbbbbbbb-0000-0000-0000-000000000001';
 
 type StravaAthlete = {

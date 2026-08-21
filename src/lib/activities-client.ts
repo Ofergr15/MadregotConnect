@@ -6,14 +6,22 @@
 // We pass the caller's athleteId + their email header so the server can verify
 // coach/admin status (never trusted from the client) and return the full roster
 // only for real staff.
-export function fetchActivities(): Promise<Response> {
+//
+// `gps_points` (full per-run GPS trace, ~30-60KB/row) is left out of the list
+// response by default — pass `includeGps: true` only for callers that render
+// the route straight from the list (e.g. ActivityFeed's stored-route
+// preference) without a follow-up /api/activities/details fetch.
+export function fetchActivities(options: { includeGps?: boolean } = {}): Promise<Response> {
   const athleteId = typeof window !== 'undefined' ? localStorage.getItem('athlete_id') : null;
   const email =
     typeof window !== 'undefined'
       ? localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || ''
       : '';
-  const qs = athleteId ? `?athleteId=${encodeURIComponent(athleteId)}` : '';
-  return fetch(`/api/activities${qs}`, {
+  const params = new URLSearchParams();
+  if (athleteId) params.set('athleteId', athleteId);
+  if (options.includeGps) params.set('include', 'gps');
+  const qs = params.toString();
+  return fetch(`/api/activities${qs ? `?${qs}` : ''}`, {
     headers: email ? { 'x-user-email': email } : {},
   });
 }

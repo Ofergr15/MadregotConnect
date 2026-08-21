@@ -145,11 +145,11 @@ export function ProfileBest({ athleteId, athleteName }: { athleteId: string; ath
 
       {/* Submit modal */}
       {form && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={() => setForm(null)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={() => setForm(null)} role="dialog" aria-modal="true">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-700">
               <h3 className="text-lg font-bold text-white">Submit a time</h3>
-              <button onClick={() => setForm(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700"><X className="h-5 w-5" /></button>
+              <button onClick={() => setForm(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700" aria-label="Close"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-5 space-y-3">
               <div>
@@ -164,7 +164,7 @@ export function ProfileBest({ athleteId, athleteName }: { athleteId: string; ath
                 <input value={form.time} onChange={e => setForm({ ...form, time: e.target.value })}
                   placeholder="5:46.96" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-10 text-sm text-white tabular-nums" />
               </div>
-              <p className="text-xs text-slate-500">A time that would rank in the top 3 is sent to your coach for approval first.</p>
+              <p className="text-xs text-slate-400">A time that would rank in the top 3 is sent to your coach for approval first.</p>
               {error && <p className="text-xs text-red-400">{error}</p>}
             </div>
             <div className="flex items-center justify-end gap-2 p-5 border-t border-slate-700">

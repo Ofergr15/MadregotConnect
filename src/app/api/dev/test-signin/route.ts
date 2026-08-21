@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not a test account' }, { status: 400 });
   }
 
-  // Coach row is required by athletes.coach_id FK (same ids as 038_run_chat.sql).
+  // Coach row is required by athletes.coach_id FK (same ids as 049_run_chat.sql).
   await admin.from('coaches').upsert(
     { id: profile.coachId, email: 'test-coach@madregot.local', name: 'Test Coach' },
     { onConflict: 'id' },

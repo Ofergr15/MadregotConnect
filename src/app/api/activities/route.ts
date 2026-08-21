@@ -1,8 +1,14 @@
 /**
- * GET /api/activities?athleteId=
+ * GET /api/activities?athleteId=&include=gps
  *
  * Lists athlete_activities for the feed. Staff (coach/admin/academy_coach)
  * may omit athleteId for the club roster; runners must pass their own id.
+ *
+ * `gps_points` (full per-run GPS trace, ~30-60KB/row) is excluded by default —
+ * most callers only need distance/duration/pace/has_polyline and fetch the
+ * route lazily per-card via /api/activities/details. Pass `include=gps` to
+ * get it inline for consumers (e.g. the activities feed) that render the
+ * route straight from the list without a follow-up fetch.
  */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -14,6 +20,7 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const athleteId = searchParams.get('athleteId');
+    const includeGps = searchParams.get('include') === 'gps';
 
     let isStaff = false;
     const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
@@ -52,8 +59,15 @@ export async function GET(request: Request) {
 
     let activities: any[] | null = null;
     let error: any = null;
-    ({ data: activities, error } = await runQuery(`${baseCols}, gps_points`));
-    if (error) {
+    if (includeGps) {
+      // gps_points is a large JSONB blob; only select it when a caller
+      // explicitly asks for it. Fall back to the lean columns if the
+      // combined select errors out for any reason.
+      ({ data: activities, error } = await runQuery(`${baseCols}, gps_points`));
+      if (error) {
+        ({ data: activities, error } = await runQuery(baseCols));
+      }
+    } else {
       ({ data: activities, error } = await runQuery(baseCols));
     }
     if (error) throw error;

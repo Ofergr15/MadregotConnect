@@ -16,6 +16,19 @@ export const maxDuration = 60;
 // Secured with CRON_SECRET like the other crons.
 const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run', 'street_running', 'indoor_running'];
 
+// Hebrew label per run sub-type, so the "new workout detected" teaser can name
+// the actual activity instead of a generic "workout". Anything outside this map
+// (shouldn't happen — RUN_TYPES already filters upstream) falls back to 'ריצה'.
+const RUN_TYPE_LABELS: Record<string, string> = {
+  running: 'ריצה',
+  trail_running: 'ריצת שטח',
+  treadmill_running: 'ריצת הליכון',
+  track_running: 'ריצת מסלול',
+  virtual_run: 'ריצה וירטואלית',
+  street_running: 'ריצת רחוב',
+  indoor_running: 'ריצה באולם',
+};
+
 // Morning window (Israel): start at 06:30, keep watching until 12:00 so late
 // risers / long runs are still caught. Outside it, do nothing.
 const START_HOUR = 6;
@@ -111,9 +124,16 @@ async function run(request: Request) {
     const subs = dryRun ? [] : await subscriptionsForAthletes([a.athlete_id]);
     let sent = 0;
     if (subs.length > 0) {
+      // Concrete detail already in scope: the detected sub-type + local start
+      // time (start_time stores Garmin's own wall-clock, same read as todayStr
+      // above — no timezone math needed).
+      const label = (a.activity_type && RUN_TYPE_LABELS[a.activity_type]) || 'ריצה';
+      const timeStr = (a.start_time || '').split('T')[1]?.slice(0, 5) || '';
       sent = await sendPushToSubscriptions(subs, {
-        title: '🏃 אימון חדש זוהה',
-        body: 'מנתחים את הנתונים — נשתף עוד מידע בקרוב',
+        title: `🏃 זוהה אימון: ${label}`,
+        body: timeStr
+          ? `מנתחים את הנתונים מ-${timeStr} — נשתף עוד מידע בקרוב`
+          : 'מנתחים את הנתונים — נשתף עוד מידע בקרוב',
         url: `/dashboard/feedback?activity=${a.garmin_activity_id}`,
         tag: `workout-detected-${a.garmin_activity_id}`,
         category: 'workouts',

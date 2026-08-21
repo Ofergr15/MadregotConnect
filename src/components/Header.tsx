@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, Trophy, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, Image } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, Image, CalendarDays, Wrench } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
-import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
+import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { InsetSection, InsetRow } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
@@ -26,10 +26,11 @@ const allNavItems = [
   { href: '/dashboard/practice-attendance', tab: 'practice-attendance', labelKey: 'practiceAttendance', icon: UserCheck },
   { href: '/dashboard/workout-feedback', tab: 'workout-feedback', labelKey: 'workoutFeedback', icon: ClipboardCheck },
   { href: '/dashboard/team-volume', tab: 'team-volume', labelKey: 'teamVolume', icon: BarChart3 },
-  { href: '/dashboard/races', tab: 'races', labelKey: 'races', icon: Trophy },
+  { href: '/dashboard/calendar', tab: 'calendar', labelKey: 'calendar', icon: CalendarDays },
   { href: '/dashboard/history', tab: 'history', labelKey: 'history', icon: Clock },
   { href: '/dashboard/photos', tab: 'photos', labelKey: 'photos', icon: Image },
   { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },
+  { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench },
 ];
 
 const profileNavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'profile', icon: User };
@@ -165,6 +166,10 @@ export function Header() {
     if (isAthlete || (previewRole && !['admin', 'coach', 'academy_coach'].includes(previewRole))) {
       if (!items.some(i => i.tab === 'profile')) items.push(profileNavItem);
     }
+    // Coach Tools hub — every staff account gets it, mirrors BottomTabBar.
+    if (STAFF_ROLES.includes(effectiveRole || '') && !items.some(i => i.tab === 'coach-tools')) {
+      items.push(allNavItems.find(i => i.tab === 'coach-tools')!);
+    }
     return items.length > 0 ? items : [allNavItems.find(i => i.tab === 'dashboard')!, profileNavItem];
   })();
 
@@ -298,7 +303,8 @@ export function Header() {
               <button
                 onClick={() => window.dispatchEvent(new Event('open-view-as'))}
                 className="relative group p-2 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors"
-                title="צפייה כמשתמש"
+                title={th('viewAsUser')}
+                aria-label={th('viewAsUser')}
               >
                 <Eye className="h-4.5 w-4.5" />
                 <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
@@ -316,6 +322,7 @@ export function Header() {
               <button
                 onClick={() => { setShowNotifications(!showNotifications); setShowGroupPicker(false); }}
                 className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                aria-label="התראות"
               >
                 <Bell className="h-4.5 w-4.5" />
                 {badge > 0 && (
@@ -341,7 +348,7 @@ export function Header() {
                             {pendingResults.map(r => (
                               <div key={r.id} className="px-4 py-2 flex items-center gap-2 text-xs">
                                 <span className="flex-1 min-w-0 truncate text-slate-200" dir="auto">{r.athlete_name}</span>
-                                <span className="text-slate-500">{r.test_name}</span>
+                                <span className="text-slate-400">{r.test_name}</span>
                                 <span className="font-bold text-white tabular-nums">
                                   {Math.floor(r.time_seconds / 60)}:{(r.time_seconds % 60).toFixed(r.time_seconds % 1 ? 2 : 0).padStart(r.time_seconds % 1 ? 5 : 2, '0')}
                                 </span>
@@ -401,6 +408,7 @@ export function Header() {
               onClick={handleLogout}
               className="p-2.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
               title={tc('signOut')}
+              aria-label={tc('signOut')}
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -469,7 +477,7 @@ export function Header() {
             </InsetSection>
 
             <div className="flex items-center justify-between px-1 mb-3">
-              <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">{tc('language') || 'Language'}</span>
+              <span className="text-2xs font-bold uppercase tracking-wider text-slate-400">{tc('language') || 'Language'}</span>
               <LocaleSwitcher />
             </div>
 

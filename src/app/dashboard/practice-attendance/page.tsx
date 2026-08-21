@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Users, Check, X, CalendarDays, ChevronRight, ChevronLeft, List, CalendarRange } from 'lucide-react';
+import { Users, Check, X, CalendarDays, ChevronRight, ChevronLeft, List, CalendarRange, BadgeCheck } from 'lucide-react';
 import { getPlanWeekStart, resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
-import { SkeletonCard, SkeletonList } from '@/components/ui';
+import { SkeletonCard, SkeletonList, SegmentedControl } from '@/components/ui';
 
 interface RosterRow {
   athleteId: string;
@@ -14,6 +14,10 @@ interface RosterRow {
   responded: boolean;
   attending: boolean | null;
   groupLabel: string | null;
+  // Attendance verification (roadmap #14) — v1 same-day match: RSVP'd
+  // "attending" AND has an athlete_activities row on this calendar day. Only
+  // meaningful when attending === true; null otherwise.
+  confirmed: boolean | null;
 }
 
 type DayCounts = { going: number; notGoing: number; total: number };
@@ -49,10 +53,15 @@ export default function PracticeAttendancePage() {
       </div>
 
       {/* View switch */}
-      <div className="flex items-center gap-1.5 mb-5 bg-slate-800 rounded-xl p-1 border border-slate-700 w-fit">
-        <ViewTab active={view === 'calendar'} onClick={() => setView('calendar')} icon={CalendarRange} label="לוח שנה" />
-        <ViewTab active={view === 'day'} onClick={() => setView('day')} icon={List} label="יום בודד" />
-      </div>
+      <SegmentedControl
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'calendar', label: 'לוח שנה', icon: CalendarRange },
+          { value: 'day', label: 'יום בודד', icon: List },
+        ]}
+        className="mb-5 w-fit"
+      />
 
       {view === 'calendar' ? (
         <CalendarView
@@ -62,17 +71,6 @@ export default function PracticeAttendancePage() {
         <DayView date={selectedDate} setDate={setSelectedDate} />
       )}
     </div>
-  );
-}
-
-function ViewTab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: any; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold transition-colors ${active ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'}`}
-    >
-      <Icon className="h-4 w-4" /> {label}
-    </button>
   );
 }
 
@@ -123,14 +121,14 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
     <div>
       {/* Month header */}
       <div className="flex items-center justify-between mb-3">
-        <button onClick={() => shiftMonth(1)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
+        <button onClick={() => shiftMonth(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all">
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="text-center">
           <div className="text-lg font-bold text-white">{MONTHS_HE[month]} {year}</div>
           {!loading && <div className="text-[11px] text-slate-500 tabular-nums">{monthTotal} הגעות החודש</div>}
         </div>
-        <button onClick={() => shiftMonth(-1)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
+        <button onClick={() => shiftMonth(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all">
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -214,6 +212,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
     for (const r of going) { const g = r.groupLabel || '—'; (m[g] ||= []).push(r); }
     return Object.entries(m).sort(([a], [b]) => a.localeCompare(b, 'he'));
   }, [going]);
+  const confirmedCount = useMemo(() => going.filter((r) => r.confirmed).length, [going]);
 
   const shiftDay = (delta: number) => {
     const d = new Date(date + 'T12:00:00'); d.setDate(d.getDate() + delta); setDate(iso(d));
@@ -229,7 +228,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
     <div>
       {/* Date picker */}
       <div className="flex items-center gap-2 mb-2">
-        <button onClick={() => shiftDay(-1)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
+        <button onClick={() => shiftDay(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all">
           <ChevronRight className="h-4 w-4" />
         </button>
         <div className="relative flex-1">
@@ -241,7 +240,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
             className="w-full bg-slate-800 border border-slate-700 rounded-lg ps-3 pe-9 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50"
           />
         </div>
-        <button onClick={() => shiftDay(1)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
+        <button onClick={() => shiftDay(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all">
           <ChevronLeft className="h-4 w-4" />
         </button>
       </div>
@@ -260,7 +259,12 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
             <CountCard active={statusFilter === 'no-response'} onClick={() => setStatusFilter('no-response')} value={noResponse.length} label="לא ענו" tone="slate2" />
             <CountCard active={statusFilter === 'not-going'} onClick={() => setStatusFilter('not-going')} value={notGoing.length} label="לא מגיעים" tone="red" />
           </div>
-          <p className="text-xs text-slate-500 mb-4 tabular-nums">{roster.length - noResponse.length} מתוך {roster.length} הגיבו</p>
+          <p className="text-xs text-slate-500 mb-4 tabular-nums">
+            {roster.length - noResponse.length} מתוך {roster.length} הגיבו
+            {going.length > 0 && (
+              <span className="text-slate-600"> · <BadgeCheck className="inline h-3 w-3 -mt-0.5 text-emerald-500" /> {confirmedCount} מתוך {going.length} מאומתים ע״י ריצה בפועל</span>
+            )}
+          </p>
 
           {statusFilter === 'all' ? (
             <div className="space-y-4">
@@ -341,12 +345,24 @@ function PersonChip({ row, muted }: { row: RosterRow; muted?: boolean }) {
     <span className={`inline-flex items-center gap-1.5 rounded-full ps-1 pe-2.5 py-1 ${muted ? 'bg-slate-900/40' : 'bg-slate-900/60'}`}>
       <Avatar row={row} />
       <span className={`text-xs ${muted ? 'text-slate-400' : 'text-slate-200'}`} dir="auto">{row.name.split(' ')[0]}</span>
+      {row.confirmed && (
+        <BadgeCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-label="אומת ע״י ריצה בפועל" />
+      )}
     </span>
   );
 }
 
 function StatusPill({ row }: { row: RosterRow }) {
-  if (row.attending === true) return <span className="inline-flex items-center gap-1 text-xs font-bold text-green-400"><Check className="h-3.5 w-3.5" /> מגיע</span>;
+  if (row.attending === true) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-bold text-green-400">
+        <Check className="h-3.5 w-3.5" /> מגיע
+        {row.confirmed && (
+          <BadgeCheck className="h-3.5 w-3.5 text-emerald-400" aria-label="אומת ע״י ריצה בפועל" />
+        )}
+      </span>
+    );
+  }
   if (row.attending === false) return <span className="inline-flex items-center gap-1 text-xs font-bold text-red-400"><X className="h-3.5 w-3.5" /> לא מגיע</span>;
   return <span className="text-xs font-semibold text-slate-500">לא ענה</span>;
 }

@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Users, Trophy, Edit3, X, ChevronDown, ChevronUp, Medal, Watch } from 'lucide-react';
+import { Users, Trophy, Edit3, ChevronDown, ChevronUp, Medal, Watch, Flame } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
-import { Spinner } from '@/components/ui';
+import { Spinner, SegmentedControl, Sheet, Button } from '@/components/ui';
 
 interface Athlete {
   id: string;
@@ -33,7 +33,10 @@ interface LeaderboardEntry {
   distanceKm: number;
   runs: number;
   durationMin: number;
+  weekStreak: number;
 }
+
+type LeaderboardMetric = 'distance' | 'streak' | 'runs';
 
 const GROUP_COLORS: Record<number, { bg: string; border: string; text: string; badge: string; dot: string }> = {
   0: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', badge: 'bg-green-500/20', dot: 'bg-green-400' },
@@ -47,13 +50,17 @@ function getGroupColors(index: number) {
 
 export default function GroupsPage() {
   const t = useTranslations('groups');
+  const tm = useTranslations('momentum'); // reuse the weekStreak/weekStreakOne wording from the momentum card
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardByStreak, setLeaderboardByStreak] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardByRuns, setLeaderboardByRuns] = useState<LeaderboardEntry[]>([]);
   const [groupLeaderboards, setGroupLeaderboards] = useState<Record<string, LeaderboardEntry[]>>({});
   const [activeTab, setActiveTab] = useState<'members' | 'leaderboard'>('members');
+  const [metric, setMetric] = useState<LeaderboardMetric>('distance');
 
   useEffect(() => {
     fetchGroups();
@@ -65,6 +72,8 @@ export default function GroupsPage() {
       const response = await fetch('/api/groups/leaderboard');
       const data = await response.json();
       setLeaderboard(data.leaderboard || []);
+      setLeaderboardByStreak(data.leaderboardByStreak || []);
+      setLeaderboardByRuns(data.leaderboardByRuns || []);
       setGroupLeaderboards(data.groupLeaderboards || {});
     } catch (error) {
       console.error('Failed to fetch leaderboard:', error);
@@ -130,7 +139,7 @@ export default function GroupsPage() {
             <div
               key={group.id}
               className={cn(
-                "rounded-xl p-4 border cursor-pointer transition-all hover:scale-[1.02]",
+                "rounded-xl p-4 border cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]",
                 colors.bg, colors.border
               )}
               onClick={() => setExpandedGroup(expandedGroup === group.id ? null : group.id)}
@@ -188,7 +197,7 @@ export default function GroupsPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); setEditingGroup(group); }}
-                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                    className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:bg-slate-700 active:scale-[0.92] rounded-lg transition-all"
                   >
                     <Edit3 className="h-4 w-4 text-slate-400" />
                   </button>
@@ -262,67 +271,91 @@ export default function GroupsPage() {
             <Medal className="h-5 w-5 text-yellow-400" />
             <h2 className="text-xl font-bold">{t('weeklyLeaderboard')}</h2>
           </div>
-          <div className="flex gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700">
-            <button
-              onClick={() => setActiveTab('members')}
-              className={cn(
-                "px-3 py-1.5 text-sm rounded-md transition-colors",
-                activeTab === 'members' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
-              )}
-            >
-              {t('byGroup')}
-            </button>
-            <button
-              onClick={() => setActiveTab('leaderboard')}
-              className={cn(
-                "px-3 py-1.5 text-sm rounded-md transition-colors",
-                activeTab === 'leaderboard' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
-              )}
-            >
-              {t('overall')}
-            </button>
-          </div>
+          <SegmentedControl
+            value={activeTab}
+            onChange={setActiveTab}
+            options={[
+              { value: 'members', label: t('byGroup') },
+              { value: 'leaderboard', label: t('overall') },
+            ]}
+            className="w-fit"
+          />
         </div>
 
         {activeTab === 'leaderboard' ? (
-          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-            {leaderboard.length > 0 ? (
-              <div className="divide-y divide-slate-700/50">
-                {leaderboard.map((entry, idx) => {
-                  const groupIdx = groups.findIndex(g => g.id === entry.groupId);
-                  const colors = groupIdx >= 0 ? getGroupColors(groupIdx) : { dot: 'bg-slate-500', text: 'text-slate-400' };
-                  return (
-                    <div key={entry.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-700/30 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <span className={cn(
-                          "w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold",
-                          idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                          idx === 1 ? 'bg-slate-400/20 text-slate-300' :
-                          idx === 2 ? 'bg-orange-500/20 text-orange-400' :
-                          'bg-slate-700 text-slate-400'
-                        )}>
-                          {idx + 1}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <div className={cn("w-2 h-2 rounded-full", colors.dot)} />
-                          <span className="font-medium text-sm">{entry.name}</span>
+          <div className="space-y-3">
+            {/* Metric switcher — Overall ranking by distance / streak / run count,
+                all three pre-computed by the API in a single request so switching
+                tabs is instant (no refetch). */}
+            <SegmentedControl
+              value={metric}
+              onChange={setMetric}
+              options={[
+                { value: 'distance', label: t('byDistance') },
+                { value: 'streak', label: t('byStreak') },
+                { value: 'runs', label: t('byRuns') },
+              ]}
+              className="self-start w-fit"
+            />
+
+            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              {(() => {
+                const activeList = metric === 'streak' ? leaderboardByStreak
+                  : metric === 'runs' ? leaderboardByRuns
+                  : leaderboard;
+                return activeList.length > 0 ? (
+                  <div className="divide-y divide-slate-700/50">
+                    {activeList.map((entry, idx) => {
+                      const groupIdx = groups.findIndex(g => g.id === entry.groupId);
+                      const colors = groupIdx >= 0 ? getGroupColors(groupIdx) : { dot: 'bg-slate-500', text: 'text-slate-400' };
+                      return (
+                        <div key={entry.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-700/30 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <span className={cn(
+                              "w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold",
+                              idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                              idx === 1 ? 'bg-slate-400/20 text-slate-300' :
+                              idx === 2 ? 'bg-orange-500/20 text-orange-400' :
+                              'bg-slate-700 text-slate-400'
+                            )}>
+                              {idx + 1}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <div className={cn("w-2 h-2 rounded-full", colors.dot)} />
+                              <span className="font-medium text-sm">{entry.name}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            {metric === 'streak' ? (
+                              <span className="font-bold font-mono text-white flex items-center gap-1">
+                                <Flame className="h-4 w-4 text-orange-400" />
+                                {entry.weekStreak} {entry.weekStreak === 1 ? tm('weekStreakOne') : tm('weekStreak')}
+                              </span>
+                            ) : metric === 'runs' ? (
+                              <>
+                                <span className="text-slate-400">{entry.distanceKm} {t('km')}</span>
+                                <span className="font-bold font-mono text-white">{entry.runs} {t('runs')}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-slate-400">{entry.runs} {t('runs')}</span>
+                                <span className="font-bold font-mono text-white">{entry.distanceKm} {t('km')}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-slate-400">{entry.runs} {t('runs')}</span>
-                        <span className="font-bold font-mono text-white">{entry.distanceKm} {t('km')}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-10">
-                <Trophy className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">{t('noActivityData')}</p>
-                <p className="text-xs text-slate-400 mt-1">Leaderboard will populate once activities sync from Garmin</p>
-              </div>
-            )}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-10">
+                    <Trophy className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-sm text-slate-500">{metric === 'streak' ? t('noStreaks') : t('noActivityData')}</p>
+                    <p className="text-xs text-slate-400 mt-1">Leaderboard will populate once activities sync from Garmin</p>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -404,68 +437,52 @@ function EditGroupModal({ group, onSave, onClose }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-md">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="font-semibold text-lg">{t('edit')} {group.name}</h3>
-          <button onClick={onClose} className="p-1 hover:bg-slate-700 rounded transition-colors">
-            <X className="h-5 w-5" />
-          </button>
+    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }} title={`${t('edit')} ${group.name}`}>
+      <form onSubmit={handleSubmit} className="space-y-4 px-1 pb-2">
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">{t('groupName')}</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full min-h-[44px] bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            required
+          />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">{t('groupName')}</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              required
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">{t('marathonGoal')}</label>
+          <input
+            type="text"
+            value={marathonGoal}
+            onChange={(e) => setMarathonGoal(e.target.value)}
+            className="w-full min-h-[44px] bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 font-mono text-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="2:30:00"
+          />
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">{t('marathonGoal')}</label>
-            <input
-              type="text"
-              value={marathonGoal}
-              onChange={(e) => setMarathonGoal(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 font-mono text-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
-              placeholder="2:30:00"
-            />
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">{t('paceOffsetLabel')}</label>
+          <input
+            type="number"
+            value={paceOffsetSeconds}
+            onChange={(e) => setPaceOffsetSeconds(parseInt(e.target.value) || 0)}
+            className="w-full min-h-[44px] bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-center font-mono text-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+          <div className="mt-2 text-xs text-slate-500">
+            Base 4:00/km → This group: {formatPace(240 + paceOffsetSeconds)}/km
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">{t('paceOffsetLabel')}</label>
-            <input
-              type="number"
-              value={paceOffsetSeconds}
-              onChange={(e) => setPaceOffsetSeconds(parseInt(e.target.value) || 0)}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-center font-mono text-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <div className="mt-2 text-xs text-slate-500">
-              Base 4:00/km → This group: {formatPace(240 + paceOffsetSeconds)}/km
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="submit"
-              className="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              {t('save')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex gap-3 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
+            {t('cancel')}
+          </Button>
+          <Button type="submit" className="flex-1">
+            {t('save')}
+          </Button>
+        </div>
+      </form>
+    </Sheet>
   );
 }

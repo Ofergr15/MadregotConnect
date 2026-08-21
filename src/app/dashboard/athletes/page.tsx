@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react';
 import {
   UserPlus, Copy, CheckCircle2, Wifi, WifiOff, Clock,
   Users as UsersIcon, Check, Mail, MoreVertical, Trash2,
-  PauseCircle, PlayCircle, ArrowRightLeft, X, MessageCircle
+  PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isProtectedEmail } from '@/lib/constants';
-import { Skeleton, SkeletonCard } from '@/components/ui';
+import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
 import { useTranslations } from 'next-intl';
 
 interface Athlete {
@@ -354,21 +354,15 @@ ${inviteLink}`;
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700 w-fit">
-        {(['all', 'active', 'invited', 'paused'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setFilter(tab)}
-            className={cn(
-              'px-4 py-2 rounded-md text-sm font-medium transition-colors capitalize',
-              filter === tab ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
-            )}
-          >
-            {tab} {tab !== 'all' && `(${athletes.filter(a => a.status === tab).length})`}
-            {tab === 'all' && ` (${athletes.length})`}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        value={filter}
+        onChange={setFilter}
+        options={(['all', 'active', 'invited', 'paused'] as const).map((tab) => ({
+          value: tab,
+          label: `${tab} (${tab === 'all' ? athletes.length : athletes.filter((a) => a.status === tab).length})`,
+        }))}
+        className="w-fit"
+      />
 
       {/* Invite Form */}
       {showInvite && (
@@ -552,67 +546,11 @@ ${inviteLink}`;
                       </td>
                       <td className="px-6 py-4 text-end relative">
                         <button
-                          onClick={() => setActiveMenu(activeMenu === athlete.id ? null : athlete.id)}
-                          className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                          onClick={() => setActiveMenu(athlete.id)}
+                          className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:bg-slate-700 active:scale-[0.92] rounded-lg transition-all ms-auto"
                         >
                           <MoreVertical className="h-4 w-4 text-slate-400" />
                         </button>
-                        {activeMenu === athlete.id && (
-                          <div className="absolute right-6 top-12 z-10 bg-slate-700 border border-slate-600 rounded-lg shadow-xl py-1 w-48">
-                            <button
-                              onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
-                              className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
-                            >
-                              <ArrowRightLeft className="h-4 w-4" /> {t('moveToGroup')}
-                            </button>
-                            {athlete.status === 'active' ? (
-                              <button
-                                onClick={() => updateAthleteStatus(athlete.id, 'paused')}
-                                className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
-                              >
-                                <PauseCircle className="h-4 w-4" /> {t('pause')}
-                              </button>
-                            ) : athlete.status === 'paused' ? (
-                              <button
-                                onClick={() => updateAthleteStatus(athlete.id, 'active')}
-                                className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
-                              >
-                                <PlayCircle className="h-4 w-4" /> {t('reactivate')}
-                              </button>
-                            ) : null}
-                            <button
-                              onClick={async () => {
-                                const newEnabled = !athlete.stravaEnabled;
-                                await fetch('/api/admin/athlete-source', {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ athleteId: athlete.id, stravaEnabled: newEnabled }),
-                                });
-                                fetchAthletes();
-                                setActiveMenu(null);
-                              }}
-                              className={cn('w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2', athlete.stravaEnabled ? 'text-slate-400' : 'text-orange-400')}
-                            >
-                              <Wifi className="h-4 w-4" /> {athlete.stravaEnabled ? t('disableStrava') : t('enableStrava')}
-                            </button>
-                            {athlete.hasStrava && (
-                              <button
-                                onClick={() => { toggleDataSource(athlete.id, athlete.dataSource === 'strava' ? 'garmin' : 'strava'); setActiveMenu(null); }}
-                                className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
-                              >
-                                <ArrowRightLeft className="h-4 w-4" /> {athlete.dataSource === 'strava' ? t('switchToGarmin') : t('switchToStrava')}
-                              </button>
-                            )}
-                            {!isProtectedEmail(athlete.email) && (
-                              <button
-                                onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
-                                className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
-                              >
-                                <Trash2 className="h-4 w-4" /> {tc('delete')}
-                              </button>
-                            )}
-                          </div>
-                        )}
                       </td>
                     </tr>
                   ))}
@@ -638,44 +576,11 @@ ${inviteLink}`;
                     </div>
                   </div>
                   <button
-                    onClick={() => setActiveMenu(activeMenu === athlete.id ? null : athlete.id)}
-                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
+                    onClick={() => setActiveMenu(athlete.id)}
+                    className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:bg-slate-700 active:scale-[0.92] rounded-lg transition-all flex-shrink-0"
                   >
                     <MoreVertical className="h-4 w-4 text-slate-400" />
                   </button>
-                  {activeMenu === athlete.id && (
-                    <div className="absolute right-4 mt-10 z-10 bg-slate-700 border border-slate-600 rounded-lg shadow-xl py-1 w-48">
-                      <button
-                        onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
-                        className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2"
-                      >
-                        <ArrowRightLeft className="h-4 w-4" /> {t('moveToGroup')}
-                      </button>
-                      {athlete.status === 'active' ? (
-                        <button
-                          onClick={() => updateAthleteStatus(athlete.id, 'paused')}
-                          className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-orange-400"
-                        >
-                          <PauseCircle className="h-4 w-4" /> {t('pause')}
-                        </button>
-                      ) : athlete.status === 'paused' ? (
-                        <button
-                          onClick={() => updateAthleteStatus(athlete.id, 'active')}
-                          className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-green-400"
-                        >
-                          <PlayCircle className="h-4 w-4" /> {t('reactivate')}
-                        </button>
-                      ) : null}
-                      {!isProtectedEmail(athlete.email) && (
-                        <button
-                          onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
-                          className="w-full text-start px-4 py-2 text-sm hover:bg-slate-600 flex items-center gap-2 text-red-400"
-                        >
-                          <Trash2 className="h-4 w-4" /> {tc('delete')}
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {athlete.groupName ? (
@@ -714,16 +619,85 @@ ${inviteLink}`;
         </div>
       )}
 
-      {/* Move Group Modal */}
-      {moveModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">{t('moveToGroup')} {moveModal.athleteName}</h3>
-              <button onClick={() => { setMoveModal(null); setSelectedGroupId(null); }} className="p-1 hover:bg-slate-700 rounded">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+      {/* Athlete actions — one shared sheet, opened from either the desktop
+          table row or the mobile card (was two separate absolute-positioned
+          dropdowns, the classic desktop-menu tell). */}
+      <Sheet
+        open={!!activeMenu}
+        onOpenChange={(o) => { if (!o) setActiveMenu(null); }}
+        title={athletes.find((a) => a.id === activeMenu)?.name}
+      >
+        {(() => {
+          const athlete = athletes.find((a) => a.id === activeMenu);
+          if (!athlete) return null;
+          return (
+            <InsetSection>
+              <InsetRow
+                icon={ArrowRightLeft}
+                iconBg="bg-primary-600"
+                label={t('moveToGroup')}
+                onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
+              />
+              {athlete.status === 'active' ? (
+                <InsetRow
+                  icon={PauseCircle}
+                  iconBg="bg-orange-500"
+                  label={t('pause')}
+                  onClick={() => updateAthleteStatus(athlete.id, 'paused')}
+                />
+              ) : athlete.status === 'paused' ? (
+                <InsetRow
+                  icon={PlayCircle}
+                  iconBg="bg-green-500"
+                  label={t('reactivate')}
+                  onClick={() => updateAthleteStatus(athlete.id, 'active')}
+                />
+              ) : null}
+              <InsetRow
+                icon={Wifi}
+                iconBg="bg-orange-500"
+                label={athlete.stravaEnabled ? t('disableStrava') : t('enableStrava')}
+                onClick={async () => {
+                  const newEnabled = !athlete.stravaEnabled;
+                  await fetch('/api/admin/athlete-source', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ athleteId: athlete.id, stravaEnabled: newEnabled }),
+                  });
+                  fetchAthletes();
+                  setActiveMenu(null);
+                }}
+              />
+              {athlete.hasStrava && (
+                <InsetRow
+                  icon={ArrowRightLeft}
+                  iconBg="bg-orange-500"
+                  label={athlete.dataSource === 'strava' ? t('switchToGarmin') : t('switchToStrava')}
+                  onClick={() => { toggleDataSource(athlete.id, athlete.dataSource === 'strava' ? 'garmin' : 'strava'); setActiveMenu(null); }}
+                />
+              )}
+              {!isProtectedEmail(athlete.email) && (
+                <InsetRow
+                  icon={Trash2}
+                  iconBg="bg-red-500"
+                  label={tc('delete')}
+                  danger
+                  onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
+                />
+              )}
+            </InsetSection>
+          );
+        })()}
+      </Sheet>
+
+      {/* Move Group Sheet */}
+      <Sheet
+        open={!!moveModal}
+        onOpenChange={(o) => { if (!o) { setMoveModal(null); setSelectedGroupId(null); } }}
+        title={moveModal ? `${t('moveToGroup')} ${moveModal.athleteName}` : undefined}
+      >
+        {moveModal && (
+          <>
             <div className="space-y-2 mb-4">
               {[...groups]
                 .sort((a, b) => {
@@ -758,7 +732,7 @@ ${inviteLink}`;
                       key={g.id}
                       onClick={() => setSelectedGroupId(g.id)}
                       className={cn(
-                        'w-full text-start px-4 py-3 rounded-lg border text-white transition-colors flex items-center gap-3',
+                        'w-full text-start px-4 py-3 min-h-[44px] rounded-lg border text-white transition-colors flex items-center gap-3 active:scale-[0.98]',
                         levelStyles[level],
                         isSelected && 'ring-2 ring-primary-500'
                       )}
@@ -782,39 +756,24 @@ ${inviteLink}`;
                 }
               }}
               disabled={!selectedGroupId}
-              className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              className="w-full min-h-[44px] bg-primary-600 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-all"
             >
               {tc('save')}
             </button>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Sheet>
 
-      {/* Delete Confirmation Modal */}
-      {confirmDelete && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-sm">
-            <h3 className="font-semibold text-lg mb-2">{t('deleteAthlete')}</h3>
-            <p className="text-slate-400 text-sm mb-6">
-              Are you sure you want to remove <span className="text-white font-medium">{confirmDelete.name}</span>? This action cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                {tc('cancel')}
-              </button>
-              <button
-                onClick={() => deleteAthlete(confirmDelete.id)}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                {tc('delete')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete Confirmation */}
+      <ConfirmSheet
+        open={!!confirmDelete}
+        onOpenChange={(o) => { if (!o) setConfirmDelete(null); }}
+        title={t('deleteAthlete')}
+        description={confirmDelete ? t('deleteConfirm', { name: confirmDelete.name }) : undefined}
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={() => { if (confirmDelete) deleteAthlete(confirmDelete.id); }}
+      />
     </div>
   );
 }

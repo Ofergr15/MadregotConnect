@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PushOptIn } from '@/components/PushOptIn';
+import { ConnectDataSourcePopup } from '@/components/ConnectDataSourcePopup';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { PageTransition } from '@/components/PageTransition';
@@ -76,6 +77,7 @@ export default function DashboardLayout({
       <Header />
       <InstallPrompt />
       <PushOptIn />
+      <ConnectDataSourcePopup />
       {/* Bottom padding on mobile clears the fixed tab bar (~64px + safe area);
           md+ keeps the desktop header nav and needs no bar padding. */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-8">

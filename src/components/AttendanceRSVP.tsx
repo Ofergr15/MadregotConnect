@@ -7,11 +7,13 @@ import { cn, getPlanWeekStart } from '@/lib/utils';
 
 const GROUP_PRESETS = ['דבוקה 1', 'דבוקה 2', 'דבוקה 3'];
 
+export interface AttendanceStatus { answered: boolean; attending: boolean | null }
+
 // Pre-workout RSVP for a specific workout — TODAY's, or (the evening before) the
 // NEXT team-workout day. The dashboard picks the target (weekStart + day); when
 // omitted we default to today, so existing call sites keep working. Athlete
 // answers: coming? + which דבוקה.
-export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: dayProp, dayBefore, hideIfAnswered }: { workoutLabel?: string; weekStart?: string; day?: number; dayBefore?: boolean; hideIfAnswered?: boolean }) {
+export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: dayProp, dayBefore, hideIfAnswered, onStatusChange }: { workoutLabel?: string; weekStart?: string; day?: number; dayBefore?: boolean; hideIfAnswered?: boolean; onStatusChange?: (status: AttendanceStatus) => void }) {
   const t = useTranslations('attendance');
   const [athleteId, setAthleteId] = useState('');
   const weekStart = weekStartProp ?? getPlanWeekStart(new Date());
@@ -45,6 +47,14 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, [weekStart, day]);
+
+  // Surface the answered/attending state to the parent (e.g. the dashboard's
+  // "next workout" hero card uses this to decide its CTA) without exposing or
+  // duplicating any of the fetch/submit logic above.
+  useEffect(() => {
+    if (!loaded) return;
+    onStatusChange?.({ answered: alreadyAnswered || attending !== null, attending });
+  }, [loaded, alreadyAnswered, attending, onStatusChange]);
 
   const submit = async (isAttending: boolean) => {
     if (!athleteId) return;

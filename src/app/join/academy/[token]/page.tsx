@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { GraduationCap, Loader2, CheckCircle2, Watch } from 'lucide-react';
 
 /**
@@ -12,6 +13,8 @@ import { GraduationCap, Loader2, CheckCircle2, Watch } from 'lucide-react';
 export default function AcademyJoinPage() {
   const params = useParams();
   const token = params.token as string;
+  const t = useTranslations('joinAcademy');
+  const to = useTranslations('onboarding');
 
   const [step, setStep] = useState<'garmin' | 'mfa' | 'connecting' | 'done'>('garmin');
   const [garminEmail, setGarminEmail] = useState('');
@@ -28,7 +31,7 @@ export default function AcademyJoinPage() {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.error || 'Failed to save connection');
+      throw new Error(err.error || to('failedToSaveConnection'));
     }
     const data = await res.json();
     if (data.athlete) {
@@ -52,7 +55,7 @@ export default function AcademyJoinPage() {
       });
       const data = await res.json();
       if (data.mfaRequired) { setMfaSessionId(data.sessionId); setStep('mfa'); return; }
-      if (!res.ok) throw new Error(data.error || 'Failed to connect to Garmin');
+      if (!res.ok) throw new Error(data.error || to('failedToConnectGarmin'));
       await saveConnection(data.auth);
     } catch (err: any) {
       setError(err.message);
@@ -71,7 +74,7 @@ export default function AcademyJoinPage() {
         body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Verification failed');
+      if (!res.ok) throw new Error(data.error || to('verificationFailed'));
       await saveConnection(data.auth);
     } catch (err: any) {
       setError(err.message);
@@ -86,50 +89,50 @@ export default function AcademyJoinPage() {
           <div className="bg-primary-600/20 w-14 h-14 rounded-2xl flex items-center justify-center ring-1 ring-primary-500/20 mx-auto mb-3">
             <GraduationCap className="h-7 w-7 text-primary-300" />
           </div>
-          <h1 className="text-xl font-bold text-white">Connect Your Garmin</h1>
+          <h1 className="text-xl font-bold text-white">{t('title')}</h1>
           <p className="text-slate-400 mt-2 text-sm">
-            You&apos;re approved for the academy. Connect your watch so your coach can send you workouts.
+            {t('description')}
           </p>
         </div>
 
         {step === 'connecting' && (
           <div className="text-center py-8">
             <Loader2 className="h-8 w-8 text-primary-500 animate-spin mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Connecting to Garmin…</p>
+            <p className="text-slate-400 text-sm">{to('connectingGarmin')}</p>
           </div>
         )}
 
         {step === 'garmin' && (
           <form onSubmit={submitGarmin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Garmin email</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminEmailLabel')}</label>
               <input type="email" value={garminEmail} onChange={e => setGarminEmail(e.target.value)} required
                 placeholder="your@email.com"
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Garmin password</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminPasswordLabel')}</label>
               <input type="password" value={garminPassword} onChange={e => setGarminPassword(e.target.value)} required
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             {error && <p className="text-sm text-red-400">{error}</p>}
             <button type="submit" className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-lg px-4 py-3 transition-colors">
-              <Watch className="h-5 w-5" /> Connect Garmin
+              <Watch className="h-5 w-5" /> {t('connectButton')}
             </button>
             <p className="text-xs text-slate-500 text-center">
-              We use your Garmin login only to link your account. Credentials aren&apos;t stored.
+              {t('privacyNote')}
             </p>
           </form>
         )}
 
         {step === 'mfa' && (
           <form onSubmit={submitMfa} className="space-y-4">
-            <p className="text-sm text-slate-300">Enter the verification code Garmin sent you.</p>
+            <p className="text-sm text-slate-300">{t('mfaPrompt')}</p>
             <input type="text" inputMode="numeric" value={mfaCode} onChange={e => setMfaCode(e.target.value)} required
               placeholder="123456"
               className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary-500" />
             {error && <p className="text-sm text-red-400">{error}</p>}
-            <button type="submit" className="w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-lg px-4 py-3 transition-colors">Verify</button>
+            <button type="submit" className="w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-lg px-4 py-3 transition-colors">{t('verifyButton')}</button>
           </form>
         )}
 
@@ -138,12 +141,12 @@ export default function AcademyJoinPage() {
             <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="h-8 w-8 text-green-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">You&apos;re connected!</h2>
+            <h2 className="text-xl font-bold text-white">{t('connectedTitle')}</h2>
             <p className="text-slate-400 text-sm mt-2">
-              Your Garmin is linked. Your coach will push academy workouts to your watch.
+              {t('connectedDesc')}
             </p>
             <a href="/dashboard" className="mt-6 inline-block bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-lg px-5 py-3 transition-colors">
-              Open Madregot →
+              {t('openApp')}
             </a>
           </div>
         )}

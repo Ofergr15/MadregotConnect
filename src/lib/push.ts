@@ -49,6 +49,22 @@ export interface PushPayload {
   tag?: string;
   badge?: number; // app-icon badge count (iOS 16.4+ installed PWA). Defaults to 1.
   category?: NotificationCategory; // which pref governs this push (unset = always send)
+  /**
+   * Small square avatar/photo shown next to the notification (e.g. a coach's
+   * profile photo), matching how Strava shows a relevant image per notification
+   * instead of just the app icon. Falls back to the app icon in sw.ts when unset
+   * — optional so every existing call site keeps working unchanged.
+   */
+  icon?: string;
+  /** Larger banner image shown inside an expanded notification. Optional, rarely set today. */
+  image?: string;
+  /**
+   * When true, re-alerts (sound/vibration) even though this delivery reuses an
+   * existing `tag` and therefore replaces a notification already on screen —
+   * for cases like a recurring reminder where the replacement should still
+   * ping the user, not just silently swap the old card's content.
+   */
+  renotify?: boolean;
 }
 
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };

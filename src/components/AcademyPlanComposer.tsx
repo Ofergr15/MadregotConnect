@@ -357,20 +357,20 @@ function LibraryPicker({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true">
       <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-slate-700">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-primary-400" />
             <h2 className="text-lg font-bold text-white">Workout library · {DAY_FULL[day]}</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
         </div>
         <div className="overflow-y-auto p-2">
           {library.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-8">
+            <p className="text-sm text-slate-400 text-center py-8">
               Your library is empty. Build a workout and it will be saved here for reuse.
             </p>
           ) : (
@@ -382,7 +382,7 @@ function LibraryPicker({
                     {(item.workout.steps || []).map(stepSummary).join(' · ')}
                   </div>
                 </button>
-                <button onClick={() => onDelete(item.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-300 hover:bg-red-500/10 shrink-0" title="Delete from library">
+                <button onClick={() => onDelete(item.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-300 hover:bg-red-500/10 shrink-0" title="Delete from library" aria-label="Delete from library">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>

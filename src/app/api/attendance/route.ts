@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic';
 //   &athleteId=…    -> that athlete's own RSVP for the day (or null)
 //   &roster=1       -> coach view: everyone who RSVP'd that day (name/avatar)
 //   &roster=full    -> admin view: EVERY active athlete with their RSVP or null
-//                      (so non-responders are surfaced), incl. their squad.
+//                      (so non-responders are surfaced), incl. their squad and
+//                      a same-day-activity "confirmed" signal (roadmap #14).
 // GET /api/attendance?calendar=1&from=YYYY-MM-DD&to=YYYY-MM-DD
 //   -> admin calendar: per-practice-day attendance counts across a range, so a
 //      month grid can show who was/ is in each practice at a glance.
@@ -80,6 +81,35 @@ export async function GET(request: Request) {
       const byAthlete = new Map(
         (rsvps || []).map((r: any) => [r.athlete_id, r]),
       );
+
+      // Attendance verification (roadmap #14) — v1 is a simple same-day match:
+      // an athlete who RSVP'd "attending" is "confirmed" if they have at least
+      // one athlete_activities row on the practice's real calendar date. No
+      // time-window check against the practice's actual start time, no
+      // separate no-show/walk-in state — just this boolean, computed at read
+      // time (never persisted).
+      const goingIds = (rsvps || [])
+        .filter((r: any) => r.attending)
+        .map((r: any) => r.athlete_id);
+      const confirmedIds = new Set<string>();
+      if (goingIds.length > 0) {
+        const practiceDate = new Date(`${weekStart}T12:00:00`);
+        practiceDate.setDate(practiceDate.getDate() + Number(day));
+        const dateStr = practiceDate.toISOString().split('T')[0];
+        const nextDate = new Date(practiceDate);
+        nextDate.setDate(nextDate.getDate() + 1);
+        const nextDateStr = nextDate.toISOString().split('T')[0];
+
+        const { data: acts, error: actErr } = await supabase
+          .from('athlete_activities')
+          .select('athlete_id')
+          .in('athlete_id', goingIds)
+          .gte('start_time', `${dateStr}T00:00:00`)
+          .lt('start_time', `${nextDateStr}T00:00:00`);
+        if (actErr) throw actErr;
+        for (const a of acts || []) confirmedIds.add((a as any).athlete_id);
+      }
+
       const rows = (athletes || [])
         // active members only (skip pending invites / unapproved)
         .filter((a: any) => a.approved !== false && a.onboarding_status !== 'pending')
@@ -94,6 +124,8 @@ export async function GET(request: Request) {
             attending: r ? r.attending : null,
             // Chosen דבוקה for the day; fall back to their permanent squad name.
             groupLabel: r?.group_label || a.groups?.name || null,
+            // Only meaningful when attending === true; null otherwise.
+            confirmed: r?.attending === true ? confirmedIds.has(a.id) : null,
           };
         });
       return NextResponse.json({
@@ -101,6 +133,7 @@ export async function GET(request: Request) {
         goingCount: rows.filter((r) => r.attending === true).length,
         notGoingCount: rows.filter((r) => r.attending === false).length,
         noResponseCount: rows.filter((r) => !r.responded).length,
+        confirmedCount: rows.filter((r) => r.confirmed === true).length,
         total: rows.length,
       });
     }

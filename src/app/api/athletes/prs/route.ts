@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isSuperUser } from '@/lib/constants';
+import { filterQualifyingRuns, computeDistanceBests } from '@/lib/prs/pr-buckets';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,17 +12,10 @@ export const dynamic = 'force-dynamic';
 // data capture. Scoped like the activities API: a caller may fetch their own
 // PRs; verified staff (coach/admin/academy_coach via x-user-email) may fetch any.
 //
-// Distance bests use a tolerance window so real-world runs (never exactly 5.00km)
-// still count as a "5K effort". We take the fastest qualifying run per bucket.
-const BUCKETS: Array<{ key: string; label: string; meters: number; tolerance: number }> = [
-  { key: '5k', label: '5K', meters: 5000, tolerance: 0.06 },   // 4.70–5.30 km
-  { key: '10k', label: '10K', meters: 10000, tolerance: 0.05 }, // 9.5–10.5 km
-  { key: 'hm', label: 'Half Marathon', meters: 21097, tolerance: 0.04 }, // ~20.25–21.94 km
-  { key: 'fm', label: 'Marathon', meters: 42195, tolerance: 0.03 }, // ~40.9–43.5 km
-];
-
-// Runs only — exclude walks/other; matches the sync-time run-type filter.
-const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
+// Bucket definitions + tolerance-window/run-type filtering live in
+// lib/prs/pr-buckets.ts — the badge award engine's `pr_bucket` rule_type
+// (059_badges.sql) reuses the EXACT same logic so a "first 5K" badge fires on
+// the same run this route would show as the 5K PR.
 
 export async function GET(request: Request) {
   try {
@@ -58,33 +52,11 @@ export async function GET(request: Request) {
       .order('start_time', { ascending: false });
     if (error) throw error;
 
-    const runs = (acts || []).filter(
-      (a: any) => a.distance > 0 && a.duration > 0 && (!a.activity_type || RUN_TYPES.includes(a.activity_type))
-    );
+    const runs = filterQualifyingRuns((acts || []) as any[]);
 
-    // Distance-time bests: fastest qualifying run per bucket.
-    const distanceBests = BUCKETS.map((b) => {
-      const lo = b.meters * (1 - b.tolerance);
-      const hi = b.meters * (1 + b.tolerance);
-      let best: any = null;
-      for (const r of runs) {
-        if (r.distance < lo || r.distance > hi) continue;
-        // Normalize to the exact bucket distance so a 5.2km run's "5K time" is
-        // comparable (scale duration by the bucket/actual distance ratio).
-        const normalized = r.duration * (b.meters / r.distance);
-        if (!best || normalized < best.seconds) {
-          best = { seconds: Math.round(normalized), rawSeconds: r.duration, distanceM: r.distance, date: r.start_time, name: r.activity_name };
-        }
-      }
-      return {
-        key: b.key,
-        label: b.label,
-        meters: b.meters,
-        seconds: best?.seconds ?? null,
-        date: best?.date ?? null,
-        activityName: best?.name ?? null,
-      };
-    });
+    // Distance-time bests: fastest qualifying run per bucket (shared w/ the
+    // badge award engine's pr_bucket rule_type — see pr-buckets.ts).
+    const distanceBests = computeDistanceBests(runs).map(({ activityId, ...rest }) => rest);
 
     // Longest run — max single-activity distance (a milestone, not a time bucket).
     let longest: any = null;
