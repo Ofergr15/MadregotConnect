@@ -14,9 +14,11 @@
   header h1{font-size:34px;font-weight:900;letter-spacing:-.5px;margin-top:6px}
   header p{color:var(--s400);font-size:15px;margin-top:8px;max-width:640px;margin-inline:auto;line-height:1.6}
   .pill{display:inline-flex;align-items:center;gap:8px;margin-top:18px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.3);color:var(--amber);font-weight:800;font-size:13px;padding:8px 18px;border-radius:999px}
-  .cta{display:flex;justify-content:center;margin-top:22px}
-  .cta a{background:var(--indigo);color:#fff;font-weight:800;font-size:15px;padding:13px 26px;border-radius:14px;text-decoration:none;box-shadow:0 10px 24px rgba(67,56,255,.35);transition:transform .15s}
+  .cta{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:22px}
+  .cta a{font-weight:800;font-size:15px;padding:13px 26px;border-radius:14px;text-decoration:none;transition:transform .15s}
   .cta a:active{transform:scale(.97)}
+  .cta a.primary{background:var(--indigo);color:#fff;box-shadow:0 10px 24px rgba(67,56,255,.35)}
+  .cta a.secondary{background:rgba(30,41,59,.7);color:#fff;border:1px solid rgba(51,65,85,.7)}
 
   .sec{margin:54px 0 6px;display:flex;align-items:center;gap:12px}
   .sec h2{font-size:21px;font-weight:900}
@@ -67,7 +69,8 @@
     <p>המראה החדש — Native iOS Makeover. כל המסכים נבנו מחדש: ניווט לפי תפקיד, Sheet אחיד לכל המודלים, ומסך סטטיסטיקות חדש בסטייל Strava. לחצו על כל מסך כדי לפתוח אותו חי בגרסת התצוגה המקדימה.</p>
     <div class="pill">⚠ תצוגה מקדימה (Preview) — לא בפרודקשן עדיין</div>
     <div class="cta">
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">פתח את האפליקציה החדשה →</a>
+      <a class="primary" href="/iphone-preview" target="_blank" rel="noopener">📱 תצוגת iPhone חיה ואינטראקטיבית</a>
+      <a class="secondary" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">פתח את האפליקציה במסך מלא →</a>
     </div>
   </header>
 
@@ -183,7 +186,8 @@
 
   <footer>
     <p><b>הערה:</b> חלק מהעמודים דורשים התחברות אמיתית — אם מגיעים למסך התחברות זה תקין, זו הגרסה החיה על נתונים אמיתיים.</p>
-    <p style="margin-top:6px">נבנה כחלק ממהפך ה-Native iOS Makeover · <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/app-map.html">מפה זו</a> תתעדכן בכל דחיפה לענף התצוגה המקדימה</p>
+    <p style="margin-top:6px">רוצים לראות כמה מסכים זה לצד זה בתוך מסגרת iPhone? יש <a href="/iphone-preview">תצוגה חיה ואינטראקטיבית</a> לזה.</p>
+    <p style="margin-top:6px">נבנה כחלק ממהפך ה-Native iOS Makeover · מפה זו תתעדכן בכל דחיפה לענף התצוגה המקדימה</p>
   </footer>
 </div>
 </body>
