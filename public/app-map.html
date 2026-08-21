@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>מדרגות · מפת האפליקציה החדשה</title>
+<title>מדרגות · מפת האפליקציה — לפני ואחרי</title>
 <style>
-  :root{--indigo:#4338ff;--indigo-l:#818cf8;--s950:#0b1120;--s900:#0f172a;--s800:#1e293b;--s700:#334155;--s400:#94a3b8;--s500:#64748b;--green:#22c55e;--amber:#f59e0b;--orange:#fb923c}
+  :root{--indigo:#4338ff;--indigo-l:#818cf8;--s950:#0b1120;--s900:#0f172a;--s800:#1e293b;--s700:#334155;--s400:#94a3b8;--s500:#64748b;--green:#22c55e;--amber:#f59e0b;--orange:#fb923c;--red:#f87171}
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:radial-gradient(120% 55% at 50% 0%,#16213b 0%,#0f172a 45%,#0b1120 100%);color:#fff;font-family:"Heebo","Rubik",-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding:44px 20px 90px}
   .wrap{max-width:1180px;margin:0 auto}
   header{text-align:center;margin-bottom:8px}
   header .kick{color:var(--indigo-l);font-size:13px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
-  header h1{font-size:34px;font-weight:900;letter-spacing:-.5px;margin-top:6px}
+  header h1{font-size:32px;font-weight:900;letter-spacing:-.5px;margin-top:6px}
   header p{color:var(--s400);font-size:15px;margin-top:8px;max-width:640px;margin-inline:auto;line-height:1.6}
   .pill{display:inline-flex;align-items:center;gap:8px;margin-top:18px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.3);color:var(--amber);font-weight:800;font-size:13px;padding:8px 18px;border-radius:999px}
   .cta{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:22px}
@@ -21,7 +21,7 @@
   .cta a.secondary{background:rgba(30,41,59,.7);color:#fff;border:1px solid rgba(51,65,85,.7)}
 
   .sec{margin:54px 0 6px;display:flex;align-items:center;gap:12px}
-  .sec h2{font-size:21px;font-weight:900}
+  .sec h2{font-size:21px;font-weight:900;white-space:nowrap}
   .sec .tag{font-size:11.5px;font-weight:800;padding:4px 11px;border-radius:999px;white-space:nowrap}
   .sec .tag.run{background:rgba(67,56,255,.18);color:var(--indigo-l)}
   .sec .tag.coach{background:rgba(249,115,22,.16);color:var(--orange)}
@@ -29,166 +29,193 @@
   .sec .line{flex:1;height:1px;background:linear-gradient(90deg,rgba(51,65,85,.7),transparent)}
   .sec-note{color:var(--s500);font-size:13px;margin-top:6px;line-height:1.6}
 
-  .tabbar{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
-  .tabitem{flex:1 1 150px;background:rgba(30,41,59,.55);border:1px solid rgba(51,65,85,.6);border-radius:16px;padding:16px;text-decoration:none;color:inherit;transition:border-color .15s,transform .15s;display:flex;flex-direction:column;gap:4px}
-  .tabitem:hover{border-color:var(--indigo-l);transform:translateY(-2px)}
-  .tabitem .ic{font-size:22px}
-  .tabitem b{font-size:14.5px;font-weight:800}
-  .tabitem span{color:var(--s400);font-size:12px;line-height:1.5}
-  .tabitem.fab{border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.08)}
-  .tabitem.fab b{color:var(--amber)}
+  .legend{display:flex;justify-content:center;gap:22px;margin-top:16px;font-size:12.5px;color:var(--s400)}
+  .legend b{color:#fff}
+  .legend .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-inline-end:5px}
+  .legend .dot.old{background:var(--s500)}
+  .legend .dot.new{background:var(--indigo-l)}
 
-  .subgrid{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
-  .subcard{background:rgba(15,23,42,.55);border:1px solid rgba(51,65,85,.5);border-radius:14px;padding:14px 16px}
-  .subcard h3{font-size:13px;font-weight:800;color:var(--s400);text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px}
-  .subcard a{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:8px 0;border-top:1px solid rgba(51,65,85,.35)}
-  .subcard a:first-of-type{border-top:none}
-  .subcard a:hover{color:var(--indigo-l)}
-  .subcard a .go{color:var(--s500);font-size:12px}
-
-  .flat{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-  .flatcard{background:rgba(30,41,59,.5);border:1px solid rgba(51,65,85,.55);border-radius:14px;padding:14px 16px;text-decoration:none;color:inherit;display:block;transition:border-color .15s}
-  .flatcard:hover{border-color:var(--indigo-l)}
-  .flatcard b{font-size:14px;font-weight:800;display:block}
-  .flatcard span{color:var(--s500);font-size:12px;display:block;margin-top:4px;line-height:1.5}
-
-  .retired{margin-top:26px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.22);border-radius:14px;padding:16px 18px}
-  .retired h3{font-size:13px;font-weight:800;color:#f87171;margin-bottom:6px}
-  .retired p{color:var(--s400);font-size:13px;line-height:1.6}
+  .rows{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+  .row{background:rgba(15,23,42,.5);border:1px solid rgba(51,65,85,.5);border-radius:18px;padding:16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .row-info{flex:1 1 200px;min-width:180px}
+  .row-info b{font-size:15px;font-weight:800;display:block}
+  .row-info span{color:var(--s500);font-size:12.5px;display:block;margin-top:3px;line-height:1.5}
+  .row-info a.open{display:inline-flex;align-items:center;gap:4px;margin-top:8px;font-size:12px;font-weight:700;color:var(--indigo-l);text-decoration:none}
+  .thumbs{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+  .arrow{color:var(--s500);font-size:20px}
+  .thumb-wrap{text-align:center}
+  .thumb-wrap .cap{font-size:10.5px;font-weight:800;color:var(--s500);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+  .thumb-wrap .cap.new{color:var(--indigo-l)}
+  .phone-mini{width:96px;border-radius:20px;background:linear-gradient(155deg,#8b8b8f 0%,#5c5c60 45%,#3a3a3d 100%);padding:5px;box-shadow:0 8px 18px rgba(0,0,0,.45)}
+  .phone-mini .screen{border-radius:16px;overflow:hidden;background:#000;aspect-ratio:390/844;position:relative}
+  .phone-mini img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+  .phone-mini.missing .screen{display:flex;align-items:center;justify-content:center;background:#0f172a;color:var(--s500);font-size:22px}
+  .badge{display:inline-block;margin-top:8px;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px}
+  .badge.new-only{background:rgba(129,140,248,.15);color:var(--indigo-l)}
+  .badge.retired{background:rgba(248,113,113,.12);color:var(--red)}
+  .badge.same{background:rgba(100,116,139,.2);color:var(--s400)}
 
   footer{text-align:center;color:var(--s500);font-size:12px;margin-top:60px;line-height:1.8}
-  footer b{color:var(--s400)}
   footer a{color:var(--indigo-l);text-decoration:none}
+
+  @media (max-width:640px){
+    .row{flex-direction:column;align-items:stretch}
+    .thumbs{justify-content:center}
+    .phone-mini{width:110px}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="kick">Madregot · After 2KM Running Club</div>
-    <h1>מפת האפליקציה החדשה 🗺️</h1>
-    <p>המראה החדש — Native iOS Makeover. כל המסכים נבנו מחדש: ניווט לפי תפקיד, Sheet אחיד לכל המודלים, ומסך סטטיסטיקות חדש בסטייל Strava. לחצו על כל מסך כדי לפתוח אותו חי בגרסת התצוגה המקדימה.</p>
+    <h1>מפת האפליקציה — לפני ואחרי 🗺️</h1>
+    <p>כל מסך באפליקציה, גרסה ישנה לצד גרסה חדשה — צילומי מסך אמיתיים, לא הדמיות. לחצו על "פתח חי" כדי לנווט למסך האמיתי בתצוגה המקדימה.</p>
     <div class="pill">⚠ תצוגה מקדימה (Preview) — לא בפרודקשן עדיין</div>
     <div class="cta">
       <a class="primary" href="/iphone-preview" target="_blank" rel="noopener">📱 תצוגת iPhone חיה ואינטראקטיבית</a>
       <a class="secondary" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">פתח את האפליקציה במסך מלא →</a>
     </div>
+    <div class="legend">
+      <span><span class="dot old"></span><b>ישן</b> — לפני המהפך</span>
+      <span><span class="dot new"></span><b>חדש</b> — הגרסה החדשה</span>
+    </div>
   </header>
 
-  <!-- Athlete -->
-  <div class="sec">
-    <h2>תפריט תחתון · ספורטאי</h2>
-    <span class="tag run">4 טאבים + FAB</span>
-    <div class="line"></div>
-  </div>
-  <div class="sec-note">Home · Program · Feed · Profile — Activities ירד מהתפריט התחתון והפך לשורה בתוך Profile.</div>
-  <div class="tabbar">
-    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">
-      <span class="ic">🏠</span><b>בית</b><span>לוח הבקרה היומי — האימון הקרוב, סטרייק, RSVP</span>
-    </a>
-    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/program" target="_blank" rel="noopener">
-      <span class="ic">📅</span><b>תוכנית</b><span>כרטיסי יום טבעיים (הוחלף ה-PDF הישן)</span>
-    </a>
-    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/feed" target="_blank" rel="noopener">
-      <span class="ic">📣</span><b>פיד</b><span>עדכונים ותמונות מהקבוצה</span>
-    </a>
-    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/profile" target="_blank" rel="noopener">
-      <span class="ic">👤</span><b>פרופיל</b><span>סטטיסטיקות, פעילויות, הגדרות</span>
-    </a>
-    <a class="tabitem fab" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">
-      <span class="ic">✓</span><b>FAB · אישור הגעה</b><span>RSVP לאימון הקרוב</span>
-    </a>
-  </div>
-
-  <div class="subgrid">
-    <div class="subcard">
-      <h3>פרופיל · שורות</h3>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/profile" target="_blank" rel="noopener">סטטיסטיקות <span class="go">חדש · Strava-style ↗</span></a>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/activities" target="_blank" rel="noopener">הפעילויות שלי <span class="go">↗</span></a>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/settings" target="_blank" rel="noopener">הגדרות <span class="go">↗</span></a>
-    </div>
-    <div class="subcard">
-      <h3>עוד (Sheet)</h3>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/calendar" target="_blank" rel="noopener">לוח שנה <span class="go">כולל מרוצים ↗</span></a>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/notifications" target="_blank" rel="noopener">התראות <span class="go">↗</span></a>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/review" target="_blank" rel="noopener">משוב על האפליקציה <span class="go">↗</span></a>
-    </div>
-  </div>
-
-  <!-- Coach -->
-  <div class="sec">
-    <h2>תפריט תחתון · מאמן / צוות</h2>
-    <span class="tag coach">4 טאבים + FAB</span>
-    <div class="line"></div>
-  </div>
-  <div class="sec-note">Home · Athletes · Workout Feedback · Coach Tools — כל שאר כלי הניהול עברו לתוך "כלי מאמן" (היה תפריט גלישה עמוס, הפך לעמוד מלא).</div>
-  <div class="tabbar">
-    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">
-      <span class="ic">🏠</span><b>בית</b><span>Coach pulse — תמונת מצב של הקבוצה</span>
-    </a>
-    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/athletes" target="_blank" rel="noopener">
-      <span class="ic">🏃</span><b>ספורטאים</b><span>כרטיסים + Sheet פעולות (הוחלפו טבלה ותפריטים)</span>
-    </a>
-    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/workout-feedback" target="_blank" rel="noopener">
-      <span class="ic">💬</span><b>משוב אימונים</b><span>תגובות הספורטאים לאימונים</span>
-    </a>
-    <a class="tabitem" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/coach-tools" target="_blank" rel="noopener">
-      <span class="ic">🧰</span><b>כלי מאמן</b><span>חדש · כל כלי הניהול במקום אחד</span>
-    </a>
-    <a class="tabitem fab" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/practice-attendance" target="_blank" rel="noopener">
-      <span class="ic">📋</span><b>FAB · רשימת נוכחות</b><span>סימון נוכחות לאימון</span>
-    </a>
-  </div>
-
-  <div class="subgrid">
-    <div class="subcard">
-      <h3>כלי מאמן · תכנון</h3>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/plan/new" target="_blank" rel="noopener">מתכנן שבועי <span class="go">עברית מלאה ↗</span></a>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/history" target="_blank" rel="noopener">היסטוריית תוכניות <span class="go">↗</span></a>
-    </div>
-    <div class="subcard">
-      <h3>כלי מאמן · קבוצות וחניכים</h3>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/groups" target="_blank" rel="noopener">קבוצות <span class="go">↗</span></a>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/academy" target="_blank" rel="noopener">אקדמיה <span class="go">↗</span></a>
-    </div>
-    <div class="subcard">
-      <h3>כלי מאמן · תובנות</h3>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/team-volume" target="_blank" rel="noopener">נפח קבוצתי <span class="go">↗</span></a>
-      <a href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard/calendar" target="_blank" rel="noopener">לוח שנה <span class="go">↗</span></a>
-    </div>
-  </div>
-
-  <div class="retired">
-    <h3>🗑 בוטל / התמזג</h3>
-    <p><b>עמוד "מרוצים" הישן</b> (רשימה קשיחה עם דוגמאות) נמחק — המרוצים האמיתיים (מ-<code>events</code>) עברו ללוח השנה, עם תצוגת רשימה/מפה. <b>"תיעדוף" ו"נפח שבועי"</b> בפרופיל התמזגו למסך <b>סטטיסטיקות</b> אחד, בסטייל Strava/Garmin.</p>
-  </div>
-
-  <!-- Public -->
-  <div class="sec">
-    <h2>ציבורי · הרשמה והתחברות</h2>
-    <span class="tag pub">לא מחייב התחברות</span>
-    <div class="line"></div>
-  </div>
-  <div class="flat">
-    <a class="flatcard" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/" target="_blank" rel="noopener">
-      <b>דף נחיתה</b><span>העמוד הראשי הציבורי</span>
-    </a>
-    <a class="flatcard" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/admin/login" target="_blank" rel="noopener">
-      <b>כניסת מנהל</b><span>עברית מלאה (חדש)</span>
-    </a>
-    <a class="flatcard" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/pending-approval" target="_blank" rel="noopener">
-      <b>ממתין לאישור</b><span>עברית מלאה (חדש)</span>
-    </a>
-    <a class="flatcard" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/academy-register" target="_blank" rel="noopener">
-      <b>הרשמה לאקדמיה</b><span>טופס ציבורי</span>
-    </a>
-  </div>
-  <div class="sec-note" style="margin-top:14px">קישורי הצטרפות (<code>/join/[token]</code>, <code>/join/onboard</code>, <code>/join/academy/[token]</code>) מגיעים ממייל הזמנה אישי ולכן לא מקושרים כאן ישירות — גם הם תורגמו לעברית מלאה במעבר הזה.</div>
+  <div id="app"></div>
 
   <footer>
     <p><b>הערה:</b> חלק מהעמודים דורשים התחברות אמיתית — אם מגיעים למסך התחברות זה תקין, זו הגרסה החיה על נתונים אמיתיים.</p>
-    <p style="margin-top:6px">רוצים לראות כמה מסכים זה לצד זה בתוך מסגרת iPhone? יש <a href="/iphone-preview">תצוגה חיה ואינטראקטיבית</a> לזה.</p>
     <p style="margin-top:6px">נבנה כחלק ממהפך ה-Native iOS Makeover · מפה זו תתעדכן בכל דחיפה לענף התצוגה המקדימה</p>
   </footer>
 </div>
+
+<script>
+  var BASE = 'https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app';
+  var OLD = '/redesign-preview/old/';
+  var NEW = '/redesign-preview/new/';
+
+  var SECTIONS = [
+    {
+      title: 'תפריט תחתון · ספורטאי',
+      tag: 'run',
+      tagLabel: '4 טאבים + FAB',
+      note: 'Home · Program · Feed · Profile — Activities ירד מהתפריט התחתון והפך לשורה בתוך Profile.',
+      screens: [
+        { label: 'בית (ספורטאי)', desc: 'לוח הבקרה היומי — RSVP, סטרייק, האימון הקרוב', old: 'home-athlete-old.png', new: 'home-athlete.png', path: '/dashboard' },
+        { label: 'תוכנית שבועית', desc: 'כרטיסי יום טבעיים — הוחלף ה-PDF הישן', old: 'program-old.png', new: 'program.png', path: '/dashboard/program' },
+        { label: 'פיד', desc: 'עדכונים ותמונות מהקבוצה', old: 'feed-old.png', new: 'feed.png', path: '/dashboard/feed' },
+        { label: 'פרופיל', desc: 'שורות: סטטיסטיקות, פעילויות, הגדרות', old: 'profile-old.png', new: 'profile.png', path: '/dashboard/profile' },
+        { label: 'סטטיסטיקות', desc: 'חדש · בסטייל Strava/Garmin — שיאים, עקביות, נפח לפי שבוע', new: 'statistics.png', path: '/dashboard/profile', badge: 'new-only' },
+        { label: 'הפעילויות שלי', desc: 'יומן ריצות מלא', old: 'activities-old.png', new: 'activities.png', path: '/dashboard/activities' },
+        { label: 'הגדרות', desc: 'פרטים אישיים, תזכורות, ניהול', old: 'settings-old.png', new: 'settings.png', path: '/dashboard/settings' },
+        { label: 'לוח שנה', desc: 'חדש · כולל תצוגת מרוצים במפה', new: 'calendar.png', path: '/dashboard/calendar', badge: 'new-only' },
+        { label: 'התראות', desc: 'עדכונים אחרונים', old: 'notifications-old.png', new: 'notifications.png', path: '/dashboard/notifications' },
+        { label: 'משוב על האפליקציה', desc: 'ערוץ תקשורת ישיר עם הצוות', old: 'review-old.png', new: 'review.png', path: '/dashboard/review' },
+      ],
+    },
+    {
+      title: 'תפריט תחתון · מאמן / צוות',
+      tag: 'coach',
+      tagLabel: '4 טאבים + FAB',
+      note: 'Home · Athletes · Workout Feedback · Coach Tools — כל שאר כלי הניהול עברו לתוך "כלי מאמן".',
+      screens: [
+        { label: 'בית (מאמן)', desc: 'Coach Pulse — תמונת מצב, שיאים חדשים, Squad Battle', old: 'home-coach-old.png', new: 'home-coach.png', path: '/dashboard' },
+        { label: 'ספורטאים', desc: 'כרטיסים + Sheet פעולות — הוחלפו טבלה ותפריטים נפתחים', old: 'athletes-old.png', new: 'athletes.png', path: '/dashboard/athletes' },
+        { label: 'משוב אימונים', desc: 'תגובות הספורטאים לאימונים', old: 'workout-feedback-old.png', new: 'workout-feedback.png', path: '/dashboard/workout-feedback' },
+        { label: 'כלי מאמן', desc: 'חדש · כל כלי הניהול במקום אחד', new: 'coach-tools.png', path: '/dashboard/coach-tools', badge: 'new-only' },
+        { label: 'רשימת נוכחות', desc: 'סימון נוכחות לאימון (FAB)', old: 'practice-attendance-old.png', new: 'practice-attendance.png', path: '/dashboard/practice-attendance' },
+        { label: 'מתכנן שבועי', desc: 'עברית מלאה, Sheet לכל המודלים — היה אנגלי עם חלונות מרכזיים', old: 'plan-new-old.png', new: 'plan-new.png', path: '/dashboard/plan/new' },
+        { label: 'היסטוריית תוכניות', desc: 'ארכיון תוכניות עבר', old: 'history-old.png', new: 'history.png', path: '/dashboard/history' },
+        { label: 'קבוצות', desc: 'SegmentedControl + Sheet לעריכה', old: 'groups-old.png', new: 'groups.png', path: '/dashboard/groups' },
+        { label: 'אקדמיה', desc: 'רצועת קטגוריות גלילה + Sheet', old: 'academy-old.png', new: 'academy.png', path: '/dashboard/academy' },
+        { label: 'נפח קבוצתי', desc: 'תובנות נפח ריצה לקבוצה', old: 'team-volume-old.png', new: 'team-volume.png', path: '/dashboard/team-volume' },
+      ],
+    },
+    {
+      title: 'ציבורי · הרשמה והתחברות',
+      tag: 'pub',
+      tagLabel: 'לא מחייב התחברות',
+      note: '',
+      screens: [
+        { label: 'דף נחיתה', desc: 'העמוד הראשי הציבורי', old: 'landing-old.png', new: 'landing.png', path: '/' },
+        { label: 'כניסת מנהל', desc: 'תורגם לעברית מלאה — היה באנגלית', old: 'admin-login-old.png', new: 'admin-login.png', path: '/admin/login' },
+        { label: 'ממתין לאישור', desc: 'תורגם לעברית מלאה — היה באנגלית', old: 'pending-approval-old.png', new: 'pending-approval.png', path: '/pending-approval' },
+        { label: 'הרשמה לאקדמיה', desc: 'ללא שינוי — טופס ציבורי שהיה כבר בעברית', new: 'academy-register.png', path: '/academy-register', badge: 'same' },
+      ],
+    },
+    {
+      title: 'הוסר מהאפליקציה',
+      tag: 'pub',
+      tagLabel: 'רק ישן',
+      note: 'המרוצים האמיתיים (מ-events) עברו ללוח השנה, עם תצוגת רשימה/מפה — העמוד הישן עם הרשימה הקשיחה נמחק.',
+      screens: [
+        { label: 'מרוצים (ישן)', desc: 'רשימה קשיחה עם דוגמאות — התמזג ללוח השנה', old: 'races-old.png', path: '/dashboard/calendar', badge: 'retired' },
+      ],
+    },
+  ];
+
+  function phone(filename, dir, missingIcon) {
+    if (!filename) {
+      return '<div class="phone-mini missing"><div class="screen">' + (missingIcon || '—') + '</div></div>';
+    }
+    return '<div class="phone-mini"><div class="screen"><img src="' + dir + filename + '" loading="lazy" alt="" /></div></div>';
+  }
+
+  function badgeHtml(kind) {
+    if (kind === 'new-only') return '<span class="badge new-only">חדש בלבד — אין גרסה ישנה</span>';
+    if (kind === 'retired') return '<span class="badge retired">הוסר מהאפליקציה</span>';
+    if (kind === 'same') return '<span class="badge same">ללא שינוי</span>';
+    return '';
+  }
+
+  var app = document.getElementById('app');
+  SECTIONS.forEach(function (section) {
+    var secEl = document.createElement('div');
+    secEl.className = 'sec';
+    secEl.innerHTML = '<h2>' + section.title + '</h2><span class="tag ' + section.tag + '">' + section.tagLabel + '</span><div class="line"></div>';
+    app.appendChild(secEl);
+
+    if (section.note) {
+      var noteEl = document.createElement('div');
+      noteEl.className = 'sec-note';
+      noteEl.textContent = section.note;
+      app.appendChild(noteEl);
+    }
+
+    var rowsEl = document.createElement('div');
+    rowsEl.className = 'rows';
+
+    section.screens.forEach(function (s) {
+      var row = document.createElement('div');
+      row.className = 'row';
+
+      var thumbsHtml;
+      if (s.old && s.new) {
+        thumbsHtml =
+          '<div class="thumb-wrap"><div class="cap">ישן</div>' + phone(s.old, OLD) + '</div>' +
+          '<div class="arrow">←</div>' +
+          '<div class="thumb-wrap"><div class="cap new">חדש</div>' + phone(s.new, NEW) + '</div>';
+      } else if (s.new) {
+        thumbsHtml = '<div class="thumb-wrap"><div class="cap new">חדש</div>' + phone(s.new, NEW) + '</div>';
+      } else {
+        thumbsHtml = '<div class="thumb-wrap"><div class="cap">ישן</div>' + phone(s.old, OLD) + '</div>';
+      }
+
+      row.innerHTML =
+        '<div class="row-info">' +
+          '<b>' + s.label + '</b>' +
+          '<span>' + s.desc + '</span>' +
+          (s.badge ? badgeHtml(s.badge) : '') +
+          (s.path ? '<a class="open" href="' + BASE + s.path + '" target="_blank" rel="noopener">פתח חי ↗</a>' : '') +
+        '</div>' +
+        '<div class="thumbs">' + thumbsHtml + '</div>';
+
+      rowsEl.appendChild(row);
+    });
+
+    app.appendChild(rowsEl);
+  });
+</script>
 </body>
 </html>
