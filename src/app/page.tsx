@@ -610,23 +610,51 @@ export default function HomePage() {
             {t('supportSystem')}
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
-            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+          {/* Two real-proof hero cards — actual numbers, not stock copy. */}
+          <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
+            <div className="group relative overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="pointer-events-none absolute -top-10 -end-10 h-40 w-40 rounded-full bg-primary-600/[0.06] blur-2xl" aria-hidden="true" />
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
                 <Trophy className="h-6 w-6 stroke-[1.75]" />
               </div>
-              <h3 className="text-lg font-bold mb-2">{t('performance')}</h3>
+              <h3 className="text-lg font-bold mb-1">{t('performance')}</h3>
+              <div className="flex items-baseline gap-2 mb-3">
+                <span className="text-4xl sm:text-5xl font-black text-primary-600 tabular-nums" dir="ltr">17</span>
+                <span className="text-sm text-gray-500">{t('videoGuidedExercises')}</span>
+              </div>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('professionalCoach')}</li>
                 <li>{t('gymAccess')}</li>
                 <li>{t('personalizedPrograms')}</li>
               </ul>
             </div>
-            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+            <div className="group relative overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="pointer-events-none absolute -top-10 -end-10 h-40 w-40 rounded-full bg-primary-600/[0.06] blur-2xl" aria-hidden="true" />
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
-                <Heart className="h-6 w-6 stroke-[1.75]" />
+                <Users className="h-6 w-6 stroke-[1.75]" />
               </div>
-              <h3 className="text-lg font-bold mb-2">{t('recovery')}</h3>
+              <h3 className="text-lg font-bold mb-1">{t('community')}</h3>
+              <div className="flex items-baseline gap-2 mb-3">
+                <span className="text-4xl sm:text-5xl font-black text-primary-600 tabular-nums" dir="ltr">
+                  {stats && stats.athletes > 0 ? fmtNum(stats.athletes, locale) : '20+'}
+                </span>
+                <span className="text-sm text-gray-500">{t('activeRunnersThisSeason')}</span>
+              </div>
+              <ul className="text-sm text-gray-500 space-y-1">
+                <li>{t('trainingPartners')}</li>
+                <li>{t('raceTravel')}</li>
+                <li>{t('memberBenefits')}</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Three smaller supporting cards. */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600">
+                <Heart className="h-5 w-5 stroke-[1.75]" />
+              </div>
+              <h3 className="text-base font-bold mb-2">{t('recovery')}</h3>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('physiotherapy')}</li>
                 <li>{t('orthopedicCare')}</li>
@@ -634,10 +662,10 @@ export default function HomePage() {
               </ul>
             </div>
             <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
-                <Zap className="h-6 w-6 stroke-[1.75]" />
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
+                <Zap className="h-5 w-5 stroke-[1.75]" />
               </div>
-              <h3 className="text-lg font-bold mb-2">{t('nutrition')}</h3>
+              <h3 className="text-base font-bold mb-2">{t('nutrition')}</h3>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('sportsNutrition')}</li>
                 <li>{t('energyProducts')}</li>
@@ -645,26 +673,11 @@ export default function HomePage() {
               </ul>
             </div>
             <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
-                <Users className="h-6 w-6 stroke-[1.75]" />
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600">
+                <Camera className="h-5 w-5 stroke-[1.75]" />
               </div>
-              <h3 className="text-lg font-bold mb-2">{t('community')}</h3>
-              <ul className="text-sm text-gray-500 space-y-1">
-                <li>{t('trainingPartners')}</li>
-                <li>{t('raceTravel')}</li>
-                <li>{t('memberBenefits')}</li>
-              </ul>
-            </div>
-            <div className="group bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg col-span-2 sm:col-span-1">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600/10 text-primary-600">
-                <Camera className="h-6 w-6 stroke-[1.75]" />
-              </div>
-              <h3 className="text-lg font-bold mb-2">{t('content')}</h3>
-              <ul className="text-sm text-gray-500 space-y-1">
-                <li>{t('professionalPhotography')}</li>
-                <li>{t('socialMedia')}</li>
-                <li>{t('raceCoverage')}</li>
-              </ul>
+              <h3 className="text-base font-bold mb-2">{t('content')}</h3>
+              <p className="text-sm text-gray-500">{t('feedProof')}</p>
             </div>
           </div>
         </div>
