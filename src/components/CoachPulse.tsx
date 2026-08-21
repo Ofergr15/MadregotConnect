@@ -4,7 +4,7 @@ import { AlertTriangle, PartyPopper, Bell, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { formatTime } from '@/lib/academy/benchmark';
 import { useApi } from '@/lib/api';
-import { SkeletonCard } from '@/components/ui';
+import { Card, SkeletonCard } from '@/components/ui';
 
 interface Attn {
   athleteId: string; name: string; avatarUrl: string | null; squad: string | null; squadColor: string | null;
@@ -43,7 +43,7 @@ export function CoachPulse() {
   };
 
   return (
-    <div className="rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4 sm:p-5 mb-4" dir="rtl">
+    <Card variant="solid" className="mb-4" dir="rtl">
       <div className="flex items-center gap-2 mb-4">
         <Activity className="h-4 w-4 text-primary-400" />
         <h2 className="text-sm font-semibold text-white uppercase tracking-wider">דופק המאמן</h2>
@@ -55,7 +55,7 @@ export function CoachPulse() {
           <div className="flex items-center gap-1.5 mb-2"><AlertTriangle className="h-3.5 w-3.5 text-amber-400" /><span className="text-xs font-bold text-amber-300">דורש תשומת לב</span></div>
           <div className="space-y-1.5">
             {attention.slice(0, 5).map((a) => (
-              <Link key={a.athleteId} href="/dashboard/workout-feedback" className="flex items-center gap-3 bg-slate-900/50 rounded-xl p-2.5 active:bg-slate-700/40 transition-colors">
+              <Link key={a.athleteId} href="/dashboard/workout-feedback" className="flex items-center gap-3 bg-slate-900/50 rounded-2xl p-2.5 active:bg-slate-700/40 transition-colors">
                 <Avatar url={a.avatarUrl} name={a.name} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -76,7 +76,7 @@ export function CoachPulse() {
           <div className="flex items-center gap-1.5 mb-2"><PartyPopper className="h-3.5 w-3.5 text-emerald-400" /><span className="text-xs font-bold text-emerald-300">לחגוג 🎉</span></div>
           <div className="space-y-1.5">
             {celebrate.slice(0, 5).map((c, i) => (
-              <div key={`${c.athleteId}-${c.label}-${i}`} className="flex items-center gap-3 bg-slate-900/50 rounded-xl p-2.5">
+              <div key={`${c.athleteId}-${c.label}-${i}`} className="flex items-center gap-3 bg-slate-900/50 rounded-2xl p-2.5">
                 <Avatar url={c.avatarUrl} name={c.name} />
                 <div className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold text-white truncate" dir="auto">{c.name}</span>
@@ -88,6 +88,6 @@ export function CoachPulse() {
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

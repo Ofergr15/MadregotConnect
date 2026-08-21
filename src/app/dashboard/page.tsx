@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   Calendar, Users, ArrowRight, TrendingUp, TrendingDown, Heart, Route,
   Sun, Cloud, CloudRain, Droplets, ChevronRight, MapPin, Zap, Wind,
@@ -23,7 +24,7 @@ import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_LABELS as typeLabels } from '@/lib/plans/workout-parsing';
-import { Spinner } from '@/components/ui';
+import { Spinner, Card, BigStat, EmptyState, SegmentedControl, Button } from '@/components/ui';
 
 const RACE_DATE = new Date('2026-12-06T09:00:00');
 const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
@@ -118,6 +119,9 @@ interface RecentActivity {
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
+  const router = useRouter();
+  const locale = useLocale();
+  const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyData | null>(null);
   const [weather, setWeather] = useState<WeatherDay[]>([]);
@@ -458,6 +462,9 @@ export default function DashboardPage() {
   const greetHour = new Date().getHours();
   const greeting = greetHour < 12 ? t('goodMorning') : greetHour < 18 ? t('goodAfternoon') : t('goodEvening');
   const firstName = (athleteName || '').split(' ')[0];
+  // Locale-aware race date (was a hardcoded "Dec 6, 2026" — reads as a Hebrew
+  // month name once translated instead of forcing English into an RTL page).
+  const raceDateLabel = RACE_DATE.toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
@@ -487,7 +494,7 @@ export default function DashboardPage() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-white truncate">{t('valenciaMarathon')}</p>
           <p className="text-xs text-slate-400 mt-0.5">
-            Dec 6, 2026 · {week > 0 ? <>Week {week}/{TOTAL_WEEKS}</> : <span>{t('preSeason')}</span>}
+            {raceDateLabel} · {week > 0 ? t('weekOfTotal', { week, total: TOTAL_WEEKS }) : t('preSeason')}
           </p>
         </div>
         <div className="text-end shrink-0">
@@ -502,52 +509,50 @@ export default function DashboardPage() {
       {/* ═══ STATS ROW ═══ */}
       {isCoach ? (
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('weeklyVolume')}</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {hasData ? `${Math.round(weekly!.weekTotalMin)}–${Math.round(weekly!.weekTotalMax)}` : '—'}
-              <span className="text-sm font-medium text-slate-500 ms-1">{tc('km')}</span>
-            </p>
+          <Card variant="muted">
+            <BigStat
+              value={hasData ? <>{Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)}<span className="text-sm font-medium text-slate-500"> {tc('km')}</span></> : '—'}
+              label={t('weeklyVolume')}
+            />
             {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
-              <div className="flex items-center gap-1 mt-2">
+              <div className="flex items-center justify-center gap-1 mt-2">
                 {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-green-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
                 <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-green-400' : 'text-amber-400')}>
                   {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
                 </span>
               </div>
             )}
-          </div>
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('trainingDays')}</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500 ms-1">/7</span>
-            </p>
-            <p className="text-sm text-slate-500 mt-1">{t('thisWeek')}</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Athletes</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">{stats?.athleteCount || 0}</p>
-            <p className="text-sm text-slate-500 mt-1">{stats?.groupCount || 0} groups</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('delivery')}</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500 ms-0.5">%</span>
-            </p>
-            <p className="text-sm text-slate-500 mt-1">{t('successRate')}</p>
-          </div>
+          </Card>
+          <Card variant="muted">
+            <BigStat
+              value={<>{weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500">/7</span></>}
+              label={t('trainingDays')}
+            />
+            <p className="text-sm text-slate-500 mt-1 text-center">{t('thisWeek')}</p>
+          </Card>
+          <Card variant="muted">
+            <BigStat value={stats?.athleteCount || 0} label="Athletes" />
+            <p className="text-sm text-slate-500 mt-1 text-center">{stats?.groupCount || 0} groups</p>
+          </Card>
+          <Card variant="muted">
+            <BigStat
+              value={<>{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500">%</span></>}
+              label={t('delivery')}
+            />
+            <p className="text-sm text-slate-500 mt-1 text-center">{t('successRate')}</p>
+          </Card>
         </section>
       ) : (
         <section className="space-y-3 sm:space-y-4">
           {/* Training days completed this week — a standalone stat (unrelated to
               which specific workout is "next", so it stays outside the hero card). */}
-          <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('trainingDays')}</p>
-            <p className="text-xl sm:text-2xl font-black text-white mt-2 tabular-nums">
-              {weeklyRuns}<span className="text-sm font-medium text-slate-500 ms-1">/ {hasData ? weekly!.trainingDays : 7}</span>
-            </p>
-            <p className="text-sm text-slate-500 mt-1">{t('completed')}</p>
-          </div>
+          <Card variant="muted">
+            <BigStat
+              value={<>{weeklyRuns}<span className="text-sm font-medium text-slate-500">/ {hasData ? weekly!.trainingDays : 7}</span></>}
+              label={t('trainingDays')}
+            />
+            <p className="text-sm text-slate-500 mt-1 text-center">{t('completed')}</p>
+          </Card>
 
           {/* ═══ NEXT WORKOUT hero card — consolidates the RSVP + the today/tomorrow
               workout tile into one card: next relevant workout, inline "add to
@@ -681,18 +686,20 @@ export default function DashboardPage() {
             {/* RIGHT: Leaderboard */}
             {leaderboard.length > 0 && (
               <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-1.5">
                     <Trophy className="h-3.5 w-3.5 text-yellow-400" />
                     <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 3</span>
                   </div>
                   {groups.length > 1 && (
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => setLeaderboardFilter('all')} className={cn('text-3xs font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === 'all' ? 'border-primary-600 text-white bg-primary-600/10' : 'border-slate-600 text-slate-500')}>All</button>
-                      {groups.map(g => (
-                        <button key={g.id} onClick={() => setLeaderboardFilter(g.id)} className={cn('text-3xs font-bold px-2 py-0.5 rounded-full border transition-all', leaderboardFilter === g.id ? 'border-primary-600 text-white bg-primary-600/10' : 'border-slate-600 text-slate-500')}>{g.name.replace('Group ', '').replace(' - SUB ', ' ')}</button>
-                      ))}
-                    </div>
+                    <SegmentedControl
+                      value={leaderboardFilter}
+                      onChange={setLeaderboardFilter}
+                      options={[
+                        { value: 'all', label: 'All' },
+                        ...groups.map(g => ({ value: g.id, label: g.name.replace('Group ', '').replace(' - SUB ', ' ') })),
+                      ]}
+                    />
                   )}
                 </div>
                 <div className="flex items-end justify-center gap-5 px-2" style={{ height: '100px' }}>
@@ -847,11 +854,12 @@ export default function DashboardPage() {
                     const sessions = d.sessions || [];
                     const hasMultiple = sessions.length > 1;
                     return (
-                      <div
+                      <button
                         key={d.dayOfWeek}
+                        type="button"
                         onClick={() => session && setSelectedSession(session)}
                         className={cn(
-                          "text-center py-2.5 sm:py-3 rounded-xl transition-all relative",
+                          "text-center py-2.5 sm:py-3 rounded-xl transition-all relative min-h-[44px] min-w-[44px] active:scale-[0.98] active:bg-slate-700/60",
                           session ? "cursor-pointer" : "",
                           isActive ? "bg-slate-700/60 ring-1 ring-white/20" :
                             d.dayOfWeek === todayDow ? "bg-primary-600/15 ring-1 ring-primary-600/40" : "bg-slate-800/40 hover:bg-slate-700/40"
@@ -878,7 +886,7 @@ export default function DashboardPage() {
                             {d.max > 0 ? typeLabels[d.type] || d.type : 'Rest'}
                           </p>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -886,13 +894,17 @@ export default function DashboardPage() {
             </div>
           </>
         ) : (
-          <div className="h-52 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700/60">
-            <Calendar className="h-10 w-10 text-slate-600 mb-3" />
-            <p className="text-base text-slate-400">{t('noPlanLoaded')}</p>
-            <Link href="/dashboard/plan/new" className="mt-3 text-sm font-bold text-primary-600 hover:text-[#5b54ff] inline-flex items-center gap-1">
-              {t('uploadPlan')} <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
+          <Card variant="muted">
+            <EmptyState
+              icon={Calendar}
+              title={t('noPlanLoaded')}
+              action={
+                <Button onClick={() => router.push('/dashboard/plan/new')}>
+                  {t('uploadPlan')} <ArrowRight className="h-4 w-4" />
+                </Button>
+              }
+            />
+          </Card>
         )}
       </section>
 
@@ -941,7 +953,6 @@ export default function DashboardPage() {
                       <span className={cn('text-2xs font-bold px-2.5 py-1 rounded-lg', runType.color, runType.bg)}>
                         {runType.label}
                       </span>
-                      <ChevronRight className="h-4 w-4 text-slate-600" />
                     </div>
                   </div>
 

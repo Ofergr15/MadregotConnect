@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import {
@@ -16,12 +16,11 @@ import {
   Package,
   HelpCircle,
   ListChecks,
-  Loader2,
   AlertCircle,
 } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { authedFetch } from '@/lib/auth/authed-fetch';
-import { Card, Button, EmptyState, LoadingBlock } from '@/components/ui';
+import { Card, Button, EmptyState, LoadingBlock, Spinner, InsetSection, InsetRow } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { BenchmarkLeaderboard } from '@/components/BenchmarkLeaderboard';
 import { cn } from '@/lib/utils';
@@ -219,7 +218,7 @@ export default function EventDetailPage() {
       {/* Back */}
       <button
         onClick={() => router.back()}
-        className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors"
+        className="inline-flex items-center gap-1.5 min-h-[44px] px-2 -ms-2 text-sm text-slate-400 hover:text-white transition-colors"
       >
         <ArrowRight className="h-4 w-4" />
         {tc('back')}
@@ -309,12 +308,10 @@ export default function EventDetailPage() {
 
         {registrationsLoading ? (
           <div className="flex justify-center py-4">
-            <Loader2 className="h-5 w-5 text-slate-500 animate-spin" />
+            <Spinner size={20} />
           </div>
         ) : !registrations || registeredParticipants.length === 0 ? (
-          <p className="text-xs text-slate-500 text-center py-2" dir="auto">
-            {t('noParticipants')}
-          </p>
+          <EmptyState title={t('noParticipants')} className="py-4" />
         ) : (
           <>
             <div className="flex items-center -space-x-2 rtl:space-x-reverse mb-2">
@@ -364,7 +361,7 @@ export default function EventDetailPage() {
                   <CheckCircle2 className="h-4 w-4" /> {t('youAreRegistered')}
                 </span>
                 <Button variant="ghost" size="sm" onClick={handleCancel} disabled={actionPending}>
-                  {actionPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t('cancelRegistration')}
+                  {actionPending ? <Spinner size={16} /> : t('cancelRegistration')}
                 </Button>
               </div>
             )}
@@ -374,13 +371,13 @@ export default function EventDetailPage() {
                   <Clock className="h-4 w-4" /> {t('youAreWaitlisted')}
                 </span>
                 <Button variant="ghost" size="sm" onClick={handleCancel} disabled={actionPending}>
-                  {actionPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t('cancelRegistration')}
+                  {actionPending ? <Spinner size={16} /> : t('cancelRegistration')}
                 </Button>
               </div>
             )}
             {!myStatus && (
               <Button variant="primary" className="w-full" onClick={handleRegister} disabled={actionPending}>
-                {actionPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t('registerCta')}
+                {actionPending ? <Spinner size={16} /> : t('registerCta')}
               </Button>
             )}
             {actionError && <p className="mt-2 text-xs text-red-400 text-center">{t('actionError')}</p>}
@@ -414,25 +411,25 @@ function GearChecklist({ items, title }: { items: string[]; title: string }) {
         <Package className="h-4 w-4 text-primary-400" />
         <h2 className="text-sm font-bold text-white">{title}</h2>
       </div>
-      <ul className="space-y-2">
+      <InsetSection className="mb-0">
         {items.map((item, i) => {
           const isChecked = checked.has(i);
           return (
-            <li key={i}>
-              <button type="button" onClick={() => toggle(i)} className="flex items-center gap-2.5 w-full text-start">
-                {isChecked ? (
+            <InsetRow
+              key={i}
+              label={item}
+              onClick={() => toggle(i)}
+              trailing={
+                isChecked ? (
                   <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
                 ) : (
                   <Circle className="h-4 w-4 text-slate-500 shrink-0" />
-                )}
-                <span className={cn('text-sm', isChecked ? 'text-slate-500 line-through' : 'text-slate-200')} dir="auto">
-                  {item}
-                </span>
-              </button>
-            </li>
+                )
+              }
+            />
           );
         })}
-      </ul>
+      </InsetSection>
     </Card>
   );
 }
@@ -458,30 +455,25 @@ function FaqAccordion({ items, title }: { items: FaqItem[]; title: string }) {
         <HelpCircle className="h-4 w-4 text-primary-400" />
         <h2 className="text-sm font-bold text-white">{title}</h2>
       </div>
-      <div className="space-y-1.5">
+      <InsetSection className="mb-0">
         {items.map((item, i) => {
           const isOpen = open.has(i);
           return (
-            <div key={i} className="rounded-xl border border-slate-700/40 overflow-hidden">
-              <button
-                type="button"
+            <Fragment key={i}>
+              <InsetRow
+                label={item.q}
                 onClick={() => toggle(i)}
-                className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-start hover:bg-slate-800/40 transition-colors"
-              >
-                <span className="text-sm font-semibold text-white flex-1" dir="auto">
-                  {item.q}
-                </span>
-                <ChevronDown className={cn('h-4 w-4 text-slate-400 shrink-0 transition-transform', isOpen && 'rotate-180')} />
-              </button>
+                trailing={<ChevronDown className={cn('h-4 w-4 text-slate-400 shrink-0 transition-transform', isOpen && 'rotate-180')} />}
+              />
               {isOpen && (
-                <div className="px-3 pb-3 text-sm text-slate-300 leading-relaxed" dir="auto">
+                <div className="px-4 py-3 text-sm text-slate-300 leading-relaxed" dir="auto">
                   {item.a}
                 </div>
               )}
-            </div>
+            </Fragment>
           );
         })}
-      </div>
+      </InsetSection>
     </Card>
   );
 }

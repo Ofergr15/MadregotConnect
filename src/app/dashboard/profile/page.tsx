@@ -9,6 +9,7 @@ import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
+import { Sheet, SegmentedControl } from '@/components/ui';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
@@ -310,39 +311,39 @@ function ProfileContent() {
 
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-8">
-      {showSyncModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-sm text-center">
-            {syncModalStatus === 'syncing' ? (
-              <>
-                <div className="bg-primary-600/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
-                </div>
-                <h2 className="text-lg font-bold text-white">{t('syncingActivities')}</h2>
-                <p className="text-sm text-slate-400 mt-2">{t('fetchingActivities')}</p>
-              </>
-            ) : (
-              <>
-                <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle2 className="h-8 w-8 text-green-400" />
-                </div>
-                <h2 className="text-lg font-bold text-white">{t('garminConnected')}</h2>
-                <p className="text-sm text-slate-400 mt-2">
-                  {syncModalCount > 0
-                    ? t('syncedActivities', { count: syncModalCount })
-                    : t('connectedSuccessfully')}
-                </p>
-                <button
-                  onClick={() => setShowSyncModal(false)}
-                  className="mt-5 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
-                >
-                  {t('letsGo')}
-                </button>
-              </>
-            )}
-          </div>
+      <Sheet
+        open={showSyncModal}
+        onOpenChange={(o) => { if (!o && syncModalStatus === 'syncing') return; setShowSyncModal(o); }}
+        title={syncModalStatus === 'syncing' ? t('syncingActivities') : t('garminConnected')}
+      >
+        <div className="text-center py-2">
+          {syncModalStatus === 'syncing' ? (
+            <>
+              <div className="bg-primary-600/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
+              </div>
+              <p className="text-sm text-slate-400">{t('fetchingActivities')}</p>
+            </>
+          ) : (
+            <>
+              <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="h-8 w-8 text-green-400" />
+              </div>
+              <p className="text-sm text-slate-400">
+                {syncModalCount > 0
+                  ? t('syncedActivities', { count: syncModalCount })
+                  : t('connectedSuccessfully')}
+              </p>
+              <button
+                onClick={() => setShowSyncModal(false)}
+                className="mt-5 w-full min-h-[48px] rounded-xl font-bold text-base bg-primary-600 hover:bg-primary-700 text-white transition-colors active:scale-[0.98]"
+              >
+                {t('letsGo')}
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </Sheet>
 
       {/* ═══ HEADER — back-nav on a detail screen only (the Hero below already
           anchors the landing, like the reference Settings screen's h1) ═══ */}
@@ -365,16 +366,19 @@ function ProfileContent() {
               <button
                 type="button"
                 onClick={() => photoInputRef.current?.click()}
-                className="relative w-16 h-16 rounded-full shrink-0 shadow-lg shadow-primary-600/20 overflow-hidden group"
-                title="Change photo"
+                className="relative w-16 h-16 rounded-full shrink-0 shadow-lg shadow-primary-600/20"
+                aria-label={t('changePhoto')}
               >
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt={athleteName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-600 to-primary-700 text-xl font-bold text-white">{initials}</span>
-                )}
-                <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  {uploadingPhoto ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Camera className="h-4 w-4 text-white" />}
+                <span className="block w-full h-full rounded-full overflow-hidden">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={athleteName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-600 to-primary-700 text-xl font-bold text-white">{initials}</span>
+                  )}
+                </span>
+                {/* Always-on corner badge — a hover-only overlay is invisible on touch */}
+                <span className="absolute bottom-0 end-0 w-6 h-6 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center">
+                  {uploadingPhoto ? <Loader2 className="h-3 w-3 text-white animate-spin" /> : <Camera className="h-3 w-3 text-white" />}
                 </span>
               </button>
               <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
@@ -420,7 +424,9 @@ function ProfileContent() {
             </div>
           </div>
 
-          {/* Everything else lives one tap away, iOS-Settings style. */}
+          {/* Everything else lives one tap away, iOS-Settings style. InsetRow
+              already renders its own RTL-safe chevron whenever href/onClick is
+              set and no `trailing` override is passed — no need to repeat it. */}
           <InsetSection>
             <InsetRow
               icon={Dumbbell}
@@ -428,7 +434,6 @@ function ProfileContent() {
               label={t('thisWeeksProgram')}
               value={currentWeek.weekLabel}
               href="/dashboard/program"
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
             <InsetRow
               icon={Users}
@@ -436,7 +441,6 @@ function ProfileContent() {
               label={t('paceGroup')}
               value={currentGroup?.name}
               onClick={() => setActiveTab('group')}
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
             <InsetRow
               icon={Activity}
@@ -444,28 +448,24 @@ function ProfileContent() {
               label={t('activityDataSource')}
               value={dataSourceLabel}
               onClick={() => setActiveTab('datasource')}
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
             <InsetRow
               icon={BarChart3}
               iconBg="bg-amber-500"
               label={t('statistics')}
               onClick={() => setActiveTab('statistics')}
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
             <InsetRow
               icon={Award}
               iconBg="bg-yellow-500"
               label={t('badges')}
               onClick={() => setActiveTab('badges')}
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
             <InsetRow
               icon={Route}
               iconBg="bg-cyan-500"
               label={t('myActivities')}
               href="/dashboard/activities"
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
             {planWorkouts && workoutDays.length > 0 && (
               <InsetRow
@@ -473,7 +473,6 @@ function ProfileContent() {
                 iconBg="bg-teal-500"
                 label={t('shareWorkout')}
                 onClick={() => setActiveTab('share')}
-                trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
               />
             )}
             <InsetRow
@@ -481,7 +480,6 @@ function ProfileContent() {
               iconBg="bg-rose-500"
               label={t('notificationPrefs')}
               onClick={() => setActiveTab('notifications')}
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
           </InsetSection>
         </>
@@ -505,51 +503,25 @@ function ProfileContent() {
             )}
           </div>
 
-          <div className="space-y-2">
+          {/* iOS Settings-style single-select list — checkmark on the selected
+              row, matching the InsetRow list one screen earlier instead of a
+              differently-styled stack of card buttons. */}
+          <InsetSection className={cn((saving || hasActivities) && 'opacity-60 pointer-events-none')}>
             {groups.map(g => {
               const isSelected = selectedGroupId === g.id;
-              const levelColor = g.level === 'fast' ? 'green' : g.level === 'medium' ? 'amber' : 'orange';
               return (
-                <button
+                <InsetRow
                   key={g.id}
+                  icon={Users}
+                  iconBg={isSelected ? 'bg-primary-600' : 'bg-slate-600'}
+                  label={g.name}
+                  value={g.marathonGoal}
                   onClick={() => setSelectedGroupId(g.id)}
-                  disabled={saving || hasActivities}
-                  className={cn(
-                    'w-full text-start px-4 py-3.5 rounded-xl border transition-all flex items-center gap-3',
-                    hasActivities && 'opacity-60 cursor-not-allowed',
-                    isSelected
-                      ? 'border-primary-600/60 bg-primary-600/5 shadow-sm shadow-primary-600/10'
-                      : 'border-slate-700/50 bg-slate-900/30 hover:bg-slate-700/30 hover:border-slate-600'
-                  )}
-                >
-                  <div className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
-                    isSelected ? 'bg-primary-600/20' : 'bg-slate-700/50'
-                  )}>
-                    <Users className={cn('h-4 w-4', isSelected ? 'text-primary-600' : 'text-slate-400')} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className={cn('font-medium block', isSelected ? 'text-white' : 'text-slate-300')}>
-                      {g.name}
-                    </span>
-                  </div>
-                  {g.marathonGoal && (
-                    <span className={cn(
-                      'text-xs px-2 py-1 rounded-md font-bold shrink-0',
-                      levelColor === 'green' && 'bg-green-500/15 text-green-400',
-                      levelColor === 'amber' && 'bg-amber-500/15 text-amber-400',
-                      levelColor === 'orange' && 'bg-orange-500/15 text-orange-400',
-                    )}>
-                      {g.marathonGoal}
-                    </span>
-                  )}
-                  {isSelected && (
-                    <CheckCircle2 className="h-5 w-5 text-primary-600 shrink-0" />
-                  )}
-                </button>
+                  trailing={isSelected ? <CheckCircle2 className="h-5 w-5 text-primary-500" /> : undefined}
+                />
               );
             })}
-          </div>
+          </InsetSection>
 
           {hasActivities && (
             <p className="text-xs text-slate-500 mt-3 text-center">{t('groupLocked')}</p>
@@ -877,23 +849,14 @@ function ProfileContent() {
             </div>
           </div>
 
-          {/* Day picker — only days that have a workout */}
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {workoutDays.map(d => (
-              <button
-                key={d}
-                onClick={() => setShareDay(d)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
-                  shareDay === d
-                    ? 'border-primary-600/60 bg-primary-600/10 text-white'
-                    : 'border-slate-700/50 bg-slate-900/30 text-slate-400 hover:text-slate-200'
-                )}
-              >
-                {DAY_SHORT[d]}
-              </button>
-            ))}
-          </div>
+          {/* Day picker — only days that have a workout. Shared SegmentedControl
+              (40px-min-height segments) instead of a row of ~28px pill buttons. */}
+          <SegmentedControl
+            value={String(shareDay)}
+            onChange={(v) => setShareDay(Number(v))}
+            options={workoutDays.map(d => ({ value: String(d), label: DAY_SHORT[d] }))}
+            className="mb-3"
+          />
 
           {shareText ? (
             <>

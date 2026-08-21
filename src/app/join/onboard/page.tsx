@@ -3,8 +3,24 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Check, Eye, EyeOff } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
+import { InsetSection, InsetRow, EmptyState, LoadingBlock } from '@/components/ui';
+import { cn } from '@/lib/utils';
+
+// Local input primitive — see src/app/admin/login/page.tsx for why this is
+// duplicated locally instead of promoted to the shared ui/index.tsx.
+function Input({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      className={cn(
+        'w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-2xl px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500',
+        className
+      )}
+      {...rest}
+    />
+  );
+}
 
 interface Group {
   id: string;
@@ -18,7 +34,7 @@ export default function OnboardPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <LoadingBlock />
       </div>
     }>
       <OnboardContent />
@@ -223,14 +239,13 @@ function OnboardContent() {
               : t('garminLinked')}
           </p>
 
-          <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-5 text-center">
-            <div className="bg-amber-500/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Shield className="h-6 w-6 text-amber-400" />
-            </div>
-            <h2 className="text-base font-bold text-white">{t('waitingApproval')}</h2>
-            <p className="text-sm text-slate-400 mt-2">
-              {t('approvalMessage')}
-            </p>
+          <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+            <EmptyState
+              icon={Shield}
+              title={t('waitingApproval')}
+              description={t('approvalMessage')}
+              className="py-6"
+            />
           </div>
 
           {!skippedGarmin && (
@@ -291,60 +306,41 @@ function OnboardContent() {
           <form onSubmit={handleInfoSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">{t('yourName')}</label>
-              <input
+              <Input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Yossi Cohen"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">{t('emailLabel')}</label>
-              <input
+              <Input
                 type="email"
                 value={email}
                 readOnly
-                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-base text-slate-300 cursor-not-allowed"
+                className="bg-slate-700/50 text-slate-300 cursor-not-allowed focus:ring-0"
               />
               <p className="text-xs text-slate-500 mt-1">{t('fromGoogle')}</p>
             </div>
             {groups.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  <Users className="inline h-4 w-4 me-1" />
-                  {t('yourPaceGroup')} <span className="text-slate-500 font-normal">({t('optional')})</span>
-                </label>
-                <div className="space-y-2">
+                <InsetSection header={`${t('yourPaceGroup')} (${t('optional')})`}>
                   {groups.map(g => {
                     const isSelected = selectedGroup === g.id;
                     return (
-                      <button
+                      <InsetRow
                         key={g.id}
-                        type="button"
+                        label={g.name}
+                        sublabel={g.marathonGoal ? `${t('marathonGoal')} ${g.marathonGoal}` : undefined}
                         onClick={() => setSelectedGroup(isSelected ? '' : g.id)}
-                        className={`w-full text-start px-4 py-3 rounded-lg border-2 transition-all ${
-                          isSelected
-                            ? 'border-primary-500 bg-primary-500/10 ring-2 ring-primary-500/50'
-                            : 'border-slate-600 bg-slate-700 hover:border-slate-500'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-white">{g.name}</div>
-                            {g.marathonGoal && (
-                              <div className="text-xs text-slate-400 mt-0.5">
-                                {t('marathonGoal')} <span className="font-mono text-slate-300">{g.marathonGoal}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </button>
+                        trailing={isSelected ? <Check className="h-4 w-4 text-primary-400 shrink-0" /> : undefined}
+                      />
                     );
                   })}
-                </div>
-                <p className="text-xs text-slate-500 mt-2">{t('groupAssignedLater')}</p>
+                </InsetSection>
+                <p className="text-xs text-slate-500 -mt-3 mb-1">{t('groupAssignedLater')}</p>
               </div>
             )}
             {error && step === 'info' && (
@@ -383,12 +379,11 @@ function OnboardContent() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminEmail')}</label>
-              <input
+              <Input
                 type="email"
                 value={garminEmail}
                 onChange={(e) => setGarminEmail(e.target.value)}
                 placeholder="your-garmin@email.com"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               />
             </div>
@@ -396,18 +391,18 @@ function OnboardContent() {
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminPassword')}</label>
               <div className="relative">
-                <input
+                <Input
                   type={showPassword ? 'text' : 'password'}
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pe-12 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="pe-12"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1.5"
+                  className="absolute end-1.5 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-white transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -494,13 +489,13 @@ function OnboardContent() {
               <label className="block text-sm font-medium text-slate-300 mb-1">
                 {t('verificationCode')}
               </label>
-              <input
+              <Input
                 type="text"
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}
                 placeholder={t('enterCode')}
                 maxLength={6}
-                className="w-full bg-slate-700 border border-amber-500/50 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-center text-xl tracking-widest"
+                className="border-amber-500/50 focus:ring-amber-500 text-center text-xl tracking-widest"
                 required
                 autoFocus
               />

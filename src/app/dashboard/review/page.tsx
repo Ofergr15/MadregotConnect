@@ -2,16 +2,27 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, X } from 'lucide-react';
+import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, Images, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Card, Button, Spinner, Sheet, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
 
+// Wraps a lucide icon so it keeps its own category color even inside
+// SegmentedControl (whose track only colors the button's text, not the
+// icon) — the one place the original per-category color-coding survives,
+// per the design-system guidance to not reinvent the whole toggle.
+function coloredIcon(Icon: React.ComponentType<{ className?: string }>, colorClass: string) {
+  return function ColoredIcon({ className }: { className?: string }) {
+    return <Icon className={cn(className, colorClass)} />;
+  };
+}
+
 const categories = [
-  { value: 'feature_request' as FeedbackCategory, labelKey: 'featureRequest' as const, icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
-  { value: 'bug_report' as FeedbackCategory, labelKey: 'bugReport' as const, icon: Bug, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' },
-  { value: 'training_feedback' as FeedbackCategory, labelKey: 'trainingFeedback' as const, icon: Dumbbell, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
-  { value: 'general' as FeedbackCategory, labelKey: 'general' as const, icon: MessageCircle, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30' },
+  { value: 'feature_request' as FeedbackCategory, labelKey: 'featureRequest' as const, icon: Lightbulb, color: 'text-purple-400' },
+  { value: 'bug_report' as FeedbackCategory, labelKey: 'bugReport' as const, icon: Bug, color: 'text-red-400' },
+  { value: 'training_feedback' as FeedbackCategory, labelKey: 'trainingFeedback' as const, icon: Dumbbell, color: 'text-blue-400' },
+  { value: 'general' as FeedbackCategory, labelKey: 'general' as const, icon: MessageCircle, color: 'text-teal-400' },
 ];
 
 export default function ReviewPage() {
@@ -20,13 +31,15 @@ export default function ReviewPage() {
   const [category, setCategory] = useState<FeedbackCategory>('general');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState(false);
   const [athleteName, setAthleteName] = useState('');
   const [athleteEmail, setAthleteEmail] = useState('');
   const [athleteId, setAthleteId] = useState('');
   const [groupName, setGroupName] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setAthleteName(localStorage.getItem('athlete_name') || '');
@@ -52,16 +65,10 @@ export default function ReviewPage() {
     reader.readAsDataURL(file);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
-  };
-
   const handleSubmit = async () => {
     if (!message.trim()) return;
     setSending(true);
+    setError(false);
     try {
       const res = await fetch('/api/feedback', {
         method: 'POST',
@@ -82,8 +89,13 @@ export default function ReviewPage() {
         setCategory('general');
         setImagePreview(null);
         setTimeout(() => setSent(false), 4000);
+      } else {
+        // Non-2xx response — surface it instead of silently doing nothing.
+        setError(true);
       }
     } catch {
+      // Network error — same visible failure state as a non-2xx response.
+      setError(true);
     } finally {
       setSending(false);
     }
@@ -101,30 +113,18 @@ export default function ReviewPage() {
         </p>
       </div>
 
-      <div className="bg-slate-800/40 rounded-2xl border border-slate-700/30 p-5 sm:p-6">
+      <Card variant="muted" className="p-5 sm:p-6">
         <div className="mb-4">
           <label className="text-xs font-semibold text-slate-400 mb-2.5 block">{t('category')}</label>
-          <div className="grid grid-cols-2 gap-2">
-            {categories.map(cat => {
-              const Icon = cat.icon;
-              const isSelected = category === cat.value;
-              return (
-                <button
-                  key={cat.value}
-                  onClick={() => setCategory(cat.value)}
-                  className={cn(
-                    'flex items-center gap-2 px-3 py-2.5 min-h-[44px] rounded-xl border text-sm font-medium transition-all active:scale-[0.97]',
-                    isSelected
-                      ? `${cat.bg} ${cat.border} ${cat.color}`
-                      : 'bg-slate-900/30 border-slate-700/30 text-slate-500 hover:border-slate-600 hover:text-slate-400'
-                  )}
-                >
-                  <Icon className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{t(cat.labelKey)}</span>
-                </button>
-              );
-            })}
-          </div>
+          <SegmentedControl
+            value={category}
+            onChange={setCategory}
+            options={categories.map((cat) => ({
+              value: cat.value,
+              label: t(cat.labelKey),
+              icon: coloredIcon(cat.icon, cat.color),
+            }))}
+          />
         </div>
 
         <textarea
@@ -140,31 +140,38 @@ export default function ReviewPage() {
             <img src={imagePreview} alt="Attached" className="max-h-32 rounded-lg border border-slate-700/50" />
             <button
               onClick={() => setImagePreview(null)}
-              className="absolute -top-2 -end-2 w-5 h-5 bg-slate-700 hover:bg-red-500 rounded-full flex items-center justify-center transition-colors"
+              className="absolute -top-2 -end-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-slate-700 hover:bg-red-500 rounded-full transition-colors"
             >
               <X className="w-3 h-3 text-white" />
             </button>
           </div>
         )}
 
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={cn(
-            'mt-4 w-full flex flex-col items-center justify-center gap-2 px-5 py-6 rounded-xl border-2 border-dashed cursor-pointer transition-all',
-            dragging
-              ? 'border-primary-600 bg-primary-600/10 text-primary-600'
-              : 'border-slate-500/60 hover:border-primary-600 text-slate-200 hover:text-primary-600 bg-slate-800/40 hover:bg-primary-600/5'
-          )}
+        {/* Tap-to-open action sheet (Take Photo / Choose from Library) —
+            replaces the old HTML drag-and-drop dropzone, which had no iOS
+            equivalent. */}
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="mt-4 w-full flex items-center justify-center gap-2 px-5 py-4 min-h-[44px] rounded-xl border border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/60 text-slate-200 hover:text-primary-400 transition-all"
         >
-          <Camera className="h-8 w-8" />
-          <span className="text-lg font-semibold">{imagePreview ? t('changeScreenshot') : t('attachScreenshot')}</span>
-          <span className="text-xs text-slate-500">{t('dragDrop')}</span>
-        </div>
+          <Camera className="h-5 w-5" />
+          <span className="text-sm font-semibold">{imagePreview ? t('changeScreenshot') : t('attachScreenshot')}</span>
+        </button>
         <input
-          ref={fileInputRef}
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFile(file);
+            e.target.value = '';
+          }}
+        />
+        <input
+          ref={libraryInputRef}
           type="file"
           accept="image/*"
           className="hidden"
@@ -182,32 +189,38 @@ export default function ReviewPage() {
               {groupName && <span className="text-slate-500"> · {groupName}</span>}
             </p>
           </div>
-          <button
-            onClick={handleSubmit}
-            disabled={!message.trim() || sending}
-            className={cn(
-              'flex items-center gap-2 px-5 py-2.5 min-h-[44px] rounded-xl text-sm font-bold transition-all active:scale-[0.97]',
-              message.trim() && !sending
-                ? 'bg-primary-600 hover:bg-primary-700 text-white'
-                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
-            )}
-          >
-            {sending ? (
-              <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
+          <Button variant="primary" onClick={handleSubmit} disabled={!message.trim() || sending}>
+            {sending ? <Spinner size={16} /> : <Send className="h-4 w-4" />}
             {t('send')}
-          </button>
+          </Button>
         </div>
 
+        {error && <p className="mt-4 text-sm text-red-400 text-center">{t('submitError')}</p>}
+
         {sent && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
+          <div className="mt-4 flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 animate-fade-in">
             <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
             <span>{t('thankYou')}</span>
           </div>
         )}
-      </div>
+      </Card>
+
+      <Sheet open={pickerOpen} onOpenChange={setPickerOpen} title={t('attachScreenshot')}>
+        <InsetSection>
+          <InsetRow
+            icon={Camera}
+            iconBg="bg-primary-600"
+            label={t('takePhoto')}
+            onClick={() => { setPickerOpen(false); cameraInputRef.current?.click(); }}
+          />
+          <InsetRow
+            icon={Images}
+            iconBg="bg-slate-600"
+            label={t('chooseFromLibrary')}
+            onClick={() => { setPickerOpen(false); libraryInputRef.current?.click(); }}
+          />
+        </InsetSection>
+      </Sheet>
     </div>
   );
 }

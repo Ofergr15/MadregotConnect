@@ -5,7 +5,7 @@ import { MessageSquare, AlertTriangle, MessageCircle, Bell, Send, Check, CornerD
 import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
 import { resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
-import { SkeletonList, SegmentedControl } from '@/components/ui';
+import { SkeletonList, SegmentedControl, Card, EmptyState } from '@/components/ui';
 
 interface FeedbackItem {
   id: string;
@@ -82,16 +82,22 @@ export default function WorkoutFeedbackPage() {
         <SkeletonList count={5} />
       ) : (
         <>
-          {/* Filter pills with counts */}
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            <FilterPill active={filter === 'all'} onClick={() => setFilter('all')} label="הכל" count={counts.total} />
-            <FilterPill active={filter === 'pain'} onClick={() => setFilter('pain')} label="⚠️ כאב" count={counts.pain} tone="amber" />
-            <FilterPill active={filter === 'wants'} onClick={() => setFilter('wants')} label="ביקשו משוב" count={counts.wantsFeedback} />
-            <FilterPill active={filter === 'comment'} onClick={() => setFilter('comment')} label="עם הערה" count={counts.withComment} />
-          </div>
+          {/* Filter — exclusive choice (all/pain/wants/comment), same
+              SegmentedControl pattern as the days range selector above. */}
+          <SegmentedControl
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: `הכל (${counts.total})` },
+              { value: 'pain', label: `⚠️ כאב (${counts.pain})` },
+              { value: 'wants', label: `ביקשו משוב (${counts.wantsFeedback})` },
+              { value: 'comment', label: `עם הערה (${counts.withComment})` },
+            ]}
+            className="mb-4"
+          />
 
           {filtered.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-10">אין משוב בטווח הזה</p>
+            <EmptyState icon={MessageSquare} title="אין משוב בטווח הזה" />
           ) : (
             <div className="space-y-2.5">
               {filtered.map((it) => <FeedbackCard key={it.id} it={it} />)}
@@ -100,21 +106,6 @@ export default function WorkoutFeedbackPage() {
         </>
       )}
     </div>
-  );
-}
-
-function FilterPill({ label, count, active, onClick, tone }: { label: string; count: number; active: boolean; onClick: () => void; tone?: 'amber' }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-        active
-          ? tone === 'amber' ? 'bg-amber-500/25 text-amber-200 border-amber-500/50' : 'bg-primary-600/25 text-primary-200 border-primary-500/50'
-          : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
-      }`}
-    >
-      {label} <span className="opacity-70 tabular-nums">{count}</span>
-    </button>
   );
 }
 
@@ -153,7 +144,7 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
   };
 
   return (
-    <div className={`rounded-xl border bg-slate-800/60 p-3.5 ${it.pain ? 'border-amber-500/40' : 'border-slate-700'}`}>
+    <Card variant="solid" className={it.pain ? 'border-amber-500/40' : undefined}>
       <div className="flex items-center gap-3">
         {it.avatarUrl
           ? <img src={it.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
@@ -179,11 +170,11 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
       {/* RPE bar */}
       {it.difficulty != null && (
         <div className="mt-3 flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-slate-400 w-16 shrink-0">קושי {it.difficulty}/10</span>
+          <span className="text-2xs font-semibold text-slate-400 w-16 shrink-0">קושי {it.difficulty}/10</span>
           <div className="flex-1 h-2 rounded-full bg-slate-700 overflow-hidden">
             <div className="h-full rounded-full" style={{ width: `${it.difficulty * 10}%`, backgroundColor: rpeHex(it.difficulty) }} />
           </div>
-          <span className="text-[11px] text-slate-500 w-16 text-start shrink-0">{rpeLabel(it.difficulty)}</span>
+          <span className="text-2xs text-slate-500 w-16 text-start shrink-0">{rpeLabel(it.difficulty)}</span>
         </div>
       )}
 
@@ -191,12 +182,12 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
       {(it.pain || it.wantsFeedback) && (
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           {it.pain && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
               <AlertTriangle className="h-3 w-3" /> כאב{it.painDetail ? `: ${it.painDetail}` : ''}
             </span>
           )}
           {it.wantsFeedback && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30">
+            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30">
               <Bell className="h-3 w-3" /> ביקש/ה משוב
             </span>
           )}
@@ -216,11 +207,11 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
         <div className="mt-2.5 rounded-lg bg-primary-600/12 border border-primary-500/25 px-3 py-2">
           <div className="flex items-center gap-1.5 mb-1">
             <CornerDownLeft className="h-3.5 w-3.5 text-primary-300" />
-            <span className="text-[11px] font-bold text-primary-300">התשובה שלך</span>
+            <span className="text-2xs font-bold text-primary-300">התשובה שלך</span>
             <Check className="h-3.5 w-3.5 text-green-400 ms-auto" />
           </div>
           <p className="text-sm text-slate-200" dir="auto">{reply}</p>
-          <button onClick={() => setEditing(true)} className="mt-1 text-[11px] font-semibold text-slate-400 hover:text-white">עריכה</button>
+          <button onClick={() => setEditing(true)} className="mt-1 min-h-[44px] px-3 -mx-3 flex items-center text-2xs font-semibold text-slate-400 hover:text-white">עריכה</button>
         </div>
       ) : (
         <div className="mt-2.5">
@@ -236,14 +227,14 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
             <button
               onClick={sendReply}
               disabled={!reply.trim()}
-              className="min-h-[44px] px-3 rounded-lg bg-primary-600 hover:bg-primary-700 active:scale-[0.95] disabled:opacity-40 text-white font-bold flex items-center gap-1.5 shrink-0 transition-transform"
+              className="min-h-[44px] min-w-[44px] px-3 rounded-lg bg-primary-600 hover:bg-primary-700 active:scale-[0.95] disabled:opacity-40 text-white font-bold flex items-center justify-center gap-1.5 shrink-0 transition-transform"
             >
               <Send className="h-4 w-4" />
             </button>
           </div>
-          {error && <p className="text-[11px] text-red-400 mt-1">{error}</p>}
+          {error && <p className="text-2xs text-red-400 mt-1">{error}</p>}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

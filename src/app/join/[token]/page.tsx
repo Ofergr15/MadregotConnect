@@ -3,7 +3,23 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Users, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Check, Eye, EyeOff } from 'lucide-react';
+import { InsetSection, InsetRow, Button } from '@/components/ui';
+import { cn } from '@/lib/utils';
+
+// Local input primitive — see src/app/admin/login/page.tsx for why this is
+// duplicated locally instead of promoted to the shared ui/index.tsx.
+function Input({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      className={cn(
+        'w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-2xl px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500',
+        className
+      )}
+      {...rest}
+    />
+  );
+}
 
 interface Group {
   id: string;
@@ -179,44 +195,12 @@ export default function JoinPage() {
 
           {/* What's Next Section */}
           {!skippedGarmin && (
-            <div className="mt-8 space-y-3">
-              <h2 className="text-sm font-semibold text-white mb-3">{t('whatsNext')}</h2>
-
-              <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-                <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                  <Calendar className="h-5 w-5 text-primary-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-white">{t('receiveWorkouts')}</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {t('receiveWorkoutsDesc')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-                <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                  <Smartphone className="h-5 w-5 text-primary-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-white">{t('syncPhone')}</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {t('syncPhoneDesc')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-                <div className="bg-primary-600/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                  <Watch className="h-5 w-5 text-primary-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-white">{t('findOnWatch')}</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {t('findOnWatchDesc')}
-                  </p>
-                </div>
-              </div>
+            <div className="mt-8">
+              <InsetSection header={t('whatsNext')}>
+                <InsetRow icon={Calendar} iconBg="bg-primary-600" label={t('receiveWorkouts')} sublabel={t('receiveWorkoutsDesc')} />
+                <InsetRow icon={Smartphone} iconBg="bg-primary-600" label={t('syncPhone')} sublabel={t('syncPhoneDesc')} />
+                <InsetRow icon={Watch} iconBg="bg-primary-600" label={t('findOnWatch')} sublabel={t('findOnWatchDesc')} />
+              </InsetSection>
             </div>
           )}
 
@@ -274,17 +258,16 @@ export default function JoinPage() {
 
         {/* Step 2: Basic info + group */}
         {step === 'info' && (
-          <form onSubmit={handleInfoSubmit} className="space-y-4">
+          <form onSubmit={handleInfoSubmit} className="space-y-4 animate-fade-in">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
                 {to('yourName')}
               </label>
-              <input
+              <Input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Yossi Cohen"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               />
             </div>
@@ -292,28 +275,23 @@ export default function JoinPage() {
               <label className="block text-sm font-medium text-slate-300 mb-1">
                 {to('emailLabel')}
               </label>
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               />
             </div>
             {groups.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  <Users className="inline h-4 w-4 me-1" />
-                  {to('yourPaceGroup')}
-                </label>
-                <div className="space-y-2">
+                <InsetSection header={to('yourPaceGroup')}>
                   {groups.map(g => {
                     const isSelected = selectedGroup === g.id;
                     const levelColors = {
-                      fast: 'border-green-500/50 bg-green-500/10 text-green-400',
-                      medium: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400',
-                      slow: 'border-orange-500/50 bg-orange-500/10 text-orange-400',
+                      fast: 'text-green-400 bg-green-500/10',
+                      medium: 'text-yellow-400 bg-yellow-500/10',
+                      slow: 'text-orange-400 bg-orange-500/10',
                     };
                     const levelLabels = {
                       fast: 'SUB 2:30',
@@ -321,34 +299,24 @@ export default function JoinPage() {
                       slow: 'SUB 2:45',
                     };
                     return (
-                      <button
+                      <InsetRow
                         key={g.id}
-                        type="button"
+                        label={g.name}
+                        sublabel={g.marathonGoal ? `${to('marathonGoal')} ${g.marathonGoal}` : undefined}
                         onClick={() => setSelectedGroup(g.id)}
-                        className={`w-full text-start px-4 py-3 rounded-lg border-2 transition-all ${
-                          isSelected
-                            ? 'border-primary-500 bg-primary-500/10 ring-2 ring-primary-500/50'
-                            : 'border-slate-600 bg-slate-700 hover:border-slate-500'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="font-medium text-white">{g.name}</div>
-                            {g.marathonGoal && (
-                              <div className="text-xs text-slate-400 mt-0.5">
-                                {to('marathonGoal')} <span className="font-mono text-slate-300">{g.marathonGoal}</span>
-                              </div>
-                            )}
-                          </div>
-                          <div className={`px-2 py-1 rounded text-xs font-medium border ${levelColors[g.level]} ms-2`}>
-                            {levelLabels[g.level]}
-                          </div>
-                        </div>
-                      </button>
+                        trailing={
+                          <span className="flex items-center gap-2 shrink-0">
+                            <span className={cn('px-2 py-1 rounded text-xs font-medium', levelColors[g.level])}>
+                              {levelLabels[g.level]}
+                            </span>
+                            {isSelected && <Check className="h-4 w-4 text-primary-400" />}
+                          </span>
+                        }
+                      />
                     );
                   })}
-                </div>
-                <p className="text-xs text-slate-500 mt-2">
+                </InsetSection>
+                <p className="text-xs text-slate-500 -mt-3 mb-1">
                   {t('groupPaceNote')}
                 </p>
               </div>
@@ -358,18 +326,15 @@ export default function JoinPage() {
                 {error}
               </div>
             )}
-            <button
-              type="submit"
-              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors"
-            >
+            <Button type="submit" variant="primary" size="lg" className="w-full">
               {tc('continue')}
-            </button>
+            </Button>
           </form>
         )}
 
         {/* Step 3: Garmin credentials (one-time special logic) */}
         {(step === 'garmin' || step === 'connecting') && (
-          <form onSubmit={handleGarminSubmit} className="space-y-4">
+          <form onSubmit={handleGarminSubmit} className="space-y-4 animate-fade-in">
             <div className="bg-slate-700/50 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-primary-400 mt-0.5 shrink-0" />
               <p className="text-xs text-slate-400">
@@ -381,12 +346,11 @@ export default function JoinPage() {
               <label className="block text-sm font-medium text-slate-300 mb-1">
                 {to('garminEmail')}
               </label>
-              <input
+              <Input
                 type="email"
                 value={garminEmail}
                 onChange={(e) => setGarminEmail(e.target.value)}
                 placeholder="your-garmin@email.com"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               />
             </div>
@@ -396,18 +360,18 @@ export default function JoinPage() {
                 {to('garminPassword')}
               </label>
               <div className="relative">
-                <input
+                <Input
                   type={showPassword ? 'text' : 'password'}
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pe-12 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="pe-12"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1.5"
+                  className="absolute end-1.5 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-white transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -423,11 +387,7 @@ export default function JoinPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={step === 'connecting'}
-              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
+            <Button type="submit" variant="primary" size="lg" className="w-full" disabled={step === 'connecting'}>
               {step === 'connecting' ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -436,18 +396,16 @@ export default function JoinPage() {
               ) : (
                 to('connectGarmin')
               )}
-            </button>
+            </Button>
 
-            <button
-              type="button"
-              onClick={() => setStep('info')}
-              className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
-            >
+            <Button type="button" variant="ghost" className="w-full" onClick={() => setStep('info')}>
               {tc('back')}
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              className="w-full"
               onClick={async () => {
                 setStep('connecting');
                 try {
@@ -480,16 +438,15 @@ export default function JoinPage() {
                 }
               }}
               disabled={step === 'connecting'}
-              className="w-full border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors"
             >
               {to('connectLater')}
-            </button>
+            </Button>
           </form>
         )}
 
         {/* Step 3b: MFA verification */}
         {step === 'mfa' && (
-          <form onSubmit={handleMfaSubmit} className="space-y-4">
+          <form onSubmit={handleMfaSubmit} className="space-y-4 animate-fade-in">
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
               <p className="text-xs text-slate-300">
@@ -501,13 +458,13 @@ export default function JoinPage() {
               <label className="block text-sm font-medium text-slate-300 mb-1">
                 {to('verificationCode')}
               </label>
-              <input
+              <Input
                 type="text"
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}
                 placeholder={to('enterCode')}
                 maxLength={6}
-                className="w-full bg-slate-700 border border-amber-500/50 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-center text-xl tracking-widest"
+                className="border-amber-500/50 focus:ring-amber-500 text-center text-xl tracking-widest"
                 required
                 autoFocus
               />
@@ -519,21 +476,13 @@ export default function JoinPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={!mfaCode || mfaCode.length < 6}
-              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
+            <Button type="submit" variant="primary" size="lg" className="w-full" disabled={!mfaCode || mfaCode.length < 6}>
               {to('verifyConnect')}
-            </button>
+            </Button>
 
-            <button
-              type="button"
-              onClick={() => { setStep('garmin'); setMfaRequired(false); setMfaCode(''); }}
-              className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
-            >
+            <Button type="button" variant="ghost" className="w-full" onClick={() => { setStep('garmin'); setMfaRequired(false); setMfaCode(''); }}>
               {to('backToLogin')}
-            </button>
+            </Button>
           </form>
         )}
       </div>

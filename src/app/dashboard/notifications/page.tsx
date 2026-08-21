@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, ClipboardList, ChevronDown, X } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { SkeletonList } from '@/components/ui';
+import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
 interface Item {
@@ -34,31 +34,35 @@ function readStoreKey(athleteId: string): string {
   return `notif_read_ids_${athleteId}`;
 }
 
-// Hebrew relative time — "עכשיו" / "לפני N דקות/שעות/ימים".
-function timeAgo(iso: string): string {
+// Locale-aware relative time — "now" / "N min/hours/days ago" — routed through
+// next-intl (`t`) instead of a hardcoded Hebrew table, so an English-locale
+// athlete sees English timestamps.
+function timeAgo(iso: string, t: (key: string, values?: Record<string, number>) => string, dateLocale: string): string {
   const then = new Date(iso).getTime();
   const diff = Math.max(0, Date.now() - then);
   const min = Math.floor(diff / 60000);
-  if (min < 1) return 'עכשיו';
-  if (min < 60) return `לפני ${min} דק׳`;
+  if (min < 1) return t('justNow');
+  if (min < 60) return t('minutesAgo', { count: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `לפני ${hr} שע׳`;
+  if (hr < 24) return t('hoursAgo', { count: hr });
   const d = Math.floor(hr / 24);
-  if (d === 1) return 'אתמול';
-  if (d < 7) return `לפני ${d} ימים`;
-  return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+  if (d === 1) return t('yesterday');
+  if (d < 7) return t('daysAgo', { count: d });
+  return new Date(iso).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' });
 }
 
 // Icon + colored tile by notification kind / content — a light heuristic on the
 // title so custom coach messages still get a sensible glyph. Colors mirror the
 // design deck: coach=blue, race=gold, achievement=green, workout=indigo.
-function styleFor(it: Item): { Icon: typeof Activity; bg: string; fg: string } {
+// `tile` is the solid-color variant used for the InsetRow icon tile (white
+// icon on a solid bg, the app-wide InsetRow convention).
+function styleFor(it: Item): { Icon: typeof Activity; tile: string } {
   const s = it.title + ' ' + it.body;
-  if (/מאמן|תשובה|💬/.test(s)) return { Icon: MessageSquare, bg: 'bg-sky-500/18', fg: 'text-sky-300' };
-  if (/מרוץ|מרתון|הרשמה|🏆/.test(s)) return { Icon: Trophy, bg: 'bg-amber-500/18', fg: 'text-amber-300' };
-  if (/שיא|רצף|הישג|🎉|🔥|🎖/.test(s)) return { Icon: Flame, bg: 'bg-emerald-500/18', fg: 'text-emerald-300' };
-  if (/אימון|נוכחות|מגיעים/.test(s)) return { Icon: Calendar, bg: 'bg-primary-600/20', fg: 'text-primary-300' };
-  return { Icon: Activity, bg: 'bg-slate-600/30', fg: 'text-slate-300' };
+  if (/מאמן|תשובה|💬/.test(s)) return { Icon: MessageSquare, tile: 'bg-sky-500' };
+  if (/מרוץ|מרתון|הרשמה|🏆/.test(s)) return { Icon: Trophy, tile: 'bg-amber-500' };
+  if (/שיא|רצף|הישג|🎉|🔥|🎖/.test(s)) return { Icon: Flame, tile: 'bg-emerald-500' };
+  if (/אימון|נוכחות|מגיעים/.test(s)) return { Icon: Calendar, tile: 'bg-primary-600' };
+  return { Icon: Activity, tile: 'bg-slate-500' };
 }
 
 // Group category per item. `kind` cleanly maps for the two cron-generated kinds
@@ -98,6 +102,8 @@ interface Group {
 export default function NotificationsInboxPage() {
   const router = useRouter();
   const tn = useTranslations('notifications');
+  const locale = useLocale();
+  const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
 
   // athleteId comes from localStorage (client-only); resolve on mount so the SWR
   // key is SSR-safe. null = not yet resolved, '' = resolved but no athlete.
@@ -182,7 +188,7 @@ export default function NotificationsInboxPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto" dir="rtl">
+    <div className="max-w-2xl mx-auto">
       <div className="mb-5">
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Bell className="h-6 w-6 text-primary-400" /> {tn('title')}
@@ -192,20 +198,15 @@ export default function NotificationsInboxPage() {
       {loading ? (
         <SkeletonList count={5} />
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center">
-            <Bell className="h-6 w-6 text-slate-500" />
-          </div>
-          <p className="text-sm text-slate-400">{tn('empty')}</p>
-        </div>
+        <EmptyState icon={Bell} title={tn('empty')} />
       ) : (
         <div className="space-y-3">
           {groups.map((group) => {
             const meta = GROUP_META[group.category];
             const open = openCats.has(group.category);
             return (
-              <div key={group.category} className="rounded-2xl border border-slate-700/60 bg-slate-800/50 overflow-hidden">
-                <div className="flex items-center gap-1 bg-slate-800/80">
+              <InsetSection key={group.category} className="mb-0">
+                <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => toggleCat(group.category)}
@@ -231,7 +232,7 @@ export default function NotificationsInboxPage() {
                     <button
                       type="button"
                       onClick={() => markGroupRead(group)}
-                      className="p-2 me-2 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/60 transition-colors shrink-0"
+                      className="min-w-[44px] min-h-[44px] me-1 flex items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/60 transition-colors shrink-0"
                       aria-label={tn('markGroupRead')}
                       title={tn('markGroupRead')}
                     >
@@ -239,34 +240,24 @@ export default function NotificationsInboxPage() {
                     </button>
                   )}
                 </div>
-                {open && (
-                  <div className="divide-y divide-slate-700/60 border-t border-slate-700/60">
-                    {group.items.map((it) => {
-                      const { Icon, bg, fg } = styleFor(it);
-                      const unread = isUnread(it);
-                      return (
-                        <button
-                          key={it.id}
-                          onClick={() => router.push(it.url || '/dashboard')}
-                          className="w-full flex items-start gap-3 p-3.5 text-start active:bg-slate-700/40 transition-colors relative"
-                        >
-                          {unread && <span className="absolute start-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-500" aria-hidden="true" />}
-                          <span className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-                            <Icon className={`h-5 w-5 ${fg}`} />
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-2">
-                              <span className={`text-sm truncate ${unread ? 'font-bold text-white' : 'font-semibold text-slate-200'}`} dir="auto">{it.title}</span>
-                              <span className="text-2xs text-slate-500 ms-auto shrink-0 whitespace-nowrap">{timeAgo(it.sentAt)}</span>
-                            </div>
-                            <p className="text-xs text-slate-400 mt-0.5 line-clamp-2" dir="auto">{it.body}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                {open && group.items.map((it) => {
+                  const { Icon, tile } = styleFor(it);
+                  const unread = isUnread(it);
+                  return (
+                    <div key={it.id} className="relative">
+                      {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-500 z-10" aria-hidden="true" />}
+                      <InsetRow
+                        icon={Icon}
+                        iconBg={tile}
+                        label={it.title}
+                        sublabel={it.body}
+                        value={timeAgo(it.sentAt, tn, dateLocale)}
+                        onClick={() => router.push(it.url || '/dashboard')}
+                      />
+                    </div>
+                  );
+                })}
+              </InsetSection>
             );
           })}
         </div>

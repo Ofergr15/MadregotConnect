@@ -1,9 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { GraduationCap, Loader2, CheckCircle2, Watch } from 'lucide-react';
+import { GraduationCap, CheckCircle2, Watch } from 'lucide-react';
+import { Card, Button, LoadingBlock } from '@/components/ui';
+import { cn } from '@/lib/utils';
+
+// Local input primitive — see src/app/admin/login/page.tsx for why this is
+// duplicated locally instead of promoted to the shared ui/index.tsx.
+function Input({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      className={cn(
+        'w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-2xl px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500',
+        className
+      )}
+      {...rest}
+    />
+  );
+}
 
 /**
  * Academy onboarding — reached from the approval email link. Unlike the normal
@@ -12,6 +28,7 @@ import { GraduationCap, Loader2, CheckCircle2, Watch } from 'lucide-react';
  */
 export default function AcademyJoinPage() {
   const params = useParams();
+  const router = useRouter();
   const token = params.token as string;
   const t = useTranslations('joinAcademy');
   const to = useTranslations('onboarding');
@@ -84,7 +101,7 @@ export default function AcademyJoinPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl p-6 sm:p-8">
+      <Card className="w-full max-w-md p-6 sm:p-8">
         <div className="text-center mb-6">
           <div className="bg-primary-600/20 w-14 h-14 rounded-2xl flex items-center justify-center ring-1 ring-primary-500/20 mx-auto mb-3">
             <GraduationCap className="h-7 w-7 text-primary-300" />
@@ -97,7 +114,7 @@ export default function AcademyJoinPage() {
 
         {step === 'connecting' && (
           <div className="text-center py-8">
-            <Loader2 className="h-8 w-8 text-primary-500 animate-spin mx-auto mb-3" />
+            <LoadingBlock size={32} className="py-0 mb-3" />
             <p className="text-slate-400 text-sm">{to('connectingGarmin')}</p>
           </div>
         )}
@@ -106,19 +123,17 @@ export default function AcademyJoinPage() {
           <form onSubmit={submitGarmin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminEmailLabel')}</label>
-              <input type="email" value={garminEmail} onChange={e => setGarminEmail(e.target.value)} required
-                placeholder="your@email.com"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <Input type="email" value={garminEmail} onChange={e => setGarminEmail(e.target.value)} required
+                placeholder="your@email.com" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminPasswordLabel')}</label>
-              <input type="password" value={garminPassword} onChange={e => setGarminPassword(e.target.value)} required
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <Input type="password" value={garminPassword} onChange={e => setGarminPassword(e.target.value)} required />
             </div>
             {error && <p className="text-sm text-red-400">{error}</p>}
-            <button type="submit" className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-lg px-4 py-3 transition-colors">
+            <Button type="submit" variant="primary" size="lg" className="w-full">
               <Watch className="h-5 w-5" /> {t('connectButton')}
-            </button>
+            </Button>
             <p className="text-xs text-slate-500 text-center">
               {t('privacyNote')}
             </p>
@@ -128,11 +143,10 @@ export default function AcademyJoinPage() {
         {step === 'mfa' && (
           <form onSubmit={submitMfa} className="space-y-4">
             <p className="text-sm text-slate-300">{t('mfaPrompt')}</p>
-            <input type="text" inputMode="numeric" value={mfaCode} onChange={e => setMfaCode(e.target.value)} required
-              placeholder="123456"
-              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-base text-white text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            <Input type="text" inputMode="numeric" value={mfaCode} onChange={e => setMfaCode(e.target.value)} required
+              placeholder="123456" className="text-center tracking-widest" />
             {error && <p className="text-sm text-red-400">{error}</p>}
-            <button type="submit" className="w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-lg px-4 py-3 transition-colors">{t('verifyButton')}</button>
+            <Button type="submit" variant="primary" size="lg" className="w-full">{t('verifyButton')}</Button>
           </form>
         )}
 
@@ -145,12 +159,12 @@ export default function AcademyJoinPage() {
             <p className="text-slate-400 text-sm mt-2">
               {t('connectedDesc')}
             </p>
-            <a href="/dashboard" className="mt-6 inline-block bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-lg px-5 py-3 transition-colors">
+            <Button variant="primary" className="mt-6" onClick={() => router.push('/dashboard')}>
               {t('openApp')}
-            </a>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

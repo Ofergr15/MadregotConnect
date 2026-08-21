@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { SkeletonList, SegmentedControl } from '@/components/ui';
+import { SkeletonList, SegmentedControl, EmptyState } from '@/components/ui';
 
 interface Row {
   athleteId: string;
@@ -24,6 +25,7 @@ interface Row {
 // last-week trend so a coach can spot who's ramping up or dropping off.
 // Staff-only (server-enforced); this page assumes the coach nav gate.
 export default function TeamVolumePage() {
+  const t = useTranslations('teamVolume');
   const [range, setRange] = useState(8);
   const { data } = useApi<{ athletes?: Row[]; weeks?: string[] }>(`/api/coach/volume?weeks=${range}`);
   const rows = data?.athletes || [];
@@ -33,25 +35,25 @@ export default function TeamVolumePage() {
   const globalMax = useMemo(() => Math.max(1, ...rows.flatMap((r) => r.series)), [rows]);
 
   return (
-    <div className="max-w-4xl mx-auto" dir="rtl">
+    <div className="max-w-4xl mx-auto">
       <div className="mb-5">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 text-primary-400" /> נפח הקבוצה
+        <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-2">
+          <BarChart3 className="h-6 w-6 text-primary-400" /> {t('title')}
         </h1>
-        <p className="text-sm text-slate-400 mt-1">נפח שבועי לכל ספורטאי — מי עולה ומי יורד</p>
+        <p className="text-sm text-slate-400 mt-1">{t('subtitle')}</p>
       </div>
 
       <SegmentedControl
         value={String(range)}
         onChange={(v) => setRange(Number(v))}
-        options={[8, 12, 16].map((w) => ({ value: String(w), label: `${w} שבועות` }))}
+        options={[8, 12, 16].map((w) => ({ value: String(w), label: t('weeksOption', { w }) }))}
         className="mb-4 w-fit"
       />
 
       {loading ? (
         <SkeletonList count={6} />
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-500 text-center py-10">אין נתוני נפח עדיין</p>
+        <EmptyState icon={BarChart3} title={t('noData')} />
       ) : (
         <div className="space-y-2">
           {rows.map((r) => <VolumeRow key={r.athleteId} r={r} globalMax={globalMax} />)}
@@ -62,6 +64,7 @@ export default function TeamVolumePage() {
 }
 
 function VolumeRow({ r, globalMax }: { r: Row; globalMax: number }) {
+  const t = useTranslations('teamVolume');
   const TrendIcon = r.deltaKm > 0.05 ? TrendingUp : r.deltaKm < -0.05 ? TrendingDown : Minus;
   const trendColor = r.deltaKm > 0.05 ? 'text-emerald-400' : r.deltaKm < -0.05 ? 'text-amber-400' : 'text-slate-500';
   const initials = (r.name.split(' ').map((x) => x[0]).join('').toUpperCase().slice(0, 2)) || '?';
@@ -84,7 +87,7 @@ function VolumeRow({ r, globalMax }: { r: Row; globalMax: number }) {
             <span className="text-sm font-bold text-white truncate" dir="auto">{r.name}</span>
             {r.squad && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.squadColor || '#6366f1' }} />}
           </div>
-          <div className="text-2xs text-slate-500">ממוצע {r.avgKm} · שיא {r.peakKm}</div>
+          <div className="text-2xs text-slate-500">{t('avgPeak', { avg: r.avgKm, peak: r.peakKm })}</div>
         </div>
       </div>
 
@@ -102,7 +105,7 @@ function VolumeRow({ r, globalMax }: { r: Row; globalMax: number }) {
 
       {/* This week + trend */}
       <div className="w-[86px] text-end shrink-0">
-        <div className="text-base font-black text-white tabular-nums">{r.thisWeekKm}<span className="text-2xs font-normal text-slate-500"> ק״מ</span></div>
+        <div className="text-base font-black text-white tabular-nums">{r.thisWeekKm}<span className="text-2xs font-normal text-slate-500"> {t('km')}</span></div>
         <div className={`inline-flex items-center gap-0.5 text-2xs font-semibold ${trendColor}`}>
           <TrendIcon className="h-3 w-3" />{r.deltaKm > 0 ? '+' : ''}{r.deltaKm}
         </div>

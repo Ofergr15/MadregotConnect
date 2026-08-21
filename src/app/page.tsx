@@ -7,6 +7,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { getSupabase } from '@/lib/supabase/client';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Figure } from '@/components/Figure';
+import { Sheet, Button, LoadingBlock, BigStat } from '@/components/ui';
 
 interface PublicStats {
   since?: string;
@@ -231,7 +232,7 @@ export default function HomePage() {
   if (checking) {
     return (
       <div className="min-h-screen bg-[#f0f0f0] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <LoadingBlock />
       </div>
     );
   }
@@ -300,52 +301,34 @@ export default function HomePage() {
           </div>
         </nav>
 
-        {/* Admin Login Modal (triggered from footer) */}
-        {showAdminLogin && (
-          <div
-            className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-            onClick={() => setShowAdminLogin(false)}
-          >
-          <div
-            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 p-5"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <Shield className="h-4 w-4 text-primary-600" />
-              <span className="text-sm font-bold text-gray-800">{th('adminLogin')}</span>
-            </div>
-            <form onSubmit={handleAdminLogin} className="space-y-3">
-              <input
-                type="email"
-                value={adminEmail}
-                onChange={e => setAdminEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                placeholder="admin@madregot.club"
-                required
-              />
-              <input
-                type="password"
-                value={adminPassword}
-                onChange={e => setAdminPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                placeholder={th('password')}
-                required
-              />
-              {adminError && (
-                <p className="text-xs text-red-500">{adminError}</p>
-              )}
-              <button
-                type="submit"
-                disabled={adminLoading}
-                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {adminLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-                {adminLoading ? tc('signingIn') : th('signInAsAdmin')}
-              </button>
-            </form>
-          </div>
-          </div>
-        )}
+        {/* Admin Login Sheet (triggered from footer) */}
+        <Sheet open={showAdminLogin} onOpenChange={setShowAdminLogin} title={th('adminLogin')}>
+          <form onSubmit={handleAdminLogin} className="space-y-3 pb-2">
+            <input
+              type="email"
+              value={adminEmail}
+              onChange={e => setAdminEmail(e.target.value)}
+              className="w-full min-h-[44px] bg-slate-900/50 border border-slate-700/50 rounded-xl px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+              placeholder="admin@madregot.club"
+              required
+            />
+            <input
+              type="password"
+              value={adminPassword}
+              onChange={e => setAdminPassword(e.target.value)}
+              className="w-full min-h-[44px] bg-slate-900/50 border border-slate-700/50 rounded-xl px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+              placeholder={th('password')}
+              required
+            />
+            {adminError && (
+              <p className="text-xs text-red-400">{adminError}</p>
+            )}
+            <Button type="submit" variant="primary" size="lg" className="w-full" disabled={adminLoading}>
+              {adminLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+              {adminLoading ? tc('signingIn') : th('signInAsAdmin')}
+            </Button>
+          </form>
+        </Sheet>
 
         {/* Mobile Hero Image */}
         <div className="lg:hidden px-4 sm:px-8 pt-4 pb-6 relative z-10">
@@ -457,22 +440,31 @@ export default function HomePage() {
                   <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-primary-600/10 text-primary-600">
                     <Route className="h-4 w-4 sm:h-7 sm:w-7" />
                   </div>
-                  <div className="text-2xl sm:text-5xl font-black text-primary-600 tabular-nums leading-none" dir="ltr">{fmtNum(stats.totalKm, locale)}</div>
-                  <div className="text-[10px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-1 sm:mt-2">{t('statKm')}</div>
+                  <BigStat
+                    value={<span dir="ltr">{fmtNum(stats.totalKm, locale)}</span>}
+                    label={t('statKm')}
+                    valueClassName="text-2xl sm:text-5xl text-primary-600"
+                  />
                 </div>
                 <div className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
                   <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-primary-600/10 text-primary-600">
                     <Activity className="h-4 w-4 sm:h-7 sm:w-7" />
                   </div>
-                  <div className="text-2xl sm:text-5xl font-black text-primary-600 tabular-nums leading-none" dir="ltr">{fmtNum(stats.workouts, locale)}</div>
-                  <div className="text-[10px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-1 sm:mt-2">{t('statWorkouts')}</div>
+                  <BigStat
+                    value={<span dir="ltr">{fmtNum(stats.workouts, locale)}</span>}
+                    label={t('statWorkouts')}
+                    valueClassName="text-2xl sm:text-5xl text-primary-600"
+                  />
                 </div>
                 <div className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
                   <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-primary-600/10 text-primary-600">
                     <Clock className="h-4 w-4 sm:h-7 sm:w-7" />
                   </div>
-                  <div className="text-2xl sm:text-5xl font-black text-primary-600 tabular-nums leading-none" dir="ltr">{fmtNum(stats.totalHours, locale)}</div>
-                  <div className="text-[10px] sm:text-sm font-bold text-gray-500 uppercase tracking-wider mt-1 sm:mt-2">{t('statHours')}</div>
+                  <BigStat
+                    value={<span dir="ltr">{fmtNum(stats.totalHours, locale)}</span>}
+                    label={t('statHours')}
+                    valueClassName="text-2xl sm:text-5xl text-primary-600"
+                  />
                 </div>
               </div>
               </>
@@ -618,10 +610,12 @@ export default function HomePage() {
                 <Trophy className="h-6 w-6 stroke-[1.75]" />
               </div>
               <h3 className="text-lg font-bold mb-1">{t('performance')}</h3>
-              <div className="flex items-baseline gap-2 mb-3">
-                <span className="text-4xl sm:text-5xl font-black text-primary-600 tabular-nums" dir="ltr">17</span>
-                <span className="text-sm text-gray-500">{t('videoGuidedExercises')}</span>
-              </div>
+              <BigStat
+                value={<span dir="ltr">17</span>}
+                label={t('videoGuidedExercises')}
+                className="flex-row items-baseline text-start gap-2 mb-3"
+                valueClassName="text-4xl sm:text-5xl text-primary-600"
+              />
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('professionalCoach')}</li>
                 <li>{t('gymAccess')}</li>
@@ -634,12 +628,12 @@ export default function HomePage() {
                 <Users className="h-6 w-6 stroke-[1.75]" />
               </div>
               <h3 className="text-lg font-bold mb-1">{t('community')}</h3>
-              <div className="flex items-baseline gap-2 mb-3">
-                <span className="text-4xl sm:text-5xl font-black text-primary-600 tabular-nums" dir="ltr">
-                  {stats && stats.athletes > 0 ? fmtNum(stats.athletes, locale) : '20+'}
-                </span>
-                <span className="text-sm text-gray-500">{t('activeRunnersThisSeason')}</span>
-              </div>
+              <BigStat
+                value={<span dir="ltr">{stats && stats.athletes > 0 ? fmtNum(stats.athletes, locale) : '20+'}</span>}
+                label={t('activeRunnersThisSeason')}
+                className="flex-row items-baseline text-start gap-2 mb-3"
+                valueClassName="text-4xl sm:text-5xl text-primary-600"
+              />
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>{t('trainingPartners')}</li>
                 <li>{t('raceTravel')}</li>
@@ -761,7 +755,7 @@ export default function HomePage() {
             </p>
             <button
               onClick={() => setShowAdminLogin(!showAdminLogin)}
-              className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-300 text-xs font-medium transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-2 text-gray-500 hover:text-gray-300 text-xs font-medium transition-colors"
             >
               <Shield className="h-3.5 w-3.5" />
               {t('adminSignIn')}

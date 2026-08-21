@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Play, X, Pencil, Loader2, Check, Plus, Trash2 } from 'lucide-react';
-import { Sheet } from '@/components/ui';
+import { Sheet, SegmentedControl, Button } from '@/components/ui';
 
 interface Video {
   id: string;
@@ -78,21 +78,11 @@ export default function PracticePage() {
       </div>
 
       {/* Category Filter */}
-      <div className="flex gap-2 flex-wrap">
-        {categoryKeys.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setFilter(cat)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filter === cat
-                ? 'bg-primary-600 text-white'
-                : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
-            }`}
-          >
-            {t(cat.toLowerCase() as any)}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        value={filter}
+        onChange={setFilter}
+        options={categoryKeys.map(cat => ({ value: cat, label: t(cat.toLowerCase() as any) }))}
+      />
 
       {/* Video Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -100,7 +90,7 @@ export default function PracticePage() {
           <div
             key={video.id}
             onClick={() => setSelectedVideo(video)}
-            className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden hover:border-slate-600 hover:shadow-lg transition-all group cursor-pointer"
+            className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden hover:border-slate-600 hover:shadow-lg active:scale-[0.98] transition-all group cursor-pointer"
           >
             {/* Thumbnail / Play area */}
             <div className="relative overflow-hidden bg-slate-900 aspect-video flex items-center justify-center">
@@ -221,9 +211,9 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Pencil className="h-5 w-5 text-primary-400" /> {t('editVideos')}
         </h1>
-        <button onClick={() => onDone(null)} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+        <Button variant="ghost" size="md" onClick={() => onDone(null)}>
           <X className="h-5 w-5" />
-        </button>
+        </Button>
       </div>
       <p className="text-sm text-slate-400">{t('editVideosHint')}</p>
 
@@ -236,9 +226,9 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
                 placeholder={t('videoTitle')}
                 className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500"
               />
-              <button onClick={() => remove(i)} className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-slate-700 shrink-0">
+              <Button variant="danger" size="md" onClick={() => remove(i)} className="shrink-0">
                 <Trash2 className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
             <input
               value={r.driveId} onChange={e => setRow(i, { driveId: e.target.value.trim() })}
@@ -246,14 +236,12 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
               dir="ltr"
               className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 font-mono"
             />
-            <div className="flex gap-2">
-              <select
-                value={editableCategories.includes(r.category) ? r.category : 'Strength'}
-                onChange={e => setRow(i, { category: e.target.value })}
-                className="bg-slate-900/50 border border-slate-700 rounded-lg px-2 py-2 text-sm text-white"
-              >
-                {editableCategories.map(c => <option key={c} value={c}>{t(c.toLowerCase())}</option>)}
-              </select>
+            <SegmentedControl
+              value={editableCategories.includes(r.category) ? r.category : 'Strength'}
+              onChange={(v) => setRow(i, { category: v })}
+              options={editableCategories.map(c => ({ value: c, label: t(c.toLowerCase()) }))}
+            />
+            <div className="flex items-center gap-2">
               <input
                 value={r.duration} onChange={e => setRow(i, { duration: e.target.value })}
                 placeholder={t('duration')}
@@ -270,20 +258,17 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
         ))}
       </div>
 
-      <button onClick={add} className="flex items-center gap-1.5 text-sm font-semibold text-primary-300 hover:text-primary-200">
+      <Button variant="ghost" size="md" onClick={add} className="self-start">
         <Plus className="h-4 w-4" /> {t('addVideo')}
-      </button>
+      </Button>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       <div className="flex gap-2 pt-2">
-        <button
-          onClick={save} disabled={saving}
-          className="flex-1 min-h-[48px] rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold flex items-center justify-center gap-2"
-        >
+        <Button variant="primary" size="lg" onClick={save} disabled={saving} className="flex-1">
           {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />} {t('saveVideos')}
-        </button>
-        <button onClick={() => onDone(null)} className="px-5 rounded-xl bg-slate-700 text-slate-200 font-semibold">{t('cancel')}</button>
+        </Button>
+        <Button variant="secondary" size="lg" onClick={() => onDone(null)}>{t('cancel')}</Button>
       </div>
     </div>
   );

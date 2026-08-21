@@ -33,15 +33,15 @@ import {
   ClipboardList,
   Sparkles,
   Image as ImageIcon,
+  Check,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
-import { totalDistanceMeters } from '@/lib/workout-distance';
 import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
-import { Sheet, ConfirmSheet, SegmentedControl, Card, Button } from '@/components/ui';
+import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
 
 const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
 
@@ -203,6 +203,8 @@ export default function WeeklyPlannerPage() {
   const [showMatchReview, setShowMatchReview] = useState(false);
   const [matchReview, setMatchReview] = useState<MatchReviewData | null>(null);
   const [matchReviewLoading, setMatchReviewLoading] = useState(false);
+  // Sheet-based picker for the activity → workout match — replaces the raw <select>.
+  const [matchPickerActivityId, setMatchPickerActivityId] = useState<string | null>(null);
 
   // --- Save state ---
   const [saving, setSaving] = useState(false);
@@ -974,17 +976,17 @@ export default function WeeklyPlannerPage() {
   return (
     <div className="min-h-[calc(100vh-6rem)] flex flex-col">
       {/* Week Navigation Header */}
-      <div className="border-b border-slate-700 bg-slate-900/50 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+      <div className="border-b border-slate-700/50 bg-slate-900/50 px-6 py-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Calendar className="h-5 w-5 text-primary-400" />
-            <h1 className="text-lg font-semibold text-white">{t('title')}</h1>
+            <h1 className="text-2xl font-bold text-white">{t('title')}</h1>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={() => setWeekOffset((o) => o - 1)}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -998,7 +1000,7 @@ export default function WeeklyPlannerPage() {
 
             <button
               onClick={() => setWeekOffset((o) => o + 1)}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -1006,7 +1008,7 @@ export default function WeeklyPlannerPage() {
             {weekOffset !== getDefaultOffset() && (
               <button
                 onClick={() => setWeekOffset(getDefaultOffset())}
-                className="text-xs text-primary-400 hover:text-primary-300 ms-2"
+                className="min-h-[44px] text-xs text-primary-400 hover:text-primary-300 ms-2"
               >
                 {t('current')}
               </button>
@@ -1047,20 +1049,19 @@ export default function WeeklyPlannerPage() {
                 </Button>
               )}
               {programPdfUrl ? (
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="text-sm text-slate-400 hover:text-white hover:bg-slate-800 min-h-[44px] px-4 py-2 rounded-lg border border-slate-700/50 transition-colors flex items-center gap-2"
-                >
+                <Button variant="ghost" size="md" onClick={() => setShowCreate(true)}>
                   <Plus className="h-4 w-4" />
                   {t('createManually')}
-                </button>
+                </Button>
               ) : (
                 <Button onClick={() => setShowCreate(true)} size="lg">
                   <Plus className="h-5 w-5" />
                   {t('createPlan')}
                 </Button>
               )}
-              <button
+              <Button
+                variant="ghost"
+                size="md"
                 onClick={async () => {
                   setParsing(true);
                   setError(null);
@@ -1082,10 +1083,9 @@ export default function WeeklyPlannerPage() {
                     setParsing(false);
                   }
                 }}
-                className="text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg border border-slate-700/50 transition-colors"
               >
                 {t('importFromProgram')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1099,7 +1099,7 @@ export default function WeeklyPlannerPage() {
               <h2 className="text-xl font-semibold">{t('createPlanFor', { group: weekLabel })}</h2>
               <button
                 onClick={() => { setShowCreate(false); setError(null); }}
-                className="text-slate-400 hover:text-white"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1116,7 +1116,7 @@ export default function WeeklyPlannerPage() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setShowProgramViewer((v) => !v)}
-                      className="text-xs text-primary-400 hover:text-primary-300"
+                      className="min-h-[44px] flex items-center text-xs text-primary-400 hover:text-primary-300"
                     >
                       {showProgramViewer ? t('hide') : t('view')}
                     </button>
@@ -1124,7 +1124,7 @@ export default function WeeklyPlannerPage() {
                       href={programPdfUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-slate-400 hover:text-white"
+                      className="min-h-[44px] flex items-center text-xs text-slate-400 hover:text-white"
                     >
                       {t('openArrow')}
                     </a>
@@ -1262,7 +1262,7 @@ export default function WeeklyPlannerPage() {
         <div className="flex-1 flex flex-col">
           {/* Status bar */}
           <div className="px-6 py-3 border-b border-slate-700/50 bg-slate-800/30">
-            <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className="text-sm text-slate-300">
                   {workoutCount} {t('workouts')}
@@ -1313,48 +1313,16 @@ export default function WeeklyPlannerPage() {
           </div>
 
           {/* Group tabs */}
-          <div className="border-b border-slate-700/50 px-6 bg-slate-800/20">
-            <div className="flex gap-1 max-w-7xl mx-auto py-2">
-              {([1, 2, 3] as const).map((g) => {
-                const groupWorkouts = groupedPlans[`group${g}` as keyof GroupedWeeklyPlans].workouts;
-                // Coach-aware total (matches dashboard + WeekView).
-                const groupDist = totalDistanceMeters(groupWorkouts);
-                const colors = g === 1
-                  ? { active: 'bg-green-500/10 border-green-500/50 text-green-400', badge: 'bg-green-500 text-white', dot: 'bg-green-400' }
-                  : g === 2
-                  ? { active: 'bg-yellow-500/10 border-yellow-500/50 text-yellow-400', badge: 'bg-yellow-500 text-white', dot: 'bg-yellow-400' }
-                  : { active: 'bg-orange-500/10 border-orange-500/50 text-orange-400', badge: 'bg-orange-500 text-white', dot: 'bg-orange-400' };
-                return (
-                  <button
-                    key={g}
-                    onClick={() => setActiveGroup(g)}
-                    className={cn(
-                      'px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2.5 border',
-                      activeGroup === g
-                        ? colors.active
-                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                    )}
-                  >
-                    <span className={cn(
-                      'inline-flex items-center justify-center w-5 h-5 rounded-full text-3xs font-bold',
-                      activeGroup === g ? colors.badge : 'bg-slate-700 text-slate-300'
-                    )}>
-                      {g}
-                    </span>
-                    <span>{t('groupLabel', { n: g })}</span>
-                    {groupDist > 0 && (
-                      <span className="text-3xs text-slate-500 font-normal ms-1">
-                        {(groupDist / 1000).toFixed(0)}km
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="border-b border-slate-700/50 px-6 py-2 bg-slate-800/20">
+            <SegmentedControl
+              value={String(activeGroup)}
+              onChange={(v) => setActiveGroup(Number(v) as 1 | 2 | 3)}
+              options={[1, 2, 3].map((g) => ({ value: String(g), label: t('groupLabel', { n: g }) }))}
+            />
           </div>
 
           {/* Week view */}
-          <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full">
+          <div className="flex-1 px-6 py-6 w-full">
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm mb-4">
                 {error}
@@ -1370,7 +1338,7 @@ export default function WeeklyPlannerPage() {
 
           {/* Bottom action bar */}
           <div className="border-t border-slate-700 bg-slate-900/80 backdrop-blur px-6 py-4 sticky bottom-0">
-            <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {editMode && (
                   <Button variant="secondary" size="sm" onClick={saveDraft} disabled={saving}>
@@ -1681,25 +1649,27 @@ export default function WeeklyPlannerPage() {
                             {activity.distance ? `${(activity.distance / 1000).toFixed(2)} km` : '—'}
                           </p>
                         </div>
-                        <select
-                          value={match?.workout_key || ''}
-                          onChange={(event) =>
-                            void setManualMatch(activity.id, event.target.value || null)
-                          }
+                        <button
+                          type="button"
+                          onClick={() => setMatchPickerActivityId(activity.id)}
                           disabled={matchReviewLoading}
-                          className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white focus:border-primary-500 focus:outline-none"
+                          className="w-full min-h-[44px] flex items-center justify-between gap-2 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white text-start disabled:opacity-50"
                         >
-                          <option value="">{t('noMatchedWorkout')}</option>
-                          {candidates.map((workout) => (
-                            <option key={workout.workoutKey} value={workout.workoutKey}>
-                              {DAY_LABELS[workout.dayOfWeek]} ·{' '}
-                              {workout.partCount && workout.partCount > 1
-                                ? `${t('partLabel', { index: workout.partIndex ?? 0, count: workout.partCount })} · `
-                                : ''}
-                              {workout.name}
-                            </option>
-                          ))}
-                        </select>
+                          <span className="truncate">
+                            {match
+                              ? (() => {
+                                  const matchedWorkout = candidates.find((workout) => workout.workoutKey === match.workout_key);
+                                  if (!matchedWorkout) return match.workout_key;
+                                  return `${DAY_LABELS[matchedWorkout.dayOfWeek]} · ${
+                                    matchedWorkout.partCount && matchedWorkout.partCount > 1
+                                      ? `${t('partLabel', { index: matchedWorkout.partIndex ?? 0, count: matchedWorkout.partCount })} · `
+                                      : ''
+                                  }${matchedWorkout.name}`;
+                                })()
+                              : t('noMatchedWorkout')}
+                          </span>
+                          <ChevronDown className="h-4 w-4 text-slate-500 shrink-0" />
+                        </button>
                       </div>
                     );
                   })}
@@ -1711,6 +1681,42 @@ export default function WeeklyPlannerPage() {
               )}
             </div>
         </>
+      </Sheet>
+
+      {/* Activity → workout picker — Sheet-based replacement for the raw <select> */}
+      <Sheet
+        open={!!matchPickerActivityId}
+        onOpenChange={(o) => { if (!o) setMatchPickerActivityId(null); }}
+        title={t('selectWorkoutTitle')}
+      >
+        {matchPickerActivityId && matchReview && (() => {
+          const activity = matchReview.activities.find((a) => a.id === matchPickerActivityId);
+          if (!activity) return null;
+          const day = new Date(activity.start_time).getUTCDay();
+          const candidates = matchReview.workouts.filter((workout) => workout.dayOfWeek === day);
+          const match = matchReview.matches.find((candidate) => candidate.activity_id === activity.id);
+          return (
+            <InsetSection>
+              <InsetRow
+                label={t('noMatchedWorkout')}
+                onClick={() => { setMatchPickerActivityId(null); void setManualMatch(activity.id, null); }}
+                trailing={!match ? <Check className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+              />
+              {candidates.map((workout) => (
+                <InsetRow
+                  key={workout.workoutKey}
+                  label={`${DAY_LABELS[workout.dayOfWeek]}${
+                    workout.partCount && workout.partCount > 1
+                      ? ` · ${t('partLabel', { index: workout.partIndex ?? 0, count: workout.partCount })}`
+                      : ''
+                  } · ${workout.name}`}
+                  onClick={() => { setMatchPickerActivityId(null); void setManualMatch(activity.id, workout.workoutKey ?? null); }}
+                  trailing={match?.workout_key === workout.workoutKey ? <Check className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+                />
+              ))}
+            </InsetSection>
+          );
+        })()}
       </Sheet>
 
       {/* Delete confirmation */}
@@ -1903,39 +1909,39 @@ export default function WeeklyPlannerPage() {
                           ) : (
                             groups.map((group, groupIdx) => {
                               const groupColor =
-                                groupIdx === 0 ? { dot: 'bg-green-400', badge: 'bg-green-500/20 text-green-400', label: t('groupLabel', { n: 1 }) } :
-                                groupIdx === 1 ? { dot: 'bg-yellow-400', badge: 'bg-yellow-500/20 text-yellow-400', label: t('groupLabel', { n: 2 }) } :
-                                { dot: 'bg-orange-400', badge: 'bg-orange-500/20 text-orange-400', label: t('groupLabel', { n: 3 }) };
+                                groupIdx === 0 ? { iconBg: 'bg-green-500', label: t('groupLabel', { n: 1 }) } :
+                                groupIdx === 1 ? { iconBg: 'bg-yellow-500', label: t('groupLabel', { n: 2 }) } :
+                                { iconBg: 'bg-orange-500', label: t('groupLabel', { n: 3 }) };
                               const members = activeAthletes.filter((a) => a.group_id === group.id);
                               const readyMembers = members.filter((a) => a.hasGarmin);
                               const isOpen = expandedAllGroup === group.id;
                               return (
-                                <div key={group.id} className="rounded-lg border border-slate-700 overflow-hidden">
-                                  <button
+                                <InsetSection key={group.id} className="mb-0">
+                                  <InsetRow
+                                    icon={Layers}
+                                    iconBg={groupColor.iconBg}
+                                    label={group.name}
+                                    sublabel={groupColor.label}
                                     onClick={() => setExpandedAllGroup(isOpen ? null : group.id)}
-                                    className="w-full flex items-center gap-3 p-3 hover:bg-slate-800/60 transition-colors"
-                                  >
-                                    <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', groupColor.dot)} />
-                                    <div className="flex-1 text-start min-w-0">
-                                      <span className="text-sm font-medium">{group.name}</span>
-                                      <span className={cn('ms-2 text-3xs font-bold px-1.5 py-0.5 rounded', groupColor.badge)}>
-                                        {groupColor.label}
+                                    trailing={
+                                      <span className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
+                                        {t('readyOfTotal', { ready: readyMembers.length, total: members.length })}
+                                        {isOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
                                       </span>
-                                    </div>
-                                    <span className="text-xs text-slate-400 shrink-0">
-                                      {t('readyOfTotal', { ready: readyMembers.length, total: members.length })}
-                                    </span>
-                                    {isOpen ? <ChevronUp className="h-4 w-4 text-slate-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-500 shrink-0" />}
-                                  </button>
+                                    }
+                                  />
                                   {isOpen && (
-                                    <div className="border-t border-slate-700/50 divide-y divide-slate-800">
-                                      {members.length === 0 ? (
-                                        <p className="text-xs text-slate-500 text-center py-3">{t('noAthletesInGroup')}</p>
-                                      ) : (
-                                        members.map((a) => (
-                                          <div key={a.id} className="flex items-center justify-between px-3 py-2 bg-slate-900/40">
-                                            <span className="text-sm">{a.name}</span>
-                                            {a.hasGarmin ? (
+                                    members.length === 0 ? (
+                                      <div className="px-4 py-3 text-xs text-slate-500 text-center">{t('noAthletesInGroup')}</div>
+                                    ) : (
+                                      members.map((a) => (
+                                        <InsetRow
+                                          key={a.id}
+                                          icon={Watch}
+                                          iconBg={a.hasGarmin ? 'bg-emerald-600' : 'bg-slate-600'}
+                                          label={a.name}
+                                          trailing={
+                                            a.hasGarmin ? (
                                               <span className="flex items-center gap-1 text-2xs text-green-400">
                                                 <CheckCircle className="h-3.5 w-3.5" /> {t('garmin')}
                                               </span>
@@ -1943,13 +1949,13 @@ export default function WeeklyPlannerPage() {
                                               <span className="flex items-center gap-1 text-2xs text-slate-500">
                                                 <XCircle className="h-3.5 w-3.5" /> {t('notConnected')}
                                               </span>
-                                            )}
-                                          </div>
-                                        ))
-                                      )}
-                                    </div>
+                                            )
+                                          }
+                                        />
+                                      ))
+                                    )
                                   )}
-                                </div>
+                                </InsetSection>
                               );
                             })
                           )}
@@ -1968,55 +1974,41 @@ export default function WeeklyPlannerPage() {
                       )}
 
                       {pushTab === 'groups' && (
-                        <div className="space-y-2">
+                        <div>
                           {groups.length === 0 ? (
                             <p className="text-sm text-slate-400 text-center py-8">{t('noGroupsFound')}</p>
                           ) : (
-                            [...groups].sort((a, b) => {
-                              const aGoal = a.marathonGoal ? parseFloat(a.marathonGoal) : 999;
-                              const bGoal = b.marathonGoal ? parseFloat(b.marathonGoal) : 999;
-                              return aGoal - bGoal;
-                            }).map((group, groupIdx) => {
-                              const count = activeAthletes.filter((a) => a.group_id === group.id).length;
-                              const isSelected = selectedGroupIds.includes(group.id);
-                              const groupLabel = t('groupLabel', { n: Math.min(groupIdx + 1, 3) });
-                              return (
-                                <label
-                                  key={group.id}
-                                  className={cn(
-                                    'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
-                                    isSelected
-                                      ? 'border-primary-500/50 bg-primary-500/10'
-                                      : 'border-slate-700 hover:border-slate-600'
-                                  )}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => {
+                            <InsetSection>
+                              {[...groups].sort((a, b) => {
+                                const aGoal = a.marathonGoal ? parseFloat(a.marathonGoal) : 999;
+                                const bGoal = b.marathonGoal ? parseFloat(b.marathonGoal) : 999;
+                                return aGoal - bGoal;
+                              }).map((group, groupIdx) => {
+                                const count = activeAthletes.filter((a) => a.group_id === group.id).length;
+                                const isSelected = selectedGroupIds.includes(group.id);
+                                const groupLabel = t('groupLabel', { n: Math.min(groupIdx + 1, 3) });
+                                const iconBg = groupIdx === 0 ? 'bg-green-500' : groupIdx === 1 ? 'bg-yellow-500' : 'bg-orange-500';
+                                return (
+                                  <InsetRow
+                                    key={group.id}
+                                    icon={Layers}
+                                    iconBg={iconBg}
+                                    label={group.name}
+                                    sublabel={`${groupLabel} · ${t('athleteCount', { count })}`}
+                                    onClick={() => {
                                       setSelectedGroupIds((prev) =>
                                         isSelected ? prev.filter((id) => id !== group.id) : [...prev, group.id]
                                       );
                                     }}
-                                    className="rounded border-slate-600 text-primary-500 focus:ring-primary-500"
+                                    trailing={
+                                      isSelected
+                                        ? <CheckCircle2 className="h-5 w-5 text-primary-400" />
+                                        : <span className="h-5 w-5 rounded-full border-2 border-slate-600" />
+                                    }
                                   />
-                                  <div className="flex-1">
-                                    <span className="text-sm font-medium">{group.name}</span>
-                                  </div>
-                                  <span className={cn(
-                                    'text-3xs font-bold px-1.5 py-0.5 rounded',
-                                    groupIdx === 0 ? 'bg-green-500/20 text-green-400' :
-                                    groupIdx === 1 ? 'bg-yellow-500/20 text-yellow-400' :
-                                    'bg-orange-500/20 text-orange-400'
-                                  )}>
-                                    {groupLabel}
-                                  </span>
-                                  <span className="text-xs text-slate-400">
-                                    {t('athleteCount', { count })}
-                                  </span>
-                                </label>
-                              );
-                            })
+                                );
+                              })}
+                            </InsetSection>
                           )}
                         </div>
                       )}
@@ -2034,57 +2026,44 @@ export default function WeeklyPlannerPage() {
                             />
                           </div>
 
-                          <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                          <div className="max-h-[300px] overflow-y-auto">
                             {filteredAthletes.length === 0 ? (
                               <p className="text-sm text-slate-400 text-center py-6">{t('noAthletesFound')}</p>
                             ) : (
-                              filteredAthletes.map((athlete) => {
-                                const isSelected = selectedAthleteIds.includes(athlete.id);
-                                const athleteGroupIdx = groups.findIndex((g) => g.id === athlete.group_id);
-                                const athleteGroup = athleteGroupIdx >= 0 ? groups[athleteGroupIdx] : undefined;
-                                // Can't push a workout to an athlete with no Garmin connected.
-                                const canPush = !!athlete.hasGarmin;
-                                return (
-                                  <label
-                                    key={athlete.id}
-                                    className={cn(
-                                      'flex items-center gap-3 p-2.5 rounded-lg transition-colors',
-                                      !canPush ? 'opacity-50 cursor-not-allowed' :
-                                        isSelected ? 'bg-primary-500/10 cursor-pointer' : 'hover:bg-slate-800 cursor-pointer'
-                                    )}
-                                    title={canPush ? '' : t('noGarminTitle')}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      disabled={!canPush}
-                                      onChange={() => {
-                                        if (!canPush) return;
+                              <InsetSection className="mb-0">
+                                {filteredAthletes.map((athlete) => {
+                                  const isSelected = selectedAthleteIds.includes(athlete.id);
+                                  const athleteGroupIdx = groups.findIndex((g) => g.id === athlete.group_id);
+                                  const athleteGroup = athleteGroupIdx >= 0 ? groups[athleteGroupIdx] : undefined;
+                                  // Can't push a workout to an athlete with no Garmin connected.
+                                  const canPush = !!athlete.hasGarmin;
+                                  const row = (
+                                    <InsetRow
+                                      icon={Watch}
+                                      iconBg={canPush ? 'bg-emerald-600' : 'bg-slate-600'}
+                                      label={athlete.name}
+                                      sublabel={athleteGroup?.name}
+                                      onClick={canPush ? () => {
                                         setSelectedAthleteIds((prev) =>
                                           isSelected ? prev.filter((id) => id !== athlete.id) : [...prev, athlete.id]
                                         );
-                                      }}
-                                      className="rounded border-slate-600 text-primary-500 focus:ring-primary-500 disabled:opacity-50"
+                                      } : undefined}
+                                      trailing={
+                                        !canPush
+                                          ? <span className="text-3xs text-red-400/70 shrink-0">{t('noGarminTag')}</span>
+                                          : isSelected
+                                            ? <CheckCircle2 className="h-5 w-5 text-primary-400" />
+                                            : <span className="h-5 w-5 rounded-full border-2 border-slate-600" />
+                                      }
                                     />
-                                    {/* Garmin status — green when connected, muted/red when not */}
-                                    <Watch className={cn('h-4 w-4 shrink-0', canPush ? 'text-emerald-400' : 'text-red-400/60')} />
-                                    <div className="flex-1 min-w-0">
-                                      <span className="text-sm">{athlete.name}</span>
-                                      {!canPush && <span className="ms-2 text-3xs text-red-400/70">{t('noGarminTag')}</span>}
-                                    </div>
-                                    {athleteGroup && (
-                                      <span className={cn(
-                                        'text-3xs font-bold px-1.5 py-0.5 rounded shrink-0',
-                                        athleteGroupIdx === 0 ? 'bg-green-500/20 text-green-400' :
-                                        athleteGroupIdx === 1 ? 'bg-yellow-500/20 text-yellow-400' :
-                                        'bg-orange-500/20 text-orange-400'
-                                      )}>
-                                        {athleteGroup.name}
-                                      </span>
-                                    )}
-                                  </label>
-                                );
-                              })
+                                  );
+                                  return canPush ? (
+                                    <div key={athlete.id}>{row}</div>
+                                  ) : (
+                                    <div key={athlete.id} className="opacity-50" title={t('noGarminTitle')}>{row}</div>
+                                  );
+                                })}
+                              </InsetSection>
                             )}
                           </div>
                         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { PenSquare, RefreshCw } from 'lucide-react';
+import { PenSquare, MessageSquare, AlertCircle } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useTranslations } from 'next-intl';
 import { fetchFeed, deletePost } from '@/lib/feed-client';
@@ -9,6 +9,7 @@ import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 
 const PAGE_SIZE = 20;
@@ -22,6 +23,7 @@ export default function FeedPage() {
   const [error, setError] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [commentItem, setCommentItem] = useState<FeedItem | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [myName, setMyName] = useState('');
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
@@ -29,6 +31,39 @@ export default function FeedPage() {
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const hasMore = cursor !== null;
+
+  // Pull-to-refresh (swipe down at the top of the feed) — the default native
+  // expectation for a social feed, alongside the existing infinite-scroll-down
+  // pagination. Passive touch tracking only (no preventDefault, which React 17+
+  // makes a no-op on touchmove) — the pull is only armed when already scrolled
+  // to the top, so the native rubber-band and this indicator move together.
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullStartYRef = useRef<number | null>(null);
+  const PULL_THRESHOLD = 64;
+  const PULL_MAX = 96;
+
+  const handlePullStart = (e: React.TouchEvent) => {
+    if (refreshing || window.scrollY > 0) return;
+    pullStartYRef.current = e.touches[0].clientY;
+  };
+  const handlePullMove = (e: React.TouchEvent) => {
+    if (pullStartYRef.current == null) return;
+    if (window.scrollY > 0) { pullStartYRef.current = null; setPullDistance(0); return; }
+    const delta = e.touches[0].clientY - pullStartYRef.current;
+    setPullDistance(delta > 0 ? Math.min(delta * 0.5, PULL_MAX) : 0);
+  };
+  const handlePullEnd = async () => {
+    if (pullStartYRef.current == null) return;
+    pullStartYRef.current = null;
+    if (pullDistance >= PULL_THRESHOLD) {
+      setRefreshing(true);
+      setPullDistance(PULL_THRESHOLD);
+      await loadInitial();
+      setRefreshing(false);
+    }
+    setPullDistance(0);
+  };
 
   useEffect(() => {
     // Seed from localStorage for instant paint, then re-resolve from the live
@@ -122,7 +157,8 @@ export default function FeedPage() {
       await deletePost(item.id);
       setItems(prev => prev.filter(i => i.id !== item.id));
     } catch (err: unknown) {
-      alert((err as Error).message || t('deleteError'));
+      setDeleteError((err as Error).message || t('deleteError'));
+      setTimeout(() => setDeleteError(null), 4000);
     }
   };
 
@@ -138,7 +174,21 @@ export default function FeedPage() {
   };
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div
+      className="max-w-xl mx-auto"
+      onTouchStart={handlePullStart}
+      onTouchMove={handlePullMove}
+      onTouchEnd={handlePullEnd}
+    >
+      {/* Pull-to-refresh affordance — grows with the swipe, shows a spinner
+          while `refreshing` runs loadInitial(). */}
+      <div
+        className="flex items-center justify-center overflow-hidden transition-[height,opacity] duration-150"
+        style={{ height: pullDistance, opacity: Math.min(pullDistance / PULL_THRESHOLD, 1) }}
+      >
+        <Spinner size={22} />
+      </div>
+
       <div
         className="mb-4 bg-slate-800/50 rounded-2xl border border-slate-700/30 p-3 flex items-center gap-3 cursor-pointer hover:bg-slate-800/70 transition-colors active:scale-[0.98]"
         onClick={() => setComposerOpen(true)}
@@ -153,31 +203,24 @@ export default function FeedPage() {
         <PenSquare className="h-4 w-4 text-slate-600" />
       </div>
 
-      {loading && (
-        <div className="space-y-3">
-          {[1, 2, 3].map(n => (
-            <div key={n} className="bg-slate-800/30 rounded-2xl border border-slate-700/20 h-40 animate-pulse" />
-          ))}
+      {deleteError && (
+        <div className="mb-3 bg-red-900/20 border border-red-700/30 rounded-2xl px-4 py-3 text-center">
+          <p className="text-sm text-red-400">{deleteError}</p>
         </div>
       )}
 
+      {loading && <SkeletonList count={3} />}
+
       {!loading && error && (
-        <div className="bg-red-900/20 border border-red-700/30 rounded-2xl p-6 text-center">
-          <p className="text-sm text-red-400 mb-3">{error}</p>
-          <button
-            onClick={loadInitial}
-            className="flex items-center gap-2 mx-auto text-sm text-red-300 hover:text-white"
-          >
-            <RefreshCw className="h-4 w-4" /> {t('retry')}
-          </button>
-        </div>
+        <EmptyState
+          icon={AlertCircle}
+          title={error}
+          action={<Button onClick={loadInitial}>{t('retry')}</Button>}
+        />
       )}
 
       {!loading && !error && items.length === 0 && (
-        <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-10 text-center">
-          <p className="text-slate-400 text-sm mb-1">{t('emptyTitle')}</p>
-          <p className="text-slate-600 text-xs">{t('emptyBody')}</p>
-        </div>
+        <EmptyState icon={MessageSquare} title={t('emptyTitle')} description={t('emptyBody')} />
       )}
 
       {!loading && items.length > 0 && (
@@ -200,7 +243,7 @@ export default function FeedPage() {
 
       {loadingMore && (
         <div className="flex justify-center py-6">
-          <div className="h-5 w-5 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
+          <Spinner size={20} />
         </div>
       )}
 

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { Users, Check, X, CalendarDays, ChevronRight, ChevronLeft, List, CalendarRange, BadgeCheck } from 'lucide-react';
 import { getPlanWeekStart, resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
-import { SkeletonCard, SkeletonList, SegmentedControl } from '@/components/ui';
+import { SkeletonCard, SkeletonList, SegmentedControl, InsetSection, EmptyState, BigStat } from '@/components/ui';
 
 interface RosterRow {
   athleteId: string;
@@ -126,7 +126,7 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
         </button>
         <div className="text-center">
           <div className="text-lg font-bold text-white">{MONTHS_HE[month]} {year}</div>
-          {!loading && <div className="text-[11px] text-slate-500 tabular-nums">{monthTotal} הגעות החודש</div>}
+          {!loading && <div className="text-2xs text-slate-500 tabular-nums">{monthTotal} הגעות החודש</div>}
         </div>
         <button onClick={() => shiftMonth(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all">
           <ChevronRight className="h-4 w-4" />
@@ -136,7 +136,7 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
       {/* Weekday header (RTL: Sunday on the right) */}
       <div className="grid grid-cols-7 gap-1.5 mb-1.5">
         {DOW_SHORT.map((d, i) => (
-          <div key={i} className={`text-center text-[11px] font-bold ${TEAM_DAYS.includes(i) ? 'text-primary-400' : 'text-slate-500'}`}>{d}</div>
+          <div key={i} className={`text-center text-2xs font-bold ${TEAM_DAYS.includes(i) ? 'text-primary-400' : 'text-slate-500'}`}>{d}</div>
         ))}
       </div>
 
@@ -162,7 +162,7 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
             >
               <span className={`text-sm font-semibold ${clickable ? 'text-white' : 'text-slate-600'}`}>{cell.dom}</span>
               {hasData ? (
-                <span className="text-[11px] font-bold leading-none mt-0.5" style={{ color: '#22c55e' }}>
+                <span className="text-2xs font-bold leading-none mt-0.5" style={{ color: '#22c55e' }}>
                   {c!.going}
                 </span>
               ) : isTeamDay ? (
@@ -176,7 +176,7 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
       {loading && <SkeletonCard className="mt-4" />}
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3 mt-4 text-[11px] text-slate-500">
+      <div className="flex flex-wrap items-center gap-3 mt-4 text-2xs text-slate-500">
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: 'rgba(34,197,94,.32)' }} /> 15+ מגיעים</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: 'rgba(34,197,94,.20)' }} /> 8+</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: 'rgba(234,179,8,.20)' }} /> 1+</span>
@@ -268,11 +268,11 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
 
           {statusFilter === 'all' ? (
             <div className="space-y-4">
-              {going.length === 0 && <p className="text-sm text-slate-500 text-center py-6">אף אחד עדיין לא אישר הגעה</p>}
+              {going.length === 0 && <EmptyState icon={Users} title="אף אחד עדיין לא אישר הגעה" />}
               {byGroup.map(([group, members]) => {
                 const rg = resolveGroup(group);
                 return (
-                  <div key={group} className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
+                  <div key={group} className="rounded-2xl border border-slate-700 bg-slate-800/60 overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-700/60">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: rg.hex }} />
                       <span className="text-sm font-bold text-white">{group}</span>
@@ -285,7 +285,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
                 );
               })}
               {noResponse.length > 0 && (
-                <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 overflow-hidden">
+                <div className="rounded-2xl border border-slate-700/60 bg-slate-800/40 overflow-hidden">
                   <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-700/60">
                     <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
                     <span className="text-sm font-bold text-slate-300">לא ענו</span>
@@ -297,23 +297,21 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
                 </div>
               )}
             </div>
+          ) : filteredList.length === 0 ? (
+            <EmptyState icon={Users} title="אין רשומות" />
           ) : (
-            <div className="rounded-xl border border-slate-700 bg-slate-800/60 divide-y divide-slate-700/50">
-              {filteredList.length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-6">אין רשומות</p>
-              ) : (
-                filteredList.map((m) => (
-                  <div key={m.athleteId} className="flex items-center gap-3 px-4 py-2.5">
-                    <Avatar row={m} />
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-semibold text-white truncate" dir="auto">{m.name}</span>
-                      {m.groupLabel && <span className="block text-xs text-slate-400">{m.groupLabel}</span>}
-                    </span>
-                    <StatusPill row={m} />
-                  </div>
-                ))
-              )}
-            </div>
+            <InsetSection>
+              {filteredList.map((m) => (
+                <div key={m.athleteId} className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
+                  <Avatar row={m} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[15px] font-medium text-white truncate" dir="auto">{m.name}</span>
+                    {m.groupLabel && <span className="block text-xs text-slate-400 truncate">{m.groupLabel}</span>}
+                  </span>
+                  <StatusPill row={m} />
+                </div>
+              ))}
+            </InsetSection>
           )}
         </>
       )}
@@ -328,8 +326,7 @@ function CountCard({ value, label, tone, active, onClick }: { value: number; lab
       onClick={onClick}
       className={`rounded-xl border p-3 text-center transition-colors ${active ? 'border-primary-500/60 bg-primary-600/15' : 'border-slate-700 bg-slate-800/60 hover:border-slate-600'}`}
     >
-      <div className={`text-2xl font-bold tabular-nums ${toneCls[tone]}`}>{value}</div>
-      <div className="text-[11px] text-slate-400 mt-0.5">{label}</div>
+      <BigStat value={value} label={label} valueClassName={toneCls[tone]} />
     </button>
   );
 }

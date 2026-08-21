@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList } from 'lucide-react';
+import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList, Hash, Calendar, CalendarRange } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
-import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, BigStat } from '@/components/ui';
+import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
 import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
 
 interface WeekPlanDay {
@@ -44,6 +44,17 @@ interface ProgramWeek {
 }
 
 type ExerciseCategory = 'legs' | 'core' | 'upper' | 'prehab';
+
+// Static class strings for the category-filter chips' active state — Tailwind's
+// class scanner can't see runtime-interpolated names like `bg-${color}-500`, so
+// that pattern risks the color being purged from the production build. A
+// literal lookup keeps every class visible to the scanner.
+const CATEGORY_ACTIVE_CLASS: Record<string, string> = {
+  orange: 'bg-orange-500 text-white',
+  blue: 'bg-blue-500 text-white',
+  purple: 'bg-purple-500 text-white',
+  green: 'bg-green-500 text-white',
+};
 
 interface WorkoutVideo {
   id: string;
@@ -349,9 +360,9 @@ export default function ProgramPage() {
       {activeView !== 'workout' && (() => {
         const cw = weeks.find(w => w.week_start_date === thisWeekStart);
         return (
-          <div className="space-y-2.5">
+          <InsetSection>
             <PlanStatusRow
-              icon="🏃"
+              icon={Dumbbell}
               label={t('trainingProgram')}
               present={!!cw?.training_pdf_url || structuredWeekStarts.has(thisWeekStart)}
               isAdmin={isAdmin}
@@ -359,14 +370,14 @@ export default function ProgramPage() {
               t={t}
             />
             <PlanStatusRow
-              icon="🥗"
+              icon={Utensils}
               label={t('nutritionPlan')}
               present={!!cw?.nutrition_pdf_url}
               isAdmin={isAdmin}
               onUpload={() => setShowUploadForm(true)}
               t={t}
             />
-          </div>
+          </InsetSection>
         );
       })()}
 
@@ -419,7 +430,7 @@ export default function ProgramPage() {
                     onClick={handlePrevious}
                     disabled={currentFilteredIndex === 0}
                     className={cn(
-                      'p-2.5 rounded-lg transition-all',
+                      'p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-all',
                       currentFilteredIndex === 0
                         ? 'text-slate-600 cursor-not-allowed'
                         : 'bg-slate-700 text-white active:scale-90'
@@ -434,7 +445,7 @@ export default function ProgramPage() {
                     onClick={handleNext}
                     disabled={currentFilteredIndex === filteredExercises.length - 1}
                     className={cn(
-                      'p-2.5 rounded-lg transition-all',
+                      'p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-all',
                       currentFilteredIndex === filteredExercises.length - 1
                         ? 'text-slate-600 cursor-not-allowed'
                         : 'bg-slate-700 text-white active:scale-90'
@@ -478,9 +489,9 @@ export default function ProgramPage() {
                 key={key}
                 onClick={() => setCategoryFilter(key)}
                 className={cn(
-                  'px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0',
+                  'px-3 min-h-[44px] inline-flex items-center justify-center rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0',
                   categoryFilter === key
-                    ? `bg-${color}-500 text-white`
+                    ? CATEGORY_ACTIVE_CLASS[color]
                     : 'bg-slate-800 text-slate-400 border border-slate-700'
                 )}
               >
@@ -765,10 +776,12 @@ function WeekClimb({
 
 // A single plan-status row (training / nutrition) — green when uploaded, red +
 // upload action (admin only) when missing. Mirrors the Saturday 20:00 push.
+// Rendered inside an InsetSection so it matches WeekClimb's inset-grouped list
+// directly below it, instead of its own independently-styled card.
 function PlanStatusRow({
   icon, label, present, isAdmin, onUpload, t,
 }: {
-  icon: string;
+  icon: React.ComponentType<{ className?: string }>;
   label: string;
   present: boolean;
   isAdmin: boolean;
@@ -776,30 +789,20 @@ function PlanStatusRow({
   t: (k: any) => string;
 }) {
   return (
-    <div
-      className={cn(
-        'flex items-center gap-3 rounded-xl border px-4 py-3.5',
-        present
-          ? 'bg-green-500/10 border-green-500/30'
-          : 'bg-red-500/10 border-red-500/35'
-      )}
-    >
-      <span className="text-lg shrink-0">{icon}</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-white">{label}</p>
-        <p className={cn('text-xs mt-0.5', present ? 'text-green-400' : 'text-red-400')}>
-          {present ? `✅ ${t('planUploaded')}` : `❌ ${t('planMissing')}`}
-        </p>
-      </div>
-      {!present && isAdmin && (
+    <InsetRow
+      icon={icon}
+      iconBg={present ? 'bg-green-600' : 'bg-red-600'}
+      label={label}
+      sublabel={present ? t('planUploaded') : t('planMissing')}
+      trailing={!present && isAdmin ? (
         <button
           onClick={onUpload}
-          className="text-xs font-bold text-primary-400 hover:text-primary-300 transition-colors shrink-0"
+          className="min-h-[44px] px-2 text-xs font-bold text-primary-400 hover:text-primary-300 transition-colors shrink-0"
         >
           {t('uploadArrow')}
         </button>
-      )}
-    </div>
+      ) : undefined}
+    />
   );
 }
 
@@ -813,6 +816,7 @@ function UploadForm({
   onSuccess: () => void;
 }) {
   const t = useTranslations('program');
+  const tc = useTranslations('common');
   const [weekNumber, setWeekNumber] = useState(nextWeekNumber);
   const [weekStartDate, setWeekStartDate] = useState('');
   const [trainingFile, setTrainingFile] = useState<File | null>(null);
@@ -851,7 +855,7 @@ function UploadForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!trainingFile && !nutritionFile) {
-      setError('Please upload at least one PDF');
+      setError(t('uploadAtLeastOnePdf'));
       return;
     }
 
@@ -880,64 +884,73 @@ function UploadForm({
   return (
     <Sheet open onOpenChange={(o) => { if (!o) onClose(); }} title={t('addNewWeek')}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-slate-300 mb-1">Week #</label>
-              <input
-                type="number"
-                value={weekNumber}
-                onChange={e => setWeekNumber(Number(e.target.value))}
-                className="w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-xl px-3 py-3 text-white"
-                min={1}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-300 mb-1">Date Range</label>
-              <input
-                type="text"
-                value={dateRange}
-                readOnly
-                placeholder="pick a start date"
-                className="w-full min-h-[44px] bg-slate-700/50 border border-slate-600 rounded-xl px-3 py-3 text-slate-300 cursor-not-allowed"
-                title="Auto-set from the week start date (Sunday → Saturday)"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-300 mb-1">Week Start Date (Sunday)</label>
-            <input
-              type="date"
-              value={weekStartDate}
-              onChange={e => handleStartDateChange(e.target.value)}
-              className="w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-xl px-3 py-3 text-white"
-              required
+          <InsetSection>
+            <InsetRow
+              icon={Hash}
+              label={t('weekNumberLabel')}
+              trailing={
+                <input
+                  type="number"
+                  value={weekNumber}
+                  onChange={e => setWeekNumber(Number(e.target.value))}
+                  min={1}
+                  required
+                  className="w-16 min-h-[44px] bg-transparent text-end text-[15px] font-medium text-white focus:outline-none"
+                />
+              }
             />
-            <p className="text-xs text-slate-500 mt-1">
-              Any day you pick snaps to that week&apos;s Sunday. The range is set automatically.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-300 mb-1">Training Program PDF</label>
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={e => setTrainingFile(e.target.files?.[0] || null)}
-              className="w-full text-sm text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:bg-primary-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-primary-500"
+            <InsetRow
+              icon={CalendarRange}
+              label={t('dateRangeLabel')}
+              value={dateRange || t('pickStartDatePlaceholder')}
             />
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-300 mb-1">Nutrition Plan PDF</label>
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={e => setNutritionFile(e.target.files?.[0] || null)}
-              className="w-full text-sm text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:bg-green-600 file:text-white file:font-medium file:cursor-pointer hover:file:bg-green-500"
+            <InsetRow
+              icon={Calendar}
+              label={t('weekStartDateLabel')}
+              sublabel={t('weekStartDateHint')}
+              trailing={
+                <input
+                  type="date"
+                  value={weekStartDate}
+                  onChange={e => handleStartDateChange(e.target.value)}
+                  required
+                  className="min-h-[44px] bg-transparent text-[15px] font-medium text-white focus:outline-none [color-scheme:dark]"
+                />
+              }
             />
-          </div>
+            <InsetRow
+              icon={Dumbbell}
+              label={t('trainingProgram')}
+              sublabel={trainingFile ? trainingFile.name : t('noFileSelected')}
+              trailing={
+                <label className="shrink-0 min-h-[44px] px-2 flex items-center text-xs font-bold text-primary-400 hover:text-primary-300 transition-colors cursor-pointer">
+                  {t('choosePdf')}
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={e => setTrainingFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+              }
+            />
+            <InsetRow
+              icon={Utensils}
+              label={t('nutritionPlan')}
+              sublabel={nutritionFile ? nutritionFile.name : t('noFileSelected')}
+              trailing={
+                <label className="shrink-0 min-h-[44px] px-2 flex items-center text-xs font-bold text-primary-400 hover:text-primary-300 transition-colors cursor-pointer">
+                  {t('choosePdf')}
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={e => setNutritionFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+              }
+            />
+          </InsetSection>
 
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
@@ -947,7 +960,7 @@ function UploadForm({
 
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
-              Cancel
+              {tc('cancel')}
             </Button>
             <Button type="submit" disabled={uploading} className="flex-1">
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}

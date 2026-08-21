@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { RefreshCw, Activity, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain, TrendingUp, Plus } from 'lucide-react';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { cn } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
-import { Spinner } from '@/components/ui';
+import { Spinner, BigStat } from '@/components/ui';
 import { ManualActivitySheet } from '@/components/ManualActivitySheet';
 
 interface ActivityEntry {
@@ -95,6 +95,16 @@ export default function ActivitiesPage() {
   // the CSS-only `group-hover` still driving the desktop/mouse experience.
   const [tappedDay, setTappedDay] = useState<number | null>(null);
 
+  // Pull-to-refresh (swipe down at the top of the page) — mirrors the sync
+  // gesture users expect on a native activity feed, alongside the existing
+  // manual Sync button. Passive touch tracking only (no preventDefault, which
+  // React 17+ makes a no-op on touchmove) — armed only when already scrolled
+  // to the top, so the native rubber-band and this indicator move together.
+  const [pullDistance, setPullDistance] = useState(0);
+  const pullStartYRef = useRef<number | null>(null);
+  const PULL_THRESHOLD = 64;
+  const PULL_MAX = 96;
+
   const dayKeys = ['daySun', 'dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat'] as const;
 
   const setWeekOffset = (val: number | ((prev: number) => number)) => {
@@ -163,6 +173,26 @@ export default function ActivitiesPage() {
     finally { setSyncing(false); }
   };
 
+  const handlePullStart = (e: React.TouchEvent) => {
+    if (syncing || window.scrollY > 0) return;
+    pullStartYRef.current = e.touches[0].clientY;
+  };
+  const handlePullMove = (e: React.TouchEvent) => {
+    if (pullStartYRef.current == null) return;
+    if (window.scrollY > 0) { pullStartYRef.current = null; setPullDistance(0); return; }
+    const delta = e.touches[0].clientY - pullStartYRef.current;
+    setPullDistance(delta > 0 ? Math.min(delta * 0.5, PULL_MAX) : 0);
+  };
+  const handlePullEnd = async () => {
+    if (pullStartYRef.current == null) return;
+    pullStartYRef.current = null;
+    if (pullDistance >= PULL_THRESHOLD) {
+      setPullDistance(PULL_THRESHOLD);
+      await syncAndFetch();
+    }
+    setPullDistance(0);
+  };
+
   // Filter activities by role
   const filteredActivities = useMemo(() => {
     if (!isCoach && athleteId) return activities.filter(a => a.athlete_id === athleteId);
@@ -223,9 +253,24 @@ export default function ActivitiesPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-6rem)] flex flex-col">
-      {/* HEADER BAR - same pattern as Weekly Planner */}
-      <div className="border-b border-slate-700 bg-slate-900/50 px-4 sm:px-6 py-4">
+    <div
+      className="min-h-[calc(100vh-6rem)] flex flex-col"
+      onTouchStart={handlePullStart}
+      onTouchMove={handlePullMove}
+      onTouchEnd={handlePullEnd}
+    >
+      {/* Pull-to-refresh affordance — grows with the swipe, spins while the
+          pulled-triggered syncAndFetch() runs. */}
+      <div
+        className="flex items-center justify-center overflow-hidden transition-[height,opacity] duration-150"
+        style={{ height: pullDistance, opacity: Math.min(pullDistance / PULL_THRESHOLD, 1) }}
+      >
+        <Spinner size={22} />
+      </div>
+
+      {/* HEADER BAR — softened toward an iOS large-title nav bar rather than a
+          dense web toolbar (subtle hairline, no hard full-weight border). */}
+      <div className="border-b border-slate-800/50 bg-slate-900/50 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
             <Activity className="h-5 w-5 text-primary-400" />
@@ -293,38 +338,55 @@ export default function ActivitiesPage() {
       {/* CONTENT */}
       <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full space-y-5">
 
-        {/* Hero Stats */}
+        {/* Hero Stats — one shared BigStat for the number+label pattern,
+            matching StatisticsScreen instead of four hand-rolled copies. */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="relative overflow-hidden bg-gradient-to-br from-primary-600/15 to-primary-600/5 rounded-2xl p-5 border border-primary-600/20">
             <div className="absolute -top-4 -right-4 w-20 h-20 bg-primary-600/10 rounded-full blur-2xl" />
             <Route className="h-5 w-5 text-primary-600 mb-3" />
-            <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
-              {weekData.totalKm > 0 ? weekData.totalKm.toFixed(1) : '\u2014'}
-            </p>
-            <p className="text-sm text-slate-400 mt-1 font-medium">{t('km')} · {weekData.totalRuns} {weekData.totalRuns !== 1 ? t('runs') : t('run')}</p>
+            <BigStat
+              className="items-start text-start"
+              valueClassName="text-2xl sm:text-4xl text-white"
+              value={weekData.totalKm > 0 ? weekData.totalKm.toFixed(1) : '—'}
+              label={`${t('km')} · ${weekData.totalRuns} ${weekData.totalRuns !== 1 ? t('runs') : t('run')}`}
+            />
           </div>
           <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
             <Timer className="h-5 w-5 text-cyan-400 mb-3" />
-            <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
-              {weekData.totalDuration > 0 ? formatDuration(weekData.totalDuration) : '\u2014'}
-            </p>
-            <p className="text-sm text-slate-400 mt-1 font-medium">{t('totalTime')}</p>
+            <BigStat
+              className="items-start text-start"
+              valueClassName="text-2xl sm:text-4xl text-white"
+              value={weekData.totalDuration > 0 ? formatDuration(weekData.totalDuration) : '\u2014'}
+              label={t('totalTime')}
+            />
           </div>
           <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
             <TrendingUp className="h-5 w-5 text-emerald-400 mb-3" />
-            <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
-              {weekData.avgPace ? formatPace(weekData.avgPace) : '\u2014'}
-              <span className="text-lg font-medium text-slate-500 ms-0.5">{t('perKm')}</span>
-            </p>
-            <p className="text-sm text-slate-400 mt-1 font-medium">{t('avgPace')}</p>
+            <BigStat
+              className="items-start text-start"
+              valueClassName="text-2xl sm:text-4xl text-white"
+              value={(
+                <>
+                  {weekData.avgPace ? formatPace(weekData.avgPace) : '\u2014'}
+                  <span className="text-lg font-medium text-slate-500 ms-0.5">{t('perKm')}</span>
+                </>
+              )}
+              label={t('avgPace')}
+            />
           </div>
           <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
             <Heart className="h-5 w-5 text-red-400 mb-3" />
-            <p className="text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
-              {weekData.avgHR || '\u2014'}
-              <span className="text-lg font-medium text-slate-500 ms-0.5">{t('bpm')}</span>
-            </p>
-            <p className="text-sm text-slate-400 mt-1 font-medium">{t('avgHeartRate')}</p>
+            <BigStat
+              className="items-start text-start"
+              valueClassName="text-2xl sm:text-4xl text-white"
+              value={(
+                <>
+                  {weekData.avgHR || '\u2014'}
+                  <span className="text-lg font-medium text-slate-500 ms-0.5">{t('bpm')}</span>
+                </>
+              )}
+              label={t('avgHeartRate')}
+            />
           </div>
         </div>
 

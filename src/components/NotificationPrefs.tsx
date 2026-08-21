@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Calendar, MessageSquare, Flame, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
+import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 
 type Category = 'workouts' | 'coach' | 'achievements' | 'program';
 type Prefs = Record<Category, boolean>;
@@ -16,6 +17,25 @@ const ROWS: { key: Category; label: string; icon: typeof Calendar; bg: string }[
   { key: 'achievements', label: 'הישגים וסיכומים', icon: Flame, bg: 'bg-emerald-500' },
   { key: 'program', label: 'תוכנית שבועית', icon: ClipboardList, bg: 'bg-amber-500' },
 ];
+
+// One canonical toggle-switch look (48×28), duplicated locally here and in
+// MaintenanceToggle/ReminderConfig — there's no shared `Switch` primitive in
+// the design system yet, so each of those three Settings components carried
+// its own slightly-different hand-rolled track/thumb. Keeping this local copy
+// (rather than adding one to ui/index.tsx) still fixes the visual mismatch
+// between the three since they now all render this exact size/style.
+function Switch({ on, onToggle, disabled, label }: { on: boolean; onToggle: () => void; disabled?: boolean; label?: string }) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={disabled}
+      aria-label={label}
+      className={cn('relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-60', on ? 'bg-green-500' : 'bg-slate-600')}
+    >
+      <span className={cn('absolute top-1 h-5 w-5 rounded-full bg-white transition-all', on ? 'start-6' : 'start-1')} />
+    </button>
+  );
+}
 
 // Per-user notification preferences — each athlete chooses which categories of
 // push they receive. Optimistic toggle; saves to /api/athletes/notification-prefs.
@@ -50,27 +70,21 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   if (!athleteId || !prefs) return null;
 
   return (
-    <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 overflow-hidden divide-y divide-slate-700/50" dir="rtl">
-      <p className="px-4 pt-3 pb-1 text-2xs font-bold uppercase tracking-wider text-slate-500">התראות</p>
-      {ROWS.map(({ key, label, icon: Icon, bg }) => {
-        const on = prefs[key];
-        return (
-          <div key={key} className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
-            <span className={cn('shrink-0 w-7 h-7 rounded-md flex items-center justify-center', bg)}>
-              <Icon className="h-4 w-4 text-white" />
-            </span>
-            <span className="flex-1 text-[15px] font-medium text-white">{label}</span>
-            <button
-              onClick={() => toggle(key)}
-              disabled={saving === key}
-              className={cn('relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-60', on ? 'bg-green-500' : 'bg-slate-600')}
-              aria-label={label}
-            >
-              <span className={cn('absolute top-1 h-5 w-5 rounded-full bg-white transition-all', on ? 'start-6' : 'start-1')} />
-            </button>
-          </div>
-        );
-      })}
+    <div dir="rtl">
+      <InsetSection header="התראות">
+        {ROWS.map(({ key, label, icon, bg }) => {
+          const on = prefs[key];
+          return (
+            <InsetRow
+              key={key}
+              icon={icon}
+              iconBg={bg}
+              label={label}
+              trailing={<Switch on={on} onToggle={() => toggle(key)} disabled={saving === key} label={label} />}
+            />
+          );
+        })}
+      </InsetSection>
     </div>
   );
 }

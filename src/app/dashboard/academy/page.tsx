@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import {
-  GraduationCap, Loader2, Watch, Plus, Search, UserMinus, Users, ClipboardCheck, CalendarPlus,
+  GraduationCap, Watch, Plus, Search, UserMinus, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Sheet } from '@/components/ui';
+import { Sheet, Spinner, Card, Button, EmptyState, BigStat, SkeletonList, InsetSection, InsetRow } from '@/components/ui';
 import { AcademyCompliance } from '@/components/AcademyCompliance';
 import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
 import { AcademyStats } from '@/components/AcademyStats';
@@ -40,7 +41,47 @@ function initialsOf(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 }
 
+// Local scrollable variant of the shared SegmentedControl (src/components/ui):
+// same track + pill visual language, but segments are `shrink-0` and the
+// track scrolls horizontally instead of splitting into equal `flex-1` slots —
+// SegmentedControl can't fit 7 options on a single row. Kept local to this
+// page rather than changing the shared primitive.
+function ScrollableSegmentedControl<T extends string>({
+  value,
+  onChange,
+  options,
+  className,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: Array<{ value: T; label: string; icon?: React.ComponentType<{ className?: string }> }>;
+  className?: string;
+}) {
+  return (
+    <div className={cn('flex gap-0.5 overflow-x-auto scrollbar-hide rounded-xl bg-slate-800 p-1 border border-slate-700', className)}>
+      {options.map((opt) => {
+        const Icon = opt.icon;
+        const active = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            onClick={() => { if (!active) { try { navigator.vibrate?.(6); } catch { /* no-op */ } onChange(opt.value); } }}
+            className={cn(
+              'shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors min-h-[44px]',
+              active ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+            )}
+          >
+            {Icon && <Icon className="h-4 w-4" />}
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AcademyPage() {
+  const t = useTranslations('academy');
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -102,8 +143,8 @@ export default function AcademyPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 text-primary-500 animate-spin" />
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <SkeletonList count={5} />
       </div>
     );
   }
@@ -117,54 +158,35 @@ export default function AcademyPage() {
             <GraduationCap className="h-6 w-6 text-primary-300" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Academy</h1>
-            <p className="text-sm text-slate-400">
-              Manage your academy athletes — individual plans, pace targets, and compliance.
-            </p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">{t('title')}</h1>
+            <p className="text-sm text-slate-400">{t('subtitle')}</p>
           </div>
         </div>
         {view === 'roster' && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-4 h-10 rounded-xl bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold transition-colors shrink-0"
-          >
+          <Button onClick={() => setShowAdd(true)} className="shrink-0">
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add athlete</span>
-          </button>
+            <span className="hidden sm:inline">{t('addAthlete')}</span>
+          </Button>
         )}
       </div>
 
       {/* View toggle — 7 sections is too many for a single-row segmented
-          control, so this is a horizontally-scrollable chip strip (same
-          pattern as the Program page's category filter), not a wrapping grid
-          that reflows awkwardly on narrow screens. */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 mb-6 scrollbar-hide">
-        {([
-          { key: 'roster', label: 'Roster', icon: Users },
-          { key: 'registrations', label: 'Registrations', icon: UserPlus },
-          { key: 'stats', label: 'Stats', icon: BarChart3 },
-          { key: 'plans', label: 'Plans', icon: CalendarPlus },
-          { key: 'compliance', label: 'Compliance', icon: ClipboardCheck },
-          { key: 'results', label: 'Results', icon: Trophy },
-          { key: 'settings', label: 'Settings', icon: SettingsIcon },
-        ] as const).map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setView(tab.key)}
-              className={cn(
-                'flex items-center gap-2 px-4 h-10 min-h-[44px] rounded-xl text-sm font-semibold transition-all active:scale-[0.96] shrink-0 border',
-                view === tab.key
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:text-white'
-              )}
-            >
-              <Icon className="h-4 w-4" /> {tab.label}
-            </button>
-          );
-        })}
-      </div>
+          control, so this scrolls horizontally instead of wrapping into a
+          grid that reflows awkwardly on narrow screens. */}
+      <ScrollableSegmentedControl
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'roster', label: t('tabRoster'), icon: Users },
+          { value: 'registrations', label: t('tabRegistrations'), icon: UserPlus },
+          { value: 'stats', label: t('tabStats'), icon: BarChart3 },
+          { value: 'plans', label: t('tabPlans'), icon: CalendarPlus },
+          { value: 'compliance', label: t('tabCompliance'), icon: ClipboardCheck },
+          { value: 'results', label: t('tabResults'), icon: Trophy },
+          { value: 'settings', label: t('tabSettings'), icon: SettingsIcon },
+        ]}
+        className="-mx-4 px-4 sm:mx-0 sm:px-0 mb-6"
+      />
 
       {view === 'registrations' ? (
         <AcademyRegistrations />
@@ -184,77 +206,64 @@ export default function AcademyPage() {
       <>
       {/* Stat */}
       <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4">
-          <div className="text-3xl font-bold text-white">{academyAthletes.length}</div>
-          <div className="text-xs text-slate-400 mt-1">Academy athletes</div>
-        </div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4">
-          <div className="text-3xl font-bold text-white">
-            {academyAthletes.filter(a => a.hasGarmin).length}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">Connected to Garmin</div>
-        </div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4">
-          <div className="text-3xl font-bold text-white">
-            {academyAthletes.filter(a => a.status === 'active').length}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">Active</div>
-        </div>
+        <Card variant="muted">
+          <BigStat value={academyAthletes.length} label={t('statAthletes')} />
+        </Card>
+        <Card variant="muted">
+          <BigStat value={academyAthletes.filter(a => a.hasGarmin).length} label={t('statConnectedGarmin')} />
+        </Card>
+        <Card variant="muted">
+          <BigStat value={academyAthletes.filter(a => a.status === 'active').length} label={t('statActive')} />
+        </Card>
       </div>
 
       {/* Roster */}
       {academyAthletes.length === 0 ? (
-        <div className="bg-slate-800/30 border border-dashed border-slate-700 rounded-2xl p-12 text-center">
-          <GraduationCap className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-300 font-medium">No academy athletes yet</p>
-          <p className="text-sm text-slate-500 mt-1">
-            Add athletes to the academy to give them individual plans and pace targets.
-          </p>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="mt-4 inline-flex items-center gap-2 px-4 h-10 rounded-xl bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Add athlete
-          </button>
-        </div>
+        <EmptyState
+          icon={GraduationCap}
+          title={t('noAthletesYet')}
+          description={t('noAthletesDesc')}
+          action={(
+            <Button onClick={() => setShowAdd(true)}>
+              <Plus className="h-4 w-4" />
+              {t('addAthlete')}
+            </Button>
+          )}
+        />
       ) : (
-        <div className="space-y-2">
+        <InsetSection>
           {academyAthletes.map(a => {
             const gs = getGroupStyle(a.groupName);
             return (
-              <div
+              <InsetRow
                 key={a.id}
-                className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4"
-              >
-                <div className="bg-primary-600/20 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-primary-300 shrink-0">
-                  {initialsOf(a.name)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-white truncate">{a.name}</div>
-                  <div className="text-xs text-slate-400 truncate">{a.email}</div>
-                </div>
-                {a.groupName && gs && (
-                  <span className={cn('text-xs font-bold px-2.5 py-1 rounded-lg border', gs.bg, gs.text, gs.border)}>
-                    {a.groupName}
-                  </span>
-                )}
-                <div className={cn('shrink-0', a.hasGarmin ? 'text-emerald-400' : 'text-slate-600')} title={a.hasGarmin ? 'Garmin connected' : 'No Garmin'}>
-                  <Watch className="h-4.5 w-4.5" />
-                </div>
-                <button
-                  onClick={() => setAcademy(a.id, false)}
-                  disabled={saving === a.id}
-                  className="shrink-0 flex items-center gap-1.5 px-3 h-9 rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10 text-xs font-semibold transition-colors disabled:opacity-50"
-                  title="Remove from academy"
-                >
-                  {saving === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserMinus className="h-4 w-4" />}
-                  <span className="hidden sm:inline">Remove</span>
-                </button>
-              </div>
+                label={a.name}
+                sublabel={a.email}
+                trailing={
+                  <div className="flex items-center gap-2 shrink-0">
+                    {a.groupName && gs && (
+                      <span className={cn('text-xs font-bold px-2.5 py-1 rounded-lg border', gs.bg, gs.text, gs.border)}>
+                        {a.groupName}
+                      </span>
+                    )}
+                    <span className={cn('shrink-0', a.hasGarmin ? 'text-emerald-400' : 'text-slate-600')} title={a.hasGarmin ? t('garminConnected') : t('noGarmin')}>
+                      <Watch className="h-4.5 w-4.5" />
+                    </span>
+                    <button
+                      onClick={() => setAcademy(a.id, false)}
+                      disabled={saving === a.id}
+                      className="shrink-0 flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10 text-xs font-semibold transition-colors disabled:opacity-50"
+                      title={t('removeFromAcademy')}
+                    >
+                      {saving === a.id ? <Spinner size={16} /> : <UserMinus className="h-4 w-4" />}
+                      <span className="hidden sm:inline">{t('remove')}</span>
+                    </button>
+                  </div>
+                }
+              />
             );
           })}
-        </div>
+        </InsetSection>
       )}
       </>
       )}
@@ -263,7 +272,7 @@ export default function AcademyPage() {
       <Sheet
         open={showAdd}
         onOpenChange={(o) => { if (!o) setShowAdd(false); }}
-        title="Add to Academy"
+        title={t('addToAcademy')}
         bodyClassName="px-2"
       >
         <div className="px-2 pb-3">
@@ -273,7 +282,7 @@ export default function AcademyPage() {
               autoFocus
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search athletes…"
+              placeholder={t('searchAthletes')}
               className="w-full bg-slate-900 border border-slate-700 rounded-xl ps-9 pe-3 min-h-[44px] text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
             />
           </div>
@@ -281,7 +290,7 @@ export default function AcademyPage() {
         <div className="max-h-[60vh] overflow-y-auto">
           {addableAthletes.length === 0 ? (
             <p className="text-sm text-slate-500 text-center py-8">
-              {search ? 'No matching athletes.' : 'All athletes are already in the academy.'}
+              {search ? t('noMatchingAthletes') : t('allAlreadyInAcademy')}
             </p>
           ) : (
             addableAthletes.map(a => {
@@ -306,7 +315,7 @@ export default function AcademyPage() {
                     </span>
                   )}
                   {saving === a.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-primary-400 shrink-0" />
+                    <Spinner size={16} className="shrink-0" />
                   ) : (
                     <Plus className="h-4 w-4 text-primary-400 shrink-0" />
                   )}

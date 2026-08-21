@@ -9,7 +9,7 @@ import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
-import { InsetSection, InsetRow } from '@/components/ui';
+import { InsetSection, InsetRow, Sheet } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 const allNavItems = [
@@ -260,16 +260,16 @@ export function Header() {
             <span className="text-sm text-slate-400 font-medium hidden lg:inline">{userName}</span>
 
             {groupName && (
-              <div className="relative hidden lg:block">
+              <div className="hidden lg:block">
                 <button
-                  onClick={() => { setShowGroupPicker(!showGroupPicker); setShowNotifications(false); }}
+                  onClick={() => { if (availableGroups.length > 0) { setShowGroupPicker(true); setShowNotifications(false); } }}
                   className="text-xs font-bold px-2.5 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
                   style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}
                 >
                   {groupName}
                 </button>
-                {showGroupPicker && availableGroups.length > 0 && (
-                  <div className="absolute end-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[160px] z-50">
+                <Sheet open={showGroupPicker} onOpenChange={setShowGroupPicker} title={th('selectGroup')}>
+                  <div className="space-y-1 pb-2">
                     {availableGroups.map(g => {
                       const rg = resolveGroup(g.name);
                       const color = rg.hex;
@@ -287,7 +287,7 @@ export function Header() {
                             setShowGroupPicker(false);
                             window.location.reload();
                           }}
-                          className="w-full text-start px-4 py-2.5 text-xs font-semibold hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                          className="w-full min-h-[44px] text-start px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-700/50 transition-colors flex items-center gap-2.5"
                         >
                           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                           <span style={{ color }}>{displayName}</span>
@@ -295,7 +295,7 @@ export function Header() {
                       );
                     })}
                   </div>
-                )}
+                </Sheet>
               </div>
             )}
 
@@ -308,7 +308,7 @@ export function Header() {
               >
                 <Eye className="h-4.5 w-4.5" />
                 <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
-                  צפייה כמשתמש
+                  {th('viewAsUser')}
                 </span>
               </button>
             )}
@@ -318,11 +318,11 @@ export function Header() {
               const badge = pendingResults.length + unreadInbox;
               const empty = pendingResults.length === 0 && inbox.length === 0;
               return (
-            <div className="relative">
+            <div>
               <button
                 onClick={() => { setShowNotifications(!showNotifications); setShowGroupPicker(false); }}
                 className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                aria-label="התראות"
+                aria-label={th('notifications')}
               >
                 <Bell className="h-4.5 w-4.5" />
                 {badge > 0 && (
@@ -331,72 +331,70 @@ export function Header() {
                   </span>
                 )}
               </button>
-              {showNotifications && (
-                <div className="absolute end-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-2 min-w-[280px] max-w-[340px] z-50">
-                  {empty ? (
-                    <p className="text-xs text-slate-400 text-center py-3 px-5">{th('nothingNew')}</p>
-                  ) : (
-                    <>
-                      {/* Staff: pending benchmark approvals. */}
-                      {pendingResults.length > 0 && (
-                        <>
-                          <div className="px-4 py-2 border-b border-slate-700 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                            <span className="text-xs font-bold text-white">{pendingResults.length} result{pendingResults.length !== 1 ? 's' : ''} awaiting approval</span>
-                          </div>
-                          <div className="max-h-40 overflow-y-auto py-1">
-                            {pendingResults.map(r => (
-                              <div key={r.id} className="px-4 py-2 flex items-center gap-2 text-xs">
-                                <span className="flex-1 min-w-0 truncate text-slate-200" dir="auto">{r.athlete_name}</span>
-                                <span className="text-slate-400">{r.test_name}</span>
-                                <span className="font-bold text-white tabular-nums">
-                                  {Math.floor(r.time_seconds / 60)}:{(r.time_seconds % 60).toFixed(r.time_seconds % 1 ? 2 : 0).padStart(r.time_seconds % 1 ? 5 : 2, '0')}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                          <Link
-                            href="/dashboard/academy?tab=results"
-                            onClick={() => setShowNotifications(false)}
-                            className="block px-4 py-2.5 border-t border-slate-700 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
-                          >
-                            Review in Academy → Results
-                          </Link>
-                        </>
-                      )}
+              <Sheet open={showNotifications} onOpenChange={setShowNotifications} title={th('notifications')}>
+                {empty ? (
+                  <p className="text-xs text-slate-400 text-center py-6">{th('nothingNew')}</p>
+                ) : (
+                  <div className="space-y-1 pb-2">
+                    {/* Staff: pending benchmark approvals. */}
+                    {pendingResults.length > 0 && (
+                      <>
+                        <div className="px-1 py-2 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          <span className="text-xs font-bold text-white">{pendingResults.length} result{pendingResults.length !== 1 ? 's' : ''} awaiting approval</span>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto py-1">
+                          {pendingResults.map(r => (
+                            <div key={r.id} className="px-1 py-2 flex items-center gap-2 text-xs">
+                              <span className="flex-1 min-w-0 truncate text-slate-200" dir="auto">{r.athlete_name}</span>
+                              <span className="text-slate-400">{r.test_name}</span>
+                              <span className="font-bold text-white tabular-nums">
+                                {Math.floor(r.time_seconds / 60)}:{(r.time_seconds % 60).toFixed(r.time_seconds % 1 ? 2 : 0).padStart(r.time_seconds % 1 ? 5 : 2, '0')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <Link
+                          href="/dashboard/academy?tab=results"
+                          onClick={() => setShowNotifications(false)}
+                          className="block min-h-[44px] flex items-center justify-center border-t border-slate-700/60 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
+                        >
+                          Review in Academy → Results
+                        </Link>
+                      </>
+                    )}
 
-                      {/* Athlete: notification history preview. */}
-                      {inbox.length > 0 && (
-                        <>
-                          <div className="max-h-64 overflow-y-auto py-1">
-                            {inbox.slice(0, 6).map(n => (
-                              <Link
-                                key={n.id}
-                                href={n.url || '/dashboard'}
-                                onClick={() => setShowNotifications(false)}
-                                className="flex items-start gap-2 px-4 py-2 hover:bg-slate-700/40 transition-colors"
-                              >
-                                {n.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" />}
-                                <span className={`flex-1 min-w-0 ${n.unread ? '' : 'ps-3.5'}`}>
-                                  <span className={`block text-xs truncate ${n.unread ? 'font-bold text-white' : 'font-semibold text-slate-200'}`} dir="auto">{n.title}</span>
-                                  <span className="block text-[11px] text-slate-400 truncate" dir="auto">{n.body}</span>
-                                </span>
-                              </Link>
-                            ))}
-                          </div>
-                          <Link
-                            href="/dashboard/notifications"
-                            onClick={() => setShowNotifications(false)}
-                            className="block px-4 py-2.5 border-t border-slate-700 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
-                          >
-                            {th('viewAll')}
-                          </Link>
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+                    {/* Athlete: notification history preview. */}
+                    {inbox.length > 0 && (
+                      <>
+                        <div className="max-h-64 overflow-y-auto py-1">
+                          {inbox.slice(0, 6).map(n => (
+                            <Link
+                              key={n.id}
+                              href={n.url || '/dashboard'}
+                              onClick={() => setShowNotifications(false)}
+                              className="flex items-start gap-2 px-1 py-2 rounded-lg hover:bg-slate-700/40 transition-colors"
+                            >
+                              {n.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" />}
+                              <span className={`flex-1 min-w-0 ${n.unread ? '' : 'ps-3.5'}`}>
+                                <span className={`block text-xs truncate ${n.unread ? 'font-bold text-white' : 'font-semibold text-slate-200'}`} dir="auto">{n.title}</span>
+                                <span className="block text-[11px] text-slate-400 truncate" dir="auto">{n.body}</span>
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                        <Link
+                          href="/dashboard/notifications"
+                          onClick={() => setShowNotifications(false)}
+                          className="block min-h-[44px] flex items-center justify-center border-t border-slate-700/60 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
+                        >
+                          {th('viewAll')}
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                )}
+              </Sheet>
             </div>
               );
             })()}
@@ -421,8 +419,8 @@ export function Header() {
             {isAthlete && (
               <Link
                 href="/dashboard/notifications"
-                aria-label="התראות"
-                className="relative flex items-center justify-center w-9 h-9 rounded-full text-slate-300 active:scale-95 transition-transform"
+                aria-label={th('notifications')}
+                className="relative flex items-center justify-center w-11 h-11 rounded-full text-slate-300 active:scale-95 transition-transform"
               >
                 <Bell className="h-5 w-5" />
                 {inbox.filter(i => i.unread).length > 0 && (
@@ -434,7 +432,7 @@ export function Header() {
             )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="flex items-center justify-center w-9 h-9 rounded-full bg-primary-600/20 ring-1 ring-primary-500/20 text-sm font-bold text-primary-300 active:scale-95 transition-transform"
+              className="flex items-center justify-center w-11 h-11 rounded-full bg-primary-600/20 ring-1 ring-primary-500/20 text-sm font-bold text-primary-300 active:scale-95 transition-transform"
               aria-label={mobileMenuOpen ? tc('close') : th('account')}
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : initials}

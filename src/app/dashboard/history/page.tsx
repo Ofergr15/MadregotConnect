@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
-import { Calendar, CheckCircle2, AlertCircle, Clock, RefreshCw } from 'lucide-react';
+import { useTranslations, useLocale } from 'next-intl';
+import { Calendar, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PlanDetail } from '@/components/PlanDetail';
-import { Card, Button } from '@/components/ui';
+import { Card, Button, EmptyState, SkeletonList } from '@/components/ui';
 
 interface PlanHistory {
   id: string;
@@ -31,9 +31,11 @@ const statusConfig = {
 
 export default function HistoryPage() {
   const t = useTranslations('history');
+  const locale = useLocale();
   const [plans, setPlans] = useState<PlanHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [repushError, setRepushError] = useState<string | null>(null);
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,6 +67,7 @@ export default function HistoryPage() {
   };
 
   const handleRepush = async (planId: string, athleteIds: string[]) => {
+    setRepushError(null);
     try {
       const plan = plans.find((p) => p.id === planId);
       if (!plan) return;
@@ -97,7 +100,7 @@ export default function HistoryPage() {
       await loadPlans();
     } catch (err: any) {
       console.error('Error re-pushing workouts:', err);
-      alert(`Failed to re-push: ${err.message}`);
+      setRepushError(t('repushFailed', { error: err.message }));
     }
   };
 
@@ -108,10 +111,7 @@ export default function HistoryPage() {
           <h1 className="text-2xl font-bold">{t('title')}</h1>
           <p className="text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
-        <Card className="text-center py-12">
-          <RefreshCw className="h-12 w-12 text-slate-600 mx-auto mb-3 animate-spin" />
-          <p className="text-slate-400">{t('loading')}</p>
-        </Card>
+        <SkeletonList count={4} />
       </div>
     );
   }
@@ -123,14 +123,12 @@ export default function HistoryPage() {
           <h1 className="text-2xl font-bold">{t('title')}</h1>
           <p className="text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
-        <Card className="text-center py-12">
-          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
-          <p className="text-red-400 mb-2">{t('errorLoading')}</p>
-          <p className="text-slate-400 text-sm mb-4">{error}</p>
-          <Button onClick={loadPlans}>
-            {t('tryAgain')}
-          </Button>
-        </Card>
+        <EmptyState
+          icon={AlertCircle}
+          title={t('errorLoading')}
+          description={error}
+          action={<Button onClick={loadPlans}>{t('tryAgain')}</Button>}
+        />
       </div>
     );
   }
@@ -141,6 +139,12 @@ export default function HistoryPage() {
         <h1 className="text-2xl font-bold">{t('title')}</h1>
         <p className="text-slate-400 mt-1">{t('subtitle')}</p>
       </div>
+
+      {repushError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm">
+          {repushError}
+        </div>
+      )}
 
       {plans.length > 0 ? (
         <div className="space-y-3">
@@ -161,7 +165,7 @@ export default function HistoryPage() {
                     </div>
                     <div>
                       <p className="font-medium">
-                        {t('weekOf')} {new Date(plan.week_start_date).toLocaleDateString('en-US', {
+                        {t('weekOf')} {new Date(plan.week_start_date).toLocaleDateString(locale === 'he' ? 'he-IL' : 'en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric'
@@ -204,12 +208,7 @@ export default function HistoryPage() {
           })}
         </div>
       ) : (
-        <Card className="text-center py-12">
-          <Clock className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-400">
-            {t('emptyState')}
-          </p>
-        </Card>
+        <EmptyState icon={Clock} title={t('emptyState')} />
       )}
     </div>
   );

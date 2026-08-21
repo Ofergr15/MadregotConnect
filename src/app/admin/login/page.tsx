@@ -4,6 +4,24 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Loader2, Shield } from 'lucide-react';
+import { Card, Button } from '@/components/ui';
+import { cn } from '@/lib/utils';
+
+// Local input primitive (kept local to this screen rather than promoted to
+// the shared ui/index.tsx) — rounded-2xl, min-h-[44px], one consistent focus
+// ring, replacing the copy-pasted `bg-slate-700 border ... rounded-lg` string
+// duplicated across the auth/onboarding screens.
+function Input({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      className={cn(
+        'w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-2xl px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500',
+        className
+      )}
+      {...rest}
+    />
+  );
+}
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -49,7 +67,7 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8 w-full max-w-sm">
+      <Card className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-3 mb-6">
           <Shield className="h-6 w-6 text-primary-400" />
           <h1 className="text-xl font-bold text-white">{th('adminLogin')}</h1>
@@ -58,22 +76,20 @@ export default function AdminLoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">{ta('email')}</label>
-            <input
+            <Input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder="admin@madregot.club"
               required
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">{th('password')}</label>
-            <input
+            <Input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder="••••••••"
               required
             />
@@ -85,20 +101,16 @@ export default function AdminLoginPage() {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary-600 hover:bg-primary-500 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
+          <Button type="submit" variant="primary" size="lg" className="w-full" disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
             {loading ? tc('signingIn') : th('signInAsAdmin')}
-          </button>
+          </Button>
         </form>
 
         <p className="text-xs text-slate-500 text-center mt-4">
           {t('footnote')}
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

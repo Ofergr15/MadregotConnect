@@ -56,13 +56,11 @@ export function StatisticsScreen({ athleteId, athleteName }: { athleteId: string
             <h2 className="text-sm font-semibold text-white uppercase tracking-wider">עקביות</h2>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-900/50 rounded-xl p-3 text-center">
-              <div className="text-2xl font-black text-white tabular-nums">{data.weekStreak}</div>
-              <div className="text-xs text-slate-400 mt-1">רצף נוכחי (שבועות)</div>
+            <div className="bg-slate-900/50 rounded-xl p-3">
+              <BigStat value={data.weekStreak} label="רצף נוכחי (שבועות)" valueClassName="text-2xl text-white" />
             </div>
-            <div className="bg-slate-900/50 rounded-xl p-3 text-center">
-              <div className="text-2xl font-black text-white tabular-nums">{data.longestStreak}</div>
-              <div className="text-xs text-slate-400 mt-1">הרצף הארוך ביותר</div>
+            <div className="bg-slate-900/50 rounded-xl p-3">
+              <BigStat value={data.longestStreak} label="הרצף הארוך ביותר" valueClassName="text-2xl text-white" />
             </div>
           </div>
           {ratio && (

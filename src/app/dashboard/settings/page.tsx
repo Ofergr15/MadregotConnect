@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, GripVertical, Smartphone, Bell, BellRing, User as UserIcon, Award } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
@@ -11,9 +11,11 @@ import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceTo
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
-import { Sheet } from '@/components/ui';
+import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { APP_VERSION } from '@/lib/version';
+
+type TFunc = ReturnType<typeof useTranslations>;
 
 interface User {
   id: string;
@@ -39,29 +41,8 @@ const roleConfig = {
   viewer: { label: 'Viewer', bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30', dot: 'bg-slate-400' },
 };
 
-function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: Role; onChange: (role: Role) => void; disabled: boolean; canGrantAdmin: boolean; t: (key: string) => string }) {
+function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: Role; onChange: (role: Role) => void; disabled: boolean; canGrantAdmin: boolean; t: TFunc }) {
   const [open, setOpen] = useState(false);
-  const [openUp, setOpenUp] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  const handleOpen = () => {
-    if (disabled) return;
-    if (!open && ref.current) {
-      const rect = ref.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      setOpenUp(spaceBelow < 200);
-    }
-    setOpen(!open);
-  };
-
   const config = roleConfig[value];
   const getRoleLabel = (role: Role) => {
     // roles without a settings-namespace i18n key (academy_coach/academy_user)
@@ -72,9 +53,9 @@ function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: 
   };
 
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
-        onClick={handleOpen}
+        onClick={() => !disabled && setOpen(true)}
         disabled={disabled}
         className={cn(
           'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors',
@@ -84,39 +65,68 @@ function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: 
       >
         <span className={cn('w-1.5 h-1.5 rounded-full', config.dot)}></span>
         {getRoleLabel(value)}
-        <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
+        <ChevronDown className="h-3 w-3" />
       </button>
 
-      {open && (
-        <div className={cn(
-          'absolute right-0 z-50 bg-slate-800 border border-slate-600 rounded-xl shadow-xl overflow-hidden min-w-[150px]',
-          openUp ? 'bottom-full mb-1' : 'top-full mt-1'
-        )}>
+      {/* Native-style bottom sheet role picker — replaces the hand-rolled
+          absolutely-positioned floating menu (no iOS equivalent for that). */}
+      <Sheet open={open} onOpenChange={setOpen} title={t('changeRole')}>
+        <div className="rounded-2xl bg-slate-900/40 overflow-hidden divide-y divide-slate-700/50">
           {allRoles
             // Only the club admin account may assign the Admin role; hide it for
             // everyone else. The server (PUT /api/admin/users) enforces this too.
             .filter(role => role !== 'admin' || canGrantAdmin)
             .map(role => {
-            const rc = roleConfig[role];
-            const isSelected = role === value;
-            return (
-              <button
-                key={role}
-                onClick={() => { onChange(role); setOpen(false); }}
-                className={cn(
-                  'w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-start',
-                  isSelected ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700/50'
-                )}
-              >
-                <span className={cn('w-2 h-2 rounded-full', rc.dot)}></span>
-                {getRoleLabel(role)}
-                {isSelected && <CheckCircle2 className="h-3.5 w-3.5 ms-auto text-primary-400" />}
-              </button>
-            );
-          })}
+              const isSelected = role === value;
+              return (
+                <InsetRow
+                  key={role}
+                  label={getRoleLabel(role)}
+                  onClick={() => { onChange(role); setOpen(false); }}
+                  trailing={isSelected ? <CheckCircle2 className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+                />
+              );
+            })}
         </div>
-      )}
-    </div>
+      </Sheet>
+    </>
+  );
+}
+
+// A filter-bar chip that opens a bottom sheet of tappable InsetRows — the
+// mobile-native replacement for a raw `<select>` used for closed-but-longer
+// option sets (role, group) where a SegmentedControl wouldn't fit a row.
+function FilterPickerButton<T extends string>({ value, onChange, options, title, label }: {
+  value: T;
+  onChange: (v: T) => void;
+  options: Array<{ value: T; label: string }>;
+  title: string;
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find(o => o.value === value);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 px-3 h-9 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white hover:border-slate-500 transition-colors"
+      >
+        <span className="truncate max-w-[110px]">{current?.label ?? label}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+      </button>
+      <Sheet open={open} onOpenChange={setOpen} title={title}>
+        <div className="rounded-2xl bg-slate-900/40 overflow-hidden divide-y divide-slate-700/50">
+          {options.map(opt => (
+            <InsetRow
+              key={opt.value}
+              label={opt.label}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              trailing={opt.value === value ? <CheckCircle2 className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+            />
+          ))}
+        </div>
+      </Sheet>
+    </>
   );
 }
 
@@ -125,53 +135,39 @@ interface ConfirmDialogProps {
   newRole: Role;
   onConfirm: () => void;
   onCancel: () => void;
-  t: (key: string) => string;
-  tc: (key: string) => string;
+  t: TFunc;
+  tc: TFunc;
 }
 
 function ConfirmDialog({ user, newRole, onConfirm, onCancel, t, tc }: ConfirmDialogProps) {
-  const oldConfig = roleConfig[user.role];
-  const newConfig = roleConfig[newRole];
   const getRoleLabel = (role: Role) => {
     if (role === 'core_runner') return t('coreRunner');
     return t(role);
   };
 
+  const warning =
+    (newRole === 'admin' || newRole === 'coach') && user.role !== 'admin' && user.role !== 'coach'
+      ? t('roleChangeWarnToCoach')
+      : (newRole === 'runner' || newRole === 'core_runner' || newRole === 'viewer') && (user.role === 'admin' || user.role === 'coach')
+        ? t('roleChangeWarnToAthlete')
+        : '';
+
+  const description = [
+    t('changeRoleConfirm', { name: user.name, oldRole: getRoleLabel(user.role), newRole: getRoleLabel(newRole) }),
+    warning,
+  ].filter(Boolean).join(' ');
+
   return (
-    <Sheet open onOpenChange={(o) => { if (!o) onCancel(); }} title={t('changeRole')}>
-      <p className="text-slate-300 text-sm mb-4">
-        Change <span className="font-medium text-white">{user.name}</span> from{' '}
-        <span className={cn('font-medium', oldConfig.text)}>{getRoleLabel(user.role)}</span>{' '}
-        to{' '}
-        <span className={cn('font-medium', newConfig.text)}>{getRoleLabel(newRole)}</span>?
-      </p>
-
-      {(newRole === 'admin' || newRole === 'coach') && user.role !== 'admin' && user.role !== 'coach' && (
-        <p className="text-amber-400/80 text-xs mb-4">
-          This will remove the user from the athletes list and add them as a coach.
-        </p>
-      )}
-      {(newRole === 'runner' || newRole === 'core_runner' || newRole === 'viewer') && (user.role === 'admin' || user.role === 'coach') && (
-        <p className="text-amber-400/80 text-xs mb-4">
-          This will remove the user from the coaches list and add them as an athlete.
-        </p>
-      )}
-
-      <div className="flex gap-3 justify-end">
-        <button
-          onClick={onCancel}
-          className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
-        >
-          {tc('cancel')}
-        </button>
-        <button
-          onClick={onConfirm}
-          className="px-4 py-2 text-sm text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors font-medium"
-        >
-          {t('confirmChange')}
-        </button>
-      </div>
-    </Sheet>
+    <ConfirmSheet
+      open
+      onOpenChange={(o) => { if (!o) onCancel(); }}
+      title={t('changeRole')}
+      description={description}
+      confirmLabel={t('confirmChange')}
+      cancelLabel={tc('cancel')}
+      danger={false}
+      onConfirm={onConfirm}
+    />
   );
 }
 
@@ -248,14 +244,6 @@ const categoryConfig = {
   general: { label: 'General', icon: MessageCircle, color: 'text-teal-400', bg: 'bg-teal-500/15', border: 'border-teal-500/30' },
 };
 
-const statusConfig = {
-  new: { label: 'New', bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30' },
-  idea: { label: 'Idea', bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30' },
-  sprint: { label: 'Sprint', bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
-  denied: { label: 'Denied', bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30' },
-  done: { label: 'Done', bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30' },
-};
-
 const priorityConfig = {
   low: { label: 'Low', bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30' },
   medium: { label: 'Medium', bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30' },
@@ -324,8 +312,7 @@ export default function SettingsPage() {
   const [filterPriority, setFilterPriority] = useState<FeedbackPriority | 'all'>('all');
   const [updatingFeedback, setUpdatingFeedback] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<string>('');
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [groupsById, setGroupsById] = useState<Record<string, string>>({});
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [uSearch, setUSearch] = useState('');
@@ -367,13 +354,13 @@ export default function SettingsPage() {
   // One member row (used inside the role/group sections of User Manager).
   const renderUserRow = (user: User) => {
     const isAdmin = user.role === 'admin';
-    let lastSeenLabel = 'Never';
+    let lastSeenLabel = t('never');
     let lastSeenColor = 'text-slate-500';
     if (user.lastSeenAt) {
       const hoursAgo = (Date.now() - new Date(user.lastSeenAt).getTime()) / 3600000;
-      if (hoursAgo < 1) { lastSeenLabel = 'Online'; lastSeenColor = 'text-green-400'; }
-      else if (hoursAgo < 24) { lastSeenLabel = `${Math.floor(hoursAgo)}h ago`; lastSeenColor = 'text-green-400'; }
-      else { lastSeenLabel = `${Math.floor(hoursAgo / 24)}d ago`; lastSeenColor = hoursAgo < 72 ? 'text-slate-400' : 'text-slate-500'; }
+      if (hoursAgo < 1) { lastSeenLabel = t('online'); lastSeenColor = 'text-green-400'; }
+      else if (hoursAgo < 24) { lastSeenLabel = t('hoursAgo', { hours: Math.floor(hoursAgo) }); lastSeenColor = 'text-green-400'; }
+      else { lastSeenLabel = t('daysAgo', { days: Math.floor(hoursAgo / 24) }); lastSeenColor = hoursAgo < 72 ? 'text-slate-400' : 'text-slate-500'; }
     }
     return (
       <div
@@ -395,21 +382,21 @@ export default function SettingsPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-white truncate">{user.name}</p>
-            {isAdmin && <span className="text-3xs font-bold text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded">ADMIN</span>}
+            {isAdmin && <span className="text-3xs font-bold text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded">{t('admin').toUpperCase()}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-slate-500 truncate">{user.email}</span>
             <span className={cn('text-3xs font-medium', lastSeenColor)}>{lastSeenLabel}</span>
             {user.onboardingStatus === 'garmin_authed' && (
               <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/20 flex items-center gap-1">
-                <Watch className="w-2.5 h-2.5" />Garmin
+                <Watch className="w-2.5 h-2.5" />{t('garmin')}
               </span>
             )}
             {user.onboardingStatus === 'google_authed' && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">Google only</span>
+              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">{t('googleOnly')}</span>
             )}
             {user.approved === false && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">Pending</span>
+              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">{t('pending')}</span>
             )}
           </div>
         </div>
@@ -422,8 +409,8 @@ export default function SettingsPage() {
               <button
                 onClick={() => setPendingDelete(user)}
                 disabled={updatingUsers.has(user.id)}
-                className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                title="Delete user"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                title={t('deleteUser')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -560,28 +547,6 @@ export default function SettingsPage() {
     } finally {
       setUpdatingFeedback(null);
     }
-  };
-
-  const handleDragEnd = (dragId: string, dropId: string) => {
-    if (dragId === dropId) return;
-    const items = [...feedbackItems];
-    const dragIdx = items.findIndex(i => i.id === dragId);
-    const dropIdx = items.findIndex(i => i.id === dropId);
-    if (dragIdx === -1 || dropIdx === -1) return;
-    const [moved] = items.splice(dragIdx, 1);
-    items.splice(dropIdx, 0, moved);
-    const reordered = items.map((item, i) => ({ ...item, sort_order: i }));
-    setFeedbackItems(reordered);
-    const sprintItems = reordered.filter(i => (i.status || 'new') === 'sprint');
-    sprintItems.forEach((item, i) => {
-      fetch('/api/feedback', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: item.id, sort_order: i }),
-      });
-    });
-    setDraggedItem(null);
-    setDragOverItem(null);
   };
 
   const filteredFeedback = feedbackItems.filter(item => {
@@ -728,11 +693,7 @@ export default function SettingsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
-      </div>
-    );
+    return <LoadingBlock className="min-h-[60vh]" size={32} />;
   }
 
   const pendingUsers = users.filter(u => u.approved === false);
@@ -769,30 +730,15 @@ export default function SettingsPage() {
         />
       )}
 
-      {pendingDelete && (
-        <Sheet open onOpenChange={(o) => { if (!o) setPendingDelete(null); }} title={t('deleteUser')}>
-          <p className="text-slate-300 text-sm mb-2">
-            Delete <span className="font-medium text-white">{pendingDelete.name}</span> ({pendingDelete.email})?
-          </p>
-          <p className="text-slate-500 text-xs mb-4">
-            This will remove all their data including activities. They can register again as a new user.
-          </p>
-          <div className="flex gap-3 justify-end">
-            <button
-              onClick={() => setPendingDelete(null)}
-              className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
-            >
-              {tc('cancel')}
-            </button>
-            <button
-              onClick={handleDelete}
-              className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors font-medium"
-            >
-              {t('deleteUser')}
-            </button>
-          </div>
-        </Sheet>
-      )}
+      <ConfirmSheet
+        open={!!pendingDelete}
+        onOpenChange={(o) => { if (!o) setPendingDelete(null); }}
+        title={t('deleteUser')}
+        description={pendingDelete ? t('deleteUserConfirm', { name: pendingDelete.name, email: pendingDelete.email }) : undefined}
+        confirmLabel={t('deleteUser')}
+        cancelLabel={tc('cancel')}
+        onConfirm={handleDelete}
+      />
 
       {/* ═══ HEADER — large title on the landing; back-nav on a detail screen ═══ */}
       {activeTab === null ? (
@@ -882,7 +828,7 @@ export default function SettingsPage() {
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
           <p className="text-red-400 text-sm">{error}</p>
-          <button onClick={() => setError(null)} className="ms-auto text-red-400 hover:text-red-300">
+          <button onClick={() => setError(null)} className="ms-auto min-h-[44px] min-w-[44px] flex items-center justify-center text-red-400 hover:text-red-300 -my-2 -me-2">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -925,11 +871,11 @@ export default function SettingsPage() {
                         <span className={cn(
                           'text-3xs font-semibold px-2 py-0.5 rounded-full',
                           onboarding.step >= 1 ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500'
-                        )}>Google</span>
+                        )}>{t('google')}</span>
                         <span className={cn(
                           'text-3xs font-semibold px-2 py-0.5 rounded-full',
                           onboarding.step >= 2 ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500'
-                        )}>Garmin</span>
+                        )}>{t('garmin')}</span>
                       </div>
 
                       {canApproveHere ? (
@@ -947,13 +893,13 @@ export default function SettingsPage() {
                         </button>
                       ) : (
                         <span className="text-3xs font-medium text-slate-500 shrink-0 px-2 py-1 rounded bg-slate-700/40">
-                          Awaiting approval
+                          {t('awaitingApproval')}
                         </span>
                       )}
                       <button
                         onClick={() => setPendingDelete(user)}
                         disabled={updatingUsers.has(user.id)}
-                        className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -982,44 +928,58 @@ export default function SettingsPage() {
                 <input
                   value={uSearch}
                   onChange={e => setUSearch(e.target.value)}
-                  placeholder="Search name or email…"
+                  placeholder={t('searchNameOrEmail')}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg ps-9 pe-3 h-9 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
                 />
               </div>
-              <select value={uRole} onChange={e => setURole(e.target.value as any)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white">
-                <option value="all">All roles</option>
-                {allRoles.map(r => <option key={r} value={r}>{roleConfig[r]?.label || r}</option>)}
-              </select>
-              <select value={uGroup} onChange={e => setUGroup(e.target.value as any)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white">
-                <option value="all">All groups</option>
-                <option value="0">Group 1</option>
-                <option value="1">Group 2</option>
-                <option value="2">Group 3</option>
-                <option value="none">No group</option>
-              </select>
-              <select value={uGarmin} onChange={e => setUGarmin(e.target.value as any)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white">
-                <option value="all">Any Garmin</option>
-                <option value="with">With Garmin</option>
-                <option value="without">Without Garmin</option>
-              </select>
+              <FilterPickerButton<'all' | Role>
+                value={uRole}
+                onChange={setURole}
+                title={t('filterByRole')}
+                label={t('allRoles')}
+                options={[
+                  { value: 'all', label: t('allRoles') },
+                  ...allRoles.map(r => ({ value: r, label: roleConfig[r]?.label || r })),
+                ]}
+              />
+              <FilterPickerButton<'all' | '0' | '1' | '2' | 'none'>
+                value={uGroup}
+                onChange={setUGroup}
+                title={t('filterByGroup')}
+                label={t('allGroups')}
+                options={[
+                  { value: 'all', label: t('allGroups') },
+                  { value: '0', label: t('group1') },
+                  { value: '1', label: t('group2') },
+                  { value: '2', label: t('group3') },
+                  { value: 'none', label: t('noGroup') },
+                ]}
+              />
+              <SegmentedControl<'all' | 'with' | 'without'>
+                value={uGarmin}
+                onChange={setUGarmin}
+                options={[
+                  { value: 'all', label: t('anyGarmin') },
+                  { value: 'with', label: t('withGarmin') },
+                  { value: 'without', label: t('withoutGarmin') },
+                ]}
+              />
               {uFiltersActive && (
                 <button
                   onClick={() => { setUSearch(''); setURole('all'); setUGroup('all'); setUGarmin('all'); }}
                   className="flex items-center gap-1 px-2.5 h-9 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 text-xs font-semibold"
                 >
-                  <X className="h-3.5 w-3.5" /> Clear
+                  <X className="h-3.5 w-3.5" /> {t('clear')}
                 </button>
               )}
             </div>
 
             {activeUsers.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                <Users className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 text-sm">{uFiltersActive ? 'No users match the filters' : 'No active users'}</p>
-              </div>
+              <EmptyState
+                icon={Users}
+                title={uFiltersActive ? t('noUsersMatchFilters') : t('noActiveUsers')}
+                className="px-6 py-12"
+              />
             ) : (
               <div className="divide-y divide-slate-700/40">
                 {allRoles
@@ -1093,7 +1053,7 @@ export default function SettingsPage() {
       {activeTab === 'feedback' && (
         <>
           {selectedFeedback && (
-            <Sheet open onOpenChange={(o) => { if (!o) setSelectedFeedback(null); }}>
+            <Sheet open onOpenChange={(o) => { if (!o) { setSelectedFeedback(null); setConfirmDeleteOpen(false); } }}>
               <div className="pb-4 mb-1 border-b border-slate-700/50 flex items-center">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-full bg-primary-600/15 flex items-center justify-center">
@@ -1131,63 +1091,31 @@ export default function SettingsPage() {
                     <img src={selectedFeedback.image_url} alt="Attached" className="max-h-48 rounded-lg border border-slate-700/50 mb-5" />
                   )}
 
-                  <div className="border-t border-slate-700/50 pt-4">
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div>
-                        <label className="text-xs font-semibold text-slate-400 mb-2 block">Status</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => {
-                            const config = statusConfig[status];
-                            const isSelected = (selectedFeedback.status || 'new') === status;
-                            return (
-                              <button
-                                key={status}
-                                onClick={() => updateFeedbackStatus(selectedFeedback.id, status, selectedFeedback.priority || 'medium')}
-                                disabled={updatingFeedback === selectedFeedback.id}
-                                className={cn(
-                                  'text-3xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all',
-                                  isSelected ? `${config.bg} ${config.border} ${config.text}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:border-slate-500 hover:text-slate-400',
-                                  updatingFeedback === selectedFeedback.id && 'opacity-50 cursor-not-allowed'
-                                )}
-                              >
-                                {getStatusLabel(status)}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-400 mb-2 block">{t('priority')}</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(['low', 'medium', 'high'] as FeedbackPriority[]).map(priority => {
-                            const config = priorityConfig[priority];
-                            const isSelected = (selectedFeedback.priority || 'medium') === priority;
-                            return (
-                              <button
-                                key={priority}
-                                onClick={() => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status || 'new', priority)}
-                                disabled={updatingFeedback === selectedFeedback.id}
-                                className={cn(
-                                  'text-3xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all',
-                                  isSelected ? `${config.bg} ${config.border} ${config.text}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:border-slate-500 hover:text-slate-400',
-                                  updatingFeedback === selectedFeedback.id && 'opacity-50 cursor-not-allowed'
-                                )}
-                              >
-                                {getPriorityLabel(priority)}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                  <div className="border-t border-slate-700/50 pt-4 space-y-4">
+                    <div className={cn(updatingFeedback === selectedFeedback.id && 'opacity-50 pointer-events-none')}>
+                      <label className="text-xs font-semibold text-slate-400 mb-2 block">{t('status')}</label>
+                      <SegmentedControl<FeedbackStatus>
+                        value={selectedFeedback.status || 'new'}
+                        onChange={(status) => updateFeedbackStatus(selectedFeedback.id, status, selectedFeedback.priority || 'medium')}
+                        options={(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => ({ value: status, label: getStatusLabel(status) }))}
+                      />
+                    </div>
+                    <div className={cn(updatingFeedback === selectedFeedback.id && 'opacity-50 pointer-events-none')}>
+                      <label className="text-xs font-semibold text-slate-400 mb-2 block">{t('priority')}</label>
+                      <SegmentedControl<FeedbackPriority>
+                        value={selectedFeedback.priority || 'medium'}
+                        onChange={(priority) => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status || 'new', priority)}
+                        options={(['low', 'medium', 'high'] as FeedbackPriority[]).map(priority => ({ value: priority, label: getPriorityLabel(priority) }))}
+                      />
                     </div>
                     {updatingFeedback === selectedFeedback.id && (
                       <div className="flex items-center gap-2 text-xs text-slate-400">
                         <Loader2 className="w-3 h-3 animate-spin" />
-                        Updating...
+                        {t('updating')}
                       </div>
                     )}
 
-                    <div className="mt-4 pt-3 border-t border-slate-700/50">
+                    <div className="pt-3 border-t border-slate-700/50">
                       <label className="text-xs font-semibold text-slate-400 mb-2 block">{t('adminNotes')}</label>
                       <div className="flex gap-2">
                         <input
@@ -1206,15 +1134,15 @@ export default function SettingsPage() {
                         </button>
                       </div>
                       {selectedFeedback.admin_notes && adminNotes !== selectedFeedback.admin_notes && (
-                        <p className="text-3xs text-slate-500 mt-1.5">Current: {selectedFeedback.admin_notes}</p>
+                        <p className="text-3xs text-slate-500 mt-1.5">{t('currentNote', { note: selectedFeedback.admin_notes })}</p>
                       )}
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-end">
+                    <div className="pt-3 border-t border-slate-700/50 flex justify-end">
                       <button
-                        onClick={() => { if (confirm('Delete this feedback?')) deleteFeedback(selectedFeedback.id); }}
+                        onClick={() => setConfirmDeleteOpen(true)}
                         disabled={updatingFeedback === selectedFeedback.id}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-all disabled:opacity-50"
+                        className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-all disabled:opacity-50"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         {tc('delete')}
@@ -1225,109 +1153,91 @@ export default function SettingsPage() {
             </Sheet>
           )}
 
+          {/* Delete confirmation — a native ConfirmSheet, replacing the browser
+              `confirm()` dialog (unstyleable, unlocalizable, not RTL-safe, and
+              renders as a jarring native alert box on iOS). */}
+          <ConfirmSheet
+            open={confirmDeleteOpen}
+            onOpenChange={setConfirmDeleteOpen}
+            title={tc('delete')}
+            description={t('deleteFeedbackConfirm')}
+            confirmLabel={tc('delete')}
+            cancelLabel={tc('cancel')}
+            onConfirm={() => { if (selectedFeedback) deleteFeedback(selectedFeedback.id); }}
+          />
+
           {/* Category filter */}
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <button
-              onClick={() => setFilterCategory('all')}
-              className={cn('text-3xs font-semibold px-2.5 py-1 rounded-lg border transition-all', filterCategory === 'all' ? 'bg-primary-600/10 border-primary-600/30 text-primary-600' : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400')}
-            >{t('all')}</button>
-            {(['feature_request', 'bug_report', 'training_feedback', 'general'] as FeedbackCategory[]).map(cat => {
-              const config = categoryConfig[cat];
-              const CatIcon = config.icon;
-              return (
-                <button key={cat} onClick={() => setFilterCategory(cat)}
-                  className={cn('flex items-center gap-1 text-3xs font-semibold px-2.5 py-1 rounded-lg border transition-all', filterCategory === cat ? `${config.bg} ${config.border} ${config.color}` : 'bg-slate-700/30 border-slate-600/50 text-slate-500 hover:text-slate-400')}
-                ><CatIcon className="w-3 h-3" />{config.label}</button>
-              );
-            })}
+          <div className="mb-4">
+            <SegmentedControl<FeedbackCategory | 'all'>
+              value={filterCategory}
+              onChange={setFilterCategory}
+              options={[
+                { value: 'all', label: t('all') },
+                ...(['feature_request', 'bug_report', 'training_feedback', 'general'] as FeedbackCategory[]).map(cat => ({
+                  value: cat, label: categoryConfig[cat].label, icon: categoryConfig[cat].icon,
+                })),
+              ]}
+            />
           </div>
 
-          {/* Kanban Board */}
+          {/* Feedback list — grouped by status. The drag-and-drop Kanban board
+              was removed: native HTML5 dragstart/drop events don't fire from
+              touch input on iOS Safari, so the board was effectively undraggable
+              on a real phone. Status now changes from the detail sheet's
+              segmented control above. */}
           {feedbackLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-            </div>
+            <LoadingBlock />
+          ) : feedbackItems.length === 0 ? (
+            <EmptyState icon={MessageSquare} title={t('noFeedback')} />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 overflow-x-auto">
+            <div className="space-y-4">
               {(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => {
-                const colConfig = statusConfig[status];
                 const colItems = feedbackItems.filter(item => {
                   if ((item.status || 'new') !== status) return false;
                   if (filterCategory !== 'all' && (item.category || 'general') !== filterCategory) return false;
                   return true;
                 });
+                if (colItems.length === 0) return null;
                 return (
-                  <div
-                    key={status}
-                    className="bg-slate-900/40 rounded-xl border border-slate-700/30 flex flex-col min-h-[300px]"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (draggedItem) {
-                        updateFeedbackStatus(draggedItem, status, feedbackItems.find(f => f.id === draggedItem)?.priority || 'medium');
-                        setDraggedItem(null);
-                      }
-                    }}
-                  >
-                    {/* Column header */}
-                    <div className="px-3 py-2.5 border-b border-slate-700/30 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={cn('w-2 h-2 rounded-full', colConfig.bg.replace('/15', ''))} style={{ backgroundColor: status === 'new' ? '#3b82f6' : status === 'idea' ? '#a855f7' : status === 'sprint' ? '#f59e0b' : status === 'done' ? '#22c55e' : '#64748b' }} />
-                        <span className={cn('text-xs font-bold', colConfig.text)}>{getStatusLabel(status)}</span>
-                      </div>
-                      <span className="text-3xs font-bold text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">{colItems.length}</span>
-                    </div>
-                    {/* Cards */}
-                    <div className="p-2 space-y-2 flex-1 overflow-y-auto max-h-[500px]">
-                      {colItems.map(item => {
-                        const catCfg = categoryConfig[item.category || 'general'];
-                        const CatIcon = catCfg.icon;
-                        const priCfg = priorityConfig[item.priority || 'medium'];
-                        const date = new Date(item.created_at);
-                        const timeAgo = (() => {
-                          const h = (Date.now() - date.getTime()) / 3600000;
-                          if (h < 1) return 'Just now';
-                          if (h < 24) return `${Math.floor(h)}h ago`;
-                          if (h < 48) return 'Yesterday';
-                          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        })();
-                        return (
-                          <div
-                            key={item.id}
-                            draggable
-                            onDragStart={() => setDraggedItem(item.id)}
-                            onClick={() => { setSelectedFeedback(item); setAdminNotes(item.admin_notes || ''); }}
-                            className={cn(
-                              'p-3 rounded-lg bg-slate-800/60 border border-slate-700/40 cursor-pointer hover:border-primary-600/40 hover:bg-slate-800 transition-all',
-                              draggedItem === item.id && 'opacity-50 scale-95'
-                            )}
-                          >
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <span className={cn('flex items-center gap-1 text-3xs font-semibold px-1.5 py-0.5 rounded border', catCfg.bg, catCfg.border, catCfg.color)}>
-                                <CatIcon className="w-2.5 h-2.5" />{catCfg.label}
-                              </span>
-                              <span className={cn('text-3xs font-semibold px-1.5 py-0.5 rounded border', priCfg.bg, priCfg.border, priCfg.text)}>
-                                {getPriorityLabel(item.priority || 'medium')}
-                              </span>
-                            </div>
-                            <p className="text-xs text-white leading-relaxed line-clamp-3 mb-2">{item.message}</p>
-                            <div className="flex items-center justify-between">
-                              <span className="text-3xs text-slate-500 font-medium">{item.athlete_name.split(' ')[0]}</span>
-                              <span className="text-3xs text-slate-400">{timeAgo}</span>
-                            </div>
-                            {item.admin_notes && (
-                              <p className="text-3xs text-slate-500 italic mt-1 border-t border-slate-700/30 pt-1">{item.admin_notes}</p>
-                            )}
+                  <InsetSection key={status} header={`${getStatusLabel(status)} (${colItems.length})`}>
+                    {colItems.map(item => {
+                      const catCfg = categoryConfig[item.category || 'general'];
+                      const CatIcon = catCfg.icon;
+                      const priCfg = priorityConfig[item.priority || 'medium'];
+                      const date = new Date(item.created_at);
+                      const timeAgo = (() => {
+                        const h = (Date.now() - date.getTime()) / 3600000;
+                        if (h < 1) return t('justNow');
+                        if (h < 24) return t('hoursAgo', { hours: Math.floor(h) });
+                        if (h < 48) return t('yesterday');
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                      })();
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => { setSelectedFeedback(item); setAdminNotes(item.admin_notes || ''); }}
+                          className="w-full text-start px-4 py-3 active:bg-slate-700/40 transition-colors"
+                        >
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <span className={cn('flex items-center gap-1 text-3xs font-semibold px-1.5 py-0.5 rounded border', catCfg.bg, catCfg.border, catCfg.color)}>
+                              <CatIcon className="w-2.5 h-2.5" />{catCfg.label}
+                            </span>
+                            <span className={cn('text-3xs font-semibold px-1.5 py-0.5 rounded border', priCfg.bg, priCfg.border, priCfg.text)}>
+                              {getPriorityLabel(item.priority || 'medium')}
+                            </span>
                           </div>
-                        );
-                      })}
-                      {colItems.length === 0 && (
-                        <div className="flex items-center justify-center h-20 text-3xs text-slate-400">
-                          Drop items here
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                          <p className="text-sm text-white leading-relaxed line-clamp-2 mb-1.5">{item.message}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-3xs text-slate-500 font-medium">{item.athlete_name.split(' ')[0]}</span>
+                            <span className="text-3xs text-slate-400">{timeAgo}</span>
+                          </div>
+                          {item.admin_notes && (
+                            <p className="text-3xs text-slate-500 italic mt-1 border-t border-slate-700/30 pt-1">{item.admin_notes}</p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </InsetSection>
                 );
               })}
             </div>
@@ -1343,23 +1253,21 @@ export default function SettingsPage() {
               <Layout className="w-4 h-4 text-slate-400" />
               <h2 className="text-sm font-semibold text-white">{t('tabPermissions')}</h2>
             </div>
-            <p className="text-xs text-slate-500 mt-1">Configure which tabs each role can access on web and mobile</p>
+            <p className="text-xs text-slate-500 mt-1">{t('tabPermissionsDesc')}</p>
             <div className="flex items-center gap-4 mt-3 text-3xs font-semibold text-slate-400">
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded bg-primary-600 flex items-center justify-center"><Layout className="w-2 h-2 text-white" /></div>
-                Web
+                {t('web')}
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded bg-green-500 flex items-center justify-center"><Smartphone className="w-2 h-2 text-white" /></div>
-                Mobile
+                {t('mobile')}
               </div>
             </div>
           </div>
 
           {(permissionsLoading || mobilePermissionsLoading) ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-            </div>
+            <LoadingBlock />
           ) : (
             <div className="p-5 space-y-5">
               {allRoles.map(role => {
@@ -1370,55 +1278,51 @@ export default function SettingsPage() {
                 allMobileTabs.forEach(t => { tabLabels[t.key] = t.label; });
 
                 return (
-                  <div key={role} className="bg-slate-900/40 border border-slate-700/30 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={cn('w-2 h-2 rounded-full', rc.dot)}></span>
-                      <h3 className={cn('text-sm font-semibold', rc.text)}>{rc.label}</h3>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                      {combinedTabs.map(tabKey => {
-                        const webEnabled = isTabEnabled(role, tabKey);
-                        const mobileEnabled = isMobileTabEnabled(role, tabKey);
-                        const isWebTab = allTabs.some(t => t.key === tabKey);
-                        const isMobileTab = allMobileTabs.some(t => t.key === tabKey);
+                  <InsetSection key={role} header={rc.label}>
+                    {combinedTabs.map(tabKey => {
+                      const webEnabled = isTabEnabled(role, tabKey);
+                      const mobileEnabled = isMobileTabEnabled(role, tabKey);
+                      const isWebTab = allTabs.some(t => t.key === tabKey);
+                      const isMobileTab = allMobileTabs.some(t => t.key === tabKey);
 
-                        return (
-                          <div
-                            key={tabKey}
-                            className="flex items-center justify-between px-3 py-2 rounded-lg border border-slate-700/50 bg-slate-800/50"
-                          >
-                            <span className="text-xs font-medium text-slate-300 truncate me-2">{tabLabels[tabKey]}</span>
-                            <div className="flex items-center gap-1 shrink-0">
+                      return (
+                        <InsetRow
+                          key={tabKey}
+                          label={tabLabels[tabKey]}
+                          trailing={
+                            <div className="flex items-center gap-1.5 shrink-0">
                               {isWebTab && (
                                 <button
                                   onClick={() => togglePermission(role, tabKey, webEnabled)}
                                   className={cn(
-                                    'w-5 h-5 rounded flex items-center justify-center transition-all',
+                                    'min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center transition-all',
                                     webEnabled ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-500 hover:bg-slate-600'
                                   )}
-                                  title="Web"
+                                  aria-label={t('web')}
+                                  title={t('web')}
                                 >
-                                  <Layout className="w-2.5 h-2.5" />
+                                  <Layout className="w-4 h-4" />
                                 </button>
                               )}
                               {isMobileTab && (
                                 <button
                                   onClick={() => toggleMobilePermission(role, tabKey, mobileEnabled)}
                                   className={cn(
-                                    'w-5 h-5 rounded flex items-center justify-center transition-all',
+                                    'min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center transition-all',
                                     mobileEnabled ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-500 hover:bg-slate-600'
                                   )}
-                                  title="Mobile"
+                                  aria-label={t('mobile')}
+                                  title={t('mobile')}
                                 >
-                                  <Smartphone className="w-2.5 h-2.5" />
+                                  <Smartphone className="w-4 h-4" />
                                 </button>
                               )}
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                          }
+                        />
+                      );
+                    })}
+                  </InsetSection>
                 );
               })}
 

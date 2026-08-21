@@ -5,6 +5,7 @@ import { Award, Loader2, Plus, ImagePlus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet, SegmentedControl, Button, LoadingBlock, EmptyState } from '@/components/ui';
+import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 
 interface Badge {
@@ -157,33 +158,33 @@ export function BadgeManager() {
       ) : badges.length === 0 ? (
         <EmptyState icon={Award} title={t('noBadges')} />
       ) : (
-        <div className="space-y-2">
+        <InsetSection>
           {badges.map(b => {
             const label = metricLabel(b);
             return (
-              <div key={b.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/60 border border-slate-700/50">
-                <div className="w-10 h-10 rounded-full bg-slate-900/60 border border-slate-700/50 flex items-center justify-center shrink-0 overflow-hidden">
-                  {b.icon_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={b.icon_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-lg">{b.icon}</span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate" dir="auto">{b.name_he}</p>
-                  <p className="text-xs text-slate-400 truncate">
-                    {b.name_en}
-                    {label && <span className="text-slate-500"> · {label}</span>}
-                  </p>
-                </div>
-                <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full shrink-0', b.active ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500')}>
-                  {b.active ? t('active') : t('inactive')}
-                </span>
-              </div>
+              <InsetRow
+                key={b.id}
+                label={b.name_he}
+                sublabel={label ? `${b.name_en} · ${label}` : b.name_en}
+                trailing={
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', b.active ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500')}>
+                      {b.active ? t('active') : t('inactive')}
+                    </span>
+                    <div className="w-9 h-9 rounded-full bg-slate-900/60 border border-slate-700/50 flex items-center justify-center overflow-hidden">
+                      {b.icon_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={b.icon_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-base">{b.icon}</span>
+                      )}
+                    </div>
+                  </div>
+                }
+              />
             );
           })}
-        </div>
+        </InsetSection>
       )}
 
       <Sheet open={sheetOpen} onOpenChange={o => { setSheetOpen(o); if (!o) resetForm(); }} title={t('newBadge')}>
@@ -283,16 +284,21 @@ export function BadgeManager() {
                 {imagePreview ? t('changeImage') : t('uploadImage')}
               </button>
               {imagePreview && (
-                <div className="relative w-10 h-10 rounded-full overflow-hidden border border-slate-700/50 group">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imagePreview} alt="" className="w-full h-full object-cover" />
+                <div className="relative w-14 h-14 shrink-0">
+                  <div className="w-14 h-14 rounded-full overflow-hidden border border-slate-700/50">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imagePreview} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  {/* Always-visible remove badge — a CSS :hover reveal has no
+                      persistent equivalent on iOS Safari, so this can't be
+                      opacity-0/group-hover gated like a desktop hover card. */}
                   <button
                     type="button"
                     onClick={() => handleImagePick(null)}
                     aria-label={t('removeImage')}
-                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-1 -end-1 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 flex items-center justify-center text-white transition-colors"
                   >
-                    <X className="h-4 w-4 text-white" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               )}

@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import {
   UserPlus, Copy, CheckCircle2, Wifi, WifiOff, Clock,
-  Users as UsersIcon, Check, Mail, MoreVertical, Trash2,
+  Users as UsersIcon, Check, Mail, Trash2, ChevronDown,
   PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isProtectedEmail } from '@/lib/constants';
-import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
+import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow, Card, Button, EmptyState, BigStat } from '@/components/ui';
 import { useTranslations } from 'next-intl';
 
 interface Athlete {
@@ -55,6 +55,7 @@ export default function AthletesPage() {
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteGroup, setInviteGroup] = useState('');
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [publicLink, setPublicLink] = useState<string | null>(null);
   const [publicLinkCopied, setPublicLinkCopied] = useState(false);
@@ -296,61 +297,26 @@ ${inviteLink}`;
           <h1 className="text-2xl font-bold">{t('title')}</h1>
           <p className="text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
-        <button
-          onClick={() => { setShowInvite(!showInvite); setInviteLink(null); }}
-          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-        >
+        <Button variant="primary" onClick={() => { setShowInvite(true); setInviteLink(null); }}>
           <UserPlus className="h-4 w-4" />
           {t('inviteAthlete')}
-        </button>
+        </Button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="bg-green-500/20 p-2 rounded-lg">
-              <CheckCircle2 className="h-5 w-5 text-green-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{athletes.filter(a => a.status === 'active').length}</p>
-              <p className="text-xs text-slate-400">{t('active')}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="bg-yellow-500/20 p-2 rounded-lg">
-              <Clock className="h-5 w-5 text-yellow-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{athletes.filter(a => a.status === 'invited').length}</p>
-              <p className="text-xs text-slate-400">{t('invited')}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="bg-orange-500/20 p-2 rounded-lg">
-              <PauseCircle className="h-5 w-5 text-orange-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{athletes.filter(a => a.status === 'paused').length}</p>
-              <p className="text-xs text-slate-400">{t('paused')}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary-500/20 p-2 rounded-lg">
-              <UsersIcon className="h-5 w-5 text-primary-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{athletes.length}</p>
-              <p className="text-xs text-slate-400">{t('total')}</p>
-            </div>
-          </div>
-        </div>
+        <Card variant="solid">
+          <BigStat value={athletes.filter(a => a.status === 'active').length} label={t('active')} />
+        </Card>
+        <Card variant="solid">
+          <BigStat value={athletes.filter(a => a.status === 'invited').length} label={t('invited')} />
+        </Card>
+        <Card variant="solid">
+          <BigStat value={athletes.filter(a => a.status === 'paused').length} label={t('paused')} />
+        </Card>
+        <Card variant="solid">
+          <BigStat value={athletes.length} label={t('total')} />
+        </Card>
       </div>
 
       {/* Filter tabs */}
@@ -364,11 +330,16 @@ ${inviteLink}`;
         className="w-fit"
       />
 
-      {/* Invite Form */}
-      {showInvite && (
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
-          <h3 className="font-semibold text-lg">{t('inviteNewAthlete')}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Invite Form — a bottom sheet like every other transient/task flow on
+          this page (action menu, move-to-group, delete confirm), instead of
+          an inline panel that used to expand the page flow. */}
+      <Sheet
+        open={showInvite}
+        onOpenChange={(o) => { setShowInvite(o); if (!o) { setInviteLink(null); setInviteGroup(''); } }}
+        title={t('inviteNewAthlete')}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input
               value={inviteName}
               onChange={(e) => setInviteName(e.target.value)}
@@ -382,25 +353,24 @@ ${inviteLink}`;
               type="email"
               className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-            <select
-              value={inviteGroup}
-              onChange={(e) => setInviteGroup(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
+            {/* Group picker — tapping opens a Sheet of InsetRow options,
+                same "pick one from a list" pattern as everywhere else in the
+                app, instead of a native <select>. */}
+            <button
+              type="button"
+              onClick={() => setGroupPickerOpen(true)}
+              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] flex items-center justify-between gap-2 text-start hover:border-slate-600 transition-colors"
             >
-              <option value="">{t('noGroup')}</option>
-              {groups.map(g => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
+              <span className={cn('truncate', inviteGroup ? 'text-white' : 'text-slate-500')}>
+                {inviteGroup ? groups.find((g) => g.id === inviteGroup)?.name : t('noGroup')}
+              </span>
+              <ChevronDown className="h-4 w-4 text-slate-500 shrink-0" />
+            </button>
           </div>
-          <button
-            onClick={createInvite}
-            disabled={submitting || !inviteName.trim() || !inviteEmail.trim()}
-            className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
+          <Button variant="primary" className="w-full" onClick={createInvite} disabled={submitting || !inviteName.trim() || !inviteEmail.trim()}>
             <Mail className="h-4 w-4" />
             {submitting ? t('generating') : t('generateInviteLink')}
-          </button>
+          </Button>
           {inviteLink && (
             <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
@@ -409,214 +379,120 @@ ${inviteLink}`;
               </div>
               <div className="flex items-center gap-2">
                 <input value={inviteLink} readOnly className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm" />
-                <button
-                  onClick={copyLink}
-                  className={cn(
-                    "px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2",
-                    copied ? "bg-green-600 text-white" : "bg-slate-600 hover:bg-slate-500 text-white"
-                  )}
-                >
+                <Button variant="secondary" onClick={copyLink} className={copied ? 'bg-green-600 hover:bg-green-600' : undefined}>
                   {copied ? <><Check className="h-4 w-4" />{tc('copied')}</> : <><Copy className="h-4 w-4" />{tc('copy')}</>}
-                </button>
-                <button
-                  onClick={shareViaWhatsApp}
-                  className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA59] text-white"
-                  title="Share via WhatsApp"
-                >
+                </Button>
+                <Button variant="secondary" onClick={shareViaWhatsApp} className="bg-[#25D366] hover:bg-[#20BA59]" title="Share via WhatsApp">
                   <MessageCircle className="h-4 w-4" />
                   {t('whatsApp')}
-                </button>
+                </Button>
               </div>
             </div>
           )}
         </div>
-      )}
+      </Sheet>
+
+      {/* Group picker Sheet for the invite form above. */}
+      <Sheet open={groupPickerOpen} onOpenChange={setGroupPickerOpen} title={t('group')}>
+        <InsetSection>
+          <InsetRow
+            label={t('noGroup')}
+            trailing={!inviteGroup ? <Check className="h-4 w-4 text-primary-400" /> : undefined}
+            onClick={() => { setInviteGroup(''); setGroupPickerOpen(false); }}
+          />
+          {groups.map((g) => (
+            <InsetRow
+              key={g.id}
+              icon={UsersIcon}
+              label={g.name}
+              trailing={inviteGroup === g.id ? <Check className="h-4 w-4 text-primary-400" /> : undefined}
+              onClick={() => { setInviteGroup(g.id); setGroupPickerOpen(false); }}
+            />
+          ))}
+        </InsetSection>
+      </Sheet>
 
       {/* Public Invite Link - for WhatsApp Group */}
-      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+      <Card variant="solid">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="font-semibold">{t('publicInviteLink')}</h3>
             <p className="text-sm text-slate-400 mt-1">
-              Share one link with the entire WhatsApp group — athletes self-register with their name and Garmin account
+              {t('publicInviteDesc')}
             </p>
           </div>
           {!publicLink && (
-            <button
-              onClick={generatePublicLink}
-              disabled={generatingPublicLink}
-              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
+            <Button variant="primary" onClick={generatePublicLink} disabled={generatingPublicLink}>
               <UserPlus className="h-4 w-4" />
               {generatingPublicLink ? t('generating') : t('generateLink')}
-            </button>
+            </Button>
           )}
         </div>
         {publicLink && (
           <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2">
               <input value={publicLink} readOnly className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm" />
-              <button
-                onClick={copyPublicLink}
-                className={cn(
-                  "px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2",
-                  publicLinkCopied ? "bg-green-600 text-white" : "bg-slate-600 hover:bg-slate-500 text-white"
-                )}
-              >
+              <Button variant="secondary" onClick={copyPublicLink} className={publicLinkCopied ? 'bg-green-600 hover:bg-green-600' : undefined}>
                 {publicLinkCopied ? <><Check className="h-4 w-4" />{tc('copied')}</> : <><Copy className="h-4 w-4" />{tc('copy')}</>}
-              </button>
-              <button
-                onClick={sharePublicLinkWhatsApp}
-                className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA59] text-white"
-              >
+              </Button>
+              <Button variant="secondary" onClick={sharePublicLinkWhatsApp} className="bg-[#25D366] hover:bg-[#20BA59]">
                 <MessageCircle className="h-4 w-4" />
                 {t('whatsApp')}
-              </button>
+              </Button>
             </div>
             <p className="text-xs text-slate-500">
-              Anyone with this link can connect their Garmin and choose their pace group
+              {t('publicLinkNote')}
             </p>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* Athletes Table - Desktop */}
+      {/* Athletes Roster — one native-styled list at every viewport width
+          (was a raw HTML <table> on md+ and a separately hand-rolled card
+          list below md, two renderers to keep in sync). Tapping a row opens
+          the same action sheet the old "..." button opened. */}
       {filteredAthletes.length > 0 ? (
-        <>
-          <div className="hidden md:block bg-slate-800 rounded-xl border border-slate-700">
-            <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-700 bg-slate-700/50">
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('name')}</th>
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('email')}</th>
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('group')}</th>
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('status')}</th>
-                    <th className="text-start text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('joined')}</th>
-                    <th className="text-end text-xs font-medium text-slate-400 uppercase tracking-wider px-6 py-4">{t('actions')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-700">
-                  {filteredAthletes.map((athlete) => (
-                    <tr key={athlete.id} className="hover:bg-slate-700/30 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-primary-500/20 w-10 h-10 rounded-full flex items-center justify-center">
-                            <span className="text-primary-400 font-semibold text-sm">
-                              {athlete.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                            </span>
-                          </div>
-                          <span className="font-medium">{athlete.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-300">{athlete.email}</td>
-                      <td className="px-6 py-4">
-                        {athlete.groupName ? (
-                          <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium", getGroupStyle(athlete.groupName)?.bg, getGroupStyle(athlete.groupName)?.text, getGroupStyle(athlete.groupName)?.border)}>
+        <InsetSection>
+          {filteredAthletes.map((athlete) => {
+            const initials = athlete.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+            const groupStyle = getGroupStyle(athlete.groupName);
+            return (
+              <button
+                key={athlete.id}
+                onClick={() => setActiveMenu(athlete.id)}
+                className="w-full text-start active:bg-slate-700/40 transition-colors"
+              >
+                <div className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
+                  <span className="shrink-0 w-9 h-9 rounded-full bg-primary-500/20 flex items-center justify-center">
+                    <span className="text-primary-400 font-semibold text-xs">{initials}</span>
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[15px] font-medium text-white truncate" dir="auto">{athlete.name}</span>
+                    <span className="block text-xs text-slate-400 truncate">{athlete.email}</span>
+                    {(athlete.groupName || athlete.hasGarmin || athlete.hasStrava) && (
+                      <span className="flex flex-wrap items-center gap-1 mt-1">
+                        {athlete.groupName && (
+                          <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-medium', groupStyle?.bg, groupStyle?.text)}>
                             {athlete.groupName}
                           </span>
-                        ) : (
-                          <span className="text-slate-500 text-sm">No group</span>
                         )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {getStatusBadge(athlete.status)}
-                          <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', athlete.hasGarmin ? 'bg-green-500/15 text-green-400' : 'bg-slate-500/15 text-slate-500')}>
-                            Garmin
-                          </span>
-                          <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', athlete.hasStrava ? 'bg-orange-500/15 text-orange-400' : athlete.stravaEnabled ? 'bg-amber-500/15 text-amber-400 animate-pulse' : 'hidden')}>
-                            {athlete.hasStrava ? 'Strava' : 'Awaiting Strava'}
-                          </span>
-                          {athlete.onboardingStatus && (
-                            <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded',
-                              athlete.onboardingStatus === 'garmin_authed' ? 'bg-green-500/15 text-green-400' :
-                              athlete.onboardingStatus === 'google_authed' ? 'bg-blue-500/15 text-blue-400' :
-                              'bg-slate-500/15 text-slate-400'
-                            )}>
-                              {athlete.onboardingStatus === 'garmin_authed' ? 'Garmin Auth' :
-                               athlete.onboardingStatus === 'google_authed' ? 'Google Only' :
-                               athlete.onboardingStatus}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-400">
-                        {new Date(athlete.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-end relative">
-                        <button
-                          onClick={() => setActiveMenu(athlete.id)}
-                          className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:bg-slate-700 active:scale-[0.92] rounded-lg transition-all ms-auto"
-                        >
-                          <MoreVertical className="h-4 w-4 text-slate-400" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Athletes Cards - Mobile */}
-          <div className="md:hidden space-y-3">
-            {filteredAthletes.map((athlete) => (
-              <div key={athlete.id} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="bg-primary-500/20 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-primary-400 font-semibold text-sm">
-                        {athlete.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        {athlete.hasGarmin && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">Garmin</span>}
+                        {athlete.hasStrava && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400">Strava</span>}
                       </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{athlete.name}</div>
-                      <div className="text-sm text-slate-400 truncate">{athlete.email}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActiveMenu(athlete.id)}
-                    className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:bg-slate-700 active:scale-[0.92] rounded-lg transition-all flex-shrink-0"
-                  >
-                    <MoreVertical className="h-4 w-4 text-slate-400" />
-                  </button>
+                    )}
+                  </span>
+                  <span className="shrink-0">{getStatusBadge(athlete.status)}</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {athlete.groupName ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-500/20 text-purple-400 text-xs font-medium">
-                      {athlete.groupName}
-                    </span>
-                  ) : (
-                    <span className="text-slate-500 text-xs">No group</span>
-                  )}
-                  {getStatusBadge(athlete.status)}
-                  {athlete.onboardingStatus && (
-                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded',
-                      athlete.onboardingStatus === 'garmin_authed' ? 'bg-green-500/15 text-green-400' :
-                      athlete.onboardingStatus === 'google_authed' ? 'bg-blue-500/15 text-blue-400' :
-                      'bg-slate-500/15 text-slate-400'
-                    )}>
-                      {athlete.onboardingStatus === 'garmin_authed' ? 'Garmin Auth' :
-                       athlete.onboardingStatus === 'google_authed' ? 'Google Only' :
-                       athlete.onboardingStatus}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
+              </button>
+            );
+          })}
+        </InsetSection>
       ) : (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 text-center py-16">
-          <div className="bg-slate-700/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <UsersIcon className="h-10 w-10 text-slate-500" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">{t('noAthletes')}</h3>
-          <p className="text-slate-400 mb-4">
-            {filter !== 'all' ? 'No athletes with this status' : 'Invite your first athlete to get started'}
-          </p>
-        </div>
+        <EmptyState
+          icon={UsersIcon}
+          title={t('noAthletes')}
+          description={filter !== 'all' ? t('noAthletesStatus') : t('inviteFirst')}
+        />
       )}
 
       {/* Athlete actions — one shared sheet, opened from either the desktop
@@ -698,7 +574,7 @@ ${inviteLink}`;
       >
         {moveModal && (
           <>
-            <div className="space-y-2 mb-4">
+            <InsetSection className="mb-4">
               {[...groups]
                 .sort((a, b) => {
                   // Sort by marathonGoal (faster times first) or by name if no marathonGoal
@@ -710,45 +586,29 @@ ${inviteLink}`;
                   return a.name.localeCompare(b.name);
                 })
                 .map(g => {
-                  const levelStyles = {
-                    fast: 'border-green-500/40 bg-green-500/10 hover:bg-green-500/20',
-                    medium: 'border-yellow-500/40 bg-yellow-500/10 hover:bg-yellow-500/20',
-                    slow: 'border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/20',
-                  };
-                  const iconColors = {
-                    fast: 'text-green-400',
-                    medium: 'text-yellow-400',
-                    slow: 'text-orange-400',
-                  };
-                  const badgeStyles = {
-                    fast: 'bg-green-500/20 text-green-400 border-green-500/30',
-                    medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-                    slow: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+                  const levelIconBg: Record<'fast' | 'medium' | 'slow', string> = {
+                    fast: 'bg-green-500',
+                    medium: 'bg-yellow-500',
+                    slow: 'bg-orange-500',
                   };
                   const level = g.level || 'medium';
                   const isSelected = selectedGroupId === g.id;
                   return (
-                    <button
+                    <InsetRow
                       key={g.id}
+                      icon={UsersIcon}
+                      iconBg={levelIconBg[level]}
+                      label={g.name}
+                      value={g.marathonGoal}
+                      trailing={isSelected ? <Check className="h-4 w-4 text-primary-400" /> : undefined}
                       onClick={() => setSelectedGroupId(g.id)}
-                      className={cn(
-                        'w-full text-start px-4 py-3 min-h-[44px] rounded-lg border text-white transition-colors flex items-center gap-3 active:scale-[0.98]',
-                        levelStyles[level],
-                        isSelected && 'ring-2 ring-primary-500'
-                      )}
-                    >
-                      <UsersIcon className={`h-5 w-5 ${iconColors[level]}`} />
-                      <span className="flex-1 font-medium">{g.name}</span>
-                      {g.marathonGoal && (
-                        <span className={`text-xs px-2 py-0.5 rounded border font-medium ${badgeStyles[level]}`}>
-                          {g.marathonGoal}
-                        </span>
-                      )}
-                    </button>
+                    />
                   );
                 })}
-            </div>
-            <button
+            </InsetSection>
+            <Button
+              variant="primary"
+              className="w-full"
               onClick={() => {
                 if (selectedGroupId) {
                   updateAthleteGroup(moveModal.athleteId, selectedGroupId);
@@ -756,10 +616,9 @@ ${inviteLink}`;
                 }
               }}
               disabled={!selectedGroupId}
-              className="w-full min-h-[44px] bg-primary-600 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-all"
             >
               {tc('save')}
-            </button>
+            </Button>
           </>
         )}
       </Sheet>

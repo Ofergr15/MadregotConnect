@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity } from 'lucide-react';
+import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
-import { SegmentedControl } from '@/components/ui';
+import { Sheet, Button, SegmentedControl, SkeletonList, EmptyState } from '@/components/ui';
+import { InsetRow } from '@/components/ui/InsetList';
 
 interface Group { id: string; name: string; }
 interface Athlete { id: string; name: string; email: string; }
@@ -38,6 +39,11 @@ export function NotificationCenter() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // compose sheet
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [athletePickerOpen, setAthletePickerOpen] = useState(false);
+  const [athleteSearch, setAthleteSearch] = useState('');
 
   // compose form
   const [titleHe, setTitleHe] = useState('');
@@ -118,6 +124,7 @@ export function NotificationCenter() {
     setTitleHe(''); setBodyHe(''); setTitleEn(''); setBodyEn('');
     setAudienceType('all'); setAudienceId('');
     setScheduleType('now'); setScheduledAt(''); setRecurInterval(1); setRecurUnit('week');
+    setMsg(null);
   };
 
   const submit = async () => {
@@ -145,8 +152,8 @@ export function NotificationCenter() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      setMsg(scheduleType === 'now' ? `נשלח ל-${data.sent ?? 0} מכשירים` : 'התזמון נשמר');
       reset();
+      setComposeOpen(false);
       loadList();
     } catch (e: any) {
       setMsg(e.message);
@@ -170,15 +177,66 @@ export function NotificationCenter() {
 
   const inputCls = 'w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600';
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Compose */}
-      <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Bell className="w-4 h-4 text-primary-600" />
-          <h3 className="font-bold text-white">שליחת התראה / New notification</h3>
-        </div>
+  const selectedAthleteName = athletes.find(a => a.id === audienceId)?.name;
+  const filteredAthletes = athletes.filter(a => !athleteSearch.trim() || a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()));
 
+  return (
+    <div>
+      {/* Landing — the notification list, with a "+" to drill into compose.
+          Replaces the permanent desktop-style split-pane compose+list console:
+          on mobile that collapsed into one giant stacked form with no
+          navigation hierarchy or title bar. */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-white">התראות</h3>
+        <Button size="sm" onClick={() => { reset(); setComposeOpen(true); }}>
+          <Plus className="w-4 h-4" />
+          שליחת התראה
+        </Button>
+      </div>
+
+      {loading ? (
+        <SkeletonList count={4} />
+      ) : list.length === 0 ? (
+        <EmptyState icon={Bell} title="אין התראות עדיין" />
+      ) : (
+        <div className="space-y-2">
+          {list.map(n => (
+            <div key={n.id} className="bg-slate-900/40 rounded-xl border border-slate-700/30 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white truncate" dir="auto">{n.title_he}</p>
+                  <p className="text-xs text-slate-400 truncate" dir="auto">{n.body_he}</p>
+                  <div className="flex items-center gap-2 mt-1.5 text-3xs text-slate-500">
+                    {n.status === 'sent' ? <CheckCircle className="w-3 h-3 text-green-400" />
+                      : n.schedule_type === 'recurring' ? <Repeat className="w-3 h-3 text-primary-600" />
+                      : <Clock className="w-3 h-3 text-amber-400" />}
+                    <span>
+                      {n.status === 'sent' ? `נשלח (${n.sent_count})`
+                        : n.status === 'cancelled' ? 'בוטל'
+                        : n.schedule_type === 'recurring' ? `כל ${n.recur_interval} ${n.recur_unit === 'week' ? 'שבועות' : 'ימים'}`
+                        : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן'}
+                    </span>
+                    <span>· {n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם'}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {n.status === 'scheduled' && (
+                    <button onClick={() => cancel(n.id)} title="ביטול" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-amber-400">
+                      <Clock className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button onClick={() => remove(n.id)} title="מחיקה" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Compose — a bottom sheet instead of a permanently-rendered pane. */}
+      <Sheet open={composeOpen} onOpenChange={setComposeOpen} title="שליחת התראה">
         {/* Category templates — one tap pre-fills the message */}
         <div className="flex flex-wrap gap-2 mb-3">
           {TEMPLATES.map(tpl => {
@@ -235,7 +293,7 @@ export function NotificationCenter() {
 
           {/* Audience — segmented control + contextual picker */}
           <div>
-            <label className="text-xs font-semibold text-slate-400">קהל יעד / Audience</label>
+            <label className="text-xs font-semibold text-slate-400">קהל יעד</label>
             <SegmentedControl
               className="mt-1.5"
               value={audienceType}
@@ -247,36 +305,42 @@ export function NotificationCenter() {
               ]}
             />
             {audienceType === 'group' && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {groups.map(g => (
-                  <button key={g.id} onClick={() => setAudienceId(g.id)}
-                    className={cn('px-3 py-2 rounded-full text-xs font-bold transition',
-                      audienceId === g.id ? 'bg-primary-600 text-white' : 'bg-slate-700/40 text-slate-300 hover:bg-slate-700')} dir="rtl">
-                    {g.name}
-                  </button>
-                ))}
-                {groups.length === 0 && <span className="text-xs text-slate-500">אין דבוקות</span>}
-              </div>
+              groups.length > 0 ? (
+                <SegmentedControl
+                  className="mt-2"
+                  value={audienceId}
+                  onChange={setAudienceId}
+                  options={groups.map(g => ({ value: g.id, label: g.name }))}
+                />
+              ) : (
+                <span className="text-xs text-slate-500 mt-2 block" dir="rtl">אין דבוקות</span>
+              )
             )}
             {audienceType === 'athlete' && (
-              <select value={audienceId} onChange={e => setAudienceId(e.target.value)} className={cn(inputCls, 'mt-2')} dir="rtl">
-                <option value="">בחרו רץ…</option>
-                {athletes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              <button
+                type="button"
+                onClick={() => setAthletePickerOpen(true)}
+                className={cn(inputCls, 'mt-2 flex items-center justify-between text-start')}
+                dir="rtl"
+              >
+                <span className={selectedAthleteName ? 'text-white' : 'text-slate-500'}>
+                  {selectedAthleteName || 'בחרו רץ…'}
+                </span>
+              </button>
             )}
           </div>
 
           {/* Schedule */}
           <div>
-            <label className="text-xs font-semibold text-slate-400">תזמון / Schedule</label>
+            <label className="text-xs font-semibold text-slate-400">תזמון</label>
             <SegmentedControl
               className="mt-1"
               value={scheduleType}
               onChange={setScheduleType}
               options={[
-                { value: 'now', label: 'עכשיו / Now' },
-                { value: 'once_at', label: 'בזמן מסוים / At time' },
-                { value: 'recurring', label: 'חוזר / Recurring' },
+                { value: 'now', label: 'עכשיו' },
+                { value: 'once_at', label: 'בזמן מסוים' },
+                { value: 'recurring', label: 'חוזר' },
               ]}
             />
           </div>
@@ -285,69 +349,54 @@ export function NotificationCenter() {
           )}
           {scheduleType === 'recurring' && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">כל / every</span>
+              <span className="text-xs text-slate-400 shrink-0">כל</span>
               <input type="number" min={1} value={recurInterval} onChange={e => setRecurInterval(Number(e.target.value))} className="w-20 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white" />
-              <select value={recurUnit} onChange={e => setRecurUnit(e.target.value as any)} className={inputCls}>
-                <option value="day">ימים / days</option>
-                <option value="week">שבועות / weeks</option>
-              </select>
+              <SegmentedControl<'day' | 'week'>
+                className="flex-1"
+                value={recurUnit}
+                onChange={setRecurUnit}
+                options={[
+                  { value: 'day', label: 'ימים' },
+                  { value: 'week', label: 'שבועות' },
+                ]}
+              />
             </div>
           )}
 
           {msg && <p className="text-sm text-primary-600">{msg}</p>}
 
           <button onClick={submit} disabled={sending}
-            className="w-full inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg transition">
+            className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-lg transition">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            {scheduleType === 'now' ? 'שליחה עכשיו / Send now' : 'תזמון / Schedule'}
+            {scheduleType === 'now' ? 'שליחה עכשיו' : 'תזמון'}
           </button>
         </div>
-      </div>
+      </Sheet>
 
-      {/* List */}
-      <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-5">
-        <h3 className="font-bold text-white mb-4">התראות / Notifications</h3>
-        {loading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-slate-500" /></div>
-        ) : list.length === 0 ? (
-          <p className="text-sm text-slate-500 py-6 text-center">אין התראות עדיין</p>
-        ) : (
-          <div className="space-y-2 max-h-[520px] overflow-y-auto scrollbar-thin">
-            {list.map(n => (
-              <div key={n.id} className="bg-slate-900/40 rounded-xl border border-slate-700/30 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white truncate" dir="auto">{n.title_he}</p>
-                    <p className="text-xs text-slate-400 truncate" dir="auto">{n.body_he}</p>
-                    <div className="flex items-center gap-2 mt-1.5 text-3xs text-slate-500">
-                      {n.status === 'sent' ? <CheckCircle className="w-3 h-3 text-green-400" />
-                        : n.schedule_type === 'recurring' ? <Repeat className="w-3 h-3 text-primary-600" />
-                        : <Clock className="w-3 h-3 text-amber-400" />}
-                      <span>
-                        {n.status === 'sent' ? `נשלח (${n.sent_count})`
-                          : n.status === 'cancelled' ? 'בוטל'
-                          : n.schedule_type === 'recurring' ? `כל ${n.recur_interval} ${n.recur_unit === 'week' ? 'שבועות' : 'ימים'}`
-                          : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן'}
-                      </span>
-                      <span>· {n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם'}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {n.status === 'scheduled' && (
-                      <button onClick={() => cancel(n.id)} title="ביטול" className="text-slate-500 hover:text-amber-400 p-1">
-                        <Clock className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    <button onClick={() => remove(n.id)} title="מחיקה" className="text-slate-500 hover:text-red-400 p-1">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Athlete picker — a searchable bottom sheet, replacing the raw
+          native <select> dropdown. */}
+      <Sheet open={athletePickerOpen} onOpenChange={(o) => { setAthletePickerOpen(o); if (!o) setAthleteSearch(''); }} title="בחרו רץ">
+        <input
+          value={athleteSearch}
+          onChange={e => setAthleteSearch(e.target.value)}
+          placeholder="חיפוש…"
+          dir="rtl"
+          className={cn(inputCls, 'mb-3')}
+        />
+        <div className="rounded-2xl bg-slate-900/40 overflow-hidden divide-y divide-slate-700/50 max-h-[50vh] overflow-y-auto">
+          {filteredAthletes.map(a => (
+            <InsetRow
+              key={a.id}
+              label={a.name}
+              onClick={() => { setAudienceId(a.id); setAthletePickerOpen(false); setAthleteSearch(''); }}
+              trailing={a.id === audienceId ? <CheckCircle2 className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+            />
+          ))}
+          {filteredAthletes.length === 0 && (
+            <p className="px-4 py-6 text-center text-sm text-slate-500" dir="rtl">אין תוצאות</p>
+          )}
+        </div>
+      </Sheet>
     </div>
   );
 }

@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Users, Trophy, Edit3, ChevronDown, ChevronUp, Medal, Watch, Flame } from 'lucide-react';
+import { Users, Trophy, Edit3, ChevronDown, ChevronUp, Medal, Watch, Flame, User } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
-import { Spinner, SegmentedControl, Sheet, Button } from '@/components/ui';
+import {
+  SegmentedControl, Sheet, Button, Card, EmptyState,
+  Skeleton, SkeletonCard, SkeletonList, InsetSection, InsetRow,
+} from '@/components/ui';
 
 interface Athlete {
   id: string;
@@ -115,8 +118,15 @@ export default function GroupsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Spinner size={48} />
+      <div className="space-y-6">
+        <div>
+          <Skeleton className="h-7 w-40 mb-2" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <SkeletonCard /><SkeletonCard /><SkeletonCard />
+        </div>
+        <SkeletonList count={3} />
       </div>
     );
   }
@@ -125,7 +135,7 @@ export default function GroupsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">{t('title')}</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">{t('title')}</h1>
         <p className="text-slate-400 mt-1">
           {totalAthletes} {t('athletesAcross')} {groups.length} {t('groups')}
         </p>
@@ -136,30 +146,33 @@ export default function GroupsPage() {
         {groups.map((group, idx) => {
           const colors = getGroupColors(idx);
           return (
-            <div
+            <button
               key={group.id}
-              className={cn(
-                "rounded-xl p-4 border cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]",
-                colors.bg, colors.border
-              )}
+              type="button"
               onClick={() => setExpandedGroup(expandedGroup === group.id ? null : group.id)}
+              className="text-start w-full"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className={cn("text-lg font-bold", colors.text)}>{group.name}</span>
-                <span className={cn("text-xs px-2 py-1 rounded-full font-medium", colors.badge, colors.text)}>
-                  {group.athleteCount} {t('runners')}
-                </span>
-              </div>
-              {group.marathonGoal && (
-                <div className="flex items-center gap-2 text-sm text-slate-300">
-                  <Trophy className="h-4 w-4 text-yellow-400" />
-                  <span className="font-mono">{group.marathonGoal}</span>
+              <Card
+                variant="muted"
+                className={cn('transition-all hover:scale-[1.02] active:scale-[0.98]', colors.bg, colors.border)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className={cn("text-lg font-bold", colors.text)}>{group.name}</span>
+                  <span className={cn("text-xs px-2 py-1 rounded-full font-medium", colors.badge, colors.text)}>
+                    {group.athleteCount} {t('runners')}
+                  </span>
                 </div>
-              )}
-              <div className="text-xs text-slate-500 mt-1">
-                {t('paceOffset')}: {group.paceOffsetSeconds > 0 ? '+' : ''}{group.paceOffsetSeconds}s/km
-              </div>
-            </div>
+                {group.marathonGoal && (
+                  <div className="flex items-center gap-2 text-sm text-slate-300">
+                    <Trophy className="h-4 w-4 text-yellow-400" />
+                    <span className="font-mono">{group.marathonGoal}</span>
+                  </div>
+                )}
+                <div className="text-xs text-slate-500 mt-1">
+                  {t('paceOffset')}: {group.paceOffsetSeconds > 0 ? '+' : ''}{group.paceOffsetSeconds}s/km
+                </div>
+              </Card>
+            </button>
           );
         })}
       </div>
@@ -213,49 +226,45 @@ export default function GroupsPage() {
               {isExpanded && (
                 <div className="px-4 sm:px-5 pb-4 sm:pb-5 border-t border-slate-700/50">
                   {group.athletes.length > 0 ? (
-                    <div className="mt-4 space-y-2">
+                    <InsetSection className="mt-4 mb-0">
                       {group.athletes.map((athlete) => (
-                        <div
+                        <InsetRow
                           key={athlete.id}
-                          className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-900/50 hover:bg-slate-900/80 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold", colors.badge, colors.text)}>
-                              {athlete.name.charAt(0).toUpperCase()}
+                          icon={User}
+                          iconBg={colors.badge}
+                          label={athlete.name}
+                          sublabel={athlete.email}
+                          trailing={
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-medium",
+                                athlete.hasGarmin
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : 'bg-slate-600/30 text-slate-500'
+                              )}>
+                                <Watch className="h-3 w-3" />
+                                {athlete.hasGarmin ? t('garminConnected') : t('notConnected')}
+                              </span>
+                              <span className={cn(
+                                "text-xs px-2 py-0.5 rounded-full",
+                                athlete.status === 'active'
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : 'bg-slate-600/30 text-slate-400'
+                              )}>
+                                {athlete.status}
+                              </span>
                             </div>
-                            <div>
-                              <p className="text-sm font-medium">{athlete.name}</p>
-                              <p className="text-xs text-slate-500">{athlete.email}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={cn(
-                              "flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-medium",
-                              athlete.hasGarmin
-                                ? 'bg-green-500/20 text-green-400'
-                                : 'bg-slate-600/30 text-slate-500'
-                            )}>
-                              <Watch className="h-3 w-3" />
-                              {athlete.hasGarmin ? 'Garmin' : 'Not connected'}
-                            </span>
-                            <span className={cn(
-                              "text-xs px-2 py-0.5 rounded-full",
-                              athlete.status === 'active'
-                                ? 'bg-green-500/20 text-green-400'
-                                : 'bg-slate-600/30 text-slate-400'
-                            )}>
-                              {athlete.status}
-                            </span>
-                          </div>
-                        </div>
+                          }
+                        />
                       ))}
-                    </div>
+                    </InsetSection>
                   ) : (
-                    <div className="mt-4 text-center py-8">
-                      <Users className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-                      <p className="text-sm text-slate-500">{t('noAthletesYet')}</p>
-                      <p className="text-xs text-slate-400 mt-1">{t('assignAthletes')}</p>
-                    </div>
+                    <EmptyState
+                      icon={Users}
+                      title={t('noAthletesYet')}
+                      description={t('assignAthletes')}
+                      className="mt-4 py-8"
+                    />
                   )}
                 </div>
               )}
@@ -298,7 +307,7 @@ export default function GroupsPage() {
               className="self-start w-fit"
             />
 
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <Card variant="solid" className="!p-0 overflow-hidden">
               {(() => {
                 const activeList = metric === 'streak' ? leaderboardByStreak
                   : metric === 'runs' ? leaderboardByRuns
@@ -351,11 +360,11 @@ export default function GroupsPage() {
                   <div className="text-center py-10">
                     <Trophy className="h-8 w-8 text-slate-600 mx-auto mb-2" />
                     <p className="text-sm text-slate-500">{metric === 'streak' ? t('noStreaks') : t('noActivityData')}</p>
-                    <p className="text-xs text-slate-400 mt-1">Leaderboard will populate once activities sync from Garmin</p>
+                    <p className="text-xs text-slate-400 mt-1">{t('leaderboardWillPopulate')}</p>
                   </div>
                 );
               })()}
-            </div>
+            </Card>
           </div>
         ) : (
           <div className="space-y-3">
@@ -364,7 +373,7 @@ export default function GroupsPage() {
               const entries = groupLeaderboards[group.id] || [];
               const groupTotal = entries.reduce((sum, e) => sum + e.distanceKm, 0);
               return (
-                <div key={group.id} className={cn("rounded-xl border overflow-hidden", colors.border)}>
+                <div key={group.id} className={cn("rounded-2xl border overflow-hidden", colors.border)}>
                   <div className={cn("px-4 py-3 flex items-center justify-between", colors.bg)}>
                     <div className="flex items-center gap-2">
                       <div className={cn("w-2.5 h-2.5 rounded-full", colors.dot)} />
@@ -402,11 +411,7 @@ export default function GroupsPage() {
       </div>
 
       {groups.length === 0 && (
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 text-center py-16">
-          <Users className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold mb-2">{t('noGroups')}</h3>
-          <p className="text-slate-400 text-sm">{t('groupsWillAppear')}</p>
-        </div>
+        <EmptyState icon={Users} title={t('noGroups')} description={t('groupsWillAppear')} className="py-16" />
       )}
 
       {/* Edit Modal */}
@@ -470,7 +475,7 @@ function EditGroupModal({ group, onSave, onClose }: {
             className="w-full min-h-[44px] bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-center font-mono text-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           <div className="mt-2 text-xs text-slate-500">
-            Base 4:00/km → This group: {formatPace(240 + paceOffsetSeconds)}/km
+            {t('paceOffsetPreview', { pace: `${formatPace(240 + paceOffsetSeconds)}/km` })}
           </div>
         </div>
 

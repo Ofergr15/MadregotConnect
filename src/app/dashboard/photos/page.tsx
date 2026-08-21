@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Image, Upload, Search, Eye, Loader2, CheckCircle2, AlertCircle, X, Tag, ChevronDown, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Image, Upload, Search, Eye, Loader2, CheckCircle2, AlertCircle, X, Tag, ChevronDown, ChevronRight, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getSupabase } from '@/lib/supabase/client';
-import { SegmentedControl } from '@/components/ui';
+import { SegmentedControl, Sheet, InsetSection, InsetRow, EmptyState, SkeletonList } from '@/components/ui';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ interface Athlete {
 const STAFF_ROLES = ['admin', 'coach', 'academy_coach'];
 
 export default function PhotosPage() {
+  const t = useTranslations('photos');
   const [userEmail, setUserEmail] = useState('');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [athleteId, setAthleteId] = useState<string | null>(null);
@@ -78,27 +80,27 @@ export default function PhotosPage() {
   if (!roleLoaded) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-primary-400" />
       </div>
     );
   }
 
   const staffTabs = [
-    { key: 'import' as Tab, label: 'Import', icon: Upload },
-    { key: 'unknown' as Tab, label: 'Unknown Faces', icon: Search },
-    { key: 'browse' as Tab, label: 'Browse', icon: Eye },
-    { key: 'my' as Tab, label: 'My Photos', icon: Image },
+    { key: 'import' as Tab, label: t('import'), icon: Upload },
+    { key: 'unknown' as Tab, label: t('unknownFaces'), icon: Search },
+    { key: 'browse' as Tab, label: t('browse'), icon: Eye },
+    { key: 'my' as Tab, label: t('myPhotos'), icon: Image },
   ];
   const athleteTabs = [
-    { key: 'my' as Tab, label: 'My Photos', icon: Image },
+    { key: 'my' as Tab, label: t('myPhotos'), icon: Image },
   ];
   const tabs = isStaff ? staffTabs : athleteTabs;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
       <div className="flex items-center gap-3 mb-6">
-        <Image className="w-6 h-6 text-indigo-400" />
-        <h1 className="text-2xl font-bold text-white">Photos</h1>
+        <Image className="w-6 h-6 text-primary-400" />
+        <h1 className="text-2xl font-bold text-white">{t('title')}</h1>
       </div>
 
       {/* Tab bar */}
@@ -135,6 +137,7 @@ interface FolderPhoto {
 }
 
 function ImportTab() {
+  const t = useTranslations('photos');
   const [folders, setFolders] = useState<RunFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [states, setStates] = useState<Record<string, FolderState>>({});
@@ -143,6 +146,7 @@ function ImportTab() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [folderPhotos, setFolderPhotos] = useState<Record<string, FolderPhoto[]>>({});
   const [photosLoading, setPhotosLoading] = useState<Record<string, boolean>>({});
+  const [viewerPhoto, setViewerPhoto] = useState<FolderPhoto | null>(null);
 
   const loadFolders = () => {
     setLoading(true);
@@ -180,7 +184,7 @@ function ImportTab() {
         body: JSON.stringify({ folderId: folder.id, folderName: folder.name }),
       });
       const importData = await importRes.json();
-      if (!importRes.ok) throw new Error(importData.error || 'Import failed');
+      if (!importRes.ok) throw new Error(importData.error || t('importFailedFallback'));
 
       const { photoIds } = importData as { photoIds: string[] };
 
@@ -229,25 +233,21 @@ function ImportTab() {
   const anyRunning = Object.values(states).some(s => s === 'importing' || s === 'processing' || s === 'grouping');
 
   if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-slate-400 py-8">
-        <Loader2 className="w-4 h-4 animate-spin" /> Loading runs from Drive...
-      </div>
-    );
+    return <SkeletonList count={3} />;
   }
 
-  if (folders.length === 0) return <p className="text-slate-400">No run folders found in Drive.</p>;
+  if (folders.length === 0) return <EmptyState icon={Upload} title={t('noRunFolders')} />;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-400">
-          {pendingCount > 0 ? `${pendingCount} folder${pendingCount !== 1 ? 's' : ''} not yet fully imported` : 'All folders imported'}
+          {pendingCount > 0 ? t('foldersNotImported', { count: pendingCount }) : t('allFoldersImported')}
         </p>
         {pendingCount > 0 && (
           <button onClick={importAll} disabled={anyRunning}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors">
-            <Upload className="w-4 h-4" /> Import All
+            className="flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors">
+            <Upload className="w-4 h-4" /> {t('importAll')}
           </button>
         )}
       </div>
@@ -274,7 +274,7 @@ function ImportTab() {
                   {isImported && !hasPending ? (
                     <CheckCircle2 className="w-5 h-5 text-green-400" />
                   ) : isRunning ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                    <Loader2 className="w-5 h-5 animate-spin text-primary-400" />
                   ) : (
                     <div className="w-4 h-4 rounded-full border-2 border-white/20" />
                   )}
@@ -295,14 +295,14 @@ function ImportTab() {
                   {state === 'processing' && prog && (
                     <div className="mt-1.5 space-y-0.5">
                       <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 transition-all duration-300"
+                        <div className="h-full bg-primary-500 transition-all duration-300"
                           style={{ width: `${(prog.done / prog.total) * 100}%` }} />
                       </div>
-                      <p className="text-xs text-slate-400">{prog.done}/{prog.total} photos processed</p>
+                      <p className="text-xs text-slate-400">{t('photosProcessedProgress', { done: prog.done, total: prog.total })}</p>
                     </div>
                   )}
                   {state === 'grouping' && (
-                    <p className="text-xs text-indigo-300 mt-0.5">Grouping faces...</p>
+                    <p className="text-xs text-primary-300 mt-0.5">{t('groupingFaces')}</p>
                   )}
                   {state === 'error' && errors[folder.id] && (
                     <p className="text-xs text-red-400 mt-0.5 flex items-center gap-1">
@@ -314,20 +314,20 @@ function ImportTab() {
                 <div className="flex-none flex items-center gap-2">
                   {hasPending && !isRunning && (
                     <button onClick={() => importFolder(folder)} disabled={anyRunning}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 disabled:opacity-40 text-white text-xs font-medium transition-colors">
-                      <Upload className="w-3 h-3" /> Process {folder.unprocessedCount}
+                      className="flex items-center gap-1.5 min-h-[44px] px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 disabled:opacity-40 text-white text-xs font-medium transition-colors">
+                      <Upload className="w-3 h-3" /> {t('processCount', { count: folder.unprocessedCount ?? 0 })}
                     </button>
                   )}
                   {!isImported && !isRunning && (
                     <button onClick={() => importFolder(folder)} disabled={anyRunning}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 disabled:opacity-40 text-white text-xs font-medium transition-colors">
-                      <Upload className="w-3 h-3" /> Import
+                      className="flex items-center gap-1.5 min-h-[44px] px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 disabled:opacity-40 text-white text-xs font-medium transition-colors">
+                      <Upload className="w-3 h-3" /> {t('import')}
                     </button>
                   )}
                   {/* Expand toggle for imported folders */}
                   {(isImported || photos.length > 0) && (
                     <button onClick={() => toggleExpand(folder.id, isImported)}
-                      className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </button>
                   )}
@@ -339,15 +339,15 @@ function ImportTab() {
                 <div className="border-t border-white/10 px-4 pb-4 pt-3">
                   {photosLoading[folder.id] ? (
                     <div className="flex items-center gap-2 text-slate-400 text-xs py-2">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Loading photos...
+                      <Loader2 className="w-3 h-3 animate-spin" /> {t('loadingPhotosShort')}
                     </div>
                   ) : photos.length === 0 ? (
-                    <p className="text-xs text-slate-400">No photos imported yet.</p>
+                    <p className="text-xs text-slate-400">{t('noPhotosImportedYet')}</p>
                   ) : (
                     <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
                       {photos.map(p => (
-                        <a key={p.id} href={p.drive_url} target="_blank" rel="noopener noreferrer"
-                          className="relative group aspect-square rounded overflow-hidden bg-white/5 border border-white/10 hover:border-indigo-500/40 transition-colors">
+                        <button key={p.id} type="button" onClick={() => setViewerPhoto(p)}
+                          className="relative group aspect-square rounded overflow-hidden bg-white/5 border border-white/10 hover:border-primary-500/40 transition-colors">
                           {p.thumbnail_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={p.thumbnail_url} alt={p.filename} className="w-full h-full object-cover"
@@ -359,7 +359,7 @@ function ImportTab() {
                           )}
                           {/* Faces badge */}
                           {p.processed_at && (
-                            <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[9px] px-1 rounded leading-tight">
+                            <span className="absolute bottom-0.5 end-0.5 bg-black/70 text-white text-[9px] px-1 rounded leading-tight">
                               {p.faces_detected ?? 0}
                             </span>
                           )}
@@ -368,7 +368,7 @@ function ImportTab() {
                               <Loader2 className="w-3 h-3 text-white/60 animate-spin" />
                             </span>
                           )}
-                        </a>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -378,6 +378,31 @@ function ImportTab() {
           );
         })}
       </div>
+
+      {/* In-app photo viewer — keeps the coach in-app instead of bouncing to an
+          external Drive tab; the raw Drive link is offered as a secondary action. */}
+      <Sheet open={!!viewerPhoto} onOpenChange={(o) => { if (!o) setViewerPhoto(null); }} bodyClassName="px-0 pb-0">
+        {viewerPhoto && (
+          <>
+            <div className="bg-black flex items-center justify-center">
+              {viewerPhoto.thumbnail_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={viewerPhoto.thumbnail_url} alt={viewerPhoto.filename} className="w-full max-h-[70vh] object-contain" />
+              ) : (
+                <div className="w-full aspect-square flex items-center justify-center">
+                  <Image className="w-10 h-10 text-slate-600" />
+                </div>
+              )}
+            </div>
+            <div className="p-4">
+              <a href={viewerPhoto.drive_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 min-h-[44px] text-sm text-primary-400 hover:text-primary-300">
+                {t('openInDrive')}
+              </a>
+            </div>
+          </>
+        )}
+      </Sheet>
     </div>
   );
 }
@@ -392,6 +417,8 @@ interface FaceCluster {
 }
 
 function UnknownFacesTab() {
+  const t = useTranslations('photos');
+  const tc = useTranslations('common');
   const [clusters, setClusters] = useState<FaceCluster[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
@@ -401,6 +428,8 @@ function UnknownFacesTab() {
   const [labeling, setLabeling] = useState<string | null>(null);
   const [nameInputs, setNameInputs] = useState<Record<string, string>>({});
   const [athleteSearch, setAthleteSearch] = useState<Record<string, string>>({});
+  // Sheet-based "Tag as athlete" picker — replaces the raw <select>.
+  const [taggingClusterId, setTaggingClusterId] = useState<string | null>(null);
 
   const loadClusters = () => {
     setLoading(true);
@@ -443,15 +472,10 @@ function UnknownFacesTab() {
     loadClusters();
   };
 
-  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>;
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary-400" /></div>;
 
   if (clusters.length === 0) {
-    return (
-      <div className="text-center py-16 text-slate-400">
-        <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-green-400/60" />
-        <p>No unidentified faces — everyone is tagged!</p>
-      </div>
-    );
+    return <EmptyState icon={CheckCircle2} title={t('unknownFacesEmpty')} className="py-16" />;
   }
 
   const expandedCluster = clusters.find(c => c.clusterId === expanded);
@@ -460,24 +484,24 @@ function UnknownFacesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-slate-400 text-sm">
-          {clusters.length} unknown person{clusters.length !== 1 ? 's' : ''}
-          {mergeSource && <span className="ml-2 text-indigo-400">— pick a second person to merge with</span>}
+          {t('unknownPersonCount', { count: clusters.length })}
+          {mergeSource && <span className="ms-2 text-primary-400">{t('pickSecondPerson')}</span>}
         </p>
         {mergeSource && (
-          <button onClick={() => setMergeSource(null)} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded border border-white/10">
-            Cancel merge
+          <button onClick={() => setMergeSource(null)} className="min-h-[44px] text-xs text-slate-400 hover:text-white px-3 rounded border border-white/10">
+            {t('cancelMerge')}
           </button>
         )}
       </div>
 
       {/* Expanded cluster detail */}
       {expandedCluster && (
-        <div className="bg-white/5 border border-indigo-500/30 rounded-xl p-4 space-y-3">
+        <div className="bg-white/5 border border-primary-500/30 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-white">
-              {expandedCluster.faces.length} photo{expandedCluster.faces.length !== 1 ? 's' : ''} · {expandedCluster.runDates.join(', ')}
+              {t('photoCountDates', { count: expandedCluster.faces.length, dates: expandedCluster.runDates.join(', ') })}
             </p>
-            <button onClick={() => setExpanded(null)} className="text-slate-400 hover:text-white">
+            <button onClick={() => setExpanded(null)} className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -493,7 +517,7 @@ function UnknownFacesTab() {
                   </div>
                 )}
                 {f.run_date && (
-                  <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[10px] px-1 rounded">
+                  <span className="absolute bottom-1 start-1 bg-black/70 text-white text-[10px] px-1 rounded">
                     {f.run_date.slice(5)}
                   </span>
                 )}
@@ -509,17 +533,13 @@ function UnknownFacesTab() {
           const primary = cluster.faces[0];
           const extra = cluster.faces.length - 1;
           const isMergeSource = mergeSource === cluster.clusterId;
-          const filteredAthletes = athletes.filter(a => {
-            const q = (athleteSearch[cluster.clusterId] || '').toLowerCase();
-            return !q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q);
-          });
 
           return (
             <div
               key={cluster.clusterId}
               className={cn(
                 'bg-white/5 rounded-xl border overflow-hidden transition-colors',
-                isMergeSource ? 'border-indigo-500' : mergeSource ? 'border-white/10 hover:border-indigo-400 cursor-pointer' : 'border-white/10'
+                isMergeSource ? 'border-primary-500' : mergeSource ? 'border-white/10 hover:border-primary-400 cursor-pointer' : 'border-white/10'
               )}
               onClick={mergeSource && !isMergeSource ? () => merge(cluster.clusterId) : undefined}
             >
@@ -534,11 +554,11 @@ function UnknownFacesTab() {
                   </div>
                 )}
                 {extra > 0 && (
-                  <span className="absolute top-1.5 right-1.5 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
+                  <span className="absolute top-1.5 end-1.5 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
                     +{extra}
                   </span>
                 )}
-                <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                <span className="absolute bottom-1 start-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
                   {cluster.runDates.slice(-1)[0]?.slice(5) ?? ''}
                 </span>
               </div>
@@ -546,13 +566,13 @@ function UnknownFacesTab() {
               {/* Tag controls */}
               <div className="p-2 space-y-1.5">
                 {cluster.personName ? (
-                  <p className="text-xs text-indigo-300 font-medium truncate">{cluster.personName}</p>
+                  <p className="text-xs text-primary-300 font-medium truncate">{cluster.personName}</p>
                 ) : null}
 
                 {/* Name input (for non-registered person) */}
                 <input
                   type="text"
-                  placeholder="Name (if not registered)"
+                  placeholder={t('namePlaceholder')}
                   value={nameInputs[cluster.clusterId] || ''}
                   onChange={e => setNameInputs(n => ({ ...n, [cluster.clusterId]: e.target.value }))}
                   onKeyDown={e => {
@@ -567,46 +587,70 @@ function UnknownFacesTab() {
                 {/* Athlete search + select */}
                 <input
                   type="text"
-                  placeholder="Search athlete..."
+                  placeholder={t('searchAthletePlaceholder')}
                   value={athleteSearch[cluster.clusterId] || ''}
                   onChange={e => setAthleteSearch(s => ({ ...s, [cluster.clusterId]: e.target.value }))}
                   className="w-full bg-white/10 border border-white/20 rounded text-xs px-2 py-1 text-white placeholder-slate-500"
                   onClick={e => e.stopPropagation()}
                 />
-                <select
-                  onChange={e => e.target.value && label(cluster.clusterId, e.target.value)}
-                  value=""
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setTaggingClusterId(cluster.clusterId); }}
                   disabled={labeling === cluster.clusterId}
-                  className="w-full bg-white/10 border border-white/20 rounded text-xs px-2 py-1 text-white"
-                  onClick={e => e.stopPropagation()}
+                  className="w-full flex items-center justify-between gap-1 min-h-[36px] bg-white/10 border border-white/20 rounded text-xs px-2 py-1 text-white disabled:opacity-50"
                 >
-                  <option value="">Tag as athlete...</option>
-                  {filteredAthletes.slice(0, 20).map(a => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
+                  <span className="truncate text-slate-300">{t('labelAs')}</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                </button>
 
                 {/* Merge button */}
                 <button
                   onClick={e => { e.stopPropagation(); setMergeSource(isMergeSource ? null : cluster.clusterId); }}
                   className={cn(
-                    'w-full text-xs py-1 rounded transition-colors',
+                    'w-full min-h-[44px] flex items-center justify-center text-xs rounded transition-colors',
                     isMergeSource
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
                   )}
                 >
-                  {isMergeSource ? 'Merging — pick target' : 'Same person?'}
+                  {isMergeSource ? t('mergingPickTarget') : t('samePerson')}
                 </button>
 
                 {labeling === cluster.clusterId && (
-                  <div className="flex justify-center"><Loader2 className="w-3 h-3 animate-spin text-indigo-400" /></div>
+                  <div className="flex justify-center"><Loader2 className="w-3 h-3 animate-spin text-primary-400" /></div>
                 )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Tag-as-athlete picker — replaces the raw <select> */}
+      <Sheet
+        open={!!taggingClusterId}
+        onOpenChange={(o) => { if (!o) setTaggingClusterId(null); }}
+        title={t('labelAs')}
+      >
+        {taggingClusterId && (() => {
+          const q = (athleteSearch[taggingClusterId] || '').toLowerCase();
+          const options = athletes.filter(a => !q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q));
+          return (
+            <InsetSection>
+              {options.slice(0, 50).map(a => (
+                <InsetRow
+                  key={a.id}
+                  label={a.name}
+                  sublabel={a.email}
+                  onClick={() => { const id = taggingClusterId; setTaggingClusterId(null); label(id, a.id); }}
+                />
+              ))}
+              {options.length === 0 && (
+                <div className="px-4 py-6 text-center text-xs text-slate-500">{tc('noResults')}</div>
+              )}
+            </InsetSection>
+          );
+        })()}
+      </Sheet>
     </div>
   );
 }
@@ -614,10 +658,13 @@ function UnknownFacesTab() {
 // ─── Browse Tab ───────────────────────────────────────────────────────────────
 
 function BrowseTab() {
+  const t = useTranslations('photos');
+  const tc = useTranslations('common');
   const [runDate, setRunDate] = useState('');
   const [photos, setPhotos] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(false);
   const [importedDates, setImportedDates] = useState<string[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     authedFetch('/api/photos?importedDates=1')
@@ -642,23 +689,37 @@ function BrowseTab() {
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm text-slate-300 mb-2">Select imported run</label>
-        <select
-          value={runDate}
-          onChange={e => load(e.target.value)}
-          className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm min-w-[200px]"
+        <label className="block text-sm text-slate-300 mb-2">{t('selectDate')}</label>
+        <button
+          type="button"
+          onClick={() => setShowDatePicker(true)}
+          className="w-full min-h-[44px] flex items-center justify-between gap-2 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm min-w-[200px]"
         >
-          <option value="">Choose a run date...</option>
-          {importedDates.map(d => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
+          <span className={runDate ? '' : 'text-slate-400'}>{runDate || t('chooseRunDate')}</span>
+          <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+        </button>
       </div>
 
-      {loading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>}
+      <Sheet open={showDatePicker} onOpenChange={setShowDatePicker} title={t('selectDate')}>
+        <InsetSection>
+          {importedDates.map(d => (
+            <InsetRow
+              key={d}
+              label={d}
+              onClick={() => { setShowDatePicker(false); load(d); }}
+              trailing={runDate === d ? <Check className="h-4 w-4 text-primary-400" /> : undefined}
+            />
+          ))}
+          {importedDates.length === 0 && (
+            <div className="px-4 py-6 text-center text-xs text-slate-500">{tc('noResults')}</div>
+          )}
+        </InsetSection>
+      </Sheet>
+
+      {loading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary-400" /></div>}
 
       {!loading && runDate && photos.length === 0 && (
-        <p className="text-slate-400">No photos imported for this date.</p>
+        <p className="text-slate-400">{t('noPhotosForDate')}</p>
       )}
 
       {!loading && photos.length > 0 && (
@@ -671,6 +732,7 @@ function BrowseTab() {
 // ─── My Photos Tab ────────────────────────────────────────────────────────────
 
 function MyPhotosTab({ athleteId }: { athleteId: string | null }) {
+  const t = useTranslations('photos');
   const [faces, setFaces] = useState<DetectedFace[]>([]);
   const [loading, setLoading] = useState(false);
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
@@ -678,6 +740,7 @@ function MyPhotosTab({ athleteId }: { athleteId: string | null }) {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
   const [uploadError, setUploadError] = useState('');
+  const [viewerFace, setViewerFace] = useState<DetectedFace | null>(null);
 
   const loadMyPhotos = async (id: string) => {
     setLoading(true);
@@ -720,9 +783,9 @@ function MyPhotosTab({ athleteId }: { athleteId: string | null }) {
       const res = await authedFetch('/api/photos/enroll-selfie', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) {
-        setUploadError(data.error || 'Upload failed');
+        setUploadError(data.error || t('uploadFailed'));
       } else {
-        setUploadMsg(`Selfie enrolled! Found ${data.photosFound ?? 0} photo${data.photosFound !== 1 ? 's' : ''} of you.`);
+        setUploadMsg(t('selfieEnrolledMsg', { count: data.photosFound ?? 0 }));
         if (athleteId) {
           loadMyPhotos(athleteId);
           loadSelfie(athleteId);
@@ -739,16 +802,16 @@ function MyPhotosTab({ athleteId }: { athleteId: string | null }) {
     <div className="space-y-6">
       {/* Selfie section */}
       <div className="bg-white/5 rounded-xl border border-white/10 p-5">
-        <h2 className="text-base font-semibold text-white mb-1">Your Reference Photo</h2>
+        <h2 className="text-base font-semibold text-white mb-1">{t('selfieTitle')}</h2>
         <p className="text-sm text-slate-400 mb-4">
-          Upload a clear front-facing photo. We&apos;ll use it to find you in run photos automatically.
+          {t('selfieHint')}
         </p>
         <div className="flex items-start gap-4">
           {selfieUrl ? (
             <img
               src={selfieUrl}
-              alt="Your selfie"
-              className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500/50"
+              alt={t('selfieTitle')}
+              className="w-20 h-20 rounded-full object-cover border-2 border-primary-500/50"
             />
           ) : (
             <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center border-2 border-dashed border-white/20">
@@ -766,10 +829,10 @@ function MyPhotosTab({ athleteId }: { athleteId: string | null }) {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
             >
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {uploading ? 'Uploading...' : selfieUrl ? 'Replace selfie' : 'Upload selfie'}
+              {uploading ? t('selfieUploading') : selfieUrl ? t('selfieReplace') : t('selfieUpload')}
             </button>
             {uploadMsg && (
               <p className="text-green-400 text-sm flex items-center gap-1.5">
@@ -788,30 +851,25 @@ function MyPhotosTab({ athleteId }: { athleteId: string | null }) {
       {/* My photos grid */}
       <div>
         <h2 className="text-base font-semibold text-white mb-3">
-          My Photos {faces.length > 0 && <span className="text-slate-400 font-normal text-sm">({faces.length})</span>}
+          {t('myPhotosTitle')} {faces.length > 0 && <span className="text-slate-400 font-normal text-sm">({faces.length})</span>}
         </h2>
         {loading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>
+          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary-400" /></div>
         ) : faces.length === 0 ? (
-          <div className="text-center py-10 text-slate-400 bg-white/3 rounded-xl border border-white/10">
-            <Image className="w-10 h-10 mx-auto mb-3 opacity-40" />
-            <p>No photos of you yet.</p>
-            <p className="text-sm mt-1">Upload a selfie above to find your photos automatically.</p>
-          </div>
+          <EmptyState icon={Image} title={t('myPhotosEmpty')} />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {faces.map(face => (
-              <a
+              <button
                 key={face.id}
-                href={face.run_photos?.drive_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative bg-white/5 rounded-xl overflow-hidden border border-white/10 hover:border-indigo-500/40 transition-colors"
+                type="button"
+                onClick={() => setViewerFace(face)}
+                className="group relative text-start bg-white/5 rounded-xl overflow-hidden border border-white/10 hover:border-primary-500/40 transition-colors"
               >
                 {face.crop_url ? (
                   <img
                     src={face.crop_url}
-                    alt="You in a run photo"
+                    alt={t('youInRunPhotoAlt')}
                     className="w-full aspect-square object-cover"
                   />
                 ) : (
@@ -822,19 +880,46 @@ function MyPhotosTab({ athleteId }: { athleteId: string | null }) {
                 <div className="absolute bottom-0 inset-x-0 bg-black/60 px-2 py-1">
                   <p className="text-xs text-white/80">{face.run_photos?.run_date}</p>
                   {face.confidence && (
-                    <p className="text-xs text-indigo-300">{Math.round(face.confidence)}% match</p>
+                    <p className="text-xs text-primary-300">{t('matchPercent', { percent: Math.round(face.confidence) })}</p>
                   )}
                 </div>
                 {face.source === 'manual' && (
-                  <span className="absolute top-1.5 left-1.5 bg-indigo-600/80 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
-                    <Tag className="w-2.5 h-2.5" /> Tagged
+                  <span className="absolute top-1.5 start-1.5 bg-primary-600/80 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <Tag className="w-2.5 h-2.5" /> {t('tagged')}
                   </span>
                 )}
-              </a>
+              </button>
             ))}
           </div>
         )}
       </div>
+
+      {/* In-app photo viewer — keeps the athlete in-app instead of bouncing to
+          an external Drive tab; the raw Drive link is offered as a secondary action. */}
+      <Sheet open={!!viewerFace} onOpenChange={(o) => { if (!o) setViewerFace(null); }} bodyClassName="px-0 pb-0">
+        {viewerFace && (
+          <>
+            <div className="bg-black flex items-center justify-center">
+              {viewerFace.crop_url ? (
+                <img src={viewerFace.crop_url} alt={t('youInRunPhotoAlt')} className="w-full max-h-[70vh] object-contain" />
+              ) : (
+                <div className="w-full aspect-square flex items-center justify-center">
+                  <Image className="w-10 h-10 text-slate-600" />
+                </div>
+              )}
+            </div>
+            <div className="p-4 space-y-1">
+              <p className="text-sm text-slate-300">{viewerFace.run_photos?.run_date}</p>
+              {viewerFace.run_photos?.drive_url && (
+                <a href={viewerFace.run_photos.drive_url} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 min-h-[44px] text-sm text-primary-400 hover:text-primary-300">
+                  {t('openInDrive')}
+                </a>
+              )}
+            </div>
+          </>
+        )}
+      </Sheet>
     </div>
   );
 }
@@ -857,21 +942,22 @@ interface PhotoItem {
 }
 
 function PhotoGrid({ photos, showTags }: { photos: PhotoItem[]; showTags?: boolean }) {
+  const t = useTranslations('photos');
+  const [viewerPhoto, setViewerPhoto] = useState<PhotoItem | null>(null);
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
       {photos.map(photo => {
         const tags = (photo.detected_faces || []).filter(f => f.athlete_id);
         return (
-          <a
+          <button
             key={photo.id}
-            href={photo.drive_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group relative block bg-white/5 rounded-xl overflow-hidden border border-white/10 hover:border-indigo-500/40 transition-colors"
+            type="button"
+            onClick={() => setViewerPhoto(photo)}
+            className="group relative block text-start bg-white/5 rounded-xl overflow-hidden border border-white/10 hover:border-primary-500/40 transition-colors"
           >
             <div className="aspect-square">
               {photo.thumbnail_url ? (
-                <img src={photo.thumbnail_url} alt="Run photo" className="w-full h-full object-cover" />
+                <img src={photo.thumbnail_url} alt={t('runPhotoAlt')} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-white/5">
                   <Image className="w-8 h-8 text-slate-600" />
@@ -882,18 +968,18 @@ function PhotoGrid({ photos, showTags }: { photos: PhotoItem[]; showTags?: boole
             <div className="absolute bottom-0 inset-x-0 bg-black/60 px-2 py-1.5">
               <p className="text-xs text-white/70">{photo.run_date}</p>
               {photo.processed_at ? (
-                <p className="text-xs text-indigo-300">
-                  {photo.faces_detected ?? 0} face{photo.faces_detected !== 1 ? 's' : ''}
+                <p className="text-xs text-primary-300">
+                  {t('facesCount', { count: photo.faces_detected ?? 0 })}
                 </p>
               ) : (
-                <p className="text-xs text-slate-500">Not processed</p>
+                <p className="text-xs text-slate-500">{t('notProcessed')}</p>
               )}
             </div>
             {/* Tag chips */}
             {showTags && tags.length > 0 && (
-              <div className="absolute top-1.5 left-1.5 flex flex-wrap gap-1">
+              <div className="absolute top-1.5 start-1.5 flex flex-wrap gap-1">
                 {tags.slice(0, 3).map(f => (
-                  <span key={f.id} className="bg-indigo-600/80 text-white text-xs px-1.5 py-0.5 rounded">
+                  <span key={f.id} className="bg-primary-600/80 text-white text-xs px-1.5 py-0.5 rounded">
                     {f.athletes?.name?.split(' ')[0] ?? '?'}
                   </span>
                 ))}
@@ -904,9 +990,33 @@ function PhotoGrid({ photos, showTags }: { photos: PhotoItem[]; showTags?: boole
                 )}
               </div>
             )}
-          </a>
+          </button>
         );
       })}
+
+      {/* In-app photo viewer — replaces the external-link anchor to Drive */}
+      <Sheet open={!!viewerPhoto} onOpenChange={(o) => { if (!o) setViewerPhoto(null); }} bodyClassName="px-0 pb-0">
+        {viewerPhoto && (
+          <>
+            <div className="bg-black flex items-center justify-center">
+              {viewerPhoto.thumbnail_url ? (
+                <img src={viewerPhoto.thumbnail_url} alt={t('runPhotoAlt')} className="w-full max-h-[70vh] object-contain" />
+              ) : (
+                <div className="w-full aspect-square flex items-center justify-center">
+                  <Image className="w-10 h-10 text-slate-600" />
+                </div>
+              )}
+            </div>
+            <div className="p-4 space-y-1">
+              <p className="text-sm text-slate-300">{viewerPhoto.run_date}</p>
+              <a href={viewerPhoto.drive_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 min-h-[44px] text-sm text-primary-400 hover:text-primary-300">
+                {t('openInDrive')}
+              </a>
+            </div>
+          </>
+        )}
+      </Sheet>
     </div>
   );
 }

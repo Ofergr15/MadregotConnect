@@ -2,15 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 import {
-  CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, Plus, Route, Trophy, Calendar as CalendarIcon,
+  CalendarDays, ChevronLeft, ChevronRight, MapPin, Plus, Route, Trophy, Calendar as CalendarIcon,
+  Tent, BookOpen, PartyPopper, Camera, Gift, Dumbbell, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { EVENT_KINDS, type EventKind } from '@/lib/events';
-import { Button, EmptyState, Sheet, SkeletonCard, SegmentedControl } from '@/components/ui';
+import { Button, EmptyState, Sheet, SkeletonCard, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
 
 // Generic events/calendar browser (roadmap Phase 3 — #4 Calendar). A month
 // grid with a colored dot per event kind present that day; tapping a day
@@ -42,21 +44,33 @@ const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const todayIso = () => iso(new Date());
 
-const DOW_SHORT = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
-const MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+// Weekday short labels and the month/year header are derived from the active
+// locale (see dowShort/monthLabel below) rather than a hardcoded Hebrew table,
+// so an English-locale athlete gets an English, LTR calendar instead of a
+// forced-RTL Hebrew one.
 
-// Per-kind color + Hebrew label. Picked to stay distinguishable at dot size
+// Per-kind color + icon glyph. Picked to stay distinguishable at dot size
 // against the dark slate cards: race keeps the app's own brand indigo (it's
 // the pre-existing, highest-profile kind), the rest spread across hues that
 // don't collide with the green/amber/red already used for attendance status.
-const KIND_META: Record<EventKind, { label: string; dot: string; badge: string }> = {
-  race: { label: 'מרוץ', dot: 'bg-primary-400', badge: 'bg-primary-600/15 text-primary-300' },
-  camp: { label: 'מחנה אימונים', dot: 'bg-green-400', badge: 'bg-green-500/15 text-green-400' },
-  lecture: { label: 'הרצאה', dot: 'bg-amber-400', badge: 'bg-amber-500/15 text-amber-400' },
-  social: { label: 'אירוע חברתי', dot: 'bg-pink-400', badge: 'bg-pink-500/15 text-pink-400' },
-  photo_shoot: { label: 'צילומים', dot: 'bg-cyan-400', badge: 'bg-cyan-500/15 text-cyan-400' },
-  sponsor: { label: 'אירוע ספונסר', dot: 'bg-orange-400', badge: 'bg-orange-500/15 text-orange-400' },
-  workout: { label: 'אימון מיוחד', dot: 'bg-slate-400', badge: 'bg-slate-500/15 text-slate-300' },
+// Labels come from next-intl (`kinds.*`), not a hardcoded table.
+const KIND_COLOR: Record<EventKind, string> = {
+  race: 'bg-primary-400',
+  camp: 'bg-green-400',
+  lecture: 'bg-amber-400',
+  social: 'bg-pink-400',
+  photo_shoot: 'bg-cyan-400',
+  sponsor: 'bg-orange-400',
+  workout: 'bg-slate-400',
+};
+const KIND_ICON: Record<EventKind, React.ComponentType<{ className?: string }>> = {
+  race: Trophy,
+  camp: Tent,
+  lecture: BookOpen,
+  social: PartyPopper,
+  photo_shoot: Camera,
+  sponsor: Gift,
+  workout: Dumbbell,
 };
 
 // Expand each event across every day it covers (multi-day camps use
@@ -81,6 +95,10 @@ function buildEventsByDay(events: EventRow[]): Record<string, EventRow[]> {
 type ViewMode = 'list' | 'map';
 
 export default function CalendarPage() {
+  const t = useTranslations('calendar');
+  const tc = useTranslations('common');
+  const locale = useLocale();
+  const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
   const [anchor, setAnchor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
   const [selectedDate, setSelectedDate] = useState<string>(todayIso());
   const [isStaff, setIsStaff] = useState(false);
@@ -143,20 +161,33 @@ export default function CalendarPage() {
     [eventsByDay, selectedDate],
   );
   const dateLabel = new Date(selectedDate + 'T00:00:00')
-    .toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    .toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const monthLabel = anchor.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' });
+
+  // Weekday short labels (Sun..Sat), derived from the active locale instead of
+  // a hardcoded Hebrew table — Jan 1 2023 is a Sunday, used purely as a known
+  // anchor to walk through the week.
+  const dowShort = useMemo(() => {
+    const base = new Date(2023, 0, 1);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      return d.toLocaleDateString(dateLocale, { weekday: 'short' });
+    });
+  }, [dateLocale]);
 
   return (
-    <div className="max-w-4xl mx-auto pb-6" dir="rtl">
+    <div className="max-w-4xl mx-auto pb-6">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <CalendarDays className="h-6 w-6 text-primary-400" /> יומן אירועים
+            <CalendarDays className="h-6 w-6 text-primary-400" /> {t('title')}
           </h1>
-          <p className="text-sm text-slate-400 mt-1">מרוצים, מחנות אימון, הרצאות ואירועים נוספים</p>
+          <p className="text-sm text-slate-400 mt-1">{t('subtitle')}</p>
         </div>
         {isStaff && (
           <Button size="sm" onClick={() => setShowAddForm(true)} className="shrink-0">
-            <Plus className="h-4 w-4" /> אירוע חדש
+            <Plus className="h-4 w-4" /> {t('newEvent')}
           </Button>
         )}
       </div>
@@ -165,38 +196,38 @@ export default function CalendarPage() {
         value={view}
         onChange={setView}
         options={[
-          { value: 'list', label: 'לוח שנה', icon: CalendarIcon },
-          { value: 'map', label: 'מרוצים במפה', icon: Trophy },
+          { value: 'list', label: t('viewCalendar'), icon: CalendarIcon },
+          { value: 'map', label: t('viewMap'), icon: Trophy },
         ]}
         className="mb-4"
       />
 
       {view === 'map' ? (
-        <RaceMapView races={races} />
+        <RaceMapView races={races} dateLocale={dateLocale} />
       ) : (
         <>
       {/* Month header */}
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={() => shiftMonth(1)}
-          aria-label="החודש הבא"
+          aria-label={t('nextMonth')}
           className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <div className="text-lg font-bold text-white">{MONTHS_HE[month]} {year}</div>
+        <div className="text-lg font-bold text-white">{monthLabel}</div>
         <button
           onClick={() => shiftMonth(-1)}
-          aria-label="החודש הקודם"
+          aria-label={t('prevMonth')}
           className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Weekday header (RTL: Sunday on the right) */}
+      {/* Weekday header (locale-aware: RTL puts Sunday on the right, LTR on the left) */}
       <div className="grid grid-cols-7 gap-1.5 mb-1.5">
-        {DOW_SHORT.map((d, i) => (
+        {dowShort.map((d, i) => (
           <div key={i} className="text-center text-[11px] font-bold text-slate-500">{d}</div>
         ))}
       </div>
@@ -224,7 +255,7 @@ export default function CalendarPage() {
               {kinds.length > 0 && (
                 <span className="flex items-center gap-0.5">
                   {kinds.slice(0, 3).map((k) => (
-                    <span key={k} className={cn('w-1.5 h-1.5 rounded-full', KIND_META[k].dot)} />
+                    <span key={k} className={cn('w-1.5 h-1.5 rounded-full', KIND_COLOR[k])} />
                   ))}
                   {kinds.length > 3 && <span className="text-[9px] text-slate-400 leading-none">+{kinds.length - 3}</span>}
                 </span>
@@ -240,7 +271,7 @@ export default function CalendarPage() {
       <div className="flex flex-wrap items-center gap-3 mt-4 text-[11px] text-slate-500">
         {EVENT_KINDS.map((k) => (
           <span key={k} className="flex items-center gap-1.5">
-            <span className={cn('w-2 h-2 rounded-full', KIND_META[k].dot)} /> {KIND_META[k].label}
+            <span className={cn('w-2 h-2 rounded-full', KIND_COLOR[k])} /> {t(`kinds.${k}`)}
           </span>
         ))}
       </div>
@@ -249,32 +280,20 @@ export default function CalendarPage() {
       <div className="mt-6">
         <h2 className="text-sm font-bold text-white mb-3">{dateLabel}</h2>
         {selectedEvents.length === 0 ? (
-          <EmptyState icon={CalendarDays} title="אין אירועים ביום זה" className="py-8" />
+          <EmptyState icon={CalendarDays} title={t('noEventsThisDay')} className="py-8" />
         ) : (
-          <div className="space-y-2">
+          <InsetSection>
             {selectedEvents.map((event) => (
-              <Link
+              <InsetRow
                 key={event.id}
+                icon={KIND_ICON[event.kind]}
+                iconBg={KIND_COLOR[event.kind]}
+                label={event.name}
+                sublabel={[event.start_time ? event.start_time.slice(0, 5) : null, event.location].filter(Boolean).join(' · ')}
                 href={`/dashboard/calendar/${event.id}`}
-                className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-800/50 p-3.5 hover:border-primary-500/50 hover:bg-slate-800/80 active:scale-[0.98] transition-all"
-              >
-                <span className={cn('shrink-0 w-2 h-2 rounded-full', KIND_META[event.kind].dot)} />
-                <div className="flex-1 min-w-0">
-                  <span className={cn('inline-block text-2xs font-bold px-1.5 py-0.5 rounded mb-1', KIND_META[event.kind].badge)}>
-                    {KIND_META[event.kind].label}
-                  </span>
-                  <p className="text-sm font-bold text-white truncate">{event.name}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
-                    {event.start_time && (
-                      <span className="flex items-center gap-1 shrink-0"><Clock className="h-3 w-3" /> {event.start_time.slice(0, 5)}</span>
-                    )}
-                    <span className="flex items-center gap-1 truncate"><MapPin className="h-3 w-3 shrink-0" /> {event.location}</span>
-                  </div>
-                </div>
-                <ChevronLeft className="h-4 w-4 text-slate-500 shrink-0" />
-              </Link>
+              />
             ))}
-          </div>
+          </InsetSection>
         )}
       </div>
         </>
@@ -293,7 +312,9 @@ const RACE_CLASS_COLOR: Record<string, string> = {
   marathon: '#a855f7', half: '#3b82f6', ultra: '#ef4444', '10k': '#10b981', '5k': '#f59e0b', trail: '#22c55e',
 };
 
-function RaceMapView({ races }: { races: EventRow[] }) {
+function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: string }) {
+  const t = useTranslations('calendar');
+  const tc = useTranslations('common');
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const [selectedRace, setSelectedRace] = useState<string | null>(null);
@@ -331,13 +352,14 @@ function RaceMapView({ races }: { races: EventRow[] }) {
 
       sorted.forEach((race) => {
         const color = RACE_CLASS_COLOR[race.race_class || ''] || '#6366f1';
-        // 22px (was 14px in the old races page) — meets the .touch-target
-        // convention used everywhere else in the app.
+        // The tappable icon is a real 44x44 hit area (the app-wide touch-target
+        // minimum) with a compact 20px dot centered inside it, so the visual
+        // stays small while the tap target doesn't.
         const icon = L.divIcon({
           className: 'custom-marker',
-          html: `<div style="width:22px;height:22px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>`,
-          iconSize: [22, 22],
-          iconAnchor: [11, 11],
+          html: `<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;"><div style="width:20px;height:20px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div></div>`,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22],
         });
         const marker = L.marker([race.lat, race.lng], { icon }).addTo(map);
         marker.bindTooltip(race.name, { permanent: false, direction: 'top', offset: [0, -14], className: 'race-tooltip' });
@@ -380,7 +402,7 @@ function RaceMapView({ races }: { races: EventRow[] }) {
   };
 
   if (sorted.length === 0) {
-    return <EmptyState icon={Trophy} title="אין מרוצים קרובים" description="מרוצים חדשים יופיעו כאן כשיתווספו ליומן" className="py-12" />;
+    return <EmptyState icon={Trophy} title={t('noUpcomingRaces')} description={t('noUpcomingRacesHint')} className="py-12" />;
   }
 
   return (
@@ -389,30 +411,35 @@ function RaceMapView({ races }: { races: EventRow[] }) {
         <div ref={mapRef} className="absolute inset-0" style={{ zIndex: 0 }} />
         {goalRace && (
           <div className="absolute top-3 start-3 z-10 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-xl p-3.5 max-w-[260px]">
-            <p className="text-3xs font-bold text-amber-400 uppercase tracking-wider mb-1">המרוץ הבא שלך</p>
+            <p className="text-3xs font-bold text-amber-400 uppercase tracking-wider mb-1">{t('nextRace')}</p>
             <p className="text-sm font-bold text-white truncate">{goalRace.name}</p>
             <div className="flex items-center gap-2 mt-1.5">
               <span className="text-xl font-black text-white tabular-nums">{daysUntil(goalRace.date)}</span>
-              <span className="text-xs text-slate-400">ימים</span>
+              <span className="text-xs text-slate-400">{tc('days')}</span>
             </div>
           </div>
         )}
       </div>
 
+      {/* Race list — same grouped-card chrome (rounded-2xl bg-slate-800/80
+          border-slate-700/50, divide-y dividers) as InsetSection/InsetRow, kept
+          as a local list rather than the shared primitive because each row's
+          tap-to-expand reveal (distances + links) has no InsetRow equivalent. */}
       <div className="lg:w-[360px] border-t lg:border-t-0 lg:border-s border-slate-700/60 overflow-y-auto max-h-[70vh]">
-        <div className="p-3 space-y-2">
+        <div className="p-3">
+          <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 overflow-hidden divide-y divide-slate-700/50">
           {sorted.map((race) => {
             const isExpanded = expandedRace === race.id;
             const isSelected = selectedRace === race.id;
             const color = RACE_CLASS_COLOR[race.race_class || ''] || '#6366f1';
             const dateObj = new Date(race.date + 'T00:00:00');
-            const dateLabel = dateObj.toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
+            const dateLabel = dateObj.toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
             return (
-              <div key={race.id} className={cn('rounded-xl border transition-colors', isSelected ? 'border-primary-600/50 bg-primary-600/5' : 'border-slate-700/40 bg-slate-800/40')}>
+              <div key={race.id} className={cn('transition-colors', isSelected && 'bg-primary-600/5')}>
                 <button
                   type="button"
                   onClick={() => { setSelectedRace(race.id); setExpandedRace(isExpanded ? null : race.id); }}
-                  className="w-full text-start p-3.5 min-h-[44px] active:scale-[0.98] transition-transform"
+                  className="w-full text-start px-4 py-3 min-h-[52px] active:scale-[0.98] transition-transform"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -428,7 +455,7 @@ function RaceMapView({ races }: { races: EventRow[] }) {
                     </div>
                     <div className="text-end shrink-0">
                       <p className="text-lg font-black text-white tabular-nums leading-none">{daysUntil(race.date)}</p>
-                      <p className="text-3xs text-slate-500 mt-0.5">ימים</p>
+                      <p className="text-3xs text-slate-500 mt-0.5">{tc('days')}</p>
                     </div>
                   </div>
 
@@ -449,7 +476,7 @@ function RaceMapView({ races }: { races: EventRow[] }) {
                         className="inline-block text-xs text-primary-400 hover:text-primary-300 font-medium"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        לפרטים מלאים ←
+                        {t('fullDetails')}
                       </Link>
                       {race.website && (
                         <a
@@ -459,7 +486,7 @@ function RaceMapView({ races }: { races: EventRow[] }) {
                           onClick={(e) => e.stopPropagation()}
                           className="block text-xs text-primary-400 hover:text-primary-300 font-medium"
                         >
-                          אתר המרוץ ←
+                          {t('raceWebsite')}
                         </a>
                       )}
                     </div>
@@ -468,6 +495,7 @@ function RaceMapView({ races }: { races: EventRow[] }) {
               </div>
             );
           })}
+          </div>
         </div>
       </div>
 
@@ -490,7 +518,9 @@ function RaceMapView({ races }: { races: EventRow[] }) {
 
 // ────────────────────────── Staff-only "add event" form ──────────────────────────
 function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+  const t = useTranslations('calendar');
   const [kind, setKind] = useState<EventKind>('race');
+  const [kindPickerOpen, setKindPickerOpen] = useState(false);
   const [name, setName] = useState('');
   const [date, setDate] = useState(todayIso());
   const [location, setLocation] = useState('');
@@ -510,10 +540,9 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
     reset();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!name.trim() || !date || !location.trim()) {
-      setError('שם, תאריך ומיקום הם שדות חובה');
+      setError(t('addEvent.requiredError'));
       return;
     }
     setSubmitting(true);
@@ -532,93 +561,115 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
         }),
       });
       const responseData = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(responseData.error || 'שגיאה ביצירת האירוע');
+      if (!res.ok) throw new Error(responseData.error || t('addEvent.genericError'));
       onCreated();
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שגיאה ביצירת האירוע');
+      setError(err instanceof Error ? err.message : t('addEvent.genericError'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Sheet open={open} onOpenChange={(o) => { if (!o) handleClose(); }} title="אירוע חדש">
-      <form onSubmit={handleSubmit} className="space-y-3.5 px-1 pb-2">
-        <div>
-          <label className="block text-xs font-bold text-slate-400 mb-1.5">סוג אירוע</label>
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as EventKind)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-          >
-            {EVENT_KINDS.map((k) => (<option key={k} value={k}>{KIND_META[k].label}</option>))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-400 mb-1.5">שם האירוע</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            placeholder="לדוגמה: הרצאת תזונה לרצים"
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5">תאריך</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+    <>
+      <Sheet open={open} onOpenChange={(o) => { if (!o) handleClose(); }} title={t('addEvent.title')}>
+        <div className="space-y-3.5 px-1 pb-2">
+          {/* iOS Settings-style form: a tap-to-open row for the kind picker
+              (opens the nested Sheet below) plus one labeled row per field,
+              grouped in the same InsetSection/InsetRow chrome used across the
+              app — replacing the raw <select>/<input> HTML form. */}
+          <InsetSection>
+            <InsetRow
+              label={t('addEvent.kind')}
+              value={t(`kinds.${kind}`)}
+              onClick={() => setKindPickerOpen(true)}
             />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5">תפוסה (אופציונלי)</label>
-            <input
-              type="number"
-              min={1}
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-              placeholder="ללא הגבלה"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+            <InsetRow
+              label={t('addEvent.name')}
+              trailing={
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('addEvent.namePlaceholder')}
+                  dir="auto"
+                  className="w-36 sm:w-48 bg-transparent text-sm text-white placeholder-slate-500 text-end focus:outline-none"
+                />
+              }
             />
-          </div>
+            <InsetRow
+              label={t('addEvent.date')}
+              trailing={
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="bg-transparent text-sm text-white focus:outline-none"
+                />
+              }
+            />
+            <InsetRow
+              label={t('addEvent.capacity')}
+              trailing={
+                <input
+                  type="number"
+                  min={1}
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                  placeholder={t('addEvent.capacityPlaceholder')}
+                  className="w-24 bg-transparent text-sm text-white placeholder-slate-500 text-end focus:outline-none"
+                />
+              }
+            />
+            <InsetRow
+              label={t('addEvent.location')}
+              trailing={
+                <input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder={t('addEvent.locationPlaceholder')}
+                  dir="auto"
+                  className="w-36 sm:w-48 bg-transparent text-sm text-white placeholder-slate-500 text-end focus:outline-none"
+                />
+              }
+            />
+            <div className="px-4 py-3">
+              <label className="block text-xs font-bold text-slate-400 mb-1.5">{t('addEvent.description')}</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder={t('addEvent.descriptionPlaceholder')}
+                dir="auto"
+                className="w-full bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none resize-none"
+              />
+            </div>
+          </InsetSection>
+
+          {error && <p className="text-sm text-red-400">{error}</p>}
+
+          <Button type="button" onClick={handleSubmit} disabled={submitting} className="w-full">
+            {submitting ? t('addEvent.saving') : t('addEvent.create')}
+          </Button>
         </div>
+      </Sheet>
 
-        <div>
-          <label className="block text-xs font-bold text-slate-400 mb-1.5">מיקום</label>
-          <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            required
-            placeholder="לדוגמה: מועדון הריצה, הרצליה"
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-400 mb-1.5">תיאור (אופציונלי)</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            placeholder="פרטים נוספים על האירוע..."
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 resize-none"
-          />
-        </div>
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <Button type="submit" disabled={submitting} className="w-full">
-          {submitting ? 'שומר...' : 'צור אירוע'}
-        </Button>
-      </form>
-    </Sheet>
+      {/* Kind picker — a nested option-picker Sheet listing the 7 kinds as
+          InsetRow items, opened by tapping the "kind" row above. */}
+      <Sheet open={kindPickerOpen} onOpenChange={setKindPickerOpen} title={t('addEvent.kind')}>
+        <InsetSection>
+          {EVENT_KINDS.map((k) => (
+            <InsetRow
+              key={k}
+              icon={KIND_ICON[k]}
+              iconBg={KIND_COLOR[k]}
+              label={t(`kinds.${k}`)}
+              onClick={() => { setKind(k); setKindPickerOpen(false); }}
+              trailing={kind === k ? <Check className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+            />
+          ))}
+        </InsetSection>
+      </Sheet>
+    </>
   );
 }

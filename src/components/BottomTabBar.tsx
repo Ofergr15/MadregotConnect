@@ -7,12 +7,13 @@ import { useTranslations } from 'next-intl';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, MoreHorizontal, X, Newspaper, CalendarCheck, CalendarDays, Wrench,
+  BarChart3, MoreHorizontal, Newspaper, CalendarCheck, CalendarDays, Wrench,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { Sheet, InsetSection, InsetRow } from '@/components/ui';
 
 // iOS-native redesign, phase 1: a bottom tab bar (the #1 "this is a real app"
 // signal) that replaces the hamburger on mobile. Primary tabs live in the bar;
@@ -216,44 +217,26 @@ export function BottomTabBar() {
         )}
       </nav>
 
-      {/* "More" sheet — native-style bottom sheet listing the overflow tabs. */}
-      {moreOpen && (
-        <div className="md:hidden fixed inset-0 z-[60] flex items-end" onClick={() => setMoreOpen(false)}>
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <div
-            className="relative w-full bg-slate-800 rounded-t-2xl border-t border-slate-700 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 max-h-[70vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="w-9 h-1.5 rounded-full bg-slate-600 mx-auto mb-3" />
-            <div className="flex items-center justify-between px-5 pb-2">
-              <span className="text-base font-bold text-white">{t('more' as any)}</span>
-              <button onClick={() => setMoreOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="px-3 pb-2">
-              {overflow.map(item => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.tab}
-                    href={item.href}
-                    onClick={() => setMoreOpen(false)}
-                    className={cn(
-                      'flex items-center gap-3.5 px-3 py-3 rounded-xl transition-colors',
-                      active ? 'bg-primary-600/20 text-primary-300' : 'text-slate-200 hover:bg-slate-700/50'
-                    )}
-                  >
-                    <Icon className="h-5 w-5 shrink-0" />
-                    <span className="text-[15px] font-medium">{t(item.labelKey as any)}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* "More" sheet — native-style bottom sheet listing the overflow tabs,
+          using the app's shared Sheet primitive (drag-to-dismiss, focus trap,
+          aria-modal) instead of a hand-rolled `fixed inset-0` overlay. */}
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen} title={t('more' as any)} className="md:hidden">
+        <InsetSection>
+          {overflow.map(item => {
+            const active = isActive(item.href);
+            return (
+              <InsetRow
+                key={item.tab}
+                icon={item.icon}
+                iconBg={active ? 'bg-primary-600' : 'bg-slate-600'}
+                label={t(item.labelKey as any)}
+                href={item.href}
+                onClick={() => setMoreOpen(false)}
+              />
+            );
+          })}
+        </InsetSection>
+      </Sheet>
     </>
   );
 }
