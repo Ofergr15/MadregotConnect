@@ -4,6 +4,7 @@ import { GarminClient } from '@/lib/garmin/client';
 import { COACH_ID } from '@/lib/constants';
 import { sendPushToSubscriptions, notifyTeammatesOfActivity } from '@/lib/push';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
+import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 
 // Hebrew label per run sub-type for the post-workout feedback nudge (same map
 // as the workout-watch cron's teaser). Anything outside this map falls back to
@@ -213,6 +214,9 @@ export async function POST(request: Request) {
           try {
             await checkAndAwardBadges(athlete.id);
           } catch { /* badge check is best-effort */ }
+          try {
+            await checkAndAwardChallenges(athlete.id);
+          } catch { /* challenge check is best-effort */ }
         }
 
         results.push({ athleteId: athlete.id, name: athlete.name, synced: newActivities.length });

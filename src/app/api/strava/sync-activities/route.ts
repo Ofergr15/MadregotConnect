@@ -19,6 +19,7 @@ import {
 } from '@/lib/strava/client';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
+import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { notifyTeammatesOfActivity } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
@@ -311,6 +312,11 @@ export async function POST(request: Request) {
             await checkAndAwardBadges(athlete.id);
           } catch (badgeError) {
             console.warn(`Badge check for ${athlete.id} skipped:`, badgeError);
+          }
+          try {
+            await checkAndAwardChallenges(athlete.id);
+          } catch (challengeError) {
+            console.warn(`Challenge check for ${athlete.id} skipped:`, challengeError);
           }
         }
 

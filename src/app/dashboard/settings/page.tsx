@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
 import { BadgeManager } from '@/components/BadgeManager';
+import { ChallengeManager } from '@/components/ChallengeManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
@@ -208,7 +209,7 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
@@ -217,6 +218,7 @@ const settingsTabs = [
   { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare, iconBg: 'bg-teal-500' },
   { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell, iconBg: 'bg-rose-500' },
   { key: 'badges' as SettingsTab, label: 'Badge Manager', icon: Award, iconBg: 'bg-fuchsia-500' },
+  { key: 'challenges' as SettingsTab, label: 'Challenge Manager', icon: Trophy, iconBg: 'bg-orange-500' },
 ];
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
@@ -800,6 +802,7 @@ export default function SettingsPage() {
                 : tab.key === 'tabs' ? t('tabManager')
                 : tab.key === 'feedback' ? t('feedback')
                 : tab.key === 'badges' ? t('badgeManager')
+                : tab.key === 'challenges' ? t('challengeManager')
                 : t('notificationCenter');
               return (
                 <InsetRow
@@ -1368,6 +1371,9 @@ export default function SettingsPage() {
 
       {/* Badge Manager detail (create additional milestone badges by distance/time) */}
       {activeTab === 'badges' && <BadgeManager />}
+
+      {/* Challenge Manager detail (roadmap #13, Phase 4) */}
+      {activeTab === 'challenges' && <ChallengeManager />}
 
       <p className="text-center text-xs text-slate-500 mt-6 mb-2">מדרגות · גרסה {APP_VERSION}</p>
     </div>

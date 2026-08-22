@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, BarChart3, Route, UserCheck, X } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, Trophy, BarChart3, Route, UserCheck, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations, useLocale } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
+import { ChallengesGrid } from '@/components/ChallengesGrid';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
 import { FeedAvatar } from '@/components/FeedAvatar';
@@ -74,7 +75,7 @@ const WEEKS: WeekProgram[] = [
 // row list); a value = a detail screen open. Mirrors the mechanism in
 // dashboard/settings/page.tsx (SettingsTab / activeTab) so both "app-native
 // settings-style" screens share one navigation pattern.
-type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'share' | 'notifications' | 'personalInfo';
+type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'challenges' | 'share' | 'notifications' | 'personalInfo';
 
 export default function ProfilePage() {
   return (
@@ -560,6 +561,12 @@ function ProfileContent() {
               onClick={() => setActiveTab('badges')}
             />
             <InsetRow
+              icon={Trophy}
+              iconBg="bg-orange-500"
+              label={t('challenges')}
+              onClick={() => setActiveTab('challenges')}
+            />
+            <InsetRow
               icon={Route}
               iconBg="bg-cyan-500"
               label={t('myActivities')}
@@ -958,6 +965,11 @@ function ProfileContent() {
       {/* ═══ DETAIL: Badges & Achievements ═══ */}
       {activeTab === 'badges' && (
         <BadgesGrid athleteId={athleteId} />
+      )}
+
+      {/* ═══ DETAIL: Challenges (roadmap #13, Phase 4) ═══ */}
+      {activeTab === 'challenges' && (
+        <ChallengesGrid athleteId={athleteId} />
       )}
 
       {/* ═══ DETAIL: Share a workout — shareable text for WhatsApp / social ═══ */}

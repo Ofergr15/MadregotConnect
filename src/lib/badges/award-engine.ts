@@ -49,7 +49,7 @@ const IMPLEMENTED_RULE_TYPES = new Set<string>([
   'attendance_perfect_month',
 ]);
 
-interface BadgeRow {
+export interface BadgeRow {
   id: string;
   code: string;
   name_he: string;
@@ -395,8 +395,12 @@ export async function checkAndAwardBadges(
  * Returns false (no-op) if another concurrent call already awarded this
  * badge (unique_violation on athlete_id+badge_id) — the athlete_badges
  * UNIQUE constraint is the actual source of truth for "already earned".
+ *
+ * Exported for lib/challenges/engine.ts: a completed challenge is awarded
+ * through this exact same helper (challenge_completed rule_type), inheriting
+ * the feed post + push rather than duplicating that logic.
  */
-async function awardBadge(
+export async function awardBadge(
   supabase: SupabaseServer,
   athleteId: string,
   badge: BadgeRow,
