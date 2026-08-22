@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { cn } from '@/lib/utils';
-import { Plus, Minus, Trash2, X, Copy, ArrowUp, ArrowDown, ChevronDown, ChevronRight, Save, AlertCircle } from 'lucide-react';
+import { Plus, Minus, Trash2, Copy, ArrowUp, ArrowDown, ChevronDown, ChevronRight, Save, AlertCircle } from 'lucide-react';
+import { Sheet, ConfirmSheet, SegmentedControl, Button } from '@/components/ui';
 
 const stepTypes = ['warmup', 'interval', 'rest', 'recovery', 'cooldown', 'active'] as const;
 const targetZones = ['easy', 'threshold', 'interval', 'tempo', 'sprint', 'marathon_pace', 'no_target'] as const;
+const durationTypes = ['distance', 'time', 'open'] as const;
 
 const stepColors: Record<string, string> = {
   warmup: 'border-s-yellow-400',
@@ -17,27 +20,44 @@ const stepColors: Record<string, string> = {
   active: 'border-s-purple-400',
 };
 
-const stepLabels: Record<string, string> = {
-  warmup: 'Warmup',
-  interval: 'Interval',
-  rest: 'Rest',
-  recovery: 'Recovery',
-  cooldown: 'Cooldown',
-  active: 'Run',
-};
+type T = (key: string, values?: Record<string, string | number>) => string;
 
-const zoneLabels: Record<string, string> = {
-  easy: 'Easy',
-  threshold: 'Threshold',
-  interval: 'Interval',
-  tempo: 'Tempo',
-  sprint: 'Sprint',
-  marathon_pace: 'Marathon',
-  no_target: 'No Target',
-};
+function stepLabel(type: string, t: T): string {
+  switch (type) {
+    case 'warmup': return t('stepWarmup');
+    case 'interval': return t('stepInterval');
+    case 'rest': return t('stepRest');
+    case 'recovery': return t('stepRecovery');
+    case 'cooldown': return t('stepCooldown');
+    case 'active': return t('stepActive');
+    default: return type;
+  }
+}
 
-function formatSingleDuration(step: WorkoutStep): string {
-  if (step.durationType === 'open') return 'Lap button';
+function zoneLabel(zone: string, t: T): string {
+  switch (zone) {
+    case 'easy': return t('zoneEasy');
+    case 'threshold': return t('zoneThreshold');
+    case 'interval': return t('zoneInterval');
+    case 'tempo': return t('zoneTempo');
+    case 'sprint': return t('zoneSprint');
+    case 'marathon_pace': return t('zoneMarathonPace');
+    case 'no_target': return t('zoneNoTarget');
+    default: return zone;
+  }
+}
+
+function durationTypeLabel(type: string, t: T): string {
+  switch (type) {
+    case 'distance': return t('distance');
+    case 'time': return t('time');
+    case 'open': return t('lap');
+    default: return type;
+  }
+}
+
+function formatSingleDuration(step: WorkoutStep, lapLabel: string): string {
+  if (step.durationType === 'open') return lapLabel;
   if (step.durationType === 'distance') {
     const m = step.durationValue || 0;
     return m >= 1000 ? `${(m / 1000).toFixed(m % 1000 === 0 ? 0 : 1)} km` : `${m} m`;
@@ -60,21 +80,21 @@ function formatSingleDuration(step: WorkoutStep): string {
   return '';
 }
 
-function formatDuration(step: WorkoutStep): string {
+function formatDuration(step: WorkoutStep, lapLabel: string): string {
   // For repeat blocks, summarize the sub-steps so the rest segment is visible
   // even when the row is collapsed, e.g. "0:30 + 1:00".
   if (step.repeatCount) {
     if (step.repeatSteps && step.repeatSteps.length > 0) {
-      return step.repeatSteps.map(formatSingleDuration).filter(Boolean).join(' + ');
+      return step.repeatSteps.map((s) => formatSingleDuration(s, lapLabel)).filter(Boolean).join(' + ');
     }
     return '';
   }
-  return formatSingleDuration(step);
+  return formatSingleDuration(step, lapLabel);
 }
 
-function formatPaceTarget(step: WorkoutStep): string {
+function formatPaceTarget(step: WorkoutStep, t: T): string {
   if (step.targetZone && step.targetZone !== 'no_target') {
-    return zoneLabels[step.targetZone] || step.targetZone;
+    return zoneLabel(step.targetZone, t);
   }
   if (step.targetPaceMinPerKm) {
     const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
@@ -114,6 +134,7 @@ function PaceInput({
   placeholder?: string;
   label?: string;
 }) {
+  const t = useTranslations('workoutEditor');
   const [text, setText] = useState(paceToInput(seconds));
   const [focused, setFocused] = useState(false);
 
@@ -146,7 +167,7 @@ function PaceInput({
           type="button"
           onClick={() => bump(-1)}
           className="px-1.5 rounded-s bg-slate-600 hover:bg-slate-500 text-white text-sm flex items-center"
-          title="Faster (−1s/km)"
+          title={t('faster')}
         >
           <Minus className="h-3 w-3" />
         </button>
@@ -165,7 +186,7 @@ function PaceInput({
           type="button"
           onClick={() => bump(1)}
           className="px-1.5 rounded-e bg-slate-600 hover:bg-slate-500 text-white text-sm flex items-center"
-          title="Slower (+1s/km)"
+          title={t('slower')}
         >
           <Plus className="h-3 w-3" />
         </button>
@@ -235,6 +256,8 @@ function SubStepEditor({
   onChange: (step: WorkoutStep) => void;
   onDelete: () => void;
 }) {
+  const t = useTranslations('workoutEditor');
+  const tc = useTranslations('common');
   // Rest/recovery never take a pace. Everything else CAN, but we only show the
   // pace fields once one is set (or the coach adds it via "+ pace").
   const canHavePace = step.type !== 'rest' && step.type !== 'recovery';
@@ -248,20 +271,20 @@ function SubStepEditor({
         <select
           value={step.type}
           onChange={(e) => onChange({ ...step, type: e.target.value as any })}
-          className="bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+          className="bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white min-h-[32px]"
         >
-          {stepTypes.map((t) => (
-            <option key={t} value={t}>{stepLabels[t]}</option>
+          {stepTypes.map((s) => (
+            <option key={s} value={s}>{stepLabel(s, t)}</option>
           ))}
         </select>
         <select
           value={step.durationType}
           onChange={(e) => onChange({ ...step, durationType: e.target.value as any })}
-          className="bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+          className="bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white min-h-[32px]"
         >
-          <option value="distance">Distance</option>
-          <option value="time">Time</option>
-          <option value="open">Lap</option>
+          {durationTypes.map((d) => (
+            <option key={d} value={d}>{durationTypeLabel(d, t)}</option>
+          ))}
         </select>
         {step.durationType !== 'open' && (
           <div className="w-28">
@@ -273,7 +296,7 @@ function SubStepEditor({
             />
           </div>
         )}
-        <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto" aria-label="Delete">
+        <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto" aria-label={tc('delete')}>
           <Trash2 className="h-3 w-3" />
         </button>
       </div>
@@ -287,7 +310,7 @@ function SubStepEditor({
           <>
             <div className="w-24 shrink-0">
               <PaceInput
-                label={isRange ? 'From (fast) /km' : 'Pace /km'}
+                label={isRange ? t('fromFast') : t('pacePerKm')}
                 seconds={step.targetPaceMinPerKm}
                 placeholder="3:25"
                 onCommit={(secs) => onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: secs })}
@@ -296,7 +319,7 @@ function SubStepEditor({
             {isRange && (
               <div className="w-24 shrink-0">
                 <PaceInput
-                  label="To (slow) /km"
+                  label={t('toSlow')}
                   seconds={step.targetPaceMaxPerKm}
                   placeholder="3:35"
                   onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
@@ -310,7 +333,7 @@ function SubStepEditor({
                 onClick={() => onChange({ ...step, targetPaceMaxPerKm: undefined })}
                 className="text-[10px] text-slate-500 hover:text-slate-300 mb-1 shrink-0"
               >
-                single
+                {t('single')}
               </button>
             ) : (
               // Expand to a From–To range (seed slow bound 10s slower).
@@ -319,16 +342,16 @@ function SubStepEditor({
                 onClick={() => onChange({ ...step, targetPaceMaxPerKm: (step.targetPaceMinPerKm || 210) + 10 })}
                 className="text-[10px] text-slate-500 hover:text-primary-400 mb-1 shrink-0"
               >
-                + range
+                {t('addRange')}
               </button>
             )}
             <button
               type="button"
               onClick={() => onChange({ ...step, targetType: 'no_target', targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined })}
-              title="Remove pace target"
+              title={t('noPace')}
               className="text-[10px] text-slate-500 hover:text-red-400 mb-1 shrink-0"
             >
-              no pace
+              {t('noPace')}
             </button>
           </>
         ) : canHavePace ? (
@@ -337,14 +360,14 @@ function SubStepEditor({
             onClick={() => onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: 210 })}
             className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary-400 mb-1 shrink-0"
           >
-            <Plus className="h-3 w-3" /> pace
+            <Plus className="h-3 w-3" /> {t('addPace')}
           </button>
         ) : null}
         <input
           type="text"
           value={step.notes || ''}
           onChange={(e) => onChange({ ...step, notes: e.target.value || undefined })}
-          placeholder="notes"
+          placeholder={t('notesPlaceholderShort')}
           className="flex-1 min-w-0 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
         />
       </div>
@@ -371,6 +394,8 @@ function StepRow({
   onMoveDown: () => void;
   onDuplicate: () => void;
 }) {
+  const t = useTranslations('workoutEditor');
+  const tc = useTranslations('common');
   const [expanded, setExpanded] = useState(false);
 
   // A repeat block is just "do these sub-steps N times" — its own type,
@@ -395,11 +420,11 @@ function StepRow({
           step.type === 'recovery' ? 'bg-green-500/20 text-green-400' :
           'bg-purple-500/20 text-purple-400'
         )}>
-          {stepLabels[step.type]}
+          {stepLabel(step.type, t)}
         </span>
-        <span className="text-sm text-white font-medium">{formatDuration(step)}</span>
-        {formatPaceTarget(step) && (
-          <span className="text-[11px] text-primary-400 ms-auto me-1">@{formatPaceTarget(step)}</span>
+        <span className="text-sm text-white font-medium">{formatDuration(step, t('lap'))}</span>
+        {formatPaceTarget(step, t) && (
+          <span className="text-[11px] text-primary-400 ms-auto me-1">@{formatPaceTarget(step, t)}</span>
         )}
         {step.repeatCount && (
           <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-bold">
@@ -419,28 +444,24 @@ function StepRow({
           {!isRepeat && (
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Type</label>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('type')}</label>
               <select
                 value={step.type}
                 onChange={(e) => onChange({ ...step, type: e.target.value as any })}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
+                className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white min-h-[36px]"
               >
-                {stepTypes.map((t) => (
-                  <option key={t} value={t}>{stepLabels[t]}</option>
+                {stepTypes.map((s) => (
+                  <option key={s} value={s}>{stepLabel(s, t)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Duration</label>
-              <select
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('duration')}</label>
+              <SegmentedControl<typeof durationTypes[number]>
                 value={step.durationType}
-                onChange={(e) => onChange({ ...step, durationType: e.target.value as any })}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
-              >
-                <option value="distance">Distance</option>
-                <option value="time">Time</option>
-                <option value="open">Lap Button</option>
-              </select>
+                onChange={(v) => onChange({ ...step, durationType: v })}
+                options={durationTypes.map((d) => ({ value: d, label: durationTypeLabel(d, t) }))}
+              />
             </div>
           </div>
           )}
@@ -448,7 +469,7 @@ function StepRow({
           {!isRepeat && step.durationType !== 'open' && (
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">
-                {step.durationType === 'distance' ? 'Meters' : 'Seconds'}
+                {step.durationType === 'distance' ? t('meters') : t('seconds')}
               </label>
               <NumberStepper
                 value={step.durationValue || 0}
@@ -461,10 +482,10 @@ function StepRow({
 
           {!isRepeat && (
           <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Target</label>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('target')}</label>
             <div className="grid grid-cols-3 gap-2 items-end">
               <div className="flex flex-col">
-                <span className="text-[9px] text-slate-500 mb-0.5">Type</span>
+                <span className="text-[9px] text-slate-500 mb-0.5">{t('type')}</span>
                 <select
                   value={step.targetZone || (step.targetPaceMinPerKm ? 'custom' : 'no_target')}
                   onChange={(e) => {
@@ -477,12 +498,12 @@ function StepRow({
                       onChange({ ...step, targetType: 'pace', targetZone: zone, targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined });
                     }
                   }}
-                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
+                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white min-h-[36px]"
                 >
                   {targetZones.map((z) => (
-                    <option key={z} value={z}>{zoneLabels[z]}</option>
+                    <option key={z} value={z}>{zoneLabel(z, t)}</option>
                   ))}
-                  <option value="custom">Custom</option>
+                  <option value="custom">{t('zoneCustom')}</option>
                 </select>
               </div>
               {(step.targetPaceMinPerKm || (!step.targetZone && step.targetType === 'pace')) && (() => {
@@ -492,14 +513,14 @@ function StepRow({
                 return (
                   <>
                     <PaceInput
-                      label={isRange ? 'From (fast) /km' : 'Pace /km'}
+                      label={isRange ? t('fromFast') : t('pacePerKm')}
                       seconds={step.targetPaceMinPerKm}
                       placeholder="3:25"
                       onCommit={(secs) => onChange({ ...step, targetType: 'pace', targetZone: undefined, targetPaceMinPerKm: secs })}
                     />
                     {isRange ? (
                       <PaceInput
-                        label="To (slow) /km"
+                        label={t('toSlow')}
                         seconds={step.targetPaceMaxPerKm}
                         placeholder="3:35"
                         onCommit={(secs) => onChange({ ...step, targetPaceMaxPerKm: secs })}
@@ -510,7 +531,7 @@ function StepRow({
                         onClick={() => onChange({ ...step, targetPaceMaxPerKm: (step.targetPaceMinPerKm || 210) + 10 })}
                         className="text-[10px] text-slate-500 hover:text-primary-400 self-end mb-2"
                       >
-                        + range
+                        {t('addRange')}
                       </button>
                     )}
                   </>
@@ -522,7 +543,7 @@ function StepRow({
 
           {step.repeatCount !== undefined && (
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Repeat</label>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('repeat')}</label>
               <div className="w-28">
                 <NumberStepper
                   value={step.repeatCount || 1}
@@ -539,7 +560,7 @@ function StepRow({
           {step.repeatSteps && step.repeatSteps.length > 0 && (
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">
-                Repeated steps ({step.repeatCount || 1}x)
+                {t('repeatedSteps', { count: step.repeatCount || 1 })}
               </label>
               <div className="space-y-2 ms-2 border-s-2 border-orange-500/30 ps-2">
                 {step.repeatSteps.map((sub, subIdx) => (
@@ -570,28 +591,28 @@ function StepRow({
                   }}
                   className="flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300"
                 >
-                  <Plus className="h-3 w-3" /> Add sub-step
+                  <Plus className="h-3 w-3" /> {t('addSubStep')}
                 </button>
               </div>
             </div>
           )}
 
           <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">Notes</label>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('notes')}</label>
             <input
               type="text"
               value={step.notes || ''}
               onChange={(e) => onChange({ ...step, notes: e.target.value || undefined })}
-              placeholder="e.g. ג׳ל, הליכה..."
+              placeholder={t('notesPlaceholder')}
               className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
             />
           </div>
 
           <div className="flex items-center gap-1 pt-1">
-            <button onClick={onMoveUp} disabled={index === 0} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30" aria-label="Move up"><ArrowUp className="h-3.5 w-3.5" /></button>
-            <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30" aria-label="Move down"><ArrowDown className="h-3.5 w-3.5" /></button>
-            <button onClick={onDuplicate} className="p-1 rounded hover:bg-slate-700 text-slate-400" aria-label="Duplicate"><Copy className="h-3.5 w-3.5" /></button>
-            <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto" aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+            <button onClick={onMoveUp} disabled={index === 0} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30" aria-label={t('moveUp')}><ArrowUp className="h-3.5 w-3.5" /></button>
+            <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30" aria-label={t('moveDown')}><ArrowDown className="h-3.5 w-3.5" /></button>
+            <button onClick={onDuplicate} className="p-1 rounded hover:bg-slate-700 text-slate-400" aria-label={t('duplicate')}><Copy className="h-3.5 w-3.5" /></button>
+            <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto" aria-label={tc('delete')}><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
         </div>
       )}
@@ -600,15 +621,15 @@ function StepRow({
 }
 
 /** One-line human summary of a single step, for the diff view. */
-function describeStep(step: WorkoutStep): string {
+function describeStep(step: WorkoutStep, t: T): string {
   if (step.repeatCount && step.repeatSteps) {
-    const inner = step.repeatSteps.map(describeStep).join(' + ');
+    const inner = step.repeatSteps.map((s) => describeStep(s, t)).join(' + ');
     return `${step.repeatCount}× (${inner})`;
   }
-  const parts: string[] = [stepLabels[step.type] || step.type];
-  const dur = formatSingleDuration(step);
+  const parts: string[] = [stepLabel(step.type, t)];
+  const dur = formatSingleDuration(step, t('lap'));
   if (dur) parts.push(dur);
-  const pace = formatPaceTarget(step);
+  const pace = formatPaceTarget(step, t);
   if (pace) parts.push(`@${pace}`);
   if (step.notes) parts.push(`“${step.notes}”`);
   return parts.join(' ');
@@ -620,28 +641,27 @@ interface StepChange {
   fields: { label: string; from?: string; to?: string }[];
 }
 
-function paceLabel(step: WorkoutStep): string {
-  const p = formatPaceTarget(step);
-  return p || 'No target';
+function paceTargetLabel(step: WorkoutStep, t: T): string {
+  return formatPaceTarget(step, t) || t('zoneNoTarget');
 }
 
 /** Field-level changes for a single (non-repeat) step. */
-function fieldChanges(b: WorkoutStep, a: WorkoutStep): { label: string; from: string; to: string }[] {
+function fieldChanges(b: WorkoutStep, a: WorkoutStep, t: T): { label: string; from: string; to: string }[] {
   const out: { label: string; from: string; to: string }[] = [];
-  if (b.type !== a.type) out.push({ label: 'Type', from: stepLabels[b.type] || b.type, to: stepLabels[a.type] || a.type });
-  const bDur = formatSingleDuration(b), aDur = formatSingleDuration(a);
-  if (bDur !== aDur) out.push({ label: 'Duration', from: bDur || '—', to: aDur || '—' });
-  const bPace = paceLabel(b), aPace = paceLabel(a);
-  if (bPace !== aPace) out.push({ label: 'Pace', from: bPace, to: aPace });
-  if ((b.notes || '') !== (a.notes || '')) out.push({ label: 'Notes', from: b.notes || '—', to: a.notes || '—' });
+  if (b.type !== a.type) out.push({ label: t('type'), from: stepLabel(b.type, t), to: stepLabel(a.type, t) });
+  const bDur = formatSingleDuration(b, t('lap')), aDur = formatSingleDuration(a, t('lap'));
+  if (bDur !== aDur) out.push({ label: t('duration'), from: bDur || '—', to: aDur || '—' });
+  const bPace = paceTargetLabel(b, t), aPace = paceTargetLabel(a, t);
+  if (bPace !== aPace) out.push({ label: t('pace'), from: bPace, to: aPace });
+  if ((b.notes || '') !== (a.notes || '')) out.push({ label: t('notes'), from: b.notes || '—', to: a.notes || '—' });
   return out;
 }
 
 /** Compute a structured, field-level diff between two workouts. */
-function diffWorkouts(before: ParsedWorkout, after: ParsedWorkout): StepChange[] {
+function diffWorkouts(before: ParsedWorkout, after: ParsedWorkout, t: T): StepChange[] {
   const changes: StepChange[] = [];
   if (before.name !== after.name) {
-    changes.push({ title: 'Workout name', kind: 'modified', fields: [{ label: 'Name', from: before.name, to: after.name }] });
+    changes.push({ title: t('name'), kind: 'modified', fields: [{ label: t('name'), from: before.name, to: after.name }] });
   }
   const bSteps = before.steps || [];
   const aSteps = after.steps || [];
@@ -649,35 +669,35 @@ function diffWorkouts(before: ParsedWorkout, after: ParsedWorkout): StepChange[]
   for (let i = 0; i < max; i++) {
     const b = bSteps[i];
     const a = aSteps[i];
-    if (b && !a) { changes.push({ title: `Step ${i + 1} · ${stepLabels[b.type] || b.type}`, kind: 'removed', fields: [{ label: '', to: describeStep(b) }] }); continue; }
-    if (!b && a) { changes.push({ title: `Step ${i + 1} · ${stepLabels[a.type] || a.type}`, kind: 'added', fields: [{ label: '', to: describeStep(a) }] }); continue; }
+    if (b && !a) { changes.push({ title: t('stepLabel', { n: i + 1, type: stepLabel(b.type, t) }), kind: 'removed', fields: [{ label: '', to: describeStep(b, t) }] }); continue; }
+    if (!b && a) { changes.push({ title: t('stepLabel', { n: i + 1, type: stepLabel(a.type, t) }), kind: 'added', fields: [{ label: '', to: describeStep(a, t) }] }); continue; }
     if (JSON.stringify(b) === JSON.stringify(a)) continue;
 
     // Repeat block: diff reps + each sub-step field.
     if (b.repeatCount || a.repeatCount) {
       const fields: { label: string; from?: string; to?: string }[] = [];
       if ((b.repeatCount || 0) !== (a.repeatCount || 0)) {
-        fields.push({ label: 'Repeats', from: `${b.repeatCount || 0}×`, to: `${a.repeatCount || 0}×` });
+        fields.push({ label: t('repeats'), from: `${b.repeatCount || 0}×`, to: `${a.repeatCount || 0}×` });
       }
       const bSub = b.repeatSteps || [], aSub = a.repeatSteps || [];
       const subMax = Math.max(bSub.length, aSub.length);
       for (let j = 0; j < subMax; j++) {
         if (bSub[j] && aSub[j]) {
-          for (const fc of fieldChanges(bSub[j], aSub[j])) {
-            fields.push({ label: `${stepLabels[bSub[j].type] || 'sub'} ${fc.label}`, from: fc.from, to: fc.to });
+          for (const fc of fieldChanges(bSub[j], aSub[j], t)) {
+            fields.push({ label: `${stepLabel(bSub[j].type, t)} ${fc.label}`, from: fc.from, to: fc.to });
           }
         } else if (aSub[j]) {
-          fields.push({ label: 'Added sub-step', to: describeStep(aSub[j]) });
+          fields.push({ label: t('addedSubStep'), to: describeStep(aSub[j], t) });
         } else if (bSub[j]) {
-          fields.push({ label: 'Removed sub-step', from: describeStep(bSub[j]) });
+          fields.push({ label: t('removedSubStep'), from: describeStep(bSub[j], t) });
         }
       }
-      if (fields.length) changes.push({ title: `Step ${i + 1} · Repeat`, kind: 'modified', fields });
+      if (fields.length) changes.push({ title: t('stepRepeatLabel', { n: i + 1 }), kind: 'modified', fields });
       continue;
     }
 
-    const fields = fieldChanges(b, a);
-    if (fields.length) changes.push({ title: `Step ${i + 1} · ${stepLabels[a.type] || a.type}`, kind: 'modified', fields });
+    const fields = fieldChanges(b, a, t);
+    if (fields.length) changes.push({ title: t('stepLabel', { n: i + 1, type: stepLabel(a.type, t) }), kind: 'modified', fields });
   }
   return changes;
 }
@@ -690,13 +710,16 @@ interface WorkoutEditorPanelProps {
 }
 
 export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: WorkoutEditorPanelProps) {
+  const t = useTranslations('workoutEditor');
+  const tc = useTranslations('common');
   // Edit a local DRAFT — nothing is applied until Save is confirmed.
   const [draft, setDraft] = useState<ParsedWorkout>(workout);
-  const [confirming, setConfirming] = useState(false);
+  const [confirmingSave, setConfirmingSave] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   useEffect(() => { setDraft(workout); }, [workout]);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(workout);
-  const changes = diffWorkouts(workout, draft);
+  const changes = diffWorkouts(workout, draft, t);
 
   const updateStep = (index: number, step: WorkoutStep) => {
     const newSteps = [...draft.steps];
@@ -733,41 +756,49 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
     setDraft({ ...draft, steps: [...draft.steps, newStep] });
   };
 
-  const handleClose = () => {
-    if (dirty && !window.confirm('Discard your unsaved changes?')) return;
+  const requestClose = () => {
+    if (dirty) { setConfirmingDiscard(true); return; }
     onClose();
   };
 
   const confirmSave = () => {
     onChange(draft);
-    setConfirming(false);
+    setConfirmingSave(false);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-[2000] flex justify-end" onClick={handleClose} role="dialog" aria-modal="true">
-      <div
-        className="w-full max-w-lg bg-slate-900 border-s border-slate-700 h-full overflow-hidden flex flex-col animate-slide-in-right"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
-          <div>
-            <h3 className="font-semibold text-sm text-white">{dayName}</h3>
-            <input
-              value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              className="bg-transparent text-xs text-slate-400 focus:outline-none focus:text-white mt-0.5 w-full"
-              placeholder="Workout name"
-            />
+    <>
+      <Sheet
+        open
+        onOpenChange={(o) => { if (!o) requestClose(); }}
+        title={dayName}
+        className="max-h-[92vh]"
+        bodyClassName="px-0"
+        footer={
+          <div className="px-4 py-3 border-t border-slate-700 shrink-0 flex items-center justify-between gap-3">
+            <span className="text-xs text-slate-500">
+              {dirty ? (changes.length === 1 ? t('unsavedChange') : t('unsavedChanges', { count: changes.length })) : t('noChanges')}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={requestClose}>{tc('cancel')}</Button>
+              <Button size="sm" onClick={() => setConfirmingSave(true)} disabled={!dirty}>
+                <Save className="h-4 w-4" /> {tc('save')}
+              </Button>
+            </div>
           </div>
-          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400" aria-label="Close">
-            <X className="h-5 w-5" />
-          </button>
+        }
+      >
+        <div className="px-4 pt-1 pb-2">
+          <input
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            className="bg-transparent text-sm text-white focus:outline-none w-full font-medium"
+            placeholder={t('workoutNamePlaceholder')}
+          />
         </div>
 
-        {/* Steps */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-800">
+        <div className="divide-y divide-slate-800">
           {draft.steps.map((step, i) => (
             <StepRow
               key={i}
@@ -786,94 +817,72 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
               onClick={addStep}
               className="flex items-center gap-2 text-sm text-primary-400 hover:text-primary-300"
             >
-              <Plus className="h-4 w-4" /> Add Step
+              <Plus className="h-4 w-4" /> {t('addStep')}
             </button>
           </div>
         </div>
-
-        {/* Footer — Save / Cancel */}
-        <div className="px-4 py-3 border-t border-slate-700 shrink-0 flex items-center justify-between gap-3">
-          <span className="text-xs text-slate-500">
-            {dirty ? `${changes.length} unsaved change${changes.length !== 1 ? 's' : ''}` : 'No changes'}
-          </span>
-          <div className="flex items-center gap-2">
-            <button onClick={handleClose} className="px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800">
-              Cancel
-            </button>
-            <button
-              onClick={() => setConfirming(true)}
-              disabled={!dirty}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Save className="h-4 w-4" /> Save
-            </button>
-          </div>
-        </div>
-      </div>
+      </Sheet>
 
       {/* Confirm dialog with a diff of what will change */}
-      {confirming && (
-        <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/70 p-4" onClick={(e) => { e.stopPropagation(); setConfirming(false); }} role="dialog" aria-modal="true">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-slate-700 shrink-0 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-primary-400" />
-              <h3 className="font-semibold text-white">Confirm changes</h3>
-            </div>
-            <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
-              <p className="text-sm text-slate-400 mb-3">
-                You changed <span className="text-white font-medium">{dayName}</span>. Review before saving:
-              </p>
-              <div className="space-y-2.5">
-                {changes.map((c, i) => (
-                  <div key={i} className="bg-slate-800/60 rounded-lg px-3 py-2.5">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className={cn(
-                        'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
-                        c.kind === 'added' ? 'bg-green-500/20 text-green-400' :
-                        c.kind === 'removed' ? 'bg-red-500/20 text-red-400' :
-                        'bg-primary-500/20 text-primary-400'
-                      )}>
-                        {c.kind}
-                      </span>
-                      <span className="text-xs font-semibold text-white">{c.title}</span>
-                    </div>
-                    <div className="space-y-1">
-                      {c.fields.map((f, j) => (
-                        <div key={j} className="flex items-center gap-2 text-xs flex-wrap">
-                          {f.label && <span className="text-slate-400 min-w-[70px]">{f.label}</span>}
-                          {f.from !== undefined && <span className="text-red-300/80 line-through">{f.from}</span>}
-                          {f.from !== undefined && f.to !== undefined && <span className="text-slate-400">→</span>}
-                          {f.to !== undefined && <span className="text-green-300">{f.to}</span>}
-                        </div>
-                      ))}
-                    </div>
+      <Sheet
+        open={confirmingSave}
+        onOpenChange={setConfirmingSave}
+        title={
+          <span className="flex items-center justify-center gap-2">
+            <AlertCircle className="h-4 w-4 text-primary-400" /> {t('confirmChangesTitle')}
+          </span>
+        }
+        className="max-h-[85vh]"
+        footer={
+          <div className="px-4 py-3 border-t border-slate-700 shrink-0 flex items-center justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setConfirmingSave(false)}>{t('keepEditing')}</Button>
+            <Button size="sm" onClick={confirmSave}>
+              <Save className="h-4 w-4" /> {t('saveChanges')}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-400 mb-3">
+          {t('confirmChangesDesc', { day: dayName })}
+        </p>
+        <div className="space-y-2.5">
+          {changes.map((c, i) => (
+            <div key={i} className="bg-slate-800/60 rounded-lg px-3 py-2.5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={cn(
+                  'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
+                  c.kind === 'added' ? 'bg-green-500/20 text-green-400' :
+                  c.kind === 'removed' ? 'bg-red-500/20 text-red-400' :
+                  'bg-primary-500/20 text-primary-400'
+                )}>
+                  {c.kind === 'added' ? t('kindAdded') : c.kind === 'removed' ? t('kindRemoved') : t('kindModified')}
+                </span>
+                <span className="text-xs font-semibold text-white">{c.title}</span>
+              </div>
+              <div className="space-y-1">
+                {c.fields.map((f, j) => (
+                  <div key={j} className="flex items-center gap-2 text-xs flex-wrap">
+                    {f.label && <span className="text-slate-400 min-w-[70px]">{f.label}</span>}
+                    {f.from !== undefined && <span className="text-red-300/80 line-through">{f.from}</span>}
+                    {f.from !== undefined && f.to !== undefined && <span className="text-slate-400">→</span>}
+                    {f.to !== undefined && <span className="text-green-300">{f.to}</span>}
                   </div>
                 ))}
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-slate-700 shrink-0 flex items-center justify-end gap-2">
-              <button onClick={() => setConfirming(false)} className="px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800">
-                Keep editing
-              </button>
-              <button onClick={confirmSave} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 hover:bg-primary-700 text-white">
-                <Save className="h-4 w-4" /> Save changes
-              </button>
-            </div>
-          </div>
+          ))}
         </div>
-      )}
-    </div>
-  );
-}
+      </Sheet>
 
-// Keep backward compatibility export
-export function WorkoutEditor({ workout, onChange }: { workout: ParsedWorkout; onChange: (w: ParsedWorkout) => void }) {
-  return (
-    <WorkoutEditorPanel
-      workout={workout}
-      dayName={workout.name}
-      onChange={onChange}
-      onClose={() => {}}
-    />
+      <ConfirmSheet
+        open={confirmingDiscard}
+        onOpenChange={setConfirmingDiscard}
+        title={t('discardTitle')}
+        description={t('discardDesc')}
+        confirmLabel={t('discardConfirm')}
+        cancelLabel={t('keepEditing')}
+        onConfirm={onClose}
+      />
+    </>
   );
 }

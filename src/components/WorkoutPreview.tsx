@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { formatPace } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
@@ -26,7 +27,7 @@ const workoutTypeStyles: Record<string, { border: string; color: string }> = {
   recovery: { border: 'border-s-green-400', color: 'text-green-400' },
 };
 
-function fmtDuration(step: WorkoutStep): string {
+function fmtDuration(step: WorkoutStep, lapLabel: string): string {
   if (step.durationType === 'distance' && step.durationValue) {
     return step.durationValue >= 1000
       ? `${(step.durationValue / 1000).toFixed(step.durationValue % 1000 === 0 ? 0 : 1)}km`
@@ -45,7 +46,7 @@ function fmtDuration(step: WorkoutStep): string {
     }
     return `${step.durationValue}s`;
   }
-  return 'Open';
+  return lapLabel;
 }
 
 function fmtTarget(step: WorkoutStep): string {
@@ -102,7 +103,7 @@ export function inferWorkoutType(workout: ParsedWorkout): string {
   return 'easy';
 }
 
-function StepLine({ step }: { step: WorkoutStep }) {
+function StepLine({ step, lapLabel }: { step: WorkoutStep; lapLabel: string }) {
   const colors = stepColors[step.type] || { dot: 'bg-slate-400', bg: 'bg-slate-400/10' };
 
   if (step.repeatCount && step.repeatSteps) {
@@ -121,7 +122,7 @@ function StepLine({ step }: { step: WorkoutStep }) {
     <div className={cn('flex items-center gap-1.5 py-1 px-2 rounded min-w-0', colors.bg)}>
       <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', colors.dot)} />
       <span className="text-[11px] text-slate-200 truncate flex-1 min-w-0 font-medium">
-        {fmtDuration(step)}
+        {fmtDuration(step, lapLabel)}
       </span>
       {target && <span className="text-[10px] text-slate-400 shrink-0">{target}</span>}
     </div>
@@ -134,6 +135,8 @@ interface WorkoutPreviewProps {
 }
 
 export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps) {
+  const t = useTranslations('workoutEditor');
+  const tp = useTranslations('planner');
   const [expanded, setExpanded] = useState(false);
   const steps = workout.steps;
 
@@ -191,7 +194,7 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
       {/* Steps */}
       <div className="px-2.5 pb-2 space-y-0.5 flex-1">
         {visibleSteps.map((step, i) => (
-          <StepLine key={i} step={step} />
+          <StepLine key={i} step={step} lapLabel={t('lap')} />
         ))}
       </div>
 
@@ -201,9 +204,9 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
           className="flex items-center gap-0.5 text-[10px] text-primary-400 px-3 pb-2 hover:text-primary-300 font-medium"
         >
           {expanded ? (
-            <><ChevronUp className="h-3 w-3" /> less</>
+            <><ChevronUp className="h-3 w-3" /> {tp('stepsLess')}</>
           ) : (
-            <><ChevronDown className="h-3 w-3" /> +{steps.length - MAX_VISIBLE} more</>
+            <><ChevronDown className="h-3 w-3" /> {tp('stepsMore', { count: steps.length - MAX_VISIBLE })}</>
           )}
         </button>
       )}

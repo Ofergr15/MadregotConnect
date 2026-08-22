@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import {
@@ -44,8 +44,6 @@ import { getSupabase } from '@/lib/supabase/client';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
 
 const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
-
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 type PushTab = 'all' | 'groups' | 'athletes';
 
@@ -136,6 +134,14 @@ async function bearerHeaders(includeJson = true): Promise<Record<string, string>
     ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+}
+
+function ErrorBanner({ message, className }: { message: string; className?: string }) {
+  return (
+    <div className={cn('bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm', className)}>
+      {message}
+    </div>
+  );
 }
 
 export default function WeeklyPlannerPage() {
@@ -436,9 +442,43 @@ export default function WeeklyPlannerPage() {
     }
   }, [acceptFile]);
 
+  const removeFile = useCallback(() => {
+    setImageFile(null);
+    setImagePreview(null);
+    const input = document.getElementById('file-upload-input') as HTMLInputElement | null;
+    if (input) input.value = '';
+  }, []);
+
+  // Guards against the parse request hanging forever client-side (observed in
+  // production: the Claude call stalled past Vercel's own function timeout and
+  // the fetch() promise never settled, leaving the "parsing" screen up with no
+  // way out short of reloading). 150s comfortably exceeds normal parse time
+  // but still gives up well before an athlete assumes the app is broken.
+  const parseAbortRef = useRef<AbortController | null>(null);
+  const manualCancelRef = useRef(false);
+  // Distinguishes the two network calls behind the "Parsing your plan..."
+  // screen: the AI parse itself, then saving the result. Without this the
+  // screen shows the same static text through both — a slow save (confirmed
+  // in production logs: 56s from parse-workout 200 to plans 201) looks
+  // identical to a hung request.
+  const [savingAfterParse, setSavingAfterParse] = useState(false);
+
+  const cancelParsing = useCallback(() => {
+    manualCancelRef.current = true;
+    parseAbortRef.current?.abort();
+    setParsing(false);
+    setSavingAfterParse(false);
+    setError(null);
+  }, []);
+
   const parsePlan = async () => {
     setError(null);
     setParsing(true);
+    setSavingAfterParse(false);
+
+    const controller = new AbortController();
+    parseAbortRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), 150_000);
 
     try {
       const body: Record<string, string> = {};
@@ -464,6 +504,7 @@ export default function WeeklyPlannerPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
 
       // On a serverless timeout/crash Vercel returns an HTML/text error page,
@@ -496,6 +537,7 @@ export default function WeeklyPlannerPage() {
       setGroupedPlans(grouped);
 
       // Save immediately
+      setSavingAfterParse(true);
       const saveRes = await fetch('/api/plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -506,6 +548,7 @@ export default function WeeklyPlannerPage() {
           parsed_workouts: grouped,
           status: 'draft',
         }),
+        signal: controller.signal,
       });
 
       if (saveRes.ok) {
@@ -520,9 +563,16 @@ export default function WeeklyPlannerPage() {
       setImageFile(null);
       setImagePreview(null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t('errors.unexpectedError'));
+      const wasManualCancel = manualCancelRef.current;
+      manualCancelRef.current = false;
+      if (!wasManualCancel) {
+        const isAbort = err instanceof DOMException && err.name === 'AbortError';
+        setError(isAbort ? t('errors.parsingTimedOut') : err instanceof Error ? err.message : t('errors.unexpectedError'));
+      }
     } finally {
+      clearTimeout(timeoutId);
       setParsing(false);
+      setSavingAfterParse(false);
     }
   };
 
@@ -1114,13 +1164,21 @@ export default function WeeklyPlannerPage() {
 
       {/* Create mode */}
       {!loadingPlans && !currentPlan && showCreate && !parsing && (
-        <div className="flex-1 flex items-center justify-center px-4 py-12">
-          <div className="w-full max-w-2xl space-y-6">
+        <div className="flex-1 flex items-center justify-center px-4 py-8">
+          <div className="w-full max-w-2xl space-y-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">{t('createPlanFor', { group: weekLabel })}</h2>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary-600/15 flex items-center justify-center shrink-0">
+                  <Sparkles className="h-5 w-5 text-primary-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white leading-tight">{t('createPlanFor', { group: weekLabel })}</h2>
+                  <p className="text-xs text-slate-500">{t('aiParseHint')}</p>
+                </div>
+              </div>
               <button
                 onClick={() => { setShowCreate(false); setError(null); }}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white shrink-0"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1171,61 +1229,87 @@ export default function WeeklyPlannerPage() {
               </div>
             )}
 
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onPaste={handlePaste}
-              placeholder={t('pasteYourPlan')}
-              rows={8}
-              className="w-full resize-none text-base leading-relaxed bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-            />
-
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              onClick={() => document.getElementById('file-upload-input')?.click()}
-              className={cn(
-                'border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer',
-                imagePreview
-                  ? 'border-primary-500 bg-primary-500/5'
-                  : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800/50'
-              )}
-            >
-              {imagePreview === 'pdf' ? (
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-10 h-12 bg-red-500/20 rounded flex items-center justify-center">
-                    <span className="text-red-400 text-xs font-bold">PDF</span>
-                  </div>
-                  <div className="text-start">
-                    <p className="text-sm text-slate-300">{imageFile?.name}</p>
-                    <p className="text-xs text-slate-500">{t('readyToParse')}</p>
-                  </div>
+            <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-slate-700/60 flex items-center justify-center shrink-0">
+                  <FileText className="h-3.5 w-3.5 text-slate-400" />
                 </div>
-              ) : imagePreview ? (
-                <img src={imagePreview} alt="Uploaded plan" className="max-h-24 mx-auto rounded" />
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-2">
-                  <Upload className="h-6 w-6 text-slate-500" />
-                  <p className="text-sm text-slate-400">{t('dropImage')}</p>
-                </div>
-              )}
-              <input
-                id="file-upload-input"
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={handleImageUpload}
-                className="hidden"
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('pasteTextLabel')}</span>
+              </div>
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onPaste={handlePaste}
+                placeholder={t('pasteYourPlan')}
+                rows={7}
+                className="w-full resize-none text-base leading-relaxed bg-slate-900/60 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
               />
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-slate-700/50" />
+                <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">{t('or')}</span>
+                <div className="flex-1 h-px bg-slate-700/50" />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-slate-700/60 flex items-center justify-center shrink-0">
+                  <ImageIcon className="h-3.5 w-3.5 text-slate-400" />
+                </div>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('uploadFileLabel')}</span>
+              </div>
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+                onClick={() => !imagePreview && document.getElementById('file-upload-input')?.click()}
+                className={cn(
+                  'relative border-2 border-dashed rounded-xl p-5 text-center transition-all',
+                  imagePreview
+                    ? 'border-primary-500 bg-primary-500/5'
+                    : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800/50 cursor-pointer'
+                )}
+              >
+                {imagePreview && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); removeFile(); }}
+                    aria-label={t('removeFile')}
+                    className="absolute top-2 end-2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+                {imagePreview === 'pdf' ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-10 h-12 bg-red-500/20 rounded flex items-center justify-center">
+                      <span className="text-red-400 text-xs font-bold">PDF</span>
+                    </div>
+                    <div className="text-start">
+                      <p className="text-sm text-slate-300">{imageFile?.name}</p>
+                      <p className="text-xs text-slate-500">{t('readyToParse')}</p>
+                    </div>
+                  </div>
+                ) : imagePreview ? (
+                  <img src={imagePreview} alt={t('uploadedPlanAlt')} className="max-h-24 mx-auto rounded" />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-2">
+                    <Upload className="h-6 w-6 text-slate-500" />
+                    <p className="text-sm text-slate-400">{t('dropImage')}</p>
+                  </div>
+                )}
+                <input
+                  id="file-upload-input"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
             </div>
 
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm">
-                {error}
-              </div>
-            )}
+            {error && <ErrorBanner message={error} />}
 
             <Button onClick={parsePlan} disabled={!hasInput} size="lg" className="w-full">
-              <FileText className="h-5 w-5" />
+              <Sparkles className="h-5 w-5" />
               {t('parsePlan')}
             </Button>
           </div>
@@ -1269,12 +1353,18 @@ export default function WeeklyPlannerPage() {
               </svg>
             </div>
             <div className="space-y-2">
-              <h2 className="text-xl font-semibold text-white">{t('parsingPlan')}</h2>
-              <p className="text-sm text-slate-400">{t('readingWorkouts')}</p>
+              <h2 className="text-xl font-semibold text-white">{savingAfterParse ? t('savingPlan') : t('parsingPlan')}</h2>
+              <p className="text-sm text-slate-400">{savingAfterParse ? t('finalizingWeek') : t('readingWorkouts')}</p>
             </div>
             <div className="w-48 mx-auto h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-primary-600 via-purple-500 to-primary-600 rounded-full animate-progress-indeterminate" />
             </div>
+            <button
+              onClick={cancelParsing}
+              className="min-h-[44px] px-4 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              {t('cancel')}
+            </button>
           </div>
         </div>
       )}
@@ -1325,6 +1415,7 @@ export default function WeeklyPlannerPage() {
                   variant="secondary"
                   size="sm"
                   onClick={() => setConfirmDelete(true)}
+                  disabled={deleting}
                   className="text-red-400 hover:text-red-300"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -1345,11 +1436,7 @@ export default function WeeklyPlannerPage() {
 
           {/* Week view */}
           <div className="flex-1 px-6 py-6 w-full">
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm mb-4">
-                {error}
-              </div>
-            )}
+            {error && <ErrorBanner message={error} className="mb-4" />}
 
             <WeekView
               workouts={groupedPlans[`group${activeGroup}` as keyof GroupedWeeklyPlans].workouts}
@@ -1375,17 +1462,26 @@ export default function WeeklyPlannerPage() {
                   </span>
                 )}
               </div>
-              <Button
-                onClick={() => {
-                  setError(null);
-                  setClipboardWorkoutIndex(0);
-                  setShowClipboardReview(true);
-                }}
-                className="px-6"
-              >
-                <ClipboardList className="h-4 w-4" />
-                {t('reviewAndPublish')}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => { setError(null); setShowPush(true); }}
+                >
+                  <Watch className="h-4 w-4" />
+                  {t('pushToAthletes')}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setError(null);
+                    setClipboardWorkoutIndex(0);
+                    setShowClipboardReview(true);
+                  }}
+                  className="px-6"
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  {t('reviewAndPublish')}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -1580,7 +1676,7 @@ export default function WeeklyPlannerPage() {
       {clipboardEditing && groupedPlans && (
         <WorkoutEditorPanel
           workout={groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex]}
-          dayName={DAY_NAMES[groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex]?.dayOfWeek]}
+          dayName={DAY_LABELS[groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex]?.dayOfWeek]}
           onChange={(workout) => handleWorkoutChange(clipboardWorkoutIndex, workout)}
           onClose={() => setClipboardEditing(false)}
         />
@@ -2094,11 +2190,7 @@ export default function WeeklyPlannerPage() {
                   )}
                 </div>
 
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
-                    {error}
-                  </div>
-                )}
+                {error && <ErrorBanner message={error} className="p-3" />}
 
                 <div className="flex items-center justify-between pt-4 border-t border-slate-700">
                   <span className="text-sm text-slate-400">
