@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { PenSquare, MessageSquare, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { PenSquare, MessageSquare, AlertCircle, LogIn } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useTranslations } from 'next-intl';
 import { fetchFeed, deletePost } from '@/lib/feed-client';
@@ -225,7 +226,21 @@ export default function FeedPage() {
 
       {loading && <SkeletonList count={3} />}
 
-      {!loading && error && (
+      {/* NOT_SIGNED_IN specifically means the Supabase session itself expired
+          (this feed API requires a real JWT, not just cached localStorage
+          identity, so comments/posts can't be spoofed as someone else) —
+          "Try again" would just fail the same way, so this case gets its own
+          message and a real way out instead of the raw error code. */}
+      {!loading && error === 'NOT_SIGNED_IN' && (
+        <EmptyState
+          icon={LogIn}
+          title={t('sessionExpiredTitle')}
+          description={t('sessionExpiredBody')}
+          action={<Link href="/"><Button>{t('signInAgain')}</Button></Link>}
+        />
+      )}
+
+      {!loading && error && error !== 'NOT_SIGNED_IN' && (
         <EmptyState
           icon={AlertCircle}
           title={error}
