@@ -7,19 +7,26 @@ import { useTranslations } from 'next-intl';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, MoreHorizontal, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift,
+  BarChart3, Menu, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
-import { Sheet, InsetSection, InsetRow } from '@/components/ui';
+import { Sheet } from '@/components/ui';
 
 // iOS-native redesign, phase 1: a bottom tab bar (the #1 "this is a real app"
 // signal) that replaces the hamburger on mobile. Primary tabs live in the bar;
 // everything else lives in a "More" sheet. Role/permission logic mirrors the
 // Header exactly (same /api/admin/tab-permissions + view-as override) so the two
 // never drift. Hidden on md+ (desktop keeps the header nav).
+//
+// Visual style (v2, per reference: My Disney Experience app): icon-only, no
+// text labels, no elevated/colored FAB — every slot (including the primary
+// action and the overflow trigger) is the exact same flat, evenly-spaced,
+// thin-stroke icon button. Labels move to `aria-label` only (screen readers
+// still get them; sighted users rely on icon + position, same as the
+// reference). Active state is a plain color change — no weight/scale jump.
 
 interface NavItem { href: string; tab: string; labelKey: string; icon: any; }
 
@@ -141,126 +148,123 @@ export function BottomTabBar() {
   const isActive = (href: string) => pathname === href;
   const overflowActive = overflow.some(i => isActive(i.href));
 
-  // Elevated center FAB (Talos-style): one role-aware "do something now" primary
-  // action, additive to the 4 primary tabs + More. Athletes → confirm attendance
-  // for their next workout (the AttendanceRSVP card lives at the top of
+  // The primary action: one role-aware "do something now" destination,
+  // additive to the 4 primary tabs + More. Athletes → confirm attendance for
+  // their next workout (the AttendanceRSVP card lives at the top of
   // /dashboard). Staff (coach/admin/academy_coach) → the attendance roster —
   // deliberately excluded from STAFF_PRIMARY_ORDER above so it's reachable via
-  // the FAB only, never as a redundant second flat tab to the same page.
+  // this slot only, never as a redundant second flat tab to the same page.
+  // Rendered as a plain icon button now (no elevation/color), same as every
+  // other slot in the bar.
   const primaryActionHref = isStaffView ? '/dashboard/practice-attendance' : '/dashboard';
   const primaryActionAriaKey = isStaffView ? 'attendanceRosterAria' : 'confirmAttendanceAria';
-  const primaryActionActive = isActive(primaryActionHref);
-  // Split the primary tabs around the middle so the FAB lands visually centered
-  // in the bar regardless of how many tabs (1-4) this role has.
+  // Split the primary tabs around the middle so this slot lands visually
+  // centered in the bar regardless of how many tabs (1-4) this role has.
   const midIndex = Math.ceil(primary.length / 2);
 
-  const renderPrimaryTab = (item: NavItem) => {
-    const Icon = item.icon;
-    const active = isActive(item.href);
+  const renderIconButton = ({ href, ariaLabel, icon: Icon, onClick }: { href: string; ariaLabel: string; icon: any; onClick?: () => void }) => {
+    const active = isActive(href);
     return (
       <Link
-        key={item.tab}
-        href={item.href}
-        onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } }}
+        key={href}
+        href={href}
+        onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } onClick?.(); }}
+        aria-label={ariaLabel}
         className={cn(
-          'flex-1 flex flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition-colors active:scale-[0.92]',
-          active ? 'text-primary-400' : 'text-slate-500'
+          'flex-1 flex items-center justify-center py-3.5 transition-colors active:scale-[0.92]',
+          active ? 'text-primary-400' : 'text-slate-400'
         )}
       >
-        <Icon className="h-6 w-6" strokeWidth={active ? 2.4 : 2} />
-        <span className={cn('text-[10px] leading-none', active ? 'font-bold' : 'font-medium')}>
-          {t(item.labelKey as any)}
-        </span>
+        <Icon className="h-6 w-6" strokeWidth={1.75} />
       </Link>
     );
   };
 
   return (
     <>
-      {/* Bottom tab bar — mobile only. Frosted, safe-area padded. */}
+      {/* Bottom tab bar — mobile only. Icon-only, flat, evenly spaced (My
+          Disney Experience reference) — no labels, no elevated FAB. */}
       <nav
         className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-slate-700/60 bg-slate-900/85 backdrop-blur-xl"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {primary.slice(0, midIndex).map(renderPrimaryTab)}
+        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), icon: item.icon }))}
 
-        {/* Elevated primary-action FAB — pops above the bar line (Talos
-            reference), distinct from the flat tab buttons around it. */}
-        <Link
-          href={primaryActionHref}
-          onClick={() => { try { navigator.vibrate?.(10); } catch { /* no-op */ } }}
-          aria-label={t(primaryActionAriaKey as any)}
-          className="flex-1 flex flex-col items-center justify-end pb-1.5"
-        >
-          <span
-            className={cn(
-              '-mt-6 flex items-center justify-center w-14 h-14 rounded-full shadow-lg shadow-black/40 transition-transform active:scale-[0.92]',
-              primaryActionActive ? 'bg-primary-500' : 'bg-primary-600'
-            )}
-          >
-            <CalendarCheck className="h-6 w-6 text-white" strokeWidth={2.4} />
-          </span>
-        </Link>
+        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), icon: CalendarCheck })}
 
-        {primary.slice(midIndex).map(renderPrimaryTab)}
+        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), icon: item.icon }))}
+
         {overflow.length > 0 && (
           <button
             onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } setMoreOpen(true); }}
+            aria-label={t('more' as any)}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition-colors active:scale-[0.92]',
-              overflowActive ? 'text-primary-400' : 'text-slate-500'
+              'flex-1 flex items-center justify-center py-3.5 transition-colors active:scale-[0.92]',
+              overflowActive ? 'text-primary-400' : 'text-slate-400'
             )}
           >
-            <MoreHorizontal className="h-6 w-6" />
-            <span className="text-[10px] leading-none font-medium">{t('more' as any)}</span>
+            <Menu className="h-6 w-6" strokeWidth={1.75} />
           </button>
         )}
       </nav>
 
-      {/* "More" sheet — native-style bottom sheet listing the overflow tabs,
-          using the app's shared Sheet primitive (drag-to-dismiss, focus trap,
-          aria-modal) instead of a hand-rolled `fixed inset-0` overlay. */}
+      {/* "More" sheet — grouped grid of quick-action cards (references: My
+          Disney Experience's home-screen card grid, and a banking app's
+          "פעולות נפוצות"/"אולי יעניין אותך" grouped circular actions) instead
+          of a flat list — replacing the previous InsetSection/InsetRow rows. */}
       <Sheet open={moreOpen} onOpenChange={setMoreOpen} title={t('more' as any)} className="md:hidden">
-        <InsetSection>
-          {/* Static — every role, not gated by role_mobile_tab_permissions
+        <div className="space-y-5">
+          {/* Static group — every role, not gated by role_mobile_tab_permissions
               (roadmap #17, In-App Global Search; roadmap #9, Store; roadmap
               #5, Benefits/Discounts). */}
-          <InsetRow
-            icon={Search}
-            iconBg={isActive('/dashboard/search') ? 'bg-primary-600' : 'bg-slate-600'}
-            label={t('search' as any)}
-            href="/dashboard/search"
-            onClick={() => setMoreOpen(false)}
-          />
-          <InsetRow
-            icon={ShoppingBag}
-            iconBg={isActive('/dashboard/store') ? 'bg-primary-600' : 'bg-slate-600'}
-            label={t('store' as any)}
-            href="/dashboard/store"
-            onClick={() => setMoreOpen(false)}
-          />
-          <InsetRow
-            icon={Gift}
-            iconBg={isActive('/dashboard/benefits') ? 'bg-primary-600' : 'bg-slate-600'}
-            label={t('benefits' as any)}
-            href="/dashboard/benefits"
-            onClick={() => setMoreOpen(false)}
-          />
-          {overflow.map(item => {
-            const active = isActive(item.href);
-            return (
-              <InsetRow
-                key={item.tab}
-                icon={item.icon}
-                iconBg={active ? 'bg-primary-600' : 'bg-slate-600'}
-                label={t(item.labelKey as any)}
-                href={item.href}
-                onClick={() => setMoreOpen(false)}
-              />
-            );
-          })}
-        </InsetSection>
+          <div>
+            <p className="px-1 mb-2 text-2xs font-bold uppercase tracking-wider text-slate-500">{t('quickActions' as any)}</p>
+            <div className="grid grid-cols-3 gap-3">
+              <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
+              <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />
+              <MoreCard icon={Gift} label={t('benefits' as any)} href="/dashboard/benefits" active={isActive('/dashboard/benefits')} onClick={() => setMoreOpen(false)} />
+            </div>
+          </div>
+
+          {overflow.length > 0 && (
+            <div>
+              <p className="px-1 mb-2 text-2xs font-bold uppercase tracking-wider text-slate-500">{t('morePages' as any)}</p>
+              <div className="grid grid-cols-3 gap-3">
+                {overflow.map(item => (
+                  <MoreCard
+                    key={item.tab}
+                    icon={item.icon}
+                    label={t(item.labelKey as any)}
+                    href={item.href}
+                    active={isActive(item.href)}
+                    onClick={() => setMoreOpen(false)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </Sheet>
     </>
+  );
+}
+
+// One quick-action card in the "More" sheet's grid — a colored icon circle
+// (fills in on active, matching the bar's own active-color convention) with
+// its label wrapping below, centered. 3 per row fits our longer labels
+// ("Workout Feedback", "Team Volume") more comfortably than the reference
+// apps' 2-line circular buttons while still reading as "a grid of actions".
+function MoreCard({ icon: Icon, label, href, active, onClick }: { icon: any; label: string; href: string; active: boolean; onClick: () => void }) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 rounded-2xl bg-slate-800/60 border border-slate-700/50 p-3 text-center active:scale-[0.96] transition-transform"
+    >
+      <span className={cn('w-11 h-11 rounded-full flex items-center justify-center shrink-0', active ? 'bg-primary-600' : 'bg-slate-700')}>
+        <Icon className="h-5 w-5 text-white" />
+      </span>
+      <span className="text-2xs font-semibold text-white leading-tight" dir="auto">{label}</span>
+    </Link>
   );
 }
