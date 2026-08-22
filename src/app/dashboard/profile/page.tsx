@@ -529,7 +529,12 @@ function ProfileContent() {
 
           {/* Everything else lives one tap away, iOS-Settings style. InsetRow
               already renders its own RTL-safe chevron whenever href/onClick is
-              set and no `trailing` override is passed — no need to repeat it. */}
+              set and no `trailing` override is passed — no need to repeat it.
+              Grouped into "my numbers" (performance/history) vs "account"
+              (settings-ish config) instead of one long flat list — the single
+              biggest usability finding from the earlier nav/menu research pass
+              (Strava's own profile tab uses the same split). Program stays
+              ungrouped at the top since it's the most frequently tapped row. */}
           <InsetSection>
             <InsetRow
               icon={Dumbbell}
@@ -538,6 +543,30 @@ function ProfileContent() {
               value={currentWeek.weekLabel}
               href="/dashboard/program"
             />
+          </InsetSection>
+
+          <InsetSection header={t('myNumbers')}>
+            <InsetRow
+              icon={BarChart3}
+              iconBg="bg-amber-500"
+              label={t('statistics')}
+              onClick={() => setActiveTab('statistics')}
+            />
+            <InsetRow
+              icon={Award}
+              iconBg="bg-yellow-500"
+              label={t('badges')}
+              onClick={() => setActiveTab('badges')}
+            />
+            <InsetRow
+              icon={Route}
+              iconBg="bg-cyan-500"
+              label={t('myActivities')}
+              href="/dashboard/activities"
+            />
+          </InsetSection>
+
+          <InsetSection header={t('account')}>
             <InsetRow
               icon={Users}
               iconBg="bg-blue-500"
@@ -558,24 +587,6 @@ function ProfileContent() {
               label={t('activityDataSource')}
               value={dataSourceLabel}
               onClick={() => setActiveTab('datasource')}
-            />
-            <InsetRow
-              icon={BarChart3}
-              iconBg="bg-amber-500"
-              label={t('statistics')}
-              onClick={() => setActiveTab('statistics')}
-            />
-            <InsetRow
-              icon={Award}
-              iconBg="bg-yellow-500"
-              label={t('badges')}
-              onClick={() => setActiveTab('badges')}
-            />
-            <InsetRow
-              icon={Route}
-              iconBg="bg-cyan-500"
-              label={t('myActivities')}
-              href="/dashboard/activities"
             />
             {planWorkouts && workoutDays.length > 0 && (
               <InsetRow

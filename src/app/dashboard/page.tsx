@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { Calendar, ArrowRight, TrendingUp, TrendingDown, MapPin } from 'lucide-react';
+import { Calendar, ArrowRight, TrendingUp, TrendingDown, MapPin, Flame } from 'lucide-react';
 import { cn, getActivityWeekStart, getPlanWeekStart } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
+import { useApi } from '@/lib/api';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRSVP';
 import { NextWorkoutCard } from '@/components/NextWorkoutCard';
@@ -75,6 +76,7 @@ interface RecentActivity {
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
+  const tm = useTranslations('momentum');
   const router = useRouter();
   const locale = useLocale();
   const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
@@ -99,6 +101,12 @@ export default function DashboardPage() {
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [athleteName, setAthleteName] = useState<string>('');
   const [weeklyRuns, setWeeklyRuns] = useState(0);
+  // Week-streak — shown as a small flame badge in the stat strip (same source
+  // MomentumCard/Profile→Statistics use, just the headline number, not the
+  // full recap card).
+  const { data: summary } = useApi<{ weekStreak: number }>(
+    !isCoach && athleteId ? `/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}` : null,
+  );
 
   useEffect(() => {
     const coachEmail = localStorage.getItem('coach_email');
@@ -442,11 +450,19 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* ═══ SLIM STAT STRIP (athlete only) — total km · workouts this month,
-          plus this-week completion. Deeper stats (records, streak, volume
+      {/* ═══ SLIM STAT STRIP (athlete only) — streak · this-week completion ·
+          total km · workouts this month. Deeper stats (records, volume
           trends) live on Profile → Statistics, not duplicated here. ═══ */}
       {!isCoach && athleteId && (
         <>
+          {!!summary?.weekStreak && (
+            <Card variant="muted">
+              <div className="flex items-center justify-center gap-2">
+                <Flame className="h-6 w-6 text-orange-400" />
+                <BigStat value={summary.weekStreak} label={summary.weekStreak === 1 ? tm('weekStreakOne') : tm('weekStreak')} />
+              </div>
+            </Card>
+          )}
           <Card variant="muted">
             <BigStat
               value={<>{weeklyRuns}<span className="text-sm font-medium text-slate-500">/ {hasData ? weekly!.trainingDays : 7}</span></>}
