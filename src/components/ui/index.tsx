@@ -252,23 +252,26 @@ export function SegmentedControl<T extends string>({
   options,
   className,
 }: {
-  value: T;
+  // `null` means "nothing selected yet" — distinct from defaulting to one of
+  // the real options, which would make that option look pre-selected while
+  // tapping it does nothing (its onClick short-circuits on already-active).
+  value: T | null;
   onChange: (v: T) => void;
-  options: Array<{ value: T; label: string; icon?: React.ComponentType<{ className?: string }> }>;
+  options: Array<{ value: T; label: string; icon?: React.ComponentType<{ className?: string }>; activeBg?: string }>;
   className?: string;
 }) {
   return (
     <div className={cn('flex gap-0.5 rounded-xl bg-slate-800 p-1 border border-slate-700', className)}>
       {options.map((opt) => {
         const Icon = opt.icon;
-        const active = opt.value === value;
+        const active = value !== null && opt.value === value;
         return (
           <button
             key={opt.value}
             onClick={() => { if (!active) { try { navigator.vibrate?.(6); } catch { /* no-op */ } onChange(opt.value); } }}
             className={cn(
               'flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-semibold transition-colors min-h-[40px]',
-              active ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              active ? cn(opt.activeBg || 'bg-primary-600', 'text-white shadow-sm') : 'text-slate-400 hover:text-white'
             )}
           >
             {Icon && <Icon className="h-4 w-4" />}

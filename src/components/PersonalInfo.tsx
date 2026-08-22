@@ -9,6 +9,10 @@ import { Sheet, Button, SegmentedControl, Skeleton } from '@/components/ui';
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
 type ShirtSize = (typeof SHIRT_SIZES)[number];
 
+// EU running-shoe sizing, half-size steps — a free-text field let people type
+// anything (US/UK/cm mixed in), so this is a fixed picklist instead.
+const SHOE_SIZES = Array.from({ length: 21 }, (_, i) => (36 + i * 0.5).toString().replace(/\.0$/, ''));
+
 interface PersonalInfoData {
   name: string;
   birthDate: string | null;
@@ -214,33 +218,40 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           segment saves and closes immediately (no extra "Save" tap needed). */}
       <Sheet open={editField === 'gender'} onOpenChange={o => !o && setEditField(null)} title={t('gender')}>
         <SegmentedControl<'male' | 'female'>
-          value={gender ?? 'male'}
+          value={gender}
           onChange={(g) => { persist(snapshot({ gender: g })); setEditField(null); }}
           options={[
-            { value: 'male', label: t('genderMale') },
-            { value: 'female', label: t('genderFemale') },
+            { value: 'male', label: t('genderMale'), activeBg: 'bg-blue-600' },
+            { value: 'female', label: t('genderFemale'), activeBg: 'bg-rose-500' },
           ]}
         />
       </Sheet>
 
-      {/* Shoe size edit sheet */}
+      {/* Shoe size edit sheet — fixed EU picklist (was free text), same
+          instant-save-on-tap pattern as gender/shirt size. Scrollable since
+          21 half-size options don't fit a SegmentedControl row. */}
       <Sheet open={editField === 'shoeSize'} onOpenChange={o => !o && setEditField(null)} title={t('shoeSize')}>
-        <input
-          type="text"
-          value={shoeSize}
-          onChange={e => setShoeSize(e.target.value)}
-          placeholder={t('shoeSizeOptional')}
-          className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50 mb-4"
-        />
-        <Button className="w-full" disabled={saving} onClick={() => { persist(snapshot({})); setEditField(null); }}>
-          {t('saveChanges')}
-        </Button>
+        <div className="max-h-[50vh] overflow-y-auto -mx-1 px-1">
+          <InsetSection>
+            {SHOE_SIZES.map(size => {
+              const isSelected = shoeSize === size;
+              return (
+                <InsetRow
+                  key={size}
+                  label={size}
+                  onClick={() => { setShoeSize(size); persist(snapshot({ shoeSize: size })); setEditField(null); }}
+                  trailing={isSelected ? <CheckCircle2 className="h-5 w-5 text-primary-500" /> : undefined}
+                />
+              );
+            })}
+          </InsetSection>
+        </div>
       </Sheet>
 
       {/* Shirt size edit sheet — fixed set, same instant-save pattern as gender. */}
       <Sheet open={editField === 'shirtSize'} onOpenChange={o => !o && setEditField(null)} title={t('shirtSize')}>
         <SegmentedControl<ShirtSize>
-          value={shirtSize ?? 'M'}
+          value={shirtSize}
           onChange={(s) => { persist(snapshot({ shirtSize: s })); setEditField(null); }}
           options={SHIRT_SIZES.map(s => ({ value: s, label: s }))}
         />
