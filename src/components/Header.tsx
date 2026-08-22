@@ -462,7 +462,12 @@ export function Header() {
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-slate-400 truncate" dir="ltr">{userEmail}</div>
+                {/* Strava/Garmin/dev accounts get a synthetic placeholder address
+                    (e.g. strava_123@strava.madregot.local) — never a real email
+                    the athlete recognizes, so it's hidden rather than shown. */}
+                {userEmail && !userEmail.endsWith('.madregot.local') && (
+                  <div className="text-xs text-slate-400 truncate" dir="ltr">{userEmail}</div>
+                )}
               </div>
             </div>
 

@@ -384,10 +384,15 @@ function ProfileContent() {
               <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl font-bold text-white truncate">{athleteName}</h1>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  <span className="text-sm text-slate-400 truncate">{athleteEmail}</span>
-                </div>
+                {/* Strava/Garmin-only accounts get a synthetic placeholder address
+                    (e.g. strava_123@strava.madregot.local) — never a real email,
+                    so it's hidden rather than shown. */}
+                {athleteEmail && !athleteEmail.endsWith('.madregot.local') && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span className="text-sm text-slate-400 truncate">{athleteEmail}</span>
+                  </div>
+                )}
                 {memberSince && (
                   <p className="text-xs text-slate-500 mt-1">
                     {t('memberSince')} {new Date(memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
