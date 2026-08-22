@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Plus, Trophy, Pencil, Trash2, X, Medal, Check, Clock } from 'lucide-react';
+import { Plus, Trophy, Pencil, Trash2, X, Medal, Check, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseTime, formatTime } from '@/lib/academy/benchmark';
+import { Spinner, SkeletonList, EmptyState, Sheet, Button, ConfirmSheet } from '@/components/ui';
 
 interface Result {
   id: string;
@@ -30,6 +31,7 @@ export function AcademyResults() {
   const [timeText, setTimeText] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const fetchResults = useCallback(async () => {
     setLoading(true);
@@ -69,9 +71,9 @@ export function AcademyResults() {
   const openEdit = (r: Result) => { setEditing(r); setTimeText(formatTime(r.time_seconds)); setError(null); };
 
   const save = async () => {
-    if (!editing?.athlete_name?.trim()) { setError('Name is required'); return; }
+    if (!editing?.athlete_name?.trim()) { setError('שם הספורטאי/ת נדרש'); return; }
     const secs = parseTime(timeText);
-    if (secs == null) { setError('Time must look like 5:46.96 or 6:03'); return; }
+    if (secs == null) { setError('הזמן צריך להיראות כמו 5:46.96 או 6:03'); return; }
     setSaving(true);
     setError(null);
     try {
@@ -87,18 +89,17 @@ export function AcademyResults() {
           recordedOn: editing.recorded_on || null,
         }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Save failed'); }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'השמירה נכשלה'); }
       setEditing(null);
       fetchResults();
     } catch (err: any) {
-      setError(err.message || 'Save failed');
+      setError(err.message || 'השמירה נכשלה');
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm('Delete this result?')) return;
     setResults(prev => prev.filter(r => r.id !== id));
     try { await fetch(`/api/academy/benchmarks?id=${id}`, { method: 'DELETE' }); }
     catch { fetchResults(); }
@@ -106,18 +107,16 @@ export function AcademyResults() {
 
   const shown = results.filter(r => r.test_name === test);
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-16"><Loader2 className="h-7 w-7 text-primary-500 animate-spin" /></div>;
-  }
+  if (loading) return <SkeletonList count={4} />;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" dir="rtl">
       {/* Pending approval queue — athlete submissions that would rank top-3 */}
       {pending.length > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <Clock className="h-4 w-4 text-amber-400" />
-            <h3 className="text-sm font-bold text-amber-300">Pending approval ({pending.length})</h3>
+            <h3 className="text-sm font-bold text-amber-300">מחכים לאישור ({pending.length})</h3>
           </div>
           <div className="space-y-1.5">
             {pending.map(p => (
@@ -127,8 +126,8 @@ export function AcademyResults() {
                   {p.notes && <div className="text-xs text-slate-500 truncate" dir="auto">{p.notes}</div>}
                 </div>
                 <span className="text-sm font-bold text-white tabular-nums">{formatTime(p.time_seconds)}</span>
-                <button onClick={() => moderate(p.id, 'approve')} className="p-2 rounded-lg text-emerald-400 hover:bg-emerald-500/15" title="Approve"><Check className="h-4 w-4" /></button>
-                <button onClick={() => moderate(p.id, 'reject')} className="p-2 rounded-lg text-red-400 hover:bg-red-500/15" title="Reject"><X className="h-4 w-4" /></button>
+                <button onClick={() => moderate(p.id, 'approve')} className="p-2.5 rounded-lg text-emerald-400 hover:bg-emerald-500/15 min-h-[44px] min-w-[44px]" title="אישור"><Check className="h-4 w-4" /></button>
+                <button onClick={() => moderate(p.id, 'reject')} className="p-2.5 rounded-lg text-red-400 hover:bg-red-500/15 min-h-[44px] min-w-[44px]" title="דחייה"><X className="h-4 w-4" /></button>
               </div>
             ))}
           </div>
@@ -150,22 +149,19 @@ export function AcademyResults() {
               <Trophy className="h-4 w-4 text-yellow-400" /> {test}
             </span>
           )}
-          <span className="text-xs text-slate-500">{shown.length} results</span>
+          <span className="text-xs text-slate-500">{shown.length} תוצאות</span>
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-2 px-4 h-9 rounded-xl bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold"
-        >
-          <Plus className="h-4 w-4" /> Add result
-        </button>
+        <Button onClick={openNew} size="sm">
+          <Plus className="h-4 w-4" /> הוספת תוצאה
+        </Button>
       </div>
 
       {shown.length === 0 ? (
-        <div className="bg-slate-800/30 border border-dashed border-slate-700 rounded-2xl p-10 text-center">
-          <Trophy className="h-9 w-9 text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-300 font-medium">No results yet</p>
-          <p className="text-sm text-slate-500 mt-1">Add a test result to build the leaderboard.</p>
-        </div>
+        <EmptyState
+          icon={Trophy}
+          title="עדיין אין תוצאות"
+          description="הוספת תוצאת מבחן תבנה את לוח המקומות."
+        />
       ) : (
         <div className="space-y-1.5">
           {shown.map(r => (
@@ -178,55 +174,53 @@ export function AcademyResults() {
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-white text-sm truncate flex items-center gap-2" dir="auto">
                   {r.athlete_name}
-                  {r.athlete_id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">linked</span>}
+                  {r.athlete_id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">מקושר</span>}
                 </div>
                 {r.notes && <div className="text-xs text-slate-500 truncate" dir="auto">{r.notes}</div>}
               </div>
               <div className="text-base font-bold text-white tabular-nums shrink-0">{formatTime(r.time_seconds)}</div>
-              <button onClick={() => openEdit(r)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700"><Pencil className="h-4 w-4" /></button>
-              <button onClick={() => remove(r.id)} className="p-2 rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>
+              <button onClick={() => openEdit(r)} className="p-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 min-h-[44px] min-w-[44px]"><Pencil className="h-4 w-4" /></button>
+              <button onClick={() => setDeleteTarget(r.id)} className="p-2.5 rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10 min-h-[44px] min-w-[44px]"><Trash2 className="h-4 w-4" /></button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Add/edit modal */}
-      {editing && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={() => setEditing(null)} role="dialog" aria-modal="true">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-slate-700">
-              <h2 className="text-lg font-bold text-white">{editing.id ? 'Edit result' : 'Add result'}</h2>
-              <button onClick={() => setEditing(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700" aria-label="Close"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="p-5 space-y-3">
-              <Field label="Test">
-                <input value={editing.test_name || test} onChange={e => setEditing({ ...editing, test_name: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-10 text-sm text-white" placeholder="2000m" />
-              </Field>
-              <Field label="Athlete name">
-                <input value={editing.athlete_name || ''} onChange={e => setEditing({ ...editing, athlete_name: e.target.value })}
-                  dir="auto" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-10 text-sm text-white" placeholder="שם מלא" />
-              </Field>
-              <Field label="Time (m:ss.ss)">
-                <input value={timeText} onChange={e => setTimeText(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-10 text-sm text-white tabular-nums" placeholder="5:46.96" />
-              </Field>
-              <Field label="Notes (optional)">
-                <input value={editing.notes || ''} onChange={e => setEditing({ ...editing, notes: e.target.value })}
-                  dir="auto" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-10 text-sm text-white" placeholder="" />
-              </Field>
-              {error && <p className="text-xs text-red-400">{error}</p>}
-            </div>
-            <div className="flex items-center justify-end gap-2 p-5 border-t border-slate-700">
-              <button onClick={() => setEditing(null)} className="px-3 h-10 rounded-lg text-sm text-slate-300 hover:bg-slate-700">Cancel</button>
-              <button onClick={save} disabled={saving}
-                className="flex items-center gap-2 px-4 h-10 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-500 text-white disabled:opacity-50">
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save
-              </button>
-            </div>
-          </div>
+      {/* Add/edit sheet */}
+      <Sheet open={!!editing} onOpenChange={(o) => !o && setEditing(null)} title={editing?.id ? 'עריכת תוצאה' : 'הוספת תוצאה'}>
+        <div className="space-y-3">
+          <Field label="מבחן">
+            <input value={editing?.test_name || test} onChange={e => setEditing(prev => ({ ...prev, test_name: e.target.value }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" placeholder="2000m" />
+          </Field>
+          <Field label="שם הספורטאי/ת">
+            <input value={editing?.athlete_name || ''} onChange={e => setEditing(prev => ({ ...prev, athlete_name: e.target.value }))}
+              dir="auto" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" placeholder="שם מלא" />
+          </Field>
+          <Field label="זמן (m:ss.ss)">
+            <input value={timeText} onChange={e => setTimeText(e.target.value)} dir="ltr"
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white tabular-nums" placeholder="5:46.96" />
+          </Field>
+          <Field label="הערות (לא חובה)">
+            <input value={editing?.notes || ''} onChange={e => setEditing(prev => ({ ...prev, notes: e.target.value }))}
+              dir="auto" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" placeholder="" />
+          </Field>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <Button className="w-full" disabled={saving} onClick={save}>
+            {saving && <Spinner size={16} />} שמירה
+          </Button>
         </div>
-      )}
+      </Sheet>
+
+      <ConfirmSheet
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="מחיקת תוצאה"
+        description="לא ניתן לשחזר את התוצאה לאחר המחיקה."
+        confirmLabel="מחיקה"
+        cancelLabel="ביטול"
+        onConfirm={() => { if (deleteTarget) remove(deleteTarget); }}
+      />
     </div>
   );
 }

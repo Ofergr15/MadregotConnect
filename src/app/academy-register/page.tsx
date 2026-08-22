@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { GraduationCap, Loader2, CheckCircle2 } from 'lucide-react';
+import { GraduationCap, CheckCircle2 } from 'lucide-react';
+import { Card, Button, LoadingBlock } from '@/components/ui';
 
 // Mirrors the current Google Form "שאלון אישי להצטרפות אל Madregot Academy".
 // Structured name/email/phone are lifted into columns; everything else is stored
@@ -107,13 +108,13 @@ export default function AcademyRegisterPage() {
   if (!REGISTRATION_OPEN) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4" dir="rtl">
-        <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center">
+        <Card className="w-full max-w-md p-6 sm:p-8 text-center">
           <GraduationCap className="h-12 w-12 text-primary-600 mx-auto mb-3" />
           <h2 className="text-lg font-bold text-white">ההרשמה סגורה כרגע</h2>
           <p className="text-slate-400 text-sm mt-2 leading-relaxed">
             ההרשמה לאקדמיית הריצה של מדרגות סגורה כעת. עקבו אחרינו לפתיחת המחזור הבא.
           </p>
-        </div>
+        </Card>
       </div>
     );
   }
@@ -121,14 +122,14 @@ export default function AcademyRegisterPage() {
   if (done) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4" dir="rtl">
-        <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center">
+        <Card className="w-full max-w-md p-6 sm:p-8 text-center">
           <CheckCircle2 className="h-12 w-12 text-emerald-400 mx-auto mb-3" />
           <h2 className="text-lg font-bold text-white">ההרשמה התקבלה!</h2>
           <p className="text-slate-400 text-sm mt-2 leading-relaxed">
             תודה שפנית לאקדמיית הריצה של מדרגות. המאמן יעבור על הפרטים שלך ולאחר אישור
             תקבל/י מייל עם קישור לחיבור השעון והצטרפות לפלטפורמה.
           </p>
-        </div>
+        </Card>
       </div>
     );
   }
@@ -146,7 +147,7 @@ export default function AcademyRegisterPage() {
 
         <form onSubmit={submit} className="space-y-3">
           {FIELDS.map(f => (
-            <div key={f.key} className="bg-slate-800 border border-slate-700 rounded-2xl p-4">
+            <Card key={f.key} variant="plain">
               <label className="block text-sm font-medium text-slate-200 mb-2">
                 {f.label} {f.required && <span className="text-red-400">*</span>}
               </label>
@@ -190,18 +191,15 @@ export default function AcademyRegisterPage() {
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
           ))}
 
           {error && <p className="text-sm text-red-400 text-center">{error}</p>}
 
-          <button
-            type="submit" disabled={submitting}
-            className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl px-4 py-3 transition-colors disabled:opacity-50"
-          >
-            {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+          <Button type="submit" size="lg" disabled={submitting} className="w-full">
+            {submitting && <LoadingBlock size={20} className="py-0" />}
             {submitting ? 'שולח…' : 'שליחה'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronUp, Check, Trash2, Mail, Phone, ExternalLink, Copy, CheckCircle2, Clock } from 'lucide-react';
+import { ChevronDown, ChevronUp, Check, Trash2, Mail, Phone, ExternalLink, Copy, CheckCircle2, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { canApprove } from '@/lib/constants';
+import { Spinner, SkeletonList, EmptyState, ConfirmSheet } from '@/components/ui';
 
 interface Registration {
   id: string;
@@ -50,6 +51,7 @@ export function AcademyRegistrations() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
   // Only allowlisted accounts may approve; server re-checks in /api/admin/approve.
   const [canApproveHere, setCanApproveHere] = useState(false);
 
@@ -88,7 +90,6 @@ export function AcademyRegistrations() {
   };
 
   const reject = async (id: string) => {
-    if (!window.confirm('Reject and remove this registration?')) return;
     setBusy(id);
     setRegs(prev => prev.filter(r => r.id !== id));
     try { await fetch(`/api/athletes?id=${id}`, { method: 'DELETE' }); }
@@ -102,34 +103,32 @@ export function AcademyRegistrations() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-16"><Loader2 className="h-7 w-7 text-primary-500 animate-spin" /></div>;
-  }
+  if (loading) return <SkeletonList count={4} />;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" dir="rtl">
       {/* Share the form */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4">
         <div>
-          <div className="text-sm font-semibold text-white">Registration form</div>
-          <div className="text-xs text-slate-400">Share this link instead of the Google Form.</div>
+          <div className="text-sm font-semibold text-white">טופס הרשמה</div>
+          <div className="text-xs text-slate-400">אפשר לשלוח קישור זה במקום טופס גוגל.</div>
         </div>
         <div className="flex items-center gap-2">
           <a href={FORM_PATH} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white">
-            <ExternalLink className="h-4 w-4" /> Open
+            className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white">
+            <ExternalLink className="h-4 w-4" /> פתיחה
           </a>
           <button onClick={copyLink}
-            className="flex items-center gap-1.5 px-3 h-9 rounded-lg bg-primary-600 hover:bg-primary-500 text-sm text-white font-semibold">
-            {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy link'}
+            className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-primary-600 hover:bg-primary-500 text-sm text-white font-semibold">
+            {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'הועתק' : 'העתקת קישור'}
           </button>
         </div>
       </div>
 
       <div className="flex items-center gap-1 bg-slate-800/50 border border-slate-700/50 rounded-xl p-1 w-fit">
-        {([['pending', 'Awaiting approval'], ['all', 'All']] as const).map(([k, label]) => (
+        {([['pending', 'מחכות לאישור'], ['all', 'הכול']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setShowAll(k === 'all')}
-            className={cn('px-4 h-9 rounded-lg text-sm font-semibold transition-colors',
+            className={cn('px-4 min-h-[44px] rounded-lg text-sm font-semibold transition-colors',
               (showAll ? 'all' : 'pending') === k ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white')}>
             {label}
           </button>
@@ -137,10 +136,10 @@ export function AcademyRegistrations() {
       </div>
 
       {regs.length === 0 ? (
-        <div className="bg-slate-800/30 border border-dashed border-slate-700 rounded-2xl p-10 text-center">
-          <p className="text-slate-300 font-medium">{showAll ? 'No academy registrations yet' : 'No pending registrations'}</p>
-          <p className="text-sm text-slate-500 mt-1">New sign-ups from the form appear here for review.</p>
-        </div>
+        <EmptyState
+          title={showAll ? 'עדיין אין הרשמות לאקדמיה' : 'אין הרשמות שמחכות לאישור'}
+          description="הרשמות חדשות מהטופס יופיעו כאן."
+        />
       ) : (
         <div className="space-y-2">
           {regs.map(r => {
@@ -153,29 +152,29 @@ export function AcademyRegistrations() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-white truncate" dir="auto">{r.name}</div>
-                    <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-3">
+                    <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-3" dir="ltr">
                       <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{r.email}</span>
                       {r.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{r.phone}</span>}
                     </div>
                   </div>
                   {r.approved ? (
                     <span className="flex items-center gap-1 text-xs font-semibold text-emerald-400 shrink-0">
-                      <CheckCircle2 className="h-4 w-4" /> {r.hasGarmin ? 'Active' : 'Approved'}
+                      <CheckCircle2 className="h-4 w-4" /> {r.hasGarmin ? 'פעיל/ה' : 'אושר'}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-xs font-semibold text-amber-400 shrink-0">
-                      <Clock className="h-4 w-4" /> Pending
+                      <Clock className="h-4 w-4" /> מחכה
                     </span>
                   )}
                   {r.intake && (
-                    <button onClick={() => setExpanded(open ? null : r.id)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700">
+                    <button onClick={() => setExpanded(open ? null : r.id)} className="p-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 min-h-[44px] min-w-[44px]">
                       {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>
                   )}
                 </div>
 
                 {open && r.intake && (
-                  <div className="border-t border-slate-700/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2" dir="rtl">
+                  <div className="border-t border-slate-700/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
                     {Object.entries(r.intake).map(([k, v]) => (
                       <div key={k} className="text-sm">
                         <span className="text-slate-500">{LABELS[k] || k}: </span>
@@ -187,17 +186,17 @@ export function AcademyRegistrations() {
 
                 {!r.approved && (
                   <div className="border-t border-slate-700/50 p-3 flex items-center justify-end gap-2">
-                    <button onClick={() => reject(r.id)} disabled={busy === r.id}
-                      className="flex items-center gap-1.5 px-3 h-9 rounded-lg text-red-300 hover:bg-red-500/10 text-sm font-semibold disabled:opacity-50">
-                      <Trash2 className="h-4 w-4" /> Reject
+                    <button onClick={() => setRejectTarget(r.id)} disabled={busy === r.id}
+                      className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-red-300 hover:bg-red-500/10 text-sm font-semibold disabled:opacity-50">
+                      <Trash2 className="h-4 w-4" /> דחייה
                     </button>
                     {canApproveHere ? (
                       <button onClick={() => approve(r.id)} disabled={busy === r.id}
-                        className="flex items-center gap-1.5 px-4 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50">
-                        {busy === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve
+                        className="flex items-center gap-1.5 px-4 min-h-[44px] rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50">
+                        {busy === r.id ? <Spinner size={16} /> : <Check className="h-4 w-4" />} אישור
                       </button>
                     ) : (
-                      <span className="text-xs font-medium text-slate-500 px-2">Approval restricted to the club coaches</span>
+                      <span className="text-xs font-medium text-slate-500 px-2">האישור מוגבל למאמני המועדון</span>
                     )}
                   </div>
                 )}
@@ -206,6 +205,16 @@ export function AcademyRegistrations() {
           })}
         </div>
       )}
+
+      <ConfirmSheet
+        open={!!rejectTarget}
+        onOpenChange={(o) => !o && setRejectTarget(null)}
+        title="דחיית הרשמה"
+        description="הרישום יוסר לצמיתות. לא ניתן לשחזר."
+        confirmLabel="דחייה והסרה"
+        cancelLabel="ביטול"
+        onConfirm={() => { if (rejectTarget) reject(rejectTarget); }}
+      />
     </div>
   );
 }

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Plus, X, Save, CheckCircle2 } from 'lucide-react';
+import { Plus, X, Save, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AcademySettings as Settings, DEFAULT_ACADEMY_SETTINGS } from '@/lib/academy/settings';
+import { Card, Button, Spinner, LoadingBlock } from '@/components/ui';
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
 
 export function AcademySettingsPanel() {
   const [s, setS] = useState<Settings>(DEFAULT_ACADEMY_SETTINGS);
@@ -37,12 +38,12 @@ export function AcademySettingsPanel() {
     } finally { setSaving(false); }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-16"><Loader2 className="h-7 w-7 text-primary-500 animate-spin" /></div>;
+  if (loading) return <LoadingBlock />;
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl" dir="rtl">
       {/* Tests */}
-      <Section title="Tests" desc="Benchmark tests athletes can be measured on.">
+      <Section title="מבחני מדידה" desc="מבחני בנצ'מרק שאפשר למדוד ספורטאים לפיהם.">
         <div className="flex flex-wrap gap-2 mb-3">
           {s.tests.map(t => (
             <span key={t} className="flex items-center gap-1.5 bg-slate-700/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-white">
@@ -56,14 +57,14 @@ export function AcademySettingsPanel() {
         <div className="flex gap-2">
           <input value={newTest} onChange={e => setNewTest(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && newTest.trim()) { setS({ ...s, tests: [...new Set([...s.tests, newTest.trim()])] }); setNewTest(''); } }}
-            placeholder="e.g. 5k" className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white" />
+            placeholder="לדוגמה: 5k" className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" />
           <button onClick={() => { if (newTest.trim()) { setS({ ...s, tests: [...new Set([...s.tests, newTest.trim()])] }); setNewTest(''); } }}
-            className="flex items-center gap-1 px-3 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white"><Plus className="h-4 w-4" /> Add</button>
+            className="flex items-center gap-1 px-3 min-h-[44px] rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white"><Plus className="h-4 w-4" /> הוספה</button>
         </div>
       </Section>
 
       {/* Pace alerts */}
-      <Section title="Pace alerts on watch" desc="Academy pushes include a Garmin pace-zone target that beeps when off-pace.">
+      <Section title="התראות קצב על השעון" desc="הדחיפה לאקדמיה כוללת יעד אזור קצב בגרמין שמצפצף כשיוצאים מהקצב.">
         <label className="flex items-center gap-3 cursor-pointer">
           <button
             onClick={() => setS({ ...s, paceAlerts: !s.paceAlerts })}
@@ -71,55 +72,54 @@ export function AcademySettingsPanel() {
           >
             <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all', s.paceAlerts ? 'start-[22px]' : 'start-0.5')} />
           </button>
-          <span className="text-sm text-slate-300">{s.paceAlerts ? 'On — alert when off pace' : 'Off — pace shown as info only'}</span>
+          <span className="text-sm text-slate-300">{s.paceAlerts ? 'פעיל — התראה כשיוצאים מהקצב' : 'כבוי — הקצב מוצג למידע בלבד'}</span>
         </label>
       </Section>
 
       {/* Tolerances */}
-      <Section title="“On plan” tolerances" desc="How close to plan still counts as on target.">
+      <Section title="סטייה מותרת מהתוכנית" desc="כמה סטייה מהתוכנית עדיין נחשבת בטווח היעד.">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <TolField label="Pace ± (seconds/km)" value={s.tolerances.paceSec}
+          <TolField label="קצב ± (שניות לק״מ)" value={s.tolerances.paceSec}
             onChange={v => setS({ ...s, tolerances: { ...s.tolerances, paceSec: v } })} step={1} />
-          <TolField label="Distance ± (%)" value={Math.round(s.tolerances.distance * 100)}
+          <TolField label="מרחק ± (%)" value={Math.round(s.tolerances.distance * 100)}
             onChange={v => setS({ ...s, tolerances: { ...s.tolerances, distance: v / 100 } })} step={1} />
-          <TolField label="Time ± (%)" value={Math.round(s.tolerances.duration * 100)}
+          <TolField label="זמן ± (%)" value={Math.round(s.tolerances.duration * 100)}
             onChange={v => setS({ ...s, tolerances: { ...s.tolerances, duration: v / 100 } })} step={1} />
         </div>
         <p className="text-xs text-slate-500 mt-2">
-          Example: a 5:00/km target with ±{s.tolerances.paceSec}s is good from {fmtPace(300 - s.tolerances.paceSec)} to {fmtPace(300 + s.tolerances.paceSec)}.
+          לדוגמה: יעד של 5:00 לק״מ עם ±{s.tolerances.paceSec} שנ&apos; נחשב בטווח בין {fmtPace(300 - s.tolerances.paceSec)} ל-{fmtPace(300 + s.tolerances.paceSec)}.
         </p>
       </Section>
 
       {/* Weekly report */}
-      <Section title="Weekly report" desc="Who gets the compliance email and when.">
-        <label className="block text-xs text-slate-400 mb-1.5">Send on</label>
+      <Section title="דוח שבועי" desc="למי נשלח דוח ההיענות ובאיזה יום.">
+        <label className="block text-xs text-slate-400 mb-1.5">נשלח ביום</label>
         <select value={s.report.day} onChange={e => setS({ ...s, report: { ...s.report, day: Number(e.target.value) } })}
-          className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white mb-3">
+          className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white mb-3">
           {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
         </select>
         <div className="flex flex-wrap gap-2 mb-2">
           {s.report.recipients.map(r => (
-            <span key={r} className="flex items-center gap-1.5 bg-slate-700/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-white">
+            <span key={r} className="flex items-center gap-1.5 bg-slate-700/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-white" dir="ltr">
               {r}
               <button onClick={() => setS({ ...s, report: { ...s.report, recipients: s.report.recipients.filter(x => x !== r) } })} className="text-slate-400 hover:text-red-300"><X className="h-3.5 w-3.5" /></button>
             </span>
           ))}
-          {s.report.recipients.length === 0 && <span className="text-xs text-slate-500">Defaults to the club admin email.</span>}
+          {s.report.recipients.length === 0 && <span className="text-xs text-slate-500">כברירת מחדל נשלח למייל מנהל המועדון.</span>}
         </div>
         <div className="flex gap-2">
-          <input value={newRecipient} onChange={e => setNewRecipient(e.target.value)} type="email"
-            placeholder="coach@example.com" className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white" />
+          <input value={newRecipient} onChange={e => setNewRecipient(e.target.value)} type="email" dir="ltr"
+            placeholder="coach@example.com" className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" />
           <button onClick={() => { const v = newRecipient.trim(); if (v) { setS({ ...s, report: { ...s.report, recipients: [...new Set([...s.report.recipients, v])] } }); setNewRecipient(''); } }}
-            className="flex items-center gap-1 px-3 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white"><Plus className="h-4 w-4" /> Add</button>
+            className="flex items-center gap-1 px-3 min-h-[44px] rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white"><Plus className="h-4 w-4" /> הוספה</button>
         </div>
       </Section>
 
       <div className="flex items-center gap-3">
-        <button onClick={save} disabled={saving}
-          className="flex items-center gap-2 px-5 h-11 rounded-xl bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold disabled:opacity-50">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save settings
-        </button>
-        {saved && <span className="flex items-center gap-1.5 text-sm text-emerald-400"><CheckCircle2 className="h-4 w-4" /> Saved</span>}
+        <Button onClick={save} disabled={saving}>
+          {saving ? <Spinner size={16} /> : <Save className="h-4 w-4" />} שמירת הגדרות
+        </Button>
+        {saved && <span className="flex items-center gap-1.5 text-sm text-emerald-400"><CheckCircle2 className="h-4 w-4" /> נשמר</span>}
       </div>
     </div>
   );
@@ -127,11 +127,11 @@ export function AcademySettingsPanel() {
 
 function Section({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
   return (
-    <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
+    <Card variant="solid">
       <h3 className="text-sm font-bold text-white">{title}</h3>
       <p className="text-xs text-slate-400 mb-4">{desc}</p>
       {children}
-    </div>
+    </Card>
   );
 }
 
@@ -141,7 +141,7 @@ function TolField({ label, value, onChange, step }: { label: string; value: numb
       <label className="block text-xs text-slate-400 mb-1.5">{label}</label>
       <input type="number" min={0} step={step} value={value}
         onChange={e => onChange(Math.max(0, Number(e.target.value) || 0))}
-        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white tabular-nums" />
+        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white tabular-nums" />
     </div>
   );
 }

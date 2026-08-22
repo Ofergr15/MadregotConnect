@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Loader2, Send, CheckCircle2, XCircle, Calendar, ChevronLeft, ChevronRight,
-  Plus, Pencil, Trash2, BookOpen, X,
+  Send, CheckCircle2, XCircle, Calendar, ChevronLeft, ChevronRight,
+  Plus, Pencil, Trash2, BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COACH_ID } from '@/lib/constants';
 import { formatPace } from '@/lib/garmin/pace';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
+import { Spinner, EmptyState, Sheet, Button } from '@/components/ui';
 
 interface AcademyAthlete {
   id: string;
@@ -24,8 +25,8 @@ interface LibraryWorkout {
   created_at: string;
 }
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_LABELS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+const DAY_FULL = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
 
 function sundayOf(date: Date): string {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12));
@@ -42,13 +43,13 @@ function fmtWeekLabel(weekStart: string): string {
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 6);
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', timeZone: 'UTC' };
-  return `${start.toLocaleDateString('en-US', opts)} – ${end.toLocaleDateString('en-US', opts)}`;
+  return `${start.toLocaleDateString('he-IL', opts)} – ${end.toLocaleDateString('he-IL', opts)}`;
 }
 
 function emptyWorkout(dayOfWeek: number): ParsedWorkout {
   return {
     dayOfWeek,
-    name: `${DAY_FULL[dayOfWeek]} workout`,
+    name: `אימון ${DAY_FULL[dayOfWeek]}`,
     steps: [
       { order: 1, type: 'warmup', durationType: 'distance', durationValue: 2000, targetType: 'no_target' },
     ],
@@ -57,10 +58,10 @@ function emptyWorkout(dayOfWeek: number): ParsedWorkout {
 
 function stepSummary(step: WorkoutStep): string {
   const dur = step.durationType === 'distance'
-    ? `${((step.durationValue || 0) / 1000).toFixed(1)}km`
+    ? `${((step.durationValue || 0) / 1000).toFixed(1)} ק"מ`
     : step.durationType === 'time'
-      ? `${Math.round((step.durationValue || 0) / 60)}min`
-      : 'lap';
+      ? `${Math.round((step.durationValue || 0) / 60)} דק'`
+      : 'הקפה';
   let pace = '';
   if (step.notes && /\d+:\d{2}/.test(step.notes)) pace = step.notes;
   else if (step.targetPaceMinPerKm) {
@@ -184,11 +185,12 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         body: JSON.stringify({ planId, workouts, athleteIds: [athleteId], weekStartDate: weekStart }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Push failed');
+      if (!res.ok) throw new Error(data.error || 'השליחה נכשלה');
       const results = data.results || [];
       const ok = results.length > 0 && results.every((r: any) => r.status === 'success');
       const failed = results.find((r: any) => r.status === 'failed');
-      setPushResult({ ok, msg: ok ? `Pushed ${workouts.length} workout${workouts.length !== 1 ? 's' : ''} to ${selected?.name}'s Garmin.` : (failed?.error || 'Push failed.') });
+      const count = workouts.length === 1 ? 'אימון אחד' : `${workouts.length} אימונים`;
+      setPushResult({ ok, msg: ok ? `נשלחו ${count} לשעון הגרמין של ${selected?.name}.` : (failed?.error || 'השליחה נכשלה.') });
       if (planId) {
         fetch('/api/plans', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -196,7 +198,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         }).catch(() => {});
       }
     } catch (err: any) {
-      setError(err.message || 'Push failed');
+      setError(err.message || 'השליחה נכשלה');
     } finally {
       setPushing(false);
     }
@@ -204,40 +206,40 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
 
   if (!athletes.length) {
     return (
-      <div className="bg-slate-800/30 border border-dashed border-slate-700 rounded-2xl p-10 text-center">
-        <p className="text-slate-300 font-medium">No academy athletes yet</p>
-        <p className="text-sm text-slate-500 mt-1">Add athletes in the Roster tab to build them individual plans.</p>
-      </div>
+      <EmptyState
+        title="עדיין אין ספורטאי אקדמיה"
+        description="הוספת ספורטאים בלשונית הרשימה תאפשר לבנות להם תוכניות אישיות."
+      />
     );
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" dir="rtl">
       {/* Athlete + week */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1">
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">Athlete</label>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">ספורטאי/ת</label>
           <select
             value={athleteId}
             onChange={e => setAthleteId(e.target.value)}
             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 h-11 text-sm text-white focus:outline-none focus:border-primary-500"
           >
             {athletes.map(a => (
-              <option key={a.id} value={a.id}>{a.name}{a.hasGarmin ? '' : ' (no Garmin)'}</option>
+              <option key={a.id} value={a.id}>{a.name}{a.hasGarmin ? '' : ' (אין גרמין)'}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">Week</label>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">שבוע</label>
           <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-xl h-11 px-1">
-            <button onClick={() => setWeekStart(w => shiftWeek(w, -1))} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
-              <ChevronLeft className="h-4 w-4" />
+            <button onClick={() => setWeekStart(w => shiftWeek(w, -1))} className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+              <ChevronRight className="h-4 w-4" />
             </button>
             <span className="text-sm text-white font-medium px-1 flex items-center gap-1.5 min-w-[150px] justify-center">
               <Calendar className="h-3.5 w-3.5 text-slate-500" /> {fmtWeekLabel(weekStart)}
             </span>
-            <button onClick={() => setWeekStart(w => shiftWeek(w, 1))} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
-              <ChevronRight className="h-4 w-4" />
+            <button onClick={() => setWeekStart(w => shiftWeek(w, 1))} className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+              <ChevronLeft className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -255,34 +257,34 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
               {w ? (
                 <>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-white truncate">{w.name}</div>
+                    <div className="text-sm font-medium text-white truncate" dir="auto">{w.name}</div>
                     <div className="text-xs text-slate-400 truncate">
                       {w.steps.map(stepSummary).join(' · ')}
                     </div>
                   </div>
-                  <button onClick={() => setEditingDay(day)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700" title="Edit">
+                  <button onClick={() => setEditingDay(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-slate-400 hover:text-white hover:bg-slate-700" title="עריכה">
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button onClick={() => clearSlot(day)} className="p-2 rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10" title="Remove">
+                  <button onClick={() => clearSlot(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10" title="הסרה">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </>
               ) : (
                 <div className="flex-1 flex items-center gap-2">
-                  <span className="text-xs text-slate-500 flex-1">Rest / no workout</span>
+                  <span className="text-xs text-slate-500 flex-1">מנוחה / אין אימון</span>
                   <button
                     onClick={() => { setSlot(day, emptyWorkout(day)); setEditingDay(day); }}
-                    className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-primary-600/20 text-primary-300 hover:bg-primary-600/30 text-xs font-semibold"
+                    className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-primary-600/20 text-primary-300 hover:bg-primary-600/30 text-xs font-semibold"
                   >
-                    <Plus className="h-3.5 w-3.5" /> Build
+                    <Plus className="h-3.5 w-3.5" /> בנייה
                   </button>
                   <button
                     onClick={() => setPickerDay(day)}
                     disabled={library.length === 0}
-                    className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs font-semibold disabled:opacity-40"
-                    title={library.length ? 'Pick from library' : 'Library is empty'}
+                    className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs font-semibold disabled:opacity-40"
+                    title={library.length ? 'בחירה מהספרייה' : 'הספרייה ריקה'}
                   >
-                    <BookOpen className="h-3.5 w-3.5" /> Library
+                    <BookOpen className="h-3.5 w-3.5" /> ספרייה
                   </button>
                 </div>
               )}
@@ -309,17 +311,18 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
       {/* Push */}
       <div className="flex items-center justify-between">
         <span className="text-xs text-slate-500">
-          {filledDays.length} workout{filledDays.length !== 1 ? 's' : ''} planned
+          {filledDays.length} אימונים מתוכננים
         </span>
-        <button
+        <Button
+          variant="secondary"
           onClick={push}
           disabled={pushing || filledDays.length === 0 || !selected?.hasGarmin}
-          title={selected?.hasGarmin ? '' : 'Athlete has no Garmin connected'}
-          className="flex items-center gap-2 px-5 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+          title={selected?.hasGarmin ? '' : 'לספורטאי/ת אין גרמין מחובר'}
+          className="bg-emerald-600 hover:bg-emerald-500"
         >
-          {pushing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          {pushing ? 'Pushing…' : `Push to ${selected?.name?.split(' ')[0] || 'athlete'}`}
-        </button>
+          {pushing ? <Spinner size={16} /> : <Send className="h-4 w-4" />}
+          {pushing ? 'שולח…' : `שליחה אל ${selected?.name?.split(' ')[0] || 'ספורטאי/ת'}`}
+        </Button>
       </div>
 
       {/* Structured builder — reuses the same editor as the group planner. On save,
@@ -357,39 +360,37 @@ function LibraryPicker({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-slate-700">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-primary-400" />
-            <h2 className="text-lg font-bold text-white">Workout library · {DAY_FULL[day]}</h2>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700" aria-label="Close">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="overflow-y-auto p-2">
-          {library.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-8">
-              Your library is empty. Build a workout and it will be saved here for reuse.
-            </p>
-          ) : (
-            library.map(item => (
-              <div key={item.id} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-700/50 transition-colors">
-                <button onClick={() => onPick(item.workout)} className="flex-1 min-w-0 text-start">
-                  <div className="font-medium text-white text-sm truncate">{item.name}</div>
-                  <div className="text-xs text-slate-400 truncate">
-                    {(item.workout.steps || []).map(stepSummary).join(' · ')}
-                  </div>
-                </button>
-                <button onClick={() => onDelete(item.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-300 hover:bg-red-500/10 shrink-0" title="Delete from library" aria-label="Delete from library">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
+    <Sheet
+      open
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title={(
+        <span className="flex items-center justify-center gap-2">
+          <BookOpen className="h-4 w-4 text-primary-400" /> ספריית אימונים · {DAY_FULL[day]}
+        </span>
+      )}
+      bodyClassName="px-2"
+    >
+      <div dir="rtl">
+        {library.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-8">
+            הספרייה ריקה. בניית אימון תשמור אותו כאן לשימוש חוזר.
+          </p>
+        ) : (
+          library.map(item => (
+            <div key={item.id} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-700/50 transition-colors">
+              <button onClick={() => onPick(item.workout)} className="flex-1 min-w-0 text-start min-h-[44px]">
+                <div className="font-medium text-white text-sm truncate" dir="auto">{item.name}</div>
+                <div className="text-xs text-slate-400 truncate">
+                  {(item.workout.steps || []).map(stepSummary).join(' · ')}
+                </div>
+              </button>
+              <button onClick={() => onDelete(item.id)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-slate-500 hover:text-red-300 hover:bg-red-500/10 shrink-0" title="הסרה מהספרייה" aria-label="הסרה מהספרייה">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))
+        )}
       </div>
-    </div>
+    </Sheet>
   );
 }
