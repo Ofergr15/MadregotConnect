@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag,
+  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
@@ -38,9 +38,10 @@ export const ALL_NAV_ITEMS: NavItem[] = [
 ];
 export const PROFILE_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'profile', icon: User };
 export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench };
-// Store is a static "More" sheet row, not gated by role_tab_permissions
-// (roadmap #9) — every role can reach it.
+// Store and Benefits are static "More" sheet rows, not gated by
+// role_tab_permissions (roadmap #9, #5) — every role can reach them.
 export const STORE_ITEM: NavItem = { href: '/dashboard/store', tab: 'store', labelKey: 'store', icon: ShoppingBag };
+export const BENEFITS_ITEM: NavItem = { href: '/dashboard/benefits', tab: 'benefits', labelKey: 'benefits', icon: Gift };
 
 interface TabPermission { role: string; tab: string; enabled: boolean; }
 

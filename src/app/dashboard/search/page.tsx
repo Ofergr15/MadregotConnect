@@ -8,7 +8,7 @@ import { useApi } from '@/lib/api';
 import { EmptyState, Spinner } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import type { EventKind } from '@/lib/events';
-import { useNavItems, STORE_ITEM, type NavItem } from '@/lib/nav-items';
+import { useNavItems, STORE_ITEM, BENEFITS_ITEM, type NavItem } from '@/lib/nav-items';
 
 // English/Hebrew synonym aliases per section — a plain substring match against
 // the translated label or tab slug alone misses common everyday words (typing
@@ -33,6 +33,7 @@ const SECTION_KEYWORDS: Record<string, string[]> = {
   profile: ['me', 'account', 'פרופיל שלי'],
   'coach-tools': ['coach', 'admin tools', 'מאמן'],
   store: ['shop', 'merch', 'shirts', 'חנות'],
+  benefits: ['discounts', 'perks', 'sponsors', 'coupon', 'הנחות', 'ספונסרים'],
 };
 
 // Same icon mapping as the Calendar page (kept local — that mapping lives in
@@ -91,7 +92,7 @@ export default function SearchPage() {
   const sections = useMemo<NavItem[]>(() => {
     const q = debounced.trim().toLowerCase();
     if (q.length < 2) return [];
-    const candidates = [...navItems, STORE_ITEM];
+    const candidates = [...navItems, STORE_ITEM, BENEFITS_ITEM];
     return candidates.filter((item) => {
       const label = tNav(item.labelKey as any).toLowerCase();
       const keywords = SECTION_KEYWORDS[item.tab] || [];

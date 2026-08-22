@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, MoreHorizontal, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag,
+  BarChart3, MoreHorizontal, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
@@ -223,7 +223,8 @@ export function BottomTabBar() {
       <Sheet open={moreOpen} onOpenChange={setMoreOpen} title={t('more' as any)} className="md:hidden">
         <InsetSection>
           {/* Static — every role, not gated by role_mobile_tab_permissions
-              (roadmap #17, In-App Global Search; roadmap #9, Store). */}
+              (roadmap #17, In-App Global Search; roadmap #9, Store; roadmap
+              #5, Benefits/Discounts). */}
           <InsetRow
             icon={Search}
             iconBg={isActive('/dashboard/search') ? 'bg-primary-600' : 'bg-slate-600'}
@@ -236,6 +237,13 @@ export function BottomTabBar() {
             iconBg={isActive('/dashboard/store') ? 'bg-primary-600' : 'bg-slate-600'}
             label={t('store' as any)}
             href="/dashboard/store"
+            onClick={() => setMoreOpen(false)}
+          />
+          <InsetRow
+            icon={Gift}
+            iconBg={isActive('/dashboard/benefits') ? 'bg-primary-600' : 'bg-slate-600'}
+            label={t('benefits' as any)}
+            href="/dashboard/benefits"
             onClick={() => setMoreOpen(false)}
           />
           {overflow.map(item => {
