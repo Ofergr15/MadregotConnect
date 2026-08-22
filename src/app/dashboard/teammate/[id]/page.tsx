@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { AlertCircle, ChevronRight, UserCheck, UserPlus, Users } from 'lucide-react';
+import { AlertCircle, UserCheck, UserPlus, Users } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { Button, Card, EmptyState, LoadingBlock, BigStat, Skeleton } from '@/components/ui';
+import { Button, Card, EmptyState, LoadingBlock, BigStat, Skeleton, BackNav } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 
 // Peer-facing "teammate" profile — any club member can view any other
@@ -130,14 +130,7 @@ export default function TeammateProfilePage() {
 
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-8">
-      <button
-        onClick={() => router.back()}
-        className="mb-1 flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-sm font-semibold"
-        dir="rtl"
-      >
-        <ChevronRight className="h-4.5 w-4.5 rotate-180" />
-        <span>{tc('back')}</span>
-      </button>
+      <BackNav label={tc('back')} onBack={() => router.back()} />
 
       {/* Hero — same gradient-card recipe as dashboard/profile/page.tsx,
           minus the owner-only bits (email, data-source badges, photo upload —

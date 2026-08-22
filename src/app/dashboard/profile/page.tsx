@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations, useLocale } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
@@ -15,7 +15,7 @@ import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
-import { Sheet, SegmentedControl } from '@/components/ui';
+import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
 import { APP_VERSION } from '@/lib/version';
@@ -451,11 +451,7 @@ function ProfileContent() {
       {/* ═══ HEADER — back-nav on a detail screen only (the Hero below already
           anchors the landing, like the reference Settings screen's h1) ═══ */}
       {activeTab !== null && (
-        <button onClick={() => setActiveTab(null)}
-          className="mb-1 flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-sm font-semibold" dir="rtl">
-          <ChevronRight className="h-4.5 w-4.5 rotate-180" />
-          <span>{t('title')}</span>
-        </button>
+        <BackNav label={t('title')} onBack={() => setActiveTab(null)} />
       )}
 
       {/* ═══ LANDING — hero (most-important info at a glance) + iOS-Settings

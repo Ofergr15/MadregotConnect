@@ -14,7 +14,7 @@ import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
-import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock } from '@/components/ui';
+import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNav } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { APP_VERSION } from '@/lib/version';
 
@@ -752,11 +752,7 @@ export default function SettingsPage() {
           <h1 className="text-3xl font-extrabold text-white tracking-tight" dir="rtl">{t('title')}</h1>
         </div>
       ) : (
-        <button onClick={() => setActiveTab(null)}
-          className="mb-4 flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-sm font-semibold" dir="rtl">
-          <ChevronRight className="h-4.5 w-4.5 rotate-180" />
-          <span>{t('title')}</span>
-        </button>
+        <BackNav label={t('title')} onBack={() => setActiveTab(null)} className="mb-4" />
       )}
 
       {/* ═══ LANDING — iOS-Settings inset lists (drill into detail screens) ═══ */}

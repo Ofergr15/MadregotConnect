@@ -11,6 +11,7 @@ import { Sheet } from './Sheet';
 
 export { Sheet } from './Sheet';
 export { InsetSection, InsetRow } from './InsetList';
+export { BackNav } from './BackNav';
 
 // ── Spinner ──────────────────────────────────────────────────────────────────
 // One brand-colored ring, replacing the mix of border-b-2 half-circles and
