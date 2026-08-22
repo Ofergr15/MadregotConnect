@@ -42,6 +42,7 @@ export function StoreManager() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [nameHe, setNameHe] = useState('');
   const [nameEn, setNameEn] = useState('');
@@ -51,6 +52,7 @@ export function StoreManager() {
   const [sizesInput, setSizesInput] = useState('');
   const [colorsInput, setColorsInput] = useState('');
   const [stock, setStock] = useState('');
+  const [activeState, setActiveState] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -82,11 +84,28 @@ export function StoreManager() {
   useEffect(() => { fetchProducts(); fetchOrders(); }, []);
 
   const resetForm = () => {
+    setEditingId(null);
     setNameHe(''); setNameEn(''); setDescriptionHe(''); setDescriptionEn('');
-    setPrice(''); setSizesInput(''); setColorsInput(''); setStock('');
+    setPrice(''); setSizesInput(''); setColorsInput(''); setStock(''); setActiveState(true);
     setImageFile(null); setImagePreview(null); setError(null);
   };
   const openNew = () => { resetForm(); setSheetOpen(true); };
+  const openEdit = (product: Product) => {
+    setEditingId(product.id);
+    setNameHe(product.nameHe);
+    setNameEn(product.nameEn);
+    setDescriptionHe(product.descriptionHe || '');
+    setDescriptionEn(product.descriptionEn || '');
+    setPrice(String(product.price));
+    setSizesInput((product.sizes || []).join(', '));
+    setColorsInput((product.colors || []).join(', '));
+    setStock(product.stock != null ? String(product.stock) : '');
+    setActiveState(product.active);
+    setImageFile(null);
+    setImagePreview(product.imageUrl || null);
+    setError(null);
+    setSheetOpen(true);
+  };
   const handleImagePick = (file: File | null) => {
     setImageFile(file);
     setImagePreview(file ? URL.createObjectURL(file) : null);
@@ -94,7 +113,7 @@ export function StoreManager() {
 
   const canSave = nameHe.trim().length > 0 && nameEn.trim().length > 0 && Number(price) >= 0 && price !== '' && !saving;
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
     setError(null);
@@ -107,48 +126,43 @@ export function StoreManager() {
         const uploadData = await uploadRes.json().catch(() => ({}));
         if (!uploadRes.ok) throw new Error(uploadData.error || t('uploadError'));
         imageUrl = uploadData.url;
+      } else if (editingId && imagePreview === null) {
+        // Existing image explicitly removed (X clicked) while editing.
+        imageUrl = '';
       }
 
       const sizes = sizesInput.split(',').map((s) => s.trim()).filter(Boolean);
       const colors = colorsInput.split(',').map((c) => c.trim()).filter(Boolean);
-      const res = await authedFetch('/api/admin/store/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nameHe: nameHe.trim(),
-          nameEn: nameEn.trim(),
-          descriptionHe: descriptionHe.trim() || undefined,
-          descriptionEn: descriptionEn.trim() || undefined,
-          price: Number(price),
-          sizes: sizes.length > 0 ? sizes : undefined,
-          colors: colors.length > 0 ? colors : undefined,
-          stock: stock.trim() ? Number(stock) : undefined,
-          imageUrl,
-        }),
-      });
+      const payload = {
+        nameHe: nameHe.trim(),
+        nameEn: nameEn.trim(),
+        descriptionHe: descriptionHe.trim() || undefined,
+        descriptionEn: descriptionEn.trim() || undefined,
+        price: Number(price),
+        sizes: sizes.length > 0 ? sizes : undefined,
+        colors: colors.length > 0 ? colors : undefined,
+        stock: stock.trim() ? Number(stock) : undefined,
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
+        ...(editingId ? { active: activeState } : {}),
+      };
+      const res = await authedFetch(
+        editingId ? `/api/admin/store/products/${editingId}` : '/api/admin/store/products',
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t('createError'));
+      if (!res.ok) throw new Error(data.error || (editingId ? t('updateError') : t('createError')));
 
       setSheetOpen(false);
       resetForm();
       fetchProducts();
     } catch (err: unknown) {
-      setError((err as Error).message || t('createError'));
+      setError((err as Error).message || (editingId ? t('updateError') : t('createError')));
     } finally {
       setSaving(false);
-    }
-  };
-
-  const toggleActive = async (product: Product) => {
-    setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, active: !p.active } : p)));
-    try {
-      await authedFetch(`/api/admin/store/products/${product.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !product.active }),
-      });
-    } catch {
-      setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, active: product.active } : p)));
     }
   };
 
@@ -203,7 +217,7 @@ export function StoreManager() {
                   key={p.id}
                   label={p.nameHe}
                   sublabel={`${p.nameEn} · ${p.price} ₪`}
-                  onClick={() => toggleActive(p)}
+                  onClick={() => openEdit(p)}
                   trailing={
                     <div className="flex items-center gap-2.5 shrink-0">
                       <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500')}>
@@ -273,7 +287,7 @@ export function StoreManager() {
         </div>
       )}
 
-      <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={t('newProduct')}>
+      <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editProduct') : t('newProduct')}>
         <div className="space-y-4 pb-2">
           {error && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{error}</div>}
 
@@ -345,9 +359,22 @@ export function StoreManager() {
             </div>
           </div>
 
-          <Button className="w-full" onClick={handleCreate} disabled={!canSave}>
+          {editingId && (
+            <label className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50">
+              <span className="text-sm font-medium text-white">{activeState ? t('active') : t('inactive')}</span>
+              <button
+                type="button"
+                onClick={() => setActiveState((v) => !v)}
+                className={cn('relative w-11 h-6 rounded-full transition-colors', activeState ? 'bg-primary-600' : 'bg-slate-600')}
+              >
+                <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all', activeState ? 'start-[22px]' : 'start-0.5')} />
+              </button>
+            </label>
+          )}
+
+          <Button className="w-full" onClick={handleSave} disabled={!canSave}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
-            {saving ? t('creating') : t('createProduct')}
+            {saving ? (editingId ? t('updating') : t('creating')) : (editingId ? t('saveChanges') : t('createProduct'))}
           </Button>
         </div>
       </Sheet>

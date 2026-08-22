@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Award, Loader2, Plus, ImagePlus, X } from 'lucide-react';
+import { Award, Loader2, Plus, ImagePlus, X, Trash2, Pencil } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
-import { Sheet, SegmentedControl, Button, LoadingBlock, EmptyState } from '@/components/ui';
+import { Sheet, SegmentedControl, Button, LoadingBlock, EmptyState, ConfirmSheet } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 
@@ -53,6 +53,7 @@ export function BadgeManager() {
   const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [nameHe, setNameHe] = useState('');
   const [nameEn, setNameEn] = useState('');
@@ -60,12 +61,15 @@ export function BadgeManager() {
   const [descriptionEn, setDescriptionEn] = useState('');
   const [metricType, setMetricType] = useState<MetricType>('distance');
   const [thresholdValue, setThresholdValue] = useState('');
+  const [activeState, setActiveState] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Badge | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchBadges = () => {
     setLoading(true);
@@ -79,12 +83,14 @@ export function BadgeManager() {
   useEffect(() => { fetchBadges(); }, []);
 
   const resetForm = () => {
+    setEditingId(null);
     setNameHe('');
     setNameEn('');
     setDescriptionHe('');
     setDescriptionEn('');
     setMetricType('distance');
     setThresholdValue('');
+    setActiveState(true);
     setImageFile(null);
     setImagePreview(null);
     setError(null);
@@ -95,6 +101,22 @@ export function BadgeManager() {
     setSheetOpen(true);
   };
 
+  const openEdit = (badge: Badge) => {
+    setEditingId(badge.id);
+    setNameHe(badge.name_he);
+    setNameEn(badge.name_en);
+    setDescriptionHe(badge.description_he || '');
+    setDescriptionEn(badge.description_en || '');
+    setMetricType(badge.rule_type === 'cumulative_duration' ? 'duration' : 'distance');
+    const threshold = badge.rule_type === 'cumulative_duration' ? badge.rule_params?.hours : badge.rule_params?.km;
+    setThresholdValue(typeof threshold === 'number' ? String(threshold) : '');
+    setActiveState(badge.active);
+    setImageFile(null);
+    setImagePreview(badge.icon_url || null);
+    setError(null);
+    setSheetOpen(true);
+  };
+
   const handleImagePick = (file: File | null) => {
     setImageFile(file);
     setImagePreview(file ? URL.createObjectURL(file) : null);
@@ -102,7 +124,7 @@ export function BadgeManager() {
 
   const canSave = nameHe.trim().length > 0 && nameEn.trim().length > 0 && Number(thresholdValue) > 0 && !saving;
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
     setError(null);
@@ -115,31 +137,56 @@ export function BadgeManager() {
         const uploadData = await uploadRes.json().catch(() => ({}));
         if (!uploadRes.ok) throw new Error(uploadData.error || t('uploadError'));
         iconUrl = uploadData.url;
+      } else if (editingId && imagePreview === null) {
+        iconUrl = '';
       }
 
-      const res = await authedFetch('/api/admin/badges', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nameHe: nameHe.trim(),
-          nameEn: nameEn.trim(),
-          descriptionHe: descriptionHe.trim() || undefined,
-          descriptionEn: descriptionEn.trim() || undefined,
-          metricType,
-          thresholdValue: Number(thresholdValue),
-          iconUrl,
-        }),
-      });
+      const payload = {
+        nameHe: nameHe.trim(),
+        nameEn: nameEn.trim(),
+        descriptionHe: descriptionHe.trim() || undefined,
+        descriptionEn: descriptionEn.trim() || undefined,
+        metricType,
+        thresholdValue: Number(thresholdValue),
+        ...(iconUrl !== undefined ? { iconUrl } : {}),
+        ...(editingId ? { active: activeState } : {}),
+      };
+      const res = await authedFetch(
+        editingId ? `/api/admin/badges/${editingId}` : '/api/admin/badges',
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t('createError'));
+      if (!res.ok) throw new Error(data.error || (editingId ? t('updateError') : t('createError')));
 
       setSheetOpen(false);
       resetForm();
       fetchBadges();
     } catch (err: unknown) {
-      setError((err as Error).message || t('createError'));
+      setError((err as Error).message || (editingId ? t('updateError') : t('createError')));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    // ConfirmSheet closes itself immediately on tap (before this resolves),
+    // so any failure needs its own persistent banner on the list view rather
+    // than relying on the (already-closed) sheet to show it.
+    setDeleteTarget(null);
+    setDeleteError(null);
+    try {
+      const res = await authedFetch(`/api/admin/badges/${target.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || t('deleteError'));
+      fetchBadges();
+    } catch (err: unknown) {
+      setDeleteError((err as Error).message || t('deleteError'));
     }
   };
 
@@ -152,6 +199,10 @@ export function BadgeManager() {
           {t('newBadge')}
         </Button>
       </div>
+
+      {deleteError && (
+        <div className="mb-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{deleteError}</div>
+      )}
 
       {loading ? (
         <LoadingBlock />
@@ -167,10 +218,24 @@ export function BadgeManager() {
                 label={b.name_he}
                 sublabel={label ? `${b.name_en} · ${label}` : b.name_en}
                 trailing={
-                  <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', b.active ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500')}>
                       {b.active ? t('active') : t('inactive')}
                     </span>
+                    <button
+                      onClick={() => openEdit(b)}
+                      className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-slate-400 hover:text-white hover:bg-slate-700"
+                      aria-label={t('edit')}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(b)}
+                      className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10"
+                      aria-label={t('delete')}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                     <div className="w-9 h-9 rounded-full bg-slate-900/60 border border-slate-700/50 flex items-center justify-center overflow-hidden">
                       {b.icon_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -187,7 +252,7 @@ export function BadgeManager() {
         </InsetSection>
       )}
 
-      <Sheet open={sheetOpen} onOpenChange={o => { setSheetOpen(o); if (!o) resetForm(); }} title={t('newBadge')}>
+      <Sheet open={sheetOpen} onOpenChange={o => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editBadge') : t('newBadge')}>
         <div className="space-y-4 pb-2">
           {error && (
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{error}</div>
@@ -306,12 +371,34 @@ export function BadgeManager() {
             <p className="text-2xs text-slate-500 mt-1.5">{t('badgeImageHint')}</p>
           </div>
 
-          <Button className="w-full" onClick={handleCreate} disabled={!canSave}>
+          {editingId && (
+            <label className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50">
+              <span className="text-sm font-medium text-white">{activeState ? t('active') : t('inactive')}</span>
+              <button
+                type="button"
+                onClick={() => setActiveState((v) => !v)}
+                className={cn('relative w-11 h-6 rounded-full transition-colors', activeState ? 'bg-primary-600' : 'bg-slate-600')}
+              >
+                <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all', activeState ? 'start-[22px]' : 'start-0.5')} />
+              </button>
+            </label>
+          )}
+
+          <Button className="w-full" onClick={handleSave} disabled={!canSave}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Award className="h-4 w-4" />}
-            {saving ? t('creating') : t('createBadge')}
+            {saving ? (editingId ? t('updating') : t('creating')) : (editingId ? t('saveChanges') : t('createBadge'))}
           </Button>
         </div>
       </Sheet>
+
+      <ConfirmSheet
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title={t('deleteBadge')}
+        description={t('deleteBadgeDesc')}
+        confirmLabel={t('delete')}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
