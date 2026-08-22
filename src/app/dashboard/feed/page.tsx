@@ -9,6 +9,8 @@ import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { SquadStandings } from '@/components/SquadStandings';
+import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 
@@ -188,6 +190,18 @@ export default function FeedPage() {
       >
         <Spinner size={22} />
       </div>
+
+      {/* ═══ SQUAD RIVALRY + WEEKLY LEADERBOARD — moved here from the (now
+          hero-only) home page. Feed is where "how's everyone doing" content
+          belongs; home is only "what do I do today". ═══ */}
+      <div className="mb-4">
+        <SquadStandings />
+      </div>
+      {!isStaff && (
+        <div className="mb-4">
+          <WeeklyLeaderboardCard athleteId={myAthleteId} />
+        </div>
+      )}
 
       <div
         className="mb-4 bg-slate-800/50 rounded-2xl border border-slate-700/30 p-3 flex items-center gap-3 cursor-pointer hover:bg-slate-800/70 transition-colors active:scale-[0.98]"

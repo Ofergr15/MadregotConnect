@@ -8,6 +8,7 @@ import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
 import { BadgeManager } from '@/components/BadgeManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
+import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
@@ -785,6 +786,12 @@ export default function SettingsPage() {
 
           {/* Allowlist editor — only appears while maintenance is on. */}
           <MaintenanceAllowlist />
+
+          {/* Moved here from the (now hero-only) home page — a settings-style
+              tip, self-dismissible, doesn't belong on a "what do I do today" screen. */}
+          <div className="mb-5">
+            <WatchAlertsCard />
+          </div>
 
           {/* Management section — colored glyph rows that drill in */}
           <InsetSection header={t('management')}>
