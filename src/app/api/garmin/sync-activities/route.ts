@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from '@/lib/garmin/client';
 import { COACH_ID } from '@/lib/constants';
-import { sendPushToSubscriptions } from '@/lib/push';
+import { sendPushToSubscriptions, notifyTeammatesOfActivity } from '@/lib/push';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 
 // Hebrew label per run sub-type for the post-workout feedback nudge (same map
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         const newActivities = runActivities.filter(a => !existingIds.has(a.activityId));
 
         if (newActivities.length > 0) {
-          const rows = [];
+          const rows: Record<string, any>[] = [];
           for (const a of newActivities) {
             let enriched: any = {};
             try {
@@ -150,6 +150,31 @@ export async function POST(request: Request) {
 
           if (insertError) throw insertError;
           totalSynced += newActivities.length;
+
+          // Notify group teammates for each genuinely new run just inserted
+          // above (never for anything filtered out of `newActivities` via
+          // `existingIds`, i.e. never on a re-sync of something already
+          // known). `rows` was built 1:1 in the same order as `newActivities`.
+          // Never let a push failure break the sync itself.
+          try {
+            await Promise.all(
+              newActivities.map(async (a, i) => {
+                const row = rows[i];
+                try {
+                  await notifyTeammatesOfActivity({
+                    athleteId: athlete.id,
+                    activityKey: `${athlete.id}-${a.activityId}`,
+                    distanceMeters: row.distance,
+                    durationSeconds: row.duration,
+                    averagePaceSecPerKm: row.average_pace,
+                    averageHr: row.average_hr,
+                  });
+                } catch (notifyErr) {
+                  console.warn(`Teammate notify for Garmin activity ${a.activityId} failed:`, notifyErr);
+                }
+              }),
+            );
+          } catch { /* belt-and-suspenders: inner catch already handles per-activity failures */ }
 
           // Post-workout nudge (PRD §1): push the athlete to fill the feedback
           // questionnaire for the newest run. Inline (not cron) so it's timely;

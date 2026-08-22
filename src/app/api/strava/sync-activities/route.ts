@@ -19,6 +19,7 @@ import {
 } from '@/lib/strava/client';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
+import { notifyTeammatesOfActivity } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -259,6 +260,24 @@ export async function POST(request: Request) {
           }
           // Another overlapping sync inserted it after our initial lookup.
           if (!inserted) continue;
+
+          // Notify group teammates this athlete just finished a run — only
+          // reachable here because `row` is a genuinely NEW insert (every
+          // activity already known via `existingByStrava` hit `continue`
+          // above, and a same-conflict race just above also `continue`d).
+          // Never let a push failure break the sync itself.
+          try {
+            await notifyTeammatesOfActivity({
+              athleteId: athlete.id,
+              activityKey: inserted.id,
+              distanceMeters: row.distance,
+              durationSeconds: row.duration,
+              averagePaceSecPerKm: row.average_pace,
+              averageHr: row.average_hr,
+            });
+          } catch (notifyErr) {
+            console.warn(`Teammate notify for Strava activity ${a.id} failed:`, notifyErr);
+          }
 
           if (shouldEnrich(a.start_date_local)) {
             enrichCount++;

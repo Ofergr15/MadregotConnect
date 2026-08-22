@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { formatPace } from '@/lib/garmin/pace';
 
 /**
  * When maintenance mode is ON, only athletes whose email is on the saved
@@ -40,7 +41,7 @@ function ensureConfigured(): boolean {
 // Toggleable notification categories (per-user prefs). A payload's category lets
 // sendPushToSubscriptions drop athletes who muted it. Omit category → always sent
 // (e.g. critical/admin messages that shouldn't be silenceable).
-export type NotificationCategory = 'workouts' | 'coach' | 'achievements' | 'program';
+export type NotificationCategory = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates';
 
 export interface PushPayload {
   title: string;
@@ -222,6 +223,86 @@ export async function subscriptionsForAthletes(athleteIds: string[]): Promise<Su
     .select('id, endpoint, p256dh, auth, athlete_id')
     .in('athlete_id', athleteIds);
   return (subs || []) as SubRow[];
+}
+
+/**
+ * "1:11:55" once past an hour, else "11:55" (M:SS) — mirrors the duration
+ * format already used across the activity feed/detail views (e.g.
+ * ActivityFeed.tsx, dashboard/activities).
+ */
+function formatActivityDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.round(seconds % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/**
+ * Notify an athlete's group teammates (everyone else sharing their group_id)
+ * that they just finished a run — Garmin-Connect-style: the athlete's name as
+ * the title, then real stats (distance · duration · pace · HR) as the body.
+ * Call this ONLY right after a genuinely NEW athlete_activities row is
+ * inserted (never on a re-sync of an activity already known — see the
+ * Strava/Garmin sync-activities routes for how "new" is determined there).
+ *
+ * No-op if the athlete has no group, has no teammates, or no teammate has a
+ * push subscription. Each teammate's 'teammates' mute preference is respected
+ * automatically via sendPushToSubscriptions — callers do not need a separate
+ * mute check. Callers MUST wrap this call in try/catch: a push failure here
+ * must never break the activity sync that triggered it.
+ */
+export async function notifyTeammatesOfActivity(activity: {
+  athleteId: string;
+  /** Unique per activity — keys the notification `tag` so it can't duplicate. */
+  activityKey: string | number;
+  distanceMeters: number;
+  durationSeconds: number;
+  averagePaceSecPerKm?: number | null;
+  averageHr?: number | null;
+}): Promise<number> {
+  const supabase = createServerClient();
+  const { data: athlete } = await supabase
+    .from('athletes')
+    .select('name, group_id, gender, avatar_url')
+    .eq('id', activity.athleteId)
+    .maybeSingle();
+  if (!athlete?.group_id) return 0;
+
+  const { data: teammates } = await supabase
+    .from('athletes')
+    .select('id')
+    .eq('group_id', athlete.group_id)
+    .neq('id', activity.athleteId);
+  const teammateIds = (teammates || []).map((t: { id: string }) => t.id);
+  if (teammateIds.length === 0) return 0;
+
+  const subs = await subscriptionsForAthletes(teammateIds);
+  if (subs.length === 0) return 0;
+
+  const km = (activity.distanceMeters / 1000).toFixed(1);
+  const durationStr = formatActivityDuration(activity.durationSeconds);
+  const parts = [`${km} km`, durationStr];
+  if (activity.averagePaceSecPerKm) parts.push(`${formatPace(activity.averagePaceSecPerKm)} min/km`);
+  if (activity.averageHr) parts.push(`${Math.round(activity.averageHr)} bpm`);
+
+  const name = (athlete.name || '').trim() || 'חבר/ה לקבוצה';
+  // Gender-neutral fallback when the athlete hasn't filled in their gender
+  // (migration 057, optional field) — otherwise a natural gendered verb.
+  const verb = athlete.gender === 'male' ? 'סיים' : athlete.gender === 'female' ? 'סיימה' : 'סיים/ה';
+
+  return sendPushToSubscriptions(subs, {
+    title: `🏃 ${name} ${verb} אימון`,
+    body: parts.join(' · '),
+    // No teammate-visible activity-detail page exists yet (the per-activity
+    // run-chat link is owner/coach-only — canAccessChat in
+    // src/lib/run-chat/access.ts 403s any other athlete), so this falls back
+    // to the shared activities feed per the task's own fallback instruction.
+    url: '/dashboard/activities',
+    tag: `teammate-activity-${activity.activityKey}`,
+    category: 'teammates',
+    ...(athlete.avatar_url ? { icon: athlete.avatar_url } : {}),
+  });
 }
 
 /** All athlete ids of the club (for computing non-responders). */
