@@ -1316,7 +1316,8 @@
   },
   "search": {
     "title": "Search",
-    "placeholder": "Search members, events...",
+    "sections": "Sections",
+    "placeholder": "Search members, events, sections...",
     "prompt": "Type at least 2 characters to search",
     "noResults": "No results found",
     "members": "Members",
