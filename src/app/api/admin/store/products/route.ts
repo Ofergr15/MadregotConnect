@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from('store_products')
-    .select('id, name_he, name_en, description_he, description_en, price, image_url, sizes, stock, active, created_at')
+    .select('id, name_he, name_en, description_he, description_en, price, image_url, sizes, colors, stock, active, created_at')
     .order('created_at', { ascending: false });
   if (error) {
     if ((error as { code?: string }).code === 'PGRST205') return NextResponse.json({ products: [] });
@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     price: p.price,
     imageUrl: p.image_url,
     sizes: p.sizes || null,
+    colors: p.colors || null,
     stock: p.stock,
     active: p.active,
   }));
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
 }
 
 // POST /api/admin/store/products — staff-only create.
-// Body: { nameHe, nameEn, descriptionHe?, descriptionEn?, price, imageUrl?, sizes?: string[], stock?: number }
+// Body: { nameHe, nameEn, descriptionHe?, descriptionEn?, price, imageUrl?, sizes?: string[], colors?: string[], stock?: number }
 export async function POST(request: Request) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
@@ -46,9 +47,9 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { nameHe, nameEn, descriptionHe, descriptionEn, price, imageUrl, sizes, stock } = body as {
+    const { nameHe, nameEn, descriptionHe, descriptionEn, price, imageUrl, sizes, colors, stock } = body as {
       nameHe?: string; nameEn?: string; descriptionHe?: string; descriptionEn?: string;
-      price?: number; imageUrl?: string; sizes?: string[]; stock?: number;
+      price?: number; imageUrl?: string; sizes?: string[]; colors?: string[]; stock?: number;
     };
 
     if (!nameHe?.trim() || !nameEn?.trim()) {
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
         price: priceNum,
         image_url: imageUrl || null,
         sizes: Array.isArray(sizes) && sizes.length > 0 ? sizes : null,
+        colors: Array.isArray(colors) && colors.length > 0 ? colors : null,
         stock: stock != null && Number.isFinite(Number(stock)) ? Number(stock) : null,
         created_by: auth.user.athleteId,
       })

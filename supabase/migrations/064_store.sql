@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS store_products (
   price NUMERIC NOT NULL CHECK (price >= 0),   -- ILS
   image_url TEXT,
   sizes TEXT[],                                 -- NULL/empty = no size variants (e.g. a mug)
+  colors TEXT[],                                -- NULL/empty = no color variants
   stock INT,                                     -- NULL = not tracked (unlimited)
   active BOOLEAN NOT NULL DEFAULT true,
   created_by UUID REFERENCES athletes(id) ON DELETE SET NULL,
@@ -45,6 +46,7 @@ CREATE TABLE IF NOT EXISTS store_order_items (
   product_name_he TEXT NOT NULL,
   product_name_en TEXT NOT NULL,
   size TEXT,
+  color TEXT,
   quantity INT NOT NULL DEFAULT 1 CHECK (quantity > 0),
   unit_price NUMERIC NOT NULL CHECK (unit_price >= 0)
 );

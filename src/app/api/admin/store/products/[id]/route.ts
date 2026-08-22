@@ -15,9 +15,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const { id } = await params;
     const body = await request.json();
-    const { nameHe, nameEn, descriptionHe, descriptionEn, price, imageUrl, sizes, stock, active } = body as {
+    const { nameHe, nameEn, descriptionHe, descriptionEn, price, imageUrl, sizes, colors, stock, active } = body as {
       nameHe?: string; nameEn?: string; descriptionHe?: string; descriptionEn?: string;
-      price?: number; imageUrl?: string; sizes?: string[]; stock?: number; active?: boolean;
+      price?: number; imageUrl?: string; sizes?: string[]; colors?: string[]; stock?: number; active?: boolean;
     };
 
     const updates: Record<string, unknown> = {};
@@ -28,6 +28,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (price !== undefined) updates.price = Number(price);
     if (imageUrl !== undefined) updates.image_url = imageUrl || null;
     if (sizes !== undefined) updates.sizes = Array.isArray(sizes) && sizes.length > 0 ? sizes : null;
+    if (colors !== undefined) updates.colors = Array.isArray(colors) && colors.length > 0 ? colors : null;
     if (stock !== undefined) updates.stock = stock == null ? null : Number(stock);
     if (active !== undefined) updates.active = !!active;
 

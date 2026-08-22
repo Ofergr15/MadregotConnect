@@ -11,7 +11,7 @@ export async function GET() {
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('store_products')
-      .select('id, name_he, name_en, description_he, description_en, price, image_url, sizes, stock')
+      .select('id, name_he, name_en, description_he, description_en, price, image_url, sizes, colors, stock')
       .eq('active', true)
       .order('created_at', { ascending: false });
     if (error) {
@@ -28,6 +28,7 @@ export async function GET() {
       price: p.price,
       imageUrl: p.image_url,
       sizes: p.sizes || null,
+      colors: p.colors || null,
       stock: p.stock,
     }));
 

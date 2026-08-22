@@ -17,10 +17,11 @@ interface Product {
   price: number;
   imageUrl: string | null;
   sizes: string[] | null;
+  colors: string[] | null;
   stock: number | null;
   active: boolean;
 }
-interface OrderItem { nameHe: string; size: string | null; quantity: number; unitPrice: number }
+interface OrderItem { nameHe: string; size: string | null; color: string | null; quantity: number; unitPrice: number }
 interface Order {
   id: string; athleteName: string | null; athleteAvatarUrl: string | null; status: string;
   total: number; contactPhone: string | null; notes: string | null; createdAt: string; items: OrderItem[];
@@ -48,6 +49,7 @@ export function StoreManager() {
   const [descriptionEn, setDescriptionEn] = useState('');
   const [price, setPrice] = useState('');
   const [sizesInput, setSizesInput] = useState('');
+  const [colorsInput, setColorsInput] = useState('');
   const [stock, setStock] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function StoreManager() {
 
   const resetForm = () => {
     setNameHe(''); setNameEn(''); setDescriptionHe(''); setDescriptionEn('');
-    setPrice(''); setSizesInput(''); setStock('');
+    setPrice(''); setSizesInput(''); setColorsInput(''); setStock('');
     setImageFile(null); setImagePreview(null); setError(null);
   };
   const openNew = () => { resetForm(); setSheetOpen(true); };
@@ -108,6 +110,7 @@ export function StoreManager() {
       }
 
       const sizes = sizesInput.split(',').map((s) => s.trim()).filter(Boolean);
+      const colors = colorsInput.split(',').map((c) => c.trim()).filter(Boolean);
       const res = await authedFetch('/api/admin/store/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,6 +121,7 @@ export function StoreManager() {
           descriptionEn: descriptionEn.trim() || undefined,
           price: Number(price),
           sizes: sizes.length > 0 ? sizes : undefined,
+          colors: colors.length > 0 ? colors : undefined,
           stock: stock.trim() ? Number(stock) : undefined,
           imageUrl,
         }),
@@ -238,11 +242,14 @@ export function StoreManager() {
                     <span className="text-xs text-slate-500">{fmtDate(o.createdAt)}</span>
                   </div>
                   <div className="space-y-0.5 mb-1.5">
-                    {o.items.map((it, i) => (
-                      <p key={i} className="text-xs text-slate-400" dir="auto">
-                        {it.quantity}× {it.nameHe}{it.size ? ` (${it.size})` : ''}
-                      </p>
-                    ))}
+                    {o.items.map((it, i) => {
+                      const variant = [it.size, it.color].filter(Boolean).join(' · ');
+                      return (
+                        <p key={i} className="text-xs text-slate-400" dir="auto">
+                          {it.quantity}× {it.nameHe}{variant ? ` (${variant})` : ''}
+                        </p>
+                      );
+                    })}
                   </div>
                   {o.contactPhone && <p className="text-xs text-slate-400 mb-1">📞 {o.contactPhone}</p>}
                   {o.notes && <p className="text-xs text-slate-500 mb-1.5" dir="auto">{o.notes}</p>}
@@ -303,10 +310,17 @@ export function StoreManager() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('sizesOptional')}</label>
-            <input value={sizesInput} onChange={(e) => setSizesInput(e.target.value)} placeholder="S, M, L, XL" dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
-            <p className="text-2xs text-slate-500 mt-1">{t('sizesHint')}</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('sizesOptional')}</label>
+              <input value={sizesInput} onChange={(e) => setSizesInput(e.target.value)} placeholder="S, M, L, XL" dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
+              <p className="text-2xs text-slate-500 mt-1">{t('sizesHint')}</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('colorsOptional')}</label>
+              <input value={colorsInput} onChange={(e) => setColorsInput(e.target.value)} placeholder="Black, White, Red" dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
+              <p className="text-2xs text-slate-500 mt-1">{t('colorsHint')}</p>
+            </div>
           </div>
 
           <div>

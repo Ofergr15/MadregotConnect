@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 interface CartLine {
   productId: string;
   size?: string | null;
+  color?: string | null;
   quantity: number;
 }
 
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
     const { data: items } = orderIds.length
       ? await supabase
           .from('store_order_items')
-          .select('order_id, product_name_he, product_name_en, size, quantity, unit_price')
+          .select('order_id, product_name_he, product_name_en, size, color, quantity, unit_price')
           .in('order_id', orderIds)
       : { data: [] };
 
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
         nameHe: item.product_name_he,
         nameEn: item.product_name_en,
         size: item.size,
+        color: item.color,
         quantity: item.quantity,
         unitPrice: item.unit_price,
       });
@@ -102,7 +104,7 @@ export async function POST(request: Request) {
 
     const lineItems: Array<{
       product_id: string; product_name_he: string; product_name_en: string;
-      size: string | null; quantity: number; unit_price: number;
+      size: string | null; color: string | null; quantity: number; unit_price: number;
     }> = [];
     let total = 0;
     for (const line of items) {
@@ -116,6 +118,7 @@ export async function POST(request: Request) {
         product_name_he: product.name_he,
         product_name_en: product.name_en,
         size: line.size || null,
+        color: line.color || null,
         quantity,
         unit_price: product.price,
       });

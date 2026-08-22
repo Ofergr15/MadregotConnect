@@ -15,10 +15,11 @@ interface Product {
   price: number;
   imageUrl: string | null;
   sizes: string[] | null;
+  colors: string[] | null;
   stock: number | null;
 }
-interface CartLine { productId: string; size: string | null; quantity: number }
-interface OrderItem { nameHe: string; nameEn: string; size: string | null; quantity: number; unitPrice: number }
+interface CartLine { productId: string; size: string | null; color: string | null; quantity: number }
+interface OrderItem { nameHe: string; nameEn: string; size: string | null; color: string | null; quantity: number; unitPrice: number }
 interface Order { id: string; status: string; total: number; createdAt: string; items: OrderItem[] }
 
 const CART_KEY = 'madregot_store_cart';
@@ -38,6 +39,7 @@ export default function StorePage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
   const [size, setSize] = useState<string | null>(null);
+  const [color, setColor] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
@@ -73,16 +75,17 @@ export default function StorePage() {
   const openProduct = (p: Product) => {
     setProduct(p);
     setSize(p.sizes?.[0] || null);
+    setColor(p.colors?.[0] || null);
   };
 
   const addToCart = () => {
     if (!product) return;
     setCart((prev) => {
-      const existing = prev.find((l) => l.productId === product.id && l.size === size);
+      const existing = prev.find((l) => l.productId === product.id && l.size === size && l.color === color);
       if (existing) {
         return prev.map((l) => (l === existing ? { ...l, quantity: l.quantity + 1 } : l));
       }
-      return [...prev, { productId: product.id, size, quantity: 1 }];
+      return [...prev, { productId: product.id, size, color, quantity: 1 }];
     });
     setProduct(null);
   };
@@ -108,7 +111,7 @@ export default function StorePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           athleteId,
-          items: cart.map((l) => ({ productId: l.productId, size: l.size, quantity: l.quantity })),
+          items: cart.map((l) => ({ productId: l.productId, size: l.size, color: l.color, quantity: l.quantity })),
           contactPhone: phone,
           notes,
         }),
@@ -216,11 +219,14 @@ export default function StorePage() {
                   </span>
                 </div>
                 <div className="mt-1.5 space-y-0.5">
-                  {o.items.map((it, i) => (
-                    <p key={i} className="text-sm text-slate-300" dir="auto">
-                      {it.quantity}× {locale === 'he' ? it.nameHe : it.nameEn}{it.size ? ` (${it.size})` : ''}
-                    </p>
-                  ))}
+                  {o.items.map((it, i) => {
+                    const variant = [it.size, it.color].filter(Boolean).join(' · ');
+                    return (
+                      <p key={i} className="text-sm text-slate-300" dir="auto">
+                        {it.quantity}× {locale === 'he' ? it.nameHe : it.nameEn}{variant ? ` (${variant})` : ''}
+                      </p>
+                    );
+                  })}
                 </div>
                 <p className="text-sm font-bold text-white mt-1.5">{o.total} {t('currency')}</p>
               </Card>
@@ -250,6 +256,16 @@ export default function StorePage() {
                   value={size || product.sizes[0]}
                   onChange={setSize}
                   options={product.sizes.map((s) => ({ value: s, label: s }))}
+                />
+              </div>
+            )}
+            {product.colors && product.colors.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('color')}</label>
+                <SegmentedControl<string>
+                  value={color || product.colors[0]}
+                  onChange={setColor}
+                  options={product.colors.map((c) => ({ value: c, label: c }))}
                 />
               </div>
             )}
@@ -287,10 +303,11 @@ export default function StorePage() {
             {cart.map((line, i) => {
               const p = productById.get(line.productId);
               if (!p) return null;
+              const variant = [line.size, line.color].filter(Boolean).join(' · ');
               return (
                 <div key={i} className="flex items-center gap-3 bg-slate-800/50 rounded-xl px-3 py-2.5">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate" dir="auto">{name(p)}{line.size ? ` (${line.size})` : ''}</p>
+                    <p className="text-sm font-semibold text-white truncate" dir="auto">{name(p)}{variant ? ` (${variant})` : ''}</p>
                     <p className="text-xs text-slate-500">{p.price} {t('currency')}</p>
                   </div>
                   <button onClick={() => updateQty(line, -1)} className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-white"><Minus className="h-3.5 w-3.5" /></button>
