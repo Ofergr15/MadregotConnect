@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import {
   Activity, Heart, Timer, Route, TrendingUp,
   MapPin, ChevronDown, ChevronUp, Zap, Footprints, Mountain,
-  Flame, RefreshCw, Gauge, MessageCircle,
+  Flame, RefreshCw, Gauge, MessageCircle, Share2,
 } from 'lucide-react';
 import { cn, formatActivityTime, formatActivityDate, activityLocalHour, activityLocalDay, activityLocalDateStr } from '@/lib/utils';
 import { fetchActivityDetails } from '@/lib/activities-client';
 import { projectBandsToBins, PlannedKmPoint } from '@/lib/academy/segments';
+import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 
 interface ActivityEntry {
   id: string;
@@ -672,6 +673,10 @@ function ActivityCard({
   const [details, setDetails] = useState<ActivityDetailsData | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [planned, setPlanned] = useState<(PlannedKmPoint | null)[] | null>(null);
+  // Manual re-open of the same customize-before-posting sheet the background
+  // sync shows automatically once — this lets an athlete share (or edit the
+  // sharing of) any past run, not just the one that was just synced.
+  const [showShare, setShowShare] = useState(false);
 
   const distKm = (activity.distance / 1000).toFixed(1);
   const distKmNum = activity.distance / 1000;
@@ -734,6 +739,7 @@ function ActivityCard({
   const knownNoRoute = Array.isArray(activity.gps_points) && activity.gps_points.length === 0;
 
   return (
+    <>
     <div className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden">
       {/* Collapsed card */}
       <div className="p-4 sm:p-5 cursor-pointer hover:bg-slate-800/70 transition-colors" onClick={handleExpand}>
@@ -751,6 +757,20 @@ function ActivityCard({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {isMyActivity && (
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setShowShare(true);
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-600/50 bg-slate-700/30 px-2.5 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-slate-700/60 hover:text-white"
+                aria-label="שיתוף בפיד"
+                title="שיתוף בפיד"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">שיתוף</span>
+              </button>
+            )}
             <button
               onClick={(event) => {
                 event.stopPropagation();
@@ -983,6 +1003,10 @@ function ActivityCard({
         </div>
       )}
     </div>
+    {showShare && (
+      <ActivitySyncEditor activity={activity} onClose={() => setShowShare(false)} />
+    )}
+    </>
   );
 }
 

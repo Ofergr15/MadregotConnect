@@ -305,7 +305,20 @@ export function ActivitySyncEditor({
           </div>
         )}
 
-        {loadError && !loading && (
+        {/* NOT_SIGNED_IN means the Supabase session expired (this endpoint needs
+            a real JWT, same as the feed itself) — retrying would just fail the
+            same way, so this case gets a real message + a way out instead of
+            the raw error code. */}
+        {loadError === 'NOT_SIGNED_IN' && !loading && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+            <p className="text-sm text-amber-300">{tFeed('sessionExpiredBody')}</p>
+            <Link href="/" className="mt-2 inline-block text-xs font-semibold text-amber-200 underline">
+              {tFeed('signInAgain')}
+            </Link>
+          </div>
+        )}
+
+        {loadError && loadError !== 'NOT_SIGNED_IN' && !loading && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
             <p className="text-sm text-amber-300">{loadError}</p>
             <button onClick={load} className="mt-2 text-xs font-semibold text-amber-200 underline">
