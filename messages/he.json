@@ -41,6 +41,7 @@
     "practiceAttendance": "נוכחות",
     "workoutFeedback": "משוב אימונים",
     "more": "עוד",
+    "search": "חיפוש",
     "teamVolume": "נפח הקבוצה",
     "feed": "פיד",
     "coachTools": "כלי מאמן",
@@ -1275,5 +1276,13 @@
     "following": "במעקב",
     "follow": "עקיבה",
     "followingButton": "עוקב/ת"
+  },
+  "search": {
+    "title": "חיפוש",
+    "placeholder": "חיפוש חברים, אירועים...",
+    "prompt": "הקלידו לפחות 2 תווים לחיפוש",
+    "noResults": "לא נמצאו תוצאות",
+    "members": "חברים",
+    "events": "אירועים"
   }
 }

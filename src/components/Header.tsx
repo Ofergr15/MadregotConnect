@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, Image, CalendarDays, Wrench } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, Image, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
@@ -298,6 +298,18 @@ export function Header() {
                 </Sheet>
               </div>
             )}
+
+            {/* Desktop-only search entry point (roadmap #17) — mobile's
+                equivalent lives as a static row in BottomTabBar's "More"
+                sheet, since the mobile header has no room for another icon. */}
+            <Link
+              href="/dashboard/search"
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              title={t('search')}
+              aria-label={t('search')}
+            >
+              <SearchIcon className="h-4.5 w-4.5" />
+            </Link>
 
             {isSuper && (
               <button

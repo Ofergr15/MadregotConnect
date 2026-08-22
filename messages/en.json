@@ -41,6 +41,7 @@
     "practiceAttendance": "Attendance",
     "workoutFeedback": "Workout Feedback",
     "more": "More",
+    "search": "Search",
     "teamVolume": "Team Volume",
     "feed": "Feed",
     "coachTools": "Coach Tools",
@@ -1275,5 +1276,13 @@
     "following": "Following",
     "follow": "Follow",
     "followingButton": "Following"
+  },
+  "search": {
+    "title": "Search",
+    "placeholder": "Search members, events...",
+    "prompt": "Type at least 2 characters to search",
+    "noResults": "No results found",
+    "members": "Members",
+    "events": "Events"
   }
 }

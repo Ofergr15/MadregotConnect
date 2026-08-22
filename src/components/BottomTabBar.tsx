@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, MoreHorizontal, Newspaper, CalendarCheck, CalendarDays, Wrench,
+  BarChart3, MoreHorizontal, Newspaper, CalendarCheck, CalendarDays, Wrench, Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
@@ -222,6 +222,15 @@ export function BottomTabBar() {
           aria-modal) instead of a hand-rolled `fixed inset-0` overlay. */}
       <Sheet open={moreOpen} onOpenChange={setMoreOpen} title={t('more' as any)} className="md:hidden">
         <InsetSection>
+          {/* Static — every role, not gated by role_mobile_tab_permissions
+              (roadmap #17, In-App Global Search). */}
+          <InsetRow
+            icon={Search}
+            iconBg={isActive('/dashboard/search') ? 'bg-primary-600' : 'bg-slate-600'}
+            label={t('search' as any)}
+            href="/dashboard/search"
+            onClick={() => setMoreOpen(false)}
+          />
           {overflow.map(item => {
             const active = isActive(item.href);
             return (

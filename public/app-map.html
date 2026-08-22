@@ -147,6 +147,7 @@
         { label: 'אתגרים', desc: 'חדש · אתגרים מוגבלי-זמן עם פס התקדמות חי (ק"מ/אימונים/טיפוס), מזכים בתג בסיום — אישי או קבוצתי', new: 'challenges.png', path: '/dashboard/profile', badge: 'new-only' },
         { label: 'לוחות מובילים', desc: 'חדש · 5 קטגוריות (ק"מ שבועי/חודשי, רצף, אימונים, אירועים) + פילטר כולם/הדבוקה שלי ודירוג אישי — קודם היה רק טופ-3 בפיד', new: 'leaderboards.png', path: '/dashboard/profile', badge: 'new-only' },
         { label: 'מצא חברים', desc: 'חדש · חיפוש/דפדוף בכל הרשימה עם כפתור עקיבה — קודם ניתן היה לעקוב רק מפרופיל חבר שכבר מוצג', path: '/dashboard/profile', badge: 'new-only' },
+        { label: 'חיפוש', desc: 'חדש · חיפוש גלובלי (חברים, אירועים) — נגיש מתפריט "עוד"', path: '/dashboard/search', badge: 'new-only' },
         { label: 'הפעילויות שלי', desc: 'יומן ריצות מלא', old: 'activities-old.png', new: 'activities.png', path: '/dashboard/activities' },
         { label: 'לוח שנה', desc: 'כולל תצוגת מרוצים במפה, הרשמה עם תור המתנה/תפוסה', new: 'calendar.png', path: '/dashboard/calendar', badge: 'new-only' },
         { label: 'התראות', desc: 'היסטוריית התראות שהתקבלו, עם פילטר לפי קטגוריה — ההעדפות (7 קטגוריות נפרדות) נמצאות בפרופיל', old: 'notifications-old.png', new: 'notifications.png', path: '/dashboard/notifications' },
@@ -268,6 +269,15 @@
   // Add a new entry here every time we tag a release (see the versioning
   // workflow: git tag + Vercel deployment history for rollback).
   var VERSIONS = [
+    {
+      tag: 'v1.8.0',
+      name: 'חיפוש גלובלי',
+      date: '22.08.2026',
+      summary: 'הפריט הרביעי מרשימת הפערים (#17). חיפוש עם השהיה (300ms) על חברים ואירועים — פוסטים/הטבות/חנות/צ׳אט יתווספו כשיהיה להם תוכן אמיתי לחפש בו.',
+      changes: [
+        { screen: 'חיפוש (מסך חדש)', desc: '/dashboard/search — נגיש מתפריט "עוד" בנייד ומסמל חיפוש בכותרת בדסקטופ. תוצאות מקובצות (חברים/אירועים), כל שורה מקשרת לפרופיל החבר או לעמוד האירוע.' },
+      ],
+    },
     {
       tag: 'v1.7.0',
       name: 'גילוי חברים — חיפוש כדי לעקוב',
