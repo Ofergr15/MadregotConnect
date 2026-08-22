@@ -124,6 +124,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   }
 
   const genderLabel = gender ? t(gender === 'male' ? 'genderMale' : 'genderFemale') : undefined;
+  const notSet = t('notSet');
 
   return (
     <div>
@@ -135,27 +136,32 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         />
         <InsetRow
           label={t('birthDate')}
-          value={birthDate || undefined}
+          value={birthDate || notSet}
+          valueMuted={!birthDate}
           onClick={() => setEditField('birthDate')}
         />
         <InsetRow
           label={t('gender')}
-          value={genderLabel}
+          value={genderLabel || notSet}
+          valueMuted={!genderLabel}
           onClick={() => setEditField('gender')}
         />
         <InsetRow
           label={t('shoeSize')}
-          value={shoeSize || undefined}
+          value={shoeSize || notSet}
+          valueMuted={!shoeSize}
           onClick={() => setEditField('shoeSize')}
         />
         <InsetRow
           label={t('shirtSize')}
-          value={shirtSize || undefined}
+          value={shirtSize || notSet}
+          valueMuted={!shirtSize}
           onClick={() => setEditField('shirtSize')}
         />
         <InsetRow
           label={t('phone')}
-          value={phone || undefined}
+          value={phone || notSet}
+          valueMuted={!phone}
           onClick={() => setEditField('phone')}
         />
       </InsetSection>
