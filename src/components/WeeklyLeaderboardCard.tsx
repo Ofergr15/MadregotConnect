@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Trophy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn, getActivityWeekStart } from '@/lib/utils';
@@ -159,7 +160,12 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
               <div className="flex flex-col items-center" style={{ width: '56px' }}>
                 <span className="text-2xs font-bold text-slate-300 mb-1 tabular-nums">{top3[1].distanceKm}</span>
                 <div className="w-6 rounded-t bg-slate-400/80" style={{ height: '50px' }} />
-                <span className="text-2xs text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[1].name.split(' ')[0]}</span>
+                <Link
+                  href={`/dashboard/teammate/${top3[1].id}`}
+                  className="text-2xs text-slate-300 mt-1.5 font-medium whitespace-nowrap"
+                >
+                  {top3[1].name.split(' ')[0]}
+                </Link>
               </div>
             )}
             {top3.length >= 1 && (
@@ -167,14 +173,24 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
                 <span className="text-sm mb-0.5">👑</span>
                 <span className="text-xs font-black text-yellow-400 mb-1 tabular-nums">{top3[0].distanceKm}</span>
                 <div className="w-6 rounded-t bg-yellow-500" style={{ height: '70px' }} />
-                <span className="text-2xs text-white font-bold mt-1.5 whitespace-nowrap">{top3[0].name.split(' ')[0]}</span>
+                <Link
+                  href={`/dashboard/teammate/${top3[0].id}`}
+                  className="text-2xs text-white font-bold mt-1.5 whitespace-nowrap"
+                >
+                  {top3[0].name.split(' ')[0]}
+                </Link>
               </div>
             )}
             {top3.length >= 3 && (
               <div className="flex flex-col items-center" style={{ width: '56px' }}>
                 <span className="text-2xs font-bold text-amber-500 mb-1 tabular-nums">{top3[2].distanceKm}</span>
                 <div className="w-6 rounded-t bg-amber-600/80" style={{ height: '35px' }} />
-                <span className="text-2xs text-slate-300 mt-1.5 font-medium whitespace-nowrap">{top3[2].name.split(' ')[0]}</span>
+                <Link
+                  href={`/dashboard/teammate/${top3[2].id}`}
+                  className="text-2xs text-slate-300 mt-1.5 font-medium whitespace-nowrap"
+                >
+                  {top3[2].name.split(' ')[0]}
+                </Link>
               </div>
             )}
           </div>

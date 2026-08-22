@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, Trash2, Route, MapPin, Mountain, Share2, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -39,8 +40,8 @@ type Translate = ReturnType<typeof useTranslations<'feed'>>;
 
 function AuthorRow({ item }: { item: FeedItem }) {
   const format = useFormatter();
-  return (
-    <div className="flex items-center gap-3">
+  const identity = (
+    <>
       <FeedAvatar name={item.author.name} url={item.author.avatarUrl} />
       <div className="min-w-0">
         <p className="text-sm font-semibold text-white leading-tight truncate">{item.author.name}</p>
@@ -49,7 +50,20 @@ function AuthorRow({ item }: { item: FeedItem }) {
           {format.relativeTime(new Date(item.occurredAt))}
         </p>
       </div>
-    </div>
+    </>
+  );
+
+  // author.athleteId is null for system-authored items (e.g. announcements
+  // with no athlete row behind them) — nothing to link to in that case, so
+  // fall back to the plain (non-interactive) row.
+  if (!item.author.athleteId) {
+    return <div className="flex items-center gap-3">{identity}</div>;
+  }
+
+  return (
+    <Link href={`/dashboard/teammate/${item.author.athleteId}`} className="flex items-center gap-3">
+      {identity}
+    </Link>
   );
 }
 
