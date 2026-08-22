@@ -41,7 +41,7 @@ function ensureConfigured(): boolean {
 // Toggleable notification categories (per-user prefs). A payload's category lets
 // sendPushToSubscriptions drop athletes who muted it. Omit category → always sent
 // (e.g. critical/admin messages that shouldn't be silenceable).
-export type NotificationCategory = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates';
+export type NotificationCategory = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
 
 export interface PushPayload {
   title: string;
@@ -295,7 +295,11 @@ export async function notifyTeammatesOfActivity(activity: {
   const verb = athlete.gender === 'male' ? 'סיים' : athlete.gender === 'female' ? 'סיימה' : 'סיים/ה';
 
   return sendPushToSubscriptions(subs, {
-    title: `🏃 ${name} ${verb} אימון`,
+    // Distance is in the TITLE itself, not just the body — iOS shows the
+    // title even when a locked-screen preview or notification summary
+    // collapses/hides the body line, so the km can't get lost the way a
+    // bare "X finished a run" title did before.
+    title: `🏃 ${name} ${verb} ריצה של ${km} ק"מ`,
     body: parts.join(' · '),
     // No teammate-visible activity-detail page exists yet (the per-activity
     // run-chat link is owner/coach-only — canAccessChat in
@@ -304,7 +308,12 @@ export async function notifyTeammatesOfActivity(activity: {
     url: '/dashboard/activities',
     tag: `teammate-activity-${activity.activityKey}`,
     category: 'teammates',
-    ...(athlete.avatar_url ? { icon: athlete.avatar_url } : {}),
+    // `icon` (small, corner badge) works broadly incl. iOS 16.4+ PWA push;
+    // `image` (large expanded banner) is Chrome/Android-only today — iOS's
+    // Web Push notification API doesn't render it regardless of what's sent,
+    // a platform limitation, not something fixable from here. Both point at
+    // the same photo so it shows as richly as each platform allows.
+    ...(athlete.avatar_url ? { icon: athlete.avatar_url, image: athlete.avatar_url } : {}),
   });
 }
 

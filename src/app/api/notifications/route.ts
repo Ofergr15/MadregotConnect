@@ -79,6 +79,11 @@ export async function POST(request: Request) {
         body: row.body_he || row.body_en || '',
         url: row.url,
         tag: `notif-${created.id}`,
+        // Coach-composed general announcements are the "news" toggle — this
+        // used to be unmutable by design; the athlete-facing ask was
+        // explicitly to be able to turn general news on/off, so it's now a
+        // normal category like everything else instead of forced-on.
+        category: 'news',
       });
       await supabase
         .from('scheduled_notifications')

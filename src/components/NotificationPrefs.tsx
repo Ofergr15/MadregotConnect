@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, MessageSquare, Flame, ClipboardList, Users } from 'lucide-react';
+import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 
-type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates';
+type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
 type Prefs = Record<Category, boolean>;
 
 // The toggleable categories, with a colored glyph + Hebrew label, matching the
@@ -17,6 +17,8 @@ const ROWS: { key: Category; label: string; icon: typeof Calendar; bg: string }[
   { key: 'achievements', label: 'הישגים וסיכומים', icon: Flame, bg: 'bg-emerald-500' },
   { key: 'program', label: 'תוכנית שבועית', icon: ClipboardList, bg: 'bg-amber-500' },
   { key: 'teammates', label: 'אימוני חברי הקבוצה', icon: Users, bg: 'bg-orange-500' },
+  { key: 'news', label: 'עדכונים והודעות כלליות', icon: Megaphone, bg: 'bg-rose-500' },
+  { key: 'events', label: 'תזכורות לאירועים ותחרויות', icon: PartyPopper, bg: 'bg-violet-500' },
 ];
 
 // One canonical toggle-switch look (48×28), duplicated locally here and in

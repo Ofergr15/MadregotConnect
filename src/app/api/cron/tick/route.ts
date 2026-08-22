@@ -187,6 +187,45 @@ async function run(request: Request) {
     }
   }
 
+  // Daily 09:00 IL: remind athletes REGISTERED for an event happening
+  // tomorrow (races, camps, lectures, social events, etc. from the Calendar —
+  // migration 055). One push per event per athlete, idempotent per
+  // (event, date) via the same ledger. Cancelled registrations are excluded.
+  if (hour === 9) {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    const { data: upcomingEvents } = await supabase
+      .from('events')
+      .select('id, name, kind, location, start_time')
+      .eq('date', tomorrowDate);
+
+    for (const ev of (upcomingEvents || []) as any[]) {
+      const tag = `eventReminder:${ev.id}:${tomorrowDate}`;
+      if (await already(tag)) continue;
+
+      const { data: regs } = await supabase
+        .from('event_registrations')
+        .select('athlete_id')
+        .eq('event_id', ev.id)
+        .in('status', ['registered', 'waitlisted']);
+      const athleteIds = (regs || []).map((r: { athlete_id: string }) => r.athlete_id);
+      if (athleteIds.length === 0) { await markFired(tag, 0); continue; }
+
+      const subs = await subscriptionsForAthletes(athleteIds);
+      const timeLabel = ev.start_time ? ` בשעה ${String(ev.start_time).slice(0, 5)}` : '';
+      const sent = await sendPushToSubscriptions(subs, {
+        title: `מחר: ${ev.name} 🗓️`,
+        body: `נרשמת ל${ev.name}${timeLabel}${ev.location ? ` · ${ev.location}` : ''}. בהצלחה!`,
+        url: `/dashboard/calendar/${ev.id}`,
+        tag,
+        category: 'events',
+      });
+      await markFired(tag, sent);
+      fired.push(`${tag} → ${sent}`);
+    }
+  }
+
   // Sunday 19:00 IL weekly recap: personalized "your week" push to each runner
   // who ran LAST activity-week (Sun–Sat) — km + runs. Idempotent per activity
   // week via one ledger tag; per-athlete content computed from one activities

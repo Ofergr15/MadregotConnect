@@ -6,9 +6,11 @@ export const dynamic = 'force-dynamic';
 // Per-user notification category preferences. Categories map to the push
 // categories in src/lib/push.ts. A missing key = opted IN (receive everything),
 // so defaults are all-on and nothing is silenced unless explicitly turned off.
-const CATEGORIES = ['workouts', 'coach', 'achievements', 'program', 'teammates'] as const;
+const CATEGORIES = ['workouts', 'coach', 'achievements', 'program', 'teammates', 'news', 'events'] as const;
 type Category = (typeof CATEGORIES)[number];
-const DEFAULTS: Record<Category, boolean> = { workouts: true, coach: true, achievements: true, program: true, teammates: true };
+const DEFAULTS: Record<Category, boolean> = {
+  workouts: true, coach: true, achievements: true, program: true, teammates: true, news: true, events: true,
+};
 
 // GET /api/athletes/notification-prefs?athleteId=… → { prefs }
 export async function GET(request: Request) {
