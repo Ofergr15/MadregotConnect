@@ -2,17 +2,25 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, BarChart3, Route } from 'lucide-react';
+import Link from 'next/link';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, BarChart3, Route, UserCheck, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations, useLocale } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
+import { FeedAvatar } from '@/components/FeedAvatar';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, SegmentedControl } from '@/components/ui';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
+
+interface FollowedAthlete {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
 
 interface Group {
   id: string;
@@ -117,6 +125,12 @@ function ProfileContent() {
   const [hasSynced, setHasSynced] = useState(false);
   const garminSectionRef = useRef<HTMLDivElement>(null);
 
+  // --- Following (Strava-style follow graph — GET /api/athletes/[id]/connections) ---
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followingList, setFollowingList] = useState<FollowedAthlete[]>([]);
+  const [showFollowingSheet, setShowFollowingSheet] = useState(false);
+  const [unfollowingId, setUnfollowingId] = useState<string | null>(null);
+
   // --- Copyable workout (current week's plan) ---
   const [planWorkouts, setPlanWorkouts] = useState<GroupedWeeklyPlans | null>(null);
   const [planWeekStart, setPlanWeekStart] = useState<string | null>(null);
@@ -183,6 +197,18 @@ function ProfileContent() {
     }
 
     if (id) {
+      fetch(`/api/athletes/${id}/connections`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) {
+            setFollowingCount(data.followingCount || 0);
+            setFollowingList(data.following || []);
+          }
+        })
+        .catch(() => {});
+    }
+
+    if (id) {
       fetchActivities()
         .then(r => r.ok ? r.json() : null)
         .then(data => {
@@ -238,6 +264,28 @@ function ProfileContent() {
     } catch {
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Unfollow from the Following sheet — optimistic (drop the row + decrement
+  // the count locally), matching the toggle on the peer teammate profile page.
+  const handleUnfollow = async (followeeId: string) => {
+    if (!athleteId || unfollowingId) return;
+    setUnfollowingId(followeeId);
+    try {
+      const res = await fetch('/api/athletes/follow', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ followerId: athleteId, followeeId }),
+      });
+      if (res.ok) {
+        setFollowingList(prev => prev.filter(a => a.id !== followeeId));
+        setFollowingCount(prev => Math.max(0, prev - 1));
+      }
+    } catch {
+      // Network error — nothing changed locally, so nothing to roll back.
+    } finally {
+      setUnfollowingId(null);
     }
   };
 
@@ -345,6 +393,56 @@ function ProfileContent() {
         </div>
       </Sheet>
 
+      {/* ═══ Following sheet — the athletes this profile follows, tap-through
+          to their teammate profile, with an unfollow action per row ═══ */}
+      <Sheet
+        open={showFollowingSheet}
+        onOpenChange={setShowFollowingSheet}
+        title={
+          <span className="flex items-center gap-2">
+            {t('following')}
+            {followingCount > 0 && (
+              <span className="text-sm font-medium text-slate-400 tabular-nums">{followingCount}</span>
+            )}
+          </span>
+        }
+        trailingAction={
+          <button
+            onClick={() => setShowFollowingSheet(false)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+            aria-label={tCommon('close')}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        }
+        className="max-h-[80vh]"
+        bodyClassName="px-4 py-2"
+      >
+        {followingList.length === 0 ? (
+          <p className="text-center text-sm text-slate-500 py-8">{t('noFollowingYet')}</p>
+        ) : (
+          followingList.map(a => (
+            <div key={a.id} className="flex items-center gap-3 py-2">
+              <Link
+                href={`/dashboard/teammate/${a.id}`}
+                onClick={() => setShowFollowingSheet(false)}
+                className="flex items-center gap-3 flex-1 min-w-0"
+              >
+                <FeedAvatar name={a.name} url={a.avatarUrl} />
+                <span className="text-sm text-slate-200 truncate" dir="auto">{a.name}</span>
+              </Link>
+              <button
+                onClick={() => handleUnfollow(a.id)}
+                disabled={unfollowingId === a.id}
+                className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-50"
+              >
+                {unfollowingId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('unfollow')}
+              </button>
+            </div>
+          ))
+        )}
+      </Sheet>
+
       {/* ═══ HEADER — back-nav on a detail screen only (the Hero below already
           anchors the landing, like the reference Settings screen's h1) ═══ */}
       {activeTab !== null && (
@@ -446,6 +544,13 @@ function ProfileContent() {
               label={t('paceGroup')}
               value={currentGroup?.name}
               onClick={() => setActiveTab('group')}
+            />
+            <InsetRow
+              icon={UserCheck}
+              iconBg="bg-indigo-500"
+              label={t('following')}
+              value={String(followingCount)}
+              onClick={() => setShowFollowingSheet(true)}
             />
             <InsetRow
               icon={Activity}
