@@ -239,15 +239,19 @@ function formatActivityDuration(seconds: number): string {
 }
 
 /**
- * Notify an athlete's group teammates (everyone else sharing their group_id)
- * that they just finished a run — Garmin-Connect-style: the athlete's name as
- * the title, then real stats (distance · duration · pace · HR) as the body.
+ * Notify an athlete's followers (everyone with an athlete_follows row where
+ * followee_id = this athlete — see migration 060) that they just finished a
+ * run — Garmin-Connect-style: the athlete's name as the title, then real
+ * stats (distance · duration · pace · HR) as the body. This is deliberately
+ * scoped to "friends I follow", not the athlete's training group: follow is
+ * opt-in per-person, so it's a much more relevant audience than everyone who
+ * happens to share a pace group.
  * Call this ONLY right after a genuinely NEW athlete_activities row is
  * inserted (never on a re-sync of an activity already known — see the
  * Strava/Garmin sync-activities routes for how "new" is determined there).
  *
- * No-op if the athlete has no group, has no teammates, or no teammate has a
- * push subscription. Each teammate's 'teammates' mute preference is respected
+ * No-op if the athlete has no followers, or no follower has a push
+ * subscription. Each follower's 'teammates' mute preference is respected
  * automatically via sendPushToSubscriptions — callers do not need a separate
  * mute check. Callers MUST wrap this call in try/catch: a push failure here
  * must never break the activity sync that triggered it.
@@ -264,20 +268,19 @@ export async function notifyTeammatesOfActivity(activity: {
   const supabase = createServerClient();
   const { data: athlete } = await supabase
     .from('athletes')
-    .select('name, group_id, gender, avatar_url')
+    .select('name, gender, avatar_url')
     .eq('id', activity.athleteId)
     .maybeSingle();
-  if (!athlete?.group_id) return 0;
+  if (!athlete) return 0;
 
-  const { data: teammates } = await supabase
-    .from('athletes')
-    .select('id')
-    .eq('group_id', athlete.group_id)
-    .neq('id', activity.athleteId);
-  const teammateIds = (teammates || []).map((t: { id: string }) => t.id);
-  if (teammateIds.length === 0) return 0;
+  const { data: followerLinks } = await supabase
+    .from('athlete_follows')
+    .select('follower_id')
+    .eq('followee_id', activity.athleteId);
+  const followerIds = (followerLinks || []).map((f: { follower_id: string }) => f.follower_id);
+  if (followerIds.length === 0) return 0;
 
-  const subs = await subscriptionsForAthletes(teammateIds);
+  const subs = await subscriptionsForAthletes(followerIds);
   if (subs.length === 0) return 0;
 
   const km = (activity.distanceMeters / 1000).toFixed(1);
