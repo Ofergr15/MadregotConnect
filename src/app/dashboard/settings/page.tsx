@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
 import { BadgeManager } from '@/components/BadgeManager';
 import { ChallengeManager } from '@/components/ChallengeManager';
+import { StoreManager } from '@/components/StoreManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
@@ -209,7 +210,7 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
@@ -219,6 +220,7 @@ const settingsTabs = [
   { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell, iconBg: 'bg-rose-500' },
   { key: 'badges' as SettingsTab, label: 'Badge Manager', icon: Award, iconBg: 'bg-fuchsia-500' },
   { key: 'challenges' as SettingsTab, label: 'Challenge Manager', icon: Trophy, iconBg: 'bg-orange-500' },
+  { key: 'store' as SettingsTab, label: 'Store Manager', icon: ShoppingBag, iconBg: 'bg-cyan-600' },
 ];
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
@@ -803,6 +805,7 @@ export default function SettingsPage() {
                 : tab.key === 'feedback' ? t('feedback')
                 : tab.key === 'badges' ? t('badgeManager')
                 : tab.key === 'challenges' ? t('challengeManager')
+                : tab.key === 'store' ? t('storeManager')
                 : t('notificationCenter');
               return (
                 <InsetRow
@@ -1374,6 +1377,9 @@ export default function SettingsPage() {
 
       {/* Challenge Manager detail (roadmap #13, Phase 4) */}
       {activeTab === 'challenges' && <ChallengeManager />}
+
+      {/* Store Manager detail (roadmap #9) */}
+      {activeTab === 'store' && <StoreManager />}
 
       <p className="text-center text-xs text-slate-500 mt-6 mb-2">מדרגות · גרסה {APP_VERSION}</p>
     </div>

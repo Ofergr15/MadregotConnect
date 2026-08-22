@@ -148,6 +148,7 @@
         { label: 'לוחות מובילים', desc: 'חדש · 5 קטגוריות (ק"מ שבועי/חודשי, רצף, אימונים, אירועים) + פילטר כולם/הדבוקה שלי ודירוג אישי — קודם היה רק טופ-3 בפיד', new: 'leaderboards.png', path: '/dashboard/profile', badge: 'new-only' },
         { label: 'מצא חברים', desc: 'חדש · חיפוש/דפדוף בכל הרשימה עם כפתור עקיבה — קודם ניתן היה לעקוב רק מפרופיל חבר שכבר מוצג', path: '/dashboard/profile', badge: 'new-only' },
         { label: 'חיפוש', desc: 'חדש · חיפוש גלובלי (חברים, אירועים) — נגיש מתפריט "עוד"', path: '/dashboard/search', badge: 'new-only' },
+        { label: 'חנות', desc: 'חדש · קטלוג, עגלה, צ׳קאאוט וההזמנות שלי — מחכה לתשלום עד שיחובר מעבד תשלומים', path: '/dashboard/store', badge: 'new-only' },
         { label: 'הפעילויות שלי', desc: 'יומן ריצות מלא', old: 'activities-old.png', new: 'activities.png', path: '/dashboard/activities' },
         { label: 'לוח שנה', desc: 'כולל תצוגת מרוצים במפה, הרשמה עם תור המתנה/תפוסה', new: 'calendar.png', path: '/dashboard/calendar', badge: 'new-only' },
         { label: 'התראות', desc: 'היסטוריית התראות שהתקבלו, עם פילטר לפי קטגוריה — ההעדפות (7 קטגוריות נפרדות) נמצאות בפרופיל', old: 'notifications-old.png', new: 'notifications.png', path: '/dashboard/notifications' },
@@ -170,7 +171,7 @@
         { label: 'קבוצות', desc: 'SegmentedControl + Sheet לעריכה', old: 'groups-old.png', new: 'groups.png', path: '/dashboard/groups' },
         { label: 'אקדמיה', desc: 'רצועת קטגוריות גלילה + Sheet', old: 'academy-old.png', new: 'academy.png', path: '/dashboard/academy' },
         { label: 'נפח קבוצתי', desc: 'תובנות נפח ריצה לקבוצה', old: 'team-volume-old.png', new: 'team-volume.png', path: '/dashboard/team-volume' },
-        { label: 'הגדרות', desc: 'עודכן · חסום לצוות בלבד (מנהל) — פרטים אישיים נגישים כאן וגם בפרופיל הספורטאי; ניהול משתמשים/הרשאות טאבים/משוב/תגים/אתגרים/התראות', old: 'settings-old.png', new: 'settings.png', path: '/dashboard/settings' },
+        { label: 'הגדרות', desc: 'עודכן · חסום לצוות בלבד (מנהל) — פרטים אישיים נגישים כאן וגם בפרופיל הספורטאי; ניהול משתמשים/הרשאות טאבים/משוב/תגים/אתגרים/חנות/התראות', old: 'settings-old.png', new: 'settings.png', path: '/dashboard/settings' },
       ],
     },
     {
@@ -269,6 +270,16 @@
   // Add a new entry here every time we tag a release (see the versioning
   // workflow: git tag + Vercel deployment history for rollback).
   var VERSIONS = [
+    {
+      tag: 'v2.0.0',
+      name: 'חנות המדרגות — קטלוג, עגלה והזמנות',
+      date: '22.08.2026',
+      summary: 'הפריט האחרון ברשימת הפערים המקורית (#9) — כל 22 הפריטים במסמך הדרישות כוסו. אין עדיין מעבד תשלומים מחובר (החלטת מוצר: "נחבר את התשלום בהמשך") — הזמנה נוצרת במצב "מחכה לתשלום", והצוות מתאם תשלום בנפרד ומעדכן סטטוס ידנית.',
+      changes: [
+        { screen: 'חנות (מסך חדש)', desc: 'קטלוג מוצרים, עגלה (נשמרת מקומית), צ׳קאאוט עם טלפון+הערות, והזמנות שלי. נגיש מתפריט "עוד".' },
+        { screen: 'הגדרות — ניהול חנות (מסך חדש)', desc: 'יצירת מוצרים (שם/תיאור/מחיר/מידות/מלאי/תמונה) והפעלה/כיבוי, וניהול כל ההזמנות עם עדכון סטטוס (מחכה לתשלום/שולם/סופק/בוטל).' },
+      ],
+    },
     {
       tag: 'v1.9.0',
       name: 'משוב אימונים הופך לצ׳אט אמיתי',
