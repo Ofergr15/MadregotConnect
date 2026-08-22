@@ -13,7 +13,7 @@
   header .kick{color:var(--indigo-l);font-size:13px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
   header h1{font-size:32px;font-weight:900;letter-spacing:-.5px;margin-top:6px}
   header p{color:var(--s400);font-size:15px;margin-top:8px;max-width:640px;margin-inline:auto;line-height:1.6}
-  .pill{display:inline-flex;align-items:center;gap:8px;margin-top:18px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.3);color:var(--amber);font-weight:800;font-size:13px;padding:8px 18px;border-radius:999px}
+  .pill{display:inline-flex;align-items:center;gap:8px;margin-top:18px;background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.3);color:var(--green);font-weight:800;font-size:13px;padding:8px 18px;border-radius:999px}
   .cta{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:22px}
   .cta a{font-weight:800;font-size:15px;padding:13px 26px;border-radius:14px;text-decoration:none;transition:transform .15s}
   .cta a:active{transform:scale(.97)}
@@ -90,11 +90,11 @@
   <header>
     <div class="kick">Madregot · After 2KM Running Club</div>
     <h1>מפת האפליקציה — לפני ואחרי 🗺️</h1>
-    <p>כל מסך באפליקציה, גרסה ישנה לצד גרסה חדשה — צילומי מסך אמיתיים, לא הדמיות. לחצו על "פתח חי" כדי לנווט למסך האמיתי בתצוגה המקדימה.</p>
-    <div class="pill">⚠ תצוגה מקדימה (Preview) — לא בפרודקשן עדיין</div>
+    <p>כל מסך באפליקציה, גרסה ישנה לצד גרסה חדשה — צילומי מסך אמיתיים, לא הדמיות. לחצו על "פתח חי" כדי לנווט למסך האמיתי באפליקציה החיה.</p>
+    <div class="pill">✅ בפרודקשן — כל מה שמופיע כ"חדש" כבר חי ופעיל</div>
     <div class="cta">
       <a class="primary" href="/iphone-preview" target="_blank" rel="noopener">📱 תצוגת iPhone חיה ואינטראקטיבית</a>
-      <a class="secondary" href="https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app/dashboard" target="_blank" rel="noopener">פתח את האפליקציה במסך מלא →</a>
+      <a class="secondary" href="https://madregot-connect.vercel.app/dashboard" target="_blank" rel="noopener">פתח את האפליקציה במסך מלא →</a>
     </div>
     <div class="legend">
       <span><span class="dot old"></span><b>ישן</b> — לפני המהפך</span>
@@ -116,12 +116,17 @@
 
   <footer>
     <p><b>הערה:</b> חלק מהעמודים דורשים התחברות אמיתית — אם מגיעים למסך התחברות זה תקין, זו הגרסה החיה על נתונים אמיתיים.</p>
-    <p style="margin-top:6px">נבנה כחלק ממהפך ה-Native iOS Makeover · מפה זו תתעדכן בכל דחיפה לענף התצוגה המקדימה</p>
+    <p style="margin-top:6px">נבנה כחלק ממהפך ה-Native iOS Makeover · מפה זו מתעדכנת בעצמה, לא באופן אוטומטי — אם משהו נראה חסר, בקשו עדכון</p>
   </footer>
 </div>
 
 <script>
-  var BASE = 'https://madregot-connect-git-preview-ios-redesign-st-d1c4461c.vercel.app';
+  // Points at production, not a branch preview deployment — preview URLs sit
+  // behind Vercel's SSO/deployment protection (a designer without a Vercel
+  // login on this team gets bounced to a Vercel sign-in page, not the app),
+  // and the old preview-branch deployment this used to point at is now 29
+  // commits behind main anyway.
+  var BASE = 'https://madregot-connect.vercel.app';
   var OLD = '/redesign-preview/old/';
   var NEW = '/redesign-preview/new/';
 
