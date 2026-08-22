@@ -1204,5 +1204,13 @@
     "tagCoach": "Tag coach",
     "expandDetails": "Show details",
     "collapseDetails": "Hide details"
+  },
+  "teammate": {
+    "notFound": "Athlete not found",
+    "notFoundHint": "This profile doesn't exist or was removed",
+    "followers": "Followers",
+    "following": "Following",
+    "follow": "Follow",
+    "followingButton": "Following"
   }
 }

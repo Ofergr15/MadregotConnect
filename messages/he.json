@@ -1204,5 +1204,13 @@
     "tagCoach": "תייג את המאמן",
     "expandDetails": "הצג פרטים",
     "collapseDetails": "הסתר פרטים"
+  },
+  "teammate": {
+    "notFound": "הספורטאי/ת לא נמצא/ה",
+    "notFoundHint": "הפרופיל הזה לא קיים או הוסר",
+    "followers": "עוקבים",
+    "following": "במעקב",
+    "follow": "עקיבה",
+    "followingButton": "עוקב/ת"
   }
 }
