@@ -7,6 +7,7 @@ import { Eye, LogIn } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { isSuperUser } from '@/lib/constants';
+import { useApi } from '@/lib/api';
 
 // Public routes the gate must NEVER cover — otherwise a logged-out user (e.g.
 // Ofer in the installed PWA, which has its own session separate from Safari)
@@ -30,58 +31,41 @@ const ASAF_EMAIL = 'akonsta1313@gmail.com';
 const ASAF_MESSAGE = 'עליך להוציא פחות גזים על מנת לצפות בפורמט החדש של האפליקציה - אנא עדכן במידה ומתאפשר 💨';
 
 export function MaintenanceGate() {
-  const [blocked, setBlocked] = useState(false);
-  const [isAsaf, setIsAsaf] = useState(false);
-  // The super user (Ofer) gets a prominent "view as" button ON the gate itself,
-  // so switching scenarios is obvious even while the maintenance screen is up
-  // (the tiny floating pill was easy to miss).
-  const [isSuper, setIsSuper] = useState(false);
-  // No email could be resolved at all (fresh device/PWA install, cleared
-  // Safari data, expired session) — the allowlist/super-user checks can never
-  // let this viewer through since they depend on knowing who's asking. Their
-  // only way out is to actually sign in, which the gate can't do for them.
-  const [noIdentity, setNoIdentity] = useState(false);
   const pathname = usePathname();
+  // Force-preview / role-bypass / public-path short circuits resolve
+  // synchronously; only the "who is this + is maintenance on" check needs a
+  // network round trip, and only when none of those short circuits apply.
+  const forcedBlocked = !isPublicPath(pathname) && getViewMode() === MAINTENANCE_MODE;
+  const bypassed = isPublicPath(pathname) || (!!getViewMode() && getViewMode() !== MAINTENANCE_MODE);
 
+  // Best-effort viewer email: localStorage (coach/athlete) first (sync,
+  // covers the common case with no network call at all), else the live
+  // Supabase session.
+  const [email, setEmail] = useState<string | null>(null);
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      // Never gate the public login/landing routes.
-      if (isPublicPath(pathname)) { setBlocked(false); return; }
+    if (bypassed || forcedBlocked) return;
+    const stored = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
+    if (stored) { setEmail(stored); return; }
+    getSupabase().auth.getSession()
+      .then(({ data }) => setEmail(data.session?.user?.email || ''))
+      .catch(() => setEmail(''));
+  }, [bypassed, forcedBlocked]);
 
-      const viewMode = getViewMode();
-      if (viewMode === MAINTENANCE_MODE) { setBlocked(true); return; } // force preview
-      if (viewMode) { setBlocked(false); return; } // role scenario → bypass gate
+  // Shared SWR cache (dedupingInterval 4s in useApi's defaults) — this is what
+  // actually fixes the "re-checks maintenance on every single tab switch"
+  // cost: rapid navigation reuses the cached response for the same email
+  // instead of re-hitting the network, and ImpersonationBar's own maintenance
+  // check (same endpoint, same key shape) shares this exact cache entry too.
+  const { data, error } = useApi<{ maintenance: boolean; allowed: boolean }>(
+    !bypassed && !forcedBlocked && email !== null ? `/api/maintenance?email=${encodeURIComponent(email)}` : null,
+  );
 
-      // Best-effort viewer email: localStorage (coach/athlete) or Supabase session.
-      let email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-      if (!email) {
-        try {
-          const { data } = await getSupabase().auth.getSession();
-          email = data.session?.user?.email || '';
-        } catch { /* ignore */ }
-      }
-      // The super user (Ofer) is NEVER blocked by maintenance — otherwise, in the
-      // installed PWA (separate storage/session from Safari), being blocked on the
-      // login screen means he can't sign in, can't become super user, and can't
-      // reach view-as: a dead end. He previews the maintenance screen on demand
-      // via the view-as 'מסך תחזוקה' scenario instead (handled above).
-      const superUser = isSuperUser(email);
-      try {
-        const res = await fetch(`/api/maintenance?email=${encodeURIComponent(email)}`);
-        const { maintenance, allowed } = await res.json();
-        if (!cancelled) {
-          setIsAsaf(email.toLowerCase().trim() === ASAF_EMAIL);
-          setIsSuper(superUser);
-          setNoIdentity(!email);
-          setBlocked(!superUser && !!maintenance && !allowed);
-        }
-      } catch {
-        if (!cancelled) setBlocked(false); // fail open
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [pathname]);
+  const superUser = isSuperUser(email);
+  const noIdentity = email === '';
+  const isAsaf = (email || '').toLowerCase().trim() === ASAF_EMAIL;
+  // Fail open on a fetch error, same as the original try/catch.
+  const blocked = forcedBlocked || (!bypassed && !error && !superUser && !!data?.maintenance && !data?.allowed);
+  const isSuper = !bypassed && superUser;
 
   if (!blocked) return null;
 
