@@ -34,6 +34,19 @@ interface User {
 
 type Role = 'admin' | 'coach' | 'academy_coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
 
+// Single source of truth for a role's display label — 'core_runner' has its
+// own settings-namespace key; 'academy_coach'/'academy_user' have none (they
+// only ever had a roleConfig label), so both must be special-cased here.
+// Duplicating this per-component is exactly how it drifted before: the
+// RoleDropdown picker had this special-casing, ConfirmDialog didn't, so
+// confirming a change TO or FROM an academy role showed the raw
+// "settings.academy_user" translation key instead of "Academy".
+function getRoleLabel(role: Role, t: TFunc): string {
+  if (role === 'core_runner') return t('coreRunner');
+  if (role === 'academy_coach' || role === 'academy_user') return roleConfig[role].label;
+  return t(role);
+}
+
 const roleConfig = {
   admin: { label: 'Admin', bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30', dot: 'bg-purple-400' },
   coach: { label: 'Coach', bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30', dot: 'bg-blue-400' },
@@ -47,13 +60,6 @@ const roleConfig = {
 function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: Role; onChange: (role: Role) => void; disabled: boolean; canGrantAdmin: boolean; t: TFunc }) {
   const [open, setOpen] = useState(false);
   const config = roleConfig[value];
-  const getRoleLabel = (role: Role) => {
-    // roles without a settings-namespace i18n key (academy_coach/academy_user)
-    // fall back to the roleConfig label instead of showing the raw key.
-    if (role === 'core_runner') return t('coreRunner');
-    if (role === 'academy_coach' || role === 'academy_user') return roleConfig[role].label;
-    return t(role);
-  };
 
   return (
     <>
@@ -67,7 +73,7 @@ function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: 
         )}
       >
         <span className={cn('w-1.5 h-1.5 rounded-full', config.dot)}></span>
-        {getRoleLabel(value)}
+        {getRoleLabel(value, t)}
         <ChevronDown className="h-3 w-3" />
       </button>
 
@@ -84,7 +90,7 @@ function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: 
               return (
                 <InsetRow
                   key={role}
-                  label={getRoleLabel(role)}
+                  label={getRoleLabel(role, t)}
                   onClick={() => { onChange(role); setOpen(false); }}
                   trailing={isSelected ? <CheckCircle2 className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
                 />
@@ -143,11 +149,6 @@ interface ConfirmDialogProps {
 }
 
 function ConfirmDialog({ user, newRole, onConfirm, onCancel, t, tc }: ConfirmDialogProps) {
-  const getRoleLabel = (role: Role) => {
-    if (role === 'core_runner') return t('coreRunner');
-    return t(role);
-  };
-
   const warning =
     (newRole === 'admin' || newRole === 'coach') && user.role !== 'admin' && user.role !== 'coach'
       ? t('roleChangeWarnToCoach')
@@ -156,7 +157,7 @@ function ConfirmDialog({ user, newRole, onConfirm, onCancel, t, tc }: ConfirmDia
         : '';
 
   const description = [
-    t('changeRoleConfirm', { name: user.name, oldRole: getRoleLabel(user.role), newRole: getRoleLabel(newRole) }),
+    t('changeRoleConfirm', { name: user.name, oldRole: getRoleLabel(user.role, t), newRole: getRoleLabel(newRole, t) }),
     warning,
   ].filter(Boolean).join(' ');
 
