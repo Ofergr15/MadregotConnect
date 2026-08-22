@@ -3,6 +3,16 @@ import { createServerClient } from '@/lib/supabase/server';
 
 const GENDERS = ['male', 'female'] as const;
 type Gender = (typeof GENDERS)[number];
+const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
+type ShirtSize = (typeof SHIRT_SIZES)[number];
+
+// shirt_size/phone (migration 061) may not be applied yet in every environment
+// — degrade to the pre-061 column set instead of 404ing the whole route on a
+// missing-column error (same "not migrated yet" tolerance as
+// notification-prefs' 42703 check, just done as a retry here since this
+// route's own shape doesn't have a dedicated 501 path).
+const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
+const FULL_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone`;
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
@@ -11,11 +21,10 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createServerClient();
-  const { data, error } = await supabase
-    .from('athletes')
-    .select('id, name, email, garmin_auth, strava_auth, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size')
-    .eq('id', id)
-    .single();
+  let { data, error } = await supabase.from('athletes').select(FULL_COLUMNS).eq('id', id).single();
+  if (error?.code === '42703') {
+    ({ data, error } = await supabase.from('athletes').select(CORE_COLUMNS).eq('id', id).single());
+  }
 
   if (error || !data) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -35,11 +44,13 @@ export async function GET(req: NextRequest) {
       birthDate: (data as any).birth_date || null,
       gender: (data as any).gender || null,
       shoeSize: (data as any).shoe_size || null,
+      shirtSize: (data as any).shirt_size || null,
+      phone: (data as any).phone || null,
     },
   });
 }
 
-// PUT /api/athletes/me { id, name, birthDate, gender, shoeSize }
+// PUT /api/athletes/me { id, name, birthDate, gender, shoeSize, shirtSize, phone }
 // Owner-only: `id` is the caller's own athlete id (stored in localStorage) —
 // same trust model as PUT /api/athletes/notification-prefs. Every field is
 // optional so the Settings > Personal Info form can save a partial edit.
@@ -49,7 +60,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, birthDate, gender, shoeSize } = body;
+    const { id, name, birthDate, gender, shoeSize, shirtSize, phone } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -57,25 +68,32 @@ export async function PUT(req: NextRequest) {
     if (gender !== undefined && gender !== null && !GENDERS.includes(gender)) {
       return NextResponse.json({ error: "gender must be 'male' or 'female'" }, { status: 400 });
     }
+    if (shirtSize !== undefined && shirtSize !== null && !SHIRT_SIZES.includes(shirtSize)) {
+      return NextResponse.json({ error: `shirtSize must be one of ${SHIRT_SIZES.join(', ')}` }, { status: 400 });
+    }
     if (name !== undefined && !String(name).trim()) {
       return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
     }
 
-    const updates: Record<string, string | Gender | null> = {};
+    const updates: Record<string, string | Gender | ShirtSize | null> = {};
     if (name !== undefined) updates.name = String(name).trim();
     if (birthDate !== undefined) updates.birth_date = birthDate || null;
     if (gender !== undefined) updates.gender = gender || null;
     if (shoeSize !== undefined) updates.shoe_size = (shoeSize && String(shoeSize).trim()) || null;
+    if (shirtSize !== undefined) updates.shirt_size = shirtSize || null;
+    if (phone !== undefined) updates.phone = (phone && String(phone).trim()) || null;
 
     const supabase = createServerClient();
-    const { data, error } = await supabase
-      .from('athletes')
-      .update(updates)
-      .eq('id', id)
-      .select('id, name, birth_date, gender, shoe_size')
-      .single();
+    let { data, error } = await supabase.from('athletes').update(updates).eq('id', id).select(FULL_COLUMNS).single();
+    if (error?.code === '42703') {
+      // shirt_size/phone not migrated yet — drop them from both the write and
+      // the re-select rather than losing the whole update (name/birthDate/etc
+      // still need to save even if the newest two columns aren't there yet).
+      const { shirt_size, phone: _phone, ...coreUpdates } = updates as Record<string, unknown>;
+      ({ data, error } = await supabase.from('athletes').update(coreUpdates).eq('id', id).select(CORE_COLUMNS).single());
+    }
 
-    if (error) throw error;
+    if (error || !data) throw error || new Error('Update returned no row');
 
     return NextResponse.json({
       athlete: {
@@ -84,6 +102,8 @@ export async function PUT(req: NextRequest) {
         birthDate: (data as any).birth_date || null,
         gender: (data as any).gender || null,
         shoeSize: (data as any).shoe_size || null,
+        shirtSize: (data as any).shirt_size || null,
+        phone: (data as any).phone || null,
       },
     });
   } catch (error) {

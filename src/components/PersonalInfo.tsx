@@ -6,20 +6,27 @@ import { useTranslations } from 'next-intl';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Button, SegmentedControl, Skeleton } from '@/components/ui';
 
+const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
+type ShirtSize = (typeof SHIRT_SIZES)[number];
+
 interface PersonalInfoData {
   name: string;
   birthDate: string | null;
   gender: 'male' | 'female' | null;
   shoeSize: string | null;
+  shirtSize: ShirtSize | null;
+  phone: string | null;
 }
 
-type EditField = 'name' | 'birthDate' | 'gender' | 'shoeSize' | null;
+type EditField = 'name' | 'birthDate' | 'gender' | 'shoeSize' | 'shirtSize' | 'phone' | null;
 
-// Athlete self-service personal info (birth date / gender / shoe size) —
-// Settings detail screen. Matches the grouped inset-list + drill-in-sheet
-// pattern used one level up on the Settings landing page, instead of an
-// always-editable form. Saves via PUT /api/athletes/me (owner-only: athleteId
-// is the caller's own id, same trust model as /api/athletes/notification-prefs).
+// Athlete self-service personal info (name / birth date / gender / shoe size /
+// shirt size / phone) — Settings detail screen. shirtSize/phone were already
+// collected for Academy registrants (academy_intake JSON + a promoted phone
+// column) but had no self-service path for regular club members — same
+// fields, same InsetSection + drill-in-Sheet pattern as everything else here.
+// Saves via PUT /api/athletes/me (owner-only: athleteId is the caller's own
+// id, same trust model as /api/athletes/notification-prefs).
 export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const t = useTranslations('settings');
   const [initial, setInitial] = useState<PersonalInfoData | null>(null);
@@ -27,6 +34,8 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | null>(null);
   const [shoeSize, setShoeSize] = useState('');
+  const [shirtSize, setShirtSize] = useState<ShirtSize | null>(null);
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -44,12 +53,16 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           birthDate: a?.birthDate || null,
           gender: a?.gender || null,
           shoeSize: a?.shoeSize || null,
+          shirtSize: a?.shirtSize || null,
+          phone: a?.phone || null,
         };
         setInitial(info);
         setName(info.name);
         setBirthDate(info.birthDate || '');
         setGender(info.gender);
         setShoeSize(info.shoeSize || '');
+        setShirtSize(info.shirtSize);
+        setPhone(info.phone || '');
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -75,6 +88,8 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         setBirthDate(data.birthDate || '');
         setGender(data.gender);
         setShoeSize(data.shoeSize || '');
+        setShirtSize(data.shirtSize);
+        setPhone(data.phone || '');
         try { localStorage.setItem('athlete_name', data.name); } catch { /* ignore */ }
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -86,10 +101,19 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
     }
   };
 
+  // Every field travels together in one PUT — this builds that snapshot from
+  // current state plus a single override, so each sheet only needs to name
+  // what it's actually changing.
+  const snapshot = (override: Partial<PersonalInfoData>): PersonalInfoData => ({
+    name, birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null,
+    shirtSize, phone: phone.trim() || null,
+    ...override,
+  });
+
   if (loading) {
     return (
       <InsetSection header={t('personalInfo')}>
-        {[0, 1, 2, 3].map(i => (
+        {[0, 1, 2, 3, 4, 5].map(i => (
           <div key={i} className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
             <Skeleton className="h-7 w-7 rounded-md shrink-0" />
             <Skeleton className="h-4 flex-1" />
@@ -124,6 +148,16 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           value={shoeSize || undefined}
           onClick={() => setEditField('shoeSize')}
         />
+        <InsetRow
+          label={t('shirtSize')}
+          value={shirtSize || undefined}
+          onClick={() => setEditField('shirtSize')}
+        />
+        <InsetRow
+          label={t('phone')}
+          value={phone || undefined}
+          onClick={() => setEditField('phone')}
+        />
       </InsetSection>
 
       {saved && (
@@ -149,7 +183,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           disabled={saving}
           onClick={() => {
             if (!name.trim()) { setNameError(true); return; }
-            persist({ name: name.trim(), birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null });
+            persist(snapshot({ name: name.trim() }));
             setEditField(null);
           }}
         >
@@ -165,11 +199,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           onChange={e => setBirthDate(e.target.value)}
           className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50 [color-scheme:dark] mb-4"
         />
-        <Button
-          className="w-full"
-          disabled={saving}
-          onClick={() => { persist({ name, birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null }); setEditField(null); }}
-        >
+        <Button className="w-full" disabled={saving} onClick={() => { persist(snapshot({})); setEditField(null); }}>
           {t('saveChanges')}
         </Button>
       </Sheet>
@@ -179,7 +209,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       <Sheet open={editField === 'gender'} onOpenChange={o => !o && setEditField(null)} title={t('gender')}>
         <SegmentedControl<'male' | 'female'>
           value={gender ?? 'male'}
-          onChange={(g) => { persist({ name, birthDate: birthDate || null, gender: g, shoeSize: shoeSize.trim() || null }); setEditField(null); }}
+          onChange={(g) => { persist(snapshot({ gender: g })); setEditField(null); }}
           options={[
             { value: 'male', label: t('genderMale') },
             { value: 'female', label: t('genderFemale') },
@@ -196,11 +226,31 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           placeholder={t('shoeSizeOptional')}
           className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50 mb-4"
         />
-        <Button
-          className="w-full"
-          disabled={saving}
-          onClick={() => { persist({ name, birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null }); setEditField(null); }}
-        >
+        <Button className="w-full" disabled={saving} onClick={() => { persist(snapshot({})); setEditField(null); }}>
+          {t('saveChanges')}
+        </Button>
+      </Sheet>
+
+      {/* Shirt size edit sheet — fixed set, same instant-save pattern as gender. */}
+      <Sheet open={editField === 'shirtSize'} onOpenChange={o => !o && setEditField(null)} title={t('shirtSize')}>
+        <SegmentedControl<ShirtSize>
+          value={shirtSize ?? 'M'}
+          onChange={(s) => { persist(snapshot({ shirtSize: s })); setEditField(null); }}
+          options={SHIRT_SIZES.map(s => ({ value: s, label: s }))}
+        />
+      </Sheet>
+
+      {/* Phone edit sheet */}
+      <Sheet open={editField === 'phone'} onOpenChange={o => !o && setEditField(null)} title={t('phone')}>
+        <input
+          type="tel"
+          value={phone}
+          onChange={e => setPhone(e.target.value)}
+          placeholder={t('phonePlaceholder')}
+          dir="ltr"
+          className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 text-end focus:outline-none focus:border-primary-600/50 mb-4"
+        />
+        <Button className="w-full" disabled={saving} onClick={() => { persist(snapshot({})); setEditField(null); }}>
           {t('saveChanges')}
         </Button>
       </Sheet>
