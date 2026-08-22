@@ -22,6 +22,16 @@ interface LeaderboardEntry {
   runs: number;
   durationMin: number;
   weekStreak: number;
+  monthlyKm: number;
+  monthlyRuns: number;
+  eventCount: number;
+}
+
+/** Local (server-clock) calendar-month boundary as an ISO date string — same
+ * "good enough, not timezone-precise" approximation the rest of this route's
+ * week bucketing already uses. */
+function monthStartIso(now: Date): string {
+  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 }
 
 export async function GET() {
@@ -43,14 +53,17 @@ export async function GET() {
 
     if (athleteIds.length === 0) {
       return NextResponse.json({
-        leaderboard: [], leaderboardByStreak: [], leaderboardByRuns: [], groupLeaderboards: {}, weekStart,
+        leaderboard: [], leaderboardByStreak: [], leaderboardByRuns: [], leaderboardMonthly: [], leaderboardByEvents: [],
+        groupLeaderboards: {}, weekStart, monthStart: monthStartIso(now),
       });
     }
 
-    // Two independent queries: this week's totals (distance/runs/duration —
-    // unchanged from before) and each athlete's full run history, needed to
-    // work out how many consecutive activity-weeks they've kept a streak.
-    const [weeklyRes, historyRes] = await Promise.all([
+    const monthStart = monthStartIso(now);
+
+    // Three independent queries: this week's totals (distance/runs/duration),
+    // each athlete's full run history (streak + monthly totals both derive
+    // from this one fetch), and all-time event registrations.
+    const [weeklyRes, historyRes, eventRegRes] = await Promise.all([
       supabase
         .from('athlete_activities')
         .select('athlete_id, distance, duration, start_time')
@@ -60,10 +73,19 @@ export async function GET() {
         .from('athlete_activities')
         .select('athlete_id, activity_type, distance, start_time')
         .in('athlete_id', athleteIds),
+      supabase
+        .from('event_registrations')
+        .select('athlete_id')
+        .in('athlete_id', athleteIds)
+        .neq('status', 'cancelled'),
     ]);
 
     if (weeklyRes.error) throw weeklyRes.error;
     if (historyRes.error) throw historyRes.error;
+    // event_registrations (migration 055) may not be applied yet — event
+    // participation just degrades to 0 for everyone rather than failing the
+    // whole leaderboard.
+    const eventRegs = eventRegRes.error ? [] : (eventRegRes.data || []);
 
     const athleteStats = new Map<string, { distance: number; runs: number; duration: number }>();
     for (const act of (weeklyRes.data || [])) {
@@ -74,22 +96,42 @@ export async function GET() {
       athleteStats.set(act.athlete_id, existing);
     }
 
+    const eventCountByAthlete = new Map<string, number>();
+    for (const reg of eventRegs as Array<{ athlete_id: string }>) {
+      eventCountByAthlete.set(reg.athlete_id, (eventCountByAthlete.get(reg.athlete_id) || 0) + 1);
+    }
+
     // Bucket each athlete's qualifying runs (RUN_TYPES, distance>0) by
     // activity-week, mirroring /api/athletes/summary's byWeek map — then hand
     // each athlete's set of week-keys to the shared computeWeekStreak helper.
+    // The same pass also accumulates this calendar month's distance/run count
+    // (monthStart is a plain server-clock boundary, same approximation the
+    // week bucketing already uses — not timezone-precise).
     const weeksByAthlete = new Map<string, Set<string>>();
+    const monthlyByAthlete = new Map<string, { distance: number; runs: number }>();
     for (const act of (historyRes.data || []) as any[]) {
       if (!(act.distance > 0) || (act.activity_type && !RUN_TYPES.includes(act.activity_type))) continue;
       const weeks = weeksByAthlete.get(act.athlete_id) || new Set<string>();
       weeks.add(getActivityWeekStart(new Date(act.start_time)));
       weeksByAthlete.set(act.athlete_id, weeks);
+
+      if (act.start_time.slice(0, 10) >= monthStart) {
+        const m = monthlyByAthlete.get(act.athlete_id) || { distance: 0, runs: 0 };
+        m.distance += act.distance || 0;
+        m.runs += 1;
+        monthlyByAthlete.set(act.athlete_id, m);
+      }
     }
 
     const entries: LeaderboardEntry[] = (athletes || []).map(a => {
       const stats = athleteStats.get(a.id) || { distance: 0, runs: 0, duration: 0 };
       const weeks = weeksByAthlete.get(a.id);
+      const monthly = monthlyByAthlete.get(a.id) || { distance: 0, runs: 0 };
       return {
         id: a.id,
+        monthlyKm: Math.round(monthly.distance / 100) / 10,
+        monthlyRuns: monthly.runs,
+        eventCount: eventCountByAthlete.get(a.id) || 0,
         name: a.name,
         groupId: a.group_id,
         distanceKm: Math.round(stats.distance / 100) / 10,
@@ -110,6 +152,12 @@ export async function GET() {
     const leaderboardByRuns = entries
       .filter(a => a.runs > 0)
       .sort((a, b) => b.runs - a.runs || b.distanceKm - a.distanceKm);
+    const leaderboardMonthly = entries
+      .filter(a => a.monthlyKm > 0)
+      .sort((a, b) => b.monthlyKm - a.monthlyKm);
+    const leaderboardByEvents = entries
+      .filter(a => a.eventCount > 0)
+      .sort((a, b) => b.eventCount - a.eventCount || b.distanceKm - a.distanceKm);
 
     // Group breakdown stays distance-based (squad-total km card on the Groups
     // page) — the metric tabs only apply to the flat "Overall" ranking.
@@ -123,7 +171,10 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ leaderboard, leaderboardByStreak, leaderboardByRuns, groupLeaderboards, weekStart });
+    return NextResponse.json({
+      leaderboard, leaderboardByStreak, leaderboardByRuns, leaderboardMonthly, leaderboardByEvents,
+      groupLeaderboards, weekStart, monthStart,
+    });
   } catch (error: any) {
     console.error('Leaderboard error:', error);
     return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
