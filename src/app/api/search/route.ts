@@ -7,24 +7,25 @@ const MIN_QUERY_LENGTH = 2;
 const RESULT_LIMIT = 8;
 
 // GET /api/search?q=<query>
-// Roadmap #17 — In-App Global Search. Scoped to what's real today (members,
-// events) — the checklist also lists posts/perks/store/chat, but none of
-// those have enough of a real surface yet to search meaningfully (perks and
-// store don't exist, and feed posts require a real Supabase JWT the way
-// member/event data doesn't, which would force a different auth model for
-// this one route). Extend with more categories as those surfaces mature.
+// Roadmap #17 — In-App Global Search. Members, events, plus the actual
+// content inside Store and Benefits (product/perk names) — not just the
+// section names, which the client-side "sections" category already covers.
+// Feed posts still aren't included: they require a real Supabase JWT the way
+// member/event/store/perk data doesn't, which would force a different auth
+// model for this one route. Extend with more categories as those surfaces
+// mature.
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get('q') || '').trim();
     if (q.length < MIN_QUERY_LENGTH) {
-      return NextResponse.json({ members: [], events: [] });
+      return NextResponse.json({ members: [], events: [], products: [], perks: [] });
     }
 
     const supabase = createServerClient();
     const pattern = `%${q}%`;
 
-    const [membersRes, eventsRes] = await Promise.all([
+    const [membersRes, eventsRes, productsRes, perksRes] = await Promise.all([
       supabase
         .from('athletes')
         .select('id, name, avatar_url')
@@ -36,6 +37,18 @@ export async function GET(request: Request) {
         .select('id, name, kind, date, location')
         .or(`name.ilike.${pattern},location.ilike.${pattern}`)
         .order('date', { ascending: false })
+        .limit(RESULT_LIMIT),
+      supabase
+        .from('store_products')
+        .select('id, name_he, name_en, price, image_url')
+        .eq('active', true)
+        .or(`name_he.ilike.${pattern},name_en.ilike.${pattern}`)
+        .limit(RESULT_LIMIT),
+      supabase
+        .from('club_perks')
+        .select('id, sponsor_name, title_he, title_en, image_url')
+        .eq('active', true)
+        .or(`title_he.ilike.${pattern},title_en.ilike.${pattern},sponsor_name.ilike.${pattern}`)
         .limit(RESULT_LIMIT),
     ]);
 
@@ -59,7 +72,29 @@ export async function GET(request: Request) {
       }),
     );
 
-    return NextResponse.json({ members, events });
+    // store_products/club_perks (migrations 064/066) may not be applied in
+    // every environment — degrade to no results rather than failing search.
+    const products = (productsRes.error ? [] : productsRes.data || []).map(
+      (p: { id: string; name_he: string; name_en: string; price: number; image_url: string | null }) => ({
+        id: p.id,
+        nameHe: p.name_he,
+        nameEn: p.name_en,
+        price: p.price,
+        imageUrl: p.image_url,
+      }),
+    );
+
+    const perks = (perksRes.error ? [] : perksRes.data || []).map(
+      (p: { id: string; sponsor_name: string; title_he: string; title_en: string; image_url: string | null }) => ({
+        id: p.id,
+        sponsorName: p.sponsor_name,
+        titleHe: p.title_he,
+        titleEn: p.title_en,
+        imageUrl: p.image_url,
+      }),
+    );
+
+    return NextResponse.json({ members, events, products, perks });
   } catch (error) {
     console.error('Search failed:', error);
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });

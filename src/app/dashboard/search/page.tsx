@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Search as SearchIcon, Users, Trophy, Tent, BookOpen, PartyPopper, Camera, Gift, Dumbbell } from 'lucide-react';
+import { Search as SearchIcon, Users, Trophy, Tent, BookOpen, PartyPopper, Camera, Gift, Dumbbell, Package } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { EmptyState, Spinner } from '@/components/ui';
@@ -60,9 +60,25 @@ interface SearchEvent {
   date: string;
   location: string;
 }
+interface SearchProduct {
+  id: string;
+  nameHe: string;
+  nameEn: string;
+  price: number;
+  imageUrl: string | null;
+}
+interface SearchPerk {
+  id: string;
+  sponsorName: string;
+  titleHe: string;
+  titleEn: string;
+  imageUrl: string | null;
+}
 interface SearchData {
   members: SearchMember[];
   events: SearchEvent[];
+  products: SearchProduct[];
+  perks: SearchPerk[];
 }
 
 // Roadmap #17 — In-App Global Search. Debounced client-side (300ms) so the
@@ -103,7 +119,8 @@ export default function SearchPage() {
   const fmtDate = (iso: string) =>
     new Date(`${iso}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 
-  const hasResults = sections.length > 0 || (data?.members.length || 0) > 0 || (data?.events.length || 0) > 0;
+  const hasResults = sections.length > 0 || (data?.members.length || 0) > 0 || (data?.events.length || 0) > 0
+    || (data?.products.length || 0) > 0 || (data?.perks.length || 0) > 0;
   const showEmpty = debounced.length >= 2 && !isLoading && !hasResults;
   const showPrompt = debounced.length < 2;
 
@@ -199,6 +216,62 @@ export default function SearchPage() {
                 </Link>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {!isLoading && data && data.products.length > 0 && (
+        <div>
+          <p className="text-2xs font-bold uppercase tracking-wider text-slate-500 px-1 mb-1.5">{t('products')}</p>
+          <div className="space-y-2">
+            {data.products.map((p) => (
+              <Link
+                key={p.id}
+                href={`/dashboard/store?product=${p.id}`}
+                className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700/30 px-3 py-2.5"
+              >
+                <span className="w-9 h-9 rounded-lg bg-slate-900/60 flex items-center justify-center overflow-hidden shrink-0">
+                  {p.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Package className="h-4 w-4 text-slate-400" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-white truncate" dir="auto">{locale === 'he' ? p.nameHe : p.nameEn}</span>
+                  <span className="block text-2xs text-slate-500">{p.price} ₪</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!isLoading && data && data.perks.length > 0 && (
+        <div>
+          <p className="text-2xs font-bold uppercase tracking-wider text-slate-500 px-1 mb-1.5">{t('perks')}</p>
+          <div className="space-y-2">
+            {data.perks.map((p) => (
+              <Link
+                key={p.id}
+                href={`/dashboard/benefits?perk=${p.id}`}
+                className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700/30 px-3 py-2.5"
+              >
+                <span className="w-9 h-9 rounded-lg bg-slate-900/60 flex items-center justify-center overflow-hidden shrink-0">
+                  {p.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Gift className="h-4 w-4 text-slate-400" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-white truncate" dir="auto">{locale === 'he' ? p.titleHe : p.titleEn}</span>
+                  <span className="block text-2xs text-slate-500 truncate" dir="auto">{p.sponsorName}</span>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       )}

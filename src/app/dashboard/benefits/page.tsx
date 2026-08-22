@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Gift, Copy, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useApi } from '@/lib/api';
@@ -19,6 +20,14 @@ interface Perk {
 }
 
 export default function BenefitsPage() {
+  return (
+    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mt-20"></div>}>
+      <BenefitsPageContent />
+    </Suspense>
+  );
+}
+
+function BenefitsPageContent() {
   const t = useTranslations('benefits');
   const locale = useLocale();
   const [perk, setPerk] = useState<Perk | null>(null);
@@ -31,6 +40,16 @@ export default function BenefitsPage() {
   const description = (p: Perk) => (locale === 'he' ? p.descriptionHe : p.descriptionEn);
 
   const openPerk = (p: Perk) => { setPerk(p); setCopied(false); };
+
+  // Deep-link from search (`/dashboard/benefits?perk=<id>`) — open that
+  // perk's detail sheet as soon as the list has loaded.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const wantedId = searchParams.get('perk');
+    if (!wantedId || !data) return;
+    const match = data.perks.find((p) => p.id === wantedId);
+    if (match) openPerk(match);
+  }, [searchParams, data]);
   const copyCode = () => {
     if (!perk?.discountCode) return;
     navigator.clipboard?.writeText(perk.discountCode);

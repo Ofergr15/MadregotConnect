@@ -17,7 +17,6 @@ import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { useTranslations } from 'next-intl';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNav } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
-import { APP_VERSION } from '@/lib/version';
 
 type TFunc = ReturnType<typeof useTranslations>;
 
@@ -1383,8 +1382,6 @@ export default function SettingsPage() {
 
       {/* Perks Manager detail (roadmap #5) */}
       {activeTab === 'perks' && <PerksManager />}
-
-      <p className="text-center text-xs text-slate-500 mt-6 mb-2">מדרגות · גרסה {APP_VERSION}</p>
     </div>
   );
 }

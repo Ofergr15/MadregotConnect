@@ -383,20 +383,26 @@ export default function WeeklyPlannerPage() {
 
   // --- Handlers ---
 
+  // Shared by file-input, drag-drop, and clipboard paste — the three ways a
+  // plan image/PDF can arrive.
+  const acceptFile = useCallback((file: File) => {
+    setImageFile(file);
+    if (file.type === 'application/pdf') {
+      setImagePreview('pdf');
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
   const handleImageUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      setImageFile(file);
-      if (file.type === 'application/pdf') {
-        setImagePreview('pdf');
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => setImagePreview(reader.result as string);
-        reader.readAsDataURL(file);
-      }
+      acceptFile(file);
     },
-    []
+    [acceptFile]
   );
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -404,16 +410,31 @@ export default function WeeklyPlannerPage() {
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-      setImageFile(file);
-      if (file.type === 'application/pdf') {
-        setImagePreview('pdf');
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => setImagePreview(reader.result as string);
-        reader.readAsDataURL(file);
+      acceptFile(file);
+    }
+  }, [acceptFile]);
+
+  // The textarea's own placeholder says "Paste your plan" — a screenshot
+  // pasted from the clipboard (the single most common way a coach's plan
+  // photo reaches this screen) has no text representation, so without this
+  // handler it silently does nothing: no text appears, imageFile stays null,
+  // hasInput stays false, and the parse button just never enables. Runs only
+  // when the clipboard actually contains an image/PDF file — a normal text
+  // paste still falls through to the textarea's default behavior.
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/') || item.type === 'application/pdf') {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          acceptFile(file);
+        }
+        return;
       }
     }
-  }, []);
+  }, [acceptFile]);
 
   const parsePlan = async () => {
     setError(null);
@@ -1153,6 +1174,7 @@ export default function WeeklyPlannerPage() {
             <textarea
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
+              onPaste={handlePaste}
               placeholder={t('pasteYourPlan')}
               rows={8}
               className="w-full resize-none text-base leading-relaxed bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"

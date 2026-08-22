@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ShoppingBag, ShoppingCart, X, Plus, Minus, Trash2, CheckCircle2, Package } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useApi } from '@/lib/api';
@@ -31,6 +32,14 @@ const STATUS_LABEL_KEY: Record<string, string> = {
 };
 
 export default function StorePage() {
+  return (
+    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mt-20"></div>}>
+      <StorePageContent />
+    </Suspense>
+  );
+}
+
+function StorePageContent() {
   const t = useTranslations('store');
   const locale = useLocale();
   const [tab, setTab] = useState<'shop' | 'orders'>('shop');
@@ -77,6 +86,16 @@ export default function StorePage() {
     setSize(p.sizes?.[0] || null);
     setColor(p.colors?.[0] || null);
   };
+
+  // Deep-link from search (`/dashboard/store?product=<id>`) — open that
+  // product's detail sheet as soon as the catalog has loaded.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const wantedId = searchParams.get('product');
+    if (!wantedId || !productsData) return;
+    const match = productsData.products.find((p) => p.id === wantedId);
+    if (match) openProduct(match);
+  }, [searchParams, productsData]);
 
   const addToCart = () => {
     if (!product) return;
