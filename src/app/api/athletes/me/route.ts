@@ -39,15 +39,17 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// PUT /api/athletes/me { id, birthDate, gender, shoeSize }
+// PUT /api/athletes/me { id, name, birthDate, gender, shoeSize }
 // Owner-only: `id` is the caller's own athlete id (stored in localStorage) —
-// same trust model as PUT /api/athletes/notification-prefs. Updates only the
-// personal-info fields (birth_date/gender/shoe_size); every field is optional
-// so the Settings > Personal Info form can save a partial edit.
+// same trust model as PUT /api/athletes/notification-prefs. Every field is
+// optional so the Settings > Personal Info form can save a partial edit.
+// `name` is the one field that isn't purely personal-info — it's shown
+// everywhere (headers, feed, leaderboards), so it's trimmed and required to
+// be non-empty when present (an athlete can't blank out their own name).
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, birthDate, gender, shoeSize } = body;
+    const { id, name, birthDate, gender, shoeSize } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -55,8 +57,12 @@ export async function PUT(req: NextRequest) {
     if (gender !== undefined && gender !== null && !GENDERS.includes(gender)) {
       return NextResponse.json({ error: "gender must be 'male' or 'female'" }, { status: 400 });
     }
+    if (name !== undefined && !String(name).trim()) {
+      return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
+    }
 
     const updates: Record<string, string | Gender | null> = {};
+    if (name !== undefined) updates.name = String(name).trim();
     if (birthDate !== undefined) updates.birth_date = birthDate || null;
     if (gender !== undefined) updates.gender = gender || null;
     if (shoeSize !== undefined) updates.shoe_size = (shoeSize && String(shoeSize).trim()) || null;
@@ -66,7 +72,7 @@ export async function PUT(req: NextRequest) {
       .from('athletes')
       .update(updates)
       .eq('id', id)
-      .select('id, birth_date, gender, shoe_size')
+      .select('id, name, birth_date, gender, shoe_size')
       .single();
 
     if (error) throw error;
@@ -74,6 +80,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({
       athlete: {
         id: data.id,
+        name: data.name,
         birthDate: (data as any).birth_date || null,
         gender: (data as any).gender || null,
         shoeSize: (data as any).shoe_size || null,

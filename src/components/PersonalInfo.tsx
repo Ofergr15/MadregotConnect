@@ -7,12 +7,13 @@ import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Button, SegmentedControl, Skeleton } from '@/components/ui';
 
 interface PersonalInfoData {
+  name: string;
   birthDate: string | null;
   gender: 'male' | 'female' | null;
   shoeSize: string | null;
 }
 
-type EditField = 'birthDate' | 'gender' | 'shoeSize' | null;
+type EditField = 'name' | 'birthDate' | 'gender' | 'shoeSize' | null;
 
 // Athlete self-service personal info (birth date / gender / shoe size) —
 // Settings detail screen. Matches the grouped inset-list + drill-in-sheet
@@ -22,6 +23,7 @@ type EditField = 'birthDate' | 'gender' | 'shoeSize' | null;
 export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const t = useTranslations('settings');
   const [initial, setInitial] = useState<PersonalInfoData | null>(null);
+  const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | null>(null);
   const [shoeSize, setShoeSize] = useState('');
@@ -29,6 +31,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [editField, setEditField] = useState<EditField>(null);
+  const [nameError, setNameError] = useState(false);
 
   useEffect(() => {
     if (!athleteId) return;
@@ -37,11 +40,13 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       .then(data => {
         const a = data?.athlete;
         const info: PersonalInfoData = {
+          name: a?.name || '',
           birthDate: a?.birthDate || null,
           gender: a?.gender || null,
           shoeSize: a?.shoeSize || null,
         };
         setInitial(info);
+        setName(info.name);
         setBirthDate(info.birthDate || '');
         setGender(info.gender);
         setShoeSize(info.shoeSize || '');
@@ -50,9 +55,10 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       .finally(() => setLoading(false));
   }, [athleteId]);
 
-  // Persists a full snapshot (all three fields travel together in one PUT,
-  // same as before) — called from each field's own edit sheet once the user
-  // commits that field's change.
+  // Persists a full snapshot (all fields travel together in one PUT) — called
+  // from each field's own edit sheet once the user commits that field's
+  // change. `name` also propagates to localStorage since the greeting/avatar
+  // initials elsewhere in the app read it from there, not from a live fetch.
   const persist = async (data: PersonalInfoData) => {
     if (!athleteId) return;
     setSaving(true);
@@ -65,9 +71,11 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       });
       if (res.ok) {
         setInitial(data);
+        setName(data.name);
         setBirthDate(data.birthDate || '');
         setGender(data.gender);
         setShoeSize(data.shoeSize || '');
+        try { localStorage.setItem('athlete_name', data.name); } catch { /* ignore */ }
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       }
@@ -81,7 +89,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   if (loading) {
     return (
       <InsetSection header={t('personalInfo')}>
-        {[0, 1, 2].map(i => (
+        {[0, 1, 2, 3].map(i => (
           <div key={i} className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
             <Skeleton className="h-7 w-7 rounded-md shrink-0" />
             <Skeleton className="h-4 flex-1" />
@@ -96,6 +104,11 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   return (
     <div>
       <InsetSection header={t('personalInfo')}>
+        <InsetRow
+          label={t('fullName')}
+          value={name || undefined}
+          onClick={() => setEditField('name')}
+        />
         <InsetRow
           label={t('birthDate')}
           value={birthDate || undefined}
@@ -120,6 +133,30 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         </p>
       )}
 
+      {/* Name edit sheet — shown everywhere else in the app (greeting, feed,
+          leaderboards), so it can't be saved empty. */}
+      <Sheet open={editField === 'name'} onOpenChange={o => !o && setEditField(null)} title={t('fullName')}>
+        <input
+          type="text"
+          value={name}
+          onChange={e => { setName(e.target.value); setNameError(false); }}
+          placeholder={t('fullNamePlaceholder')}
+          className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50 mb-2"
+        />
+        {nameError && <p className="text-xs text-red-400 mb-2">{t('nameRequired')}</p>}
+        <Button
+          className="w-full mt-2"
+          disabled={saving}
+          onClick={() => {
+            if (!name.trim()) { setNameError(true); return; }
+            persist({ name: name.trim(), birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null });
+            setEditField(null);
+          }}
+        >
+          {t('saveChanges')}
+        </Button>
+      </Sheet>
+
       {/* Birth date edit sheet */}
       <Sheet open={editField === 'birthDate'} onOpenChange={o => !o && setEditField(null)} title={t('birthDate')}>
         <input
@@ -131,7 +168,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         <Button
           className="w-full"
           disabled={saving}
-          onClick={() => { persist({ birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null }); setEditField(null); }}
+          onClick={() => { persist({ name, birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null }); setEditField(null); }}
         >
           {t('saveChanges')}
         </Button>
@@ -142,7 +179,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       <Sheet open={editField === 'gender'} onOpenChange={o => !o && setEditField(null)} title={t('gender')}>
         <SegmentedControl<'male' | 'female'>
           value={gender ?? 'male'}
-          onChange={(g) => { persist({ birthDate: birthDate || null, gender: g, shoeSize: shoeSize.trim() || null }); setEditField(null); }}
+          onChange={(g) => { persist({ name, birthDate: birthDate || null, gender: g, shoeSize: shoeSize.trim() || null }); setEditField(null); }}
           options={[
             { value: 'male', label: t('genderMale') },
             { value: 'female', label: t('genderFemale') },
@@ -162,7 +199,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         <Button
           className="w-full"
           disabled={saving}
-          onClick={() => { persist({ birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null }); setEditField(null); }}
+          onClick={() => { persist({ name, birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null }); setEditField(null); }}
         >
           {t('saveChanges')}
         </Button>
