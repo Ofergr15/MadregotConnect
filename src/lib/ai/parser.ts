@@ -478,7 +478,12 @@ function parseDayWorkout(dayText: string, dayOfWeek: number): ParsedWorkout {
 
 function splitIntoDays(text: string): { day: number; content: string }[] {
   const results: { day: number; content: string }[] = [];
-  const dayPattern = new RegExp(`(${Object.keys(DAY_MAP).join('|')})\\s*[-–:]\\s*`, 'gi');
+  // The separator after a day name is either an explicit dash/colon ("יום
+  // שני:", "יום שני -") OR just a line break — a coach writing the day name
+  // on its own line with the workout below is at least as common as the
+  // punctuated form, and previously matched nothing at all, silently
+  // collapsing the whole multi-day text into a single fallback "workout".
+  const dayPattern = new RegExp(`(${Object.keys(DAY_MAP).join('|')})[ \\t]*(?:[-–:][ \\t]*|\\r?\\n+)`, 'gi');
   const parts = text.split(dayPattern).filter(Boolean);
 
   for (let i = 0; i < parts.length; i++) {
@@ -511,8 +516,19 @@ function parseWithRegex(text: string): ParsedWeeklyPlan | null {
         if (workout.steps.length > 0) workouts.push(workout);
       }
     }
+    if (workouts.length === 0) return null;
 
-    return workouts.length > 0 ? validatePlan({ workouts }) : null;
+    // Safety net: if the text visibly mentions more distinct days than we
+    // actually split out, the separator/format didn't match well enough to
+    // trust — a silently incomplete plan (e.g. 1 of 7 days) is worse than
+    // paying for the Claude fallback, so bail out to it instead.
+    const distinctDayNames = new Set(
+      (text.match(new RegExp(`(${Object.keys(DAY_MAP).join('|')})`, 'gi')) || [])
+        .map((s) => s.trim().replace(/^יום\s*/i, '').toLowerCase()),
+    );
+    if (distinctDayNames.size > workouts.length) return null;
+
+    return validatePlan({ workouts });
   } catch {
     return null;
   }

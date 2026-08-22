@@ -158,11 +158,14 @@ export function BottomTabBar() {
   // other slot in the bar.
   const primaryActionHref = isStaffView ? '/dashboard/practice-attendance' : '/dashboard';
   const primaryActionAriaKey = isStaffView ? 'attendanceRosterAria' : 'confirmAttendanceAria';
+  // Short visible label for the primary-action slot — distinct from the long
+  // descriptive aria-label sentence above (screen-reader only).
+  const primaryActionLabelKey = isStaffView ? 'practiceAttendance' : 'confirm';
   // Split the primary tabs around the middle so this slot lands visually
   // centered in the bar regardless of how many tabs (1-4) this role has.
   const midIndex = Math.ceil(primary.length / 2);
 
-  const renderIconButton = ({ href, ariaLabel, icon: Icon, onClick }: { href: string; ariaLabel: string; icon: any; onClick?: () => void }) => {
+  const renderIconButton = ({ href, ariaLabel, label, icon: Icon, onClick }: { href: string; ariaLabel: string; label: string; icon: any; onClick?: () => void }) => {
     const active = isActive(href);
     return (
       <Link
@@ -171,39 +174,43 @@ export function BottomTabBar() {
         onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } onClick?.(); }}
         aria-label={ariaLabel}
         className={cn(
-          'flex-1 flex items-center justify-center py-3.5 transition-colors active:scale-[0.92]',
+          'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
           active ? 'text-primary-400' : 'text-slate-400'
         )}
       >
         <Icon className="h-6 w-6" strokeWidth={1.75} />
+        <span className="text-[10px] leading-none font-medium truncate max-w-full px-0.5">{label}</span>
       </Link>
     );
   };
 
   return (
     <>
-      {/* Bottom tab bar — mobile only. Icon-only, flat, evenly spaced (My
-          Disney Experience reference) — no labels, no elevated FAB. */}
+      {/* Bottom tab bar — mobile only. Flat, evenly spaced, thin-stroke icons
+          (My Disney Experience reference) with a small label under each
+          (banking-app reference) so it's still clear what each icon is — no
+          elevated FAB, no bold/weight jump on the active tab. */}
       <nav
         className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-slate-700/60 bg-slate-900/85 backdrop-blur-xl"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), icon: item.icon }))}
+        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
 
-        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), icon: CalendarCheck })}
+        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), label: t(primaryActionLabelKey as any), icon: CalendarCheck })}
 
-        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), icon: item.icon }))}
+        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
 
         {overflow.length > 0 && (
           <button
             onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } setMoreOpen(true); }}
             aria-label={t('more' as any)}
             className={cn(
-              'flex-1 flex items-center justify-center py-3.5 transition-colors active:scale-[0.92]',
+              'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
               overflowActive ? 'text-primary-400' : 'text-slate-400'
             )}
           >
             <Menu className="h-6 w-6" strokeWidth={1.75} />
+            <span className="text-[10px] leading-none font-medium">{t('more' as any)}</span>
           </button>
         )}
       </nav>
