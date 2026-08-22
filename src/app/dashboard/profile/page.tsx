@@ -9,6 +9,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
+import { PersonalInfo } from '@/components/PersonalInfo';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, SegmentedControl } from '@/components/ui';
@@ -73,7 +74,7 @@ const WEEKS: WeekProgram[] = [
 // row list); a value = a detail screen open. Mirrors the mechanism in
 // dashboard/settings/page.tsx (SettingsTab / activeTab) so both "app-native
 // settings-style" screens share one navigation pattern.
-type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'share' | 'notifications';
+type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'share' | 'notifications' | 'personalInfo';
 
 export default function ProfilePage() {
   return (
@@ -568,6 +569,12 @@ function ProfileContent() {
 
           <InsetSection header={t('account')}>
             <InsetRow
+              icon={User}
+              iconBg="bg-violet-500"
+              label={t('personalInfo')}
+              onClick={() => setActiveTab('personalInfo')}
+            />
+            <InsetRow
               icon={Users}
               iconBg="bg-blue-500"
               label={t('paceGroup')}
@@ -1013,6 +1020,15 @@ function ProfileContent() {
       {/* ═══ DETAIL: Notification preferences (per-user category toggles) ═══ */}
       {activeTab === 'notifications' && (
         <NotificationPrefs athleteId={athleteId} />
+      )}
+
+      {/* ═══ DETAIL: Personal info (name / birth date / gender / shoe+shirt
+          size / phone) — was only reachable via Settings, which is gated to
+          admin on mobile (role_mobile_tab_permissions), so every non-admin
+          athlete had no way to reach it at all. Profile is always one of the
+          4 primary tabs, so this is the actual reachable home for it. ═══ */}
+      {activeTab === 'personalInfo' && (
+        <PersonalInfo athleteId={athleteId} />
       )}
     </div>
   );

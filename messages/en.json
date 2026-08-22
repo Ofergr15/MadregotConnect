@@ -695,6 +695,7 @@
     "syncedActivities": "Synced {count} activities from Garmin.",
     "connectedSuccessfully": "Connected successfully. Activities will appear after your next run!",
     "letsGo": "Let's Go",
+    "personalInfo": "Personal Info",
     "paceGroup": "Pace Group",
     "following": "Following",
     "noFollowingYet": "You're not following anyone yet",
