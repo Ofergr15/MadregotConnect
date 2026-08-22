@@ -257,7 +257,13 @@ async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'
       ? ([...(Array.isArray(content) ? content : [{ type: 'text', text: String(content) }]),
           { type: 'text', text: extra }] as typeof content)
       : content;
-    const response = await anthropic.messages.create({
+    // Streamed, not create() — the SDK refuses a non-streaming call outright
+    // ("Streaming is required for operations that may take longer than 10
+    // minutes") once vision + adaptive thinking + a 24k max_tokens budget push
+    // its own worst-case-duration estimate past that threshold. finalMessage()
+    // still hands back the ordinary accumulated Message, so nothing below
+    // this call needs to change.
+    const stream = anthropic.messages.stream({
       model: useVision ? VISION_MODEL : TEXT_MODEL,
       // Thinking shares this budget with the JSON output; give vision headroom
       // so extensive thinking can't truncate the JSON (which would fail parsing
@@ -272,6 +278,7 @@ async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'
       system: WORKOUT_PARSER_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: msgContent }],
     });
+    const response = await stream.finalMessage();
 
     const text = response.content
       .filter((block): block is Anthropic.TextBlock => block.type === 'text')
