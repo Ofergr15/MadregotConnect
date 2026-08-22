@@ -1284,5 +1284,11 @@
     "noResults": "No results found",
     "members": "Members",
     "events": "Events"
+  },
+  "feedbackThread": {
+    "empty": "No replies yet",
+    "placeholder": "Write a message...",
+    "send": "Send",
+    "sendError": "Failed to send message"
   }
 }

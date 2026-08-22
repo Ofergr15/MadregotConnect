@@ -1284,5 +1284,11 @@
     "noResults": "לא נמצאו תוצאות",
     "members": "חברים",
     "events": "אירועים"
+  },
+  "feedbackThread": {
+    "empty": "אין עדיין תגובות",
+    "placeholder": "כתבו הודעה...",
+    "send": "שלח",
+    "sendError": "שליחת ההודעה נכשלה"
   }
 }

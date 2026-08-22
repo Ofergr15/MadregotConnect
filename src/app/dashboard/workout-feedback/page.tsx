@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { MessageSquare, AlertTriangle, MessageCircle, Bell, Send, Check, CornerDownLeft } from 'lucide-react';
+import { MessageSquare, AlertTriangle, MessageCircle, Bell } from 'lucide-react';
 import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
 import { resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonList, SegmentedControl, Card, EmptyState } from '@/components/ui';
+import { FeedbackThread } from '@/components/FeedbackThread';
 
 interface FeedbackItem {
   id: string;
@@ -116,32 +117,9 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
   const dateStr = when ? new Date(when).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' }) : '';
   const km = it.distance != null ? (it.distance / 1000).toFixed(1) : null;
 
-  // Coach reply: show the existing reply, or an inline composer to send one.
-  const [reply, setReply] = useState(it.coachReply || '');
-  const [sent, setSent] = useState(!!it.coachReply);
-  const [error, setError] = useState('');
-  const [editing, setEditing] = useState(false);
-
-  const sendReply = async () => {
-    if (!reply.trim()) return;
-    // Optimistic: show the sent reply immediately; save in the background. On
-    // failure, drop back to the composer (text preserved) with an error.
-    setError('');
-    setSent(true);
-    setEditing(false);
-    try {
-      const actorEmail = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-      const res = await fetch('/api/workout-feedback/reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedbackId: it.id, reply, actorEmail }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setSent(false); setEditing(true); setError(data?.error || 'שליחה נכשלה'); }
-    } catch {
-      setSent(false); setEditing(true); setError('שליחה נכשלה');
-    }
-  };
+  const viewerEmail = typeof window !== 'undefined'
+    ? (localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '')
+    : '';
 
   return (
     <Card variant="solid" className={it.pain ? 'border-amber-500/40' : undefined}>
@@ -202,39 +180,7 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
         </div>
       )}
 
-      {/* Coach reply — existing reply, or an inline composer to send one. */}
-      {sent && !editing ? (
-        <div className="mt-2.5 rounded-lg bg-primary-600/12 border border-primary-500/25 px-3 py-2">
-          <div className="flex items-center gap-1.5 mb-1">
-            <CornerDownLeft className="h-3.5 w-3.5 text-primary-300" />
-            <span className="text-2xs font-bold text-primary-300">התשובה שלך</span>
-            <Check className="h-3.5 w-3.5 text-green-400 ms-auto" />
-          </div>
-          <p className="text-sm text-slate-200" dir="auto">{reply}</p>
-          <button onClick={() => setEditing(true)} className="mt-1 min-h-[44px] px-3 -mx-3 flex items-center text-2xs font-semibold text-slate-400 hover:text-white">עריכה</button>
-        </div>
-      ) : (
-        <div className="mt-2.5">
-          <div className="flex items-end gap-2">
-            <textarea
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              placeholder="השב/י לרץ/ה…"
-              rows={2}
-              dir="rtl"
-              className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600 resize-none"
-            />
-            <button
-              onClick={sendReply}
-              disabled={!reply.trim()}
-              className="min-h-[44px] min-w-[44px] px-3 rounded-lg bg-primary-600 hover:bg-primary-700 active:scale-[0.95] disabled:opacity-40 text-white font-bold flex items-center justify-center gap-1.5 shrink-0 transition-transform"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-          {error && <p className="text-2xs text-red-400 mt-1">{error}</p>}
-        </div>
-      )}
+      <FeedbackThread feedbackId={it.id} viewerEmail={viewerEmail} />
     </Card>
   );
 }

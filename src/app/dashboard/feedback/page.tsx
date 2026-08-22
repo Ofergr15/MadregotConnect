@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Loader2, CheckCircle2, Gauge, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { requestPushOptInPrompt } from '@/components/PushOptIn';
+import { FeedbackThread } from '@/components/FeedbackThread';
 
 const FEEL_FACES = ['😣', '😕', '😐', '🙂', '😄'];
 
@@ -27,14 +28,15 @@ function FeedbackForm() {
   const [painDetail, setPainDetail] = useState('');
   const [wantsFeedback, setWantsFeedback] = useState<boolean | null>(null);
   const [comment, setComment] = useState('');
-  const [coachReply, setCoachReply] = useState<string | null>(null);
-  const [replyIsNew, setReplyIsNew] = useState(false);
+  const [feedbackId, setFeedbackId] = useState<string | null>(null);
+  const [athleteEmail, setAthleteEmail] = useState('');
   const [done, setDone] = useState(false);
   const [submitError, setSubmitError] = useState(false);
 
   useEffect(() => {
     const id = localStorage.getItem('athlete_id') || '';
     setAthleteId(id);
+    setAthleteEmail(localStorage.getItem('athlete_email') || '');
     if (!id || !activityId) { setLoading(false); return; }
     fetch(`/api/workout-feedback?athleteId=${id}&activityId=${activityId}`)
       .then(r => r.ok ? r.json() : null)
@@ -54,16 +56,7 @@ function FeedbackForm() {
           setPainDetail(data.existing.pain_detail || '');
           setWantsFeedback(data.existing.wants_feedback ?? null);
           setComment(data.existing.comment || '');
-          setCoachReply(data.existing.coach_reply || null);
-          // A reply the athlete hasn't opened yet → mark it seen (clears the badge).
-          if (data.existing.coach_reply && !data.existing.reply_seen_at && data.existing.id) {
-            setReplyIsNew(true);
-            fetch('/api/workout-feedback/reply', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ feedbackId: data.existing.id, athleteId: id }),
-            }).catch(() => {});
-          }
+          setFeedbackId(data.existing.id || null);
         } else {
           if (data.watchRpe != null) setDifficulty(Math.round(data.watchRpe));
           if (data.watchFeel != null) setFeel(Math.round(data.watchFeel));
@@ -123,17 +116,15 @@ function FeedbackForm() {
       <h1 className="text-xl font-black text-white">{t('title')} 🏃</h1>
       {activityName && <p className="text-sm text-slate-400 mt-1">{activityName}</p>}
 
-      {/* Coach reply — surfaced whenever a coach has responded to this workout. */}
-      {coachReply && (
+      {/* Thread with the coach — reachable as soon as a feedback row exists
+          (the athlete can start it too, not just receive a reply). */}
+      {feedbackId && (
         <div className="mt-4 rounded-xl bg-primary-600/12 border border-primary-600/30 p-3">
           <div className="flex items-center gap-1.5 mb-1">
             <MessageCircle className="h-4 w-4 text-primary-300" />
             <span className="text-xs font-bold text-primary-300">{t('coachReply')}</span>
-            {replyIsNew && (
-              <span className="text-3xs font-black uppercase tracking-wide text-white bg-primary-600 rounded-full px-2 py-0.5 ms-auto">{t('new')}</span>
-            )}
           </div>
-          <p className="text-sm text-indigo-100" dir="auto">{coachReply}</p>
+          <FeedbackThread feedbackId={feedbackId} viewerEmail={athleteEmail} />
         </div>
       )}
 
