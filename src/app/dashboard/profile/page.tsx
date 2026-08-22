@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, X } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, ChevronRight, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations, useLocale } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
 import { ChallengesGrid } from '@/components/ChallengesGrid';
 import { LeaderboardsScreen } from '@/components/LeaderboardsScreen';
+import { MemberDiscovery } from '@/components/MemberDiscovery';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
 import { FeedAvatar } from '@/components/FeedAvatar';
@@ -76,7 +77,7 @@ const WEEKS: WeekProgram[] = [
 // row list); a value = a detail screen open. Mirrors the mechanism in
 // dashboard/settings/page.tsx (SettingsTab / activeTab) so both "app-native
 // settings-style" screens share one navigation pattern.
-type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'challenges' | 'leaderboards' | 'share' | 'notifications' | 'personalInfo';
+type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'challenges' | 'leaderboards' | 'discover' | 'share' | 'notifications' | 'personalInfo';
 
 export default function ProfilePage() {
   return (
@@ -603,6 +604,12 @@ function ProfileContent() {
               onClick={() => setShowFollowingSheet(true)}
             />
             <InsetRow
+              icon={Search}
+              iconBg="bg-sky-500"
+              label={t('discoverMembers')}
+              onClick={() => setActiveTab('discover')}
+            />
+            <InsetRow
               icon={Activity}
               iconBg="bg-green-500"
               label={t('activityDataSource')}
@@ -982,6 +989,11 @@ function ProfileContent() {
       {/* ═══ DETAIL: Leaderboards (roadmap #12) ═══ */}
       {activeTab === 'leaderboards' && (
         <LeaderboardsScreen athleteId={athleteId} groupId={currentGroupId || null} />
+      )}
+
+      {/* ═══ DETAIL: Member Discovery (roadmap #21, Phase 6) ═══ */}
+      {activeTab === 'discover' && (
+        <MemberDiscovery viewerId={athleteId} />
       )}
 
       {/* ═══ DETAIL: Share a workout — shareable text for WhatsApp / social ═══ */}

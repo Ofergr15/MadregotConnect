@@ -146,6 +146,7 @@
         { label: 'סטטיסטיקות', desc: 'בסטייל Strava/Garmin — שיאים, עקביות, נפח לפי שבוע', new: 'statistics.png', path: '/dashboard/profile', badge: 'new-only' },
         { label: 'אתגרים', desc: 'חדש · אתגרים מוגבלי-זמן עם פס התקדמות חי (ק"מ/אימונים/טיפוס), מזכים בתג בסיום — אישי או קבוצתי', new: 'challenges.png', path: '/dashboard/profile', badge: 'new-only' },
         { label: 'לוחות מובילים', desc: 'חדש · 5 קטגוריות (ק"מ שבועי/חודשי, רצף, אימונים, אירועים) + פילטר כולם/הדבוקה שלי ודירוג אישי — קודם היה רק טופ-3 בפיד', new: 'leaderboards.png', path: '/dashboard/profile', badge: 'new-only' },
+        { label: 'מצא חברים', desc: 'חדש · חיפוש/דפדוף בכל הרשימה עם כפתור עקיבה — קודם ניתן היה לעקוב רק מפרופיל חבר שכבר מוצג', path: '/dashboard/profile', badge: 'new-only' },
         { label: 'הפעילויות שלי', desc: 'יומן ריצות מלא', old: 'activities-old.png', new: 'activities.png', path: '/dashboard/activities' },
         { label: 'לוח שנה', desc: 'כולל תצוגת מרוצים במפה, הרשמה עם תור המתנה/תפוסה', new: 'calendar.png', path: '/dashboard/calendar', badge: 'new-only' },
         { label: 'התראות', desc: 'היסטוריית התראות שהתקבלו, עם פילטר לפי קטגוריה — ההעדפות (7 קטגוריות נפרדות) נמצאות בפרופיל', old: 'notifications-old.png', new: 'notifications.png', path: '/dashboard/notifications' },
@@ -267,6 +268,15 @@
   // Add a new entry here every time we tag a release (see the versioning
   // workflow: git tag + Vercel deployment history for rollback).
   var VERSIONS = [
+    {
+      tag: 'v1.7.0',
+      name: 'גילוי חברים — חיפוש כדי לעקוב',
+      date: '22.08.2026',
+      summary: 'הפריט השלישי מרשימת הפערים (#21, Phase 6) — מערכת המעקב (v1.3.0) הייתה נגישה רק מפרופיל חבר בודד או משם שכבר מופיע בפיד/לוחות מובילים; אין דרך לחפש/לדפדף בכל הרשימה. עכשיו יש.',
+      changes: [
+        { screen: 'פרופיל — מצא חברים (מסך חדש)', desc: 'רשימת כל הספורטאים הפעילים (חוץ מעצמך) עם חיפוש לפי שם, קבוצה, וכפתור עקיבה/במעקב אופטימי (משתנה מיידית, חוזר אחורה רק אם הבקשה נכשלה).' },
+      ],
+    },
     {
       tag: 'v1.6.0',
       name: 'לוחות מובילים מלאים לספורטאים',
