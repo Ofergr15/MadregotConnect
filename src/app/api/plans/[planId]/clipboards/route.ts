@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireSession, authError } from '@/lib/auth-session';
 import { createServerClient } from '@/lib/supabase/server';
-import { extractJson } from '@/lib/ai/parser';
+import { extractJson, normalizeWorkoutParts } from '@/lib/ai/parser';
 import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import type { GroupedWeeklyPlans, ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
 import {
@@ -85,6 +85,17 @@ async function publish(
   stored: GroupedWeeklyPlans | ParsedWeeklyPlan,
 ) {
   const grouped = isGrouped(stored) ? structuredClone(stored) : splitIntoGroups(stored);
+
+  // Plans saved before per-part normalization existed (workoutKey/partIndex/
+  // partCount, added 2026-08-12) have those fields missing entirely — backfill
+  // deterministically from dayOfWeek + position among same-day siblings
+  // instead of hard-failing; each group is normalized independently but the
+  // formula only depends on shape (day, sibling order), which is identical
+  // across group1/2/3, so the derived keys still line up.
+  for (const group of [1, 2, 3] as const) {
+    grouped[`group${group}`] = normalizeWorkoutParts(grouped[`group${group}`]);
+  }
+
   const baseKeys = grouped.group1.workouts.map((workout) => workout.workoutKey);
   if (baseKeys.some((key) => !key)) {
     throw new Error('Every workout part must have a stable workoutKey before publishing');
