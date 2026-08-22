@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,12 +83,14 @@ export async function GET(request: Request) {
         (rsvps || []).map((r: any) => [r.athlete_id, r]),
       );
 
-      // Attendance verification (roadmap #14) — v1 is a simple same-day match:
-      // an athlete who RSVP'd "attending" is "confirmed" if they have at least
-      // one athlete_activities row on the practice's real calendar date. No
-      // time-window check against the practice's actual start time, no
-      // separate no-show/walk-in state — just this boolean, computed at read
-      // time (never persisted).
+      // Attendance verification (roadmap #14) — an athlete who RSVP'd
+      // "attending" is "confirmed" if they have at least one Garmin-synced
+      // running activity on the practice's real calendar date. No clock-time
+      // window against the practice's actual start time (there's no stored
+      // practice schedule to check against — product decision: skip the time
+      // window, just require the activity to actually be a run), no separate
+      // no-show/walk-in state — just this boolean, computed at read time
+      // (never persisted).
       const goingIds = (rsvps || [])
         .filter((r: any) => r.attending)
         .map((r: any) => r.athlete_id);
@@ -104,6 +107,7 @@ export async function GET(request: Request) {
           .from('athlete_activities')
           .select('athlete_id')
           .in('athlete_id', goingIds)
+          .in('activity_type', PR_RUN_TYPES)
           .gte('start_time', `${dateStr}T00:00:00`)
           .lt('start_time', `${nextDateStr}T00:00:00`);
         if (actErr) throw actErr;
