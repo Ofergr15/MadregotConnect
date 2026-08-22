@@ -136,35 +136,41 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         <InsetRow
           label={t('fullName')}
           value={name || undefined}
+          valueSuccess={!!name}
           onClick={() => setEditField('name')}
         />
         <InsetRow
           label={t('birthDate')}
           value={birthDate || notSet}
           valueMuted={!birthDate}
+          valueSuccess={!!birthDate}
           onClick={() => setEditField('birthDate')}
         />
         <InsetRow
           label={t('gender')}
           value={genderLabel || notSet}
           valueMuted={!genderLabel}
+          valueSuccess={!!genderLabel}
           onClick={() => setEditField('gender')}
         />
         <InsetRow
           label={t('shoeSize')}
           value={shoeSize || notSet}
           valueMuted={!shoeSize}
+          valueSuccess={!!shoeSize}
           onClick={() => setEditField('shoeSize')}
         />
         <InsetRow
           label={t('shirtSize')}
           value={shirtSize || notSet}
           valueMuted={!shirtSize}
+          valueSuccess={!!shirtSize}
           onClick={() => setEditField('shirtSize')}
         />
         <InsetRow
           label={t('phone')}
           value={phone || notSet}
+          valueSuccess={!!phone}
           valueMuted={!phone}
           onClick={() => setEditField('phone')}
         />

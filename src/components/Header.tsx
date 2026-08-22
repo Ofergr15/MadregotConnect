@@ -442,6 +442,13 @@ export function Header() {
                 )}
               </Link>
             )}
+            <Link
+              href="/dashboard/search"
+              aria-label={t('search')}
+              className="flex items-center justify-center w-11 h-11 rounded-full text-slate-300 active:scale-95 transition-transform"
+            >
+              <SearchIcon className="h-5 w-5" />
+            </Link>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="flex items-center justify-center w-11 h-11 rounded-full bg-primary-600/20 ring-1 ring-primary-500/20 text-sm font-bold text-primary-300 active:scale-95 transition-transform"

@@ -30,6 +30,7 @@ interface RowProps {
   sublabel?: string;
   value?: string;       // trailing muted value (e.g. "08:00")
   valueMuted?: boolean; // dims + italicizes `value` — an unset-field placeholder (e.g. "Not set") rather than real data
+  valueSuccess?: boolean; // shows `value` in green — a field the user has actually filled in
   href?: string;        // renders as a Link with a chevron
   onClick?: () => void; // renders as a button with a chevron
   trailing?: React.ReactNode; // custom trailing (e.g. a toggle) — suppresses chevron
@@ -38,7 +39,7 @@ interface RowProps {
 
 // One row. If href/onClick given → navigable (chevron). If `trailing` given
 // (e.g. a toggle) → no chevron. Otherwise a static info row.
-export function InsetRow({ icon: Icon, iconBg = 'bg-slate-600', label, sublabel, value, valueMuted, href, onClick, trailing, danger }: RowProps) {
+export function InsetRow({ icon: Icon, iconBg = 'bg-slate-600', label, sublabel, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
   const interactive = !!href || !!onClick;
   const inner = (
     <div className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
@@ -52,7 +53,10 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-slate-600', label, sublabel,
         {sublabel && <span className="block text-xs text-slate-400 truncate" dir="auto">{sublabel}</span>}
       </span>
       {value && (
-        <span className={cn('text-[15px] shrink-0 tabular-nums', valueMuted ? 'text-slate-500 italic' : 'text-slate-400')}>{value}</span>
+        <span className={cn(
+          'text-[15px] shrink-0 tabular-nums',
+          valueMuted ? 'text-slate-500 italic' : valueSuccess ? 'text-green-400 font-medium' : 'text-slate-400',
+        )}>{value}</span>
       )}
       {trailing ? trailing : interactive && <ChevronLeft className="h-4 w-4 text-slate-500 shrink-0" />}
     </div>

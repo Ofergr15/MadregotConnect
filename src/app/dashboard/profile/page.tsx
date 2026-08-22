@@ -18,6 +18,7 @@ import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, SegmentedControl } from '@/components/ui';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
+import { APP_VERSION } from '@/lib/version';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
 
 interface FollowedAthlete {
@@ -1066,6 +1067,8 @@ function ProfileContent() {
       {activeTab === 'personalInfo' && (
         <PersonalInfo athleteId={athleteId} />
       )}
+
+      <p className="text-center text-xs text-slate-500 mt-6 mb-2">מדרגות · גרסה {APP_VERSION}</p>
     </div>
   );
 }
