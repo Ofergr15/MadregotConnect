@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   UserPlus, Copy, CheckCircle2, Wifi, WifiOff, Clock,
   Users as UsersIcon, Check, Mail, Trash2, ChevronDown,
   PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useApi } from '@/lib/api';
 import { isProtectedEmail } from '@/lib/constants';
 import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow, Card, Button, EmptyState, BigStat } from '@/components/ui';
 import { useTranslations } from 'next-intl';
@@ -48,9 +49,14 @@ function getGroupStyle(name: string | null) {
 export default function AthletesPage() {
   const t = useTranslations('athletes');
   const tc = useTranslations('common');
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Cached via useApi (SWR) — revisiting this tab shows the last-known roster
+  // instantly instead of a blank spinner, matching the fix already applied to
+  // Home. Mutations call `mutateAthletes()` (a plain revalidate, no optimistic
+  // patch) in place of the old manual re-fetch.
+  const { data: athletesData, isLoading: loading, mutate: mutateAthletes } = useApi<{ athletes: Athlete[] }>('/api/athletes');
+  const { data: groupsData } = useApi<{ groups: Group[] }>('/api/groups');
+  const athletes = athletesData?.athletes || [];
+  const groups = groupsData?.groups || [];
   const [showInvite, setShowInvite] = useState(false);
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -68,33 +74,6 @@ export default function AthletesPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'invited' | 'paused'>('all');
 
-  useEffect(() => {
-    fetchAthletes();
-    fetchGroups();
-  }, []);
-
-  const fetchAthletes = async () => {
-    try {
-      const response = await fetch('/api/athletes');
-      const data = await response.json();
-      setAthletes(data.athletes || []);
-    } catch (error) {
-      console.error('Failed to fetch athletes:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchGroups = async () => {
-    try {
-      const response = await fetch('/api/groups');
-      const data = await response.json();
-      setGroups(data.groups || []);
-    } catch (error) {
-      console.error('Failed to fetch groups:', error);
-    }
-  };
-
   const createInvite = async () => {
     if (!inviteName.trim() || !inviteEmail.trim()) return;
     setSubmitting(true);
@@ -110,7 +89,7 @@ export default function AthletesPage() {
         setInviteName('');
         setInviteEmail('');
         setInviteGroup('');
-        fetchAthletes();
+        mutateAthletes();
       }
     } catch (error) {
       console.error('Failed to create invite:', error);
@@ -126,7 +105,7 @@ export default function AthletesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: athleteId, groupId }),
       });
-      fetchAthletes();
+      mutateAthletes();
       setMoveModal(null);
       setActiveMenu(null);
     } catch (error) {
@@ -141,7 +120,7 @@ export default function AthletesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ athleteId, dataSource: source }),
       });
-      fetchAthletes();
+      mutateAthletes();
     } catch (error) {
       console.error('Failed to toggle source:', error);
     }
@@ -166,7 +145,7 @@ export default function AthletesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: athleteId, status }),
       });
-      fetchAthletes();
+      mutateAthletes();
       setActiveMenu(null);
     } catch (error) {
       console.error('Failed to update status:', error);
@@ -176,7 +155,7 @@ export default function AthletesPage() {
   const deleteAthlete = async (athleteId: string) => {
     try {
       await fetch(`/api/athletes?id=${athleteId}`, { method: 'DELETE' });
-      fetchAthletes();
+      mutateAthletes();
       setConfirmDelete(null);
       setActiveMenu(null);
     } catch (error) {
@@ -540,7 +519,7 @@ ${inviteLink}`;
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ athleteId: athlete.id, stravaEnabled: newEnabled }),
                   });
-                  fetchAthletes();
+                  mutateAthletes();
                   setActiveMenu(null);
                 }}
               />

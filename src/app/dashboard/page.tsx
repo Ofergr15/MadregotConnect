@@ -80,10 +80,18 @@ export default function DashboardPage() {
   const router = useRouter();
   const locale = useLocale();
   const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [weekly, setWeekly] = useState<WeeklyData | null>(null);
-  const [teamDays, setTeamDays] = useState<number[]>([2, 5]); // team-workout days (0=Sun..6=Sat), admin-editable
-  const [workoutHour, setWorkoutHour] = useState(18); // team workout start hour (Israel), admin-editable — used for the "add to calendar" event time
+  // Cached via useApi (SWR) instead of a manual fetch+useState: revisiting this
+  // tab shows the last-known stats/weekly instantly (keepPreviousData) while
+  // quietly revalidating in the background, instead of a blank spinner every
+  // single time — the concrete fix for "moving between screens feels slow".
+  const { data: stats, isLoading: statsLoading } = useApi<DashboardStats>('/api/dashboard/stats');
+  const { data: weekly, isLoading: weeklyLoading } = useApi<WeeklyData>('/api/dashboard/weekly');
+  const { data: reminderConfig } = useApi<{ config?: { teamDays?: number[]; workoutHour?: number } }>('/api/reminder-config');
+  // Admin-editable team-workout days (0=Sun..6=Sat) → which days the RSVP card
+  // shows on; admin-editable team workout start hour (Israel) → the "add to
+  // calendar" event time. Both fall back to the same defaults as before.
+  const teamDays = reminderConfig?.config?.teamDays ?? [2, 5];
+  const workoutHour = reminderConfig?.config?.workoutHour ?? 18;
   const [rsvpAnswered, setRsvpAnswered] = useState(false); // has the athlete answered the current RSVP target? drives the hero card's CTA
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   // The single most-recently-synced activity from the background Strava sync
@@ -94,7 +102,6 @@ export default function DashboardPage() {
   // sheet for a run from months ago.
   const [syncedActivity, setSyncedActivity] = useState<RecentActivity | null>(null);
   const [syncedExtraCount, setSyncedExtraCount] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState({ d: 0, h: 0, m: 0, s: 0 });
   const [week, setWeek] = useState(0);
   const [isCoach, setIsCoach] = useState(false);
@@ -121,13 +128,6 @@ export default function DashboardPage() {
     setIsCoach(previewRole ? STAFF_ROLES.includes(previewRole) : !!coachEmail);
     setAthleteId(storedAthleteId);
     setAthleteName(name);
-    // Admin-editable team-workout days → which days the RSVP card shows on.
-    fetch('/api/reminder-config').then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (Array.isArray(d?.config?.teamDays)) setTeamDays(d.config.teamDays);
-        if (typeof d?.config?.workoutHour === 'number') setWorkoutHour(d.config.workoutHour);
-      })
-      .catch(() => {});
   }, []);
 
   // Stable identity so AttendanceRSVP's status effect doesn't refire on every
@@ -154,6 +154,13 @@ export default function DashboardPage() {
     return () => clearInterval(id);
   }, []);
 
+  // Background activity sync + "just synced" popup detection — deliberately
+  // its OWN effect, separate from the stats/weekly SWR reads above. This is a
+  // one-time imperative flow (snapshot → sync → diff → maybe show a popup),
+  // not a cacheable "fetch and display" read, so it doesn't belong in useApi
+  // and — importantly — it no longer blocks the page: recentActivities/
+  // weeklyRuns/syncedActivity fill in whenever this resolves, same as before,
+  // but the hero above renders the moment stats/weekly are ready.
   useEffect(() => {
     async function load() {
       const myAthleteId = localStorage.getItem('athlete_id');
@@ -169,21 +176,9 @@ export default function DashboardPage() {
       // be read BEFORE the background sync starts, and the sync must finish
       // before refetching — both handled below, after these all resolve.
       const mePromise = canSync ? fetch(`/api/athletes/me?id=${myAthleteId}`) : null;
-      const statsPromise = fetch('/api/dashboard/stats');
-      const weeklyPromise = fetch('/api/dashboard/weekly');
       const activitiesPromise = fetchActivities();
 
       try {
-        // Gate on res.ok so a 5xx doesn't get parsed as {error} and rendered as
-        // zeros / "no plan"; leave the prior state so the UI degrades gracefully.
-        const [sRes, wRes] = await Promise.all([statsPromise, weeklyPromise]);
-        if (sRes.ok) setStats(await sRes.json());
-        if (wRes.ok) setWeekly(await wRes.json());
-
-        // Show the dashboard as soon as stats+plan are in hand — don't wait on
-        // activities, which only feeds the sync flow below.
-        setLoading(false);
-
         let hasStrava = false;
         if (mePromise) {
           try {
@@ -272,12 +267,15 @@ export default function DashboardPage() {
             }
           } catch {}
         }
-      } catch (e) { console.error(e); setLoading(false); }
+      } catch (e) { console.error(e); }
     }
     load();
   }, []);
 
-  if (loading) return (
+  // Only the very first-ever load (no cached stats/weekly yet) blocks on a
+  // spinner — keepPreviousData means a revisit shows the last-known content
+  // instantly while these quietly revalidate in the background.
+  if (statsLoading || weeklyLoading) return (
     <div className="flex items-center justify-center h-[60vh]">
       <Spinner size={40} />
     </div>

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { getSupabase } from '@/lib/supabase/client';
+import { useApi } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 
@@ -30,31 +31,30 @@ function AcademyRowSkeleton() {
 export default function CoachToolsPage() {
   const t = useTranslations('coachTools');
   const tn = useTranslations('nav');
-  const [role, setRole] = useState<string | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
+  // Role scenarios / super-user resolve synchronously — no fetch needed.
+  const viewMode = getViewMode();
+  const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
 
+  // Best-effort viewer email: localStorage first, else the live Supabase
+  // session — same resolution order as MaintenanceGate.
+  const [email, setEmail] = useState<string | null>(null);
   useEffect(() => {
-    const finish = () => setRoleLoading(false);
-    const email = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
-    const viewMode = getViewMode();
-    const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
-    if (previewRole) { setRole(previewRole); finish(); return; }
-    if (isSuperUser(email)) { setRole('admin'); finish(); return; }
-    const resolve = (e: string) => {
-      if (!e) { finish(); return; }
-      fetch('/api/auth/me', { headers: { 'x-user-email': e } })
-        .then(r => (r.ok ? r.json() : null))
-        .then(data => { if (data?.role) setRole(data.role); })
-        .catch(() => {})
-        .finally(finish);
-    };
-    if (email) resolve(email);
-    else getSupabase().auth.getSession().then(({ data }) => {
-      const e = data.session?.user?.email || '';
-      resolve(e);
-    }).catch(() => finish());
+    if (previewRole) return;
+    const stored = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
+    if (stored) { setEmail(stored); return; }
+    getSupabase().auth.getSession()
+      .then(({ data }) => setEmail(data.session?.user?.email || ''))
+      .catch(() => setEmail(''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Shared SWR cache (same endpoint/shape other role checks in the app use) —
+  // revisiting this page shows the Academy row instantly from cache instead
+  // of a skeleton flash every time.
+  const { data, isLoading: roleLoading } = useApi<{ role?: string }>(
+    !previewRole && email ? '/api/auth/me' : null,
+  );
+  const role = previewRole || (isSuperUser(email) ? 'admin' : data?.role) || null;
   const showAcademy = role === 'academy_coach' || role === 'admin';
 
   return (

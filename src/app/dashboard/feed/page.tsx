@@ -17,11 +17,21 @@ import type { FeedItem } from '@/lib/feed/project';
 
 const PAGE_SIZE = 20;
 
+// Last successfully loaded first page, kept in module scope (survives
+// client-side navigation away and back, unlike component state). Feed's own
+// fetch requires a real Supabase JWT (see feed-client.ts), so it can't go
+// through useApi's shared x-user-email-based cache like the other pages —
+// this is the same "instant paint from last-seen data" win without fighting
+// that auth model. Purely a seed for initial state: loadInitial() below still
+// runs on every mount and fully replaces it with fresh data, so pagination
+// (loadMore) and optimistic mutations are untouched.
+let lastFeedPage: { items: FeedItem[]; cursor: string | null } | null = null;
+
 export default function FeedPage() {
   const t = useTranslations('feed');
-  const [items, setItems] = useState<FeedItem[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<FeedItem[]>(() => lastFeedPage?.items ?? []);
+  const [cursor, setCursor] = useState<string | null>(() => lastFeedPage?.cursor ?? null);
+  const [loading, setLoading] = useState(() => !lastFeedPage);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -117,12 +127,16 @@ export default function FeedPage() {
   }, []);
 
   const loadInitial = useCallback(async () => {
-    setLoading(true);
+    // Skip the loading gate when a cached page is already on screen — pull-to-
+    // refresh/retry then just swap fresh content in behind the existing list
+    // instead of flashing back to a blank skeleton.
+    if (!lastFeedPage) setLoading(true);
     setError(null);
     try {
       const { items: page, nextCursor } = await fetchFeed(null, PAGE_SIZE);
       setItems(page);
       setCursor(nextCursor);
+      lastFeedPage = { items: page, cursor: nextCursor };
     } catch (err: unknown) {
       setError((err as Error).message || t('loadError'));
     } finally {
@@ -158,7 +172,11 @@ export default function FeedPage() {
   const handleDelete = async (item: FeedItem) => {
     try {
       await deletePost(item.id);
-      setItems(prev => prev.filter(i => i.id !== item.id));
+      setItems(prev => {
+        const next = prev.filter(i => i.id !== item.id);
+        if (lastFeedPage) lastFeedPage = { ...lastFeedPage, items: next };
+        return next;
+      });
     } catch (err: unknown) {
       setDeleteError((err as Error).message || t('deleteError'));
       setTimeout(() => setDeleteError(null), 4000);
@@ -166,14 +184,22 @@ export default function FeedPage() {
   };
 
   const handleCommentClose = (itemId: string, newCount: number) => {
-    setItems(prev => prev.map(item => (
-      item.id === itemId ? { ...item, commentCount: newCount } : item
-    )));
+    setItems(prev => {
+      const next = prev.map(item => (
+        item.id === itemId ? { ...item, commentCount: newCount } : item
+      ));
+      if (lastFeedPage) lastFeedPage = { ...lastFeedPage, items: next };
+      return next;
+    });
     setCommentItem(null);
   };
 
   const handlePost = (newItem: FeedItem) => {
-    setItems(prev => [newItem, ...prev]);
+    setItems(prev => {
+      const next = [newItem, ...prev];
+      if (lastFeedPage) lastFeedPage = { ...lastFeedPage, items: next };
+      return next;
+    });
   };
 
   return (
