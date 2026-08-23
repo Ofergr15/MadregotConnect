@@ -7,6 +7,7 @@ import { ProfileBest } from '@/components/ProfileBest';
 import { PersonalRecords } from '@/components/PersonalRecords';
 import { RaceHistory } from '@/components/RaceHistory';
 import { VolumeHistory } from '@/components/VolumeHistory';
+import { ActivityHeatmap } from '@/components/ActivityHeatmap';
 
 interface SummaryData {
   totalKm: number;
@@ -78,6 +79,7 @@ export function StatisticsScreen({ athleteId, athleteName }: { athleteId: string
       )}
 
       <VolumeHistory athleteId={athleteId} />
+      <ActivityHeatmap athleteId={athleteId} />
       <PersonalRecords athleteId={athleteId} />
       <RaceHistory athleteId={athleteId} />
       <ProfileBest athleteId={athleteId} athleteName={athleteName} />
