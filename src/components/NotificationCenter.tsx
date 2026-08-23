@@ -28,9 +28,23 @@ function dateOffsetStr(days: number): string {
   d.setDate(d.getDate() + days);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
+// 5 min is the real delivery-precision ceiling (src/app/api/cron/tick scans
+// scheduled_notifications every 5 min — see vercel.json) — the chooser only
+// ever offers/stores values on that grid so it can't promise more than the
+// backend delivers.
+const SCHEDULE_STEP_MIN = 5;
+function minutesToHHMM(totalMinutes: number): string {
+  const wrapped = ((totalMinutes % 1440) + 1440) % 1440;
+  return `${pad2(Math.floor(wrapped / 60))}:${pad2(wrapped % 60)}`;
+}
+function roundToStep(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  return minutesToHHMM(Math.round((h * 60 + m) / SCHEDULE_STEP_MIN) * SCHEDULE_STEP_MIN);
+}
 function nowTimeStr(): string {
   const d = new Date();
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  // Round UP, not to nearest — a default has to still be in the future.
+  return minutesToHHMM(Math.ceil((d.getHours() * 60 + d.getMinutes()) / SCHEDULE_STEP_MIN) * SCHEDULE_STEP_MIN);
 }
 const QUICK_SCHEDULE_DAYS = [
   { days: 0, label: 'היום' },
@@ -326,7 +340,7 @@ export function NotificationCenter() {
   // be in the future regardless, so a plain morning default is fine there.
   const setSchedDate = (d: string) =>
     setScheduledAt(`${d}T${schedTime || (d === dateOffsetStr(0) ? nowTimeStr() : '07:00')}`);
-  const setSchedTime = (t: string) => setScheduledAt(`${schedDate || dateOffsetStr(0)}T${t}`);
+  const setSchedTime = (t: string) => setScheduledAt(`${schedDate || dateOffsetStr(0)}T${roundToStep(t)}`);
 
   // Mirrors exactly what the service worker renders (src/app/sw.ts): app icon
   // fallback (compose never sets a custom one), title/body verbatim. Surveys
@@ -651,7 +665,7 @@ export function NotificationCenter() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} className={inputCls} />
-                    <input type="time" value={schedTime || ''} onChange={e => setSchedTime(e.target.value)} className={inputCls} />
+                    <input type="time" step={300} value={schedTime || ''} onChange={e => setSchedTime(e.target.value)} className={inputCls} />
                   </div>
                 </div>
               )}
