@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Eye } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { getViewMode, stopViewAs } from '@/lib/impersonation';
-import { Sheet, Button, SegmentedControl, SkeletonList, EmptyState } from '@/components/ui';
+import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState } from '@/components/ui';
 import { InsetRow } from '@/components/ui/InsetList';
 
 interface Group { id: string; name: string; }
@@ -81,6 +81,7 @@ export function NotificationCenter() {
   useEffect(() => {
     if (composeOpen) setPreviewMode(getViewMode());
   }, [composeOpen]);
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
   const [athletePickerOpen, setAthletePickerOpen] = useState(false);
   const [athleteSearch, setAthleteSearch] = useState('');
   // 'message' = the existing push-notification flow; 'survey' = a question
@@ -271,6 +272,14 @@ export function NotificationCenter() {
 
   const selectedAthleteName = athletes.find(a => a.id === audienceId)?.name;
   const filteredAthletes = athletes.filter(a => !athleteSearch.trim() || a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()));
+
+  const audienceSummary =
+    audienceType === 'all' ? 'כל הרצים'
+    : audienceType === 'group' ? (groups.find(g => g.id === audienceId)?.name ? `דבוקת "${groups.find(g => g.id === audienceId)?.name}"` : 'הדבוקה שנבחרה')
+    : (selectedAthleteName || 'הנמען שנבחר');
+  const confirmDescription = composeMode === 'survey'
+    ? `הסקר יישלח ל${audienceSummary}`
+    : `ההתראה תישלח ל${audienceSummary}${scheduleType === 'now' ? ' עכשיו' : ' — מתוזמן'}`;
 
   // scheduledAt stays one 'YYYY-MM-DDTHH:mm' string (what the API + remindWorkout
   // already expect) — day and hour are just two views onto it, so quick-pick
@@ -655,13 +664,27 @@ export function NotificationCenter() {
 
           {msg && <p className="text-sm text-primary-600">{msg}</p>}
 
-          <button onClick={submit} disabled={sending || !!previewMode}
+          <button onClick={() => setConfirmSendOpen(true)} disabled={sending || !!previewMode}
             className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-lg transition">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {composeMode === 'survey' ? 'שליחת סקר' : scheduleType === 'now' ? 'שליחה עכשיו' : 'תזמון'}
           </button>
         </div>
       </Sheet>
+
+      {/* One more explicit tap before an actual send/schedule goes out — a
+          broadcast to real people deserves a "are you sure", separate from
+          (and no substitute for) the view-as read-only guard above. */}
+      <ConfirmSheet
+        open={confirmSendOpen}
+        onOpenChange={setConfirmSendOpen}
+        title={composeMode === 'survey' ? 'לשלוח את הסקר?' : 'לשלוח את ההתראה?'}
+        description={confirmDescription}
+        confirmLabel={composeMode === 'survey' ? 'שליחת הסקר' : scheduleType === 'now' ? 'שליחה עכשיו' : 'תזמון'}
+        cancelLabel="ביטול"
+        danger={false}
+        onConfirm={submit}
+      />
 
       {/* Athlete picker — a searchable bottom sheet, replacing the raw
           native <select> dropdown. */}
