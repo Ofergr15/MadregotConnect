@@ -18,6 +18,7 @@ interface AthleteRow {
   avatar_url: string | null;
   group_id: string | null;
   status: string;
+  discoverable?: boolean;
 }
 
 export async function GET(request: Request) {
@@ -30,8 +31,23 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
 
-    const [athletesRes, groupsRes, followingRes] = await Promise.all([
-      supabase.from('athletes').select('id, name, avatar_url, group_id, status').eq('status', 'active'),
+    // discoverable (migration 069) may not be applied yet in every
+    // environment — degrade to the pre-069 column set instead of 500ing the
+    // whole route, same tolerance as /api/athletes/me.
+    let athletesRes = await supabase
+      .from('athletes')
+      .select('id, name, avatar_url, group_id, status, discoverable')
+      .eq('status', 'active')
+      .eq('discoverable', true)
+      .returns<AthleteRow[]>();
+    if (athletesRes.error?.code === '42703' || athletesRes.error?.code === 'PGRST204') {
+      athletesRes = await supabase
+        .from('athletes')
+        .select('id, name, avatar_url, group_id, status')
+        .eq('status', 'active')
+        .returns<AthleteRow[]>();
+    }
+    const [groupsRes, followingRes] = await Promise.all([
       supabase.from('groups').select('id, name'),
       supabase.from('athlete_follows').select('followee_id').eq('follower_id', viewerId),
     ]);

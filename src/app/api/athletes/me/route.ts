@@ -12,7 +12,7 @@ type ShirtSize = (typeof SHIRT_SIZES)[number];
 // notification-prefs' 42703 check, just done as a retry here since this
 // route's own shape doesn't have a dedicated 501 path).
 const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
-const FULL_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone`;
+const FULL_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone, discoverable`;
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
@@ -22,7 +22,10 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServerClient();
   let { data, error } = await supabase.from('athletes').select(FULL_COLUMNS).eq('id', id).single();
-  if (error?.code === '42703') {
+  // '42703' = raw Postgres undefined_column; 'PGRST204' = PostgREST's own
+  // schema-cache check rejecting an unknown column before SQL is generated
+  // — observed for real (not just theoretical) on the discoverable rollout.
+  if (error?.code === '42703' || error?.code === 'PGRST204') {
     ({ data, error } = await supabase.from('athletes').select(CORE_COLUMNS).eq('id', id).single());
   }
 
@@ -46,6 +49,7 @@ export async function GET(req: NextRequest) {
       shoeSize: (data as any).shoe_size || null,
       shirtSize: (data as any).shirt_size || null,
       phone: (data as any).phone || null,
+      discoverable: (data as any).discoverable ?? true,
     },
   });
 }
@@ -60,7 +64,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, birthDate, gender, shoeSize, shirtSize, phone } = body;
+    const { id, name, birthDate, gender, shoeSize, shirtSize, phone, discoverable } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -75,21 +79,23 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
     }
 
-    const updates: Record<string, string | Gender | ShirtSize | null> = {};
+    const updates: Record<string, string | boolean | Gender | ShirtSize | null> = {};
     if (name !== undefined) updates.name = String(name).trim();
     if (birthDate !== undefined) updates.birth_date = birthDate || null;
     if (gender !== undefined) updates.gender = gender || null;
     if (shoeSize !== undefined) updates.shoe_size = (shoeSize && String(shoeSize).trim()) || null;
     if (shirtSize !== undefined) updates.shirt_size = shirtSize || null;
     if (phone !== undefined) updates.phone = (phone && String(phone).trim()) || null;
+    if (discoverable !== undefined) updates.discoverable = !!discoverable;
 
     const supabase = createServerClient();
     let { data, error } = await supabase.from('athletes').update(updates).eq('id', id).select(FULL_COLUMNS).single();
-    if (error?.code === '42703') {
-      // shirt_size/phone not migrated yet — drop them from both the write and
-      // the re-select rather than losing the whole update (name/birthDate/etc
-      // still need to save even if the newest two columns aren't there yet).
-      const { shirt_size, phone: _phone, ...coreUpdates } = updates as Record<string, unknown>;
+    if (error?.code === '42703' || error?.code === 'PGRST204') {
+      // shirt_size/phone/discoverable not migrated yet — drop them from both
+      // the write and the re-select rather than losing the whole update
+      // (name/birthDate/etc still need to save even if the newest columns
+      // aren't there yet).
+      const { shirt_size, phone: _phone, discoverable: _discoverable, ...coreUpdates } = updates as Record<string, unknown>;
       ({ data, error } = await supabase.from('athletes').update(coreUpdates).eq('id', id).select(CORE_COLUMNS).single());
     }
 
@@ -104,6 +110,7 @@ export async function PUT(req: NextRequest) {
         shoeSize: (data as any).shoe_size || null,
         shirtSize: (data as any).shirt_size || null,
         phone: (data as any).phone || null,
+        discoverable: (data as any).discoverable ?? true,
       },
     });
   } catch (error) {

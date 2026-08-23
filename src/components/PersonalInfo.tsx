@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
-import { Sheet, Button, SegmentedControl, Skeleton } from '@/components/ui';
+import { Sheet, Button, SegmentedControl, Skeleton, Switch } from '@/components/ui';
 
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
 type ShirtSize = (typeof SHIRT_SIZES)[number];
@@ -20,6 +20,7 @@ interface PersonalInfoData {
   shoeSize: string | null;
   shirtSize: ShirtSize | null;
   phone: string | null;
+  discoverable: boolean;
 }
 
 type EditField = 'name' | 'birthDate' | 'gender' | 'shoeSize' | 'shirtSize' | 'phone' | null;
@@ -40,6 +41,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const [shoeSize, setShoeSize] = useState('');
   const [shirtSize, setShirtSize] = useState<ShirtSize | null>(null);
   const [phone, setPhone] = useState('');
+  const [discoverable, setDiscoverable] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -59,6 +61,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           shoeSize: a?.shoeSize || null,
           shirtSize: a?.shirtSize || null,
           phone: a?.phone || null,
+          discoverable: a?.discoverable ?? true,
         };
         setInitial(info);
         setName(info.name);
@@ -67,6 +70,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         setShoeSize(info.shoeSize || '');
         setShirtSize(info.shirtSize);
         setPhone(info.phone || '');
+        setDiscoverable(info.discoverable);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -94,6 +98,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         setShoeSize(data.shoeSize || '');
         setShirtSize(data.shirtSize);
         setPhone(data.phone || '');
+        setDiscoverable(data.discoverable);
         try { localStorage.setItem('athlete_name', data.name); } catch { /* ignore */ }
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -110,7 +115,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   // what it's actually changing.
   const snapshot = (override: Partial<PersonalInfoData>): PersonalInfoData => ({
     name, birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null,
-    shirtSize, phone: phone.trim() || null,
+    shirtSize, phone: phone.trim() || null, discoverable,
     ...override,
   });
 
@@ -173,6 +178,25 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           valueSuccess={!!phone}
           valueMuted={!phone}
           onClick={() => setEditField('phone')}
+        />
+      </InsetSection>
+
+      {/* Privacy — only controls the Member Discovery browse/search list;
+          teammates who already know you (feed, leaderboards, direct follow)
+          are unaffected, matching that feature's own stated scope. */}
+      <InsetSection header={t('privacy')}>
+        <InsetRow
+          label={t('discoverable')}
+          sublabel={t('discoverableHint')}
+          trailing={
+            <Switch
+              checked={discoverable}
+              onChange={(v) => { setDiscoverable(v); persist(snapshot({ discoverable: v })); }}
+              disabled={saving}
+              loading={saving}
+              ariaLabel={t('discoverable')}
+            />
+          }
         />
       </InsetSection>
 
