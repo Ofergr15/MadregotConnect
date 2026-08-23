@@ -123,3 +123,109 @@ export function splitIntoGroups(plan: ParsedWeeklyPlan): GroupedWeeklyPlans {
     group3: { workouts: plan.workouts.map(w => splitWorkout(w, 3)) },
   };
 }
+
+// ── mergeGroupsToUnified — the inverse of splitIntoGroups ──────────────────────
+// Editing three separately-tabbed group plans made it easy to lose track of
+// which groups actually differ; the unified editor instead shows ONE plan
+// where a step's own pace is Group ❶ and group2Pace/group3Pace only exist
+// when a group's resolved pace actually differs. Assumes all three groups
+// share the same day/step/repeat structure — true for anything ever produced
+// by splitIntoGroups, since it maps the same steps array three times.
+
+function paceMatches(a?: number, b?: number): boolean {
+  return (a ?? null) === (b ?? null);
+}
+
+// Re-composes bracket notation into notes ONLY when the base (group1) notes
+// is itself a bare pace token (e.g. "3:50", "4:15-4:20") — the shape the AI
+// parser actually produces for pace-differentiated steps. Notes carrying
+// other text (e.g. "הליכה") are left untouched; the structured group2Pace/
+// group3Pace fields alone stay the source of truth for those.
+function mergeNotesForStep(g1Notes: string | undefined, g2Notes: string | undefined, g3Notes: string | undefined, differs: boolean): string | undefined {
+  if (!differs) return g1Notes;
+  const bareToken = new RegExp(`^\\s*${PACE_TOKEN}\\s*$`);
+  if (g1Notes && bareToken.test(g1Notes)) {
+    return `${g1Notes} (${g2Notes ?? g1Notes}) ((${g3Notes ?? g1Notes}))`;
+  }
+  return g1Notes;
+}
+
+function mergeStep(s1: WorkoutStep, s2: WorkoutStep, s3: WorkoutStep): WorkoutStep {
+  const result: WorkoutStep = { ...s1 };
+
+  const paceDiffers =
+    !paceMatches(s1.targetPaceMinPerKm, s2.targetPaceMinPerKm) || !paceMatches(s1.targetPaceMaxPerKm, s2.targetPaceMaxPerKm) ||
+    !paceMatches(s1.targetPaceMinPerKm, s3.targetPaceMinPerKm) || !paceMatches(s1.targetPaceMaxPerKm, s3.targetPaceMaxPerKm);
+
+  if (paceDiffers) {
+    if (s2.targetPaceMinPerKm != null) result.group2Pace = { min: s2.targetPaceMinPerKm, max: s2.targetPaceMaxPerKm ?? s2.targetPaceMinPerKm };
+    if (s3.targetPaceMinPerKm != null) result.group3Pace = { min: s3.targetPaceMinPerKm, max: s3.targetPaceMaxPerKm ?? s3.targetPaceMinPerKm };
+  } else {
+    delete result.group2Pace;
+    delete result.group3Pace;
+  }
+
+  const hrDiffers =
+    !paceMatches(s1.targetHrMinPct, s2.targetHrMinPct) || !paceMatches(s1.targetHrMaxPct, s2.targetHrMaxPct) ||
+    !paceMatches(s1.targetHrMinPct, s3.targetHrMinPct) || !paceMatches(s1.targetHrMaxPct, s3.targetHrMaxPct);
+  if (hrDiffers) {
+    if (s2.targetHrMinPct != null) result.group2HeartRate = { min: s2.targetHrMinPct, max: s2.targetHrMaxPct ?? s2.targetHrMinPct };
+    if (s3.targetHrMinPct != null) result.group3HeartRate = { min: s3.targetHrMinPct, max: s3.targetHrMaxPct ?? s3.targetHrMinPct };
+  } else {
+    delete result.group2HeartRate;
+    delete result.group3HeartRate;
+  }
+
+  result.notes = mergeNotesForStep(s1.notes, s2.notes, s3.notes, paceDiffers);
+
+  if (s1.repeatSteps && s2.repeatSteps && s3.repeatSteps) {
+    result.repeatSteps = s1.repeatSteps.map((sub, i) => mergeStep(sub, s2.repeatSteps![i] ?? sub, s3.repeatSteps![i] ?? sub));
+  }
+
+  return result;
+}
+
+function mergeWorkout(w1: ParsedWorkout, w2: ParsedWorkout, w3: ParsedWorkout): ParsedWorkout {
+  return {
+    ...w1,
+    steps: w1.steps.map((step, i) => mergeStep(step, w2.steps[i] ?? step, w3.steps[i] ?? step)),
+  };
+}
+
+export function mergeGroupsToUnified(grouped: GroupedWeeklyPlans): ParsedWeeklyPlan {
+  return {
+    workouts: grouped.group1.workouts.map((w, i) =>
+      mergeWorkout(w, grouped.group2.workouts[i] ?? w, grouped.group3.workouts[i] ?? w)),
+  };
+}
+
+// ── applyUnifiedEditsToGroups ────────────────────────────────────────────────
+// Writes unified-editor edits back into three EXISTING group plans, matching
+// workouts by array position (stable — mergeGroupsToUnified builds the
+// unified list in group1's order and edits never reorder it). Deliberately
+// NOT a plain splitIntoGroups(unified): a published plan's group2/group3
+// workout objects carry their own clipboardImageUrl/clipboardText (real,
+// already-distinct per-group artifacts from Clipboard Studio) that a fresh
+// split would silently collapse to group1's copy, since the unified
+// representation only ever carries ONE workout-level object per day. Only
+// `steps` (and coach-editable name/description) get overwritten; every other
+// per-group field is preserved untouched. New workouts added via the unified
+// editor (no existing per-group counterpart yet) get a fresh 3-way split
+// instead, since there's nothing to preserve.
+export function applyUnifiedEditsToGroups(existing: GroupedWeeklyPlans, unified: ParsedWeeklyPlan): GroupedWeeklyPlans {
+  const applyGroup = (group: 1 | 2 | 3): ParsedWeeklyPlan => {
+    const existingWorkouts = existing[`group${group}` as keyof GroupedWeeklyPlans].workouts;
+    return {
+      workouts: unified.workouts.map((uw, i) => {
+        const base = existingWorkouts[i];
+        const splitSteps = splitWorkout(uw, group).steps;
+        if (!base) {
+          // Newly added workout — no prior per-group object to preserve.
+          return { ...uw, steps: splitSteps };
+        }
+        return { ...base, name: uw.name, description: uw.description, steps: splitSteps };
+      }),
+    };
+  };
+  return { group1: applyGroup(1), group2: applyGroup(2), group3: applyGroup(3) };
+}

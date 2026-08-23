@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
-import { formatPace } from '@/lib/garmin/pace';
+import { groupPaceTokens, joinGroupPaces } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronUp, Timer, Route } from 'lucide-react';
 import { workoutDistanceMeters } from '@/lib/workout-distance';
@@ -49,10 +49,18 @@ function fmtDuration(step: WorkoutStep, lapLabel: string): string {
   return lapLabel;
 }
 
+// Group ❶ plain, (❷) single brackets, ((❸)) double brackets — the same
+// notation the coach writes the plan in, now shown directly in the unified
+// editor instead of requiring a tab switch to see another group's pace.
 function fmtTarget(step: WorkoutStep): string {
   if (step.targetType === 'no_target') return '';
-  if (step.targetPaceMinPerKm && step.targetPaceMaxPerKm) {
-    return `${formatPace(step.targetPaceMinPerKm)}-${formatPace(step.targetPaceMaxPerKm)}`;
+  if (step.targetPaceMinPerKm) {
+    const tokens = groupPaceTokens(
+      { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm ?? step.targetPaceMinPerKm },
+      step.group2Pace,
+      step.group3Pace,
+    );
+    return joinGroupPaces(tokens);
   }
   if (step.targetZone) return step.targetZone;
   return '';
@@ -118,13 +126,24 @@ function StepLine({ step, lapLabel }: { step: WorkoutStep; lapLabel: string }) {
   }
 
   const target = fmtTarget(step);
+  // A multi-group bracket target ("4:20 (4:25) ((4:30))") is real content,
+  // not a short label — squeezing it onto the same row as duration+type
+  // fought for space and clipped. Give it its own row only when it's
+  // actually multi-group; the common single-pace case stays inline.
+  const isMultiGroup = !!(step.group2Pace || step.group3Pace);
+
   return (
-    <div className={cn('flex items-center gap-1.5 py-1 px-2 rounded min-w-0', colors.bg)}>
-      <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', colors.dot)} />
-      <span className="text-[11px] text-slate-200 truncate flex-1 min-w-0 font-medium">
-        {fmtDuration(step, lapLabel)}
-      </span>
-      {target && <span className="text-[10px] text-slate-400 shrink-0">{target}</span>}
+    <div className={cn('py-1 px-2 rounded min-w-0', colors.bg)}>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', colors.dot)} />
+        <span className="text-[11px] text-slate-200 truncate flex-1 min-w-0 font-medium">
+          {fmtDuration(step, lapLabel)}
+        </span>
+        {target && !isMultiGroup && <span className="text-[10px] text-slate-400 shrink-0">{target}</span>}
+      </div>
+      {target && isMultiGroup && (
+        <p dir="ltr" className="text-[10px] text-slate-400 ps-3 tabular-nums">{target}</p>
+      )}
     </div>
   );
 }

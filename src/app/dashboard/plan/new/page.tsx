@@ -38,7 +38,7 @@ import {
 import { WeekView } from '@/components/WeekView';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
-import { splitIntoGroups } from '@/lib/ai/splitGroups';
+import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
@@ -341,7 +341,12 @@ export default function WeeklyPlannerPage() {
           JSON.stringify(grouped.group3.workouts) === g1;
         const effective = identical ? splitIntoGroups(grouped.group1) : grouped;
         setGroupedPlans(effective);
-        setParsedPlan(effective.group1);
+        // The unified editor shows ONE view where a step's own value is
+        // Group ❶ and (Group ❷)/((Group ❸)) only appear where they actually
+        // differ — mergeGroupsToUnified reconstructs that from the three
+        // already-split group plans (see splitGroups.ts for the round-trip
+        // guarantee this depends on).
+        setParsedPlan(mergeGroupsToUnified(effective));
       } else {
         const parsed = workouts as ParsedWeeklyPlan;
         setParsedPlan(parsed);
@@ -662,16 +667,31 @@ export default function WeeklyPlannerPage() {
     }
   };
 
+  // Main unified editor — one workout list where a step's own pace is Group
+  // ❶ and (Group ❷)/((Group ❸)) only appear where they actually differ.
+  // groupedPlans is re-derived from this immediately after every edit so
+  // saving/pushing/Clipboard Studio (all still genuinely per-group) keep
+  // working against correct, current data.
   const handleWorkoutChange = (index: number, workout: ParsedWorkout) => {
+    if (!parsedPlan || !groupedPlans) return;
+    const newWorkouts = [...parsedPlan.workouts];
+    newWorkouts[index] = workout;
+    const updatedUnified = { ...parsedPlan, workouts: newWorkouts };
+    setParsedPlan(updatedUnified);
+    setGroupedPlans(applyUnifiedEditsToGroups(groupedPlans, updatedUnified));
+  };
+
+  // Clipboard Studio edits ONE group's already-split, publish-ready steps
+  // directly (cosmetic tweaks for that group's own image/text) — deliberately
+  // NOT routed through the unified editor above, since a single-group tweak
+  // here isn't "this group's pace differs from the others," it's "this
+  // group's clipboard rendering needs a fix."
+  const handleClipboardWorkoutChange = (workoutIndex: number, workout: ParsedWorkout) => {
     if (!groupedPlans) return;
     const groupKey = `group${activeGroup}` as keyof GroupedWeeklyPlans;
-    const currentGroupPlan = groupedPlans[groupKey];
-    const newWorkouts = [...currentGroupPlan.workouts];
-    newWorkouts[index] = workout;
-    setGroupedPlans({
-      ...groupedPlans,
-      [groupKey]: { workouts: newWorkouts },
-    });
+    const newWorkouts = [...groupedPlans[groupKey].workouts];
+    newWorkouts[workoutIndex] = workout;
+    setGroupedPlans({ ...groupedPlans, [groupKey]: { workouts: newWorkouts } });
   };
 
   const loadClipboardPreview = useCallback(async (workout: ParsedWorkout) => {
@@ -1429,21 +1449,14 @@ export default function WeeklyPlannerPage() {
             </div>
           </div>
 
-          {/* Group tabs */}
-          <div className="border-b border-slate-700/50 px-6 py-2 bg-slate-800/20">
-            <SegmentedControl
-              value={String(activeGroup)}
-              onChange={(v) => setActiveGroup(Number(v) as 1 | 2 | 3)}
-              options={[1, 2, 3].map((g) => ({ value: String(g), label: t('groupLabel', { n: g }) }))}
-            />
-          </div>
-
-          {/* Week view */}
+          {/* Week view — one unified plan; a step's own value is Group ❶ and
+              (Group ❷)/((Group ❸)) show inline wherever they actually
+              differ, instead of three separate tabs to switch between. */}
           <div className="flex-1 px-6 py-6 w-full">
             {error && <ErrorBanner message={error} className="mb-4" />}
 
             <WeekView
-              workouts={groupedPlans[`group${activeGroup}` as keyof GroupedWeeklyPlans].workouts}
+              workouts={parsedPlan.workouts}
               editable={editMode}
               onWorkoutChange={handleWorkoutChange}
             />
@@ -1681,7 +1694,7 @@ export default function WeeklyPlannerPage() {
         <WorkoutEditorPanel
           workout={groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex]}
           dayName={DAY_LABELS[groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex]?.dayOfWeek]}
-          onChange={(workout) => handleWorkoutChange(clipboardWorkoutIndex, workout)}
+          onChange={(workout) => handleClipboardWorkoutChange(clipboardWorkoutIndex, workout)}
           onClose={() => setClipboardEditing(false)}
         />
       )}

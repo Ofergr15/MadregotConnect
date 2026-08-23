@@ -8,7 +8,7 @@ import { WorkoutEditorPanel } from './WorkoutEditor';
 import { Sheet } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { Route, Timer, Zap, Pencil, Plus } from 'lucide-react';
-import { formatPace } from '@/lib/garmin/pace';
+import { groupPaceTokens, joinGroupPaces } from '@/lib/garmin/pace';
 import { workoutDistanceMeters, totalDistanceMeters } from '@/lib/workout-distance';
 
 interface WeekViewProps {
@@ -80,12 +80,15 @@ function fmtStepDuration(step: WorkoutStep, lapLabel: string): string {
   return lapLabel;
 }
 
+// Group ❶ plain, (❷) single brackets, ((❸)) double brackets.
 function fmtStepPace(step: WorkoutStep): string {
-  if (step.targetPaceMinPerKm && step.targetPaceMaxPerKm) {
-    return `${formatPace(step.targetPaceMinPerKm)}–${formatPace(step.targetPaceMaxPerKm)}`;
-  }
-  if (step.targetPaceMinPerKm) return formatPace(step.targetPaceMinPerKm);
-  return '';
+  if (!step.targetPaceMinPerKm) return '';
+  const tokens = groupPaceTokens(
+    { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm ?? step.targetPaceMinPerKm },
+    step.group2Pace,
+    step.group3Pace,
+  );
+  return joinGroupPaces(tokens);
 }
 
 function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: ParsedWorkout | null; dayName: string; open: boolean; onClose: () => void }) {

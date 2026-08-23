@@ -6,6 +6,7 @@ import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { cn } from '@/lib/utils';
 import { Plus, Minus, Trash2, Copy, ArrowUp, ArrowDown, ChevronDown, ChevronRight, Save, AlertCircle } from 'lucide-react';
 import { Sheet, ConfirmSheet, SegmentedControl, Button } from '@/components/ui';
+import { groupPaceTokens, joinGroupPaces } from '@/lib/garmin/pace';
 
 const stepTypes = ['warmup', 'interval', 'rest', 'recovery', 'cooldown', 'active'] as const;
 const targetZones = ['easy', 'threshold', 'interval', 'tempo', 'sprint', 'marathon_pace', 'no_target'] as const;
@@ -104,6 +105,24 @@ function formatPaceTarget(step: WorkoutStep, t: T): string {
     return `${fmt(step.targetPaceMinPerKm)}-${fmt(max)}/km`;
   }
   return '';
+}
+
+// Group ❶ plain, (❷) single brackets, ((❸)) double brackets — for the
+// collapsed step-row summary in the unified editor. Deliberately separate
+// from formatPaceTarget: the confirm-changes diff view uses that one and
+// wants a clean single-group before/after, not three brackets repeated on
+// both sides of the arrow when only one group's pace actually changed.
+function formatBracketPaceTarget(step: WorkoutStep, t: T): string {
+  if (step.targetZone && step.targetZone !== 'no_target') {
+    return zoneLabel(step.targetZone, t);
+  }
+  if (!step.targetPaceMinPerKm) return '';
+  const tokens = groupPaceTokens(
+    { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm ?? step.targetPaceMinPerKm },
+    step.group2Pace,
+    step.group3Pace,
+  );
+  return joinGroupPaces(tokens);
 }
 
 function paceToInput(secs?: number): string {
@@ -423,8 +442,8 @@ function StepRow({
           {stepLabel(step.type, t)}
         </span>
         <span className="text-sm text-white font-medium">{formatDuration(step, t('lap'))}</span>
-        {formatPaceTarget(step, t) && (
-          <span className="text-[11px] text-primary-400 ms-auto me-1">@{formatPaceTarget(step, t)}</span>
+        {formatBracketPaceTarget(step, t) && (
+          <span dir="ltr" className="text-[11px] text-primary-400 ms-auto me-1 tabular-nums">@{formatBracketPaceTarget(step, t)}</span>
         )}
         {step.repeatCount && (
           <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-bold">
