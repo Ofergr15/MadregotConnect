@@ -1176,16 +1176,12 @@
     "hoursAgo": "לפני {count} שע׳",
     "yesterday": "אתמול",
     "daysAgo": "לפני {count} ימים",
-    "showMore": "הצג עוד",
-    "showLess": "הצג פחות",
-    "markGroupRead": "סימון הקבוצה כנקראה",
-    "categories": {
-      "workouts": "תזכורות ואימונים",
-      "coach": "הודעות מהמאמן",
-      "achievements": "הישגים וסיכומים",
-      "program": "תוכנית שבועית",
-      "teammates": "אימוני חברי הקבוצה",
-      "other": "כללי"
+    "markAllRead": "סמן הכל כנקרא",
+    "dateSections": {
+      "today": "היום",
+      "yesterday": "אתמול",
+      "thisWeek": "השבוע",
+      "older": "מוקדם יותר"
     }
   },
   "attendance": {

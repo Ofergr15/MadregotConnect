@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3 } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState } from '@/components/ui';
-import { InsetRow } from '@/components/ui/InsetList';
+import { InsetRow, InsetSection } from '@/components/ui/InsetList';
 
 interface Group { id: string; name: string; }
 interface Athlete { id: string; name: string; email: string; }
@@ -75,42 +75,69 @@ interface NotificationRow {
   last_sent_at: string | null; sent_count: number; created_at: string;
 }
 
+// Tap the row → action sheet, exact composition as the Athletes page (the
+// app-wide reference for this pattern, src/app/dashboard/athletes/page.tsx):
+// a plain Sheet titled with the item, an InsetSection of action InsetRows,
+// destructive one behind ConfirmSheet. Replaces two bare icon buttons that
+// used to fire delete/cancel straight from the row with zero confirmation.
 function NotificationRowView({ n, onCancel, onRemove }: {
   n: NotificationRow;
   onCancel: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  const statusText = n.status === 'sent' ? `נשלח (${n.sent_count})`
+    : n.status === 'cancelled' ? 'בוטל'
+    : n.schedule_type === 'recurring' ? `כל ${n.recur_interval} ${n.recur_unit === 'week' ? 'שבועות' : 'ימים'}`
+    : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן';
+  const audienceText = n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם';
+
+  const Icon = n.status === 'sent' ? CheckCircle : n.status === 'cancelled' ? X : n.schedule_type === 'recurring' ? Repeat : Clock;
+  const iconBg = n.status === 'sent' ? 'bg-green-500' : n.status === 'cancelled' ? 'bg-slate-600' : 'bg-amber-500';
+
   return (
-    <div className="bg-slate-900/40 rounded-xl border border-slate-700/30 p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-white truncate" dir="auto">{n.title_he}</p>
-          <p className="text-xs text-slate-400 truncate" dir="auto">{n.body_he}</p>
-          <div className="flex items-center gap-2 mt-1.5 text-3xs text-slate-500">
-            {n.status === 'sent' ? <CheckCircle className="w-3 h-3 text-green-400" />
-              : n.schedule_type === 'recurring' ? <Repeat className="w-3 h-3 text-primary-600" />
-              : <Clock className="w-3 h-3 text-amber-400" />}
-            <span>
-              {n.status === 'sent' ? `נשלח (${n.sent_count})`
-                : n.status === 'cancelled' ? 'בוטל'
-                : n.schedule_type === 'recurring' ? `כל ${n.recur_interval} ${n.recur_unit === 'week' ? 'שבועות' : 'ימים'}`
-                : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן'}
-            </span>
-            <span>· {n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם'}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
+    <>
+      <InsetRow
+        icon={Icon}
+        iconBg={iconBg}
+        label={n.title_he}
+        sublabel={n.body_he}
+        value={`${statusText} · ${audienceText}`}
+        onClick={() => setActionsOpen(true)}
+      />
+
+      <Sheet open={actionsOpen} onOpenChange={setActionsOpen} title={n.title_he}>
+        <InsetSection>
           {n.status === 'scheduled' && (
-            <button onClick={() => onCancel(n.id)} title="ביטול" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-amber-400">
-              <Clock className="w-4 h-4" />
-            </button>
+            <InsetRow
+              icon={Clock}
+              iconBg="bg-amber-500"
+              label="ביטול תזמון"
+              onClick={() => { setActionsOpen(false); onCancel(n.id); }}
+            />
           )}
-          <button onClick={() => onRemove(n.id)} title="מחיקה" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
+          <InsetRow
+            icon={Trash2}
+            iconBg="bg-red-500"
+            label="מחיקה"
+            danger
+            onClick={() => { setActionsOpen(false); setConfirmDeleteOpen(true); }}
+          />
+        </InsetSection>
+      </Sheet>
+
+      <ConfirmSheet
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="למחוק את ההתראה?"
+        description={n.title_he}
+        confirmLabel="מחיקה"
+        cancelLabel="ביטול"
+        onConfirm={() => onRemove(n.id)}
+      />
+    </>
   );
 }
 
@@ -391,20 +418,18 @@ export function NotificationCenter() {
               already treats them, just no longer jumbled together in one
               flat list regardless of whether they've fired yet. */}
           {scheduledList.length > 0 && (
-            <div>
-              <h4 className="text-2xs font-bold text-slate-500 mb-2" dir="rtl">מתוזמן</h4>
-              <div className="space-y-2">{scheduledList.map(n => (
+            <InsetSection header="מתוזמן">
+              {scheduledList.map(n => (
                 <NotificationRowView key={n.id} n={n} onCancel={cancel} onRemove={remove} />
-              ))}</div>
-            </div>
+              ))}
+            </InsetSection>
           )}
           {pastList.length > 0 && (
-            <div>
-              <h4 className="text-2xs font-bold text-slate-500 mb-2" dir="rtl">היסטוריה</h4>
-              <div className="space-y-2">{pastList.map(n => (
+            <InsetSection header="היסטוריה">
+              {pastList.map(n => (
                 <NotificationRowView key={n.id} n={n} onCancel={cancel} onRemove={remove} />
-              ))}</div>
-            </div>
+              ))}
+            </InsetSection>
           )}
         </div>
       )}
@@ -495,50 +520,11 @@ export function NotificationCenter() {
           </>
         )}
 
-        {composeMode === 'survey' && (
-          <div className="space-y-3 mb-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-400">שאלה (עברית)</label>
-              <input dir="rtl" value={surveyQuestionHe} onChange={e => setSurveyQuestionHe(e.target.value)} className={inputCls} placeholder="לדוגמה: איזה יום מתאים לאימון נוסף?" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-400">תשובות אפשריות (עברית)</label>
-              <div className="space-y-2 mt-1">
-                {surveyOptionsHe.map((opt, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input
-                      dir="rtl"
-                      value={opt}
-                      onChange={e => setSurveyOptionsHe(surveyOptionsHe.map((o, j) => j === i ? e.target.value : o))}
-                      className={inputCls}
-                      placeholder={`אפשרות ${i + 1}`}
-                    />
-                    {surveyOptionsHe.length > 2 && (
-                      <button
-                        type="button"
-                        onClick={() => setSurveyOptionsHe(surveyOptionsHe.filter((_, j) => j !== i))}
-                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400 shrink-0"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setSurveyOptionsHe([...surveyOptionsHe, ''])}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-500"
-                >
-                  <Plus className="w-3.5 h-3.5" /> הוספת אפשרות
-                </button>
-              </div>
-            </div>
-            {notifPreview}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {composeMode === 'message' && (
+        {/* תוכן — one visually distinct card per mode, instead of a
+            continuous scroll of bare labeled inputs. */}
+        <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3 space-y-3 mb-3">
+          <p className="text-2xs font-bold text-slate-400 uppercase tracking-wide" dir="rtl">תוכן</p>
+          {composeMode === 'message' ? (
             <>
               <div>
                 <label className="text-xs font-semibold text-slate-400">כותרת (עברית)</label>
@@ -549,45 +535,84 @@ export function NotificationCenter() {
                 <textarea dir="rtl" value={bodyHe} onChange={e => setBodyHe(e.target.value)} rows={2} className={inputCls} placeholder="פרטי ההתראה" />
               </div>
               {notifPreview}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400">Title (English)</label>
+                  <input value={titleEn} onChange={e => setTitleEn(e.target.value)} className={inputCls} placeholder="optional" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400">Body (English)</label>
+                  <input value={bodyEn} onChange={e => setBodyEn(e.target.value)} className={inputCls} placeholder="optional" />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-slate-400">שאלה (עברית)</label>
+                <input dir="rtl" value={surveyQuestionHe} onChange={e => setSurveyQuestionHe(e.target.value)} className={inputCls} placeholder="לדוגמה: איזה יום מתאים לאימון נוסף?" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400">תשובות אפשריות (עברית)</label>
+                <div className="space-y-2 mt-1">
+                  {surveyOptionsHe.map((opt, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        dir="rtl"
+                        value={opt}
+                        onChange={e => setSurveyOptionsHe(surveyOptionsHe.map((o, j) => j === i ? e.target.value : o))}
+                        className={inputCls}
+                        placeholder={`אפשרות ${i + 1}`}
+                      />
+                      {surveyOptionsHe.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setSurveyOptionsHe(surveyOptionsHe.filter((_, j) => j !== i))}
+                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400 shrink-0"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSurveyOptionsHe([...surveyOptionsHe, ''])}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-500"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> הוספת אפשרות
+                  </button>
+                </div>
+              </div>
+              {notifPreview}
+              <div>
+                <label className="text-xs font-semibold text-slate-400">Question (English, optional)</label>
+                <input value={surveyQuestionEn} onChange={e => setSurveyQuestionEn(e.target.value)} className={inputCls} placeholder="optional" />
+                {surveyQuestionEn.trim() && (
+                  <div className="space-y-2 mt-2">
+                    {surveyOptionsHe.map((_, i) => (
+                      <input
+                        key={i}
+                        value={surveyOptionsEn[i] || ''}
+                        onChange={e => {
+                          const next = [...surveyOptionsEn];
+                          next[i] = e.target.value;
+                          setSurveyOptionsEn(next);
+                        }}
+                        className={inputCls}
+                        placeholder={`Option ${i + 1} (English)`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </>
           )}
-          {composeMode === 'message' ? (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-400">Title (English)</label>
-                <input value={titleEn} onChange={e => setTitleEn(e.target.value)} className={inputCls} placeholder="optional" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-400">Body (English)</label>
-                <input value={bodyEn} onChange={e => setBodyEn(e.target.value)} className={inputCls} placeholder="optional" />
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className="text-xs font-semibold text-slate-400">Question (English, optional)</label>
-              <input value={surveyQuestionEn} onChange={e => setSurveyQuestionEn(e.target.value)} className={inputCls} placeholder="optional" />
-              {surveyQuestionEn.trim() && (
-                <div className="space-y-2 mt-2">
-                  {surveyOptionsHe.map((_, i) => (
-                    <input
-                      key={i}
-                      value={surveyOptionsEn[i] || ''}
-                      onChange={e => {
-                        const next = [...surveyOptionsEn];
-                        next[i] = e.target.value;
-                        setSurveyOptionsEn(next);
-                      }}
-                      className={inputCls}
-                      placeholder={`Option ${i + 1} (English)`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+        </div>
 
-          {/* Audience — segmented control + contextual picker */}
-          <div>
+        <div className="space-y-3">
+          {/* קהל יעד — segmented control + contextual picker */}
+          <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3">
             <label className="text-xs font-semibold text-slate-400">קהל יעד</label>
             <SegmentedControl
               className="mt-1.5"
@@ -630,11 +655,11 @@ export function NotificationCenter() {
             )}
           </div>
 
-          {/* Schedule — surveys always send immediately (no separate cron
-              path for one notification kind); scheduling only applies to
-              regular messages. */}
+          {/* תזמון — surveys always send immediately (no separate cron path
+              for one notification kind); scheduling only applies to regular
+              messages. */}
           {composeMode === 'message' && (
-            <>
+            <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3 space-y-2">
               <div>
                 <label className="text-xs font-semibold text-slate-400">תזמון</label>
                 <SegmentedControl
@@ -690,7 +715,7 @@ export function NotificationCenter() {
                   />
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {msg && <p className="text-sm text-primary-600">{msg}</p>}

@@ -1176,16 +1176,12 @@
     "hoursAgo": "{count}h ago",
     "yesterday": "Yesterday",
     "daysAgo": "{count} days ago",
-    "showMore": "Show more",
-    "showLess": "Show less",
-    "markGroupRead": "Mark group as read",
-    "categories": {
-      "workouts": "Workout reminders",
-      "coach": "Messages from your coach",
-      "achievements": "Achievements & recaps",
-      "program": "Weekly program",
-      "teammates": "Teammate activity",
-      "other": "General"
+    "markAllRead": "Mark all read",
+    "dateSections": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "older": "Older"
     }
   },
   "attendance": {

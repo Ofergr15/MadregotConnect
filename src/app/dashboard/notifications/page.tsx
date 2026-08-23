@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, ClipboardList, ChevronDown, X } from 'lucide-react';
+import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
-import { cn } from '@/lib/utils';
 
 interface Item {
   id: string;
@@ -18,10 +17,25 @@ interface Item {
   unread: boolean;
 }
 
-// The iOS-style grouping buckets — same 4 categories athletes already toggle in
-// NotificationPrefs (push mute prefs), plus an "other" catch-all for anything
-// that doesn't match one of them (e.g. race/registration nudges).
-type GroupCategory = 'workouts' | 'coach' | 'achievements' | 'program' | 'other';
+// Real native notification-history UIs are a static chronological list —
+// you can't collapse "Today". Date bucket is the section; category (via
+// styleFor below) is now only a per-row icon/color, not a grouping axis.
+type DateBucket = 'today' | 'yesterday' | 'thisWeek' | 'older';
+const DATE_BUCKETS: DateBucket[] = ['today', 'yesterday', 'thisWeek', 'older'];
+
+function dateBucketFor(iso: string): DateBucket {
+  const then = new Date(iso);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+  const startOfWeek = new Date(startOfToday);
+  startOfWeek.setDate(startOfWeek.getDate() - 7);
+  if (then >= startOfToday) return 'today';
+  if (then >= startOfYesterday) return 'yesterday';
+  if (then >= startOfWeek) return 'thisWeek';
+  return 'older';
+}
 
 // localStorage key for this athlete's locally-dismissed (group "X") notification
 // ids. There's no per-notification read column in the DB — the server's `unread`
@@ -65,40 +79,15 @@ function styleFor(it: Item): { Icon: typeof Activity; tile: string } {
   return { Icon: Activity, tile: 'bg-slate-500' };
 }
 
-// Group category per item. `kind` cleanly maps for the two cron-generated kinds
-// that always mean a workout nudge; everything else (mostly admin-composed
-// `kind: 'custom'` messages, which carry no category column at all) falls back
-// to the same title/body regex idiom styleFor already uses, tuned to the 4
-// push-pref categories in src/lib/push.ts's NotificationCategory. Anything that
-// still doesn't match (e.g. race/registration copy) lands in the "other" catch-all.
-function categoryFor(it: Item): GroupCategory {
-  if (it.kind === 'training_before' || it.kind === 'workout_detected') return 'workouts';
-  const s = it.title + ' ' + it.body;
-  if (/מאמן|תשובה|💬/.test(s)) return 'coach';
-  if (/תוכנית|תוכניות|שבוע חדש|תזונה/.test(s)) return 'program';
-  if (/שיא|רצף|הישג|סיכום|מרוץ|מרתון|הרשמה|🏆|🎉|🔥|🎖|🏅/.test(s)) return 'achievements';
-  if (/אימון|נוכחות|מגיעים/.test(s)) return 'workouts';
-  return 'other';
-}
-
-const GROUP_META: Record<GroupCategory, { Icon: typeof Activity; bg: string; fg: string }> = {
-  workouts: { Icon: Calendar, bg: 'bg-primary-600/20', fg: 'text-primary-300' },
-  coach: { Icon: MessageSquare, bg: 'bg-sky-500/18', fg: 'text-sky-300' },
-  achievements: { Icon: Flame, bg: 'bg-emerald-500/18', fg: 'text-emerald-300' },
-  program: { Icon: ClipboardList, bg: 'bg-amber-500/18', fg: 'text-amber-300' },
-  other: { Icon: Activity, bg: 'bg-slate-600/30', fg: 'text-slate-300' },
-};
-
-interface Group {
-  category: GroupCategory;
+interface Section {
+  bucket: DateBucket;
   items: Item[];
-  newestAt: string;
-  unreadCount: number;
 }
 
 // In-app notification inbox (PRD panel 5): the athlete's notification history,
-// grouped by category (iOS-style collapsible sections) — unread dots + tap to
-// open the linked screen. Reads /api/notifications/inbox.
+// grouped by date (Today / Yesterday / This week / Older — a static
+// chronological list, no collapsing) — unread dots + tap to open the linked
+// screen. Reads /api/notifications/inbox.
 export default function NotificationsInboxPage() {
   const router = useRouter();
   const tn = useTranslations('notifications');
@@ -127,51 +116,28 @@ export default function NotificationsInboxPage() {
   }, [athleteId]);
 
   const isUnread = useCallback((it: Item) => it.unread && !clearedIds.has(it.id), [clearedIds]);
+  const totalUnread = useMemo(() => items.filter(isUnread).length, [items, isUnread]);
 
-  // Group by category, newest-item-first per group.
-  const groups: Group[] = useMemo(() => {
-    const byCategory = new Map<GroupCategory, Item[]>();
+  // Static date sections, newest-item-first within each — no collapsing, so
+  // the page never looks empty just because everything's already read.
+  const sections: Section[] = useMemo(() => {
+    const byBucket = new Map<DateBucket, Item[]>();
     for (const it of items) {
-      const cat = categoryFor(it);
-      if (!byCategory.has(cat)) byCategory.set(cat, []);
-      byCategory.get(cat)!.push(it);
+      const b = dateBucketFor(it.sentAt);
+      if (!byBucket.has(b)) byBucket.set(b, []);
+      byBucket.get(b)!.push(it);
     }
-    return Array.from(byCategory.entries())
-      .map(([category, groupItems]) => ({
-        category,
-        items: groupItems,
-        newestAt: groupItems[0]?.sentAt,
-        unreadCount: groupItems.filter(isUnread).length,
-      }))
-      .sort((a, b) => new Date(b.newestAt).getTime() - new Date(a.newestAt).getTime());
-  }, [items, isUnread]);
+    return DATE_BUCKETS
+      .filter(b => byBucket.has(b))
+      .map(bucket => ({ bucket, items: byBucket.get(bucket)! }));
+  }, [items]);
 
-  // Expand/collapse per category — default: expanded if the group has any
-  // unread item, collapsed otherwise. Only seeded once (on first load) so the
-  // athlete's manual toggles survive later SWR revalidations.
-  const [openCats, setOpenCats] = useState<Set<GroupCategory>>(new Set());
-  const seededRef = useRef(false);
-  useEffect(() => {
-    if (seededRef.current || !data) return;
-    seededRef.current = true;
-    setOpenCats(new Set(groups.filter(g => g.unreadCount > 0).map(g => g.category)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
-
-  const toggleCat = (cat: GroupCategory) => {
-    setOpenCats(prev => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat); else next.add(cat);
-      return next;
-    });
-  };
-
-  // Group "X" — clears the unread highlight for every currently-unread item in
-  // the group. Doesn't touch the server (nothing per-notification to update
-  // there); persists to localStorage so it survives a reload, same as the
-  // idiom used elsewhere in the app for dismiss-style flags.
-  const markGroupRead = (group: Group) => {
-    const ids = group.items.filter(isUnread).map(i => i.id);
+  // Single "mark all read" action, replacing the old per-category button —
+  // clears every currently-unread item at once. Doesn't touch the server
+  // (nothing per-notification to update there); persists to localStorage so
+  // it survives a reload, same idiom the app uses for other dismiss flags.
+  const markAllRead = () => {
+    const ids = items.filter(isUnread).map(i => i.id);
     if (ids.length === 0) return;
     setClearedIds(prev => {
       const next = new Set(prev);
@@ -189,10 +155,19 @@ export default function NotificationsInboxPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="mb-5">
+      <div className="mb-5 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Bell className="h-6 w-6 text-primary-400" /> {tn('title')}
         </h1>
+        {totalUnread > 0 && (
+          <button
+            type="button"
+            onClick={markAllRead}
+            className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-primary-300 hover:text-white hover:bg-slate-700/60 transition-colors"
+          >
+            <CheckCheck className="h-3.5 w-3.5" /> {tn('markAllRead')}
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -200,66 +175,28 @@ export default function NotificationsInboxPage() {
       ) : items.length === 0 ? (
         <EmptyState icon={Bell} title={tn('empty')} />
       ) : (
-        <div className="space-y-3">
-          {groups.map((group) => {
-            const meta = GROUP_META[group.category];
-            const open = openCats.has(group.category);
-            return (
-              <InsetSection key={group.category} className="mb-0">
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleCat(group.category)}
-                    aria-expanded={open}
-                    className="flex-1 flex items-center gap-2 px-3.5 py-2.5 text-start min-w-0"
-                  >
-                    <span className={`w-7 h-7 rounded-lg ${meta.bg} flex items-center justify-center shrink-0`}>
-                      <meta.Icon className={`h-3.5 w-3.5 ${meta.fg}`} />
-                    </span>
-                    <span className="flex-1 min-w-0 flex items-baseline gap-1.5">
-                      <span className="text-sm font-bold text-white truncate">{tn(`categories.${group.category}`)}</span>
-                      <span className="text-2xs text-slate-500 tabular-nums shrink-0">{group.items.length}</span>
-                      {group.unreadCount > 0 && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" aria-hidden="true" />
-                      )}
-                    </span>
-                    <span className="flex items-center gap-1 text-2xs font-semibold text-slate-400 shrink-0">
-                      {open ? tn('showLess') : tn('showMore')}
-                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
-                    </span>
-                  </button>
-                  {group.unreadCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => markGroupRead(group)}
-                      className="min-w-[44px] min-h-[44px] me-1 flex items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/60 transition-colors shrink-0"
-                      aria-label={tn('markGroupRead')}
-                      title={tn('markGroupRead')}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-                {open && group.items.map((it) => {
-                  const { Icon, tile } = styleFor(it);
-                  const unread = isUnread(it);
-                  return (
-                    <div key={it.id} className="relative">
-                      {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-500 z-10" aria-hidden="true" />}
-                      <InsetRow
-                        icon={Icon}
-                        iconBg={tile}
-                        label={it.title}
-                        sublabel={it.body}
-                        value={timeAgo(it.sentAt, tn, dateLocale)}
-                        onClick={() => router.push(it.url || '/dashboard')}
-                      />
-                    </div>
-                  );
-                })}
-              </InsetSection>
-            );
-          })}
+        <div className="space-y-5">
+          {sections.map(({ bucket, items: sectionItems }) => (
+            <InsetSection key={bucket} header={tn(`dateSections.${bucket}`)}>
+              {sectionItems.map((it) => {
+                const { Icon, tile } = styleFor(it);
+                const unread = isUnread(it);
+                return (
+                  <div key={it.id} className="relative">
+                    {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-500 z-10" aria-hidden="true" />}
+                    <InsetRow
+                      icon={Icon}
+                      iconBg={tile}
+                      label={it.title}
+                      sublabel={it.body}
+                      value={timeAgo(it.sentAt, tn, dateLocale)}
+                      onClick={() => router.push(it.url || '/dashboard')}
+                    />
+                  </div>
+                );
+              })}
+            </InsetSection>
+          ))}
         </div>
       )}
     </div>
