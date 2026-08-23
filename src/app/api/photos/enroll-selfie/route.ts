@@ -16,6 +16,7 @@ import { verifyRequest } from '@/lib/auth/verify';
 import { createServerClient } from '@/lib/supabase/server';
 import { detectFaces, indexFace, deleteFace } from '@/lib/rekognition/client';
 import { backfillAthlete } from '@/lib/photos/backfill';
+import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -100,6 +101,21 @@ export async function POST(req: NextRequest) {
 
     // Backfill — find every already-imported photo this athlete appears in
     const tagged = await backfillAthlete(user.athleteId, faceId);
+
+    if (tagged > 0) {
+      try {
+        const subs = await resolveAudience('athlete', user.athleteId);
+        if (subs.length > 0) {
+          await sendPushToSubscriptions(subs, {
+            title: '📸 מצאנו תמונות שלך!',
+            body: `${tagged} תמונות מריצות קודמות מתויגות עליך`,
+            url: '/dashboard/photos?tab=my',
+            tag: `photos-backfill-${user.athleteId}`,
+            category: 'news',
+          });
+        }
+      } catch { /* best-effort — never let a push failure affect enrollment */ }
+    }
 
     return NextResponse.json({ enrolled: true, photosFound: tagged });
   } catch (error: unknown) {

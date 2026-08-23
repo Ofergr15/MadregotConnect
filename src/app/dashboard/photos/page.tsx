@@ -209,6 +209,16 @@ function ImportTab() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'recluster' }),
         });
+
+        // Let athletes know new photos are up — best-effort, never blocks the
+        // import flow from completing.
+        try {
+          await authedFetch('/api/photos/notify-import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: folder.date }),
+          });
+        } catch { /* best-effort */ }
       }
 
       setStates(s => ({ ...s, [folder.id]: 'done' }));

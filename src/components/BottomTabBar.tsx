@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, Menu, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift,
+  BarChart3, Menu, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift, Camera,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
@@ -223,13 +223,15 @@ export function BottomTabBar() {
         <div className="space-y-5">
           {/* Static group — every role, not gated by role_mobile_tab_permissions
               (roadmap #17, In-App Global Search; roadmap #9, Store; roadmap
-              #5, Benefits/Discounts). */}
+              #5, Benefits/Discounts; Photos — was previously unreachable from
+              mobile nav entirely, same "every role, always visible" fix). */}
           <div>
             <p className="px-1 mb-2 text-2xs font-bold uppercase tracking-wider text-slate-500">{t('quickActions' as any)}</p>
             <div className="grid grid-cols-3 gap-3">
               <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={Gift} label={t('benefits' as any)} href="/dashboard/benefits" active={isActive('/dashboard/benefits')} onClick={() => setMoreOpen(false)} />
+              <MoreCard icon={Camera} label={t('photos' as any)} href="/dashboard/photos" active={isActive('/dashboard/photos')} onClick={() => setMoreOpen(false)} />
             </div>
           </div>
 
