@@ -289,15 +289,6 @@ export default function SettingsPage() {
   // detail (coaches are athletes too; null if this account has no athlete row).
   const [notifPrefsAthleteId, setNotifPrefsAthleteId] = useState('');
   useEffect(() => { setNotifPrefsAthleteId(localStorage.getItem('athlete_id') || ''); }, []);
-  // Day summary for the reminders landing row (e.g. "ג׳, ו׳"). Lightweight read.
-  const [reminderSummary, setReminderSummary] = useState('');
-  useEffect(() => {
-    fetch('/api/reminder-config').then(r => r.ok ? r.json() : null).then(d => {
-      const days: number[] = Array.isArray(d?.config?.teamDays) ? d.config.teamDays : [];
-      const H = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
-      setReminderSummary(days.map(n => H[n]).join(', '));
-    }).catch(() => {});
-  }, []);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   // Whether the signed-in account is allowed to approve registrations / grant
@@ -774,14 +765,6 @@ export default function SettingsPage() {
               iconBg="bg-violet-500"
               label={t('personalInfo')}
               onClick={() => setActiveTab('personalInfo')}
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
-            />
-            <InsetRow
-              icon={Bell}
-              iconBg="bg-blue-500"
-              label={t('workoutReminders')}
-              value={reminderSummary}
-              onClick={() => setActiveTab('reminders')}
               trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
             />
             <InsetRow

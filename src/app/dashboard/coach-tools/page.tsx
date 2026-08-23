@@ -92,6 +92,7 @@ export default function CoachToolsPage() {
         <InsetRow icon={Layout} iconBg="bg-amber-500" label={ts('tabManager')} href="/dashboard/settings?tab=tabs" />
         <InsetRow icon={MessageSquare} iconBg="bg-teal-500" label={ts('feedback')} href="/dashboard/settings?tab=feedback" />
         <InsetRow icon={Bell} iconBg="bg-rose-500" label={ts('notificationCenter')} href="/dashboard/settings?tab=notifications" />
+        <InsetRow icon={Bell} iconBg="bg-blue-500" label={ts('workoutReminders')} href="/dashboard/settings?tab=reminders" />
         <InsetRow icon={Award} iconBg="bg-fuchsia-500" label={ts('badgeManager')} href="/dashboard/settings?tab=badges" />
         <InsetRow icon={Trophy} iconBg="bg-orange-500" label={ts('challengeManager')} href="/dashboard/settings?tab=challenges" />
         <InsetRow icon={ShoppingBag} iconBg="bg-cyan-600" label={ts('storeManager')} href="/dashboard/settings?tab=store" />

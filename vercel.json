@@ -21,7 +21,7 @@
     },
     {
       "path": "/api/cron/tick",
-      "schedule": "0 * * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/workout-watch",

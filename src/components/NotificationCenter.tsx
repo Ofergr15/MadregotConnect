@@ -61,6 +61,45 @@ interface NotificationRow {
   last_sent_at: string | null; sent_count: number; created_at: string;
 }
 
+function NotificationRowView({ n, onCancel, onRemove }: {
+  n: NotificationRow;
+  onCancel: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <div className="bg-slate-900/40 rounded-xl border border-slate-700/30 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white truncate" dir="auto">{n.title_he}</p>
+          <p className="text-xs text-slate-400 truncate" dir="auto">{n.body_he}</p>
+          <div className="flex items-center gap-2 mt-1.5 text-3xs text-slate-500">
+            {n.status === 'sent' ? <CheckCircle className="w-3 h-3 text-green-400" />
+              : n.schedule_type === 'recurring' ? <Repeat className="w-3 h-3 text-primary-600" />
+              : <Clock className="w-3 h-3 text-amber-400" />}
+            <span>
+              {n.status === 'sent' ? `נשלח (${n.sent_count})`
+                : n.status === 'cancelled' ? 'בוטל'
+                : n.schedule_type === 'recurring' ? `כל ${n.recur_interval} ${n.recur_unit === 'week' ? 'שבועות' : 'ימים'}`
+                : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן'}
+            </span>
+            <span>· {n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם'}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {n.status === 'scheduled' && (
+            <button onClick={() => onCancel(n.id)} title="ביטול" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-amber-400">
+              <Clock className="w-4 h-4" />
+            </button>
+          )}
+          <button onClick={() => onRemove(n.id)} title="מחיקה" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function NotificationCenter() {
   const [actorEmail, setActorEmail] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
@@ -265,6 +304,11 @@ export function NotificationCenter() {
   const selectedAthleteName = athletes.find(a => a.id === audienceId)?.name;
   const filteredAthletes = athletes.filter(a => !athleteSearch.trim() || a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()));
 
+  // Scheduled vs. past — same grouping regardless of who it went to (all /
+  // group / one athlete all mix together within each section, same as before).
+  const scheduledList = list.filter(n => n.status === 'scheduled');
+  const pastList = list.filter(n => n.status !== 'scheduled');
+
   const audienceSummary =
     audienceType === 'all' ? 'כל הרצים'
     : audienceType === 'group' ? (groups.find(g => g.id === audienceId)?.name ? `דבוקת "${groups.find(g => g.id === audienceId)?.name}"` : 'הדבוקה שנבחרה')
@@ -326,39 +370,27 @@ export function NotificationCenter() {
       ) : list.length === 0 ? (
         <EmptyState icon={Bell} title="אין התראות עדיין" />
       ) : (
-        <div className="space-y-2">
-          {list.map(n => (
-            <div key={n.id} className="bg-slate-900/40 rounded-xl border border-slate-700/30 p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white truncate" dir="auto">{n.title_he}</p>
-                  <p className="text-xs text-slate-400 truncate" dir="auto">{n.body_he}</p>
-                  <div className="flex items-center gap-2 mt-1.5 text-3xs text-slate-500">
-                    {n.status === 'sent' ? <CheckCircle className="w-3 h-3 text-green-400" />
-                      : n.schedule_type === 'recurring' ? <Repeat className="w-3 h-3 text-primary-600" />
-                      : <Clock className="w-3 h-3 text-amber-400" />}
-                    <span>
-                      {n.status === 'sent' ? `נשלח (${n.sent_count})`
-                        : n.status === 'cancelled' ? 'בוטל'
-                        : n.schedule_type === 'recurring' ? `כל ${n.recur_interval} ${n.recur_unit === 'week' ? 'שבועות' : 'ימים'}`
-                        : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן'}
-                    </span>
-                    <span>· {n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם'}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {n.status === 'scheduled' && (
-                    <button onClick={() => cancel(n.id)} title="ביטול" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-amber-400">
-                      <Clock className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button onClick={() => remove(n.id)} title="מחיקה" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+        <div className="space-y-5">
+          {/* Grouped by status, not by who it's going to — "all"/group/one
+              athlete all mix together within each group, same as scheduling
+              already treats them, just no longer jumbled together in one
+              flat list regardless of whether they've fired yet. */}
+          {scheduledList.length > 0 && (
+            <div>
+              <h4 className="text-2xs font-bold text-slate-500 mb-2" dir="rtl">מתוזמן</h4>
+              <div className="space-y-2">{scheduledList.map(n => (
+                <NotificationRowView key={n.id} n={n} onCancel={cancel} onRemove={remove} />
+              ))}</div>
             </div>
-          ))}
+          )}
+          {pastList.length > 0 && (
+            <div>
+              <h4 className="text-2xs font-bold text-slate-500 mb-2" dir="rtl">היסטוריה</h4>
+              <div className="space-y-2">{pastList.map(n => (
+                <NotificationRowView key={n.id} n={n} onCancel={cancel} onRemove={remove} />
+              ))}</div>
+            </div>
+          )}
         </div>
       )}
 
