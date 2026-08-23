@@ -59,6 +59,11 @@ async function run(request: Request) {
         url: n.url,
         tag: `notif-${n.id}`,
         renotify: n.schedule_type === 'recurring',
+        // Same category as the "send now" path (api/notifications/route.ts)
+        // — scheduled/recurring broadcasts are the same feature, just on a
+        // timer, and shouldn't be forced-on while their immediate sibling
+        // is mutable.
+        category: 'news',
       });
 
       if (n.schedule_type === 'recurring' && n.recur_interval && n.recur_unit) {

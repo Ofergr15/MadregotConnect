@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { APPROVER_EMAILS } from '@/lib/constants';
+import { subscriptionsForAthletes, sendPushToSubscriptions } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,6 +146,28 @@ export async function POST(request: Request) {
     if (itemsError) {
       await supabase.from('store_orders').delete().eq('id', order.id);
       throw itemsError;
+    }
+
+    // Previously a coach only learned of a new order by manually opening the
+    // Store admin panel — nothing ever surfaced it. Best-effort, same
+    // coach-allowlist pattern as the workout-feedback alert push.
+    try {
+      const { data: athlete } = await supabase.from('athletes').select('name').eq('id', athleteId).maybeSingle();
+      const { data: coaches } = await supabase.from('athletes').select('id').in('email', APPROVER_EMAILS);
+      const coachIds = (coaches || []).map((c: { id: string }) => c.id);
+      if (coachIds.length > 0) {
+        const subs = await subscriptionsForAthletes(coachIds);
+        if (subs.length > 0) {
+          await sendPushToSubscriptions(subs, {
+            title: '🛒 הזמנה חדשה בחנות',
+            body: `${athlete?.name || 'ספורטאי/ת'}: ${lineItems.length} פריטים · ${total} ₪`,
+            url: '/dashboard/store',
+            tag: `store-order-${order.id}`,
+          });
+        }
+      }
+    } catch {
+      // best-effort — never let a push failure affect order creation
     }
 
     return NextResponse.json({ orderId: order.id, total, createdAt: order.created_at });

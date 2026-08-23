@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
 import type { FeedMedia } from '@/lib/feed/project';
+import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +75,28 @@ export async function POST(request: Request) {
       viewerIsStaff: auth.user.isStaff,
       likedItemIds: new Set<string>(),
     });
+
+    // Previously only a REACTION to a post ever notified anyone (the author,
+    // on like/comment) — the post itself was silent to everyone else in the
+    // group. Same "what my teammates are up to" bucket as feed reactions.
+    try {
+      if (auth.user.groupId) {
+        const subs = (await resolveAudience('group', auth.user.groupId))
+          .filter((s) => s.athlete_id !== auth.user.athleteId);
+        if (subs.length > 0) {
+          const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
+          await sendPushToSubscriptions(subs, {
+            title: `${auth.user.name || 'מישהו'} פרסם/ה בפיד 📸`,
+            body: preview || 'לחצו לצפייה',
+            url: `/dashboard/feed?item=${created.id}`,
+            tag: `feed-post-${created.id}`,
+            category: 'teammates',
+          });
+        }
+      }
+    } catch {
+      // best-effort — never let a push failure affect post creation
+    }
 
     return NextResponse.json({ item });
   } catch (err: unknown) {

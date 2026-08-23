@@ -35,6 +35,10 @@ export async function notifyFeedInteraction(opts: {
       body,
       url: `/dashboard/feed?item=${feedItemId}`,
       tag: `feed-${kind}-${feedItemId}`,
+      // Same "what my teammates are up to" bucket as notifyTeammatesOfActivity
+      // — a like/comment is exactly this kind of low-stakes social ping, and
+      // it shouldn't be forced-on when nothing else here is.
+      category: 'teammates',
     });
   } catch {
     /* best-effort */

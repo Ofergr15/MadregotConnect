@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
+import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +77,24 @@ export async function POST(request: Request) {
       .select()
       .single();
     if (error) throw error;
+
+    // Previously athletes only learned of a new perk by opening Benefits
+    // themselves — nothing ever surfaced it. Mutable (news), same as the
+    // Notification Center's own broadcasts.
+    try {
+      const subs = await resolveAudience('all', null);
+      if (subs.length > 0) {
+        await sendPushToSubscriptions(subs, {
+          title: '🎁 הטבה חדשה!',
+          body: `${sponsorName.trim()}: ${titleHe.trim()}`,
+          url: '/dashboard/benefits',
+          tag: `perk-${data.id}`,
+          category: 'news',
+        });
+      }
+    } catch {
+      // best-effort — never let a push failure affect perk creation
+    }
 
     return NextResponse.json({ perk: data });
   } catch (error) {
