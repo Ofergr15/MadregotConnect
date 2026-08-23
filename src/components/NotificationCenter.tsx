@@ -315,7 +315,8 @@ export function NotificationCenter() {
 
   const inputCls = 'w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600';
 
-  const selectedAthleteName = athletes.find(a => a.id === audienceId)?.name;
+  const selectedAthlete = athletes.find(a => a.id === audienceId);
+  const selectedAthleteName = selectedAthlete?.name;
   const filteredAthletes = athletes.filter(a => !athleteSearch.trim() || a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()));
 
   // Scheduled vs. past — same grouping regardless of who it went to (all /
@@ -617,9 +618,14 @@ export function NotificationCenter() {
                 className={cn(inputCls, 'mt-2 flex items-center justify-between text-start')}
                 dir="rtl"
               >
-                <span className={selectedAthleteName ? 'text-white' : 'text-slate-500'}>
-                  {selectedAthleteName || 'בחרו רץ…'}
-                </span>
+                {selectedAthlete ? (
+                  <span className="flex flex-col items-start">
+                    <span className="text-white">{selectedAthlete.name}</span>
+                    <span className="text-2xs text-slate-500" dir="ltr">{selectedAthlete.email}</span>
+                  </span>
+                ) : (
+                  <span className="text-slate-500">בחרו רץ…</span>
+                )}
               </button>
             )}
           </div>
@@ -726,6 +732,7 @@ export function NotificationCenter() {
             <InsetRow
               key={a.id}
               label={a.name}
+              sublabel={a.email}
               onClick={() => { setAudienceId(a.id); setAthletePickerOpen(false); setAthleteSearch(''); }}
               trailing={a.id === audienceId ? <CheckCircle2 className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
             />

@@ -63,6 +63,18 @@ function DevBar() {
   };
 
   const stravaLogin = async () => {
+    // This simulates the anonymous "brand-new Strava signup" flow with a REAL
+    // Strava OAuth grant — clicking it while already signed in as a real
+    // (non-test) athlete creates a permanent duplicate athlete row tied to
+    // that Strava account, distinct from the real one. Bit us once already.
+    const currentEmail = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
+    const isKnownTestAccount = TEST_ACCOUNTS.some(t => t.email === currentEmail);
+    if (currentEmail && !isKnownTestAccount) {
+      const ok = window.confirm(
+        `You're signed in as ${currentEmail}. This will create a SEPARATE, permanent test athlete via real Strava OAuth — not link Strava to this account. Continue?`
+      );
+      if (!ok) return;
+    }
     setLoading('strava-oauth');
     setError(null);
     try {
