@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Eye, LogOut, Shield, Megaphone, Footprints, Glasses, Construction } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
@@ -25,19 +25,14 @@ const SCENARIOS: Array<{ mode: string; label: string; icon: any; tone: string }>
   { mode: MAINTENANCE_MODE, label: 'מסך תחזוקה', icon: Construction, tone: 'text-amber-300' },
 ];
 
-function labelFor(mode: string | null): string {
-  if (!mode) return '';
-  return SCENARIOS.find((s) => s.mode === mode)?.label || mode;
-}
-
 // Super-user "view as" control. Always mounted in the root layout (a sibling of
 // MaintenanceGate, outside the intl provider) so it can overlay the maintenance
-// screen and stay reachable everywhere. Renders:
-//  - a persistent banner while a scenario is active ("Viewing as <role> — Exit"),
-//    at z-[300] so it sits above the maintenance gate (z-200); and
-//  - a scenario chooser (roles + maintenance screen), opened from the banner's
-//    "Switch", the Header eye button ('open-view-as' event), or a floating
-//    trigger shown above the gate when maintenance is blocking Ofer.
+// screen and stay reachable everywhere. Renders only a scenario chooser (roles +
+// maintenance screen), opened from the Header eye button / "צפייה כמשתמש" row
+// ('open-view-as' event), MaintenanceGate's own button when the gate is up, or a
+// floating trigger shown above the gate when maintenance is blocking Ofer with no
+// scenario active. That's the single entry point for switching AND exiting — no
+// separate persistent banner.
 // Non-super-users get nothing.
 export function ImpersonationBar() {
   const [mounted, setMounted] = useState(false);
@@ -47,7 +42,6 @@ export function ImpersonationBar() {
   // True when the maintenance gate is currently blocking the REAL super user and
   // no scenario is active — then the Header eye button is hidden behind the gate.
   const [gateBlockingMe, setGateBlockingMe] = useState(false);
-  const bannerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     installViewGuard();
@@ -96,24 +90,6 @@ export function ImpersonationBar() {
     return () => window.removeEventListener('open-view-as', open);
   }, []);
 
-  // Push the page down by the banner height so it doesn't cover the sticky header.
-  useEffect(() => {
-    if (!mode) {
-      document.body.style.paddingTop = '';
-      return;
-    }
-    const apply = () => {
-      const h = bannerRef.current?.offsetHeight || 0;
-      document.body.style.paddingTop = h ? `${h}px` : '';
-    };
-    apply();
-    window.addEventListener('resize', apply);
-    return () => {
-      window.removeEventListener('resize', apply);
-      document.body.style.paddingTop = '';
-    };
-  }, [mode]);
-
   if (!mounted || !canView) return null;
 
   return (
@@ -129,34 +105,6 @@ export function ImpersonationBar() {
         >
           <Eye className="h-4 w-4" /> תצוגת משתמש
         </button>
-      )}
-
-      {/* Persistent banner while a scenario is active — above the maintenance gate. */}
-      {mode && (
-        <div
-          ref={bannerRef}
-          className="fixed top-0 inset-x-0 z-[300] flex items-center gap-2 px-3 py-2 text-white text-sm font-semibold shadow-lg safe-top"
-          style={{ background: 'linear-gradient(90deg,#b45309,#d97706)' }}
-        >
-          <Eye className="h-4 w-4 shrink-0" />
-          <span className="min-w-0 truncate">
-            תצוגה בתור <b>{labelFor(mode)}</b>
-          </span>
-          <div className="ms-auto flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => setChooserOpen(true)}
-              className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold"
-            >
-              החלף
-            </button>
-            <button
-              onClick={() => stopViewAs()}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/25 hover:bg-black/40 transition-colors text-xs font-bold"
-            >
-              <LogOut className="h-3.5 w-3.5" /> יציאה
-            </button>
-          </div>
-        </div>
       )}
 
       {/* Scenario chooser */}
