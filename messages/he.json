@@ -1094,6 +1094,7 @@
     "weeklyProgram": "תוכנית שבועית",
     "subtitle": "תוכניות אימון ותזונה — מדרגות After 2KM",
     "current": "נוכחי",
+    "newPlan": "חדש",
     "training": "אימון",
     "nutrition": "תזונה",
     "workout": "אימון",
@@ -1199,7 +1200,8 @@
     "addToCalendar": "הוספה ליומן",
     "doneSuffix": "הושלמו",
     "ctaConfirm": "אשרו הגעה לאימון",
-    "ctaViewPlan": "צפייה בתוכנית השבועית"
+    "ctaViewPlan": "צפייה בתוכנית השבועית",
+    "newPlanBadge": "חדש"
   },
   "workoutFeedback": {
     "title": "איך היה האימון?",

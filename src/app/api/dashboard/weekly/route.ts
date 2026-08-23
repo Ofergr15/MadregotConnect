@@ -116,6 +116,9 @@ export async function GET() {
       typeDistribution,
       currentWeekStart,
       trainingDays,
+      // Lets the dashboard hero card show a "new workouts" badge for a
+      // couple of days after the plan first went out.
+      publishedAt: currentPlan?.status === 'pushed' ? currentPlan.created_at : null,
     });
   } catch (error) {
     console.error('Weekly dashboard error:', error);

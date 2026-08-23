@@ -215,3 +215,14 @@ export function slugify(name: string): string {
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 }
+
+// A plan is "new" for a couple of days after it's first pushed \u2014 long enough
+// to catch someone who doesn't open the app daily, short enough that it
+// doesn't linger once everyone's had a chance to see it. Not athlete-specific
+// (no per-athlete read state exists), but a reasonable proxy since a coach
+// typically pushes a given week's plan once.
+const NEW_PLAN_WINDOW_MS = 48 * 60 * 60 * 1000;
+export function isRecentlyPublished(publishedAt?: string | null): boolean {
+  if (!publishedAt) return false;
+  return Date.now() - new Date(publishedAt).getTime() < NEW_PLAN_WINDOW_MS;
+}

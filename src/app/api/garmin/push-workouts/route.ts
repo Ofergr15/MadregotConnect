@@ -5,6 +5,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { PaceProfile } from '@/lib/garmin/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
+import { subscriptionsForAthletes, sendPushToSubscriptions } from '@/lib/push';
 
 interface PushResult {
   athleteId: string;
@@ -132,6 +133,26 @@ export async function POST(req: NextRequest) {
           athleteName: athlete.name,
           status: 'success',
         });
+
+        // Let the athlete know their watch has new workouts — previously
+        // the only way to find out was to happen to check the app or watch;
+        // pushing a plan was otherwise completely silent to them.
+        try {
+          const subs = await subscriptionsForAthletes([athlete.id]);
+          if (subs.length > 0) {
+            await sendPushToSubscriptions(subs, {
+              title: 'האימונים שלך מוכנים! 🏃',
+              body: workouts.length === 1
+                ? 'אימון חדש מחכה לך — לחצו לצפייה'
+                : `${workouts.length} אימונים חדשים מחכים לך — לחצו לצפייה`,
+              url: '/dashboard/program',
+              tag: `plan-push-${planId || weekStartDate}`,
+              category: 'program',
+            });
+          }
+        } catch {
+          // best-effort — never let a push failure affect the actual delivery result
+        }
       } catch (error: any) {
         results.push({
           athleteId: athlete.id,

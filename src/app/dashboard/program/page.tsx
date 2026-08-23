@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList, Hash, Calendar, CalendarRange } from 'lucide-react';
-import { cn, getPlanWeekStart } from '@/lib/utils';
+import { cn, getPlanWeekStart, isRecentlyPublished } from '@/lib/utils';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
 import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
 import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
@@ -30,9 +30,11 @@ interface WeekPlanSession {
 interface WeekPlanResponse {
   hasPlan: boolean;
   weekStart: string;
+  publishedAt?: string | null;
   dailyDistances: WeekPlanDay[];
   keySessions: WeekPlanSession[];
 }
+
 
 interface ProgramWeek {
   id: string;
@@ -317,6 +319,11 @@ export default function ProgramPage() {
             {isCurrentWeek && (
               <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
                 {t('current')}
+              </span>
+            )}
+            {isRecentlyPublished(weekPlan?.publishedAt) && (
+              <span className="bg-primary-500/20 text-primary-400 text-xs px-2 py-0.5 rounded-full font-bold shrink-0 animate-pulse">
+                {t('newPlan')}
               </span>
             )}
             <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />

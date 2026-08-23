@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     // prefer 'pushed', same precedence as /api/dashboard/weekly.
     const { data: rows } = await supabase
       .from('weekly_plans')
-      .select('parsed_workouts, status')
+      .select('parsed_workouts, status, created_at')
       .eq('coach_id', COACH_ID)
       .eq('week_start_date', weekStart);
 
@@ -35,7 +35,10 @@ export async function GET(req: NextRequest) {
     }
 
     const breakdown = buildWeekBreakdown(plan.parsed_workouts);
-    return NextResponse.json({ hasPlan: true, weekStart, ...breakdown });
+    // Lets the frontend show a "New" badge for a couple of days after the
+    // plan first went out — not athlete-specific (no per-athlete read state
+    // exists), but a reasonable proxy since a coach typically pushes once.
+    return NextResponse.json({ hasPlan: true, weekStart, publishedAt: plan.status === 'pushed' ? plan.created_at : null, ...breakdown });
   } catch (error) {
     console.error('Plan week error:', error);
     return NextResponse.json({ error: 'Failed to fetch week plan' }, { status: 500 });

@@ -30,6 +30,8 @@ interface NextWorkoutCardProps {
   workoutHour: number;
   hasRsvpTarget: boolean;
   rsvpAnswered: boolean;
+  /** This week's plan was pushed recently — shows a badge on the "view plan" CTA. */
+  isNewPlan?: boolean;
   /** The embedded <AttendanceRSVP /> for this workout, or null when there's no team day to RSVP for. */
   children?: React.ReactNode;
 }
@@ -42,7 +44,7 @@ interface NextWorkoutCardProps {
 // "what's next" into a single hero card with inline actions.)
 export function NextWorkoutCard({
   isToday, workout, typeLabel, typeColor, done, doneKm, date, workoutHour,
-  hasRsvpTarget, rsvpAnswered, children,
+  hasRsvpTarget, rsvpAnswered, isNewPlan, children,
 }: NextWorkoutCardProps) {
   const t = useTranslations('nextWorkout');
   const td = useTranslations('dashboard');
@@ -121,7 +123,13 @@ export function NextWorkoutCard({
           href="/dashboard/program"
           className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 transition-colors"
         >
-          {t('ctaViewPlan')} <ArrowRight className="h-4 w-4" />
+          {t('ctaViewPlan')}
+          {isNewPlan && (
+            <span className="bg-white/20 text-white text-3xs font-bold px-2 py-0.5 rounded-full">
+              {t('newPlanBadge')}
+            </span>
+          )}
+          <ArrowRight className="h-4 w-4" />
         </Link>
       )}
     </>

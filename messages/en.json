@@ -1094,6 +1094,7 @@
     "weeklyProgram": "Weekly Program",
     "subtitle": "Training & Nutrition plans — Madregot After 2KM",
     "current": "Current",
+    "newPlan": "New",
     "training": "Training",
     "nutrition": "Nutrition",
     "workout": "Workout",
@@ -1199,7 +1200,8 @@
     "addToCalendar": "Add to calendar",
     "doneSuffix": "done",
     "ctaConfirm": "Confirm your attendance",
-    "ctaViewPlan": "View weekly plan"
+    "ctaViewPlan": "View weekly plan",
+    "newPlanBadge": "New"
   },
   "workoutFeedback": {
     "title": "How was your workout?",

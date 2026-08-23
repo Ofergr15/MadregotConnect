@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { Calendar, ArrowRight, TrendingUp, TrendingDown, MapPin, Flame } from 'lucide-react';
-import { cn, getActivityWeekStart, getPlanWeekStart } from '@/lib/utils';
+import { cn, getActivityWeekStart, getPlanWeekStart, isRecentlyPublished } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
 import { useApi } from '@/lib/api';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
@@ -49,6 +49,7 @@ interface WeeklyData {
   typeDistribution: Record<string, number>;
   trainingDays: number;
   currentWeekStart: string;
+  publishedAt?: string | null;
 }
 
 interface RecentActivity {
@@ -422,6 +423,7 @@ export default function DashboardPage() {
           workoutHour={workoutHour}
           hasRsvpTarget={!!rsvpTarget}
           rsvpAnswered={rsvpAnswered}
+          isNewPlan={isRecentlyPublished(weekly?.publishedAt)}
         >
           {rsvpTarget && (
             <AttendanceRSVP
