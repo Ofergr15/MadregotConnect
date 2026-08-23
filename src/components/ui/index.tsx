@@ -6,6 +6,7 @@
 // these consolidate them so every screen is cut from the same cloth. All brand
 // color comes from the `primary` token (now the real #4338ff), never hardcoded.
 
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sheet } from './Sheet';
 
@@ -169,6 +170,59 @@ export function SkeletonList({ count = 4, className }: { count?: number; classNa
     <div className={cn('space-y-2.5', className)}>
       {Array.from({ length: count }, (_, i) => <SkeletonRow key={i} />)}
     </div>
+  );
+}
+
+// ── Switch ────────────────────────────────────────────────────────────────────
+// iOS-style toggle — was hand-copied identically (bar + sliding thumb) across
+// NotificationPrefs/ReminderConfig/MaintenanceToggle at one size/color and
+// BadgeManager/StoreManager/ChallengeManager/AcademySettings at another;
+// promoted here so neither variant gets re-copied again.
+export function Switch({
+  checked,
+  onChange,
+  disabled,
+  loading,
+  size = 'md',
+  activeColor = 'bg-primary-600',
+  ariaLabel,
+  className,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  /** Shows a spinner in place of the thumb while an async save is in flight. */
+  loading?: boolean;
+  /** 'sm' matches the old BadgeManager/StoreManager/ChallengeManager/AcademySettings size; 'md' matches NotificationPrefs/ReminderConfig/MaintenanceToggle. */
+  size?: 'sm' | 'md';
+  /** Track color when checked — most callers use the default; NotificationPrefs/MaintenanceToggle used green instead. */
+  activeColor?: string;
+  ariaLabel?: string;
+  className?: string;
+}) {
+  const track = size === 'sm' ? 'w-11 h-6' : 'w-12 h-7';
+  const thumb = size === 'sm' ? 'top-0.5 h-5 w-5' : 'top-1 h-5 w-5';
+  const onPos = size === 'sm' ? 'start-[22px]' : 'start-6';
+  const offPos = size === 'sm' ? 'start-0.5' : 'start-1';
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative rounded-full transition-colors shrink-0 disabled:opacity-50',
+        track,
+        checked ? activeColor : 'bg-slate-600',
+        className,
+      )}
+    >
+      {loading
+        ? <Loader2 className="w-4 h-4 animate-spin text-white absolute inset-0 m-auto" />
+        : <span className={cn('absolute rounded-full bg-white transition-all', thumb, checked ? onPos : offPos)} />}
+    </button>
   );
 }
 

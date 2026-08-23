@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, X, Save, CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { AcademySettings as Settings, DEFAULT_ACADEMY_SETTINGS } from '@/lib/academy/settings';
-import { Card, Button, Spinner, LoadingBlock } from '@/components/ui';
+import { Card, Button, Spinner, LoadingBlock, Switch } from '@/components/ui';
 
 const DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
 
@@ -65,15 +64,10 @@ export function AcademySettingsPanel() {
 
       {/* Pace alerts */}
       <Section title="התראות קצב על השעון" desc="הדחיפה לאקדמיה כוללת יעד אזור קצב בגרמין שמצפצף כשיוצאים מהקצב.">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <button
-            onClick={() => setS({ ...s, paceAlerts: !s.paceAlerts })}
-            className={cn('relative w-11 h-6 rounded-full transition-colors', s.paceAlerts ? 'bg-primary-600' : 'bg-slate-600')}
-          >
-            <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all', s.paceAlerts ? 'start-[22px]' : 'start-0.5')} />
-          </button>
+        <div className="flex items-center gap-3">
+          <Switch checked={s.paceAlerts} onChange={(v) => setS({ ...s, paceAlerts: v })} size="sm" />
           <span className="text-sm text-slate-300">{s.paceAlerts ? 'פעיל — התראה כשיוצאים מהקצב' : 'כבוי — הקצב מוצג למידע בלבד'}</span>
-        </label>
+        </div>
       </Section>
 
       {/* Tolerances */}

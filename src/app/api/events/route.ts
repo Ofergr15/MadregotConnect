@@ -68,6 +68,7 @@ export async function POST(request: Request) {
       gear,
       faqs,
       capacity,
+      registration_deadline,
     } = body || {};
 
     if (!kind || !name || !date || !location) {
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
         gear: gear || null,
         faqs: faqs || null,
         capacity: capacity ?? null,
+        registration_deadline: registration_deadline || null,
         created_by: auth.user.athleteId,
       })
       .select()

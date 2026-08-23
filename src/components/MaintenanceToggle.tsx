@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Construction, Loader2, X, Plus } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Construction, X, Plus } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { InsetRow } from '@/components/ui/InsetList';
-import { Sheet } from '@/components/ui';
+import { Sheet, Switch } from '@/components/ui';
 
 // Admin control: the "under renovation" gate on/off + the allowlist of emails
 // allowed during maintenance. Split into a compact inset ROW (so it can share a
@@ -17,27 +16,6 @@ interface MaintenanceData { maintenance: boolean; allowlist: string[] }
 function actorEmail() {
   if (typeof window === 'undefined') return '';
   return localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-}
-
-// One canonical toggle-switch look (48×28), duplicated locally here and in
-// ReminderConfig/NotificationPrefs — there's no shared `Switch` primitive in
-// the design system yet, so each of those three Settings components carried
-// its own slightly-different hand-rolled track/thumb. Keeping this local copy
-// (rather than adding one to ui/index.tsx) still fixes the visual mismatch
-// between the three since they now all render this exact size/style.
-function Switch({ on, onToggle, disabled, loading, label }: { on: boolean; onToggle: () => void; disabled?: boolean; loading?: boolean; label?: string }) {
-  return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      aria-label={label}
-      className={cn('relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50', on ? 'bg-green-500' : 'bg-slate-600')}
-    >
-      {loading
-        ? <Loader2 className="w-4 h-4 animate-spin text-white absolute inset-0 m-auto" />
-        : <span className={cn('absolute top-1 h-5 w-5 rounded-full bg-white transition-all', on ? 'start-6' : 'start-1')} />}
-    </button>
-  );
 }
 
 // One inset row: colored construction glyph + label + inline toggle. Uses the
@@ -72,7 +50,7 @@ export function MaintenanceRow() {
       iconBg={on ? 'bg-amber-500' : 'bg-slate-600'}
       label="מצב תחזוקה"
       sublabel={on ? 'רק מורשים רואים את האפליקציה' : 'האפליקציה פתוחה לכולם'}
-      trailing={<Switch on={!!on} onToggle={toggle} disabled={saving || on == null} loading={saving} label="Toggle maintenance mode" />}
+      trailing={<Switch checked={!!on} onChange={toggle} disabled={saving || on == null} loading={saving} activeColor="bg-green-500" ariaLabel="Toggle maintenance mode" />}
     />
   );
 }

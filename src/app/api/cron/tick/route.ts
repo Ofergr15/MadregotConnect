@@ -226,6 +226,48 @@ async function run(request: Request) {
     }
   }
 
+  // Daily 09:00 IL: remind athletes NOT YET registered that an event's
+  // registration_deadline is tomorrow — the opposite audience of the
+  // event-tomorrow reminder above (that one's for people already signed up;
+  // this one's a last call for people who aren't). Optional field — most
+  // events have no separate deadline from the event date itself, so this
+  // is a no-op for them.
+  if (hour === 9) {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    const { data: closingEvents } = await supabase
+      .from('events')
+      .select('id, name')
+      .eq('registration_deadline', tomorrowDate);
+
+    for (const ev of (closingEvents || []) as any[]) {
+      const tag = `regDeadline:${ev.id}:${tomorrowDate}`;
+      if (await already(tag)) continue;
+
+      const { data: regs } = await supabase
+        .from('event_registrations')
+        .select('athlete_id')
+        .eq('event_id', ev.id)
+        .in('status', ['registered', 'waitlisted']);
+      const registeredIds = new Set((regs || []).map((r: { athlete_id: string }) => r.athlete_id));
+      const allIds = await allAthleteIds();
+      const notRegisteredIds = allIds.filter((id) => !registeredIds.has(id));
+      if (notRegisteredIds.length === 0) { await markFired(tag, 0); continue; }
+
+      const subs = await subscriptionsForAthletes(notRegisteredIds);
+      const sent = await sendPushToSubscriptions(subs, {
+        title: `ההרשמה נסגרת מחר: ${ev.name} ⏰`,
+        body: `אם מתכננים להשתתף ב${ev.name}, זו ההזדמנות האחרונה להירשם.`,
+        url: `/dashboard/calendar/${ev.id}`,
+        tag,
+        category: 'events',
+      });
+      await markFired(tag, sent);
+      fired.push(`${tag} → ${sent}`);
+    }
+  }
+
   // Sunday 19:00 IL weekly recap: personalized "your week" push to each runner
   // who ran LAST activity-week (Sun–Sat) — km + runs. Idempotent per activity
   // week via one ledger tag; per-athlete content computed from one activities

@@ -5,7 +5,7 @@ import { Bell, Loader2, Check, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
-import { Sheet } from '@/components/ui';
+import { Sheet, Switch } from '@/components/ui';
 
 interface Cfg {
   teamDays: number[];
@@ -14,24 +14,6 @@ interface Cfg {
   workoutHour?: number; // team workout start (IL); drives the RSVP cutoff
 }
 const DAYS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש']; // Sun..Sat (Hebrew initials)
-
-// One canonical toggle-switch look (48×28), duplicated locally here and in
-// MaintenanceToggle/NotificationPrefs — there's no shared `Switch` primitive
-// in the design system yet, so each of those three Settings components carried
-// its own slightly-different hand-rolled track/thumb. Keeping this local copy
-// (rather than adding one to ui/index.tsx) still fixes the visual mismatch
-// between the three since they now all render this exact size/style.
-function Switch({ on, onToggle, disabled, label }: { on: boolean; onToggle: () => void; disabled?: boolean; label?: string }) {
-  return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      aria-label={label}
-      className={cn('relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50', on ? 'bg-primary-600' : 'bg-slate-600')}>
-      <span className={cn('absolute top-1 h-5 w-5 rounded-full bg-white transition-all', on ? 'start-6' : 'start-1')} />
-    </button>
-  );
-}
 
 type PickerTarget = 'dayBefore' | 'eveningBefore' | 'workoutHour' | null;
 
@@ -91,7 +73,7 @@ export function ReminderConfig() {
         label={label}
         trailing={
           <div className="flex items-center gap-1">
-            <Switch on={enabled} onToggle={() => save({ ...cfg, [stage]: { ...cfg[stage], enabled: !enabled } })} label={label} />
+            <Switch checked={enabled} onChange={() => save({ ...cfg, [stage]: { ...cfg[stage], enabled: !enabled } })} ariaLabel={label} />
             <button
               onClick={() => setPickerFor(stage)}
               disabled={!enabled}

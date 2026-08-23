@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Trophy, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
-import { Sheet, SegmentedControl, Button, LoadingBlock, EmptyState, ConfirmSheet } from '@/components/ui';
+import { Sheet, SegmentedControl, Button, LoadingBlock, EmptyState, ConfirmSheet, Switch } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 
@@ -345,16 +345,10 @@ export function ChallengeManager() {
           </div>
 
           {editingId && (
-            <label className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50">
+            <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50">
               <span className="text-sm font-medium text-white">{activeState ? t('active') : t('inactive')}</span>
-              <button
-                type="button"
-                onClick={() => setActiveState((v) => !v)}
-                className={cn('relative w-11 h-6 rounded-full transition-colors', activeState ? 'bg-primary-600' : 'bg-slate-600')}
-              >
-                <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all', activeState ? 'start-[22px]' : 'start-0.5')} />
-              </button>
-            </label>
+              <Switch checked={activeState} onChange={(v) => setActiveState(v)} size="sm" />
+            </div>
           )}
 
           <Button className="w-full" onClick={handleSave} disabled={!canSave}>

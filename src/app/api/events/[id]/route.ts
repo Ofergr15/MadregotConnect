@@ -25,6 +25,7 @@ const UPDATABLE_FIELDS = [
   'gear',
   'faqs',
   'capacity',
+  'registration_deadline',
 ] as const;
 
 // GET /api/events/[id] — single event; powers the dedicated event detail

@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
+import { Switch } from '@/components/ui';
 
 type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
 type Prefs = Record<Category, boolean>;
@@ -20,25 +20,6 @@ const ROWS: { key: Category; label: string; icon: typeof Calendar; bg: string }[
   { key: 'news', label: 'עדכונים והודעות כלליות', icon: Megaphone, bg: 'bg-rose-500' },
   { key: 'events', label: 'תזכורות לאירועים ותחרויות', icon: PartyPopper, bg: 'bg-violet-500' },
 ];
-
-// One canonical toggle-switch look (48×28), duplicated locally here and in
-// MaintenanceToggle/ReminderConfig — there's no shared `Switch` primitive in
-// the design system yet, so each of those three Settings components carried
-// its own slightly-different hand-rolled track/thumb. Keeping this local copy
-// (rather than adding one to ui/index.tsx) still fixes the visual mismatch
-// between the three since they now all render this exact size/style.
-function Switch({ on, onToggle, disabled, label }: { on: boolean; onToggle: () => void; disabled?: boolean; label?: string }) {
-  return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      aria-label={label}
-      className={cn('relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-60', on ? 'bg-green-500' : 'bg-slate-600')}
-    >
-      <span className={cn('absolute top-1 h-5 w-5 rounded-full bg-white transition-all', on ? 'start-6' : 'start-1')} />
-    </button>
-  );
-}
 
 // Per-user notification preferences — each athlete chooses which categories of
 // push they receive. Optimistic toggle; saves to /api/athletes/notification-prefs.
@@ -83,7 +64,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
               icon={icon}
               iconBg={bg}
               label={label}
-              trailing={<Switch on={on} onToggle={() => toggle(key)} disabled={saving === key} label={label} />}
+              trailing={<Switch checked={on} onChange={() => toggle(key)} disabled={saving === key} activeColor="bg-green-500" ariaLabel={label} />}
             />
           );
         })}
