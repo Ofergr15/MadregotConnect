@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Gift, Loader2, Plus, ImagePlus, X, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
-import { Sheet, Button, LoadingBlock, EmptyState, ConfirmSheet } from '@/components/ui';
+import { Sheet, Button, LoadingBlock, EmptyState, ConfirmSheet, SegmentedControl } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 
@@ -19,6 +19,7 @@ interface Perk {
   redeemUrl: string | null;
   imageUrl: string | null;
   active: boolean;
+  tier: 'all' | 'core_runner';
 }
 
 /**
@@ -40,6 +41,7 @@ export function PerksManager() {
   const [descriptionEn, setDescriptionEn] = useState('');
   const [discountCode, setDiscountCode] = useState('');
   const [redeemUrl, setRedeemUrl] = useState('');
+  const [tier, setTier] = useState<'all' | 'core_runner'>('all');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -61,7 +63,7 @@ export function PerksManager() {
 
   const resetForm = () => {
     setSponsorName(''); setTitleHe(''); setTitleEn(''); setDescriptionHe(''); setDescriptionEn('');
-    setDiscountCode(''); setRedeemUrl('');
+    setDiscountCode(''); setRedeemUrl(''); setTier('all');
     setImageFile(null); setImagePreview(null); setError(null);
   };
   const openNew = () => { resetForm(); setSheetOpen(true); };
@@ -99,6 +101,7 @@ export function PerksManager() {
           discountCode: discountCode.trim() || undefined,
           redeemUrl: redeemUrl.trim() || undefined,
           imageUrl,
+          tier,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -157,6 +160,11 @@ export function PerksManager() {
               onClick={() => toggleActive(p)}
               trailing={
                 <div className="flex items-center gap-2.5 shrink-0">
+                  {p.tier === 'core_runner' && (
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                      {t('tierCoreRunner')}
+                    </span>
+                  )}
                   <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500')}>
                     {p.active ? t('active') : t('inactive')}
                   </span>
@@ -214,6 +222,18 @@ export function PerksManager() {
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('redeemUrlOptional')}</label>
               <input value={redeemUrl} onChange={(e) => setRedeemUrl(e.target.value)} dir="ltr" placeholder="https://..." className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('visibleTo')}</label>
+            <SegmentedControl<'all' | 'core_runner'>
+              value={tier}
+              onChange={setTier}
+              options={[
+                { value: 'all', label: t('tierAll') },
+                { value: 'core_runner', label: t('tierCoreRunner') },
+              ]}
+            />
           </div>
 
           <div>

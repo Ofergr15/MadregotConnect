@@ -13,10 +13,19 @@ export async function GET(request: Request) {
   if (!auth.user.isStaff) return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
 
   const supabase = createServerClient();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('club_perks')
-    .select('id, sponsor_name, title_he, title_en, description_he, description_en, discount_code, redeem_url, image_url, active, sort_order, created_at')
-    .order('sort_order', { ascending: true });
+    .select('id, sponsor_name, title_he, title_en, description_he, description_en, discount_code, redeem_url, image_url, active, sort_order, created_at, tier')
+    .order('sort_order', { ascending: true })
+    .returns<Record<string, unknown>[]>();
+  if (error?.code === '42703' || error?.code === 'PGRST204') {
+    // tier column not migrated yet — degrade instead of failing the list.
+    ({ data, error } = await supabase
+      .from('club_perks')
+      .select('id, sponsor_name, title_he, title_en, description_he, description_en, discount_code, redeem_url, image_url, active, sort_order, created_at')
+      .order('sort_order', { ascending: true })
+      .returns<Record<string, unknown>[]>());
+  }
   if (error) {
     if ((error as { code?: string }).code === 'PGRST205') return NextResponse.json({ perks: [] });
     return NextResponse.json({ error: 'Failed to fetch perks' }, { status: 500 });
@@ -34,13 +43,14 @@ export async function GET(request: Request) {
     imageUrl: p.image_url,
     active: p.active,
     sortOrder: p.sort_order,
+    tier: (p.tier as string | undefined) || 'all',
   }));
 
   return NextResponse.json({ perks });
 }
 
 // POST /api/admin/perks — staff-only create.
-// Body: { sponsorName, titleHe, titleEn, descriptionHe?, descriptionEn?, discountCode?, redeemUrl?, imageUrl? }
+// Body: { sponsorName, titleHe, titleEn, descriptionHe?, descriptionEn?, discountCode?, redeemUrl?, imageUrl?, tier? }
 export async function POST(request: Request) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
@@ -48,34 +58,41 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { sponsorName, titleHe, titleEn, descriptionHe, descriptionEn, discountCode, redeemUrl, imageUrl } = body as {
+    const { sponsorName, titleHe, titleEn, descriptionHe, descriptionEn, discountCode, redeemUrl, imageUrl, tier } = body as {
       sponsorName?: string; titleHe?: string; titleEn?: string; descriptionHe?: string; descriptionEn?: string;
-      discountCode?: string; redeemUrl?: string; imageUrl?: string;
+      discountCode?: string; redeemUrl?: string; imageUrl?: string; tier?: 'all' | 'core_runner';
     };
 
     if (!sponsorName?.trim() || !titleHe?.trim() || !titleEn?.trim()) {
       return NextResponse.json({ error: 'sponsorName, titleHe and titleEn are required' }, { status: 400 });
     }
+    if (tier !== undefined && tier !== 'all' && tier !== 'core_runner') {
+      return NextResponse.json({ error: "tier must be 'all' or 'core_runner'" }, { status: 400 });
+    }
 
     const supabase = createServerClient();
     const { count } = await supabase.from('club_perks').select('id', { count: 'exact', head: true });
 
-    const { data, error } = await supabase
-      .from('club_perks')
-      .insert({
-        sponsor_name: sponsorName.trim(),
-        title_he: titleHe.trim(),
-        title_en: titleEn.trim(),
-        description_he: descriptionHe?.trim() || null,
-        description_en: descriptionEn?.trim() || null,
-        discount_code: discountCode?.trim() || null,
-        redeem_url: redeemUrl?.trim() || null,
-        image_url: imageUrl || null,
-        sort_order: count || 0,
-        created_by: auth.user.athleteId,
-      })
-      .select()
-      .single();
+    const row = {
+      sponsor_name: sponsorName.trim(),
+      title_he: titleHe.trim(),
+      title_en: titleEn.trim(),
+      description_he: descriptionHe?.trim() || null,
+      description_en: descriptionEn?.trim() || null,
+      discount_code: discountCode?.trim() || null,
+      redeem_url: redeemUrl?.trim() || null,
+      image_url: imageUrl || null,
+      sort_order: count || 0,
+      created_by: auth.user.athleteId,
+      tier: tier || 'all',
+    };
+    let { data, error } = await supabase.from('club_perks').insert(row).select().single();
+    if (error?.code === '42703' || error?.code === 'PGRST204') {
+      // tier column not migrated yet — drop it and retry rather than losing
+      // the whole create over one not-yet-applied column.
+      const { tier: _tier, ...coreRow } = row;
+      ({ data, error } = await supabase.from('club_perks').insert(coreRow).select().single());
+    }
     if (error) throw error;
 
     // Previously athletes only learned of a new perk by opening Benefits

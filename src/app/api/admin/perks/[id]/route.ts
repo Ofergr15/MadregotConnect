@@ -15,10 +15,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const { id } = await params;
     const body = await request.json();
-    const { sponsorName, titleHe, titleEn, descriptionHe, descriptionEn, discountCode, redeemUrl, imageUrl, active } = body as {
+    const { sponsorName, titleHe, titleEn, descriptionHe, descriptionEn, discountCode, redeemUrl, imageUrl, active, tier } = body as {
       sponsorName?: string; titleHe?: string; titleEn?: string; descriptionHe?: string; descriptionEn?: string;
-      discountCode?: string; redeemUrl?: string; imageUrl?: string; active?: boolean;
+      discountCode?: string; redeemUrl?: string; imageUrl?: string; active?: boolean; tier?: 'all' | 'core_runner';
     };
+
+    if (tier !== undefined && tier !== 'all' && tier !== 'core_runner') {
+      return NextResponse.json({ error: "tier must be 'all' or 'core_runner'" }, { status: 400 });
+    }
 
     const updates: Record<string, unknown> = {};
     if (sponsorName !== undefined) updates.sponsor_name = sponsorName.trim();
@@ -30,13 +34,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (redeemUrl !== undefined) updates.redeem_url = redeemUrl?.trim() || null;
     if (imageUrl !== undefined) updates.image_url = imageUrl || null;
     if (active !== undefined) updates.active = !!active;
+    if (tier !== undefined) updates.tier = tier;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
     const supabase = createServerClient();
-    const { data, error } = await supabase.from('club_perks').update(updates).eq('id', id).select().single();
+    let { data, error } = await supabase.from('club_perks').update(updates).eq('id', id).select().single();
+    if ((error?.code === '42703' || error?.code === 'PGRST204') && 'tier' in updates) {
+      // tier column not migrated yet — drop it and retry the rest of the update.
+      const { tier: _tier, ...coreUpdates } = updates;
+      if (Object.keys(coreUpdates).length === 0) {
+        return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+      }
+      ({ data, error } = await supabase.from('club_perks').update(coreUpdates).eq('id', id).select().single());
+    }
     if (error) throw error;
 
     return NextResponse.json({ perk: data });

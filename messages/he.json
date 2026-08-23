@@ -1494,7 +1494,10 @@
     "createPerk": "יצירת הטבה",
     "creating": "יוצר...",
     "createError": "יצירת ההטבה נכשלה",
-    "uploadError": "העלאת התמונה נכשלה"
+    "uploadError": "העלאת התמונה נכשלה",
+    "visibleTo": "גלוי ל",
+    "tierAll": "כל החברים",
+    "tierCoreRunner": "רצי גרעין"
   },
   "benefits": {
     "title": "הטבות",

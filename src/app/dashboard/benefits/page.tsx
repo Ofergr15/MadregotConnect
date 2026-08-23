@@ -32,8 +32,13 @@ function BenefitsPageContent() {
   const locale = useLocale();
   const [perk, setPerk] = useState<Perk | null>(null);
   const [copied, setCopied] = useState(false);
+  const [athleteId, setAthleteId] = useState<string | null>(null);
 
-  const { data, isLoading } = useApi<{ perks: Perk[] }>('/api/perks');
+  useEffect(() => { setAthleteId(localStorage.getItem('athlete_id')); }, []);
+
+  const { data, isLoading } = useApi<{ perks: Perk[] }>(
+    athleteId ? `/api/perks?athleteId=${encodeURIComponent(athleteId)}` : '/api/perks'
+  );
   const perks = data?.perks || [];
 
   const title = (p: Perk) => (locale === 'he' ? p.titleHe : p.titleEn);

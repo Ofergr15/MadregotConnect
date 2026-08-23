@@ -1494,7 +1494,10 @@
     "createPerk": "Create Perk",
     "creating": "Creating...",
     "createError": "Failed to create perk",
-    "uploadError": "Failed to upload image"
+    "uploadError": "Failed to upload image",
+    "visibleTo": "Visible to",
+    "tierAll": "All members",
+    "tierCoreRunner": "Core runners"
   },
   "benefits": {
     "title": "Benefits",
