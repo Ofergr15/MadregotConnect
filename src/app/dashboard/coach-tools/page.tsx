@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -31,6 +31,10 @@ function AcademyRowSkeleton() {
 export default function CoachToolsPage() {
   const t = useTranslations('coachTools');
   const tn = useTranslations('nav');
+  // Reuses Settings' own labels for the rows moved here from its "ניהול"
+  // section below — same detail screens, just a one-tap-away entry point
+  // instead of buried in the "More" overflow sheet.
+  const ts = useTranslations('settings');
   // Role scenarios / super-user resolve synchronously — no fetch needed.
   const viewMode = getViewMode();
   const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
@@ -81,6 +85,17 @@ export default function CoachToolsPage() {
       <InsetSection header={t('insights')}>
         <InsetRow icon={BarChart3} iconBg="bg-violet-500" label={tn('teamVolume')} href="/dashboard/team-volume" />
         <InsetRow icon={CalendarDays} iconBg="bg-rose-500" label={tn('calendar')} href="/dashboard/calendar" />
+      </InsetSection>
+
+      <InsetSection header={ts('management')}>
+        <InsetRow icon={Users} iconBg="bg-indigo-500" label={ts('userManager')} href="/dashboard/settings?tab=users" />
+        <InsetRow icon={Layout} iconBg="bg-amber-500" label={ts('tabManager')} href="/dashboard/settings?tab=tabs" />
+        <InsetRow icon={MessageSquare} iconBg="bg-teal-500" label={ts('feedback')} href="/dashboard/settings?tab=feedback" />
+        <InsetRow icon={Bell} iconBg="bg-rose-500" label={ts('notificationCenter')} href="/dashboard/settings?tab=notifications" />
+        <InsetRow icon={Award} iconBg="bg-fuchsia-500" label={ts('badgeManager')} href="/dashboard/settings?tab=badges" />
+        <InsetRow icon={Trophy} iconBg="bg-orange-500" label={ts('challengeManager')} href="/dashboard/settings?tab=challenges" />
+        <InsetRow icon={ShoppingBag} iconBg="bg-cyan-600" label={ts('storeManager')} href="/dashboard/settings?tab=store" />
+        <InsetRow icon={Gift} iconBg="bg-pink-600" label={ts('perksManager')} href="/dashboard/settings?tab=perks" />
       </InsetSection>
 
       <InsetSection>

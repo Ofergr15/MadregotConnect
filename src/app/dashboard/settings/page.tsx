@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
@@ -276,8 +277,14 @@ export default function SettingsPage() {
     return t(priority);
   };
 
-  // null = the Settings landing (iOS-style list); a value = a detail screen open.
-  const [activeTab, setActiveTab] = useState<SettingsTab | null>(null);
+  // null = the Settings landing (iOS-style list); a value = a detail screen
+  // open. The 8 "ניהול" rows now live in Coach Tools and link here with
+  // ?tab=<key> so their detail screens still open directly, no duplication.
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<SettingsTab | null>(() => {
+    const tab = searchParams.get('tab');
+    return settingsTabs.some(st => st.key === tab) ? (tab as SettingsTab) : null;
+  });
   // The signed-in athlete's own id — powers the personal notification-prefs
   // detail (coaches are athletes too; null if this account has no athlete row).
   const [notifPrefsAthleteId, setNotifPrefsAthleteId] = useState('');
@@ -794,30 +801,6 @@ export default function SettingsPage() {
           <div className="mb-5">
             <WatchAlertsCard />
           </div>
-
-          {/* Management section — colored glyph rows that drill in */}
-          <InsetSection header={t('management')}>
-            {settingsTabs.map(tab => {
-              const label = tab.key === 'users' ? t('userManager')
-                : tab.key === 'tabs' ? t('tabManager')
-                : tab.key === 'feedback' ? t('feedback')
-                : tab.key === 'badges' ? t('badgeManager')
-                : tab.key === 'challenges' ? t('challengeManager')
-                : tab.key === 'store' ? t('storeManager')
-                : tab.key === 'perks' ? t('perksManager')
-                : t('notificationCenter');
-              return (
-                <InsetRow
-                  key={tab.key}
-                  icon={tab.icon}
-                  iconBg={tab.iconBg}
-                  label={label}
-                  onClick={() => setActiveTab(tab.key)}
-                  trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
-                />
-              );
-            })}
-          </InsetSection>
         </>
       )}
 
