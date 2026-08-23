@@ -69,7 +69,23 @@ export async function GET(request: Request) {
       ? { meters: longest.distanceM, km: Math.round((longest.distanceM / 1000) * 10) / 10, date: longest.date, activityName: longest.name }
       : null;
 
-    return NextResponse.json({ distanceBests, longestRun, totalRuns: runs.length });
+    // Best calendar month by total distance — a volume PR, distinct from the
+    // per-run bests above. Calendar months (not rolling 30-day windows) since
+    // that's how a runner naturally thinks of "my biggest month ever".
+    const kmByMonth = new Map<string, number>(); // "YYYY-M" -> total meters
+    for (const r of runs) {
+      const d = new Date(r.start_time);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      kmByMonth.set(key, (kmByMonth.get(key) || 0) + r.distance);
+    }
+    let bestMonth: { year: number; month: number; km: number } | null = null;
+    for (const [key, meters] of kmByMonth) {
+      const [year, month] = key.split('-').map(Number);
+      const km = Math.round((meters / 1000) * 10) / 10;
+      if (!bestMonth || km > bestMonth.km) bestMonth = { year, month, km };
+    }
+
+    return NextResponse.json({ distanceBests, longestRun, bestMonth, totalRuns: runs.length });
   } catch (err: any) {
     console.error('PRs error:', err);
     return NextResponse.json({ error: err.message || 'Failed to compute PRs' }, { status: 500 });

@@ -20,11 +20,19 @@ interface LongestRun {
   activityName: string | null;
 }
 
+interface BestMonth {
+  year: number;
+  month: number; // 0-11 (Date#getMonth())
+  km: number;
+}
+
 // Auto-detected Personal Records — fastest 5K / 10K / Half from the athlete's
 // full run history (Garmin + Strava). Zero manual entry. Styled to match the
 // sibling "Your Best" (ProfileBest) card. Hidden entirely if the athlete has no
 // qualifying efforts yet, so it never shows an empty shell.
-interface PrData { distanceBests?: DistanceBest[]; longestRun?: LongestRun | null; }
+interface PrData { distanceBests?: DistanceBest[]; longestRun?: LongestRun | null; bestMonth?: BestMonth | null; }
+
+const HE_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 
 export function PersonalRecords({ athleteId }: { athleteId: string }) {
   const { data } = useApi<PrData>(
@@ -32,9 +40,10 @@ export function PersonalRecords({ athleteId }: { athleteId: string }) {
   );
   const bests = data?.distanceBests || [];
   const longest = data?.longestRun || null;
+  const bestMonth = data?.bestMonth || null;
 
   const achieved = bests.filter((b) => b.seconds != null);
-  if (achieved.length === 0 && !longest) return null;
+  if (achieved.length === 0 && !longest && !bestMonth) return null;
 
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
@@ -76,6 +85,20 @@ export function PersonalRecords({ athleteId }: { athleteId: string }) {
               )}
             </div>
             <div className="text-lg font-black text-white tabular-nums shrink-0">{longest.km} ק״מ</div>
+          </div>
+        )}
+        {bestMonth && (
+          <div className="flex items-center gap-3 bg-slate-900/50 rounded-xl p-3">
+            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-amber-300 bg-amber-600/20 rounded-lg py-2">
+              נפח
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-white">החודש הכי נפחי</div>
+              <div className="text-xs text-slate-400 truncate">
+                {HE_MONTHS[bestMonth.month]} {bestMonth.year}
+              </div>
+            </div>
+            <div className="text-lg font-black text-white tabular-nums shrink-0">{bestMonth.km} ק״מ</div>
           </div>
         )}
       </div>
