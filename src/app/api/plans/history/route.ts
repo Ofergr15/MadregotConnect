@@ -160,11 +160,18 @@ export async function GET(req: NextRequest) {
         pending: 0,
       };
 
-      // Count unique workouts in parsed_workouts
-      const parsedWorkouts = plan.parsed_workouts || {};
-      const workoutCount = Object.keys(parsedWorkouts).filter(
-        (key) => parsedWorkouts[key] && typeof parsedWorkouts[key] === 'object'
-      ).length;
+      // Count training days in the plan. Current plans are grouped by pace
+      // group ({group1: {workouts: [...]}, ...}) — group1 is representative
+      // since all 3 groups train the same days. Object.keys(parsedWorkouts)
+      // on a grouped plan would just count to 3 (group1/2/3), not the real
+      // number of training days, so detect the shape first.
+      const parsedWorkouts: any = plan.parsed_workouts || {};
+      const group1Workouts = parsedWorkouts?.group1?.workouts;
+      const workoutCount = Array.isArray(group1Workouts)
+        ? new Set(group1Workouts.map((w: any) => w.dayOfWeek)).size
+        : Object.keys(parsedWorkouts).filter(
+            (key) => parsedWorkouts[key] && typeof parsedWorkouts[key] === 'object'
+          ).length;
 
       return {
         id: plan.id,

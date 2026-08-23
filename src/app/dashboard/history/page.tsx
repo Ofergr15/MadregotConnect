@@ -72,14 +72,21 @@ export default function HistoryPage() {
       const plan = plans.find((p) => p.id === planId);
       if (!plan) return;
 
-      // Extract workouts from parsed_workouts
-      const workouts = Object.entries(plan.parsed_workouts)
-        .filter(([_, workout]) => workout && typeof workout === 'object')
-        .map(([day, workout], index) => ({
-          ...workout,
-          dayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day.toLowerCase()),
-        }))
-        .filter((w) => w.dayOfWeek >= 0);
+      // Extract workouts from parsed_workouts. Current plans are grouped by
+      // pace group ({group1: {workouts: [...]}, ...}), each workout already
+      // carrying its own dayOfWeek — group1 is used here, same simplification
+      // executePush's own retryFailed already makes. Legacy flat day-keyed
+      // plans (pre-grouping) are supported as a fallback.
+      const group1 = (plan.parsed_workouts as any)?.group1;
+      const workouts = Array.isArray(group1?.workouts)
+        ? group1.workouts
+        : Object.entries(plan.parsed_workouts)
+            .filter(([_, workout]) => workout && typeof workout === 'object')
+            .map(([day, workout]) => ({
+              ...(workout as object),
+              dayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day.toLowerCase()),
+            }))
+            .filter((w: any) => w.dayOfWeek >= 0);
 
       const response = await fetch('/api/garmin/push-workouts', {
         method: 'POST',

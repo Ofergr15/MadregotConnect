@@ -23,7 +23,25 @@ interface PlanDetailProps {
   onRepush?: (athleteIds: string[]) => void;
 }
 
-const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DAYS_OF_WEEK = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+// Current plans are grouped by pace group ({group1: {workouts: [...]}, ...}),
+// not the old flat day-keyed shape ({monday: {...}, ...}). Group 1 is used as
+// the representative summary here — same simplification the planner's own
+// retryFailed already makes for repushes, not a new one introduced here.
+function workoutsByDay(parsedWorkouts: Record<string, any>): Record<string, any> {
+  const group1 = parsedWorkouts?.group1;
+  if (group1 && Array.isArray(group1.workouts)) {
+    const byDay: Record<string, any> = {};
+    for (const w of group1.workouts) {
+      if (typeof w.dayOfWeek === 'number' && DAYS_OF_WEEK[w.dayOfWeek]) {
+        byDay[DAYS_OF_WEEK[w.dayOfWeek]] = w;
+      }
+    }
+    return byDay;
+  }
+  return parsedWorkouts || {}; // legacy flat day-keyed plans
+}
 
 const statusConfig = {
   pending: { icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-400/10', label: 'Pending' },
@@ -82,37 +100,17 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
   const hasFailures = failedDeliveries.length > 0;
 
   // Format workout summary for each day
-  const workoutSummary = DAYS_OF_WEEK.map((day, index) => {
-    const workout = parsedWorkouts[day];
+  const byDay = workoutsByDay(parsedWorkouts);
+  const workoutSummary = DAYS_OF_WEEK.map((day) => {
+    const workout = byDay[day];
     if (!workout || typeof workout !== 'object') {
       return { day, isEmpty: true };
-    }
-
-    const workoutObj = workout as any;
-    let summary = '';
-
-    if (workoutObj.type === 'rest' || workoutObj.description?.toLowerCase().includes('rest')) {
-      summary = 'Rest';
-    } else if (workoutObj.type === 'easy_run' || workoutObj.type === 'easy') {
-      const duration = workoutObj.duration || workoutObj.distance;
-      summary = duration ? `Easy ${duration}` : 'Easy Run';
-    } else if (workoutObj.type === 'long_run') {
-      const duration = workoutObj.duration || workoutObj.distance;
-      summary = duration ? `Long ${duration}` : 'Long Run';
-    } else if (workoutObj.type === 'intervals' || workoutObj.type === 'workout') {
-      summary = 'Intervals';
-    } else if (workoutObj.type === 'tempo') {
-      summary = 'Tempo';
-    } else if (workoutObj.description) {
-      summary = workoutObj.description.substring(0, 30);
-    } else {
-      summary = 'Workout';
     }
 
     return {
       day: day.charAt(0).toUpperCase() + day.slice(1),
       isEmpty: false,
-      summary,
+      summary: (workout.name || workout.description || 'Workout').toString().substring(0, 30),
     };
   });
 

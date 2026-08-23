@@ -87,6 +87,30 @@ export async function POST(req: NextRequest) {
           startDate.setDate(startDate.getDate() + workout.dayOfWeek);
           const dateStr = startDate.toISOString().split('T')[0];
 
+          // If this athlete already has a workout delivered for this exact
+          // plan/day (coach edited it after the first push), delete the old
+          // one from their Garmin account first — otherwise re-pushing just
+          // duplicates it on the watch instead of replacing it. Best-effort:
+          // a delete failure (already removed, expired auth, etc.) shouldn't
+          // block sending the corrected version.
+          if (planId) {
+            const { data: prior } = await supabase
+              .from('workout_deliveries')
+              .select('id, garmin_workout_id')
+              .eq('plan_id', planId)
+              .eq('athlete_id', athlete.id)
+              .eq('workout_date', dateStr)
+              .eq('status', 'success')
+              .not('garmin_workout_id', 'is', null);
+            for (const old of prior || []) {
+              try {
+                await garmin.deleteWorkout(old.garmin_workout_id);
+              } catch {
+                // best-effort — proceed to push the new one regardless
+              }
+            }
+          }
+
           const workoutId = await garmin.createWorkout(garminWorkout);
           await garmin.scheduleWorkout(workoutId, dateStr);
 
