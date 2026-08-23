@@ -126,3 +126,15 @@ export function PushOptIn({ title, description }: { title?: string; description?
     </div>
   );
 }
+
+/**
+ * PushOptIn pre-filled for the "waiting on coach approval" moment — used on
+ * both pending-approval screens (the standalone route and join/onboard's
+ * inline done state). Triggers on its own mount, so each screen just renders
+ * this instead of wiring up requestPushOptInPrompt() + the copy itself.
+ */
+export function ApprovalPushOptIn() {
+  const t = useTranslations('push');
+  useEffect(() => { requestPushOptInPrompt(); }, []);
+  return <PushOptIn title={t('approvalTitle')} description={t('approvalDescription')} />;
+}

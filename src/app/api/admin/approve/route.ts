@@ -67,36 +67,44 @@ export async function POST(req: NextRequest) {
 
     if (updateError) throw updateError;
 
-    try {
-      if (isAcademyPending) {
-        await notifyAcademyApproved({ name: athlete.name, email: athlete.email, token });
-      } else {
-        await notifyUserApproved({ name: athlete.name, email: athlete.email });
-      }
-      if (approverEmail) {
-        await notifyAdminUserApproved({ email: approverEmail }, { name: athlete.name, email: athlete.email });
-      }
-    } catch (emailErr) {
-      console.error('Email notification failed:', emailErr);
-    }
-
-    // Push as a second, faster channel — email can sit unread for hours, and
-    // this is the one moment a pending athlete has been waiting for since
-    // signup (no other way today for them to learn they were approved short
-    // of guessing and signing back in). No category, so it can't be muted.
-    try {
-      const subs = await subscriptionsForAthletes([athleteId]);
-      if (subs.length > 0) {
-        await sendPushToSubscriptions(subs, {
-          title: `${athlete.name}, אושרת! 🎉`,
-          body: 'ההרשמה שלך אושרה — היכנס/י כדי לראות את תוכנית האימונים שלך',
-          url: '/dashboard',
-          tag: 'approval',
-        });
-      }
-    } catch (pushErr) {
-      console.error('Approval push notification failed:', pushErr);
-    }
+    // Email and push are independent channels for the same event — send
+    // concurrently rather than one after the other. Each is isolated in its
+    // own try/catch so a failure in one can't block or skip the other.
+    await Promise.all([
+      (async () => {
+        try {
+          if (isAcademyPending) {
+            await notifyAcademyApproved({ name: athlete.name, email: athlete.email, token });
+          } else {
+            await notifyUserApproved({ name: athlete.name, email: athlete.email });
+          }
+          if (approverEmail) {
+            await notifyAdminUserApproved({ email: approverEmail }, { name: athlete.name, email: athlete.email });
+          }
+        } catch (emailErr) {
+          console.error('Email notification failed:', emailErr);
+        }
+      })(),
+      // Push as a second, faster channel — email can sit unread for hours, and
+      // this is the one moment a pending athlete has been waiting for since
+      // signup (no other way today for them to learn they were approved short
+      // of guessing and signing back in). No category, so it can't be muted.
+      (async () => {
+        try {
+          const subs = await subscriptionsForAthletes([athleteId]);
+          if (subs.length > 0) {
+            await sendPushToSubscriptions(subs, {
+              title: `${athlete.name}, אושרת! 🎉`,
+              body: 'ההרשמה שלך אושרה — היכנס/י כדי לראות את תוכנית האימונים שלך',
+              url: '/dashboard',
+              tag: 'approval',
+            });
+          }
+        } catch (pushErr) {
+          console.error('Approval push notification failed:', pushErr);
+        }
+      })(),
+    ]);
 
     return NextResponse.json({ success: true, athlete: { id: athlete.id, email: athlete.email, approved: true } });
   } catch (error) {
