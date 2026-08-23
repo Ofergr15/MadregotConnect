@@ -28,6 +28,10 @@ function dateOffsetStr(days: number): string {
   d.setDate(d.getDate() + days);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
+function nowTimeStr(): string {
+  const d = new Date();
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
 const QUICK_SCHEDULE_DAYS = [
   { days: 0, label: 'היום' },
   { days: 1, label: 'מחר' },
@@ -264,7 +268,11 @@ export function NotificationCenter() {
   // already expect) — day and hour are just two views onto it, so quick-pick
   // chips can set the date half without touching whatever hour was chosen.
   const [schedDate, schedTime] = scheduledAt ? scheduledAt.split('T') : ['', ''];
-  const setSchedDate = (d: string) => setScheduledAt(`${d}T${schedTime || '07:00'}`);
+  // Today's default has to be "now" — a fixed morning hour could already be in
+  // the past by the time someone picks "today". Any other day is guaranteed to
+  // be in the future regardless, so a plain morning default is fine there.
+  const setSchedDate = (d: string) =>
+    setScheduledAt(`${d}T${schedTime || (d === dateOffsetStr(0) ? nowTimeStr() : '07:00')}`);
   const setSchedTime = (t: string) => setScheduledAt(`${schedDate || dateOffsetStr(0)}T${t}`);
 
   // Mirrors exactly what the service worker renders (src/app/sw.ts): app icon
