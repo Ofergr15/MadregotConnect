@@ -61,6 +61,7 @@ export async function GET(request: Request) {
       discountCode: p.discount_code,
       redeemUrl: p.redeem_url,
       imageUrl: p.image_url,
+      tier: p.tier,
     }));
 
     return NextResponse.json({ perks });

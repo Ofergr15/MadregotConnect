@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Gift, Loader2, Plus, ImagePlus, X, Trash2 } from 'lucide-react';
+import { Gift, Loader2, Plus, ImagePlus, X, Trash2, Pencil, Eye, EyeOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet, Button, LoadingBlock, EmptyState, ConfirmSheet, SegmentedControl } from '@/components/ui';
@@ -44,11 +44,14 @@ export function PerksManager() {
   const [tier, setTier] = useState<'all' | 'core_runner'>('all');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageCleared, setImageCleared] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [actionsTarget, setActionsTarget] = useState<Perk | null>(null);
 
   const fetchPerks = () => {
     setLoading(true);
@@ -62,56 +65,81 @@ export function PerksManager() {
   useEffect(() => { fetchPerks(); }, []);
 
   const resetForm = () => {
+    setEditingId(null);
     setSponsorName(''); setTitleHe(''); setTitleEn(''); setDescriptionHe(''); setDescriptionEn('');
     setDiscountCode(''); setRedeemUrl(''); setTier('all');
-    setImageFile(null); setImagePreview(null); setError(null);
+    setImageFile(null); setImagePreview(null); setImageCleared(false); setError(null);
   };
   const openNew = () => { resetForm(); setSheetOpen(true); };
+  const openEdit = (perk: Perk) => {
+    setEditingId(perk.id);
+    setSponsorName(perk.sponsorName);
+    setTitleHe(perk.titleHe);
+    setTitleEn(perk.titleEn);
+    setDescriptionHe(perk.descriptionHe || '');
+    setDescriptionEn(perk.descriptionEn || '');
+    setDiscountCode(perk.discountCode || '');
+    setRedeemUrl(perk.redeemUrl || '');
+    setTier(perk.tier);
+    setImageFile(null);
+    setImagePreview(perk.imageUrl);
+    setImageCleared(false);
+    setError(null);
+    setActionsTarget(null);
+    setSheetOpen(true);
+  };
   const handleImagePick = (file: File | null) => {
     setImageFile(file);
     setImagePreview(file ? URL.createObjectURL(file) : null);
+    setImageCleared(!file);
   };
 
   const canSave = sponsorName.trim().length > 0 && titleHe.trim().length > 0 && titleEn.trim().length > 0 && !saving;
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
     setError(null);
     try {
-      let imageUrl: string | undefined;
+      let uploadedImageUrl: string | undefined;
       if (imageFile) {
         const form = new FormData();
         form.append('file', imageFile);
         const uploadRes = await authedFetch('/api/admin/perks/image', { method: 'POST', body: form });
         const uploadData = await uploadRes.json().catch(() => ({}));
         if (!uploadRes.ok) throw new Error(uploadData.error || t('uploadError'));
-        imageUrl = uploadData.url;
+        uploadedImageUrl = uploadData.url;
       }
 
-      const res = await authedFetch('/api/admin/perks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sponsorName: sponsorName.trim(),
-          titleHe: titleHe.trim(),
-          titleEn: titleEn.trim(),
-          descriptionHe: descriptionHe.trim() || undefined,
-          descriptionEn: descriptionEn.trim() || undefined,
-          discountCode: discountCode.trim() || undefined,
-          redeemUrl: redeemUrl.trim() || undefined,
-          imageUrl,
-          tier,
-        }),
-      });
+      const payload: Record<string, unknown> = {
+        sponsorName: sponsorName.trim(),
+        titleHe: titleHe.trim(),
+        titleEn: titleEn.trim(),
+        descriptionHe: descriptionHe.trim() || undefined,
+        descriptionEn: descriptionEn.trim() || undefined,
+        discountCode: discountCode.trim() || undefined,
+        redeemUrl: redeemUrl.trim() || undefined,
+        tier,
+      };
+      if (uploadedImageUrl) payload.imageUrl = uploadedImageUrl;
+      else if (imageCleared) payload.imageUrl = null;
+
+      const res = await authedFetch(
+        editingId ? `/api/admin/perks/${editingId}` : '/api/admin/perks',
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t('createError'));
+      if (!res.ok) throw new Error(data.error || (editingId ? t('updateError') : t('createError')));
 
       setSheetOpen(false);
       resetForm();
       fetchPerks();
     } catch (err: unknown) {
-      setError((err as Error).message || t('createError'));
+      setError((err as Error).message || (editingId ? t('updateError') : t('createError')));
     } finally {
       setSaving(false);
     }
@@ -157,7 +185,7 @@ export function PerksManager() {
               key={p.id}
               label={p.titleHe}
               sublabel={p.sponsorName}
-              onClick={() => toggleActive(p)}
+              onClick={() => setActionsTarget(p)}
               trailing={
                 <div className="flex items-center gap-2.5 shrink-0">
                   {p.tier === 'core_runner' && (
@@ -168,13 +196,6 @@ export function PerksManager() {
                   <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500')}>
                     {p.active ? t('active') : t('inactive')}
                   </span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(p.id); }}
-                    className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10"
-                    aria-label={t('delete')}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
                 </div>
               }
             />
@@ -182,7 +203,28 @@ export function PerksManager() {
         </InsetSection>
       )}
 
-      <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={t('newPerk')}>
+      <Sheet open={!!actionsTarget} onOpenChange={(o) => !o && setActionsTarget(null)} title={actionsTarget?.titleHe || ''}>
+        {actionsTarget && (
+          <InsetSection>
+            <InsetRow icon={Pencil} iconBg="bg-primary-600/15" label={t('edit')} onClick={() => openEdit(actionsTarget)} />
+            <InsetRow
+              icon={actionsTarget.active ? EyeOff : Eye}
+              iconBg="bg-slate-700/50"
+              label={actionsTarget.active ? t('deactivate') : t('activate')}
+              onClick={() => { toggleActive(actionsTarget); setActionsTarget(null); }}
+            />
+            <InsetRow
+              icon={Trash2}
+              iconBg="bg-red-500/15"
+              label={t('delete')}
+              danger
+              onClick={() => { setDeleteTarget(actionsTarget.id); setActionsTarget(null); }}
+            />
+          </InsetSection>
+        )}
+      </Sheet>
+
+      <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editPerk') : t('newPerk')}>
         <div className="space-y-4 pb-2">
           {error && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{error}</div>}
 
@@ -258,9 +300,9 @@ export function PerksManager() {
             </div>
           </div>
 
-          <Button className="w-full" onClick={handleCreate} disabled={!canSave}>
+          <Button className="w-full" onClick={handleSave} disabled={!canSave}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
-            {saving ? t('creating') : t('createPerk')}
+            {saving ? t('saving') : (editingId ? t('saveChanges') : t('createPerk'))}
           </Button>
         </div>
       </Sheet>

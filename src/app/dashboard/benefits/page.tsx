@@ -17,6 +17,7 @@ interface Perk {
   discountCode: string | null;
   redeemUrl: string | null;
   imageUrl: string | null;
+  tier?: 'all' | 'core_runner';
 }
 
 export default function BenefitsPage() {
@@ -68,27 +69,32 @@ function BenefitsPageContent() {
       <p className="text-sm text-slate-400" dir="rtl">{t('subtitle')}</p>
 
       {isLoading && !data ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }, (_, i) => <SkeletonCard key={i} className="h-24" />)}
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} className="h-44" />)}
         </div>
       ) : perks.length === 0 ? (
         <EmptyState icon={Gift} title={t('noPerks')} className="py-10" />
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
           {perks.map((p) => (
-            <button key={p.id} onClick={() => openPerk(p)} className="w-full text-start">
-              <Card variant="solid" className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-slate-900/60 flex items-center justify-center overflow-hidden shrink-0">
+            <button key={p.id} onClick={() => openPerk(p)} className="text-start">
+              <Card variant="solid" className="!p-0 overflow-hidden h-full flex flex-col">
+                <div className="aspect-[4/3] bg-white flex items-center justify-center p-3">
                   {p.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.imageUrl} alt={title(p)} className="w-full h-full object-cover" />
+                    <img src={p.imageUrl} alt={title(p)} className="max-w-full max-h-full object-contain" />
                   ) : (
-                    <Gift className="h-5 w-5 text-slate-500" />
+                    <Gift className="h-9 w-9 text-slate-300" />
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="p-2.5 flex-1 flex flex-col">
                   <p className="text-sm font-semibold text-white truncate" dir="auto">{title(p)}</p>
-                  <p className="text-xs text-slate-500 truncate" dir="auto">{p.sponsorName}</p>
+                  <p className="text-xs text-slate-500 truncate mt-0.5" dir="auto">{p.sponsorName}</p>
+                  {p.tier === 'core_runner' && (
+                    <span className="inline-block self-start mt-1.5 text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                      {t('coreRunnerBadge')}
+                    </span>
+                  )}
                 </div>
               </Card>
             </button>
@@ -99,15 +105,22 @@ function BenefitsPageContent() {
       <Sheet open={!!perk} onOpenChange={(o) => !o && setPerk(null)} title={perk ? title(perk) : ''}>
         {perk && (
           <div className="space-y-3 pb-2">
-            <div className="aspect-[16/9] rounded-xl bg-slate-900/60 flex items-center justify-center overflow-hidden">
+            <div className="aspect-[16/9] rounded-xl bg-white flex items-center justify-center overflow-hidden p-4">
               {perk.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={perk.imageUrl} alt={title(perk)} className="w-full h-full object-cover" />
+                <img src={perk.imageUrl} alt={title(perk)} className="max-w-full max-h-full object-contain" />
               ) : (
-                <Gift className="h-10 w-10 text-slate-600" />
+                <Gift className="h-10 w-10 text-slate-300" />
               )}
             </div>
-            <p className="text-sm font-semibold text-primary-400" dir="auto">{perk.sponsorName}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-primary-400" dir="auto">{perk.sponsorName}</p>
+              {perk.tier === 'core_runner' && (
+                <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                  {t('coreRunnerBadge')}
+                </span>
+              )}
+            </div>
             {description(perk) && <p className="text-sm text-slate-300" dir="auto">{description(perk)}</p>}
 
             {perk.discountCode && (

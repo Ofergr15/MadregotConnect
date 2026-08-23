@@ -1497,14 +1497,22 @@
     "uploadError": "העלאת התמונה נכשלה",
     "visibleTo": "גלוי ל",
     "tierAll": "כל החברים",
-    "tierCoreRunner": "רצי גרעין"
+    "tierCoreRunner": "רצי גרעין",
+    "edit": "ערוך",
+    "editPerk": "עריכת הטבה",
+    "activate": "הפעלה",
+    "deactivate": "השבתה",
+    "saving": "שומר...",
+    "saveChanges": "שמירת שינויים",
+    "updateError": "עדכון ההטבה נכשל"
   },
   "benefits": {
     "title": "הטבות",
     "subtitle": "הטבות לחברי המועדון והנחות מספונסרים.",
     "noPerks": "אין עדיין הטבות",
     "discountCode": "קוד הנחה",
-    "goToSponsor": "מעבר לספונסר"
+    "goToSponsor": "מעבר לספונסר",
+    "coreRunnerBadge": "בלעדי לרצי גרעין"
   },
   "surveys": {
     "title": "סקר",

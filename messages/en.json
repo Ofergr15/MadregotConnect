@@ -1497,14 +1497,22 @@
     "uploadError": "Failed to upload image",
     "visibleTo": "Visible to",
     "tierAll": "All members",
-    "tierCoreRunner": "Core runners"
+    "tierCoreRunner": "Core runners",
+    "edit": "Edit",
+    "editPerk": "Edit Perk",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "saving": "Saving...",
+    "saveChanges": "Save Changes",
+    "updateError": "Failed to update perk"
   },
   "benefits": {
     "title": "Benefits",
     "subtitle": "Member perks and sponsor discounts.",
     "noPerks": "No perks available yet",
     "discountCode": "Discount Code",
-    "goToSponsor": "Go to Sponsor"
+    "goToSponsor": "Go to Sponsor",
+    "coreRunnerBadge": "Core Runner Exclusive"
   },
   "surveys": {
     "title": "Survey",
