@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { randomBytes } from 'crypto';
 import { canApprove } from '@/lib/constants';
 import { notifyUserApproved, notifyAdminUserApproved, notifyAcademyApproved } from '@/lib/email';
+import { subscriptionsForAthletes, sendPushToSubscriptions } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +78,24 @@ export async function POST(req: NextRequest) {
       }
     } catch (emailErr) {
       console.error('Email notification failed:', emailErr);
+    }
+
+    // Push as a second, faster channel — email can sit unread for hours, and
+    // this is the one moment a pending athlete has been waiting for since
+    // signup (no other way today for them to learn they were approved short
+    // of guessing and signing back in). No category, so it can't be muted.
+    try {
+      const subs = await subscriptionsForAthletes([athleteId]);
+      if (subs.length > 0) {
+        await sendPushToSubscriptions(subs, {
+          title: `${athlete.name}, אושרת! 🎉`,
+          body: 'ההרשמה שלך אושרה — היכנס/י כדי לראות את תוכנית האימונים שלך',
+          url: '/dashboard',
+          tag: 'approval',
+        });
+      }
+    } catch (pushErr) {
+      console.error('Approval push notification failed:', pushErr);
     }
 
     return NextResponse.json({ success: true, athlete: { id: athlete.id, email: athlete.email, approved: true } });

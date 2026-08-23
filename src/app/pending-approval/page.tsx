@@ -1,12 +1,22 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Clock } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { Card, EmptyState, Button } from '@/components/ui';
+import { PushOptIn, requestPushOptInPrompt } from '@/components/PushOptIn';
 
 export default function PendingApprovalPage() {
   const t = useTranslations('onboarding');
+  const tp = useTranslations('push');
+
+  // The exact moment push notifications become concretely useful here: the
+  // one thing this athlete is waiting for is a coach approving them, and
+  // there's otherwise no way to know it happened short of guessing and
+  // signing back in.
+  useEffect(() => { requestPushOptInPrompt(); }, []);
+
   const handleBackHome = async () => {
     const supabase = getSupabase();
     await supabase.auth.signOut();
@@ -29,6 +39,7 @@ export default function PendingApprovalPage() {
           className="mx-auto"
         />
       </Card>
+      <PushOptIn title={tp('approvalTitle')} description={tp('approvalDescription')} />
     </div>
   );
 }

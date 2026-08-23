@@ -1159,7 +1159,9 @@
     "description": "Turn on notifications so you know the moment your coach responds to your workout feedback.",
     "enable": "Enable",
     "enabling": "Enabling…",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "approvalTitle": "Get notified when you're approved",
+    "approvalDescription": "Turn on notifications so you know the moment your coach approves your registration — no need to sign back in to check."
   },
   "notifications": {
     "title": "Notifications",

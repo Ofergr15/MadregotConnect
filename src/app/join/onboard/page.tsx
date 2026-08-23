@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Check, Eye, EyeOff } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { InsetSection, InsetRow, EmptyState, LoadingBlock } from '@/components/ui';
+import { PushOptIn, requestPushOptInPrompt } from '@/components/PushOptIn';
 import { cn } from '@/lib/utils';
 
 // Local input primitive — see src/app/admin/login/page.tsx for why this is
@@ -61,6 +62,14 @@ function OnboardContent() {
   const [skippedGarmin, setSkippedGarmin] = useState(false);
   const [step, setStep] = useState<'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('info');
   const [error, setError] = useState<string | null>(null);
+  const tp = useTranslations('push');
+
+  // Every 'done' state here is a pending-approval wait (see the EmptyState
+  // below) — the one thing worth a push notification, since there's
+  // otherwise no way to know a coach approved without signing back in.
+  useEffect(() => {
+    if (step === 'done') requestPushOptInPrompt();
+  }, [step]);
 
   useEffect(() => {
     if (!skipGroup) {
@@ -273,6 +282,7 @@ function OnboardContent() {
             </button>
           </div>
         </div>
+        <PushOptIn title={tp('approvalTitle')} description={tp('approvalDescription')} />
       </div>
     );
   }

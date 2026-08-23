@@ -197,15 +197,19 @@ export default function AuthResolvePage() {
       if (data.missingGarmin === false) params.set('skipGarmin', '1');
       router.replace(`/join/onboard?${params.toString()}`);
     } else if (data.athlete) {
-      if (data.pendingApproval) {
-        router.replace('/pending-approval');
-        return;
-      }
+      // Set athlete_id BEFORE the pendingApproval branch (not just the
+      // dashboard branch below it) — otherwise a pending user's push opt-in
+      // banner on /pending-approval has no athlete to subscribe, since it
+      // gates on this exact key.
       localStorage.setItem('athlete_id', data.athlete.id);
       localStorage.setItem('athlete_name', data.athlete.name || '');
       localStorage.setItem('athlete_email', data.athlete.email || email);
       if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
       else localStorage.removeItem('athlete_group_id');
+      if (data.pendingApproval) {
+        router.replace('/pending-approval');
+        return;
+      }
       localStorage.removeItem('coach_email');
       router.replace('/dashboard');
     } else if (data.pendingApproval) {

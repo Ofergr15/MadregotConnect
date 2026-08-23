@@ -33,7 +33,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return arr;
 }
 
-export function PushOptIn() {
+export function PushOptIn({ title, description }: { title?: string; description?: string } = {}) {
   const t = useTranslations('push');
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -109,8 +109,8 @@ export function PushOptIn() {
           <Bell className="h-5 w-5 text-primary-400" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-bold text-white">{t('title')}</h2>
-          <p className="text-xs text-slate-400 mt-0.5">{t('description')}</p>
+          <h2 className="text-sm font-bold text-white">{title || t('title')}</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{description || t('description')}</p>
           <button
             onClick={enable}
             disabled={busy}
