@@ -235,8 +235,12 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
         </div>
       </div>
 
-      {/* Day columns */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+      {/* Day list — one full-width row per day on phones (where this app is
+          actually used), matching the native InsetSection list idiom used
+          everywhere else (Settings, Profile) instead of cramming 7 days into
+          a 2-column grid of half-width cards. Widens to a grid only once
+          there's real room for it (tablet/desktop). */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 lg:gap-2 lg:items-start">
         {dayNames.map((day, dayIndex) => {
           const dayWorkouts = workouts.filter((w) => w.dayOfWeek === dayIndex);
           const isToday = dayIndex === todayIdx;
@@ -245,37 +249,40 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
 
           return (
             <div key={day} className="flex flex-col min-w-0">
-              {/* Day Header */}
-              <div className="flex items-center justify-between mb-1.5 px-0.5">
-                <h4 className={cn(
-                  'text-[10px] font-bold uppercase tracking-wider hidden lg:block',
-                  isToday ? 'text-primary-400' : 'text-slate-500'
-                )}>
-                  {day}
-                </h4>
-                <h4 className={cn(
-                  'text-[10px] font-bold uppercase tracking-wider lg:hidden',
-                  isToday ? 'text-primary-400' : 'text-slate-500'
-                )}>
-                  {dayNamesShort[dayIndex]}
-                </h4>
-                <div className="flex items-center gap-1">
+              {/* Day header — attached directly to the card below (shared
+                  border, no rounding on the seam) so it reads as one card
+                  with a header section, not a floating label + a separate
+                  disconnected card. */}
+              <div className={cn(
+                'flex items-center justify-between gap-2 px-3 py-2 rounded-t-xl border border-b-0 shrink-0',
+                isToday ? 'bg-primary-500/10 border-primary-500/30' : 'bg-slate-800/60 border-slate-700/40'
+              )}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <h4 className={cn(
+                    'text-sm font-bold shrink-0',
+                    isToday ? 'text-primary-400' : 'text-white'
+                  )}>
+                    <span className="lg:hidden">{dayNamesShort[dayIndex]}</span>
+                    <span className="hidden lg:inline">{day}</span>
+                  </h4>
                   {hasMultiple && (
                     <button
                       onClick={() => setExpandedDay(isExpanded ? null : dayIndex)}
-                      className="flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black"
+                      className="flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black shrink-0"
                     >
                       {dayWorkouts.length}
                     </button>
                   )}
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
                   {/* Per-day edit pencil — always available when editing is possible */}
                   {canEdit && dayWorkouts.length > 0 && (
                     <button
                       onClick={() => setEditingIdx(workouts.indexOf(dayWorkouts[0]))}
                       title={tp('editDayTooltip', { day })}
-                      className="flex items-center justify-center w-5 h-5 rounded-md bg-primary-500/15 text-primary-400 hover:bg-primary-500/25 transition-colors"
+                      className="flex items-center justify-center w-7 h-7 rounded-lg text-primary-400 hover:bg-primary-500/15 transition-colors touch-target"
                     >
-                      <Pencil className="h-3 w-3" />
+                      <Pencil className="h-3.5 w-3.5" />
                     </button>
                   )}
                   {/* Build a workout from scratch for this day — works on a
@@ -286,28 +293,28 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     <button
                       onClick={() => setNewWorkoutDay(dayIndex)}
                       title={tp('addWorkoutTooltip', { day })}
-                      className="flex items-center justify-center w-5 h-5 rounded-md bg-slate-700/60 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
+                      className="flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white transition-colors touch-target"
                     >
-                      <Plus className="h-3 w-3" />
+                      <Plus className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
               </div>
 
               {/* Workout Card(s) */}
-              <div className={cn(
-                'flex-1 flex flex-col gap-1.5',
-                isToday && 'ring-1 ring-primary-500/30 rounded-lg p-0.5'
-              )}>
+              <div className="flex-1 flex flex-col gap-1.5">
                 {dayWorkouts.length > 0 ? (
                   <>
                     {/* Primary workout — single click edits in edit mode, else opens view */}
                     <div
                       onClick={() => { if (editable) setEditingIdx(workouts.indexOf(dayWorkouts[0])); }}
                       onDoubleClick={() => handleCardDoubleTap(workouts.indexOf(dayWorkouts[0]))}
-                      className="flex-1 cursor-pointer hover:ring-1 hover:ring-primary-500/50 rounded-lg transition-all"
+                      className="flex-1 cursor-pointer transition-all"
                     >
-                      <WorkoutPreview workout={dayWorkouts[0]} />
+                      <WorkoutPreview
+                        workout={dayWorkouts[0]}
+                        className={cn('rounded-t-none border-t-0 hover:ring-1 hover:ring-primary-500/50', isToday && 'border-primary-500/30')}
+                      />
                     </div>
 
                     {/* Additional workouts */}
@@ -328,7 +335,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     ) : (
                       <button
                         onClick={() => setExpandedDay(dayIndex)}
-                        className="text-[9px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 rounded-md py-1.5 px-2 text-center hover:bg-red-500/15 transition-colors"
+                        className="text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg py-2 px-3 text-center hover:bg-red-500/15 transition-colors min-h-[36px]"
                       >
                         {tp('moreCount', { count: dayWorkouts.length - 1 })}
                       </button>
@@ -338,11 +345,12 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                   <div
                     onClick={() => { if (canEdit) setNewWorkoutDay(dayIndex); }}
                     className={cn(
-                      'flex-1 min-h-[100px] border border-slate-700/20 border-dashed rounded-lg flex items-center justify-center',
+                      'flex-1 min-h-[64px] lg:min-h-[100px] border border-t-0 border-dashed rounded-b-xl flex items-center justify-center',
+                      isToday ? 'border-primary-500/30' : 'border-slate-700/40',
                       canEdit && 'cursor-pointer hover:border-primary-500/40 hover:bg-primary-500/5 transition-colors'
                     )}
                   >
-                    <p className="text-[10px] text-slate-600">{tp('restDay')}</p>
+                    <p className="text-xs text-slate-600">{tp('restDay')}</p>
                   </div>
                 )}
               </div>

@@ -1372,15 +1372,17 @@ export default function WeeklyPlannerPage() {
       {/* Plan exists - show it */}
       {!loadingPlans && currentPlan && groupedPlans && parsedPlan && (
         <div className="flex-1 flex flex-col">
-          {/* Status bar */}
-          <div className="px-6 py-3 border-b border-slate-700/50 bg-slate-800/30">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-slate-300">
+          {/* Status bar — button labels hide below sm (icon + title tooltip
+              only) so 5 elements + a wrapping count don't fight for space on
+              a phone-width screen; full labels return once there's room. */}
+          <div className="px-4 sm:px-6 py-3 border-b border-slate-700/50 bg-slate-800/30">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm text-slate-300 shrink-0">
                   {workoutCount} {t('workouts')}
                 </span>
                 <span className={cn(
-                  'flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium',
+                  'flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium shrink-0',
                   currentPlan.status === 'pushed' ? 'text-green-400 bg-green-400/10' :
                   currentPlan.status === 'partial' ? 'text-orange-400 bg-orange-400/10' :
                   'text-yellow-400 bg-yellow-400/10'
@@ -1392,7 +1394,7 @@ export default function WeeklyPlannerPage() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <Button
                   variant="secondary"
                   size="sm"
@@ -1400,26 +1402,28 @@ export default function WeeklyPlannerPage() {
                   title={t('syncFromProgram')}
                 >
                   <RefreshCw className="h-4 w-4" />
-                  {t('sync')}
+                  <span className="hidden sm:inline">{t('sync')}</span>
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => setEditMode(!editMode)}
+                  title={editMode ? t('done') : t('edit')}
                   className={cn(editMode && 'ring-1 ring-primary-500')}
                 >
                   <Edit3 className="h-4 w-4" />
-                  {editMode ? t('done') : t('edit')}
+                  <span className="hidden sm:inline">{editMode ? t('done') : t('edit')}</span>
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => setConfirmDelete(true)}
                   disabled={deleting}
+                  title={t('remove')}
                   className="text-red-400 hover:text-red-300"
                 >
                   <Trash2 className="h-4 w-4" />
-                  {t('remove')}
+                  <span className="hidden sm:inline">{t('remove')}</span>
                 </Button>
               </div>
             </div>

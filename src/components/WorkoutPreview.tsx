@@ -132,9 +132,11 @@ function StepLine({ step, lapLabel }: { step: WorkoutStep; lapLabel: string }) {
 interface WorkoutPreviewProps {
   workout: ParsedWorkout;
   compact?: boolean;
+  /** Merged onto the card's own classes — e.g. to strip top rounding/border when a day-header sits directly above it. */
+  className?: string;
 }
 
-export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps) {
+export function WorkoutPreview({ workout, compact = false, className }: WorkoutPreviewProps) {
   const t = useTranslations('workoutEditor');
   const tp = useTranslations('planner');
   const [expanded, setExpanded] = useState(false);
@@ -152,7 +154,8 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
     return (
       <div className={cn(
         'bg-slate-800/80 border border-slate-700/40 rounded-lg overflow-hidden border-s-[3px] h-full',
-        style.border
+        style.border,
+        className
       )}>
         <div className="px-3 py-2.5">
           <p className="text-[11px] font-semibold text-white truncate">{workout.name}</p>
@@ -181,7 +184,8 @@ export function WorkoutPreview({ workout, compact = false }: WorkoutPreviewProps
   return (
     <div className={cn(
       'bg-slate-800/80 border border-slate-700/40 rounded-lg overflow-hidden border-s-[3px] transition-all hover:bg-slate-800 h-full flex flex-col',
-      style.border
+      style.border,
+      className
     )}>
       {/* Header */}
       <div className="px-3 pt-3 pb-1.5">
