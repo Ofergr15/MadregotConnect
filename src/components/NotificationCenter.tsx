@@ -242,6 +242,29 @@ export function NotificationCenter() {
   const selectedAthleteName = athletes.find(a => a.id === audienceId)?.name;
   const filteredAthletes = athletes.filter(a => !athleteSearch.trim() || a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()));
 
+  // Mirrors exactly what the service worker renders (src/app/sw.ts): app icon
+  // fallback (compose never sets a custom one), title/body verbatim. Surveys
+  // always push the fixed "tap to answer" body — the question text itself
+  // only becomes the title (see /api/admin/surveys route).
+  const previewTitle = (composeMode === 'survey' ? surveyQuestionHe : titleHe).trim() || 'כותרת ההתראה';
+  const previewBody = composeMode === 'survey' ? 'לחצו לענות על הסקר' : (bodyHe.trim() || 'תוכן ההתראה');
+  const notifPreview = (
+    <div>
+      <label className="text-xs font-semibold text-slate-400 mb-1.5 block">תצוגה מקדימה — כך זה יופיע במכשיר</label>
+      <div className="rounded-2xl bg-white shadow-lg border border-black/5 p-3 flex items-start gap-2.5" dir="rtl">
+        <img src="/images/icon-192.png" alt="" className="w-9 h-9 rounded-[10px] shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Madregot</span>
+            <span className="text-[10px] text-slate-400">עכשיו</span>
+          </div>
+          <p className="text-[13px] font-bold text-slate-900 truncate" dir="auto">{previewTitle}</p>
+          <p className="text-[13px] text-slate-700 line-clamp-2" dir="auto">{previewBody}</p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div>
       {/* Landing — the notification list, with a "+" to drill into compose.
@@ -421,6 +444,7 @@ export function NotificationCenter() {
                 </button>
               </div>
             </div>
+            {notifPreview}
           </div>
         )}
 
@@ -435,6 +459,7 @@ export function NotificationCenter() {
                 <label className="text-xs font-semibold text-slate-400">תוכן (עברית)</label>
                 <textarea dir="rtl" value={bodyHe} onChange={e => setBodyHe(e.target.value)} rows={2} className={inputCls} placeholder="פרטי ההתראה" />
               </div>
+              {notifPreview}
             </>
           )}
           {composeMode === 'message' ? (
