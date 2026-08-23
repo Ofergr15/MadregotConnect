@@ -15,6 +15,8 @@ interface Item {
   url: string;
   sentAt: string;
   unread: boolean;
+  actorName?: string | null;
+  actorAvatarUrl?: string | null;
 }
 
 // Real native notification-history UIs are a static chronological list —
@@ -187,6 +189,7 @@ export default function NotificationsInboxPage() {
                     <InsetRow
                       icon={Icon}
                       iconBg={tile}
+                      avatarUrl={it.actorAvatarUrl || undefined}
                       label={it.title}
                       sublabel={it.body}
                       value={timeAgo(it.sentAt, tn, dateLocale)}

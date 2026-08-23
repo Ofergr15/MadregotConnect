@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isSuperUser } from '@/lib/constants';
-import { subscriptionsForAthletes, sendPushToSubscriptions } from '@/lib/push';
+import { notifyAthlete } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,33 +60,34 @@ export async function POST(request: Request) {
 
     // Notify the athlete their coach replied. Best-effort — never fail the save.
     try {
-      const subs = await subscriptionsForAthletes([fb.athlete_id]);
-      if (subs.length) {
-        const url = fb.garmin_activity_id
-          ? `/dashboard/feedback?activity=${fb.garmin_activity_id}`
-          : '/dashboard';
-        // Personalize with the coach's actual name when we can resolve it (there
-        // can be more than one coach/admin account) — falls back to the generic
-        // "המאמן" title. Best-effort, separate from the auth check above so it
-        // never affects who's allowed to reply. Also grab their avatar_url (same
-        // row, already selected elsewhere in the app for this purpose) so the
-        // push shows the replying coach's actual photo instead of the app icon.
-        let coachName = '';
-        let coachAvatarUrl = '';
-        try {
-          const { data: coachRow } = await supabase.from('athletes').select('name, avatar_url').eq('email', email).maybeSingle();
-          coachName = coachRow?.name?.trim() || '';
-          coachAvatarUrl = coachRow?.avatar_url?.trim() || '';
-        } catch { /* best-effort */ }
-        await sendPushToSubscriptions(subs, {
-          title: coachName ? `💬 תשובה מ${coachName}` : '💬 תשובה מהמאמן',
-          body: reply.trim().slice(0, 120),
-          url,
-          tag: `coach-reply-${feedbackId}`,
-          category: 'coach',
-          ...(coachAvatarUrl ? { icon: coachAvatarUrl } : {}),
-        });
-      }
+      const url = fb.garmin_activity_id
+        ? `/dashboard/feedback?activity=${fb.garmin_activity_id}`
+        : '/dashboard';
+      // Personalize with the coach's actual name/id when we can resolve it (there
+      // can be more than one coach/admin account) — falls back to the generic
+      // "המאמן" title. Best-effort, separate from the auth check above so it
+      // never affects who's allowed to reply. Also grab their avatar_url so the
+      // push shows the replying coach's actual photo instead of the app icon.
+      let coachId = '';
+      let coachName = '';
+      let coachAvatarUrl = '';
+      try {
+        const { data: coachRow } = await supabase.from('athletes').select('id, name, avatar_url').eq('email', email).maybeSingle();
+        coachId = coachRow?.id || '';
+        coachName = coachRow?.name?.trim() || '';
+        coachAvatarUrl = coachRow?.avatar_url?.trim() || '';
+      } catch { /* best-effort */ }
+      await notifyAthlete({
+        athleteId: fb.athlete_id,
+        kind: 'feedback_reply',
+        actorAthleteId: coachId || null,
+        title: coachName ? `💬 תשובה מ${coachName}` : '💬 תשובה מהמאמן',
+        body: reply.trim().slice(0, 120),
+        url,
+        tag: `coach-reply-${feedbackId}`,
+        category: 'coach',
+        ...(coachAvatarUrl ? { icon: coachAvatarUrl } : {}),
+      });
     } catch { /* push optional */ }
 
     return NextResponse.json({ success: true });

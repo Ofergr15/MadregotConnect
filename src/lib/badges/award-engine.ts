@@ -20,7 +20,7 @@
  * duplicating it into PL/pgSQL would mean two places that can drift.
  */
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushToSubscriptions, subscriptionsForAthletes } from '@/lib/push';
+import { notifyAthlete } from '@/lib/push';
 import { getActivityWeekStart, getPlanWeekStart, computeWeekStreak, activityLocalDateStr } from '@/lib/utils';
 import { PR_BUCKETS, PR_RUN_TYPES, filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
 
@@ -436,25 +436,19 @@ export async function awardBadge(
     /* best-effort — the award itself already succeeded */
   }
 
-  // Push — category 'achievements'. No `icon` field: badges are a system
-  // award, not person-sourced, so the notification falls back to the
-  // Madregot app icon per the existing convention in lib/push.ts/sw.ts
-  // (icon is only ever set explicitly for person-sourced pushes, e.g. a
-  // coach's reply avatar in workout-feedback/reply/route.ts).
-  try {
-    const subs = await subscriptionsForAthletes([athleteId]);
-    if (subs.length > 0) {
-      await sendPushToSubscriptions(subs, {
-        title: `🏅 באדג' חדש: ${badge.name_he}`,
-        body: 'לחצו לצפייה בהישג שלכם',
-        url: '/dashboard/profile',
-        tag: `badge-${badge.code}-${athleteId}`,
-        category: 'achievements',
-      });
-    }
-  } catch {
-    /* push is best-effort */
-  }
+  // Persist + push — category 'achievements'. No actor/icon: badges are a
+  // system award, not person-sourced, so the row shows an icon tile (not an
+  // avatar) in the Notification Center, and the push falls back to the
+  // Madregot app icon per the existing convention in lib/push.ts/sw.ts.
+  await notifyAthlete({
+    athleteId,
+    kind: 'badge',
+    title: `🏅 באדג' חדש: ${badge.name_he}`,
+    body: 'לחצו לצפייה בהישג שלכם',
+    url: '/dashboard/profile',
+    tag: `badge-${badge.code}-${athleteId}`,
+    category: 'achievements',
+  });
 
   return true;
 }

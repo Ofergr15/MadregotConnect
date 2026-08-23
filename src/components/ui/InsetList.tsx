@@ -26,6 +26,7 @@ export function InsetSection({ header, children, className }: { header?: string;
 interface RowProps {
   icon?: React.ComponentType<{ className?: string }>;
   iconBg?: string;      // tailwind bg for the glyph tile, e.g. 'bg-primary-600'
+  avatarUrl?: string;   // a person's photo instead of an icon tile (e.g. who liked/followed/replied) — takes precedence over icon when set
   label: string;
   sublabel?: string;
   value?: string;       // trailing muted value (e.g. "08:00")
@@ -39,11 +40,14 @@ interface RowProps {
 
 // One row. If href/onClick given → navigable (chevron). If `trailing` given
 // (e.g. a toggle) → no chevron. Otherwise a static info row.
-export function InsetRow({ icon: Icon, iconBg = 'bg-slate-600', label, sublabel, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
+export function InsetRow({ icon: Icon, iconBg = 'bg-slate-600', avatarUrl, label, sublabel, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
   const interactive = !!href || !!onClick;
   const inner = (
     <div className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
-      {Icon && (
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt="" className="shrink-0 w-7 h-7 rounded-full object-cover" />
+      ) : Icon && (
         <span className={cn('shrink-0 w-7 h-7 rounded-md flex items-center justify-center', iconBg)}>
           <Icon className="h-4 w-4 text-white" />
         </span>

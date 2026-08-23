@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3 } from 'lucide-react';
+import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState } from '@/components/ui';
 import { InsetRow, InsetSection } from '@/components/ui/InsetList';
@@ -13,10 +13,12 @@ interface Athlete { id: string; name: string; email: string; }
 // everything each time. he+en so each athlete gets their language.
 const TEMPLATES = [
   { key: 'workout', icon: Activity, label: 'אימון', titleHe: 'תזכורת אימון 🏃', bodyHe: 'אימון היום — נתראה!', titleEn: 'Workout reminder 🏃', bodyEn: "Today's workout — see you there!" },
-  { key: 'race', icon: Trophy, label: 'מרוץ', titleHe: 'מרוץ מתקרב 🏆', bodyHe: '', titleEn: 'Upcoming race 🏆', bodyEn: '' },
-  { key: 'event', icon: CalendarDays, label: 'אירוע', titleHe: 'אירוע חדש 📅', bodyHe: '', titleEn: 'New event 📅', bodyEn: '' },
-  { key: 'announce', icon: Megaphone, label: 'הודעה', titleHe: 'הודעה מהצוות 📣', bodyHe: '', titleEn: 'Team announcement 📣', bodyEn: '' },
-  { key: 'academy', icon: GraduationCap, label: 'אקדמיה', titleHe: 'אקדמיה 🎓', bodyHe: '', titleEn: 'Academy 🎓', bodyEn: '' },
+  { key: 'race', icon: Trophy, label: 'מרוץ', titleHe: 'מרוץ מתקרב 🏆', bodyHe: 'ההרשמה למרוץ הקרוב נפתחה — היכנסו לפרטים', titleEn: 'Upcoming race 🏆', bodyEn: 'Registration for the upcoming race is open — check the details' },
+  { key: 'event', icon: CalendarDays, label: 'אירוע', titleHe: 'אירוע חדש 📅', bodyHe: 'אירוע חדש נוסף ליומן המדרגות — היכנסו לפרטים', titleEn: 'New event 📅', bodyEn: 'A new event was added to the Madregot calendar — check it out' },
+  { key: 'announce', icon: Megaphone, label: 'הודעה', titleHe: 'הודעה מהצוות 📣', bodyHe: 'יש לנו הודעה חשובה לכל חברי המדרגות', titleEn: 'Team announcement 📣', bodyEn: 'An important announcement for all Madregot members' },
+  { key: 'academy', icon: GraduationCap, label: 'אקדמיה', titleHe: 'אקדמיה 🎓', bodyHe: 'עדכון חדש באקדמיית המדרגות — היכנסו לצפייה', titleEn: 'Academy 🎓', bodyEn: 'A new update in the Madregot Academy — check it out' },
+  { key: 'perk', icon: Gift, label: 'הטבה', titleHe: 'הטבה חדשה! 🎁', bodyHe: 'הטבה חדשה מספונסר המדרגות נוספה — היכנסו לצפייה', titleEn: 'New perk! 🎁', bodyEn: 'A new sponsor perk was added — check it out' },
+  { key: 'photos', icon: Camera, label: 'תמונות', titleHe: 'תמונות חדשות עלו! 📸', bodyHe: 'תמונות מהריצה האחרונה זמינות לצפייה', titleEn: 'New photos! 📸', bodyEn: 'Photos from the last run are available to view' },
 ];
 
 const pad2 = (n: number) => String(n).padStart(2, '0');

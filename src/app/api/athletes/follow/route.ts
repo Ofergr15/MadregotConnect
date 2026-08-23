@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { notifyAthlete } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,11 +23,34 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServerClient();
-    const { error } = await supabase
+    // ignoreDuplicates + select(): a genuinely new follow returns the inserted
+    // row; an already-following repeat call returns nothing — that distinction
+    // is exactly "should this notify" (never re-notify for the same pair).
+    const { data, error } = await supabase
       .from('athlete_follows')
-      .upsert({ follower_id: followerId, followee_id: followeeId }, { onConflict: 'follower_id,followee_id', ignoreDuplicates: true });
+      .upsert({ follower_id: followerId, followee_id: followeeId }, { onConflict: 'follower_id,followee_id', ignoreDuplicates: true })
+      .select('follower_id');
 
     if (error) throw error;
+
+    if ((data || []).length > 0) {
+      // New follow — let the followee know. Best-effort, never blocks the follow.
+      try {
+        const { data: follower } = await supabase.from('athletes').select('name, avatar_url').eq('id', followerId).maybeSingle();
+        const who = follower?.name?.trim() || 'מישהו';
+        await notifyAthlete({
+          athleteId: followeeId,
+          kind: 'follow',
+          actorAthleteId: followerId,
+          title: `${who} התחיל/ה לעקוב אחריך 👋`,
+          body: 'היכנסו לפרופיל שלכם כדי לראות',
+          url: '/dashboard/profile',
+          tag: `follow-${followerId}-${followeeId}`,
+          category: 'teammates',
+          ...(follower?.avatar_url ? { icon: follower.avatar_url } : {}),
+        });
+      } catch { /* best-effort */ }
+    }
 
     return NextResponse.json({ following: true });
   } catch (error) {

@@ -28,13 +28,25 @@ export async function GET(request: Request) {
       `and(audience_type.eq.athlete,audience_id.eq.${athleteId})`,
     ].filter(Boolean).join(',');
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('scheduled_notifications')
-      .select('id, kind, title_he, body_he, url, last_sent_at')
+      .select('id, kind, title_he, body_he, url, last_sent_at, actor_athlete_id, actor:actor_athlete_id ( name, avatar_url )')
       .eq('status', 'sent')
       .or(orClause)
       .order('last_sent_at', { ascending: false })
-      .limit(50);
+      .limit(50)
+      .returns<Record<string, any>[]>();
+    if (error?.code === '42703' || error?.code === 'PGRST200') {
+      // actor_athlete_id not migrated yet — degrade to the pre-071 shape.
+      ({ data, error } = await supabase
+        .from('scheduled_notifications')
+        .select('id, kind, title_he, body_he, url, last_sent_at')
+        .eq('status', 'sent')
+        .or(orClause)
+        .order('last_sent_at', { ascending: false })
+        .limit(50)
+        .returns<Record<string, any>[]>());
+    }
     if (error) throw error;
 
     const since = a.last_seen_at || '1970-01-01';
@@ -49,6 +61,8 @@ export async function GET(request: Request) {
         url: r.url && !r.url.startsWith('#') ? r.url : '/dashboard',
         sentAt: r.last_sent_at,
         unread: !!r.last_sent_at && r.last_sent_at > since,
+        actorName: r.actor?.name || null,
+        actorAvatarUrl: r.actor?.avatar_url || null,
       }));
 
     return NextResponse.json({ items, unread: items.filter((i) => i.unread).length });

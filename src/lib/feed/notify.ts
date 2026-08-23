@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushToSubscriptions, subscriptionsForAthletes } from '@/lib/push';
+import { notifyAthlete } from '@/lib/push';
 
 /** Best-effort push to the author of a liked or commented feed item. */
 export async function notifyFeedInteraction(opts: {
@@ -16,33 +16,29 @@ export async function notifyFeedInteraction(opts: {
   // No author (system item), or you interacted with your own item — nothing to send.
   if (!authorAthleteId || authorAthleteId === actorAthleteId) return;
 
-  try {
-    const subs = await subscriptionsForAthletes([authorAthleteId]);
-    if (subs.length === 0) return;
+  const who = actorName || 'מישהו';
+  const title = kind === 'like' ? `${who} אהב את הפוסט שלך ❤️` : `${who} הגיב לך 💬`;
+  const preview = (commentBody || '').trim();
+  const body =
+    kind === 'like'
+      ? 'היכנסו לפיד כדי לראות'
+      : preview.length > 80
+        ? `${preview.slice(0, 80)}…`
+        : preview || 'היכנסו לפיד כדי לראות';
 
-    const who = actorName || 'מישהו';
-    const title = kind === 'like' ? `${who} אהב את הפוסט שלך ❤️` : `${who} הגיב לך 💬`;
-    const preview = (commentBody || '').trim();
-    const body =
-      kind === 'like'
-        ? 'היכנסו לפיד כדי לראות'
-        : preview.length > 80
-          ? `${preview.slice(0, 80)}…`
-          : preview || 'היכנסו לפיד כדי לראות';
-
-    await sendPushToSubscriptions(subs, {
-      title,
-      body,
-      url: `/dashboard/feed?item=${feedItemId}`,
-      tag: `feed-${kind}-${feedItemId}`,
-      // Same "what my teammates are up to" bucket as notifyTeammatesOfActivity
-      // — a like/comment is exactly this kind of low-stakes social ping, and
-      // it shouldn't be forced-on when nothing else here is.
-      category: 'teammates',
-    });
-  } catch {
-    /* best-effort */
-  }
+  await notifyAthlete({
+    athleteId: authorAthleteId,
+    kind,
+    actorAthleteId,
+    title,
+    body,
+    url: `/dashboard/feed?item=${feedItemId}`,
+    tag: `feed-${kind}-${feedItemId}`,
+    // Same "what my teammates are up to" bucket as notifyTeammatesOfActivity
+    // — a like/comment is exactly this kind of low-stakes social ping, and
+    // it shouldn't be forced-on when nothing else here is.
+    category: 'teammates',
+  });
 }
 
 export async function loadFeedItemMeta(

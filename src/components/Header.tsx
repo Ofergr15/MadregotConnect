@@ -60,7 +60,7 @@ export function Header() {
   const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [pendingResults, setPendingResults] = useState<Array<{ id: string; athlete_name: string; test_name: string; time_seconds: number }>>([]);
-  const [inbox, setInbox] = useState<Array<{ id: string; title: string; body: string; url: string; sentAt: string; unread: boolean }>>([]);
+  const [inbox, setInbox] = useState<Array<{ id: string; title: string; body: string; url: string; sentAt: string; unread: boolean; actorAvatarUrl?: string | null }>>([]);
   const [isSuper, setIsSuper] = useState(false);
 
   useEffect(() => {
@@ -387,8 +387,11 @@ export function Header() {
                               onClick={() => setShowNotifications(false)}
                               className="flex items-start gap-2 px-1 py-2 rounded-lg hover:bg-slate-700/40 transition-colors"
                             >
-                              {n.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" />}
-                              <span className={`flex-1 min-w-0 ${n.unread ? '' : 'ps-3.5'}`}>
+                              {n.actorAvatarUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={n.actorAvatarUrl} alt="" className="mt-0.5 w-6 h-6 rounded-full object-cover shrink-0" />
+                              ) : n.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" />}
+                              <span className={`flex-1 min-w-0 ${n.unread || n.actorAvatarUrl ? '' : 'ps-3.5'}`}>
                                 <span className={`block text-xs truncate ${n.unread ? 'font-bold text-white' : 'font-semibold text-slate-200'}`} dir="auto">{n.title}</span>
                                 <span className="block text-[11px] text-slate-400 truncate" dir="auto">{n.body}</span>
                               </span>

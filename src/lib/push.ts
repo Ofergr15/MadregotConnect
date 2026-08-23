@@ -293,14 +293,38 @@ export async function notifyTeammatesOfActivity(activity: {
   // Gender-neutral fallback when the athlete hasn't filled in their gender
   // (migration 057, optional field) — otherwise a natural gendered verb.
   const verb = athlete.gender === 'male' ? 'סיים' : athlete.gender === 'female' ? 'סיימה' : 'סיים/ה';
+  const title = `🏃 ${name} ${verb} ריצה של ${km} ק"מ`;
+  const body = parts.join(' · ');
+
+  // Persist one row per follower (not just push) so this shows up in each
+  // follower's Notification Center history afterward, same as any other
+  // social-activity notification — best-effort, never blocks the push below.
+  try {
+    const supabase = createServerClient();
+    await supabase.from('scheduled_notifications').insert(
+      followerIds.map((followerId) => ({
+        kind: 'kudos_activity',
+        title_he: title,
+        body_he: body,
+        url: '/dashboard/activities',
+        audience_type: 'athlete',
+        audience_id: followerId,
+        actor_athlete_id: activity.athleteId,
+        schedule_type: 'now',
+        status: 'sent',
+        last_sent_at: new Date().toISOString(),
+        sent_count: 1,
+      })),
+    );
+  } catch { /* best-effort */ }
 
   return sendPushToSubscriptions(subs, {
     // Distance is in the TITLE itself, not just the body — iOS shows the
     // title even when a locked-screen preview or notification summary
     // collapses/hides the body line, so the km can't get lost the way a
     // bare "X finished a run" title did before.
-    title: `🏃 ${name} ${verb} ריצה של ${km} ק"מ`,
-    body: parts.join(' · '),
+    title,
+    body,
     // No teammate-visible activity-detail page exists yet (the per-activity
     // run-chat link is owner/coach-only — canAccessChat in
     // src/lib/run-chat/access.ts 403s any other athlete), so this falls back
@@ -315,6 +339,60 @@ export async function notifyTeammatesOfActivity(activity: {
     // the same photo so it shows as richly as each platform allows.
     ...(athlete.avatar_url ? { icon: athlete.avatar_url, image: athlete.avatar_url } : {}),
   });
+}
+
+/**
+ * Notify one athlete about something a specific person (or the system) did —
+ * persists a row to scheduled_notifications (audience_type='athlete') AND
+ * sends the push, in one call, so every social-activity notification (like,
+ * comment, follow, badge, coach reply) is durably visible in the in-app
+ * Notification Center afterward, not just a fire-and-forget push that vanishes
+ * the moment it's dismissed or missed. Both halves are independently
+ * best-effort — a failure in one never blocks the other or the caller.
+ */
+export async function notifyAthlete(opts: {
+  athleteId: string;
+  /** Free-text category for this row's `kind` column, e.g. 'like' | 'comment' | 'badge' | 'follow' | 'feedback_reply'. */
+  kind: string;
+  /** Who did this to the recipient — null for system-generated (e.g. a badge award). */
+  actorAthleteId?: string | null;
+  title: string;
+  body: string;
+  url: string;
+  tag?: string;
+  category?: NotificationCategory;
+  icon?: string;
+}): Promise<void> {
+  try {
+    const supabase = createServerClient();
+    await supabase.from('scheduled_notifications').insert({
+      kind: opts.kind,
+      title_he: opts.title,
+      body_he: opts.body,
+      url: opts.url,
+      audience_type: 'athlete',
+      audience_id: opts.athleteId,
+      actor_athlete_id: opts.actorAthleteId || null,
+      schedule_type: 'now',
+      status: 'sent',
+      last_sent_at: new Date().toISOString(),
+      sent_count: 1,
+    });
+  } catch { /* best-effort — persistence failure must never block the push */ }
+
+  try {
+    const subs = await subscriptionsForAthletes([opts.athleteId]);
+    if (subs.length > 0) {
+      await sendPushToSubscriptions(subs, {
+        title: opts.title,
+        body: opts.body,
+        url: opts.url,
+        tag: opts.tag,
+        category: opts.category,
+        ...(opts.icon ? { icon: opts.icon } : {}),
+      });
+    }
+  } catch { /* push is best-effort */ }
 }
 
 /** All athlete ids of the club (for computing non-responders). */
