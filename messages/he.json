@@ -1503,5 +1503,13 @@
     "noPerks": "אין עדיין הטבות",
     "discountCode": "קוד הנחה",
     "goToSponsor": "מעבר לספונסר"
+  },
+  "surveys": {
+    "title": "סקר",
+    "notFound": "הסקר לא נמצא",
+    "closed": "הסקר נסגר להשתתפות",
+    "submitting": "שולח...",
+    "submitError": "השליחה נכשלה, נסו שוב",
+    "changeAnswerHint": "אפשר לשנות את התשובה בכל עת"
   }
 }

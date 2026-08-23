@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus } from 'lucide-react';
+import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3 } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { Sheet, Button, SegmentedControl, SkeletonList, EmptyState } from '@/components/ui';
 import { InsetRow } from '@/components/ui/InsetList';
@@ -20,6 +20,14 @@ const TEMPLATES = [
 ];
 
 interface UpcomingWorkout { dayOfWeek: number; dayName: string; name: string; type: string; }
+interface SurveyRow {
+  id: string;
+  question_he: string;
+  options_he: string[];
+  counts: number[];
+  totalResponses: number;
+  created_at: string;
+}
 interface NotificationRow {
   id: string;
   title_he: string; body_he: string;
@@ -36,6 +44,7 @@ export function NotificationCenter() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [list, setList] = useState<NotificationRow[]>([]);
+  const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -44,6 +53,13 @@ export function NotificationCenter() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [athletePickerOpen, setAthletePickerOpen] = useState(false);
   const [athleteSearch, setAthleteSearch] = useState('');
+  // 'message' = the existing push-notification flow; 'survey' = a question
+  // with options that athletes answer in-app, not just a one-way push.
+  const [composeMode, setComposeMode] = useState<'message' | 'survey'>('message');
+  const [surveyQuestionHe, setSurveyQuestionHe] = useState('');
+  const [surveyQuestionEn, setSurveyQuestionEn] = useState('');
+  const [surveyOptionsHe, setSurveyOptionsHe] = useState(['', '']);
+  const [surveyOptionsEn, setSurveyOptionsEn] = useState(['', '']);
 
   // compose form
   const [titleHe, setTitleHe] = useState('');
@@ -97,6 +113,14 @@ export function NotificationCenter() {
     setLoading(false);
   }, []);
 
+  const loadSurveys = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/surveys');
+      const data = await res.json();
+      setSurveys(data.surveys || []);
+    } catch { /* noop */ }
+  }, []);
+
   useEffect(() => {
     setActorEmail(localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '');
     fetch('/api/groups').then(r => r.ok ? r.json() : null).then(d => {
@@ -118,16 +142,54 @@ export function NotificationCenter() {
       })));
     }).catch(() => {});
     loadList();
-  }, [loadList]);
+    loadSurveys();
+  }, [loadList, loadSurveys]);
 
   const reset = () => {
     setTitleHe(''); setBodyHe(''); setTitleEn(''); setBodyEn('');
     setAudienceType('all'); setAudienceId('');
     setScheduleType('now'); setScheduledAt(''); setRecurInterval(1); setRecurUnit('week');
+    setComposeMode('message');
+    setSurveyQuestionHe(''); setSurveyQuestionEn('');
+    setSurveyOptionsHe(['', '']); setSurveyOptionsEn(['', '']);
     setMsg(null);
   };
 
+  const submitSurvey = async () => {
+    const cleanOptionsHe = surveyOptionsHe.map((o) => o.trim()).filter(Boolean);
+    if (!surveyQuestionHe.trim()) { setMsg('שאלה בעברית נדרשת'); return; }
+    if (cleanOptionsHe.length < 2) { setMsg('נדרשות לפחות 2 תשובות אפשריות'); return; }
+    if (audienceType !== 'all' && !audienceId) { setMsg('בחרו קהל יעד'); return; }
+
+    setSending(true); setMsg(null);
+    try {
+      const res = await fetch('/api/admin/surveys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actorEmail,
+          question_he: surveyQuestionHe,
+          question_en: surveyQuestionEn || null,
+          options_he: cleanOptionsHe,
+          options_en: surveyOptionsEn.map((o) => o.trim()).filter(Boolean),
+          audience_type: audienceType,
+          audience_id: audienceType === 'all' ? null : audienceId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      reset();
+      setComposeOpen(false);
+      loadSurveys();
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const submit = async () => {
+    if (composeMode === 'survey') { await submitSurvey(); return; }
     if (!titleHe.trim() || !bodyHe.trim()) { setMsg('כותרת ותוכן בעברית נדרשים'); return; }
     if (audienceType !== 'all' && !audienceId) { setMsg('בחרו קהל יעד'); return; }
     if ((scheduleType === 'once_at' || scheduleType === 'recurring') && !scheduledAt) {
@@ -235,61 +297,180 @@ export function NotificationCenter() {
         </div>
       )}
 
+      {/* Surveys — a genuinely different kind from the push-only list above:
+          each one collects athlete responses, so results (a per-option
+          count) are shown inline instead of just a delivery status. */}
+      {surveys.length > 0 && (
+        <div className="mt-6">
+          <h3 className="font-bold text-white mb-3 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-primary-400" /> סקרים
+          </h3>
+          <div className="space-y-2">
+            {surveys.map((s) => {
+              const max = Math.max(1, ...s.counts);
+              return (
+                <div key={s.id} className="bg-slate-900/40 rounded-xl border border-slate-700/30 p-3">
+                  <p className="text-sm font-semibold text-white mb-2" dir="auto">{s.question_he}</p>
+                  <div className="space-y-1.5">
+                    {s.options_he.map((opt, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs text-slate-300 w-20 truncate shrink-0" dir="auto">{opt}</span>
+                        <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                          <div
+                            className="h-full bg-primary-600 rounded-full"
+                            style={{ width: `${((s.counts[i] || 0) / max) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-400 w-6 text-end shrink-0 tabular-nums">{s.counts[i] || 0}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-3xs text-slate-500 mt-2">{s.totalResponses} תשובות</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Compose — a bottom sheet instead of a permanently-rendered pane. */}
       <Sheet open={composeOpen} onOpenChange={setComposeOpen} title="שליחת התראה">
-        {/* Category templates — one tap pre-fills the message */}
-        <div className="flex flex-wrap gap-2 mb-3">
-          {TEMPLATES.map(tpl => {
-            const Icon = tpl.icon;
-            return (
-              <button key={tpl.key} onClick={() => applyTemplate(tpl)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700/40 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition" dir="rtl">
-                <Icon className="w-3.5 h-3.5 text-primary-600" /> {tpl.label}
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedControl
+          className="mb-3"
+          value={composeMode}
+          onChange={(v) => { setComposeMode(v); setMsg(null); }}
+          options={[
+            { value: 'message', icon: Megaphone, label: 'הודעה' },
+            { value: 'survey', icon: HelpCircle, label: 'סקר' },
+          ]}
+        />
 
-        {/* Future workouts — one-tap reminder, auto-dated */}
-        <div className="mb-3 rounded-xl bg-slate-900/40 border border-slate-700/40 p-2.5">
-          <p className="text-2xs font-bold text-slate-400 mb-1.5" dir="rtl">אימונים קרובים · תזכורת בלחיצה</p>
-          {upcoming.length > 0 ? (
-            <div className="space-y-1">
-              {upcoming.map(w => (
-                <button key={w.dayOfWeek} onClick={() => remindWorkout(w)}
-                  className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition text-right" dir="rtl">
-                  <span className="text-xs text-slate-200 truncate">{w.dayName} · {w.name}</span>
-                  <span className="text-3xs font-bold text-primary-600 shrink-0">שלח תזכורת ←</span>
+        {composeMode === 'message' && (
+          <>
+            {/* Category templates — one tap pre-fills the message */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {TEMPLATES.map(tpl => {
+                const Icon = tpl.icon;
+                return (
+                  <button key={tpl.key} onClick={() => applyTemplate(tpl)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700/40 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition" dir="rtl">
+                    <Icon className="w-3.5 h-3.5 text-primary-600" /> {tpl.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Future workouts — one-tap reminder, auto-dated */}
+            <div className="mb-3 rounded-xl bg-slate-900/40 border border-slate-700/40 p-2.5">
+              <p className="text-2xs font-bold text-slate-400 mb-1.5" dir="rtl">אימונים קרובים · תזכורת בלחיצה</p>
+              {upcoming.length > 0 ? (
+                <div className="space-y-1">
+                  {upcoming.map(w => (
+                    <button key={w.dayOfWeek} onClick={() => remindWorkout(w)}
+                      className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition text-right" dir="rtl">
+                      <span className="text-xs text-slate-200 truncate">{w.dayName} · {w.name}</span>
+                      <span className="text-3xs font-bold text-primary-600 shrink-0">שלח תזכורת ←</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 px-1 py-1.5" dir="rtl">
+                  <span className="text-xs text-slate-500">אין תוכנית לשבוע הזה עדיין</span>
+                  <a href="/dashboard/program" className="text-3xs font-bold text-primary-600 shrink-0">הוספת תוכנית ←</a>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {composeMode === 'survey' && (
+          <div className="space-y-3 mb-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-400">שאלה (עברית)</label>
+              <input dir="rtl" value={surveyQuestionHe} onChange={e => setSurveyQuestionHe(e.target.value)} className={inputCls} placeholder="לדוגמה: איזה יום מתאים לאימון נוסף?" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-400">תשובות אפשריות (עברית)</label>
+              <div className="space-y-2 mt-1">
+                {surveyOptionsHe.map((opt, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      dir="rtl"
+                      value={opt}
+                      onChange={e => setSurveyOptionsHe(surveyOptionsHe.map((o, j) => j === i ? e.target.value : o))}
+                      className={inputCls}
+                      placeholder={`אפשרות ${i + 1}`}
+                    />
+                    {surveyOptionsHe.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => setSurveyOptionsHe(surveyOptionsHe.filter((_, j) => j !== i))}
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400 shrink-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setSurveyOptionsHe([...surveyOptionsHe, ''])}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-500"
+                >
+                  <Plus className="w-3.5 h-3.5" /> הוספת אפשרות
                 </button>
-              ))}
+              </div>
             </div>
-          ) : (
-            <div className="flex items-center justify-between gap-2 px-1 py-1.5" dir="rtl">
-              <span className="text-xs text-slate-500">אין תוכנית לשבוע הזה עדיין</span>
-              <a href="/dashboard/program" className="text-3xs font-bold text-primary-600 shrink-0">הוספת תוכנית ←</a>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-slate-400">כותרת (עברית)</label>
-            <input dir="rtl" value={titleHe} onChange={e => setTitleHe(e.target.value)} className={inputCls} placeholder="לדוגמה: אימון היום ב-18:00" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-400">תוכן (עברית)</label>
-            <textarea dir="rtl" value={bodyHe} onChange={e => setBodyHe(e.target.value)} rows={2} className={inputCls} placeholder="פרטי ההתראה" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-400">Title (English)</label>
-              <input value={titleEn} onChange={e => setTitleEn(e.target.value)} className={inputCls} placeholder="optional" />
+          {composeMode === 'message' && (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-slate-400">כותרת (עברית)</label>
+                <input dir="rtl" value={titleHe} onChange={e => setTitleHe(e.target.value)} className={inputCls} placeholder="לדוגמה: אימון היום ב-18:00" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400">תוכן (עברית)</label>
+                <textarea dir="rtl" value={bodyHe} onChange={e => setBodyHe(e.target.value)} rows={2} className={inputCls} placeholder="פרטי ההתראה" />
+              </div>
+            </>
+          )}
+          {composeMode === 'message' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-400">Title (English)</label>
+                <input value={titleEn} onChange={e => setTitleEn(e.target.value)} className={inputCls} placeholder="optional" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400">Body (English)</label>
+                <input value={bodyEn} onChange={e => setBodyEn(e.target.value)} className={inputCls} placeholder="optional" />
+              </div>
             </div>
+          ) : (
             <div>
-              <label className="text-xs font-semibold text-slate-400">Body (English)</label>
-              <input value={bodyEn} onChange={e => setBodyEn(e.target.value)} className={inputCls} placeholder="optional" />
+              <label className="text-xs font-semibold text-slate-400">Question (English, optional)</label>
+              <input value={surveyQuestionEn} onChange={e => setSurveyQuestionEn(e.target.value)} className={inputCls} placeholder="optional" />
+              {surveyQuestionEn.trim() && (
+                <div className="space-y-2 mt-2">
+                  {surveyOptionsHe.map((_, i) => (
+                    <input
+                      key={i}
+                      value={surveyOptionsEn[i] || ''}
+                      onChange={e => {
+                        const next = [...surveyOptionsEn];
+                        next[i] = e.target.value;
+                        setSurveyOptionsEn(next);
+                      }}
+                      className={inputCls}
+                      placeholder={`Option ${i + 1} (English)`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Audience — segmented control + contextual picker */}
           <div>
@@ -330,37 +511,43 @@ export function NotificationCenter() {
             )}
           </div>
 
-          {/* Schedule */}
-          <div>
-            <label className="text-xs font-semibold text-slate-400">תזמון</label>
-            <SegmentedControl
-              className="mt-1"
-              value={scheduleType}
-              onChange={setScheduleType}
-              options={[
-                { value: 'now', label: 'עכשיו' },
-                { value: 'once_at', label: 'בזמן מסוים' },
-                { value: 'recurring', label: 'חוזר' },
-              ]}
-            />
-          </div>
-          {(scheduleType === 'once_at' || scheduleType === 'recurring') && (
-            <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className={inputCls} />
-          )}
-          {scheduleType === 'recurring' && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 shrink-0">כל</span>
-              <input type="number" min={1} value={recurInterval} onChange={e => setRecurInterval(Number(e.target.value))} className="w-20 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white" />
-              <SegmentedControl<'day' | 'week'>
-                className="flex-1"
-                value={recurUnit}
-                onChange={setRecurUnit}
-                options={[
-                  { value: 'day', label: 'ימים' },
-                  { value: 'week', label: 'שבועות' },
-                ]}
-              />
-            </div>
+          {/* Schedule — surveys always send immediately (no separate cron
+              path for one notification kind); scheduling only applies to
+              regular messages. */}
+          {composeMode === 'message' && (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-slate-400">תזמון</label>
+                <SegmentedControl
+                  className="mt-1"
+                  value={scheduleType}
+                  onChange={setScheduleType}
+                  options={[
+                    { value: 'now', label: 'עכשיו' },
+                    { value: 'once_at', label: 'בזמן מסוים' },
+                    { value: 'recurring', label: 'חוזר' },
+                  ]}
+                />
+              </div>
+              {(scheduleType === 'once_at' || scheduleType === 'recurring') && (
+                <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className={inputCls} />
+              )}
+              {scheduleType === 'recurring' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 shrink-0">כל</span>
+                  <input type="number" min={1} value={recurInterval} onChange={e => setRecurInterval(Number(e.target.value))} className="w-20 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+                  <SegmentedControl<'day' | 'week'>
+                    className="flex-1"
+                    value={recurUnit}
+                    onChange={setRecurUnit}
+                    options={[
+                      { value: 'day', label: 'ימים' },
+                      { value: 'week', label: 'שבועות' },
+                    ]}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           {msg && <p className="text-sm text-primary-600">{msg}</p>}
@@ -368,7 +555,7 @@ export function NotificationCenter() {
           <button onClick={submit} disabled={sending}
             className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-lg transition">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            {scheduleType === 'now' ? 'שליחה עכשיו' : 'תזמון'}
+            {composeMode === 'survey' ? 'שליחת סקר' : scheduleType === 'now' ? 'שליחה עכשיו' : 'תזמון'}
           </button>
         </div>
       </Sheet>

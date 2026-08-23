@@ -1503,5 +1503,13 @@
     "noPerks": "No perks available yet",
     "discountCode": "Discount Code",
     "goToSponsor": "Go to Sponsor"
+  },
+  "surveys": {
+    "title": "Survey",
+    "notFound": "Survey not found",
+    "closed": "This survey is closed",
+    "submitting": "Submitting...",
+    "submitError": "Submit failed, try again",
+    "changeAnswerHint": "You can change your answer anytime"
   }
 }
