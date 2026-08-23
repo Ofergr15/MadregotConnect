@@ -52,7 +52,16 @@ export function stopViewAs() {
 // Requests that stay allowed even while previewing (session/auth refresh).
 function isAllowedWhilePreviewing(url: string, method: string): boolean {
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return true;
-  return url.toLowerCase().includes('/auth/v1/');
+  const u = url.toLowerCase();
+  if (u.includes('/auth/v1/')) return true;
+  // Sending a notification/survey already has its own explicit
+  // confirm-before-send step (NotificationCenter's ConfirmSheet) — that
+  // deliberate-intent gate covers what this guard exists to prevent, so a
+  // role preview shouldn't also block an intentional real send. Only the
+  // real super user can ever be in a preview mode in the first place, so
+  // this never lets a different person's action through.
+  if (u.includes('/api/notifications') || u.includes('/api/admin/surveys')) return true;
+  return false;
 }
 
 // Wrap window.fetch once so that, while a view mode is active, every

@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Eye } from 'lucide-react';
+import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3 } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
-import { getViewMode, stopViewAs } from '@/lib/impersonation';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState } from '@/components/ui';
 import { InsetRow } from '@/components/ui/InsetList';
 
@@ -74,13 +73,6 @@ export function NotificationCenter() {
 
   // compose sheet
   const [composeOpen, setComposeOpen] = useState(false);
-  // Re-checked every time the sheet opens (not just on mount) — surfaces the
-  // "view as" read-only block up front, with a one-tap way out, instead of
-  // letting someone fill out the whole form and only discover it on submit.
-  const [previewMode, setPreviewMode] = useState<string | null>(null);
-  useEffect(() => {
-    if (composeOpen) setPreviewMode(getViewMode());
-  }, [composeOpen]);
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
   const [athletePickerOpen, setAthletePickerOpen] = useState(false);
   const [athleteSearch, setAthleteSearch] = useState('');
@@ -408,19 +400,6 @@ export function NotificationCenter() {
 
       {/* Compose — a bottom sheet instead of a permanently-rendered pane. */}
       <Sheet open={composeOpen} onOpenChange={setComposeOpen} title="שליחת התראה">
-        {previewMode && (
-          <div className="mb-3 flex items-center gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5" dir="rtl">
-            <Eye className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="flex-1 text-xs text-amber-200">אתם בתצוגה מקדימה — שליחה חסומה עד לחזרה לתצוגה האמיתית</span>
-            <button
-              type="button"
-              onClick={() => stopViewAs()}
-              className="shrink-0 px-2.5 py-1.5 rounded-lg bg-amber-500 text-slate-900 text-xs font-bold"
-            >
-              יציאה
-            </button>
-          </div>
-        )}
         <SegmentedControl
           className="mb-3"
           value={composeMode}
@@ -664,7 +643,7 @@ export function NotificationCenter() {
 
           {msg && <p className="text-sm text-primary-600">{msg}</p>}
 
-          <button onClick={() => setConfirmSendOpen(true)} disabled={sending || !!previewMode}
+          <button onClick={() => setConfirmSendOpen(true)} disabled={sending}
             className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-lg transition">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {composeMode === 'survey' ? 'שליחת סקר' : scheduleType === 'now' ? 'שליחה עכשיו' : 'תזמון'}
