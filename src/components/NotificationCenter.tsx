@@ -19,6 +19,24 @@ const TEMPLATES = [
   { key: 'academy', icon: GraduationCap, label: 'אקדמיה', titleHe: 'אקדמיה 🎓', bodyHe: '', titleEn: 'Academy 🎓', bodyEn: '' },
 ];
 
+const pad2 = (n: number) => String(n).padStart(2, '0');
+// Local YYYY-MM-DD for "today + N days" — same date shape the datetime-local
+// / scheduledAt string already uses, just computed from a day offset instead
+// of typed by hand.
+function dateOffsetStr(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+const QUICK_SCHEDULE_DAYS = [
+  { days: 0, label: 'היום' },
+  { days: 1, label: 'מחר' },
+  { days: 2, label: 'מחרתיים' },
+  { days: 3, label: 'בעוד 3 ימים' },
+  { days: 4, label: 'בעוד 4 ימים' },
+  { days: 7, label: 'בעוד שבוע' },
+];
+
 interface UpcomingWorkout { dayOfWeek: number; dayName: string; name: string; type: string; }
 interface SurveyRow {
   id: string;
@@ -177,7 +195,7 @@ export function NotificationCenter() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed');
       reset();
       setComposeOpen(false);
       loadSurveys();
@@ -213,7 +231,7 @@ export function NotificationCenter() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed');
       reset();
       setComposeOpen(false);
       loadList();
@@ -241,6 +259,13 @@ export function NotificationCenter() {
 
   const selectedAthleteName = athletes.find(a => a.id === audienceId)?.name;
   const filteredAthletes = athletes.filter(a => !athleteSearch.trim() || a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()));
+
+  // scheduledAt stays one 'YYYY-MM-DDTHH:mm' string (what the API + remindWorkout
+  // already expect) — day and hour are just two views onto it, so quick-pick
+  // chips can set the date half without touching whatever hour was chosen.
+  const [schedDate, schedTime] = scheduledAt ? scheduledAt.split('T') : ['', ''];
+  const setSchedDate = (d: string) => setScheduledAt(`${d}T${schedTime || '07:00'}`);
+  const setSchedTime = (t: string) => setScheduledAt(`${schedDate || dateOffsetStr(0)}T${t}`);
 
   // Mirrors exactly what the service worker renders (src/app/sw.ts): app icon
   // fallback (compose never sets a custom one), title/body verbatim. Surveys
@@ -555,7 +580,31 @@ export function NotificationCenter() {
                 />
               </div>
               {(scheduleType === 'once_at' || scheduleType === 'recurring') && (
-                <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className={inputCls} />
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUICK_SCHEDULE_DAYS.map(q => {
+                      const targetDate = dateOffsetStr(q.days);
+                      const active = schedDate === targetDate;
+                      return (
+                        <button
+                          key={q.days}
+                          type="button"
+                          onClick={() => setSchedDate(targetDate)}
+                          className={cn(
+                            'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition',
+                            active ? 'bg-primary-600 text-white' : 'bg-slate-700/40 text-slate-300 hover:bg-slate-700'
+                          )}
+                        >
+                          {q.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} className={inputCls} />
+                    <input type="time" value={schedTime || ''} onChange={e => setSchedTime(e.target.value)} className={inputCls} />
+                  </div>
+                </div>
               )}
               {scheduleType === 'recurring' && (
                 <div className="flex items-center gap-2">
