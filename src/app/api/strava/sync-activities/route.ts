@@ -20,7 +20,15 @@ import {
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
-import { notifyTeammatesOfActivity } from '@/lib/push';
+import { notifyTeammatesOfActivity, subscriptionsForAthletes, sendPushToSubscriptions } from '@/lib/push';
+
+// Mirrors garmin/sync-activities' RUN_TYPE_LABELS — kept as a separate copy
+// since the two syncs' activity_type vocabularies aren't guaranteed to stay
+// identical (Strava's sport_type mapping is narrower today: running/trail_running only).
+const RUN_TYPE_LABELS: Record<string, string> = {
+  running: 'ריצה',
+  trail_running: 'ריצת שטח',
+};
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -114,6 +122,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const athleteId = body?.athleteId as string | undefined;
+    // suppressPush: skip the inline post-workout feedback nudge — mirrors
+    // garmin/sync-activities' same param, for a future cron teaser to reuse.
+    const suppressPush = !!body?.suppressPush;
     const supabase = createServerClient();
 
     const selectCols = 'id, name, strava_auth, data_source';
@@ -188,6 +199,9 @@ export async function POST(request: Request) {
 
         let synced = 0;
         const insertErrors: string[] = [];
+        // Post-workout feedback nudge (same purpose as Garmin sync's) needs
+        // the newest genuinely-new activity's details after the loop below.
+        const newActivityPushInfo: Array<{ activityId: number; distance: number; activityType: string; startTimeLocal: string }> = [];
         // Enrich (laps/GPX) is rate-limit heavy — only for the newest N runs.
         const ENRICH_LIMIT = 15;
         let enrichCount = 0;
@@ -293,7 +307,42 @@ export async function POST(request: Request) {
             );
           }
           synced++;
+          // garmin_activity_id (the field the feedback push links to) holds
+          // -a.id for Strava rows — see the row's own comment above.
+          newActivityPushInfo.push({
+            activityId: -a.id,
+            distance: row.distance,
+            activityType: row.activity_type,
+            startTimeLocal: a.start_date_local,
+          });
         }
+
+        // Post-workout nudge — same purpose/shape as garmin/sync-activities'
+        // own block: push the newest genuinely-new run's feedback prompt.
+        // Previously Strava-synced athletes never got this at all (only
+        // Garmin did) — never let a push failure break the sync.
+        try {
+          if (suppressPush) throw new Error('suppressed');
+          if (newActivityPushInfo.length > 0) {
+            const newest = newActivityPushInfo.reduce((a, b) =>
+              new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b);
+            const subs = await subscriptionsForAthletes([athlete.id]);
+            if (subs.length > 0) {
+              const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;
+              const label = RUN_TYPE_LABELS[newest.activityType] || 'ריצה';
+              const pushBody = km
+                ? `${label} של ${km} ק״מ — איך היה? ספרו לנו במשוב קצר`
+                : 'איך היה? ספרו לנו במשוב קצר';
+              await sendPushToSubscriptions(subs, {
+                title: 'כל הכבוד על האימון! 🏃',
+                body: pushBody,
+                url: `/dashboard/feedback?activity=${newest.activityId}`,
+                tag: `post-workout-${newest.activityId}`,
+                category: 'workouts',
+              });
+            }
+          }
+        } catch { /* push is best-effort */ }
 
         let planMatches = 0;
         try {
