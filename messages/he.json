@@ -376,6 +376,7 @@
     "restDay": "מנוחה",
     "moreCount": "+{count} עוד",
     "editDayTooltip": "ערוך {day}",
+    "addWorkoutTooltip": "הוסף אימון ל{day}",
     "stepsCount": "{count} שלבים",
     "stepsMore": "+{count} עוד",
     "stepsLess": "פחות"

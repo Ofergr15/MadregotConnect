@@ -376,6 +376,7 @@
     "restDay": "Rest",
     "moreCount": "+{count} more",
     "editDayTooltip": "Edit {day}",
+    "addWorkoutTooltip": "Add a workout for {day}",
     "stepsCount": "{count} steps",
     "stepsMore": "+{count} more",
     "stepsLess": "less"

@@ -7,7 +7,7 @@ import { WorkoutPreview } from './WorkoutPreview';
 import { WorkoutEditorPanel } from './WorkoutEditor';
 import { Sheet } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { Route, Timer, Zap, Pencil } from 'lucide-react';
+import { Route, Timer, Zap, Pencil, Plus } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
 import { workoutDistanceMeters, totalDistanceMeters } from '@/lib/workout-distance';
 
@@ -176,8 +176,15 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [viewingIdx, setViewingIdx] = useState<number | null>(null);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  // A brand-new, not-yet-saved workout for a specific day (e.g. "tomorrow
+  // needs something different") — distinct from editingIdx, which always
+  // indexes an existing entry in `workouts`. Kept as just the day number so
+  // the blank draft object is only created where it's actually rendered.
+  const [newWorkoutDay, setNewWorkoutDay] = useState<number | null>(null);
 
-  const editingWorkout = editingIdx !== null ? workouts[editingIdx] : null;
+  const editingWorkout = editingIdx !== null ? workouts[editingIdx]
+    : newWorkoutDay !== null ? { dayOfWeek: newWorkoutDay, name: '', steps: [] } as ParsedWorkout
+    : null;
   const viewingWorkout = viewingIdx !== null ? workouts[viewingIdx] : null;
   const todayIdx = new Date().getDay();
   // The per-day edit pencil is available whenever editing is possible — either
@@ -271,6 +278,19 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                       <Pencil className="h-3 w-3" />
                     </button>
                   )}
+                  {/* Build a workout from scratch for this day — works on a
+                      rest day (nothing exists yet) or to add an extra
+                      workout alongside an existing one (e.g. tomorrow needs
+                      something different from what was originally planned). */}
+                  {canEdit && (
+                    <button
+                      onClick={() => setNewWorkoutDay(dayIndex)}
+                      title={tp('addWorkoutTooltip', { day })}
+                      className="flex items-center justify-center w-5 h-5 rounded-md bg-slate-700/60 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -315,7 +335,13 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     ))}
                   </>
                 ) : (
-                  <div className="flex-1 min-h-[100px] border border-slate-700/20 border-dashed rounded-lg flex items-center justify-center">
+                  <div
+                    onClick={() => { if (canEdit) setNewWorkoutDay(dayIndex); }}
+                    className={cn(
+                      'flex-1 min-h-[100px] border border-slate-700/20 border-dashed rounded-lg flex items-center justify-center',
+                      canEdit && 'cursor-pointer hover:border-primary-500/40 hover:bg-primary-500/5 transition-colors'
+                    )}
+                  >
                     <p className="text-[10px] text-slate-600">{tp('restDay')}</p>
                   </div>
                 )}
@@ -333,13 +359,16 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
         onClose={() => setViewingIdx(null)}
       />
 
-      {/* Workout Editor */}
-      {canEdit && editingWorkout && editingIdx !== null && (
+      {/* Workout Editor — editingWorkout covers both an existing entry
+          (editingIdx) and a not-yet-saved blank draft (newWorkoutDay); the
+          save target differs (replace vs. append) but the editor itself
+          doesn't need to know which. */}
+      {canEdit && editingWorkout && (
         <WorkoutEditorPanel
           workout={editingWorkout}
           dayName={dayNames[editingWorkout.dayOfWeek]}
-          onChange={(w) => onWorkoutChange?.(editingIdx, w)}
-          onClose={() => setEditingIdx(null)}
+          onChange={(w) => onWorkoutChange?.(editingIdx !== null ? editingIdx : workouts.length, w)}
+          onClose={() => { setEditingIdx(null); setNewWorkoutDay(null); }}
         />
       )}
     </>
