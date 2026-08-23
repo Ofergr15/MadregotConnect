@@ -1,8 +1,12 @@
 /**
- * GET /api/photos?date=YYYY-MM-DD    — staff only: photos for a run date
+ * GET /api/photos?date=YYYY-MM-DD    — any athlete: browse all photos for a run date
+ * GET /api/photos?importedDates=1    — any athlete: list of dates with imported photos
  * GET /api/photos?athleteId=<uuid>   — athletes get own; staff can get any
  *
- * Returns photos with their detected faces joined.
+ * Returns photos with their detected faces joined. The `date` branch omits
+ * tagged athletes' emails from the join — unlike the staff-only branches
+ * below, any club member can hit this one, and email was never shown by
+ * the Browse tab's UI.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyRequest, isStaff } from '@/lib/auth/verify';
@@ -25,7 +29,6 @@ export async function GET(req: NextRequest) {
 
     // Return list of distinct run_dates that have been imported
     if (importedDates) {
-      if (!isStaff(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       const { data, error } = await supabase
         .from('run_photos')
         .select('run_date')
@@ -48,9 +51,8 @@ export async function GET(req: NextRequest) {
     }
 
     if (date) {
-      // Date-based — staff only
-      if (!isStaff(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
+      // Date-based — any club member can browse (Browse tab); tagged
+      // athletes' emails are deliberately excluded from this select.
       const { data, error } = await supabase
         .from('run_photos')
         .select(`
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest) {
           faces_detected, processed_at,
           detected_faces (
             id, bounding_box, crop_url, athlete_id, confidence, source,
-            athletes ( id, name, email )
+            athletes ( id, name )
           )
         `)
         .eq('run_date', date)

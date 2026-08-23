@@ -92,6 +92,7 @@ export default function PhotosPage() {
     { key: 'my' as Tab, label: t('myPhotos'), icon: Image },
   ];
   const athleteTabs = [
+    { key: 'browse' as Tab, label: t('browse'), icon: Eye },
     { key: 'my' as Tab, label: t('myPhotos'), icon: Image },
   ];
   const tabs = isStaff ? staffTabs : athleteTabs;
@@ -116,7 +117,7 @@ export default function PhotosPage() {
       {/* Tab content */}
       {tab === 'import' && isStaff && <ImportTab />}
       {tab === 'unknown' && isStaff && <UnknownFacesTab />}
-      {tab === 'browse' && isStaff && <BrowseTab />}
+      {tab === 'browse' && <BrowseTab />}
       {tab === 'my' && <MyPhotosTab athleteId={athleteId} />}
     </div>
   );
