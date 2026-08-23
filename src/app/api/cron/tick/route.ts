@@ -20,7 +20,9 @@ function formatPace(secPerKm: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// External scheduler tick (Supabase pg_cron hits this every ~15 min). All timing
+// External scheduler tick (Vercel Cron hits this every 5 min — see vercel.json;
+// that interval is also the delivery-precision ceiling for scheduled/recurring
+// notifications, since it's the only thing scanning for due ones). All timing
 // logic lives here in Israel local time; the scheduler stays a dumb pinger.
 // Secured with CRON_SECRET like the other crons.
 //
