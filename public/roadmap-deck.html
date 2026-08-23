@@ -132,24 +132,24 @@
     <a class="toc-link blocked" href="#s1">🟡 1 · צ׳אט ומשוב</a>
     <a class="toc-link live" href="#s2">🟢 2 · תוכנית שבועית</a>
     <a class="toc-link blocked" href="#s3">🟡 3 · פיד הבית</a>
-    <a class="toc-link blocked" href="#s4">🟡 4 · יומן</a>
-    <a class="toc-link planned" href="#s5">⚪ 5 · הטבות</a>
+    <a class="toc-link live" href="#s4">🟢 4 · יומן</a>
+    <a class="toc-link live" href="#s5">🟢 5 · הטבות</a>
     <a class="toc-link live" href="#s6">🟢 6 · שיתוף ברשתות</a>
     <a class="toc-link live" href="#s7">🟢 7 · פרופיל</a>
-    <a class="toc-link blocked" href="#s8">🟡 8 · דפי אירוע</a>
-    <a class="toc-link planned" href="#s9">⚪ 9 · חנות</a>
+    <a class="toc-link live" href="#s8">🟢 8 · דפי אירוע</a>
+    <a class="toc-link blocked" href="#s9">🟡 9 · חנות</a>
     <a class="toc-link blocked" href="#s10">🟡 10 · פיד קהילתי</a>
     <a class="toc-link blocked" href="#s11">🟡 11 · הישגים</a>
     <a class="toc-link live" href="#s12">🟢 12 · לוחות מובילים</a>
-    <a class="toc-link planned" href="#s13">⚪ 13 · אתגרים</a>
+    <a class="toc-link live" href="#s13">🟢 13 · אתגרים</a>
     <a class="toc-link live" href="#s14">🟢 14 · נוכחות</a>
-    <a class="toc-link blocked" href="#s15">🟡 15 · הרשמה לאירועים</a>
-    <a class="toc-link partial" href="#s16">🔵 16 · התראות</a>
-    <a class="toc-link planned" href="#s17">⚪ 17 · חיפוש</a>
+    <a class="toc-link live" href="#s15">🟢 15 · הרשמה לאירועים</a>
+    <a class="toc-link live" href="#s16">🟢 16 · התראות</a>
+    <a class="toc-link live" href="#s17">🟢 17 · חיפוש</a>
     <a class="toc-link partial" href="#s18">🔵 18 · הגדרות</a>
     <a class="toc-link live" href="#s19">🟢 19 · פאנל ניהול</a>
     <a class="toc-link partial" href="#s20">🔵 20 · אנליטיקס</a>
-    <a class="toc-link planned" href="#s21">⚪ 21 · גילוי חברים</a>
+    <a class="toc-link live" href="#s21">🟢 21 · גילוי חברים</a>
     <a class="toc-link blocked" href="#s22">🟡 22 · התחברות</a>
   </div>
 </nav>
@@ -285,10 +285,10 @@
   <!-- 4 -->
   <div class="sec" id="s4">
     <span class="sec-num">4</span><h2>עמוד יומן</h2>
-    <span class="status blocked">🟡 מוכן לפריסה · נבנה במלואו</span>
+    <span class="status live">🟢 חי · אומת 23.08</span>
     <div class="line"></div>
   </div>
-  <p class="sec-desc">נבנה במלואו (Phase 3) — לא מוקאפ יותר. טבלת events גנרית (race/camp/lecture/social/photo_shoot/sponsor/workout) חיה ב-DB, מיגרציית 055 אומתה כמיושמת. מסך יומן אמיתי: רשת חודשית + נקודות לפי סוג, טופס הוספת אירוע לאדמין. מחכה ל-push+deploy בלבד.</p>
+  <p class="sec-desc">נבנה במלואו — לא מוקאפ. טבלת events גנרית (race/camp/lecture/social/photo_shoot/sponsor/workout) חיה ב-DB, מיגרציית 055 אומתה כמיושמת. מסך יומן אמיתי: רשת חודשית + נקודות לפי סוג, טופס הוספת אירוע לאדמין. גם List/Map toggle (Batch 3 של רדיזיין ה-iOS) נבנה ואומת — /dashboard/calendar נבדק חי ב-23.08.</p>
   <div class="grid">
     <div class="card">
       <div class="frame"><div class="mock">
@@ -316,10 +316,10 @@
   <!-- 5 -->
   <div class="sec" id="s5">
     <span class="sec-num">5</span><h2>הטבות ומועדון הנחות</h2>
-    <span class="status planned">⚪ מתוכנן · Phase 8</span>
+    <span class="status live">🟢 חי · אומת 23.08</span>
     <div class="line"></div>
   </div>
-  <p class="sec-desc">בניגוד לצ׳ק־ליסט — לא קיים כלל היום, אפילו לא גרסה בסיסית. Phase 8 בגלל תלות עסקית/עלות נמוכה.</p>
+  <p class="sec-desc">תיקון: הסטטוס הקודם היה שגוי — הפיצ׳ר קיים ובנוי במלואו, לא מוקאפ. מיגרציית 066 (club_perks: sponsor/title/discount_code/redeem_url/image/active/sort_order) חיה עם 2 הטבות seed, ניהול אדמין מלא (PerksManager.tsx, ב-Coach Tools ← Settings ?tab=perks), API ציבורי (/api/perks) ומסך ספורטאי אמיתי (/dashboard/benefits) — לא placeholder.</p>
   <div class="grid">
     <div class="card">
       <div class="frame"><div class="mock">
@@ -331,7 +331,7 @@
           <div class="card2 col"><div class="thumb" style="aspect-ratio:2/1"></div><b class="strong">15% נעליים</b><span class="muted">חנות הריצה</span><span class="chip2 dashed">SHOE15</span><span class="muted">פג תוקף 15.09</span></div>
         </div>
       </div></div>
-      <div class="cap-t"><b>עמוד הטבות (מוקאפ)</b><span>לוגו, תיאור, קוד קופון וקישור לאתר לכל ספונסר.</span></div>
+      <div class="cap-t"><b>עמוד הטבות (חי בקוד, /dashboard/benefits)</b><span>לוגו, תיאור, קוד קופון וקישור לאתר לכל ספונסר.</span></div>
     </div>
   </div>
 
@@ -390,7 +390,7 @@
   <!-- 8 -->
   <div class="sec" id="s8">
     <span class="sec-num">8</span><h2>דפי אירוע ייעודיים</h2>
-    <span class="status blocked">🟡 מוכן לפריסה · נבנה במלואו</span>
+    <span class="status live">🟢 חי</span>
     <div class="line"></div>
   </div>
   <p class="sec-desc">נבנה במלואו (Phase 3) — דף אירוע ייעודי אמיתי ב-/dashboard/calendar/[id], לא row-expand יותר. כל מה שמתואר במוקאפ למטה קיים בקוד בפועל: תיאור, לו״ז, קישור וויז (נגזר מ-lat/lng אם אין waze_url), ציוד, רשימת נרשמים (אווטארים), הרשמה+בר קיבולת, אקורדיון FAQ חדש שנבנה מאפס (לא היה ברכיבי האפליקציה קודם).</p>
@@ -421,10 +421,10 @@
   <!-- 9 -->
   <div class="sec" id="s9">
     <span class="sec-num">9</span><h2>חנות</h2>
-    <span class="status planned">⚪ מתוכנן · Phase 7</span>
+    <span class="status blocked">🟡 קוד מוכן · מחכה לספק סליקה</span>
     <div class="line"></div>
   </div>
-  <p class="sec-desc">אין שום תלות תשלומים בקוד היום — Phase 7 מחייבת בחירת ספק סליקה (סטרייפ מומלץ).</p>
+  <p class="sec-desc">תיקון: הקטלוג/עגלה/הזמנות בנויים במלואם (מיגרציית 064: store_products/store_orders/store_order_items, StoreManager.tsx לאדמין, /api/store/*) — לא מוקאפ. החסם היחיד האמיתי הוא בחירת ספק סליקה (סטרייפ/Cardcom/Grow וכו׳) — החלטה עסקית, לא שורת קוד.</p>
   <div class="grid">
     <div class="card">
       <div class="frame"><div class="mock">
@@ -552,10 +552,10 @@
   <!-- 13 -->
   <div class="sec" id="s13">
     <span class="sec-num">13</span><h2>מערכת אתגרים</h2>
-    <span class="status planned">⚪ מתוכנן · Phase 5 · דגל "עדיפות גבוהה" בצ׳ק־ליסט</span>
+    <span class="status live">🟢 חי · אומת 23.08</span>
     <div class="line"></div>
   </div>
-  <p class="sec-desc">נבנה אחרי שלב ההישגים (Phase 4) כי מנגנון הפרסים תלוי בפרימיטיב מדליות שעדיין לא קיים.</p>
+  <p class="sec-desc">תיקון: נבנה במלואו, לא מוקאפ. מיגרציית 062 (metric: distance_km/workout_count/elevation_m, scope: individual/group) בנויה מעל פרימיטיב המדליות (059) — השלמת אתגר = הענקת מדליה עם rule_type='challenge_completed', כך שפוסט-פיד+פוש מגיעים בחינם דרך awardBadge() הקיים. מנוע התקדמות חיה (src/lib/challenges/engine.ts, כולל טסטים), ניהול אדמין מלא, API ציבורי, ומסך אמיתי בטאב "אתגרים" בפרופיל.</p>
   <div class="grid">
     <div class="card">
       <div class="frame"><div class="mock">
@@ -579,7 +579,7 @@
           </div>
         </div>
       </div></div>
-      <div class="cap-t"><b>כרטיסי אתגר (מוקאפ)</b><span>אישי + דבוקה מול דבוקה, עם התקדמות.</span></div>
+      <div class="cap-t"><b>כרטיסי אתגר (חי בקוד, טאב אתגרים בפרופיל)</b><span>אישי + דבוקה מול דבוקה, עם התקדמות.</span></div>
     </div>
   </div>
 
@@ -608,7 +608,7 @@
   <!-- 15 -->
   <div class="sec" id="s15">
     <span class="sec-num">15</span><h2>מערכת הרשמה לאירועים</h2>
-    <span class="status blocked">🟡 מוכן לפריסה · נבנה במלואו</span>
+    <span class="status live">🟢 חי</span>
     <div class="line"></div>
   </div>
   <p class="sec-desc">נבנה במלואו (Phase 3) — event_registrations חי, כולל לוגיקת קיבולת+רשימת המתנה אמיתית: מבטל "registered" מקדם אוטומטית את הבא בתור מ-"waitlisted" (לפי created_at). אומת ידנית: הרשמה חוזרת לא סופרת את הרשומה של המשתמש עצמו בחישוב הקיבולת.</p>
@@ -636,10 +636,10 @@
   <!-- 16 -->
   <div class="sec" id="s16">
     <span class="sec-num">16</span><h2>מערכת התראות חכמה</h2>
-    <span class="status partial">🔵 בפיתוח · Phase 1</span>
+    <span class="status live">🟢 חי · הורחב משמעותית 23.08</span>
     <div class="line"></div>
   </div>
-  <p class="sec-desc">עודכן 20-21.08: ניסוח מדויק וממוקד-זמן לכל ההתראות (שם יום, ספירת RSVP, סוג אימון, שם המאמן) + בקשת Push עברה לבקשה-בהקשר. <b style="color:#cbd5e1">חדש:</b> לוגו לפי שולח (מאמן = תמונת המאמן, כללי/מערכת = לוגו מדרגות, tag יציב כך שהתראות חוזרות מחליפות ולא נערמות) + מרכז ההתראות באפליקציה עבר לקיבוץ לפי קטגוריה (אימונים/מאמן/הישגים/תוכנית) עם כותרות מתקפלות וכפתור "נקה" לכל קבוצה — בדיוק בסטייל ה-iOS שהוצג. עוד חסר: פוש על לייק/תגובה בפיד ועל הישג חדש.</p>
+  <p class="sec-desc">עודכן 20-23.08: ניסוח מדויק וממוקד-זמן לכל ההתראות + לוגו לפי שולח + מרכז התראות מקובץ לפי קטגוריה (אימונים/מאמן/הישגים/תוכנית). <b style="color:#cbd5e1">חדש 23.08:</b> סוג התראה חדש — סקרים (שאלה + אפשרויות, תוצאות live בגרף); תצוגה מקדימה חיה בתוך מסך השליחה (איקון+כותרת+תוכן, בדיוק כמו שיופיע במכשיר); מודול תזמון חדש (צ׳יפים היום/מחר/בעוד N ימים + שעה נפרדת בקפיצות 5 דק׳, במקום datetime-local גולמי); ה-cron שסורק התראות מתוזמנות עודכן מ-פעם ביום ל-כל 5 דקות (דיוק משלוחה השתפר מ-עד 59 דק׳ ל-עד ~4 דק׳); דיאלוג אישור מפורש לפני כל שליחה אמיתית; רשימת ההתראות במרכז ההתראות מקובצת מתוזמן/היסטוריה; "ניהול תזכורות אימון" (קונפיג צוותי) הועבר מהגדרות אישיות ל-Coach Tools (זו הגדרת אדמין, לא אישית). מרכז ההתראות עצמו הועבר משם ל-Coach Tools ← ניהול, נגיש בלחיצה אחת. עוד חסר: פוש על לייק/תגובה בפיד ועל הישג חדש.</p>
   <div class="grid">
     <div class="card">
       <div class="frame"><div class="mock">
@@ -676,10 +676,10 @@
   <!-- 17 -->
   <div class="sec" id="s17">
     <span class="sec-num">17</span><h2>חיפוש גלובלי באפליקציה</h2>
-    <span class="status planned">⚪ מתוכנן · Phase 9 · אחרון בכוונה</span>
+    <span class="status live">🟢 חי · אומת 23.08</span>
     <div class="line"></div>
   </div>
-  <p class="sec-desc">אחרון בתוכנית — מאנדקס ישויות (חברים/פוסטים/אירועים/חנות) שצריכות להתייצב בצורה לפני שכדאי לבנות עליהן חיפוש.</p>
+  <p class="sec-desc">תיקון: קיים ובנוי, לא מוקאפ. /dashboard/search + /api/search — חיפוש רב-ישויות אמיתי: athletes, events, store_products, club_perks. נגיש מסמל החיפוש בהדר.</p>
   <div class="grid">
     <div class="card">
       <div class="frame"><div class="mock">
@@ -765,10 +765,10 @@
   <!-- 21 -->
   <div class="sec" id="s21">
     <span class="sec-num">21</span><h2>גילוי חברים ורשת חברתית</h2>
-    <span class="status planned">⚪ מתוכנן · Phase 6</span>
+    <span class="status live">🟢 חי · אומת 23.08</span>
     <div class="line"></div>
   </div>
-  <p class="sec-desc">לפי docs/feed-plan.md — תוספת קלה מעל feed_items ("טבלת follow + WHERE clause"), אבל ממוקמת אחרי Phase 4 כדי שיהיו מדליות להציג בפרופיל הציבורי.</p>
+  <p class="sec-desc">תיקון: קיים ובנוי, לא מוקאפ. MemberDiscovery.tsx (בפרופיל) + /api/athletes/discover מציגים את כל הרוסטר עם isFollowing פר-שורה, חיפוש live בצד לקוח. עקוב/הסר-עקיבה אמיתי (/api/athletes/follow), עמוד חבר-צוות אמיתי (/dashboard/teammate/[id]), על גבי טבלת athlete_follows (מיגרציה 060) שכבר הייתה קיימת.</p>
   <div class="grid">
     <div class="card">
       <div class="frame"><div class="mock">
@@ -811,40 +811,36 @@
   </div>
 
   <!-- Auth/data-source flow diagram — supplements #22, not a 23rd checklist item.
-       Decision deliberately deferred (owner chose to test Strava-as-is first). -->
+       23.08: verified end-to-end — the "recommended" flow below is fully built. -->
   <div class="card2" style="margin:24px 0 44px;padding:20px 22px">
     <div class="row2 between" style="margin-bottom:6px;flex-wrap:wrap;gap:8px">
-      <b class="strong" style="font-size:15px">🔐 זרימת הרשמה + חיבור מקור אימונים — מצב נוכחי מול מומלץ</b>
-      <span class="chip2 dashed">החלטה נדחתה בכוונה · לא נבנה</span>
+      <b class="strong" style="font-size:15px">🔐 זרימת הרשמה + חיבור מקור אימונים — מצב נוכחי (מאומת 23.08)</b>
+      <span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">נבנה במלואו · לא מוקאפ</span>
     </div>
     <p class="muted" style="margin-bottom:16px;line-height:1.6">
-      נבדק בקוד: קיימים היום <b style="color:#cbd5e1">שני זרמים לא-מחוברים</b> — (1) קישור הזמנה מהמאמן ← הזנת שם-משתמש/סיסמה של גרמין ידנית (המקורי), (2) כפתור "התחברות עם Strava" בעמוד הנחיתה ← יוצר חשבון ישירות דרך Strava OAuth. Google קיים בקוד (resolve-role) אך <b style="color:#cbd5e1">אין לו כפתור בשום מקום</b> — רדום לחלוטין. כל 22 החברים הפעילים כיום הם על גרמין; 0 קישרו Strava. מנהל יכול להחליף מקור-נתונים (גרמין↔Strava) פר-ספורטאי מ־Settings, אך זו פעולת אדמין, לא self-service.
+      תיקון (23.08): הדיאגרמה הקודמת כאן הייתה שגויה — טענה "Google בלי כפתור בשום מקום, זרמים לא-מחוברים, לא נבנה". במציאות: כפתורי Google/Apple/Strava קיימים ב-3 מקומות בעמוד הנחיתה (nav, hero, CTA), וכל מסלול ה"מומלץ" למטה בנוי end-to-end: <code>/auth/resolve</code> יוצר athlete חדש (onboarding_status='google_authed') ומנתב ל-<code>/join/onboard</code> — אשף 2 שלבים (שם/דבוקה ← חיבור גרמין <b style="color:#cbd5e1">או</b> כפתור "מאוחר יותר" אמיתי). מי שדילג מקבל תזכורת עדינה בהמשך (<code>ConnectDataSourcePopup.tsx</code>, מותקן גלובלית בדשבורד) עם 4 אפשרויות: חבר עכשיו / הזן ידנית (<code>ManualActivitySheet.tsx</code> — קיים ובנוי) / הזכר לי מאוחר יותר / בטל לתמיד. כל 22 החברים הפעילים כיום עדיין על גרמין (המסלול הישן/הזמנה); 0 קישרו Strava עדיין — לא כי המסלול חסר, אלא כי אף אחד לא ניסה.
     </p>
     <div class="row2 between" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
       <div class="col" style="flex:1;min-width:260px;gap:8px">
-        <span class="chip2" style="background:rgba(245,158,11,.15);color:#fbbf24">מצב נוכחי</span>
+        <span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">מסלול חדש (חי, self-service)</span>
         <div class="card2 col" style="gap:6px">
-          <div class="row2 between muted"><span>זרם א׳ (מקורי)</span><span>קישור מאמן</span></div>
-          <div class="row2" style="gap:6px"><span class="chip2 g">הזמנה</span><span>→</span><span class="chip2 g">פרטי גרמין</span><span>→</span><span class="chip2 g">חשבון</span></div>
+          <div class="row2" style="gap:6px"><span class="chip2">הרשמה עם Google/Apple/Strava</span><span>→</span><span class="chip2 g">זהות/חשבון</span></div>
+          <div class="row2" style="gap:6px"><span>→</span><span class="chip2 g">/join/onboard: שם + דבוקה</span></div>
+          <div class="row2" style="gap:6px;padding-inline-start:18px"><span class="chip2 g">חבר גרמין</span><span class="chip2">"מאוחר יותר"</span></div>
           <div class="divider"></div>
-          <div class="row2 between muted"><span>זרם ב׳ (חדש יותר)</span><span>עצמי</span></div>
-          <div class="row2" style="gap:6px"><span class="chip2 strava" style="background:rgba(252,76,2,.15);color:#fc4c02">Strava OAuth</span><span>→</span><span class="chip2 g">חשבון אוטומטי</span></div>
-          <p class="muted" style="margin-top:4px">Google: קיים בקוד, ⚪ בלי כפתור — אף אחד לא יכול להשתמש בו.</p>
+          <div class="row2 between muted"><span>אם דילג</span></div>
+          <p class="muted">נכנס ל-dashboard (בכפוף לאישור מאמן — ראו הערה למטה), ומקבל תזכורת <code>ConnectDataSourcePopup</code> עם אפשרות הזנה ידנית אמיתית.</p>
         </div>
       </div>
       <div class="col" style="flex:1;min-width:260px;gap:8px">
-        <span class="chip2" style="background:rgba(34,197,94,.15);color:#4ade80">מומלץ (תבנית מקובלת — Strava/Runna/NRC)</span>
+        <span class="chip2" style="background:rgba(245,158,11,.15);color:#fbbf24">מסלול ישן (עדיין קיים, קישור מאמן)</span>
         <div class="card2 col" style="gap:6px">
-          <div class="row2" style="gap:6px"><span class="chip2">הרשמה עם Google</span><span>→</span><span class="chip2 g">זהות/חשבון</span></div>
-          <div class="row2" style="gap:6px"><span>→</span><span class="chip2 dashed">חיבור מקור אימונים (אופציונלי)</span></div>
-          <div class="row2" style="gap:6px;padding-inline-start:18px"><span class="chip2 strava" style="background:rgba(252,76,2,.15);color:#fc4c02">Strava</span><span class="chip2 g">Garmin</span><span class="chip2 dashed">דלג לעכשיו</span></div>
-          <div class="divider"></div>
-          <div class="row2 between muted"><span>⚠️ אם דילג / אין לו Strava/Garmin</span></div>
-          <p class="muted">גישה מלאה לפיד/צ׳אט/RSVP/אירועים ללא חסימה; אימונים מוזנים <b style="color:#cbd5e1">ידנית</b> (תאריך/מרחק/זמן); תזכורת עדינה ולא-חוסמת ב-Settings לחבר מאוחר יותר.</p>
+          <div class="row2" style="gap:6px"><span class="chip2 g">הזמנה</span><span>→</span><span class="chip2 g">פרטי גרמין (חובה)</span><span>→</span><span class="chip2 g">חשבון</span></div>
+          <p class="muted" style="margin-top:4px">זה מה שכל 22 החברים הקיימים עברו. לא נדחה ולא הוחלף — שני המסלולים חיים במקביל.</p>
         </div>
       </div>
     </div>
-    <p class="muted" style="margin-top:14px;font-size:11px">הבעלים בחר לבדוק את זרם ה-Strava הקיים כמו שהוא הערב, ולדחות את החלטת Google-כראשי להמשך נפרד — הדיאגרמה הזו היא קלט להחלטה, לא שינוי שנבנה.</p>
+    <p class="muted" style="margin-top:14px;font-size:11px">פער אמיתי אחד שנשאר: המדיניות בקוד חוסמת <b style="color:#cbd5e1">כל</b> הרשמה חדשה (מחוברת או שדילגה) מאחורי אישור-מאמן ידני, בניגוד לתיאור "גישה מלאה ללא חסימה למי שדילג" שהיה כאן קודם — זו מדיניות שכבר קיימת בכוונה, לא באג, אבל שונה ממה שתואר. שווה החלטה מפורשת אם רוצים לשנות. החסם היחיד שהוא באמת חסר-קוד: הפעלת ה-provider ב-Supabase (Google/Apple) — ראו סעיף 22.</p>
   </div>
 
   <footer>
