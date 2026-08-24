@@ -1192,7 +1192,8 @@
     "otherGroup": "דבוקה אחרת… (טקסט חופשי)",
     "goingCount": "מגיעים",
     "noRsvp": "לא ענו",
-    "titleTomorrow": "מגיעים לאימון מחר?"
+    "titleTomorrow": "מגיעים לאימון מחר?",
+    "saveFailed": "השמירה נכשלה, נסו שוב"
   },
   "nextWorkout": {
     "eventTitle": "אימון ריצה",

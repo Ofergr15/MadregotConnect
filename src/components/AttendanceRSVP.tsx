@@ -23,6 +23,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
   const [group, setGroup] = useState('');
   const [customGroup, setCustomGroup] = useState('');
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   // On the workout day the card only nudges athletes who never answered; once
   // they have an RSVP on record it self-hides (the day-before flow already asked).
@@ -63,6 +64,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
     const prev = attending;
     setAttending(isAttending);
     setSaved(false);
+    setError(null);
     try {
       const res = await fetch('/api/attendance', {
         method: 'POST',
@@ -73,11 +75,13 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
           groupLabel: isAttending ? (group || null) : null,
         }),
       });
-      if (!res.ok) throw new Error('save failed');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || data.error || t('saveFailed'));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
+    } catch (err: unknown) {
       setAttending(prev); // roll back the optimistic flip
+      setError(err instanceof Error ? err.message : t('saveFailed'));
     }
   };
 
@@ -117,6 +121,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
           <XCircle className="h-4 w-4" /> {t('notComing')}
         </button>
       </div>
+      {error && <p className="relative text-xs text-red-400 mt-2" dir="rtl">{error}</p>}
 
       {attending === true && (
         <div className="relative mt-3">
@@ -155,6 +160,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
   // highlights instantly (setGroup); this saves in the background.
   async function submitGroup(preset: string, custom: string) {
     if (!athleteId) return;
+    setError(null);
     try {
       const res = await fetch('/api/attendance', {
         method: 'POST',
@@ -164,9 +170,12 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
           groupLabel: custom.trim() || preset || null,
         }),
       });
-      if (!res.ok) throw new Error('save failed');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || data.error || t('saveFailed'));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch { /* leave the choice; a later save will retry */ }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('saveFailed'));
+    }
   }
 }
