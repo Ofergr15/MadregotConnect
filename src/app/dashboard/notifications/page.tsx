@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck } from 'lucide-react';
+import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
 
@@ -84,6 +85,51 @@ function styleFor(it: Item): { Icon: typeof Activity; tile: string } {
 interface Section {
   bucket: DateBucket;
   items: Item[];
+}
+
+// "kudos_activity" rows carry the real activity id as a ?kudos= query param
+// (see notifyTeammatesOfActivity in src/lib/push.ts) so kudos can be given
+// directly from the notification, with no teammate-visible activity-detail
+// page needed at all.
+function kudosActivityId(it: Item): string | null {
+  if (it.kind !== 'kudos_activity') return null;
+  const m = it.url.match(/[?&]kudos=([^&]+)/);
+  return m ? m[1] : null;
+}
+
+// Inline "give kudos" action on a kudos_activity row — optimistic, starts
+// assuming not-yet-given (a page reload always resets it; acceptable for a
+// low-stakes one-tap reaction, same as Strava's own kudos button behaves).
+function KudosButton({ activityId, athleteId }: { activityId: string; athleteId: string }) {
+  const [given, setGiven] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const toggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    const next = !given;
+    setGiven(next);
+    try {
+      await fetch(`/api/activities/${activityId}/kudos`, {
+        method: next ? 'POST' : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athleteId }),
+      });
+    } catch { setGiven(!next); } // revert on failure
+    setBusy(false);
+  };
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className={cn(
+        'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0',
+        given ? 'bg-primary-600 text-white' : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700',
+      )}
+    >
+      <ThumbsUp className="h-3.5 w-3.5" /> {given ? 'ניתן' : 'קודוס'}
+    </button>
+  );
 }
 
 // In-app notification inbox (PRD panel 5): the athlete's notification history,
@@ -183,6 +229,7 @@ export default function NotificationsInboxPage() {
               {sectionItems.map((it) => {
                 const { Icon, tile } = styleFor(it);
                 const unread = isUnread(it);
+                const kudosId = kudosActivityId(it);
                 return (
                   <div key={it.id} className="relative">
                     {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-500 z-10" aria-hidden="true" />}
@@ -192,8 +239,16 @@ export default function NotificationsInboxPage() {
                       avatarUrl={it.actorAvatarUrl || undefined}
                       label={it.title}
                       sublabel={it.body}
-                      value={timeAgo(it.sentAt, tn, dateLocale)}
                       onClick={() => router.push(it.url || '/dashboard')}
+                      trailing={
+                        kudosId && athleteId ? (
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className="text-xs text-slate-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
+                            <KudosButton activityId={kudosId} athleteId={athleteId} />
+                          </div>
+                        ) : undefined
+                      }
+                      value={kudosId ? undefined : timeAgo(it.sentAt, tn, dateLocale)}
                     />
                   </div>
                 );

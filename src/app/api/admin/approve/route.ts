@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { randomBytes } from 'crypto';
 import { canApprove } from '@/lib/constants';
 import { notifyUserApproved, notifyAdminUserApproved, notifyAcademyApproved } from '@/lib/email';
-import { subscriptionsForAthletes, sendPushToSubscriptions } from '@/lib/push';
+import { notifyAthlete } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,15 +91,16 @@ export async function POST(req: NextRequest) {
       // of guessing and signing back in). No category, so it can't be muted.
       (async () => {
         try {
-          const subs = await subscriptionsForAthletes([athleteId]);
-          if (subs.length > 0) {
-            await sendPushToSubscriptions(subs, {
-              title: `${athlete.name}, אושרת! 🎉`,
-              body: 'ההרשמה שלך אושרה — היכנס/י כדי לראות את תוכנית האימונים שלך',
-              url: '/dashboard',
-              tag: 'approval',
-            });
-          }
+          await notifyAthlete({
+            athleteId,
+            kind: 'approval',
+            title: `${athlete.name}, אושרת! 🎉`,
+            body: 'ההרשמה שלך אושרה — היכנס/י כדי לראות את תוכנית האימונים שלך',
+            url: '/dashboard',
+            tag: 'approval',
+            // No category — this is the one moment a pending athlete has been
+            // waiting for since signup; it must never be mutable.
+          });
         } catch (pushErr) {
           console.error('Approval push notification failed:', pushErr);
         }

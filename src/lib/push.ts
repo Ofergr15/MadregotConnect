@@ -260,6 +260,8 @@ export async function notifyTeammatesOfActivity(activity: {
   athleteId: string;
   /** Unique per activity — keys the notification `tag` so it can't duplicate. */
   activityKey: string | number;
+  /** The real athlete_activities.id (UUID) — lets a follower give kudos directly from this notification. */
+  activityId: string;
   distanceMeters: number;
   durationSeconds: number;
   averagePaceSecPerKm?: number | null;
@@ -295,28 +297,25 @@ export async function notifyTeammatesOfActivity(activity: {
   const verb = athlete.gender === 'male' ? 'סיים' : athlete.gender === 'female' ? 'סיימה' : 'סיים/ה';
   const title = `🏃 ${name} ${verb} ריצה של ${km} ק"מ`;
   const body = parts.join(' · ');
+  // No teammate-visible activity-detail page exists yet (the per-activity
+  // run-chat link is owner/coach-only — canAccessChat in
+  // src/lib/run-chat/access.ts 403s any other athlete), so this falls back to
+  // the shared activities feed — but carries the real activity id as a query
+  // param so the notification row itself can offer a "give kudos" action
+  // without needing that detail page at all.
+  const url = `/dashboard/activities?kudos=${activity.activityId}`;
 
   // Persist one row per follower (not just push) so this shows up in each
   // follower's Notification Center history afterward, same as any other
   // social-activity notification — best-effort, never blocks the push below.
-  try {
-    const supabase = createServerClient();
-    await supabase.from('scheduled_notifications').insert(
-      followerIds.map((followerId) => ({
-        kind: 'kudos_activity',
-        title_he: title,
-        body_he: body,
-        url: '/dashboard/activities',
-        audience_type: 'athlete',
-        audience_id: followerId,
-        actor_athlete_id: activity.athleteId,
-        schedule_type: 'now',
-        status: 'sent',
-        last_sent_at: new Date().toISOString(),
-        sent_count: 1,
-      })),
-    );
-  } catch { /* best-effort */ }
+  await persistNotifications(followerIds.map((followerId) => ({
+    athleteId: followerId,
+    kind: 'kudos_activity',
+    actorAthleteId: activity.athleteId,
+    title,
+    body,
+    url,
+  })));
 
   return sendPushToSubscriptions(subs, {
     // Distance is in the TITLE itself, not just the body — iOS shows the
@@ -325,11 +324,7 @@ export async function notifyTeammatesOfActivity(activity: {
     // bare "X finished a run" title did before.
     title,
     body,
-    // No teammate-visible activity-detail page exists yet (the per-activity
-    // run-chat link is owner/coach-only — canAccessChat in
-    // src/lib/run-chat/access.ts 403s any other athlete), so this falls back
-    // to the shared activities feed per the task's own fallback instruction.
-    url: '/dashboard/activities',
+    url,
     tag: `teammate-activity-${activity.activityKey}`,
     category: 'teammates',
     // `icon` (small, corner badge) works broadly incl. iOS 16.4+ PWA push;
@@ -339,6 +334,42 @@ export async function notifyTeammatesOfActivity(activity: {
     // the same photo so it shows as richly as each platform allows.
     ...(athlete.avatar_url ? { icon: athlete.avatar_url, image: athlete.avatar_url } : {}),
   });
+}
+
+/**
+ * Persist one scheduled_notifications row per recipient — for fan-out cases
+ * (one event, several recipients — e.g. every follower of an athlete who just
+ * ran, or every coach when an order comes in) where the actual push is
+ * already sent as one batched sendPushToSubscriptions call. Best-effort,
+ * never throws.
+ */
+export async function persistNotifications(rows: Array<{
+  athleteId: string;
+  kind: string;
+  actorAthleteId?: string | null;
+  title: string;
+  body: string;
+  url: string;
+}>): Promise<void> {
+  if (rows.length === 0) return;
+  try {
+    const supabase = createServerClient();
+    await supabase.from('scheduled_notifications').insert(
+      rows.map((r) => ({
+        kind: r.kind,
+        title_he: r.title,
+        body_he: r.body,
+        url: r.url,
+        audience_type: 'athlete',
+        audience_id: r.athleteId,
+        actor_athlete_id: r.actorAthleteId || null,
+        schedule_type: 'now',
+        status: 'sent',
+        last_sent_at: new Date().toISOString(),
+        sent_count: 1,
+      })),
+    );
+  } catch { /* best-effort */ }
 }
 
 /**
@@ -363,22 +394,14 @@ export async function notifyAthlete(opts: {
   category?: NotificationCategory;
   icon?: string;
 }): Promise<void> {
-  try {
-    const supabase = createServerClient();
-    await supabase.from('scheduled_notifications').insert({
-      kind: opts.kind,
-      title_he: opts.title,
-      body_he: opts.body,
-      url: opts.url,
-      audience_type: 'athlete',
-      audience_id: opts.athleteId,
-      actor_athlete_id: opts.actorAthleteId || null,
-      schedule_type: 'now',
-      status: 'sent',
-      last_sent_at: new Date().toISOString(),
-      sent_count: 1,
-    });
-  } catch { /* best-effort — persistence failure must never block the push */ }
+  await persistNotifications([{
+    athleteId: opts.athleteId,
+    kind: opts.kind,
+    actorAthleteId: opts.actorAthleteId,
+    title: opts.title,
+    body: opts.body,
+    url: opts.url,
+  }]);
 
   try {
     const subs = await subscriptionsForAthletes([opts.athleteId]);

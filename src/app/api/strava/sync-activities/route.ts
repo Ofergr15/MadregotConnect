@@ -20,7 +20,7 @@ import {
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
-import { notifyTeammatesOfActivity, subscriptionsForAthletes, sendPushToSubscriptions } from '@/lib/push';
+import { notifyTeammatesOfActivity, notifyAthlete } from '@/lib/push';
 
 // Mirrors garmin/sync-activities' RUN_TYPE_LABELS — kept as a separate copy
 // since the two syncs' activity_type vocabularies aren't guaranteed to stay
@@ -285,6 +285,7 @@ export async function POST(request: Request) {
             await notifyTeammatesOfActivity({
               athleteId: athlete.id,
               activityKey: inserted.id,
+              activityId: inserted.id,
               distanceMeters: row.distance,
               durationSeconds: row.duration,
               averagePaceSecPerKm: row.average_pace,
@@ -326,21 +327,20 @@ export async function POST(request: Request) {
           if (newActivityPushInfo.length > 0) {
             const newest = newActivityPushInfo.reduce((a, b) =>
               new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b);
-            const subs = await subscriptionsForAthletes([athlete.id]);
-            if (subs.length > 0) {
-              const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;
-              const label = RUN_TYPE_LABELS[newest.activityType] || 'ריצה';
-              const pushBody = km
-                ? `${label} של ${km} ק״מ — איך היה? ספרו לנו במשוב קצר`
-                : 'איך היה? ספרו לנו במשוב קצר';
-              await sendPushToSubscriptions(subs, {
-                title: 'כל הכבוד על האימון! 🏃',
-                body: pushBody,
-                url: `/dashboard/feedback?activity=${newest.activityId}`,
-                tag: `post-workout-${newest.activityId}`,
-                category: 'workouts',
-              });
-            }
+            const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;
+            const label = RUN_TYPE_LABELS[newest.activityType] || 'ריצה';
+            const pushBody = km
+              ? `${label} של ${km} ק״מ — איך היה? ספרו לנו במשוב קצר`
+              : 'איך היה? ספרו לנו במשוב קצר';
+            await notifyAthlete({
+              athleteId: athlete.id,
+              kind: 'post_workout_prompt',
+              title: 'כל הכבוד על האימון! 🏃',
+              body: pushBody,
+              url: `/dashboard/feedback?activity=${newest.activityId}`,
+              tag: `post-workout-${newest.activityId}`,
+              category: 'workouts',
+            });
           }
         } catch { /* push is best-effort */ }
 

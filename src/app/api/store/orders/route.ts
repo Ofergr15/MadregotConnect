@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { APPROVER_EMAILS } from '@/lib/constants';
-import { subscriptionsForAthletes, sendPushToSubscriptions } from '@/lib/push';
+import { subscriptionsForAthletes, sendPushToSubscriptions, persistNotifications } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,11 +156,21 @@ export async function POST(request: Request) {
       const { data: coaches } = await supabase.from('athletes').select('id').in('email', APPROVER_EMAILS);
       const coachIds = (coaches || []).map((c: { id: string }) => c.id);
       if (coachIds.length > 0) {
+        const title = '🛒 הזמנה חדשה בחנות';
+        const body = `${athlete?.name || 'ספורטאי/ת'}: ${lineItems.length} פריטים · ${total} ₪`;
+        await persistNotifications(coachIds.map((coachId) => ({
+          athleteId: coachId,
+          kind: 'store_order',
+          actorAthleteId: athleteId,
+          title,
+          body,
+          url: '/dashboard/store',
+        })));
         const subs = await subscriptionsForAthletes(coachIds);
         if (subs.length > 0) {
           await sendPushToSubscriptions(subs, {
-            title: '🛒 הזמנה חדשה בחנות',
-            body: `${athlete?.name || 'ספורטאי/ת'}: ${lineItems.length} פריטים · ${total} ₪`,
+            title,
+            body,
             url: '/dashboard/store',
             tag: `store-order-${order.id}`,
           });

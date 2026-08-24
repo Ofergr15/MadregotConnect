@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from '@/lib/garmin/client';
 import { COACH_ID } from '@/lib/constants';
-import { sendPushToSubscriptions, notifyTeammatesOfActivity } from '@/lib/push';
+import { notifyTeammatesOfActivity, notifyAthlete } from '@/lib/push';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 
@@ -145,12 +145,20 @@ export async function POST(request: Request) {
             });
           }
 
-          const { error: insertError } = await supabase
+          const { data: insertedRows, error: insertError } = await supabase
             .from('athlete_activities')
-            .insert(rows);
+            .insert(rows)
+            .select('id, garmin_activity_id');
 
           if (insertError) throw insertError;
           totalSynced += newActivities.length;
+
+          // Map back to the real row id per Garmin activity, so kudos (which
+          // targets athlete_activities.id, not the legacy garmin_activity_id)
+          // has something real to reference.
+          const idByGarminActivityId = new Map(
+            (insertedRows || []).map((r: { id: string; garmin_activity_id: number }) => [r.garmin_activity_id, r.id]),
+          );
 
           // Notify group teammates for each genuinely new run just inserted
           // above (never for anything filtered out of `newActivities` via
@@ -161,10 +169,13 @@ export async function POST(request: Request) {
             await Promise.all(
               newActivities.map(async (a, i) => {
                 const row = rows[i];
+                const activityId = idByGarminActivityId.get(a.activityId);
+                if (!activityId) return; // shouldn't happen, but never notify without a real target
                 try {
                   await notifyTeammatesOfActivity({
                     athleteId: athlete.id,
                     activityKey: `${athlete.id}-${a.activityId}`,
+                    activityId,
                     distanceMeters: row.distance,
                     durationSeconds: row.duration,
                     averagePaceSecPerKm: row.average_pace,
@@ -185,26 +196,22 @@ export async function POST(request: Request) {
             if (suppressPush) throw new Error('suppressed');
             const newest = newActivities.reduce((a, b) =>
               new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b);
-            const { data: subs } = await supabase
-              .from('push_subscriptions')
-              .select('id, endpoint, p256dh, auth, athlete_id')
-              .eq('athlete_id', athlete.id);
-            if (subs && subs.length > 0) {
-              // Concrete detail already in scope: the just-synced activity's
-              // distance + sub-type (same fields used to build `rows` above).
-              const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;
-              const label = RUN_TYPE_LABELS[newest.activityType] || 'ריצה';
-              const body = km
-                ? `${label} של ${km} ק״מ — איך היה? ספרו לנו במשוב קצר`
-                : 'איך היה? ספרו לנו במשוב קצר';
-              await sendPushToSubscriptions(subs as any, {
-                title: 'כל הכבוד על האימון! 🏃',
-                body,
-                url: `/dashboard/feedback?activity=${newest.activityId}`,
-                tag: `post-workout-${newest.activityId}`,
-                category: 'workouts',
-              });
-            }
+            // Concrete detail already in scope: the just-synced activity's
+            // distance + sub-type (same fields used to build `rows` above).
+            const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;
+            const label = RUN_TYPE_LABELS[newest.activityType] || 'ריצה';
+            const body = km
+              ? `${label} של ${km} ק״מ — איך היה? ספרו לנו במשוב קצר`
+              : 'איך היה? ספרו לנו במשוב קצר';
+            await notifyAthlete({
+              athleteId: athlete.id,
+              kind: 'post_workout_prompt',
+              title: 'כל הכבוד על האימון! 🏃',
+              body,
+              url: `/dashboard/feedback?activity=${newest.activityId}`,
+              tag: `post-workout-${newest.activityId}`,
+              category: 'workouts',
+            });
           } catch { /* push is best-effort */ }
 
           // New activities can move a PR bucket, the cumulative-distance total,
