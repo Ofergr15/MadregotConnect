@@ -404,26 +404,42 @@ async function run(request: Request) {
           b.km += r.distance / 1000; b.runs += 1; b.sec += (r.duration || 0);
           per.set(r.athlete_id, b);
         }
-        // Push each runner who ran this week their own recap.
-        for (const [athleteId, s] of per.entries()) {
-          if (s.runs === 0) continue;
-          const km = Math.round(s.km * 10) / 10;
-          const runsLabel = s.runs === 1 ? 'ריצה' : 'ריצות';
-          const paceStr = s.sec > 0 && s.km > 0 ? formatPace(s.sec / s.km) : null;
-          const body = paceStr
-            ? `השבוע רצת ${km} ק״מ ב-${s.runs} ${runsLabel}, בקצב ממוצע של ${paceStr} לק״מ. כל הכבוד!`
-            : `השבוע רצת ${km} ק״מ ב-${s.runs} ${runsLabel}. כל הכבוד!`;
-          const subs = await subscriptionsForAthletes([athleteId]);
-          if (subs.length === 0) continue;
-          const sent = await sendPushToSubscriptions(subs, {
-            title: 'הסיכום השבועי שלך 🏅',
-            body,
-            url: '/dashboard',
-            tag,
-            category: 'achievements',
-          });
-          totalSent += sent;
+        // Push each runner who ran this week their own recap — was a
+        // sequential for-loop (one subs query + one full send, awaited one
+        // athlete at a time), invisible at a handful of test runners but a
+        // real risk of blowing the 60s function timeout at 100+ real ones
+        // (and a timed-out run never reaches markFired below, so it'd keep
+        // re-attempting a partial send on the next few ticks). One batched
+        // subscription query, then every athlete's send runs concurrently.
+        const runnerIds = Array.from(per.entries()).filter(([, s]) => s.runs > 0).map(([id]) => id);
+        const allSubs = await subscriptionsForAthletes(runnerIds);
+        const subsByAthlete = new Map<string, typeof allSubs>();
+        for (const s of allSubs) {
+          const arr = subsByAthlete.get(s.athlete_id) || [];
+          arr.push(s);
+          subsByAthlete.set(s.athlete_id, arr);
         }
+        const sentCounts = await Promise.all(
+          runnerIds.map(async (athleteId) => {
+            const s = per.get(athleteId)!;
+            const subs = subsByAthlete.get(athleteId) || [];
+            if (subs.length === 0) return 0;
+            const km = Math.round(s.km * 10) / 10;
+            const runsLabel = s.runs === 1 ? 'ריצה' : 'ריצות';
+            const paceStr = s.sec > 0 && s.km > 0 ? formatPace(s.sec / s.km) : null;
+            const body = paceStr
+              ? `השבוע רצת ${km} ק״מ ב-${s.runs} ${runsLabel}, בקצב ממוצע של ${paceStr} לק״מ. כל הכבוד!`
+              : `השבוע רצת ${km} ק״מ ב-${s.runs} ${runsLabel}. כל הכבוד!`;
+            return sendPushToSubscriptions(subs, {
+              title: 'הסיכום השבועי שלך 🏅',
+              body,
+              url: '/dashboard',
+              tag,
+              category: 'achievements',
+            });
+          }),
+        );
+        totalSent = sentCounts.reduce((a, b) => a + b, 0);
       }
       await markFired(tag, totalSent);
       fired.push(`${tag} → ${totalSent}`);
