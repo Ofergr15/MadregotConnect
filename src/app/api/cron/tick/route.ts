@@ -48,6 +48,24 @@ async function run(request: Request) {
 
   const supabase = createServerClient();
   const now = new Date();
+
+  // Atomic overlap guard (migration 074) — Vercel Cron doesn't guarantee
+  // mutual exclusion between invocations, so if one tick runs long (more
+  // likely as the athlete count grows), the next one could start before it
+  // finishes and double-fire every stage below. A single INSERT with a
+  // UNIQUE constraint is race-safe even if two invocations start in the same
+  // instant, unlike a separate read-then-write check. Rounds to the 5-minute
+  // grid Vercel actually schedules on (vercel.json: */5 * * * *).
+  const tickAt = new Date(Math.floor(now.getTime() / 300_000) * 300_000).toISOString();
+  const { error: lockError } = await supabase.from('cron_tick_locks').insert({ tick_at: tickAt });
+  if (lockError && lockError.code === '23505') {
+    return NextResponse.json({ ok: true, skipped: 'duplicate tick', tickAt });
+  }
+  // Any other lock error (e.g. table not migrated yet) — don't block the
+  // tick over a missing safety net, just proceed without it.
+  // Best-effort cleanup of old lock rows — never blocks the actual tick.
+  supabase.from('cron_tick_locks').delete().lt('tick_at', new Date(now.getTime() - 2 * 86_400_000).toISOString()).then(() => {}, () => {});
+
   const { weekday, hour } = israelNow(now);
   const weekStart = getPlanWeekStart(now);
 

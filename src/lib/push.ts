@@ -102,12 +102,54 @@ async function filterByCategory(subs: SubRow[], category?: NotificationCategory)
  * notification and resets when the athlete opens the app. Returns a map
  * athlete_id -> unread count (already including the notification being sent now).
  */
+// Was N athletes x 2 sequential DB round trips (one per athlete via
+// unreadCountForAthlete) — invisible at a handful of test subscribers, but a
+// real bottleneck (and connection-pool risk) once a broadcast reaches 100+
+// real athletes. Batched to exactly 2 queries total regardless of audience
+// size: one for every recipient's group_id/last_seen_at, one for every
+// recently-sent notification, then the per-athlete match happens in memory.
 async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
-  await Promise.all(athleteIds.map(async (id) => {
+  if (athleteIds.length === 0) return counts;
+  const supabase = createServerClient();
+
+  const { data: athletesData } = await supabase
+    .from('athletes')
+    .select('id, group_id, last_seen_at')
+    .in('id', athleteIds);
+  const athleteById = new Map((athletesData || []).map((a: { id: string; group_id: string | null; last_seen_at: string | null }) => [a.id, a]));
+
+  const earliestSince = (athletesData || []).reduce(
+    (min: string, a: { last_seen_at: string | null }) => {
+      const since = a.last_seen_at || '1970-01-01';
+      return since < min ? since : min;
+    },
+    '9999-12-31',
+  );
+  const { data: recentNotifs } = await supabase
+    .from('scheduled_notifications')
+    .select('audience_type, audience_id, last_sent_at')
+    .eq('status', 'sent')
+    .gt('last_sent_at', earliestSince);
+
+  for (const id of athleteIds) {
+    const a = athleteById.get(id);
+    if (!a) { counts[id] = 1; continue; }
+    const since = a.last_seen_at || '1970-01-01';
+    let count = 0;
+    for (const n of (recentNotifs || []) as Array<{ audience_type: string; audience_id: string | null; last_sent_at: string }>) {
+      if (n.last_sent_at <= since) continue;
+      if (
+        n.audience_type === 'all' ||
+        (n.audience_type === 'group' && n.audience_id === a.group_id) ||
+        (n.audience_type === 'athlete' && n.audience_id === id)
+      ) {
+        count++;
+      }
+    }
     // +1 for the notification being delivered right now (send path).
-    counts[id] = (await unreadCountForAthlete(id)) + 1;
-  }));
+    counts[id] = count + 1;
+  }
   return counts;
 }
 
