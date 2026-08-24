@@ -11,14 +11,14 @@ import { APPROVER_EMAILS } from '@/lib/constants';
 // template today, matching the two team workout days this was asked for.
 const PACE_SURVEY_TEMPLATES: Record<number, { questionHe: string; questionEn: string; optionsHe: string[]; optionsEn: string[] }> = {
   2: {
-    questionHe: 'לאיזו דבוקה מצטרפים באימון של יום שלישי? 🏃',
-    questionEn: "Which pace group are you joining for Tuesday's training? 🏃",
+    questionHe: 'מי בא לרוץ ביום שלישי? 🌅🏃 בחרו דבוקה!',
+    questionEn: "Who's running on Tuesday? 🌅🏃 Pick your pace group!",
     optionsHe: ['דבוקה 1', 'דבוקה 2', 'דבוקה 3', 'לא מגיע/ה הפעם'],
     optionsEn: ['Group 1', 'Group 2', 'Group 3', 'Not coming this time'],
   },
   5: {
-    questionHe: 'לאיזו דבוקה מצטרפים באימון של יום שישי? 🏃',
-    questionEn: "Which pace group are you joining for Friday's training? 🏃",
+    questionHe: 'מי בא לרוץ ביום שישי? 🌅🏃 בחרו דבוקה!',
+    questionEn: "Who's running on Friday? 🌅🏃 Pick your pace group!",
     optionsHe: ['דבוקה 1', 'דבוקה 2', 'דבוקה 3', 'לא מגיע/ה הפעם'],
     optionsEn: ['Group 1', 'Group 2', 'Group 3', 'Not coming this time'],
   },
