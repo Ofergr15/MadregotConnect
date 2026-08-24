@@ -1,8 +1,28 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushToSubscriptions, resolveAudience, subscriptionsForAthletes, allAthleteIds } from '@/lib/push';
+import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
 import { israelNow, getPlanWeekStart, getActivityWeekStart } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
+
+// Recurring pace-group polls — a real Survey (not just a text reminder),
+// created fresh each week so responses never carry over from last week's
+// training. Keyed by team day (0=Sun..6=Sat); only Tuesday/Friday have a
+// template today, matching the two team workout days this was asked for.
+const PACE_SURVEY_TEMPLATES: Record<number, { questionHe: string; questionEn: string; optionsHe: string[]; optionsEn: string[] }> = {
+  2: {
+    questionHe: 'לאיזו דבוקה מצטרפים באימון של יום שלישי? 🏃',
+    questionEn: "Which pace group are you joining for Tuesday's training? 🏃",
+    optionsHe: ['דבוקה 1', 'דבוקה 2', 'דבוקה 3', 'לא מגיע/ה הפעם'],
+    optionsEn: ['Group 1', 'Group 2', 'Group 3', 'Not coming this time'],
+  },
+  5: {
+    questionHe: 'לאיזו דבוקה מצטרפים באימון של יום שישי? 🏃',
+    questionEn: "Which pace group are you joining for Friday's training? 🏃",
+    optionsHe: ['דבוקה 1', 'דבוקה 2', 'דבוקה 3', 'לא מגיע/ה הפעם'],
+    optionsEn: ['Group 1', 'Group 2', 'Group 3', 'Not coming this time'],
+  },
+};
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -133,6 +153,66 @@ async function run(request: Request) {
         });
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
+      }
+    }
+
+    const surveyTpl = PACE_SURVEY_TEMPLATES[teamDay];
+
+    // Stage 3 — pace-group poll, day before, at dayBefore.hour, to ALL. A
+    // genuinely fresh Survey each week (never the plain reminder text) so
+    // last week's answers can't carry over. The real survey id gets stashed
+    // in this ledger row's body_he (reusing the same #ledger:<tag> shape as
+    // markFired, just with real payload instead of the tag itself) so Stage
+    // 4 can find it later today.
+    if (surveyTpl && dayBefore.enabled && weekday === dayBeforeWeekday && hour === dayBefore.hour) {
+      const tag = `paceSurvey:${weekStart}:${teamDay}`;
+      if (!(await already(tag))) {
+        const { survey, sent } = await createAndSendSurvey({
+          questionHe: surveyTpl.questionHe,
+          questionEn: surveyTpl.questionEn,
+          optionsHe: surveyTpl.optionsHe,
+          optionsEn: surveyTpl.optionsEn,
+          audienceType: 'all',
+          createdBy: 'cron',
+        });
+        await supabase.from('scheduled_notifications').insert({
+          kind: 'training_before', title_he: 'reminder', body_he: survey.id,
+          audience_type: 'all', schedule_type: 'now',
+          status: 'sent', last_sent_at: new Date().toISOString(), sent_count: sent,
+          url: `#ledger:${tag}`,
+        });
+        fired.push(`${tag} → survey ${survey.id}, sent ${sent}`);
+      }
+    }
+
+    // Stage 4 — evening before, at eveningBefore.hour, nudge whoever hasn't
+    // answered the pace-group poll created in Stage 3 yet.
+    if (surveyTpl && eveningBefore.enabled && weekday === dayBeforeWeekday && hour === eveningBefore.hour) {
+      const tag = `paceSurveyNudge:${weekStart}:${teamDay}`;
+      if (!(await already(tag))) {
+        const morningTag = `paceSurvey:${weekStart}:${teamDay}`;
+        const { data: ledgerRow } = await supabase
+          .from('scheduled_notifications')
+          .select('body_he')
+          .eq('url', `#ledger:${morningTag}`)
+          .maybeSingle();
+        const surveyId = ledgerRow?.body_he;
+        if (surveyId) {
+          const dayName = DAY_NAMES[teamDay];
+          const sent = await notifySurveyNonResponders({
+            surveyId,
+            audienceType: 'all',
+            title: 'עוד לא ענית על הדבוקות? 🏃',
+            body: `בחרו דבוקה לאימון יום ${dayName} לפני שהזמן נגמר`,
+            tag,
+          });
+          await markFired(tag, sent);
+          fired.push(`${tag} → ${sent}`);
+        } else {
+          // Morning poll never fired (e.g. dayBefore disabled that week) —
+          // mark done anyway so this doesn't keep re-checking every 5 min.
+          await markFired(tag, 0);
+        }
       }
     }
   }

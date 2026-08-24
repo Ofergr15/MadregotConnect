@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { canApprove } from '@/lib/constants';
-import { sendPushToSubscriptions, resolveAudience } from '@/lib/push';
+import { createAndSendSurvey } from '@/lib/surveys';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,55 +63,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'At least 2 options are required' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
-    const { data: survey, error: surveyError } = await supabase
-      .from('surveys')
-      .insert({
-        question_he: question_he.trim(),
-        question_en: question_en?.trim() || null,
-        options_he: cleanOptionsHe,
-        options_en: (options_en || []).map((o: string) => o.trim()).filter(Boolean) || null,
-        audience_type: audience_type || 'all',
-        audience_id: audience_type === 'all' ? null : audience_id || null,
-        created_by: actorEmail,
-      })
-      .select()
-      .single();
-    if (surveyError) throw surveyError;
-
-    const { data: notifRow, error: notifError } = await supabase
-      .from('scheduled_notifications')
-      .insert({
-        kind: 'survey',
-        survey_id: survey.id,
-        title_he: question_he.trim(),
-        body_he: 'לחצו לענות על הסקר',
-        title_en: question_en?.trim() || null,
-        body_en: question_en?.trim() ? 'Tap to answer the survey' : null,
-        url: `/dashboard/surveys/${survey.id}`,
-        audience_type: audience_type || 'all',
-        audience_id: audience_type === 'all' ? null : audience_id || null,
-        schedule_type: 'now',
-        next_run_at: new Date().toISOString(),
-        status: 'scheduled',
-        created_by: actorEmail,
-      })
-      .select()
-      .single();
-    if (notifError) throw notifError;
-
-    const subs = await resolveAudience(notifRow.audience_type, notifRow.audience_id);
-    const sent = await sendPushToSubscriptions(subs, {
-      title: notifRow.title_he,
-      body: notifRow.body_he,
-      url: notifRow.url,
-      tag: `survey-${survey.id}`,
-      category: 'news',
+    const { survey, sent } = await createAndSendSurvey({
+      questionHe: question_he,
+      questionEn: question_en,
+      optionsHe: cleanOptionsHe,
+      optionsEn: options_en,
+      audienceType: audience_type || 'all',
+      audienceId: audience_id,
+      createdBy: actorEmail,
     });
-    await supabase
-      .from('scheduled_notifications')
-      .update({ status: 'sent', last_sent_at: new Date().toISOString(), sent_count: sent })
-      .eq('id', notifRow.id);
 
     return NextResponse.json({ survey, sent });
   } catch (err: unknown) {
