@@ -314,7 +314,7 @@ export default function ActivitiesPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {!isCoach && athleteId && (
+            {athleteId && (
               <button
                 onClick={() => setShowManualEntry(true)}
                 className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-sm font-semibold text-slate-300 border border-slate-700 hover:border-slate-500 hover:text-white active:scale-[0.97] transition-all"

@@ -224,7 +224,7 @@ export default function FeedPage() {
       <div className="mb-4">
         <SquadStandings />
       </div>
-      {!isStaff && (
+      {myAthleteId && (
         <div className="mb-4">
           <WeeklyLeaderboardCard athleteId={myAthleteId} />
         </div>
