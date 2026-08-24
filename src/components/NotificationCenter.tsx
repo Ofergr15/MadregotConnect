@@ -1,13 +1,20 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera } from 'lucide-react';
+import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
-import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState } from '@/components/ui';
+import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState, Switch } from '@/components/ui';
 import { InsetRow, InsetSection } from '@/components/ui/InsetList';
 
 interface Group { id: string; name: string; }
 interface Athlete { id: string; name: string; email: string; }
+interface RecurringTemplate {
+  id: string; day_of_week: number;
+  question_he: string; question_en: string | null;
+  options_he: string[]; options_en: string[] | null;
+  active: boolean;
+}
+const DOW_NAMES_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 // Preset categories that pre-fill the compose form so the admin doesn't type
 // everything each time. he+en so each athlete gets their language.
@@ -153,6 +160,20 @@ export function NotificationCenter() {
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // Recurring pace-group poll templates — one row per team day (migration
+  // 073), each independently editable so Tuesday's and Friday's content can
+  // differ without a code deploy.
+  const [recurringTemplates, setRecurringTemplates] = useState<RecurringTemplate[]>([]);
+  const [templateEditOpen, setTemplateEditOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<RecurringTemplate | null>(null);
+  const [tplQuestionHe, setTplQuestionHe] = useState('');
+  const [tplQuestionEn, setTplQuestionEn] = useState('');
+  const [tplOptionsHe, setTplOptionsHe] = useState<string[]>(['', '']);
+  const [tplOptionsEn, setTplOptionsEn] = useState<string[]>(['', '']);
+  const [tplActive, setTplActive] = useState(true);
+  const [tplSaving, setTplSaving] = useState(false);
+  const [tplError, setTplError] = useState<string | null>(null);
+
   // compose sheet
   const [composeOpen, setComposeOpen] = useState(false);
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
@@ -226,6 +247,57 @@ export function NotificationCenter() {
     } catch { /* noop */ }
   }, []);
 
+  const loadRecurringTemplates = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/recurring-surveys');
+      const data = await res.json();
+      setRecurringTemplates(data.templates || []);
+    } catch { /* noop */ }
+  }, []);
+
+  const openEditTemplate = (tpl: RecurringTemplate) => {
+    setEditingTemplate(tpl);
+    setTplQuestionHe(tpl.question_he);
+    setTplQuestionEn(tpl.question_en || '');
+    setTplOptionsHe(tpl.options_he.length ? tpl.options_he : ['', '']);
+    setTplOptionsEn(tpl.options_en?.length ? tpl.options_en : ['', '']);
+    setTplActive(tpl.active);
+    setTplError(null);
+    setTemplateEditOpen(true);
+  };
+
+  const saveTemplate = async () => {
+    if (!editingTemplate) return;
+    const cleanOptionsHe = tplOptionsHe.map((o) => o.trim()).filter(Boolean);
+    if (!tplQuestionHe.trim()) { setTplError('שאלה בעברית נדרשת'); return; }
+    if (cleanOptionsHe.length < 2) { setTplError('נדרשות לפחות 2 תשובות אפשריות'); return; }
+    setTplSaving(true);
+    setTplError(null);
+    try {
+      const res = await fetch('/api/admin/recurring-surveys', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actorEmail,
+          dayOfWeek: editingTemplate.day_of_week,
+          questionHe: tplQuestionHe,
+          questionEn: tplQuestionEn || null,
+          optionsHe: cleanOptionsHe,
+          optionsEn: tplOptionsEn.map((o) => o.trim()).filter(Boolean),
+          active: tplActive,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || data.error || 'השמירה נכשלה');
+      setTemplateEditOpen(false);
+      loadRecurringTemplates();
+    } catch (e: any) {
+      setTplError(e.message);
+    } finally {
+      setTplSaving(false);
+    }
+  };
+
   useEffect(() => {
     setActorEmail(localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '');
     fetch('/api/groups').then(r => r.ok ? r.json() : null).then(d => {
@@ -248,7 +320,8 @@ export function NotificationCenter() {
     }).catch(() => {});
     loadList();
     loadSurveys();
-  }, [loadList, loadSurveys]);
+    loadRecurringTemplates();
+  }, [loadList, loadSurveys, loadRecurringTemplates]);
 
   const reset = () => {
     setTitleHe(''); setBodyHe(''); setTitleEn(''); setBodyEn('');
@@ -433,6 +506,31 @@ export function NotificationCenter() {
               ))}
             </InsetSection>
           )}
+        </div>
+      )}
+
+      {/* Recurring pace-group poll templates — one row per team day,
+          independently editable (migration 073 / cron/tick.ts consumes
+          these directly, so a save here changes next week's actual send
+          with no code deploy). */}
+      {recurringTemplates.length > 0 && (
+        <div className="mt-6">
+          <h3 className="font-bold text-white mb-3 flex items-center gap-2">
+            <Footprints className="w-4 h-4 text-primary-400" /> תבניות דבוקות שבועיות
+          </h3>
+          <InsetSection>
+            {recurringTemplates.map((tpl) => (
+              <InsetRow
+                key={tpl.id}
+                icon={Pencil}
+                iconBg={tpl.active ? 'bg-primary-600' : 'bg-slate-600'}
+                label={DOW_NAMES_HE[tpl.day_of_week] || `יום ${tpl.day_of_week}`}
+                sublabel={tpl.question_he}
+                value={tpl.active ? undefined : 'כבוי'}
+                onClick={() => openEditTemplate(tpl)}
+              />
+            ))}
+          </InsetSection>
         </div>
       )}
 
@@ -767,6 +865,90 @@ export function NotificationCenter() {
           {filteredAthletes.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-slate-500" dir="rtl">אין תוצאות</p>
           )}
+        </div>
+      </Sheet>
+
+      {/* Edit a recurring pace-group template — same card-per-section shape
+          as the compose sheet, scoped to one team day at a time. */}
+      <Sheet
+        open={templateEditOpen}
+        onOpenChange={setTemplateEditOpen}
+        title={editingTemplate ? `תבנית יום ${DOW_NAMES_HE[editingTemplate.day_of_week]}` : ''}
+      >
+        <div className="space-y-3 pb-2">
+          {tplError && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{tplError}</div>}
+
+          <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3 space-y-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-400">שאלה (עברית)</label>
+              <input dir="rtl" value={tplQuestionHe} onChange={e => setTplQuestionHe(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-400">Question (English, optional)</label>
+              <input value={tplQuestionEn} onChange={e => setTplQuestionEn(e.target.value)} className={inputCls} placeholder="optional" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3">
+            <label className="text-xs font-semibold text-slate-400">תשובות אפשריות (עברית)</label>
+            <div className="space-y-2 mt-1">
+              {tplOptionsHe.map((opt, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    dir="rtl"
+                    value={opt}
+                    onChange={e => setTplOptionsHe(tplOptionsHe.map((o, j) => j === i ? e.target.value : o))}
+                    className={inputCls}
+                    placeholder={`אפשרות ${i + 1}`}
+                  />
+                  {tplOptionsHe.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setTplOptionsHe(tplOptionsHe.filter((_, j) => j !== i))}
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400 shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setTplOptionsHe([...tplOptionsHe, ''])}
+                className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-500"
+              >
+                <Plus className="w-3.5 h-3.5" /> הוספת אפשרות
+              </button>
+            </div>
+            {tplQuestionEn.trim() && (
+              <div className="space-y-2 mt-3">
+                <label className="text-xs font-semibold text-slate-400">Options (English)</label>
+                {tplOptionsHe.map((_, i) => (
+                  <input
+                    key={i}
+                    value={tplOptionsEn[i] || ''}
+                    onChange={e => {
+                      const next = [...tplOptionsEn];
+                      next[i] = e.target.value;
+                      setTplOptionsEn(next);
+                    }}
+                    className={inputCls}
+                    placeholder={`Option ${i + 1} (English)`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3 flex items-center justify-between" dir="rtl">
+            <span className="text-sm text-white">פעיל</span>
+            <Switch checked={tplActive} onChange={setTplActive} ariaLabel="פעיל" />
+          </div>
+
+          <Button className="w-full" onClick={saveTemplate} disabled={tplSaving}>
+            {tplSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            {tplSaving ? 'שומר...' : 'שמירה'}
+          </Button>
         </div>
       </Sheet>
     </div>

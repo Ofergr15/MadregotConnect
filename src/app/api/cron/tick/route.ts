@@ -5,25 +5,6 @@ import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
 import { israelNow, getPlanWeekStart, getActivityWeekStart } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
 
-// Recurring pace-group polls — a real Survey (not just a text reminder),
-// created fresh each week so responses never carry over from last week's
-// training. Keyed by team day (0=Sun..6=Sat); only Tuesday/Friday have a
-// template today, matching the two team workout days this was asked for.
-const PACE_SURVEY_TEMPLATES: Record<number, { questionHe: string; questionEn: string; optionsHe: string[]; optionsEn: string[] }> = {
-  2: {
-    questionHe: 'מי בא לרוץ ביום שלישי? 🌅🏃 בחרו דבוקה!',
-    questionEn: "Who's running on Tuesday? 🌅🏃 Pick your pace group!",
-    optionsHe: ['דבוקה 1', 'דבוקה 2', 'דבוקה 3', 'לא מגיע/ה הפעם'],
-    optionsEn: ['Group 1', 'Group 2', 'Group 3', 'Not coming this time'],
-  },
-  5: {
-    questionHe: 'מי בא לרוץ ביום שישי? 🌅🏃 בחרו דבוקה!',
-    questionEn: "Who's running on Friday? 🌅🏃 Pick your pace group!",
-    optionsHe: ['דבוקה 1', 'דבוקה 2', 'דבוקה 3', 'לא מגיע/ה הפעם'],
-    optionsEn: ['Group 1', 'Group 2', 'Group 3', 'Not coming this time'],
-  },
-};
-
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
@@ -49,6 +30,9 @@ function formatPace(secPerKm: number): string {
 // Reminder stages (config in app_settings.reminder_config, admin-editable):
 //  - dayBefore (default Mon/Thu 08:00): push ALL athletes about tomorrow's team workout.
 //  - eveningBefore (default Mon/Thu 18:00): push only RSVP NON-responders.
+//  - paceSurvey / paceSurveyNudge (same two hours): a real pace-group Survey,
+//    per-day content from recurring_survey_templates (migration 073,
+//    admin-editable) — only for team days that have an active row.
 // Team days default Tue(2)/Fri(5); "day before" = teamDay-1. Idempotent per
 // (kind, day, week) via a scheduled_notifications ledger row.
 // Also: Saturday 20:00 plan-rollover push, and Sunday 19:00 personalized weekly
@@ -156,7 +140,19 @@ async function run(request: Request) {
       }
     }
 
-    const surveyTpl = PACE_SURVEY_TEMPLATES[teamDay];
+    // Recurring pace-group poll template for this team day — a real editable
+    // row (recurring_survey_templates, migration 073), not hardcoded, so
+    // Tuesday and Friday can each be changed independently from the admin UI
+    // without a code deploy. Absent/inactive row = no poll for that day.
+    const { data: surveyTplRow } = await supabase
+      .from('recurring_survey_templates')
+      .select('question_he, question_en, options_he, options_en')
+      .eq('day_of_week', teamDay)
+      .eq('active', true)
+      .maybeSingle();
+    const surveyTpl = surveyTplRow
+      ? { questionHe: surveyTplRow.question_he, questionEn: surveyTplRow.question_en, optionsHe: surveyTplRow.options_he, optionsEn: surveyTplRow.options_en }
+      : null;
 
     // Stage 3 — pace-group poll, day before, at dayBefore.hour, to ALL. A
     // genuinely fresh Survey each week (never the plain reminder text) so
