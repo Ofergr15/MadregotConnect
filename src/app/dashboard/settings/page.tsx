@@ -681,7 +681,7 @@ export default function SettingsPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to update user role');
+        throw new Error(data.message || data.error || 'Failed to update user role');
       }
 
       await fetchUsers();

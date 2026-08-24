@@ -51,7 +51,7 @@ function useStravaLogin() {
       await clearLocalIdentity();
       const res = await fetch('/api/strava?mode=login');
       const data = await res.json();
-      if (!res.ok || !data.authUrl) throw new Error(data.error || 'Strava login unavailable');
+      if (!res.ok || !data.authUrl) throw new Error(data.message || data.error || 'Strava login unavailable');
       window.location.href = data.authUrl;
     } catch (err) {
       console.error(err);
@@ -215,7 +215,7 @@ export default function HomePage() {
         body: JSON.stringify({ email: adminEmail, password: adminPassword }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Login failed');
+      if (!res.ok) throw new Error(data.message || data.error || 'Login failed');
       localStorage.setItem('coach_email', data.email);
       localStorage.setItem('admin_session', 'true');
       localStorage.removeItem('athlete_id');

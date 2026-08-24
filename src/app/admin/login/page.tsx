@@ -49,7 +49,7 @@ export default function AdminLoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || t('loginFailed'));
+        throw new Error(data.message || data.error || t('loginFailed'));
       }
 
       localStorage.setItem('coach_email', data.email);

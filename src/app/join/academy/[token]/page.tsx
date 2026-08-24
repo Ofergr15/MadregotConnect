@@ -72,7 +72,7 @@ export default function AcademyJoinPage() {
       });
       const data = await res.json();
       if (data.mfaRequired) { setMfaSessionId(data.sessionId); setStep('mfa'); return; }
-      if (!res.ok) throw new Error(data.error || to('failedToConnectGarmin'));
+      if (!res.ok) throw new Error(data.message || data.error || to('failedToConnectGarmin'));
       await saveConnection(data.auth);
     } catch (err: any) {
       setError(err.message);
@@ -91,7 +91,7 @@ export default function AcademyJoinPage() {
         body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || to('verificationFailed'));
+      if (!res.ok) throw new Error(data.message || data.error || to('verificationFailed'));
       await saveConnection(data.auth);
     } catch (err: any) {
       setError(err.message);

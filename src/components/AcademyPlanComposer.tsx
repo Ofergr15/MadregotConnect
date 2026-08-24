@@ -185,7 +185,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         body: JSON.stringify({ planId, workouts, athleteIds: [athleteId], weekStartDate: weekStart }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'השליחה נכשלה');
+      if (!res.ok) throw new Error(data.message || data.error || 'השליחה נכשלה');
       const results = data.results || [];
       const ok = results.length > 0 && results.every((r: any) => r.status === 'success');
       const failed = results.find((r: any) => r.status === 'failed');

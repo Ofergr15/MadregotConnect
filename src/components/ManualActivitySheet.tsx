@@ -94,7 +94,7 @@ export function ManualActivitySheet({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || t('manualError'));
+        throw new Error(data.message || data.error || t('manualError'));
       }
       reset();
       onOpenChange(false);

@@ -51,7 +51,7 @@ export default function SurveyPage() {
         body: JSON.stringify({ athleteId, optionIndex }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t('submitError'));
+      if (!res.ok) throw new Error(data.message || data.error || t('submitError'));
       setMyResponse(optionIndex);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('submitError'));

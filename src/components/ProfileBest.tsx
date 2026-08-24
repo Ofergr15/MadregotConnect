@@ -80,7 +80,7 @@ export function ProfileBest({ athleteId, athleteName }: { athleteId: string; ath
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || t('submitFailed'));
+      if (!res.ok) throw new Error(data.message || data.error || t('submitFailed'));
       setForm(null);
       setMsg(data.pending
         ? t('submittedPending')

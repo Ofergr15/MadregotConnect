@@ -133,7 +133,7 @@ export function PerksManager() {
         }
       );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || (editingId ? t('updateError') : t('createError')));
+      if (!res.ok) throw new Error(data.message || data.error || (editingId ? t('updateError') : t('createError')));
 
       setSheetOpen(false);
       resetForm();

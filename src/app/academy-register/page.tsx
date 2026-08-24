@@ -96,7 +96,7 @@ export default function AcademyRegisterPage() {
         body: JSON.stringify({ name, email, phone, intake }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'ההרשמה נכשלה');
+      if (!res.ok) throw new Error(data.message || data.error || 'ההרשמה נכשלה');
       setDone(true);
     } catch (err: any) {
       setError(err.message || 'ההרשמה נכשלה');

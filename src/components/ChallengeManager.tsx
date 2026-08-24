@@ -146,7 +146,7 @@ export function ChallengeManager() {
         },
       );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || (editingId ? t('updateError') : t('createError')));
+      if (!res.ok) throw new Error(data.message || data.error || (editingId ? t('updateError') : t('createError')));
 
       setSheetOpen(false);
       resetForm();
@@ -166,7 +166,7 @@ export function ChallengeManager() {
     try {
       const res = await authedFetch(`/api/admin/challenges/${target.id}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t('deleteError'));
+      if (!res.ok) throw new Error(data.message || data.error || t('deleteError'));
       fetchChallenges();
     } catch (err: unknown) {
       setDeleteError((err as Error).message || t('deleteError'));
