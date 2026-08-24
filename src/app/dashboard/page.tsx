@@ -112,8 +112,11 @@ export default function DashboardPage() {
   // Week-streak — shown as a small flame badge in the stat strip (same source
   // MomentumCard/Profile→Statistics use, just the headline number, not the
   // full recap card).
+  // Not gated on !isCoach — a coach who is ALSO a runner (has their own
+  // athleteId) still has personal stats worth fetching. Coaches with no
+  // athlete profile simply have no athleteId, so this stays null for them.
   const { data: summary } = useApi<{ weekStreak: number }>(
-    !isCoach && athleteId ? `/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}` : null,
+    athleteId ? `/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}` : null,
   );
 
   useEffect(() => {
@@ -211,11 +214,16 @@ export default function DashboardPage() {
         if (actRes.ok) {
           const actData = await actRes.json();
           const allActs = actData.activities || [];
-          const filtered = myIsCoach ? allActs : allActs.filter((a: any) => a.athlete_id === myAthleteId);
+          // Always the signed-in person's OWN activities — this only feeds the
+          // personal "today's/tomorrow's workout" hero calc below, not a club
+          // feed, so a coach who's also a runner needs their own activities
+          // here too (not every athlete's), and a coach with no athlete
+          // profile just gets an empty list, same as before.
+          const filtered = allActs.filter((a: any) => a.athlete_id === myAthleteId);
           setRecentActivities(filtered.slice(0, 3));
           preSyncActivityIds = new Set(filtered.map((a: any) => a.id));
 
-          if (!myIsCoach && myAthleteId) {
+          if (myAthleteId) {
             // Activity week (Sunday-based, matches the club's plan week).
             const weekStart = new Date(getActivityWeekStart(new Date()));
             const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
@@ -374,9 +382,13 @@ export default function DashboardPage() {
       {isCoach && <CoachPulse />}
 
       {/* ═══ HERO — the one thing this page is for. Coach: a slim stat strip
-          (everything else already lives in Coach Pulse + the roster above).
-          Athlete: today's/tomorrow's workout + embedded RSVP. ═══ */}
-      {isCoach ? (
+          (everything else already lives in Coach Pulse + the roster above) —
+          PLUS, when the coach is also a runner (has their own athlete
+          profile), their own today's/tomorrow's workout + RSVP right below it.
+          A coach shouldn't be locked out of RSVPing for themselves just
+          because they're staff. Pure athlete: today's/tomorrow's workout +
+          embedded RSVP only. ═══ */}
+      {isCoach && (
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <Card variant="muted">
             <BigStat
@@ -411,7 +423,9 @@ export default function DashboardPage() {
             <p className="text-sm text-slate-500 mt-1 text-center">{t('thisWeek')}</p>
           </Card>
         </section>
-      ) : heroWorkout ? (
+      )}
+
+      {athleteId && heroWorkout ? (
         <NextWorkoutCard
           isToday={heroWorkout.showingToday}
           workout={heroWorkout.nextWorkout}
@@ -431,12 +445,13 @@ export default function DashboardPage() {
               weekStart={rsvpWeekStart}
               day={rsvpTarget.dow}
               dayBefore={rsvpTarget.dayBefore}
+              workoutHour={workoutHour}
               hideIfAnswered={!rsvpTarget.dayBefore}
               onStatusChange={handleRsvpStatus}
             />
           )}
         </NextWorkoutCard>
-      ) : (
+      ) : !isCoach ? (
         <Card variant="muted">
           <EmptyState
             icon={Calendar}
@@ -448,12 +463,14 @@ export default function DashboardPage() {
             }
           />
         </Card>
-      )}
+      ) : null}
 
-      {/* ═══ SLIM STAT STRIP (athlete only) — streak · this-week completion ·
-          total km · workouts this month. Deeper stats (records, volume
-          trends) live on Profile → Statistics, not duplicated here. ═══ */}
-      {!isCoach && athleteId && (
+      {/* ═══ SLIM STAT STRIP — streak · this-week completion · total km ·
+          workouts this month. Deeper stats (records, volume trends) live on
+          Profile → Statistics, not duplicated here. Shown for anyone with an
+          athlete profile, including a coach who's also a runner — not just
+          "pure" athletes. ═══ */}
+      {athleteId && (
         <>
           {!!summary?.weekStreak && (
             <Card variant="muted">

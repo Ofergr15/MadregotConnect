@@ -1193,6 +1193,8 @@
     "goingCount": "attending",
     "noRsvp": "No response",
     "titleTomorrow": "Coming to tomorrow's workout?",
+    "confirmed": "You're confirmed! 🎉",
+    "confirmedTomorrow": "Great, you're set for tomorrow! 🎉",
     "saveFailed": "Failed to save, try again"
   },
   "nextWorkout": {

@@ -13,7 +13,7 @@ export interface AttendanceStatus { answered: boolean; attending: boolean | null
 // NEXT team-workout day. The dashboard picks the target (weekStart + day); when
 // omitted we default to today, so existing call sites keep working. Athlete
 // answers: coming? + which דבוקה.
-export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: dayProp, dayBefore, hideIfAnswered, onStatusChange }: { workoutLabel?: string; weekStart?: string; day?: number; dayBefore?: boolean; hideIfAnswered?: boolean; onStatusChange?: (status: AttendanceStatus) => void }) {
+export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: dayProp, dayBefore, workoutHour, hideIfAnswered, onStatusChange }: { workoutLabel?: string; weekStart?: string; day?: number; dayBefore?: boolean; workoutHour?: number; hideIfAnswered?: boolean; onStatusChange?: (status: AttendanceStatus) => void }) {
   const t = useTranslations('attendance');
   const [athleteId, setAthleteId] = useState('');
   const weekStart = weekStartProp ?? getPlanWeekStart(new Date());
@@ -99,7 +99,6 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
       <div className="relative flex items-center gap-2 mb-1">
         <Users className="h-4 w-4 text-primary-400" />
         <h3 className="text-sm font-bold text-white" dir="rtl">{dayBefore ? t('titleTomorrow') : t('title')}</h3>
-        {saved && <CheckCircle2 className="h-4 w-4 text-green-400 ms-auto" />}
       </div>
       {workoutLabel && <p className="relative text-[15px] font-semibold text-white mb-3" dir="rtl">{workoutLabel}</p>}
 
@@ -124,7 +123,23 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
       {error && <p className="relative text-xs text-red-400 mt-2" dir="rtl">{error}</p>}
 
       {attending === true && (
-        <div className="relative mt-3">
+        <div className="relative mt-3 space-y-3">
+          {/* Persistent green confirmation with the concrete workout info — the
+              old feedback was a tiny CheckCircle2 in the header that faded after
+              2s (via `saved`); that only confirmed "the save worked", not "what
+              you're now committed to". This stays up as long as attending===true. */}
+          <div className="rounded-xl border border-green-500/40 bg-green-500/10 p-3 flex items-center gap-2.5" dir="rtl">
+            <CheckCircle2 className="h-5 w-5 text-green-400 shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-green-300">{dayBefore ? t('confirmedTomorrow') : t('confirmed')}</p>
+              {(workoutLabel || workoutHour != null) && (
+                <p className="text-xs text-green-200/80 mt-0.5">
+                  {[workoutLabel, workoutHour != null ? `${String(workoutHour).padStart(2, '0')}:00` : null].filter(Boolean).join(' · ')}
+                </p>
+              )}
+            </div>
+          </div>
+
           <p className="text-xs font-semibold text-slate-400 mb-2" dir="rtl">{t('whichGroup')}</p>
           <div className="flex flex-wrap gap-2">
             {GROUP_PRESETS.map(g => (

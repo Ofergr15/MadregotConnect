@@ -1193,6 +1193,8 @@
     "goingCount": "מגיעים",
     "noRsvp": "לא ענו",
     "titleTomorrow": "מגיעים לאימון מחר?",
+    "confirmed": "ההגעה אושרה! 🎉",
+    "confirmedTomorrow": "מעולה, נרשמת להגיע מחר! 🎉",
     "saveFailed": "השמירה נכשלה, נסו שוב"
   },
   "nextWorkout": {
