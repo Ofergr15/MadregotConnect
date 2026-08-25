@@ -20,9 +20,39 @@ export interface FeedComment {
   canDelete: boolean;
 }
 
+// Silently re-mints the Supabase session when it's gone missing (see
+// /api/auth/silent-session's own comment for why this happens) instead of
+// forcing a real re-login. Best-effort: returns null on any failure, and the
+// caller falls back to the existing NOT_SIGNED_IN behavior.
+async function trySilentReauth(): Promise<string | null> {
+  const email =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || ''
+      : '';
+  if (!email) return null;
+  try {
+    const res = await fetch('/api/auth/silent-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) return null;
+    const { session } = await res.json();
+    if (!session?.access_token || !session?.refresh_token) return null;
+    const { data, error } = await getSupabase().auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+    if (error) return null;
+    return data.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
   const { data } = await getSupabase().auth.getSession();
-  const token = data.session?.access_token;
+  const token = data.session?.access_token || (await trySilentReauth());
   if (!token) throw new Error('NOT_SIGNED_IN');
   return { ...extra, Authorization: `Bearer ${token}` };
 }
