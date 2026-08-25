@@ -119,6 +119,29 @@ export default function DashboardPage() {
     const m = raw?.match(/^(\d{4}-\d{2}-\d{2}):(\d)$/);
     if (m) setRsvpUrlOverride({ weekStart: m[1], day: Number(m[2]) });
   }, []);
+  // A push notification's ?editActivity=<id> deep-link — reopens the same
+  // "customize your post" sheet the live sync-diff below shows, without
+  // needing to catch that narrow window. This is how a Garmin sync (which
+  // happens server-side on a schedule, never while this page is open) can
+  // still offer the sheet: the cron job that imports it sends a push with
+  // this link instead of relying on a client-side diff.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('editActivity');
+    if (!id) return;
+    const myAthleteId = localStorage.getItem('athlete_id');
+    if (!myAthleteId) return;
+    (async () => {
+      try {
+        const res = await fetchActivities();
+        if (!res.ok) return;
+        const data = await res.json();
+        const found = (data.activities || []).find(
+          (a: RecentActivity) => a.id === id && a.athlete_id === myAthleteId,
+        );
+        if (found) setSyncedActivity(found);
+      } catch {}
+    })();
+  }, []);
   const [athleteName, setAthleteName] = useState<string>('');
   const [weeklyRuns, setWeeklyRuns] = useState(0);
   // Week-streak — shown as a small flame badge in the stat strip (same source

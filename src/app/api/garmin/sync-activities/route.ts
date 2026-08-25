@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from '@/lib/garmin/client';
 import { COACH_ID } from '@/lib/constants';
-import { notifyTeammatesOfActivity } from '@/lib/push';
+import { notifyAthlete, notifyTeammatesOfActivity } from '@/lib/push';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { checkShoeAlert } from '@/lib/shoes';
@@ -217,6 +217,35 @@ export async function POST(request: Request) {
             const newest = newActivities.reduce((a, b) => (new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b));
             await notifyMainWorkoutFeedback({ athleteId: athlete.id, dateStr: newest.startTimeLocal.split('T')[0] });
           }
+
+          // "Customize your post" nudge — same sheet the Strava client-side
+          // sync-diff opens in dashboard/page.tsx, but a Garmin sync runs on
+          // a server schedule with no page open to diff against, so this
+          // deep-links straight into that same sheet via ?editActivity=<id>
+          // instead. 24h guard: a first-ever Garmin connection backfills
+          // months of history as "new" here — skip anything older so that
+          // backfill doesn't pop the sheet for a run from months ago.
+          try {
+            const RECENT_MS = 24 * 60 * 60 * 1000;
+            const recentNew = newActivities.filter(
+              a => Date.now() - new Date(a.startTimeLocal).getTime() < RECENT_MS,
+            );
+            if (recentNew.length > 0) {
+              const latest = recentNew.reduce((a, b) => (new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b));
+              const latestRowId = idByGarminActivityId.get(latest.activityId);
+              if (latestRowId) {
+                await notifyAthlete({
+                  athleteId: athlete.id,
+                  kind: 'activity_sync_editor',
+                  title: 'האימון שלך סונכרן! 🏃',
+                  body: 'התאמה אישית של הפוסט לפני שהוא יוצא לפיד',
+                  url: `/dashboard?editActivity=${latestRowId}`,
+                  tag: `activity-sync-editor-${latestRowId}`,
+                  category: 'workouts',
+                });
+              }
+            }
+          } catch { /* push is best-effort */ }
 
           // New activities can move a PR bucket, the cumulative-distance total,
           // or the run streak — all evaluated in TypeScript (not SQL), so this
