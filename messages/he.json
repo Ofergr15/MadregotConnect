@@ -1289,8 +1289,8 @@
     "syncEditor": {
       "newActivity": "פעילות חדשה סונכרנה",
       "moreActivities": "ועוד {count} פעילויות סונכרנו",
-      "titleHint": "השם מגיע מהשעון ולא ניתן לשינוי כאן",
-      "captionPlaceholder": "איך היתה הריצה?",
+      "captionPlaceholder": "איך היתה הריצה? (אופציונלי)",
+      "tagPlaceholder": "הוספת תגית (אופציונלי)",
       "addPhoto": "הוסף תמונה",
       "audienceTitle": "מי יראה את זה",
       "audienceEveryone": "כולם",

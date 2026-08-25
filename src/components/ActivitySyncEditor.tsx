@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import {
   X, Loader2, ImagePlus, ChevronRight, Globe, Lock, Users,
-  Flame, Heart, Gauge, Zap, Share2,
+  Flame, Heart, Gauge, Zap, Share2, Pencil, Tag as TagIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -18,6 +18,8 @@ import { FeedShareSheet } from '@/components/FeedShareSheet';
 import type { FeedItem, FeedMedia } from '@/lib/feed/project';
 
 const MAX_IMAGES = 4;
+const MAX_NAME_LENGTH = 80;
+const MAX_TAG_LENGTH = 24;
 
 /**
  * Minimal shape this component needs from an athlete_activities row. The
@@ -63,13 +65,13 @@ function isFeedHiddenField(v: unknown): v is FeedHiddenField {
 /**
  * Strava-style bottom sheet shown right after a new Garmin/Strava activity
  * syncs, letting the athlete customize how the auto-created feed post looks
- * before it's out in the club feed.
+ * before it's out in the club feed — name, description, tag, photo, audience,
+ * hidden stats.
  *
- * Title is READ-ONLY here by design: `activity_name` lives on
- * `athlete_activities` (Garmin/Strava's own name), and letting it be edited
- * from this sheet would mean also PATCHing that table from a feed-focused
- * route. Caption/audience/photos/hidden-stats are all feed_items concerns and
- * go through the one PATCH below — a smaller, safer v1 surface.
+ * The name field overrides `athlete_activities.activity_name` directly (a
+ * second, separate PATCH scoped to the athlete's own row — see
+ * /api/feed/items/[id]); tag/description/audience/photos/hidden-stats are all
+ * feed_items concerns folded into the same PATCH call.
  *
  * NOTE: this only works once migration 047_social_feed.sql has been applied —
  * until then `fetchFeedItemByActivity` 404s/500s (no feed_items table yet)
@@ -93,7 +95,9 @@ export function ActivitySyncEditor({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [feedItem, setFeedItem] = useState<FeedItem | null>(null);
 
+  const [activityName, setActivityName] = useState(activity.activity_name || '');
   const [caption, setCaption] = useState('');
+  const [tag, setTag] = useState('');
   const [media, setMedia] = useState<FeedMedia[]>([]);
   const [visibility, setVisibility] = useState<'club' | 'private'>('club');
   const [hidden, setHidden] = useState<Set<FeedHiddenField>>(new Set());
@@ -113,6 +117,8 @@ export function ActivitySyncEditor({
       setMedia(item.media);
       const rawHidden = (item.payload?.hiddenFields as unknown[]) || [];
       setHidden(new Set(rawHidden.filter(isFeedHiddenField)));
+      if (typeof item.payload?.tag === 'string') setTag(item.payload.tag);
+      if (item.activity?.activityName) setActivityName(item.activity.activityName);
     } catch (err: unknown) {
       setLoadError((err as Error).message || t('loadError'));
     } finally {
@@ -128,6 +134,7 @@ export function ActivitySyncEditor({
   const paceStr = activity.average_pace ? formatPace(activity.average_pace) : null;
   const durationStr = formatDuration(activity.duration);
   const routePoints = feedItem?.activity?.routePreview ?? null;
+  const hasRoute = !!routePoints && routePoints.length > 2;
 
   const toggleHidden = (field: FeedHiddenField) => {
     setHidden(prev => {
@@ -164,6 +171,10 @@ export function ActivitySyncEditor({
     // applied yet) — just dismiss; there is nothing safe to save.
     if (!feedItem) { onClose(); return; }
 
+    // An accidentally-cleared name shouldn't block Done — fall back to the
+    // original rather than surfacing a "name required" error for that.
+    const finalName = activityName.trim() || activity.activity_name || 'Run';
+
     setSaving(true);
     setSaveError(null);
     try {
@@ -172,6 +183,8 @@ export function ActivitySyncEditor({
         visibility,
         media,
         hiddenFields: Array.from(hidden),
+        tag: tag.trim() || null,
+        activityName: finalName,
       });
       onClose();
     } catch (err: unknown) {
@@ -196,24 +209,10 @@ export function ActivitySyncEditor({
           <X className="h-5 w-5" />
         </button>
       }
-      trailingAction={
-        <button
-          onClick={handleDone}
-          disabled={saving || uploading}
-          className={cn(
-            'px-4 py-1.5 rounded-full text-sm font-bold transition-all',
-            !saving && !uploading
-              ? 'bg-primary-600 text-white active:scale-95'
-              : 'bg-slate-700 text-slate-500',
-          )}
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t('done')}
-        </button>
-      }
       className="max-h-[92vh]"
       bodyClassName="flex-1 min-h-0"
       footer={
-        <div className="flex-none flex items-center justify-between gap-3 px-4 pt-2 pb-3 border-t border-slate-700/60">
+        <div className="flex-none px-4 pt-2 pb-3 border-t border-slate-700/60 space-y-2">
           <input
             ref={fileRef}
             type="file"
@@ -223,48 +222,74 @@ export function ActivitySyncEditor({
             onChange={e => handleFiles(e.target.files)}
           />
           <button
-            onClick={() => fileRef.current?.click()}
-            disabled={!editable || media.length >= MAX_IMAGES || uploading}
+            onClick={handleDone}
+            disabled={saving || uploading}
             className={cn(
-              'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all',
-              editable && media.length < MAX_IMAGES && !uploading
-                ? 'text-primary-400 bg-primary-600/10 hover:bg-primary-600/20'
-                : 'text-slate-600',
+              'w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-base font-bold transition-all',
+              !saving && !uploading
+                ? 'bg-primary-600 text-white active:scale-[0.98]'
+                : 'bg-slate-700 text-slate-500',
             )}
           >
-            <ImagePlus className="h-5 w-5" />
-            <span>{t('addPhoto')}</span>
-            {media.length > 0 && <span className="text-xs text-slate-500">{media.length}/{MAX_IMAGES}</span>}
+            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : t('done')}
           </button>
-
-          <button
-            onClick={() => setShowShare(true)}
-            disabled={!feedItem}
-            aria-label={tFeed('shareToStory')}
-            className={cn(
-              'flex items-center justify-center p-2 rounded-xl transition-all',
-              feedItem ? 'text-primary-400 bg-primary-600/10 hover:bg-primary-600/20' : 'text-slate-600',
-            )}
-          >
-            <Share2 className="h-5 w-5" />
-          </button>
-
-          <Link
-            href="/dashboard/activities"
-            onClick={onClose}
-            className="text-sm font-semibold text-slate-400 hover:text-primary-400 inline-flex items-center gap-0.5 transition-colors"
-          >
-            {t('advancedEdit')} <ChevronRight className="h-3.5 w-3.5" />
-          </Link>
+          <div className="flex items-center justify-center gap-5">
+            <Link
+              href="/dashboard/activities"
+              onClick={onClose}
+              className="text-sm font-semibold text-slate-400 hover:text-primary-400 inline-flex items-center gap-0.5 transition-colors"
+            >
+              {t('advancedEdit')} <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+            <button
+              onClick={() => setShowShare(true)}
+              disabled={!feedItem}
+              className={cn(
+                'inline-flex items-center gap-1.5 text-sm font-semibold transition-colors',
+                feedItem ? 'text-slate-400 hover:text-primary-400' : 'text-slate-600',
+              )}
+            >
+              <Share2 className="h-3.5 w-3.5" /> {tFeed('shareToStory')}
+            </button>
+          </div>
         </div>
       }
     >
       <div className="px-1 pb-2 space-y-4">
-        {/* Activity name — read-only (Garmin/Strava's own title, lives on
-            athlete_activities; editing it is out of scope for this sheet). */}
+        {/* Name / description / tag — grouped into one card, matching the
+            native Strava/Garmin "share this run" composer. */}
         <div>
-          <p className="text-lg font-bold text-white">{activity.activity_name || 'Run'}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{t('titleHint')}</p>
+          <div className="rounded-xl border border-slate-700/60 divide-y divide-slate-700/50 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2.5">
+              <input
+                value={activityName}
+                onChange={e => setActivityName(e.target.value)}
+                maxLength={MAX_NAME_LENGTH}
+                disabled={!editable}
+                className="flex-1 bg-transparent text-base font-bold text-white placeholder:text-slate-500 focus:outline-none disabled:opacity-60"
+              />
+              <Pencil className="h-4 w-4 text-slate-500 shrink-0" />
+            </div>
+            <textarea
+              value={caption}
+              onChange={e => setCaption(e.target.value)}
+              placeholder={t('captionPlaceholder')}
+              disabled={!editable}
+              rows={2}
+              className="w-full px-3 py-2.5 bg-transparent text-sm text-slate-300 placeholder:text-slate-500 leading-relaxed resize-none focus:outline-none disabled:opacity-60"
+            />
+            <div className="flex items-center gap-2 px-3 py-2.5">
+              <TagIcon className="h-4 w-4 text-slate-500 shrink-0" />
+              <input
+                value={tag}
+                onChange={e => setTag(e.target.value)}
+                placeholder={t('tagPlaceholder')}
+                maxLength={MAX_TAG_LENGTH}
+                disabled={!editable}
+                className="flex-1 bg-transparent text-sm text-slate-300 placeholder:text-slate-500 focus:outline-none disabled:opacity-60"
+              />
+            </div>
+          </div>
           {extraCount > 0 && (
             <span className="inline-block mt-2 text-2xs font-bold px-2 py-0.5 rounded-full bg-primary-600/10 text-primary-400 border border-primary-600/20">
               {t('moreActivities', { count: extraCount })}
@@ -292,12 +317,26 @@ export function ActivitySyncEditor({
           </div>
         </div>
 
-        {/* Route thumbnail — reuses the existing RouteMinimap (already the
-            feed's route-preview renderer); omitted entirely if the feed_item
-            didn't load or the activity has no route. */}
-        {routePoints && routePoints.length > 2 && (
-          <RouteMinimap points={routePoints} />
-        )}
+        {/* Route thumbnail + "add photo" tile, side by side (native
+            Strava/Garmin composer layout) — the tile takes the full row alone
+            when there's no route to show. */}
+        <div className={cn('grid gap-2', hasRoute ? 'grid-cols-2' : 'grid-cols-1')}>
+          {hasRoute && <RouteMinimap points={routePoints!} className="!aspect-square h-full w-full" />}
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={!editable || media.length >= MAX_IMAGES || uploading}
+            className={cn(
+              'flex flex-col items-center justify-center gap-1.5 rounded-xl border min-h-[90px] transition-all',
+              editable && media.length < MAX_IMAGES && !uploading
+                ? 'border-slate-700 bg-slate-900/50 text-primary-400 hover:bg-slate-900'
+                : 'border-slate-800 text-slate-600',
+            )}
+          >
+            <ImagePlus className="h-5 w-5" />
+            <span className="text-xs font-semibold">{t('addPhoto')}</span>
+            {media.length > 0 && <span className="text-2xs text-slate-500">{media.length}/{MAX_IMAGES}</span>}
+          </button>
+        </div>
 
         {loading && (
           <div className="flex items-center justify-center py-6">
@@ -329,15 +368,6 @@ export function ActivitySyncEditor({
 
         {editable && (
           <>
-            {/* Caption */}
-            <textarea
-              value={caption}
-              onChange={e => setCaption(e.target.value)}
-              placeholder={t('captionPlaceholder')}
-              className="w-full bg-slate-900/50 border border-slate-700/60 rounded-xl p-3 text-white placeholder:text-slate-500 text-sm leading-relaxed resize-none focus:outline-none focus:border-primary-600/60"
-              style={{ minHeight: '80px' }}
-            />
-
             {/* Media thumbnails */}
             {media.length > 0 && (
               <div
@@ -401,15 +431,6 @@ export function ActivitySyncEditor({
                   <Globe className="h-3.5 w-3.5" /> {t('audienceEveryone')}
                 </button>
                 <button
-                  onClick={() => setVisibility('private')}
-                  className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors min-h-[40px]',
-                    visibility === 'private' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white',
-                  )}
-                >
-                  <Lock className="h-3.5 w-3.5" /> {t('audienceOnlyYou')}
-                </button>
-                <button
                   disabled
                   aria-disabled
                   title={t('audienceComingSoon')}
@@ -417,6 +438,15 @@ export function ActivitySyncEditor({
                 >
                   <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {t('audienceFollowers')}</span>
                   <span className="text-[9px] text-slate-700">{t('audienceComingSoon')}</span>
+                </button>
+                <button
+                  onClick={() => setVisibility('private')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors min-h-[40px]',
+                    visibility === 'private' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white',
+                  )}
+                >
+                  <Lock className="h-3.5 w-3.5" /> {t('audienceOnlyYou')}
                 </button>
               </div>
             </div>

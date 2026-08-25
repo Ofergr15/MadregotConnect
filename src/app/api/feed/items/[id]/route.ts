@@ -19,6 +19,9 @@ function isHiddenField(v: unknown): v is HiddenField {
   return typeof v === 'string' && (HIDDEN_FIELDS as readonly string[]).includes(v);
 }
 
+const MAX_ACTIVITY_NAME_LENGTH = 80;
+const MAX_TAG_LENGTH = 24;
+
 /**
  * GET /api/feed/items/[id]?by=activity
  *
@@ -64,16 +67,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 /**
  * PATCH /api/feed/items/[id]
  * Body (all optional): { body?: string, visibility?: 'club'|'group'|'private',
- *                         media?: [{ path, url, w, h }], hiddenFields?: string[] }
+ *                         media?: [{ path, url, w, h }], hiddenFields?: string[],
+ *                         tag?: string | null, activityName?: string }
  *
  * Updates an existing feed_item — e.g. the caption/audience/hidden-stats an
  * athlete sets on their auto-created activity post right after a sync, or an
  * edit to a free-form post's caption/media. Only the item's own author may
  * update it (verified via the caller's JWT — never a client-supplied id).
  *
- * `hiddenFields` merges into `payload` rather than replacing it outright, so
- * other payload keys (badge codes, plan weeks, …) added by other code paths
- * survive an edit made here.
+ * `hiddenFields`/`tag` merge into `payload` rather than replacing it outright,
+ * so other payload keys (badge codes, plan weeks, …) added by other code
+ * paths survive an edit made here. `activityName` is a second write to the
+ * activity's own row (see below) since it's Garmin/Strava source data, not a
+ * feed_items concern.
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAthlete(request);
@@ -85,7 +91,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { data: existing, error: fetchError } = await supabase
       .from('feed_items')
-      .select('id, author_athlete_id, deleted_at, payload')
+      .select('id, author_athlete_id, deleted_at, payload, activity_id')
       .eq('id', id)
       .maybeSingle();
     if (fetchError) throw fetchError;
@@ -140,14 +146,63 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       update.media = media.length > 0 ? media : null;
     }
 
-    if (Array.isArray(payload?.hiddenFields)) {
-      const hiddenFields = (payload.hiddenFields as unknown[]).filter(isHiddenField);
-      const existingPayload = (existing.payload as Record<string, unknown> | null) ?? {};
-      update.payload = { ...existingPayload, hiddenFields };
+    let tag: string | null | undefined;
+    if (typeof payload?.tag === 'string' || payload?.tag === null) {
+      const trimmed = typeof payload.tag === 'string' ? payload.tag.trim() : '';
+      if (trimmed.length > MAX_TAG_LENGTH) {
+        return NextResponse.json({ error: `Tag is too long (max ${MAX_TAG_LENGTH})` }, { status: 400 });
+      }
+      tag = trimmed || null;
     }
 
-    if (Object.keys(update).length === 0) {
+    if (Array.isArray(payload?.hiddenFields) || tag !== undefined) {
+      const existingPayload = (existing.payload as Record<string, unknown> | null) ?? {};
+      const hiddenFields = Array.isArray(payload?.hiddenFields)
+        ? (payload.hiddenFields as unknown[]).filter(isHiddenField)
+        : existingPayload.hiddenFields;
+      update.payload = { ...existingPayload, hiddenFields, ...(tag !== undefined ? { tag } : {}) };
+    }
+
+    // The activity's own name — lives on athlete_activities (Garmin/Strava's
+    // source data), not feed_items, so this is a second, separate write
+    // scoped to the item's own activity and the requesting athlete's own row
+    // (never a client-supplied activity id) rather than folded into `update`.
+    if (typeof payload?.activityName === 'string') {
+      const trimmed = payload.activityName.trim();
+      if (!trimmed) {
+        return NextResponse.json({ error: 'Activity name cannot be empty' }, { status: 400 });
+      }
+      if (trimmed.length > MAX_ACTIVITY_NAME_LENGTH) {
+        return NextResponse.json({ error: `Name is too long (max ${MAX_ACTIVITY_NAME_LENGTH})` }, { status: 400 });
+      }
+      if (existing.activity_id) {
+        const { error: nameError } = await supabase
+          .from('athlete_activities')
+          .update({ activity_name: trimmed })
+          .eq('id', existing.activity_id)
+          .eq('athlete_id', auth.user.athleteId);
+        if (nameError) throw nameError;
+      }
+    }
+
+    if (Object.keys(update).length === 0 && typeof payload?.activityName !== 'string') {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+    }
+    if (Object.keys(update).length === 0) {
+      // Only activityName changed — nothing on feed_items itself to write,
+      // just re-fetch below so the response reflects the new name.
+      const { data: refetched, error: refetchError } = await supabase
+        .from('feed_items')
+        .select(FEED_SELECT)
+        .eq('id', id)
+        .single();
+      if (refetchError) throw refetchError;
+      const item = projectFeedItem(refetched, {
+        viewerAthleteId: auth.user.athleteId,
+        viewerIsStaff: auth.user.isStaff,
+        likedItemIds: new Set<string>(),
+      });
+      return NextResponse.json({ item });
     }
 
     const { data: updated, error } = await supabase

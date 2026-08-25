@@ -271,7 +271,10 @@ export default function ActivitiesPage() {
       {/* HEADER BAR — softened toward an iOS large-title nav bar rather than a
           dense web toolbar (subtle hairline, no hard full-weight border). */}
       <div className="border-b border-slate-800/50 bg-slate-900/50 px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+        {/* flex-wrap: title + week-nav + Log Activity/Sync don't all fit on
+            one row at real phone widths (~390px) — without wrap, the actions
+            group renders off-screen entirely, not just visually cramped. */}
+        <div className="flex flex-wrap items-center justify-between gap-y-2 max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
             <Activity className="h-5 w-5 text-primary-400" />
             <h1 className="text-lg font-semibold text-white">{t('title')}</h1>

@@ -1289,8 +1289,8 @@
     "syncEditor": {
       "newActivity": "New activity synced",
       "moreActivities": "+{count} more synced",
-      "titleHint": "Title comes from your watch",
-      "captionPlaceholder": "How was the run?",
+      "captionPlaceholder": "How was the run? (optional)",
+      "tagPlaceholder": "Add a tag (optional)",
       "addPhoto": "Add Photo",
       "audienceTitle": "Who can see this",
       "audienceEveryone": "Everyone",

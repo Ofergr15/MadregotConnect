@@ -118,9 +118,12 @@ export interface UpdateFeedItemInput {
   visibility?: 'club' | 'group' | 'private';
   media?: FeedMedia[];
   hiddenFields?: FeedHiddenField[];
+  tag?: string | null;
+  /** Renames the underlying activity itself (athlete_activities.activity_name). */
+  activityName?: string;
 }
 
-/** PATCH an existing feed_item — caption, audience, media, or hidden stats. */
+/** PATCH an existing feed_item — caption, audience, media, tag, hidden stats, or the activity's own name. */
 export async function updateFeedItem(id: string, patch: UpdateFeedItemInput) {
   const res = await fetch(`/api/feed/items/${encodeURIComponent(id)}`, {
     method: 'PATCH',
