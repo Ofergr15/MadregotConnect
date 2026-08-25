@@ -12,10 +12,23 @@ import {
   fetchFeedItemByActivity, updateFeedItem, uploadMedia,
   type FeedHiddenField,
 } from '@/lib/feed-client';
+import { fetchPlanMatch } from '@/lib/activities-client';
+import { WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
 import { Sheet, Spinner } from '@/components/ui';
 import { RouteMinimap } from '@/components/RouteMinimap';
 import { FeedShareSheet } from '@/components/FeedShareSheet';
 import type { FeedItem, FeedMedia } from '@/lib/feed/project';
+
+interface PlanMatch { pct: number; actualKm: number; targetKm: number; type: string }
+
+// Green near the target, amber a bit off, red way off in either direction —
+// same 3-tier severity language as the feedback form's difficulty colors.
+function planMatchColor(pct: number): string {
+  const diff = Math.abs(pct - 100);
+  if (diff <= 15) return '#10b981';
+  if (diff <= 35) return '#f59e0b';
+  return '#ef4444';
+}
 
 const MAX_IMAGES = 4;
 const MAX_NAME_LENGTH = 80;
@@ -138,6 +151,17 @@ export function ActivitySyncEditor({
   useEffect(() => {
     load();
   }, [load]);
+
+  // Independent of `load()` above — this only reads the activity row + the
+  // club's plan, not feed_items, so it still renders when the feed portion of
+  // this sheet is signed out (see loadError === 'NOT_SIGNED_IN').
+  const [planMatch, setPlanMatch] = useState<PlanMatch | null>(null);
+  useEffect(() => {
+    fetchPlanMatch(activity.id)
+      .then(res => res.json())
+      .then(data => { if (data.matched) setPlanMatch(data); })
+      .catch(() => {});
+  }, [activity.id]);
 
   const distKm = (activity.distance / 1000).toFixed(1);
   const paceStr = activity.average_pace ? formatPace(activity.average_pace) : null;
@@ -337,6 +361,30 @@ export function ActivitySyncEditor({
             <p className="text-base font-black text-white tabular-nums">{durationStr}</p>
           </div>
         </div>
+
+        {planMatch && (
+          <div className="bg-slate-900/50 rounded-xl p-3">
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-2xs font-bold text-slate-500 uppercase tracking-wider">{t('planMatchLabel')}</span>
+              <span className="text-xl font-black tabular-nums" style={{ color: planMatchColor(planMatch.pct) }}>
+                {planMatch.pct}%
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-slate-700/60 overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(planMatch.pct, 100)}%`,
+                  background: planMatchColor(planMatch.pct),
+                }}
+              />
+            </div>
+            <p className="mt-1.5 text-2xs text-slate-400">
+              {t('planMatchSubtitle', { actual: planMatch.actualKm, target: planMatch.targetKm })}
+              {WORKOUT_TYPE_LABELS[planMatch.type] && ` · ${WORKOUT_TYPE_LABELS[planMatch.type]}`}
+            </p>
+          </div>
+        )}
 
         {/* Route thumbnail + "add photo" tile, side by side (native
             Strava/Garmin composer layout) — the tile takes the full row alone

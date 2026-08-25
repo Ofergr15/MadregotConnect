@@ -1299,6 +1299,8 @@
       "audienceOnlyYou": "Only You",
       "audienceFollowers": "Followers",
       "audienceComingSoon": "Coming soon",
+      "planMatchLabel": "Plan match",
+      "planMatchSubtitle": "{actual} of {target} km planned",
       "hiddenDetailsTitle": "Hidden Details",
       "hideCalories": "Calories",
       "hideHeartRate": "Heart Rate",

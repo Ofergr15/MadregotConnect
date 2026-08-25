@@ -24,7 +24,7 @@ const CLUSTER_GAP_MS = 90 * 60 * 1000;
 interface Act { garmin_activity_id: number; distance: number; activity_type: string | null; start_time: string; duration: number | null }
 
 /** The club's planned distance/type for one specific date, or null (rest day / no plan loaded). */
-async function planTargetForDate(dateStr: string): Promise<{ min: number; max: number; type: string } | null> {
+export async function planTargetForDate(dateStr: string): Promise<{ min: number; max: number; type: string } | null> {
   const supabase = createServerClient();
   const weekStart = getPlanWeekStart(new Date(`${dateStr}T12:00:00`));
   const { data: plan } = await supabase

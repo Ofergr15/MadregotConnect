@@ -26,6 +26,11 @@ export function fetchActivities(options: { includeGps?: boolean } = {}): Promise
   });
 }
 
+/** How one activity's distance compares to that day's planned target (see ActivitySyncEditor). */
+export function fetchPlanMatch(activityId: string): Promise<Response> {
+  return fetch(`/api/activities/${encodeURIComponent(activityId)}/plan-match`);
+}
+
 /** Fetch route/splits for one activity (DB uuid preferred). */
 export function fetchActivityDetails(activityId: number | string, athleteId: string): Promise<Response> {
   const email =

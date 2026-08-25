@@ -1299,6 +1299,8 @@
       "audienceOnlyYou": "רק אני",
       "audienceFollowers": "עוקבים",
       "audienceComingSoon": "בקרוב",
+      "planMatchLabel": "התאמה לתוכנית",
+      "planMatchSubtitle": "{actual} מתוך {target} ק\"מ מתוכננים",
       "hiddenDetailsTitle": "פרטים מוסתרים",
       "hideCalories": "קלוריות",
       "hideHeartRate": "דופק",
