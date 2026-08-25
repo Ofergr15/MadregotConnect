@@ -29,6 +29,14 @@ const ROWS: { key: Category; label: string; icon: typeof Calendar; bg: string }[
 export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   const { data, mutate } = useApi<{ prefs: Prefs }>(
     athleteId ? `/api/athletes/notification-prefs?athleteId=${encodeURIComponent(athleteId)}` : null,
+    // Disabled specifically here: this is what actually caused the "toggle it
+    // off and it turns back on" bug — a revalidateOnFocus refetch racing a
+    // slow PUT (e.g. backgrounding right after tapping) could land first and
+    // silently overwrite the toggle with the pre-toggle value. This data
+    // doesn't change from another device/session in a way that benefits from
+    // focus-revalidation, so removing the race source entirely is simpler
+    // and safer than trying to out-sequence it.
+    { revalidateOnFocus: false },
   );
   const [saving, setSaving] = useState<Category | null>(null);
   const prefs = data?.prefs;
@@ -75,27 +83,16 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
     if (!prefs) return;
     const next = { ...prefs, [key]: !prefs[key] };
     setSaving(key);
+    mutate({ prefs: next }, false); // optimistic
     try {
-      // Passing the PUT's own promise (rather than firing it separately from
-      // a plain `mutate(next, false)`) is what actually matters here: SWR
-      // tracks it as an in-flight mutation, so a revalidateOnFocus refetch
-      // racing against a slow PUT (e.g. backgrounding the app right after
-      // tapping the switch) gets sequenced AFTER it instead of landing first
-      // and silently overwriting the toggle with the pre-toggle value — the
-      // exact "turn it off and it turns back on" bug this replaced.
-      await mutate(
-        fetch('/api/athletes/notification-prefs', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ athleteId, category: key, enabled: next[key] }),
-        }).then(async (res) => {
-          if (!res.ok) throw new Error(`save failed (${res.status})`);
-          return res.json();
-        }),
-        { optimisticData: { prefs: next }, rollbackOnError: true, populateCache: (result: { prefs: Prefs }) => result, revalidate: false },
-      );
+      const res = await fetch('/api/athletes/notification-prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athleteId, category: key, enabled: next[key] }),
+      });
+      if (!res.ok) mutate(); // revalidate → roll back on failure/501
     } catch {
-      // rollbackOnError already restored the pre-toggle value.
+      mutate();
     } finally {
       setSaving(null);
     }
