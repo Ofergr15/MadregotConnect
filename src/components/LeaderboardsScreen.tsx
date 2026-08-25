@@ -11,6 +11,7 @@ interface LeaderboardEntry {
   id: string;
   name: string;
   groupId: string | null;
+  gender: 'male' | 'female' | null;
   distanceKm: number;
   runs: number;
   weekStreak: number;
@@ -39,16 +40,19 @@ const DOT_COLORS = ['bg-green-400', 'bg-yellow-400', 'bg-orange-400'];
  * compact top-3-by-distance card on Feed. This is the "see everything"
  * destination: all 5 categories the checklist asks for (Weekly/Monthly KM,
  * Streak, Workouts, Event Participation), reusing the same
- * GET /api/groups/leaderboard the staff view already computes — no age/
- * gender filters yet, since those Personal Info fields are still empty for
- * almost every athlete (added this session) and a filter with no data behind
- * it isn't worth building yet.
+ * GET /api/groups/leaderboard the staff view already computes. No age filter
+ * yet — birth_date is populated for only a handful of athletes so far, and a
+ * filter with almost no data behind it isn't worth building. Gender is
+ * fully populated (added this session, backfilled for every athlete), so
+ * that filter is real.
  */
 export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; groupId: string | null }) {
   const t = useTranslations('profile');
   const tc = useTranslations('common');
+  const ts = useTranslations('settings'); // genderMale/genderFemale live here, not 'profile'
   const [metric, setMetric] = useState<Metric>('distance');
   const [scope, setScope] = useState<'all' | 'group'>('all');
+  const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
 
   const { data, isLoading } = useApi<LeaderboardData>('/api/groups/leaderboard');
 
@@ -68,6 +72,7 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
 
   let entries = lists[metric];
   if (scope === 'group' && groupId) entries = entries.filter((e) => e.groupId === groupId);
+  if (genderFilter !== 'all') entries = entries.filter((e) => e.gender === genderFilter);
 
   const valueFor = (e: LeaderboardEntry) => {
     switch (metric) {
@@ -95,17 +100,29 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
         ]}
       />
 
-      {groupId && (
-        <SegmentedControl<'all' | 'group'>
-          value={scope}
-          onChange={setScope}
+      <div className="flex flex-wrap gap-2">
+        {groupId && (
+          <SegmentedControl<'all' | 'group'>
+            value={scope}
+            onChange={setScope}
+            options={[
+              { value: 'all', label: t('leaderboardAllAthletes') },
+              { value: 'group', label: t('leaderboardMyGroup') },
+            ]}
+            className="w-fit"
+          />
+        )}
+        <SegmentedControl<'all' | 'male' | 'female'>
+          value={genderFilter}
+          onChange={setGenderFilter}
           options={[
-            { value: 'all', label: t('leaderboardAllAthletes') },
-            { value: 'group', label: t('leaderboardMyGroup') },
+            { value: 'all', label: t('leaderboardAllGenders') },
+            { value: 'male', label: ts('genderMale') },
+            { value: 'female', label: ts('genderFemale') },
           ]}
           className="w-fit"
         />
-      )}
+      </div>
 
       {myRank > 0 && (
         <p className="text-xs text-slate-400 px-1">{t('leaderboardMyRank', { rank: myRank })}</p>

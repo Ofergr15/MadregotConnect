@@ -876,6 +876,7 @@
     "leaderboardEvents": "Events",
     "leaderboardAllAthletes": "Everyone",
     "leaderboardMyGroup": "My Group",
+    "leaderboardAllGenders": "All",
     "leaderboardMyRank": "You're #{rank}",
     "leaderboardEmpty": "No one has data for this yet",
     "weeklyVolume": "Weekly Volume",

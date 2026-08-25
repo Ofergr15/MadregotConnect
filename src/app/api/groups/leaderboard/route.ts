@@ -18,6 +18,7 @@ interface LeaderboardEntry {
   id: string;
   name: string;
   groupId: string | null;
+  gender: 'male' | 'female' | null;
   distanceKm: number;
   runs: number;
   durationMin: number;
@@ -43,7 +44,7 @@ export async function GET() {
 
     const { data: athletes, error: athError } = await supabase
       .from('athletes')
-      .select('id, name, group_id, status')
+      .select('id, name, group_id, gender, status')
       .eq('coach_id', COACH_ID)
       .eq('status', 'active');
 
@@ -134,6 +135,7 @@ export async function GET() {
         eventCount: eventCountByAthlete.get(a.id) || 0,
         name: a.name,
         groupId: a.group_id,
+        gender: a.gender,
         distanceKm: Math.round(stats.distance / 100) / 10,
         runs: stats.runs,
         durationMin: Math.round(stats.duration / 60),
