@@ -191,7 +191,12 @@ export function BottomTabBar() {
           (banking-app reference) so it's still clear what each icon is — no
           elevated FAB, no bold/weight jump on the active tab. */}
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-slate-700/60 bg-slate-900/85 backdrop-blur-xl"
+        // transform-gpu forces its own GPU compositing layer — iOS Safari has a
+        // long-standing bug where a `fixed` element that also has
+        // `backdrop-filter` (backdrop-blur-xl) can visually drift with scroll
+        // momentum instead of staying pinned to the viewport, especially in
+        // standalone PWA mode. This is the standard workaround.
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-slate-700/60 bg-slate-900/85 backdrop-blur-xl transform-gpu"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
