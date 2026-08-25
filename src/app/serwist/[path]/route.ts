@@ -2,7 +2,11 @@ import { createSerwistRoute } from '@serwist/turbopack';
 
 export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } =
   createSerwistRoute({
-    additionalPrecacheEntries: [{ url: '/offline.html', revision: null }],
+    // /offline.html lives in public/, so @serwist/turbopack already precaches
+    // it automatically with a real content hash — adding it again here (as
+    // this used to) creates a second entry for the same URL with a mismatched
+    // (null) revision, which throws add-to-cache-list-conflicting-entries at
+    // SW install time on real devices.
     swSrc: 'src/app/sw.ts',
     useNativeEsbuild: true,
     // Keep the precache manifest to app-shell-sized files. Without this, every
