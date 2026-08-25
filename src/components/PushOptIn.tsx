@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bell, X } from 'lucide-react';
-import { isStandalone, isIosDevice } from '@/lib/pwa';
+import { isStandalone, isIosDevice, subscribeToPush } from '@/lib/pwa';
 
 const DISMISS_KEY = 'push_optin_dismissed';
 // Set once a concrete push benefit is imminent for this athlete (see
@@ -23,15 +23,6 @@ export function requestPushOptInPrompt() {
   if (typeof window === 'undefined') return;
   localStorage.setItem(TRIGGER_KEY, '1');
   window.dispatchEvent(new Event(RECHECK_EVENT));
-}
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = atob(base64);
-  const arr = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-  return arr;
 }
 
 export function PushOptIn({ title, description }: { title?: string; description?: string } = {}) {
@@ -74,29 +65,11 @@ export function PushOptIn({ title, description }: { title?: string; description?
   const enable = async () => {
     setBusy(true);
     try {
-      const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapid) throw new Error('missing VAPID key');
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') { dismiss(); return; }
-
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
-      });
-
-      await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          athleteId: localStorage.getItem('athlete_id'),
-          subscription: sub.toJSON(),
-          userAgent: navigator.userAgent,
-        }),
-      });
-      setShow(false);
-    } catch {
-      // leave the banner so the user can retry
+      const athleteId = localStorage.getItem('athlete_id') || '';
+      const result = await subscribeToPush(athleteId);
+      if (result.ok) setShow(false);
+      else if (result.error === 'permission_denied') dismiss();
+      // any other error: leave the banner so the user can retry
     } finally {
       setBusy(false);
     }

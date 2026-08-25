@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Switch } from '@/components/ui';
+import { subscribeToPush } from '@/lib/pwa';
 
 type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
 type Prefs = Record<Category, boolean>;
@@ -32,6 +33,28 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   const [saving, setSaving] = useState<Category | null>(null);
   const prefs = data?.prefs;
 
+  // Push permission can be revoked (iOS Settings → Notifications → off) or
+  // never granted in the first place — PushOptIn only ever offers to
+  // subscribe opportunistically (right after workout feedback, or while
+  // waiting for approval), so without this there is no way back in for
+  // someone whose permission got reset outside those two moments.
+  const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  const [enabling, setEnabling] = useState(false);
+  useEffect(() => {
+    if (typeof Notification !== 'undefined') setPermission(Notification.permission);
+  }, []);
+
+  const enablePush = async () => {
+    setEnabling(true);
+    try {
+      const result = await subscribeToPush(athleteId);
+      if (typeof Notification !== 'undefined') setPermission(Notification.permission);
+      if (!result.ok) console.warn('subscribeToPush failed:', result.error);
+    } finally {
+      setEnabling(false);
+    }
+  };
+
   const toggle = async (key: Category) => {
     if (!prefs) return;
     const next = { ...prefs, [key]: !prefs[key] };
@@ -55,6 +78,17 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
 
   return (
     <div dir="rtl">
+      {permission && permission !== 'granted' && (
+        <InsetSection header="פוש">
+          <InsetRow
+            icon={BellRing}
+            iconBg="bg-red-500"
+            label={enabling ? 'מפעיל...' : 'הפעלת התראות פוש'}
+            sublabel={permission === 'denied' ? 'חסום — יש לאשר בהגדרות המכשיר' : 'לא הופעלו במכשיר הזה'}
+            onClick={permission === 'denied' ? undefined : enablePush}
+          />
+        </InsetSection>
+      )}
       <InsetSection header="התראות">
         {ROWS.map(({ key, label, icon, bg }) => {
           const on = prefs[key];

@@ -23,3 +23,45 @@ export function isIosDevice(): boolean {
     (/macintosh/i.test(ua) && 'ontouchend' in document);
   return isIos;
 }
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+/**
+ * Requests permission (if needed) and subscribes this device to push,
+ * persisting the subscription server-side. Shared by PushOptIn's contextual
+ * banner and NotificationPrefs' always-available "enable notifications" row
+ * — the same real action, just reached two different ways: an opportunistic
+ * nudge right when push becomes useful, versus an on-demand retry for anyone
+ * whose permission got reset (e.g. after revoking it in iOS Settings).
+ */
+export async function subscribeToPush(athleteId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapid) return { ok: false, error: 'missing_vapid' };
+
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return { ok: false, error: 'permission_denied' };
+
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
+    });
+
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ athleteId, subscription: sub.toJSON(), userAgent: navigator.userAgent }),
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
