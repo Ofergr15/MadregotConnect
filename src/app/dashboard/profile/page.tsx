@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -94,9 +94,21 @@ function ProfileContent() {
   const tHeader = useTranslations('header');
   const tCommon = useTranslations('common');
   const locale = useLocale();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  // null = landing (iOS-style list); a value = a detail screen open.
-  const [activeTab, setActiveTab] = useState<ProfileTab | null>(null);
+  const PROFILE_TAB_KEYS: ProfileTab[] = ['group', 'datasource', 'statistics', 'badges', 'challenges', 'leaderboards', 'discover', 'share', 'notifications', 'personalInfo'];
+  // null = landing (iOS-style list); a value = a detail screen open. Reads
+  // ?tab= on mount and keeps the URL in sync on every change — without this,
+  // refreshing while inside any detail screen (e.g. Notification Prefs)
+  // silently dropped back to the landing list instead of staying put.
+  const [activeTab, setActiveTabState] = useState<ProfileTab | null>(() => {
+    const tab = searchParams.get('tab');
+    return PROFILE_TAB_KEYS.includes(tab as ProfileTab) ? (tab as ProfileTab) : null;
+  });
+  const setActiveTab = useCallback((tab: ProfileTab | null) => {
+    setActiveTabState(tab);
+    router.replace(tab ? `/dashboard/profile?tab=${tab}` : '/dashboard/profile');
+  }, [router]);
   const [athleteId, setAthleteId] = useState('');
   const [athleteName, setAthleteName] = useState('');
   const [athleteEmail, setAthleteEmail] = useState('');
@@ -172,7 +184,7 @@ function ProfileContent() {
         garminSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 300);
     }
-  }, [searchParams]);
+  }, [searchParams, setActiveTab]);
 
   useEffect(() => {
     const id = localStorage.getItem('athlete_id') || '';

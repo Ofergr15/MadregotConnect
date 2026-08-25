@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
@@ -280,11 +280,24 @@ export default function SettingsPage() {
   // null = the Settings landing (iOS-style list); a value = a detail screen
   // open. The 8 "ניהול" rows now live in Coach Tools and link here with
   // ?tab=<key> so their detail screens still open directly, no duplication.
+  // personalInfo/notifprefs aren't in that grid (they're their own always-
+  // visible rows above it) but are still real, refreshable deep-link targets.
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<SettingsTab | null>(() => {
+  const ALL_TAB_KEYS: SettingsTab[] = [...settingsTabs.map(st => st.key), 'personalInfo', 'notifprefs'];
+  const [activeTab, setActiveTabState] = useState<SettingsTab | null>(() => {
     const tab = searchParams.get('tab');
-    return settingsTabs.some(st => st.key === tab) ? (tab as SettingsTab) : null;
+    return ALL_TAB_KEYS.includes(tab as SettingsTab) ? (tab as SettingsTab) : null;
   });
+  // Keeps the URL in sync with whichever detail screen is open — without
+  // this, opening a tab via setActiveTab (as opposed to a real ?tab= link)
+  // left the URL at bare /dashboard/settings, so refreshing while inside any
+  // such screen silently dropped back to the landing grid instead of staying
+  // put. replace (not push) so tab switches don't pile up browser history.
+  const setActiveTab = (tab: SettingsTab | null) => {
+    setActiveTabState(tab);
+    router.replace(tab ? `/dashboard/settings?tab=${tab}` : '/dashboard/settings');
+  };
   // The signed-in athlete's own id — powers the personal notification-prefs
   // detail (coaches are athletes too; null if this account has no athlete row).
   const [notifPrefsAthleteId, setNotifPrefsAthleteId] = useState('');
