@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isProtectedEmail } from '@/lib/constants';
 import { groupDisplayName } from '@/lib/utils';
+import { syncGroupFollows } from '@/lib/follows/group-sync';
 
 const DEMO_COACH_ID = COACH_ID;
 
@@ -173,6 +174,12 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) throw error;
+
+    if (groupId) {
+      try {
+        await syncGroupFollows(supabase, id, groupId);
+      } catch { /* best-effort — never break the athlete update itself */ }
+    }
 
     return NextResponse.json({ athlete });
   } catch (error) {

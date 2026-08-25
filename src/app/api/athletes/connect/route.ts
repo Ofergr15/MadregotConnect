@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
+import { syncGroupFollows } from '@/lib/follows/group-sync';
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,6 +57,10 @@ export async function POST(req: NextRequest) {
       }
 
       try {
+        await syncGroupFollows(supabase, athlete.id, updated?.group_id);
+      } catch { /* best-effort — never break the connect flow itself */ }
+
+      try {
         const { notifyAdminNewUser } = await import('@/lib/email');
         await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!encryptedAuth });
       } catch {}
@@ -104,6 +109,10 @@ export async function POST(req: NextRequest) {
       }
 
       try {
+        await syncGroupFollows(supabase, existing.id, updated?.group_id);
+      } catch { /* best-effort — never break the connect flow itself */ }
+
+      try {
         const { notifyAdminNewUser } = await import('@/lib/email');
         await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updatePayload.onboarding_status, hasGarmin: !!encryptedAuth });
       } catch {}
@@ -138,6 +147,10 @@ export async function POST(req: NextRequest) {
     if (createError) {
       return NextResponse.json({ error: 'Failed to create athlete' }, { status: 500 });
     }
+
+    try {
+      await syncGroupFollows(supabase, created.id, created?.group_id);
+    } catch { /* best-effort — never break the connect flow itself */ }
 
     try {
       const { notifyAdminNewUser } = await import('@/lib/email');

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { syncGroupFollows } from '@/lib/follows/group-sync';
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,6 +40,12 @@ export async function POST(req: NextRequest) {
 
     if (updateError) {
       return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+    }
+
+    if (groupId) {
+      try {
+        await syncGroupFollows(supabase, athlete.id, groupId);
+      } catch { /* best-effort — never break the group update itself */ }
     }
 
     return NextResponse.json({ success: true, athlete: updated });
