@@ -43,7 +43,15 @@ export default function DashboardLayout({
       else setFromServer(); // backgrounding → stamp the current unread count
     };
     document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
+    // `pagehide` as a second trigger alongside `visibilitychange` — some iOS
+    // app-switch gestures (fully closing the PWA rather than just backgrounding
+    // it) don't reliably fire visibilitychange first, so this is a second
+    // chance to stamp the badge before the page context is torn down.
+    window.addEventListener('pagehide', setFromServer);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', setFromServer);
+    };
   }, []);
 
   useEffect(() => {

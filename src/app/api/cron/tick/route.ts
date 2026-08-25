@@ -114,9 +114,14 @@ async function run(request: Request) {
         const sent = await sendPushToSubscriptions(subs, {
           title: `תזכורת אימון ליום ${dayName} 🏃`,
           body: `מחר, יום ${dayName}, אימון קבוצתי — נתראה!`,
-          url: '/dashboard',
+          url: `/dashboard?rsvp=${weekStart}:${teamDay}`,
           tag,
           category: 'workouts',
+          actions: [
+            { action: 'rsvp_yes', title: '✅ מגיע/ה' },
+            { action: 'rsvp_no', title: '❌ לא הפעם' },
+          ],
+          rsvp: { weekStart, day: teamDay },
         });
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
@@ -149,9 +154,14 @@ async function run(request: Request) {
         const sent = await sendPushToSubscriptions(subs, {
           title: 'מגיעים מחר לאימון? 🏟️',
           body,
-          url: '/dashboard',
+          url: `/dashboard?rsvp=${weekStart}:${teamDay}`,
           tag,
           category: 'workouts',
+          actions: [
+            { action: 'rsvp_yes', title: '✅ מגיע/ה' },
+            { action: 'rsvp_no', title: '❌ לא הפעם' },
+          ],
+          rsvp: { weekStart, day: teamDay },
         });
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);

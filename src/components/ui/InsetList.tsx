@@ -67,6 +67,24 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-slate-600', avatarUrl, label
   );
 
   if (href) return <Link href={href} onClick={onClick} className="block active:bg-slate-700/40 transition-colors">{inner}</Link>;
-  if (onClick) return <button onClick={onClick} className="w-full text-start active:bg-slate-700/40 transition-colors">{inner}</button>;
+  if (onClick) {
+    // A real <button> here is invalid HTML whenever `trailing` also contains
+    // its own interactive control (e.g. a KudosButton/RSVP toggle) — buttons
+    // can't nest, and React logs a hydration-mismatch error for it. A div with
+    // button semantics gets the same click/keyboard affordance without that
+    // restriction; stopPropagation on the nested control (already used by
+    // every trailing action) keeps its own click from re-triggering this one.
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+        className="w-full text-start active:bg-slate-700/40 transition-colors cursor-pointer"
+      >
+        {inner}
+      </div>
+    );
+  }
   return inner;
 }

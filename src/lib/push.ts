@@ -66,6 +66,17 @@ export interface PushPayload {
    * ping the user, not just silently swap the old card's content.
    */
   renotify?: boolean;
+  /**
+   * OS-level action buttons on the notification itself (Chrome/Android +
+   * desktop; iOS/WebKit doesn't support the Notification actions API and
+   * silently ignores this — the in-app inbox is the fallback for those
+   * platforms). `action` must match a case sw.ts's notificationclick handles.
+   */
+  actions?: Array<{ action: string; title: string }>;
+  /** Context for the SW's 'rsvp_yes'/'rsvp_no' action handlers. */
+  rsvp?: { weekStart: string; day: number };
+  /** Context for the SW's 'kudos' action handler. */
+  kudosActivityId?: string;
 }
 
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };
@@ -207,9 +218,11 @@ export async function sendPushToSubscriptions(subs: SubRow[], payload: PushPaylo
 
   await Promise.all(
     subs.map(async (s) => {
-      // Each athlete's devices get that athlete's own badge count.
+      // Each athlete's devices get that athlete's own badge count + their own
+      // athleteId, so an OS-level notification action (which runs in the SW,
+      // with no page/localStorage to read from) knows who's acting.
       const badge = payload.badge != null ? payload.badge : (unread[s.athlete_id] ?? 1);
-      const body = JSON.stringify({ ...payload, badge });
+      const body = JSON.stringify({ ...payload, badge, athleteId: s.athlete_id });
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -369,6 +382,8 @@ export async function notifyTeammatesOfActivity(activity: {
     url,
     tag: `teammate-activity-${activity.activityKey}`,
     category: 'teammates',
+    actions: [{ action: 'kudos', title: '👍 קודוס' }],
+    kudosActivityId: activity.activityId,
     // `icon` (small, corner badge) works broadly incl. iOS 16.4+ PWA push;
     // `image` (large expanded banner) is Chrome/Android-only today — iOS's
     // Web Push notification API doesn't render it regardless of what's sent,

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp } from 'lucide-react';
+import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
@@ -95,6 +95,72 @@ function kudosActivityId(it: Item): string | null {
   if (it.kind !== 'kudos_activity') return null;
   const m = it.url.match(/[?&]kudos=([^&]+)/);
   return m ? m[1] : null;
+}
+
+// "training_before" rows (day-before / evening-before RSVP reminders) carry
+// the target week+day as a ?rsvp=weekStart:day query param (see cron/tick)
+// so the reminder can be answered right from the inbox row, no navigation.
+function rsvpTarget(it: Item): { weekStart: string; day: number } | null {
+  if (it.kind !== 'training_before') return null;
+  const m = it.url.match(/[?&]rsvp=([^&:]+):(\d)/);
+  return m ? { weekStart: m[1], day: Number(m[2]) } : null;
+}
+
+// Inline RSVP yes/no on a training_before row — loads the athlete's current
+// answer (if any) so the row reflects reality even after a reload, then
+// toggles optimistically on tap, same posture as KudosButton above.
+function RsvpInlineButtons({ weekStart, day, athleteId }: { weekStart: string; day: number; athleteId: string }) {
+  const [attending, setAttending] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&athleteId=${athleteId}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data?.rsvp) setAttending(data.rsvp.attending); })
+      .catch(() => {});
+  }, [weekStart, day, athleteId]);
+
+  const submit = async (e: React.MouseEvent, next: boolean) => {
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    const prev = attending;
+    setAttending(next);
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athleteId, weekStart, day, attending: next }),
+      });
+      if (!res.ok) throw new Error();
+    } catch { setAttending(prev); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <button
+        type="button"
+        onClick={(e) => submit(e, true)}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+          attending === true ? 'bg-primary-600 text-white' : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700',
+        )}
+      >
+        <CheckCircle2 className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => submit(e, false)}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+          attending === false ? 'bg-slate-600 text-white' : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700',
+        )}
+      >
+        <XCircle className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
 }
 
 // Inline "give kudos" action on a kudos_activity row — optimistic, starts
@@ -230,6 +296,7 @@ export default function NotificationsInboxPage() {
                 const { Icon, tile } = styleFor(it);
                 const unread = isUnread(it);
                 const kudosId = kudosActivityId(it);
+                const rsvp = rsvpTarget(it);
                 return (
                   <div key={it.id} className="relative">
                     {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-500 z-10" aria-hidden="true" />}
@@ -246,9 +313,14 @@ export default function NotificationsInboxPage() {
                             <span className="text-xs text-slate-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
                             <KudosButton activityId={kudosId} athleteId={athleteId} />
                           </div>
+                        ) : rsvp && athleteId ? (
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className="text-xs text-slate-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
+                            <RsvpInlineButtons weekStart={rsvp.weekStart} day={rsvp.day} athleteId={athleteId} />
+                          </div>
                         ) : undefined
                       }
-                      value={kudosId ? undefined : timeAgo(it.sentAt, tn, dateLocale)}
+                      value={(kudosId || rsvp) ? undefined : timeAgo(it.sentAt, tn, dateLocale)}
                     />
                   </div>
                 );

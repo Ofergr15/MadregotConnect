@@ -147,6 +147,10 @@ self.addEventListener('push', (event: PushEvent) => {
     icon?: string;
     image?: string;
     renotify?: boolean;
+    actions?: Array<{ action: string; title: string }>;
+    athleteId?: string;
+    rsvp?: { weekStart: string; day: number };
+    kudosActivityId?: string;
   } = {};
   try {
     data = event.data ? event.data.json() : {};
@@ -169,7 +173,17 @@ self.addEventListener('push', (event: PushEvent) => {
         // the old card's content silently). The spec requires a non-empty tag
         // whenever renotify is true, or showNotification throws — guard it.
         renotify: !!(data.renotify && data.tag),
-        data: { url: data.url || '/dashboard' },
+        // OS-level action buttons (Chrome/Android + desktop; iOS/WebKit has no
+        // Notification actions API and just ignores this field). Context each
+        // action needs at click time travels alongside in `data`, since the SW
+        // has no page/localStorage to read from.
+        actions: data.actions,
+        data: {
+          url: data.url || '/dashboard',
+          athleteId: data.athleteId,
+          rsvp: data.rsvp,
+          kudosActivityId: data.kudosActivityId,
+        },
         // `image` (expanded banner photo) isn't in TS's NotificationOptions lib
         // typing yet, though it's supported at runtime on platforms that honor
         // it (browsers ignore unknown notification options harmlessly).
@@ -189,7 +203,49 @@ self.addEventListener('push', (event: PushEvent) => {
 
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
-  const url = (event.notification.data as { url?: string })?.url || '/dashboard';
+  const notifData = (event.notification.data as {
+    url?: string;
+    athleteId?: string;
+    rsvp?: { weekStart: string; day: number };
+    kudosActivityId?: string;
+  }) || {};
+
+  // Action-button taps: perform the action directly in the background — no
+  // need to open/focus the app at all, same as any native app's notification
+  // actions (e.g. Gmail's "archive"). `event.action` is '' when the
+  // notification BODY was tapped instead of a button, which falls through to
+  // the normal open/focus/navigate behavior below.
+  if (event.action === 'rsvp_yes' || event.action === 'rsvp_no') {
+    if (notifData.athleteId && notifData.rsvp) {
+      event.waitUntil(
+        fetch('/api/attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            athleteId: notifData.athleteId,
+            weekStart: notifData.rsvp.weekStart,
+            day: notifData.rsvp.day,
+            attending: event.action === 'rsvp_yes',
+          }),
+        }).catch(() => {}),
+      );
+    }
+    return;
+  }
+  if (event.action === 'kudos') {
+    if (notifData.athleteId && notifData.kudosActivityId) {
+      event.waitUntil(
+        fetch(`/api/activities/${notifData.kudosActivityId}/kudos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ athleteId: notifData.athleteId }),
+        }).catch(() => {}),
+      );
+    }
+    return;
+  }
+
+  const url = notifData.url || '/dashboard';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
