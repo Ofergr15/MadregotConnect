@@ -75,16 +75,27 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
     if (!prefs) return;
     const next = { ...prefs, [key]: !prefs[key] };
     setSaving(key);
-    mutate({ prefs: next }, false); // optimistic
     try {
-      const res = await fetch('/api/athletes/notification-prefs', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athleteId, category: key, enabled: next[key] }),
-      });
-      if (!res.ok) mutate(); // revalidate → roll back on failure/501
+      // Passing the PUT's own promise (rather than firing it separately from
+      // a plain `mutate(next, false)`) is what actually matters here: SWR
+      // tracks it as an in-flight mutation, so a revalidateOnFocus refetch
+      // racing against a slow PUT (e.g. backgrounding the app right after
+      // tapping the switch) gets sequenced AFTER it instead of landing first
+      // and silently overwriting the toggle with the pre-toggle value — the
+      // exact "turn it off and it turns back on" bug this replaced.
+      await mutate(
+        fetch('/api/athletes/notification-prefs', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ athleteId, category: key, enabled: next[key] }),
+        }).then(async (res) => {
+          if (!res.ok) throw new Error(`save failed (${res.status})`);
+          return res.json();
+        }),
+        { optimisticData: { prefs: next }, rollbackOnError: true, populateCache: (result: { prefs: Prefs }) => result, revalidate: false },
+      );
     } catch {
-      mutate();
+      // rollbackOnError already restored the pre-toggle value.
     } finally {
       setSaving(null);
     }
