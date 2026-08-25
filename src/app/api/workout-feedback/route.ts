@@ -80,13 +80,57 @@ export async function GET(request: Request) {
         };
       });
 
+      // Missing: for each active athlete, is their MOST RECENT workout in this
+      // window still without feedback? (Not every gap — an athlete who's
+      // never used the feature would otherwise flood this with dozens of old
+      // rows; the coach only needs to know who to nudge *right now*.)
+      const feedbackKey = (athleteId: string, activityId: number | null) => `${athleteId}:${activityId}`;
+      const coveredKeys = new Set(
+        (data || []).map((r: any) => feedbackKey(r.athlete_id, r.garmin_activity_id)),
+      );
+      const { data: activeAthletes } = await supabase
+        .from('athletes')
+        .select('id, name, avatar_url, group_id, groups(name)')
+        .eq('status', 'active');
+      const { data: recentActs } = await supabase
+        .from('athlete_activities')
+        .select('athlete_id, garmin_activity_id, activity_name, activity_type, distance, start_time')
+        .in('athlete_id', (activeAthletes || []).map((a: any) => a.id))
+        .gt('distance', 0)
+        .gte('start_time', since)
+        .order('start_time', { ascending: false });
+      const latestByAthlete = new Map<string, any>();
+      for (const act of (recentActs || [])) {
+        if (!latestByAthlete.has(act.athlete_id)) latestByAthlete.set(act.athlete_id, act);
+      }
+      const missing = (activeAthletes || [])
+        .map((a: any) => {
+          const act = latestByAthlete.get(a.id);
+          if (!act || coveredKeys.has(feedbackKey(a.id, act.garmin_activity_id))) return null;
+          return {
+            athleteId: a.id,
+            name: a.name,
+            avatarUrl: a.avatar_url || null,
+            squad: a.groups?.name || null,
+            activityId: act.garmin_activity_id,
+            activityName: act.activity_name || null,
+            activityType: act.activity_type || null,
+            distance: act.distance ?? null,
+            startTime: act.start_time || null,
+          };
+        })
+        .filter((m): m is NonNullable<typeof m> => m !== null)
+        .sort((a, b) => (b.startTime || '').localeCompare(a.startTime || ''));
+
       return NextResponse.json({
         items,
+        missing,
         counts: {
           total: items.length,
           pain: items.filter((i) => i.pain === true).length,
           wantsFeedback: items.filter((i) => i.wantsFeedback === true).length,
           withComment: items.filter((i) => !!i.comment).length,
+          missing: missing.length,
         },
       });
     }
