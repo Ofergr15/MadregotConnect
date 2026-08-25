@@ -40,6 +40,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   // someone whose permission got reset outside those two moments.
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
   const [enabling, setEnabling] = useState(false);
+  const [enableError, setEnableError] = useState<string | null>(null);
   useEffect(() => {
     if (typeof Notification === 'undefined') return;
     const refresh = () => setPermission(Notification.permission);
@@ -57,10 +58,14 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
 
   const enablePush = async () => {
     setEnabling(true);
+    setEnableError(null);
     try {
       const result = await subscribeToPush(athleteId);
       if (typeof Notification !== 'undefined') setPermission(Notification.permission);
-      if (!result.ok) console.warn('subscribeToPush failed:', result.error);
+      // Visible on the device itself, not just in a console nobody's looking
+      // at — a silent failure here previously meant no way to tell what
+      // actually went wrong without production log access.
+      if (!result.ok) setEnableError(result.error || 'unknown_error');
     } finally {
       setEnabling(false);
     }
@@ -95,7 +100,11 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
             icon={BellRing}
             iconBg="bg-red-500"
             label={enabling ? 'מפעיל...' : 'הפעלת התראות פוש'}
-            sublabel={permission === 'denied' ? 'חסום — יש לאשר בהגדרות המכשיר' : 'לא הופעלו במכשיר הזה'}
+            sublabel={
+              enableError ? `שגיאה: ${enableError}`
+                : permission === 'denied' ? 'חסום — יש לאשר בהגדרות המכשיר'
+                : 'לא הופעלו במכשיר הזה'
+            }
             onClick={permission === 'denied' ? undefined : enablePush}
           />
         </InsetSection>

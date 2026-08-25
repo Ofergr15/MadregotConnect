@@ -55,9 +55,14 @@ export async function subscribeToPush(athleteId: string): Promise<{ ok: boolean;
     // iOS Settings, then re-granted) can still be sitting in the
     // PushManager — subscribe() then just hands back that same stale
     // subscription instead of a fresh one. Drop it first so this always
-    // creates a real new subscription tied to the current context.
-    const existing = await reg.pushManager.getSubscription();
-    if (existing) await existing.unsubscribe();
+    // creates a real new subscription tied to the current context. Best
+    // effort: iOS can throw unsubscribing a subscription left in a weird
+    // state, and failing to clean up the old one must never block getting a
+    // working new one.
+    try {
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
+    } catch { /* ignore — proceed to subscribe regardless */ }
 
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
