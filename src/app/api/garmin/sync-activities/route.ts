@@ -7,6 +7,7 @@ import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
+import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
 
 export async function POST(request: Request) {
   try {
@@ -73,7 +74,18 @@ export async function POST(request: Request) {
           .eq('athlete_id', athlete.id);
 
         const existingIds = new Set((existing || []).map(e => e.garmin_activity_id));
-        const newActivities = runActivities.filter(a => !existingIds.has(a.activityId));
+        const candidateActivities = runActivities.filter(a => !existingIds.has(a.activityId));
+
+        // Strava can independently import this same run (Garmin auto-export) —
+        // strava/sync-activities' own existingByStrava check can never catch that,
+        // since it's keyed by strava_activity_id. Without this, every such run gets
+        // counted twice (badges, challenges, shoe mileage, teammate pushes). See
+        // hasCrossSourceDuplicate's own comment.
+        const newActivities: typeof candidateActivities = [];
+        for (const a of candidateActivities) {
+          if (await hasCrossSourceDuplicate(supabase, athlete.id, a.startTimeLocal, a.distance)) continue;
+          newActivities.push(a);
+        }
 
         if (newActivities.length > 0) {
           const rows: Record<string, any>[] = [];

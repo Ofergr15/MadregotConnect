@@ -23,6 +23,7 @@ import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { notifyTeammatesOfActivity } from '@/lib/push';
 import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
+import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -227,6 +228,16 @@ export async function POST(request: Request) {
 
           const durationSec = a.moving_time || a.elapsed_time;
           const distanceM = a.distance;
+
+          // Garmin can auto-export this same run to Strava — garmin/sync-activities
+          // already inserted it under a positive garmin_activity_id, which
+          // existingByStrava (keyed by strava_activity_id) can never match. Without
+          // this check every such run gets counted twice (badges, challenges, shoe
+          // mileage, teammate pushes). See hasCrossSourceDuplicate's own comment.
+          if (await hasCrossSourceDuplicate(supabase, athlete.id, a.start_date_local, distanceM)) {
+            continue;
+          }
+
           // garmin_activity_id is NOT NULL + UNIQUE(athlete_id, garmin_activity_id).
           // Never reuse a shared sentinel like -1 — that only lets one Strava row insert.
           // Negative Strava id stays out of the positive Garmin id space.
