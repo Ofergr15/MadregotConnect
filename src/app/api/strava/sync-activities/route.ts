@@ -319,14 +319,16 @@ export async function POST(request: Request) {
         }
 
         // Post-workout nudge — same purpose/shape as garmin/sync-activities'
-        // own block: push the newest genuinely-new run's feedback prompt.
+        // own block: push the MAIN workout's feedback prompt (longest by
+        // distance, not just the most recent by start time — a quality day
+        // can sync as separate warmup/main-set/cooldown activities, and
+        // "latest" would just as easily land on a short cooldown jog).
         // Previously Strava-synced athletes never got this at all (only
         // Garmin did) — never let a push failure break the sync.
         try {
           if (suppressPush) throw new Error('suppressed');
           if (newActivityPushInfo.length > 0) {
-            const newest = newActivityPushInfo.reduce((a, b) =>
-              new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b);
+            const newest = newActivityPushInfo.reduce((a, b) => (b.distance > a.distance ? b : a));
             const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;
             const label = RUN_TYPE_LABELS[newest.activityType] || 'ריצה';
             const pushBody = km

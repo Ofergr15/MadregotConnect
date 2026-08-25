@@ -194,8 +194,14 @@ export async function POST(request: Request) {
           // set (the morning workout-watch cron sends its own teaser instead).
           try {
             if (suppressPush) throw new Error('suppressed');
-            const newest = newActivities.reduce((a, b) =>
-              new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b);
+            // The MAIN workout, not just the most recent one — a quality day
+            // often syncs as several separate Garmin activities (warmup,
+            // interval/tempo set, cooldown, each its own recording), and
+            // "latest start time" would just as easily land on a short
+            // cooldown jog as on the actual session. Longest by distance is a
+            // reliable proxy for "the workout that matters" across all of
+            // those splits.
+            const newest = newActivities.reduce((a, b) => (b.distance > a.distance ? b : a));
             // Concrete detail already in scope: the just-synced activity's
             // distance + sub-type (same fields used to build `rows` above).
             const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;

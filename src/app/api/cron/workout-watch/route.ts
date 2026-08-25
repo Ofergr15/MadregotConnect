@@ -109,15 +109,33 @@ async function run(request: Request) {
   const lowerUTC = new Date(now.getTime() - 18 * 3600_000).toISOString(); // ~today morning back-margin
   const { data: acts } = await supabase
     .from('athlete_activities')
-    .select('garmin_activity_id, athlete_id, activity_type, start_time, activity_name')
+    .select('garmin_activity_id, athlete_id, activity_type, start_time, activity_name, distance')
     .gte('start_time', lowerUTC)
     .order('start_time', { ascending: false });
 
+  const todaysRuns = ((acts || []) as Array<{ garmin_activity_id: number; athlete_id: string; activity_type: string | null; start_time: string; activity_name: string | null; distance: number | null }>)
+    .filter(a => (!a.activity_type || RUN_TYPES.includes(a.activity_type)) && (a.start_time || '').split('T')[0] === todayStr);
+
+  // A quality day can land as several separate Garmin activities (warmup,
+  // the actual interval/tempo set, cooldown) — teasing every one of them
+  // separately would nag the athlete 2-3x for what's really one session. Only
+  // the longest-by-distance activity per athlete per day gets the teaser;
+  // the rest are silently skipped (not marked in the ledger — harmless to
+  // re-check next tick, and lets a still-longer segment recorded later today
+  // take over as "main" before anything's actually fired).
+  const mainActivityIdByAthlete = new Map<string, number>();
+  const mainDistanceByAthlete = new Map<string, number>();
+  for (const a of todaysRuns) {
+    const bestSoFar = mainDistanceByAthlete.get(a.athlete_id) ?? -1;
+    if ((a.distance ?? 0) > bestSoFar) {
+      mainActivityIdByAthlete.set(a.athlete_id, a.garmin_activity_id);
+      mainDistanceByAthlete.set(a.athlete_id, a.distance ?? 0);
+    }
+  }
+
   const fired: string[] = [];
-  for (const a of (acts || []) as Array<{ garmin_activity_id: number; athlete_id: string; activity_type: string | null; start_time: string; activity_name: string | null }>) {
-    if (a.activity_type && !RUN_TYPES.includes(a.activity_type)) continue;
-    // Only today's activities (Israel local date via the stored wall-clock).
-    if ((a.start_time || '').split('T')[0] !== todayStr) continue;
+  for (const a of todaysRuns) {
+    if (mainActivityIdByAthlete.get(a.athlete_id) !== a.garmin_activity_id) continue;
     const tag = `newActivity:${a.garmin_activity_id}`;
     if (await already(tag)) continue;
 
