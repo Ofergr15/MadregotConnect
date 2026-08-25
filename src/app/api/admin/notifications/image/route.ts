@@ -30,6 +30,9 @@ export async function POST(request: Request) {
     if (file.size > MAX_BYTES) {
       return NextResponse.json({ error: 'Image is too large (max 4MB)' }, { status: 400 });
     }
+    if (file.size === 0) {
+      return NextResponse.json({ error: 'File is empty' }, { status: 400 });
+    }
 
     const supabase = createServerClient();
     const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';

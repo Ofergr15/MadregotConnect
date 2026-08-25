@@ -21,7 +21,9 @@ export async function checkShoeAlert(shoeId: string): Promise<void> {
     const totalKm = (acts || []).reduce((sum: number, a: { distance: number | null }) => sum + (a.distance || 0), 0) / 1000;
 
     const limit = Number(shoe.distance_limit_km);
-    const alertBefore = Number(shoe.alert_before_km) || 50;
+    // != null, not `|| 50` — an explicit 0 ("only alert exactly at the
+    // limit") is a legitimate stored value, not a falsy "unset".
+    const alertBefore = shoe.alert_before_km != null ? Number(shoe.alert_before_km) : 50;
     const nearThreshold = limit - alertBefore;
     const kmRounded = Math.round(totalKm);
     const limitRounded = Math.round(limit);

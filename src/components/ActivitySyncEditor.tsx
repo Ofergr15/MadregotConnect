@@ -96,6 +96,12 @@ export function ActivitySyncEditor({
   const [feedItem, setFeedItem] = useState<FeedItem | null>(null);
 
   const [activityName, setActivityName] = useState(activity.activity_name || '');
+  // Snapshot of the name as last loaded from the server — lets handleDone
+  // below skip re-sending activityName when it was never touched, so a tab
+  // that only edited the tag/caption/photos can't blow away a rename that
+  // happened concurrently in another tab (no version/lost-update guard exists
+  // on this PATCH otherwise; this is the cheap, common-case mitigation).
+  const loadedNameRef = useRef(activity.activity_name || '');
   const [caption, setCaption] = useState('');
   const [tag, setTag] = useState('');
   const [media, setMedia] = useState<FeedMedia[]>([]);
@@ -118,7 +124,10 @@ export function ActivitySyncEditor({
       const rawHidden = (item.payload?.hiddenFields as unknown[]) || [];
       setHidden(new Set(rawHidden.filter(isFeedHiddenField)));
       if (typeof item.payload?.tag === 'string') setTag(item.payload.tag);
-      if (item.activity?.activityName) setActivityName(item.activity.activityName);
+      if (item.activity?.activityName) {
+        setActivityName(item.activity.activityName);
+        loadedNameRef.current = item.activity.activityName;
+      }
     } catch (err: unknown) {
       setLoadError((err as Error).message || t('loadError'));
     } finally {
@@ -151,7 +160,10 @@ export function ActivitySyncEditor({
     if (remaining <= 0) return;
     const toUpload = Array.from(files).slice(0, remaining);
     setUploading(true);
-    setSaveError(null);
+    // Multi-selecting more photos than the remaining slots used to silently
+    // drop the extras with zero feedback — the athlete believed all of them
+    // were added. Surface it the same way any other save issue shows up here.
+    setSaveError(files.length > remaining ? t('tooManyPhotos', { count: MAX_IMAGES }) : null);
     try {
       const uploaded = await Promise.all(toUpload.map(f => uploadMedia(f)));
       setMedia(prev => [...prev, ...uploaded]);
@@ -173,7 +185,16 @@ export function ActivitySyncEditor({
 
     // An accidentally-cleared name shouldn't block Done — fall back to the
     // original rather than surfacing a "name required" error for that.
-    const finalName = activityName.trim() || activity.activity_name || 'Run';
+    // .trim() the fallback too — a whitespace-only activity_name from the
+    // provider (Garmin/Strava send it verbatim, unsanitized) is truthy in JS,
+    // so without trimming it here the PATCH below would still send whitespace
+    // and get rejected by the server's own trim-based emptiness check,
+    // blocking the tag/caption/media edits bundled into the same call.
+    const finalName = activityName.trim() || activity.activity_name?.trim() || 'Run';
+    // Only resend the name if it actually changed from what was loaded — see
+    // loadedNameRef's comment. Prevents this tab silently reverting a rename
+    // made concurrently elsewhere just because Done was clicked here too.
+    const nameChanged = finalName !== loadedNameRef.current;
 
     setSaving(true);
     setSaveError(null);
@@ -184,7 +205,7 @@ export function ActivitySyncEditor({
         media,
         hiddenFields: Array.from(hidden),
         tag: tag.trim() || null,
-        activityName: finalName,
+        ...(nameChanged ? { activityName: finalName } : {}),
       });
       onClose();
     } catch (err: unknown) {

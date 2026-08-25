@@ -1,9 +1,25 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { checkShoeAlert } from '@/lib/shoes';
 
 export const dynamic = 'force-dynamic';
 
 const MAX_NAME_LENGTH = 60;
+
+/** distanceLimitKm null = untracked (never alerts); alertBeforeKm can legitimately be 0
+ *  ("only alert exactly at the limit") — validated against the effective limit either way. */
+function validateLimits(distanceLimitKm: number | null, alertBeforeKm: number): string | null {
+  if (distanceLimitKm != null && (!Number.isFinite(distanceLimitKm) || distanceLimitKm <= 0)) {
+    return 'Distance limit must be a positive number';
+  }
+  if (!Number.isFinite(alertBeforeKm) || alertBeforeKm < 0) {
+    return 'Alert threshold must be zero or a positive number';
+  }
+  if (distanceLimitKm != null && alertBeforeKm > distanceLimitKm) {
+    return "Alert threshold can't be larger than the distance limit";
+  }
+  return null;
+}
 
 /**
  * GET /api/shoes?athleteId=…
@@ -61,6 +77,10 @@ export async function POST(request: Request) {
     if (name.trim().length > MAX_NAME_LENGTH) {
       return NextResponse.json({ error: `Name is too long (max ${MAX_NAME_LENGTH})` }, { status: 400 });
     }
+    const distanceLimitKm = body.distanceLimitKm != null ? Number(body.distanceLimitKm) : null;
+    const alertBeforeKm = body.alertBeforeKm != null ? Number(body.alertBeforeKm) : 50;
+    const limitError = validateLimits(distanceLimitKm, alertBeforeKm);
+    if (limitError) return NextResponse.json({ error: limitError }, { status: 400 });
 
     const supabase = createServerClient();
     const { data: shoe, error } = await supabase
@@ -68,8 +88,8 @@ export async function POST(request: Request) {
       .insert({
         athlete_id: athleteId,
         name: name.trim(),
-        distance_limit_km: body.distanceLimitKm != null ? Number(body.distanceLimitKm) : null,
-        alert_before_km: body.alertBeforeKm != null ? Number(body.alertBeforeKm) : 50,
+        distance_limit_km: distanceLimitKm,
+        alert_before_km: alertBeforeKm,
       })
       .select()
       .single();
@@ -99,12 +119,10 @@ export async function PATCH(request: Request) {
     if (!id || !athleteId) return NextResponse.json({ error: 'id and athleteId required' }, { status: 400 });
 
     const supabase = createServerClient();
-    const { data: existing, error: fetchError } = await supabase
-      .from('shoes')
-      .select('*')
-      .eq('id', id)
-      .eq('athlete_id', athleteId)
-      .maybeSingle();
+    const [{ data: existing, error: fetchError }, { data: athleteRow }] = await Promise.all([
+      supabase.from('shoes').select('*').eq('id', id).eq('athlete_id', athleteId).maybeSingle(),
+      supabase.from('athletes').select('active_shoe_id').eq('id', athleteId).maybeSingle(),
+    ]);
     if (fetchError) throw fetchError;
     if (!existing) return NextResponse.json({ error: 'Shoe not found' }, { status: 404 });
 
@@ -117,8 +135,19 @@ export async function PATCH(request: Request) {
       }
       update.name = trimmed;
     }
+    // Validate against the EFFECTIVE final values, not just whichever field
+    // this particular call happens to touch — editing only the limit still
+    // has to make sense against whatever alertBeforeKm is already stored, and
+    // vice versa.
+    const nextLimit = body.distanceLimitKm !== undefined
+      ? (body.distanceLimitKm != null ? Number(body.distanceLimitKm) : null)
+      : existing.distance_limit_km;
+    const nextAlertBefore = body.alertBeforeKm !== undefined ? Number(body.alertBeforeKm) : existing.alert_before_km;
+    if (body.distanceLimitKm !== undefined || body.alertBeforeKm !== undefined) {
+      const limitError = validateLimits(nextLimit, nextAlertBefore);
+      if (limitError) return NextResponse.json({ error: limitError }, { status: 400 });
+    }
     if (body.distanceLimitKm !== undefined) {
-      const nextLimit = body.distanceLimitKm != null ? Number(body.distanceLimitKm) : null;
       update.distance_limit_km = nextLimit;
       if (nextLimit != null && (existing.distance_limit_km == null || nextLimit > existing.distance_limit_km)) {
         update.alerted_near_at = null;
@@ -126,10 +155,20 @@ export async function PATCH(request: Request) {
       }
     }
     if (body.alertBeforeKm !== undefined) {
-      update.alert_before_km = Number(body.alertBeforeKm) || 50;
+      update.alert_before_km = nextAlertBefore;
     }
+    // Retiring wins over setActive when both are sent together (reachable
+    // from the normal edit UI, which always re-sends the current active
+    // state) — a retired shoe silently never alerts again (checkShoeAlert
+    // no-ops on retired), so it can't be allowed to also keep absorbing new
+    // mileage as the athlete's active pair.
+    const retiring = typeof body.retired === 'boolean' && body.retired;
     if (typeof body.retired === 'boolean') {
       update.retired = body.retired;
+    }
+    const setActive = body.setActive === true && !retiring;
+    if (retiring && athleteRow?.active_shoe_id === existing.id) {
+      await supabase.from('athletes').update({ active_shoe_id: null }).eq('id', athleteId);
     }
 
     if (Object.keys(update).length > 0) {
@@ -137,9 +176,18 @@ export async function PATCH(request: Request) {
       if (error) throw error;
     }
 
-    if (body.setActive === true) {
+    if (setActive) {
       const { error } = await supabase.from('athletes').update({ active_shoe_id: id }).eq('id', athleteId);
       if (error) throw error;
+    }
+
+    // Editing the limit down below already-accumulated mileage (or raising
+    // it past a previous alert, handled above via the reset) previously never
+    // re-checked — the athlete could correct a limit to something already
+    // exceeded and simply never be told, since checkShoeAlert otherwise only
+    // runs from the sync routes on a NEW activity.
+    if (!retiring && (body.distanceLimitKm !== undefined || body.alertBeforeKm !== undefined)) {
+      await checkShoeAlert(id);
     }
 
     return NextResponse.json({ success: true });

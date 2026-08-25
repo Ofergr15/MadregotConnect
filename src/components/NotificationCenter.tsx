@@ -236,7 +236,11 @@ export function NotificationCenter() {
   const loadList = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/notifications');
+      // Read localStorage directly rather than the `actorEmail` state var —
+      // this is called synchronously from the mount effect right after
+      // setActorEmail(...), before that state update has actually applied.
+      const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
+      const res = await fetch('/api/notifications', { headers: email ? { 'x-user-email': email } : {} });
       const data = await res.json();
       setList(data.notifications || []);
     } catch { /* noop */ }
@@ -476,12 +480,18 @@ export function NotificationCenter() {
   // the title (see /api/admin/surveys route).
   const previewTitle = (composeMode === 'survey' ? surveyQuestionHe : titleHe).trim() || 'כותרת ההתראה';
   const previewBody = composeMode === 'survey' ? 'לחצו לענות על הסקר' : (bodyHe.trim() || 'תוכן ההתראה');
+  // Surveys go out through /api/admin/surveys, which has no image_url field at
+  // all — an image attached while composing a plain message (then switching
+  // to survey mode without clearing it) can never actually be delivered, so
+  // the preview must not show it here even though `imageUrl` is still set
+  // (kept in state so switching back to message mode doesn't lose it).
+  const previewImageUrl = composeMode === 'survey' ? '' : imageUrl;
   const notifPreview = (
     <div>
       <label className="text-xs font-semibold text-slate-400 mb-1.5 block">תצוגה מקדימה — כך זה יופיע במכשיר</label>
       <div className="rounded-2xl bg-white shadow-lg border border-black/5 overflow-hidden" dir="rtl">
         <div className="p-3 flex items-start gap-2.5">
-          <img src={imageUrl || '/images/icon-192.png'} alt="" className="w-9 h-9 rounded-[10px] shrink-0 object-cover" />
+          <img src={previewImageUrl || '/images/icon-192.png'} alt="" className="w-9 h-9 rounded-[10px] shrink-0 object-cover" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2 mb-0.5">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Madregot</span>
@@ -495,9 +505,9 @@ export function NotificationCenter() {
             iOS shows just the small icon above regardless. Shown here so the
             preview is honest about that platform gap rather than implying a
             richer result everywhere. */}
-        {imageUrl && (
+        {previewImageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt="" className="w-full max-h-40 object-cover border-t border-black/5" />
+          <img src={previewImageUrl} alt="" className="w-full max-h-40 object-cover border-t border-black/5" />
         )}
       </div>
     </div>
@@ -870,7 +880,20 @@ export function NotificationCenter() {
               {scheduleType === 'recurring' && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-400 shrink-0">כל</span>
-                  <input type="number" min={1} value={recurInterval} onChange={e => setRecurInterval(Number(e.target.value))} className="w-20 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+                  <input
+                    type="number"
+                    min={1}
+                    value={recurInterval}
+                    onChange={e => {
+                      // A plain number input's `min` attribute is only
+                      // enforced on <form> submit, which this isn't — clamp
+                      // by hand so an emptied field or "0"/negative value
+                      // can't reach the server as a runaway interval.
+                      const n = Math.floor(Number(e.target.value));
+                      setRecurInterval(Number.isFinite(n) && n >= 1 ? n : 1);
+                    }}
+                    className="w-20 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white"
+                  />
                   <SegmentedControl<'day' | 'week'>
                     className="flex-1"
                     value={recurUnit}

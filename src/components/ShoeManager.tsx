@@ -86,7 +86,10 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
           body: JSON.stringify({
             athleteId, name,
             distanceLimitKm: limit ? Number(limit) : null,
-            alertBeforeKm: Number(alertBefore) || 50,
+            // An explicit "0" (only alert exactly at the limit, no early
+            // warning) is a legitimate choice — `Number(alertBefore) || 50`
+            // would silently coerce it back to 50 on every save.
+            alertBeforeKm: alertBefore.trim() === '' ? 50 : Number(alertBefore),
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -105,7 +108,10 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
           body: JSON.stringify({
             id: editingId, athleteId, name,
             distanceLimitKm: limit ? Number(limit) : null,
-            alertBeforeKm: Number(alertBefore) || 50,
+            // An explicit "0" (only alert exactly at the limit, no early
+            // warning) is a legitimate choice — `Number(alertBefore) || 50`
+            // would silently coerce it back to 50 on every save.
+            alertBeforeKm: alertBefore.trim() === '' ? 50 : Number(alertBefore),
             retired,
             ...(active ? { setActive: true } : {}),
           }),

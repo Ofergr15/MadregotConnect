@@ -113,7 +113,10 @@ export function Header() {
         .then(data => { if (data) setAvailableGroups(data.groups || data || []); })
         .catch(() => {});
       // Athlete notification history for the bell inbox (unread count + preview).
-      fetch(`/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}`)
+      const identityEmail = email || coachEmail || '';
+      fetch(`/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}`, {
+        headers: identityEmail ? { 'x-user-email': identityEmail } : {},
+      })
         .then(r => r.ok ? r.json() : null)
         .then(data => { if (Array.isArray(data?.items)) setInbox(data.items); })
         .catch(() => {});

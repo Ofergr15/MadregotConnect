@@ -2,23 +2,11 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from '@/lib/garmin/client';
 import { COACH_ID } from '@/lib/constants';
-import { notifyTeammatesOfActivity, notifyAthlete } from '@/lib/push';
+import { notifyTeammatesOfActivity } from '@/lib/push';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { checkShoeAlert } from '@/lib/shoes';
-
-// Hebrew label per run sub-type for the post-workout feedback nudge (same map
-// as the workout-watch cron's teaser). Anything outside this map falls back to
-// the generic 'ריצה'.
-const RUN_TYPE_LABELS: Record<string, string> = {
-  running: 'ריצה',
-  trail_running: 'ריצת שטח',
-  treadmill_running: 'ריצת הליכון',
-  track_running: 'ריצת מסלול',
-  virtual_run: 'ריצה וירטואלית',
-  street_running: 'ריצת רחוב',
-  indoor_running: 'ריצה באולם',
-};
+import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 
 export async function POST(request: Request) {
   try {
@@ -156,9 +144,15 @@ export async function POST(request: Request) {
             .insert(rows)
             .select('id, garmin_activity_id');
 
-          if (insertError?.code === '42703' || insertError?.code === 'PGRST204') {
-            // shoe_id not migrated yet — retry without it rather than failing
-            // sync for every athlete over one missing column.
+          if (insertError?.code === '42703' || insertError?.code === 'PGRST204' || insertError?.code === '23503') {
+            // 42703/PGRST204: shoe_id not migrated yet. 23503: active_shoe_id
+            // was read once at the top of this request and the athlete
+            // deleted that shoe mid-sync (this loop makes sequential Garmin
+            // detail/GPS calls per activity, so the window can be seconds
+            // long) — the stale reference fails the FK constraint. Either
+            // way, retry without shoe_id rather than losing this whole
+            // batch's activities (badges/streaks/teammate notify/feedback
+            // prompt all depend on the insert succeeding).
             ({ data: insertedRows, error: insertError } = await supabase
               .from('athlete_activities')
               .insert(rows.map(({ shoe_id, ...rest }) => rest))
@@ -208,36 +202,21 @@ export async function POST(request: Request) {
           } catch { /* belt-and-suspenders: inner catch already handles per-activity failures */ }
 
           // Post-workout nudge (PRD §1): push the athlete to fill the feedback
-          // questionnaire for the newest run. Inline (not cron) so it's timely;
-          // never let a push failure break the sync. Skipped when suppressPush is
-          // set (the morning workout-watch cron sends its own teaser instead).
-          try {
-            if (suppressPush) throw new Error('suppressed');
-            // The MAIN workout, not just the most recent one — a quality day
-            // often syncs as several separate Garmin activities (warmup,
-            // interval/tempo set, cooldown, each its own recording), and
-            // "latest start time" would just as easily land on a short
-            // cooldown jog as on the actual session. Longest by distance is a
-            // reliable proxy for "the workout that matters" across all of
-            // those splits.
-            const newest = newActivities.reduce((a, b) => (b.distance > a.distance ? b : a));
-            // Concrete detail already in scope: the just-synced activity's
-            // distance + sub-type (same fields used to build `rows` above).
-            const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;
-            const label = RUN_TYPE_LABELS[newest.activityType] || 'ריצה';
-            const body = km
-              ? `${label} של ${km} ק״מ — איך היה? ספרו לנו במשוב קצר`
-              : 'איך היה? ספרו לנו במשוב קצר';
-            await notifyAthlete({
-              athleteId: athlete.id,
-              kind: 'post_workout_prompt',
-              title: 'כל הכבוד על האימון! 🏃',
-              body,
-              url: `/dashboard/feedback?activity=${newest.activityId}`,
-              tag: `post-workout-${newest.activityId}`,
-              category: 'workouts',
-            });
-          } catch { /* push is best-effort */ }
+          // questionnaire for the day's MAIN workout. Inline (not cron) so
+          // it's timely; never let a push failure break the sync. Skipped
+          // when suppressPush is set (the morning workout-watch cron sends
+          // its own teaser instead).
+          //
+          // Ledgered per athlete+day (notifyMainWorkoutFeedback), not scoped
+          // to just this call's newActivities — a quality day often syncs as
+          // several separate Garmin activities (warmup, interval/tempo set,
+          // cooldown), and syncing more than once in a day (mid-run, then
+          // again after finishing) used to fire this prompt once per call,
+          // each only considering that call's own batch.
+          if (!suppressPush) {
+            const newest = newActivities.reduce((a, b) => (new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b));
+            await notifyMainWorkoutFeedback({ athleteId: athlete.id, dateStr: newest.startTimeLocal.split('T')[0] });
+          }
 
           // New activities can move a PR bucket, the cumulative-distance total,
           // or the run streak — all evaluated in TypeScript (not SQL), so this

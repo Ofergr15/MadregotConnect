@@ -360,19 +360,11 @@ export async function notifyTeammatesOfActivity(activity: {
   // without needing that detail page at all.
   const url = `/dashboard/activities?kudos=${activity.activityId}`;
 
-  // Persist one row per follower (not just push) so this shows up in each
-  // follower's Notification Center history afterward, same as any other
-  // social-activity notification — best-effort, never blocks the push below.
-  await persistNotifications(followerIds.map((followerId) => ({
-    athleteId: followerId,
-    kind: 'kudos_activity',
-    actorAthleteId: activity.athleteId,
-    title,
-    body,
-    url,
-  })));
-
-  return sendPushToSubscriptions(subs, {
+  // Send BEFORE persisting — same reasoning as notifyAthlete: computeUnreadCounts
+  // (inside sendPushToSubscriptions) adds +1 per recipient for "the notification
+  // being delivered right now", assuming its row isn't in the DB yet. Persisting
+  // first would double-count it and inflate every follower's app-icon badge by 1.
+  const sent = await sendPushToSubscriptions(subs, {
     // Distance is in the TITLE itself, not just the body — iOS shows the
     // title even when a locked-screen preview or notification summary
     // collapses/hides the body line, so the km can't get lost the way a
@@ -391,6 +383,20 @@ export async function notifyTeammatesOfActivity(activity: {
     // the same photo so it shows as richly as each platform allows.
     ...(athlete.avatar_url ? { icon: athlete.avatar_url, image: athlete.avatar_url } : {}),
   });
+
+  // Persist one row per follower (not just push) so this shows up in each
+  // follower's Notification Center history afterward, same as any other
+  // social-activity notification — best-effort, never blocks/undoes the push above.
+  await persistNotifications(followerIds.map((followerId) => ({
+    athleteId: followerId,
+    kind: 'kudos_activity',
+    actorAthleteId: activity.athleteId,
+    title,
+    body,
+    url,
+  })));
+
+  return sent;
 }
 
 /**
@@ -451,15 +457,11 @@ export async function notifyAthlete(opts: {
   category?: NotificationCategory;
   icon?: string;
 }): Promise<void> {
-  await persistNotifications([{
-    athleteId: opts.athleteId,
-    kind: opts.kind,
-    actorAthleteId: opts.actorAthleteId,
-    title: opts.title,
-    body: opts.body,
-    url: opts.url,
-  }]);
-
+  // Send BEFORE persisting: computeUnreadCounts (inside sendPushToSubscriptions)
+  // counts already-'sent' rows since last_seen_at and adds +1 for "the one being
+  // delivered right now" — that +1 assumes this row isn't in the DB yet. Persisting
+  // first would make the row match the same query, double-counting it and
+  // inflating the OS app-icon badge by 1 on every call.
   try {
     const subs = await subscriptionsForAthletes([opts.athleteId]);
     if (subs.length > 0) {
@@ -473,6 +475,15 @@ export async function notifyAthlete(opts: {
       });
     }
   } catch { /* push is best-effort */ }
+
+  await persistNotifications([{
+    athleteId: opts.athleteId,
+    kind: opts.kind,
+    actorAthleteId: opts.actorAthleteId,
+    title: opts.title,
+    body: opts.body,
+    url: opts.url,
+  }]);
 }
 
 /** All athlete ids of the club (for computing non-responders). */

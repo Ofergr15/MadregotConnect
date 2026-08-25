@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Users, Loader2 } from 'lucide-react';
 import { getPlanWeekStart } from '@/lib/utils';
@@ -13,16 +13,35 @@ export function AttendanceRoster({ weekStart: weekStartProp, day: dayProp }: { w
   const t = useTranslations('attendance');
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const weekStart = weekStartProp ?? getPlanWeekStart(new Date());
+  const day = dayProp ?? new Date().getDay();
 
-  useEffect(() => {
-    const weekStart = weekStartProp ?? getPlanWeekStart(new Date());
-    const day = dayProp ?? new Date().getDay();
-    fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&roster=1`)
+  const refetch = useCallback(() => {
+    return fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&roster=1`)
       .then(r => r.ok ? r.json() : null)
       .then(data => setRows(data?.attendance || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [weekStartProp, dayProp]);
+      .catch(() => {});
+  }, [weekStart, day]);
+
+  useEffect(() => {
+    refetch().finally(() => setLoading(false));
+  }, [refetch]);
+
+  // A runner's ✅/❌ tap on a background push notification can land here while
+  // a coach already has this roster open — the SW can't reach into this
+  // component directly, so it posts a message instead; refetch on a match
+  // instead of showing a stale roster until a manual reload.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (msg?.source === 'madregot-sw' && msg.type === 'rsvp' && msg.ok && msg.weekStart === weekStart && String(msg.day) === String(day)) {
+        refetch();
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [weekStart, day, refetch]);
 
   const going = rows.filter(r => r.attending);
   const notGoing = rows.filter(r => !r.attending);

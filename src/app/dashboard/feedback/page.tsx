@@ -58,7 +58,13 @@ function FeedbackForm() {
           setComment(data.existing.comment || '');
           setFeedbackId(data.existing.id || null);
         } else {
-          if (data.watchRpe != null) setDifficulty(Math.round(data.watchRpe));
+          // Clamp into the app's 1-10 difficulty scale — Garmin's raw
+          // self-eval RPE can be 0 ("nothing at all"), which none of the
+          // form's 10 buttons (1-10) match, so an unclamped 0 looked
+          // completely unanswered even though a real watch value was
+          // captured, and a difficulty:0 submit would violate the 1-10
+          // invariant src/lib/feedback-scales.ts already assumes everywhere else.
+          if (data.watchRpe != null) setDifficulty(Math.min(Math.max(Math.round(data.watchRpe), 1), 10));
           if (data.watchFeel != null) setFeel(Math.round(data.watchFeel));
         }
       })

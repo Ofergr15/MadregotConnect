@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushToSubscriptions, resolveAudience, subscriptionsForAthletes, allAthleteIds } from '@/lib/push';
+import { sendPushToSubscriptions, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications } from '@/lib/push';
 import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
 import { israelNow, getPlanWeekStart, getActivityWeekStart } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
@@ -104,25 +104,40 @@ async function run(request: Request) {
   // For each team day, check if "the day before" is today at the configured hour.
   for (const teamDay of teamDays) {
     const dayBeforeWeekday = (teamDay + 6) % 7; // day before the team day
+    // The team day's OWN plan-week, not "today"'s — matters whenever the team
+    // day is a Sunday: the day-before (today, Saturday) is still in last
+    // week's plan-week, but the team day itself starts the next one. Using a
+    // single weekStart shared across every teamDay (as this used to) embedded
+    // the wrong week in the RSVP action/url for that case, so a tap wrote
+    // workout_attendance under a week_start_date the app never shows as answered.
+    const teamDayDate = new Date(now);
+    teamDayDate.setDate(teamDayDate.getDate() + 1);
+    const teamDayWeekStart = getPlanWeekStart(teamDayDate);
 
     // Stage 1 — day before, at dayBefore.hour, to ALL.
     if (dayBefore.enabled && weekday === dayBeforeWeekday && hour === dayBefore.hour) {
-      const tag = `dayBefore:${weekStart}:${teamDay}`;
+      const tag = `dayBefore:${teamDayWeekStart}:${teamDay}`;
       if (!(await already(tag))) {
         const dayName = DAY_NAMES[teamDay];
+        const title = `תזכורת אימון ליום ${dayName} 🏃`;
+        const body = `מחר, יום ${dayName}, אימון קבוצתי — נתראה!`;
+        const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
         const subs = await resolveAudience('all', null);
         const sent = await sendPushToSubscriptions(subs, {
-          title: `תזכורת אימון ליום ${dayName} 🏃`,
-          body: `מחר, יום ${dayName}, אימון קבוצתי — נתראה!`,
-          url: `/dashboard?rsvp=${weekStart}:${teamDay}`,
-          tag,
+          title, body, url, tag,
           category: 'workouts',
           actions: [
             { action: 'rsvp_yes', title: '✅ מגיע/ה' },
             { action: 'rsvp_no', title: '❌ לא הפעם' },
           ],
-          rsvp: { weekStart, day: teamDay },
+          rsvp: { weekStart: teamDayWeekStart, day: teamDay },
         });
+        // Persist a real per-athlete row (not just the #ledger: idempotency
+        // marker) so this reminder actually shows up in the in-app inbox with
+        // a parseable url — GET /api/notifications/inbox excludes #ledger:
+        // rows, so without this the inbox's RsvpInlineButtons could never
+        // reach a real training_before item no matter how many reminders fired.
+        await persistNotifications(subs.map((s) => ({ athleteId: s.athlete_id, kind: 'training_before', title, body, url })));
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
       }
@@ -130,7 +145,7 @@ async function run(request: Request) {
 
     // Stage 2 — evening before, at eveningBefore.hour, to RSVP NON-responders.
     if (eveningBefore.enabled && weekday === dayBeforeWeekday && hour === eveningBefore.hour) {
-      const tag = `eveningBefore:${weekStart}:${teamDay}`;
+      const tag = `eveningBefore:${teamDayWeekStart}:${teamDay}`;
       if (!(await already(tag))) {
         // Who already answered for that team day this week? (also grab `attending`
         // so the nudge can tell non-responders how many teammates already confirmed —
@@ -138,7 +153,7 @@ async function run(request: Request) {
         const { data: answered } = await supabase
           .from('workout_attendance')
           .select('athlete_id, attending')
-          .eq('week_start_date', weekStart)
+          .eq('week_start_date', teamDayWeekStart)
           .eq('day_of_week', teamDay);
         const answeredRows = answered || [];
         const answeredIds = new Set(answeredRows.map((r: { athlete_id: string }) => r.athlete_id));
@@ -148,21 +163,21 @@ async function run(request: Request) {
         const subs = await subscriptionsForAthletes(nonResponders);
         const dayName = DAY_NAMES[teamDay];
         const rsvpPhrase = goingCount === 1 ? 'חבר אחד כבר אישר הגעה' : `${goingCount} חברים כבר אישרו הגעה`;
+        const title = 'מגיעים מחר לאימון? 🏟️';
         const body = goingCount > 0
           ? `${rsvpPhrase} לאימון יום ${dayName} — ומה איתך?`
           : `עדכנו אותנו אם אתם מגיעים לאימון יום ${dayName}`;
+        const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
         const sent = await sendPushToSubscriptions(subs, {
-          title: 'מגיעים מחר לאימון? 🏟️',
-          body,
-          url: `/dashboard?rsvp=${weekStart}:${teamDay}`,
-          tag,
+          title, body, url, tag,
           category: 'workouts',
           actions: [
             { action: 'rsvp_yes', title: '✅ מגיע/ה' },
             { action: 'rsvp_no', title: '❌ לא הפעם' },
           ],
-          rsvp: { weekStart, day: teamDay },
+          rsvp: { weekStart: teamDayWeekStart, day: teamDay },
         });
+        await persistNotifications(nonResponders.map((athleteId) => ({ athleteId, kind: 'training_before', title, body, url })));
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
       }

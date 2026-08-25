@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { isSuperUser } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,17 +56,35 @@ function aggregate(items: RawItem[]): RawItem[] {
 // last_seen_at. Mirrors the audience-match logic in unreadCountForAthlete.
 // Internal ledger rows (idempotency sentinels stashed with a #ledger: url) are
 // excluded — they aren't member-facing messages.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(request: Request) {
   try {
     const athleteId = new URL(request.url).searchParams.get('athleteId');
-    if (!athleteId) return NextResponse.json({ items: [], unread: 0 });
+    if (!athleteId || !UUID_RE.test(athleteId)) return NextResponse.json({ items: [], unread: 0 });
 
+    // Scoped auth identical to /api/athletes/summary and /prs: own athlete,
+    // staff, or super-user — this was previously wide open (any athleteId in
+    // the query string returned that athlete's full notification history,
+    // including private one-on-one messages, with zero auth check).
     const supabase = createServerClient();
-    const { data: a } = await supabase
+    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
+    let allowed = false;
+    if (isSuperUser(email)) {
+      allowed = true;
+    } else if (email) {
+      const { data: caller } = await supabase.from('athletes').select('id, role').eq('email', email).maybeSingle();
+      const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as { role: string }).role);
+      allowed = isStaff || (caller as { id: string } | null)?.id === athleteId;
+    }
+    if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+
+    const { data: a, error: athleteError } = await supabase
       .from('athletes')
       .select('group_id, last_seen_at')
       .eq('id', athleteId)
       .maybeSingle();
+    if (athleteError) throw athleteError;
     if (!a) return NextResponse.json({ items: [], unread: 0 });
 
     const orClause = [

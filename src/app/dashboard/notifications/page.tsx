@@ -163,12 +163,24 @@ function RsvpInlineButtons({ weekStart, day, athleteId }: { weekStart: string; d
   );
 }
 
-// Inline "give kudos" action on a kudos_activity row — optimistic, starts
-// assuming not-yet-given (a page reload always resets it; acceptable for a
-// low-stakes one-tap reaction, same as Strava's own kudos button behaves).
+// Inline "give kudos" action on a kudos_activity row. Fetches the athlete's
+// real prior state on mount — previously this always started assuming
+// not-yet-given, which meant kudos already given via the OS push notification's
+// own action button (src/app/sw.ts) looked un-given here; a first tap was a
+// harmless no-op re-confirming it, but a second tap (e.g. an accidental
+// double-tap, or tapping again because the first tap visibly did nothing new)
+// sent a real DELETE and silently removed a genuine prior reaction.
 function KudosButton({ activityId, athleteId }: { activityId: string; athleteId: string }) {
   const [given, setGiven] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/activities/${activityId}/kudos?athleteId=${encodeURIComponent(athleteId)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setGiven(!!data.givenByMe); })
+      .catch(() => {});
+  }, [activityId, athleteId]);
+
   const toggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (busy) return;

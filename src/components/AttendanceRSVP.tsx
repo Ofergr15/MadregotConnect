@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { CheckCircle2, XCircle, Users } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
@@ -29,11 +29,8 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
   // they have an RSVP on record it self-hides (the day-before flow already asked).
   const [alreadyAnswered, setAlreadyAnswered] = useState(false);
 
-  useEffect(() => {
-    const id = localStorage.getItem('athlete_id') || '';
-    setAthleteId(id);
-    if (!id) { setLoaded(true); return; }
-    fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&athleteId=${id}`)
+  const refetch = useCallback((id: string) => {
+    return fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&athleteId=${id}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.rsvp) {
@@ -45,9 +42,32 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
           if (label && !GROUP_PRESETS.includes(label)) setCustomGroup(label);
         }
       })
-      .catch(() => {})
-      .finally(() => setLoaded(true));
+      .catch(() => {});
   }, [weekStart, day]);
+
+  useEffect(() => {
+    const id = localStorage.getItem('athlete_id') || '';
+    setAthleteId(id);
+    if (!id) { setLoaded(true); return; }
+    refetch(id).finally(() => setLoaded(true));
+  }, [refetch]);
+
+  // A background push action (the OS notification's ✅/❌ buttons) can answer
+  // this exact RSVP while this card is already mounted and showing the old
+  // state — the service worker has no way to update this component directly,
+  // so it posts a message instead; refetch whenever one arrives for this
+  // week+day rather than going stale until a manual reload.
+  useEffect(() => {
+    if (!athleteId || !('serviceWorker' in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (msg?.source === 'madregot-sw' && msg.type === 'rsvp' && msg.ok && msg.weekStart === weekStart && String(msg.day) === String(day)) {
+        refetch(athleteId);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [athleteId, weekStart, day, refetch]);
 
   // Surface the answered/attending state to the parent (e.g. the dashboard's
   // "next workout" hero card uses this to decide its CTA) without exposing or
@@ -57,11 +77,19 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
     onStatusChange?.({ answered: alreadyAnswered || attending !== null, attending });
   }, [loaded, alreadyAnswered, attending, onStatusChange]);
 
+  // Guards the rollback below against a rapid double-tap: two submits in
+  // flight at once, the first rejects after the second already succeeded —
+  // without this, the first call's `catch` would still fire and roll back to
+  // whatever `attending` was BEFORE either tap, undoing the second tap's
+  // already-persisted answer. Only the most recent call is allowed to roll back.
+  const submitSeqRef = useRef(0);
+
   const submit = async (isAttending: boolean) => {
     if (!athleteId) return;
     // Optimistic: flip the button immediately, save in the background. If the
     // save fails, roll back to the previous choice so the UI never lies.
     const prev = attending;
+    const mySeq = ++submitSeqRef.current;
     setAttending(isAttending);
     setSaved(false);
     setError(null);
@@ -80,7 +108,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err: unknown) {
-      setAttending(prev); // roll back the optimistic flip
+      if (submitSeqRef.current === mySeq) setAttending(prev); // only roll back if no newer submit has since started
       setError(err instanceof Error ? err.message : t('saveFailed'));
     }
   };

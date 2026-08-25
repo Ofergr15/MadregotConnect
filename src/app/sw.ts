@@ -201,21 +201,32 @@ self.addEventListener('push', (event: PushEvent) => {
   );
 });
 
+// Tell every open tab an action fired so an already-mounted screen (e.g.
+// AttendanceRSVP/AttendanceRoster, still showing the pre-action state) can
+// refetch instead of silently going stale until a manual reload. `ok: false`
+// also covers "the fetch resolved but the server rejected it" (4xx/5xx) —
+// fetch() doesn't reject on those, so this is the only place that surfaces it.
+async function broadcastAction(type: string, ok: boolean, extra: Record<string, unknown> = {}) {
+  const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const client of clientList) client.postMessage({ source: 'madregot-sw', type, ok, ...extra });
+}
+
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
-  event.notification.close();
   const notifData = (event.notification.data as {
     url?: string;
     athleteId?: string;
     rsvp?: { weekStart: string; day: number };
     kudosActivityId?: string;
   }) || {};
+  const action = event.action;
+  event.notification.close();
 
   // Action-button taps: perform the action directly in the background — no
   // need to open/focus the app at all, same as any native app's notification
   // actions (e.g. Gmail's "archive"). `event.action` is '' when the
   // notification BODY was tapped instead of a button, which falls through to
   // the normal open/focus/navigate behavior below.
-  if (event.action === 'rsvp_yes' || event.action === 'rsvp_no') {
+  if (action === 'rsvp_yes' || action === 'rsvp_no') {
     if (notifData.athleteId && notifData.rsvp) {
       event.waitUntil(
         fetch('/api/attendance', {
@@ -225,21 +236,25 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
             athleteId: notifData.athleteId,
             weekStart: notifData.rsvp.weekStart,
             day: notifData.rsvp.day,
-            attending: event.action === 'rsvp_yes',
+            attending: action === 'rsvp_yes',
           }),
-        }).catch(() => {}),
+        })
+          .then((r) => broadcastAction('rsvp', r.ok, { weekStart: notifData.rsvp!.weekStart, day: notifData.rsvp!.day }))
+          .catch(() => broadcastAction('rsvp', false, { weekStart: notifData.rsvp!.weekStart, day: notifData.rsvp!.day })),
       );
     }
     return;
   }
-  if (event.action === 'kudos') {
+  if (action === 'kudos') {
     if (notifData.athleteId && notifData.kudosActivityId) {
       event.waitUntil(
         fetch(`/api/activities/${notifData.kudosActivityId}/kudos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ athleteId: notifData.athleteId }),
-        }).catch(() => {}),
+        })
+          .then((r) => broadcastAction('kudos', r.ok, { activityId: notifData.kudosActivityId }))
+          .catch(() => broadcastAction('kudos', false, { activityId: notifData.kudosActivityId })),
       );
     }
     return;

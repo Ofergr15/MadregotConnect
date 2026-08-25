@@ -20,16 +20,9 @@ import {
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
-import { notifyTeammatesOfActivity, notifyAthlete } from '@/lib/push';
+import { notifyTeammatesOfActivity } from '@/lib/push';
 import { checkShoeAlert } from '@/lib/shoes';
-
-// Mirrors garmin/sync-activities' RUN_TYPE_LABELS — kept as a separate copy
-// since the two syncs' activity_type vocabularies aren't guaranteed to stay
-// identical (Strava's sport_type mapping is narrower today: running/trail_running only).
-const RUN_TYPE_LABELS: Record<string, string> = {
-  running: 'ריצה',
-  trail_running: 'ריצת שטח',
-};
+import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -342,33 +335,17 @@ export async function POST(request: Request) {
           await checkShoeAlert(athlete.active_shoe_id);
         }
 
-        // Post-workout nudge — same purpose/shape as garmin/sync-activities'
-        // own block: push the MAIN workout's feedback prompt (longest by
-        // distance, not just the most recent by start time — a quality day
-        // can sync as separate warmup/main-set/cooldown activities, and
-        // "latest" would just as easily land on a short cooldown jog).
-        // Previously Strava-synced athletes never got this at all (only
-        // Garmin did) — never let a push failure break the sync.
-        try {
-          if (suppressPush) throw new Error('suppressed');
-          if (newActivityPushInfo.length > 0) {
-            const newest = newActivityPushInfo.reduce((a, b) => (b.distance > a.distance ? b : a));
-            const km = newest.distance > 0 ? Math.round((newest.distance / 1000) * 10) / 10 : null;
-            const label = RUN_TYPE_LABELS[newest.activityType] || 'ריצה';
-            const pushBody = km
-              ? `${label} של ${km} ק״מ — איך היה? ספרו לנו במשוב קצר`
-              : 'איך היה? ספרו לנו במשוב קצר';
-            await notifyAthlete({
-              athleteId: athlete.id,
-              kind: 'post_workout_prompt',
-              title: 'כל הכבוד על האימון! 🏃',
-              body: pushBody,
-              url: `/dashboard/feedback?activity=${newest.activityId}`,
-              tag: `post-workout-${newest.activityId}`,
-              category: 'workouts',
-            });
-          }
-        } catch { /* push is best-effort */ }
+        // Post-workout nudge — pushes the day's MAIN workout's feedback
+        // prompt (longest by distance across ALL of that athlete's
+        // activities that day, not just this call's newActivityPushInfo, and
+        // ledgered per athlete+day) — see notifyMainWorkoutFeedback's own
+        // comment. Previously Strava-synced athletes never got this at all
+        // (only Garmin did), and syncing more than once in a day could fire
+        // it multiple times, each only considering that call's own batch.
+        if (!suppressPush && newActivityPushInfo.length > 0) {
+          const newest = newActivityPushInfo.reduce((a, b) => (new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b));
+          await notifyMainWorkoutFeedback({ athleteId: athlete.id, dateStr: newest.startTimeLocal.split('T')[0] });
+        }
 
         let planMatches = 0;
         try {

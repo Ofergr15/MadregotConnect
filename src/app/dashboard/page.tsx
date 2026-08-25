@@ -107,6 +107,18 @@ export default function DashboardPage() {
   const [week, setWeek] = useState(0);
   const [isCoach, setIsCoach] = useState(false);
   const [athleteId, setAthleteId] = useState<string | null>(null);
+  // A push notification's ?rsvp=weekStart:day deep-link (see cron/tick's
+  // training_before pushes) — previously ignored entirely, so tapping the
+  // notification BODY (not an action button) days after it arrived landed on
+  // whatever rsvpTarget "today" happened to compute, not the workout the
+  // notification was actually about. Read once on mount (window.location,
+  // not useSearchParams — this page has no Suspense boundary).
+  const [rsvpUrlOverride, setRsvpUrlOverride] = useState<{ weekStart: string; day: number } | null>(null);
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('rsvp');
+    const m = raw?.match(/^(\d{4}-\d{2}-\d{2}):(\d)$/);
+    if (m) setRsvpUrlOverride({ weekStart: m[1], day: Number(m[2]) });
+  }, []);
   const [athleteName, setAthleteName] = useState<string>('');
   const [weeklyRuns, setWeeklyRuns] = useState(0);
   // Week-streak — shown as a small flame badge in the stat strip (same source
@@ -300,6 +312,17 @@ export default function DashboardPage() {
   // the coach roster always shows. No time-of-day cutoff. weekStart is derived
   // from the TARGET date so the Sat→Sun plan-week boundary is handled.
   const rsvpTarget = (() => {
+    // A notification deep-link always wins — it names an explicit week+day,
+    // which may no longer be "today"/"tomorrow" by the time it's tapped
+    // (pushes can sit unactioned for days). `dayBefore` only affects the
+    // card's title copy ("today?" vs "tomorrow?"); derive it from whether the
+    // linked date has already passed rather than defaulting to either.
+    if (rsvpUrlOverride) {
+      const base = new Date(rsvpUrlOverride.weekStart + 'T00:00:00');
+      base.setDate(base.getDate() + rsvpUrlOverride.day);
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+      return { date: base, dow: rsvpUrlOverride.day, dayBefore: base.getTime() > todayStart.getTime() };
+    }
     if (teamDays.includes(todayDow)) {
       return { date: new Date(), dow: todayDow, dayBefore: false }; // workout day
     }
@@ -311,7 +334,7 @@ export default function DashboardPage() {
     }
     return null;
   })();
-  const rsvpWeekStart = rsvpTarget ? getPlanWeekStart(rsvpTarget.date) : '';
+  const rsvpWeekStart = rsvpUrlOverride ? rsvpUrlOverride.weekStart : (rsvpTarget ? getPlanWeekStart(rsvpTarget.date) : '');
   const rsvpWorkout = rsvpTarget ? weekly?.dailyDistances?.find(d => d.dayOfWeek === rsvpTarget.dow) : null;
   // The title says "today"/"tomorrow" (via AttendanceRSVP's own dayBefore prop);
   // this label just names the workout itself.

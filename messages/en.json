@@ -1304,6 +1304,7 @@
       "hidePower": "Power",
       "done": "Done",
       "advancedEdit": "Advanced Edit",
+      "tooManyPhotos": "You can upload up to {count} photos — some weren't added",
       "loadError": "Couldn't load post details for editing",
       "retry": "Try again",
       "saveError": "Failed to save",

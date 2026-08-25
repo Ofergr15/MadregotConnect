@@ -15,8 +15,16 @@ function computeNextRun(body: any): string | null {
 }
 
 // GET /api/notifications — list scheduled + sent (admin).
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Previously unauthenticated — anyone who knew this URL could dump every
+    // past/scheduled broadcast, including 1:1 messages targeted at a single
+    // athlete plus the sending admin's email. POST/PUT/DELETE below already
+    // gate on this; GET was the one gap.
+    const actorEmail = request.headers.get('x-user-email') || '';
+    if (!canApprove(actorEmail)) {
+      return NextResponse.json({ error: 'Not authorized to view notifications.' }, { status: 403 });
+    }
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('scheduled_notifications')
@@ -43,6 +51,14 @@ export async function POST(request: Request) {
     if (!title_he || !body_he) {
       return NextResponse.json({ error: 'title_he and body_he are required' }, { status: 400 });
     }
+    // A non-positive interval never advances forward (cron/notifications'
+    // `advance()` would move next_run_at backward or leave it stuck), which
+    // makes it due on every tick forever — a runaway re-send to the whole
+    // audience with nothing to stop it short of an admin noticing and
+    // cancelling the row by hand.
+    if (body.schedule_type === 'recurring' && (!Number.isInteger(body.recur_interval) || body.recur_interval < 1)) {
+      return NextResponse.json({ error: 'Recurring interval must be a whole number ≥ 1' }, { status: 400 });
+    }
 
     const supabase = createServerClient();
     const row = {
@@ -57,8 +73,8 @@ export async function POST(request: Request) {
       audience_id: body.audience_id || null,
       schedule_type: body.schedule_type || 'now',
       scheduled_at: body.scheduled_at || null,
-      recur_interval: body.recur_interval || null,
-      recur_unit: body.recur_unit || null,
+      recur_interval: body.schedule_type === 'recurring' ? body.recur_interval : null,
+      recur_unit: body.schedule_type === 'recurring' ? (body.recur_unit || null) : null,
       next_run_at: computeNextRun(body),
       status: 'scheduled',
       created_by: actorEmail,
@@ -120,6 +136,15 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
     }
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    // Same runaway-recurrence guard as POST — see the comment there.
+    const effectiveScheduleType = body.schedule_type ?? body.scheduleType;
+    if (
+      (effectiveScheduleType === 'recurring' || ('recur_interval' in body && effectiveScheduleType === undefined))
+      && 'recur_interval' in body
+      && (!Number.isInteger(body.recur_interval) || body.recur_interval < 1)
+    ) {
+      return NextResponse.json({ error: 'Recurring interval must be a whole number ≥ 1' }, { status: 400 });
+    }
 
     const supabase = createServerClient();
     const update: any = { updated_at: new Date().toISOString() };
