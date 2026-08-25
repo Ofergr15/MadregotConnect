@@ -309,9 +309,6 @@ export async function POST(request: Request) {
               activityKey: inserted.id,
               activityId: inserted.id,
               distanceMeters: row.distance,
-              durationSeconds: row.duration,
-              averagePaceSecPerKm: row.average_pace,
-              averageHr: row.average_hr,
             });
           } catch (notifyErr) {
             console.warn(`Teammate notify for Strava activity ${a.id} failed:`, notifyErr);

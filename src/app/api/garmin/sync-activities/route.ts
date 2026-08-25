@@ -202,9 +202,6 @@ export async function POST(request: Request) {
                     activityKey: `${athlete.id}-${a.activityId}`,
                     activityId,
                     distanceMeters: row.distance,
-                    durationSeconds: row.duration,
-                    averagePaceSecPerKm: row.average_pace,
-                    averageHr: row.average_hr,
                   });
                 } catch (notifyErr) {
                   console.warn(`Teammate notify for Garmin activity ${a.activityId} failed:`, notifyErr);
