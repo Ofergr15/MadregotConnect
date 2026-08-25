@@ -12,6 +12,10 @@ const DEFAULTS: Record<Category, boolean> = {
   workouts: true, coach: true, achievements: true, program: true, teammates: true, news: true, events: true,
 };
 
+function isMigrationMissing(error: { message?: string; code?: string } | null): boolean {
+  return !!error && (/notification_prefs/.test(error.message || '') || error.code === '42703');
+}
+
 // GET /api/athletes/notification-prefs?athleteId=… → { prefs }
 export async function GET(request: Request) {
   try {
@@ -20,13 +24,20 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('athletes').select('notification_prefs').eq('id', athleteId).maybeSingle();
-    if (error) return NextResponse.json({ prefs: DEFAULTS }); // column not migrated → defaults
+    if (error) {
+      // Only a genuinely-unmigrated column should read as "everything on" —
+      // this used to catch EVERY error (a transient DB hiccup included) and
+      // silently show all-defaults, which looked exactly like a saved
+      // "off" preference randomly flipping back to "on" on its own.
+      if (isMigrationMissing(error)) return NextResponse.json({ prefs: DEFAULTS });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     const saved = (data?.notification_prefs || {}) as Partial<Record<Category, boolean>>;
     // Merge over defaults so any unset category reads as on.
     const prefs = { ...DEFAULTS, ...saved };
     return NextResponse.json({ prefs });
-  } catch {
-    return NextResponse.json({ prefs: DEFAULTS });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 }
 
@@ -43,13 +54,14 @@ export async function PUT(request: Request) {
     const supabase = createServerClient();
     // Read current, merge, write back (small JSON; no concurrent-writer concern per user).
     const cur = await supabase.from('athletes').select('notification_prefs').eq('id', athleteId).maybeSingle();
-    if (cur.error && (/notification_prefs/.test(cur.error.message || '') || (cur.error as { code?: string }).code === '42703')) {
+    if (isMigrationMissing(cur.error)) {
       return NextResponse.json({ error: 'notification_prefs not migrated (run migration 038)' }, { status: 501 });
     }
+    if (cur.error) throw cur.error;
     const next = { ...(cur.data?.notification_prefs || {}), [category]: !!enabled };
     const { error } = await supabase.from('athletes').update({ notification_prefs: next }).eq('id', athleteId);
     if (error) {
-      if (/notification_prefs/.test(error.message || '') || (error as { code?: string }).code === '42703') {
+      if (isMigrationMissing(error)) {
         return NextResponse.json({ error: 'notification_prefs not migrated (run migration 038)' }, { status: 501 });
       }
       throw error;
