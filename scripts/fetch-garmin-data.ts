@@ -1,10 +1,12 @@
 import { GarminConnect } from 'garmin-connect';
 
 async function fetchGarminData() {
-  const gc = new GarminConnect({
-    username: 'grosfeldofer@gmail.com',
-    password: '***REMOVED***',
-  });
+  const username = process.env.GARMIN_DEBUG_EMAIL;
+  const password = process.env.GARMIN_DEBUG_PASSWORD;
+  if (!username || !password) {
+    throw new Error('Set GARMIN_DEBUG_EMAIL and GARMIN_DEBUG_PASSWORD in the environment before running this script.');
+  }
+  const gc = new GarminConnect({ username, password });
 
   console.log('Logging in...');
   await gc.login();
