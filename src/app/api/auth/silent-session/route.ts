@@ -45,10 +45,12 @@ export async function POST(request: Request) {
 
     const result = await createSyntheticSession(adminClient(), normalized);
     if (result.error || !result.session) {
+      console.error('silent-session failed:', result.error);
       return NextResponse.json({ error: result.error || 'session_create_failed' }, { status: 500 });
     }
     return NextResponse.json({ session: result.session });
-  } catch {
+  } catch (err) {
+    console.error('silent-session failed:', err);
     return NextResponse.json({ error: 'silent_session_failed' }, { status: 500 });
   }
 }
