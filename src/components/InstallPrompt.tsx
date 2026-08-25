@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Share, Plus, PartyPopper, X } from 'lucide-react';
+import { isStandalone } from '@/lib/pwa';
 
 // The `beforeinstallprompt` event isn't in the DOM lib types.
 interface BeforeInstallPromptEvent extends Event {
@@ -15,14 +16,6 @@ interface BeforeInstallPromptEvent extends Event {
 // below, which is a soft "not now" that should still resurface on a later visit.
 const DISMISS_KEY = 'pwa_install_dismissed';
 const SESSION_SKIP_KEY = 'pwa_install_skipped_session';
-
-function isStandalone(): boolean {
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    // iOS Safari exposes this non-standard flag when launched from the home screen.
-    (window.navigator as unknown as { standalone?: boolean }).standalone === true
-  );
-}
 
 function isIosSafari(): boolean {
   const ua = window.navigator.userAgent;

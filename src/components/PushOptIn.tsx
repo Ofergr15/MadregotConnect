@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bell, X } from 'lucide-react';
+import { isStandalone, isIosDevice } from '@/lib/pwa';
 
 const DISMISS_KEY = 'push_optin_dismissed';
 // Set once a concrete push benefit is imminent for this athlete (see
@@ -44,6 +45,10 @@ export function PushOptIn({ title, description }: { title?: string; description?
     const check = () => {
       if (Notification.permission === 'granted' || Notification.permission === 'denied') return;
       if (localStorage.getItem(DISMISS_KEY) === '1') return;
+      // See isIosDevice's own comment — subscribing from a regular Safari tab
+      // permanently taints how iOS presents this subscription's notifications.
+      // Don't offer the prompt at all until launched from the home screen icon.
+      if (isIosDevice() && !isStandalone()) return;
       if (!localStorage.getItem('athlete_id')) return; // only athletes have a subscription target
       // Only ask once a concrete benefit is imminent (see requestPushOptInPrompt)
       // — not as a blanket ask on every dashboard visit.
