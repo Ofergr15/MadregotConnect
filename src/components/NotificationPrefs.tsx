@@ -89,6 +89,12 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ athleteId, category: key, enabled: next[key] }),
+        // iOS suspends a backgrounded PWA's JS almost immediately, which can
+        // abort an in-flight fetch — a quick tap-then-switch-away leaves the
+        // optimistic UI showing the new value while the write never lands,
+        // so it comes back stale (reverted) next time the page loads.
+        // keepalive tells the browser to finish this request regardless.
+        keepalive: true,
       });
       if (!res.ok) mutate(); // revalidate → roll back on failure/501
     } catch {
