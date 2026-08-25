@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       title_en: body.title_en || null,
       body_en: body.body_en || null,
       url: body.url || '/dashboard',
+      image_url: body.image_url || null,
       audience_type: body.audience_type || 'all',
       audience_id: body.audience_id || null,
       schedule_type: body.schedule_type || 'now',
@@ -63,12 +64,23 @@ export async function POST(request: Request) {
       created_by: actorEmail,
     };
 
-    const { data: created, error } = await supabase
+    let { data: created, error } = await supabase
       .from('scheduled_notifications')
       .insert(row)
       .select()
       .single();
+    if (error?.code === '42703' || error?.code === 'PGRST204') {
+      // image_url not migrated yet — retry without it rather than failing
+      // every broadcast over one missing column.
+      const { image_url, ...rowWithoutImage } = row;
+      ({ data: created, error } = await supabase
+        .from('scheduled_notifications')
+        .insert(rowWithoutImage)
+        .select()
+        .single());
+    }
     if (error) throw error;
+    if (!created) return NextResponse.json({ error: 'Failed to create notification' }, { status: 500 });
 
     // Send-now: deliver immediately and mark sent, rather than waiting for the
     // scanner cron's next tick.
@@ -84,6 +96,7 @@ export async function POST(request: Request) {
         // explicitly to be able to turn general news on/off, so it's now a
         // normal category like everything else instead of forced-on.
         category: 'news',
+        ...(row.image_url ? { icon: row.image_url, image: row.image_url } : {}),
       });
       await supabase
         .from('scheduled_notifications')
@@ -110,19 +123,28 @@ export async function PUT(request: Request) {
 
     const supabase = createServerClient();
     const update: any = { updated_at: new Date().toISOString() };
-    for (const k of ['title_he', 'body_he', 'title_en', 'body_en', 'url', 'audience_type', 'audience_id', 'schedule_type', 'scheduled_at', 'recur_interval', 'recur_unit', 'status']) {
+    for (const k of ['title_he', 'body_he', 'title_en', 'body_en', 'url', 'image_url', 'audience_type', 'audience_id', 'schedule_type', 'scheduled_at', 'recur_interval', 'recur_unit', 'status']) {
       if (k in body) update[k] = body[k];
     }
     if ('scheduled_at' in body || 'schedule_type' in body) {
       update.next_run_at = computeNextRun({ ...body });
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('scheduled_notifications')
       .update(update)
       .eq('id', id)
       .select()
       .single();
+    if ((error?.code === '42703' || error?.code === 'PGRST204') && 'image_url' in update) {
+      const { image_url, ...updateWithoutImage } = update;
+      ({ data, error } = await supabase
+        .from('scheduled_notifications')
+        .update(updateWithoutImage)
+        .eq('id', id)
+        .select()
+        .single());
+    }
     if (error) throw error;
     return NextResponse.json({ notification: data });
   } catch (err: unknown) {

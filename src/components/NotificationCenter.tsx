@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints, ImagePlus } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState, Switch } from '@/components/ui';
 import { InsetRow, InsetSection } from '@/components/ui/InsetList';
@@ -192,6 +192,10 @@ export function NotificationCenter() {
   const [bodyHe, setBodyHe] = useState('');
   const [titleEn, setTitleEn] = useState('');
   const [bodyEn, setBodyEn] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const imageFileRef = useRef<HTMLInputElement>(null);
   const [audienceType, setAudienceType] = useState<'all' | 'group' | 'athlete'>('all');
   const [audienceId, setAudienceId] = useState('');
   const [scheduleType, setScheduleType] = useState<'now' | 'once_at' | 'recurring'>('now');
@@ -325,12 +329,31 @@ export function NotificationCenter() {
 
   const reset = () => {
     setTitleHe(''); setBodyHe(''); setTitleEn(''); setBodyEn('');
+    setImageUrl(''); setImageError(null);
     setAudienceType('all'); setAudienceId('');
     setScheduleType('now'); setScheduledAt(''); setRecurInterval(1); setRecurUnit('week');
     setComposeMode('message');
     setSurveyQuestionHe(''); setSurveyQuestionEn('');
     setSurveyOptionsHe(['', '']); setSurveyOptionsEn(['', '']);
     setMsg(null);
+  };
+
+  const uploadImage = async (file: File) => {
+    setUploadingImage(true);
+    setImageError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('actorEmail', actorEmail);
+      const res = await fetch('/api/admin/notifications/image', { method: 'POST', body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || data.error || 'העלאה נכשלה');
+      setImageUrl(data.url);
+    } catch (err: any) {
+      setImageError(err.message || 'העלאה נכשלה');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const submitSurvey = async () => {
@@ -382,6 +405,7 @@ export function NotificationCenter() {
           actorEmail,
           title_he: titleHe, body_he: bodyHe,
           title_en: titleEn || null, body_en: bodyEn || null,
+          image_url: imageUrl || null,
           audience_type: audienceType,
           audience_id: audienceType === 'all' ? null : audienceId,
           schedule_type: scheduleType,
@@ -446,24 +470,35 @@ export function NotificationCenter() {
   const setSchedTime = (t: string) => setScheduledAt(`${schedDate || dateOffsetStr(0)}T${roundToStep(t)}`);
 
   // Mirrors exactly what the service worker renders (src/app/sw.ts): app icon
-  // fallback (compose never sets a custom one), title/body verbatim. Surveys
-  // always push the fixed "tap to answer" body — the question text itself
-  // only becomes the title (see /api/admin/surveys route).
+  // fallback unless an image was attached (then icon+image both use it,
+  // matching sw.ts's push handler), title/body verbatim. Surveys always push
+  // the fixed "tap to answer" body — the question text itself only becomes
+  // the title (see /api/admin/surveys route).
   const previewTitle = (composeMode === 'survey' ? surveyQuestionHe : titleHe).trim() || 'כותרת ההתראה';
   const previewBody = composeMode === 'survey' ? 'לחצו לענות על הסקר' : (bodyHe.trim() || 'תוכן ההתראה');
   const notifPreview = (
     <div>
       <label className="text-xs font-semibold text-slate-400 mb-1.5 block">תצוגה מקדימה — כך זה יופיע במכשיר</label>
-      <div className="rounded-2xl bg-white shadow-lg border border-black/5 p-3 flex items-start gap-2.5" dir="rtl">
-        <img src="/images/icon-192.png" alt="" className="w-9 h-9 rounded-[10px] shrink-0" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-0.5">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Madregot</span>
-            <span className="text-[10px] text-slate-400">עכשיו</span>
+      <div className="rounded-2xl bg-white shadow-lg border border-black/5 overflow-hidden" dir="rtl">
+        <div className="p-3 flex items-start gap-2.5">
+          <img src={imageUrl || '/images/icon-192.png'} alt="" className="w-9 h-9 rounded-[10px] shrink-0 object-cover" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Madregot</span>
+              <span className="text-[10px] text-slate-400">עכשיו</span>
+            </div>
+            <p className="text-[13px] font-bold text-slate-900 truncate" dir="auto">{previewTitle}</p>
+            <p className="text-[13px] text-slate-700 line-clamp-2" dir="auto">{previewBody}</p>
           </div>
-          <p className="text-[13px] font-bold text-slate-900 truncate" dir="auto">{previewTitle}</p>
-          <p className="text-[13px] text-slate-700 line-clamp-2" dir="auto">{previewBody}</p>
         </div>
+        {/* Expanded banner — only Chrome/Android renders `image` this large;
+            iOS shows just the small icon above regardless. Shown here so the
+            preview is honest about that platform gap rather than implying a
+            richer result everywhere. */}
+        {imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt="" className="w-full max-h-40 object-cover border-t border-black/5" />
+        )}
       </div>
     </div>
   );
@@ -633,6 +668,38 @@ export function NotificationCenter() {
               <div>
                 <label className="text-xs font-semibold text-slate-400">תוכן (עברית)</label>
                 <textarea dir="rtl" value={bodyHe} onChange={e => setBodyHe(e.target.value)} rows={2} className={inputCls} placeholder="פרטי ההתראה" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 mb-1.5 block" dir="rtl">תמונה (אופציונלי)</label>
+                <input
+                  ref={imageFileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); }}
+                />
+                {imageUrl ? (
+                  <div className="flex items-center gap-2" dir="rtl">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                    <button
+                      onClick={() => setImageUrl('')}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-red-400 hover:text-red-300 bg-slate-800/60 hover:bg-slate-800 transition"
+                    >
+                      <X className="w-3.5 h-3.5" /> הסרת תמונה
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => imageFileRef.current?.click()}
+                    disabled={uploadingImage}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-primary-400 bg-primary-600/10 hover:bg-primary-600/20 transition disabled:opacity-50"
+                  >
+                    {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+                    {uploadingImage ? 'מעלה...' : 'הוספת תמונה'}
+                  </button>
+                )}
+                {imageError && <p className="text-xs text-red-400 mt-1.5" dir="rtl">{imageError}</p>}
               </div>
               {notifPreview}
               <div className="grid grid-cols-2 gap-3">

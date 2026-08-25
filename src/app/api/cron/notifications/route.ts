@@ -64,6 +64,7 @@ async function run(request: Request) {
         // timer, and shouldn't be forced-on while their immediate sibling
         // is mutable.
         category: 'news',
+        ...(n.image_url ? { icon: n.image_url, image: n.image_url } : {}),
       });
 
       if (n.schedule_type === 'recurring' && n.recur_interval && n.recur_unit) {
