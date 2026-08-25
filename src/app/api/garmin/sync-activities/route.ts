@@ -5,6 +5,7 @@ import { COACH_ID } from '@/lib/constants';
 import { notifyTeammatesOfActivity, notifyAthlete } from '@/lib/push';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
+import { checkShoeAlert } from '@/lib/shoes';
 
 // Hebrew label per run sub-type for the post-workout feedback nudge (same map
 // as the workout-watch cron's teaser). Anything outside this map falls back to
@@ -27,17 +28,21 @@ export async function POST(request: Request) {
     const { athleteId, suppressPush } = await request.json().catch(() => ({}));
     const supabase = createServerClient();
 
-    const query = supabase
-      .from('athletes')
-      .select('id, name, garmin_auth');
+    // .returns<any[]>() — cols is a runtime string (not a literal), so Supabase
+    // can't infer a field-shaped row type from it; that would otherwise fall
+    // back to a useless generic error type instead of the athletes row shape.
+    const buildAthleteQuery = (cols: string) => {
+      let q = supabase.from('athletes').select(cols);
+      q = athleteId ? q.eq('id', athleteId) : q.eq('coach_id', COACH_ID).not('garmin_auth', 'is', null);
+      return q.returns<any[]>();
+    };
 
-    if (athleteId) {
-      query.eq('id', athleteId);
-    } else {
-      query.eq('coach_id', COACH_ID).not('garmin_auth', 'is', null);
+    let { data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, active_shoe_id');
+    if (athError?.code === '42703') {
+      // active_shoe_id not migrated yet — degrade to the pre-shoes shape
+      // rather than failing sync for every athlete over one missing column.
+      ({ data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth'));
     }
-
-    const { data: athletes, error: athError } = await query;
     if (athError) throw athError;
     if (!athletes || athletes.length === 0) {
       return NextResponse.json({ synced: 0, message: 'No athletes with Garmin auth found' });
@@ -141,17 +146,31 @@ export async function POST(request: Request) {
               max_hr: a.maxHR,
               calories: a.calories || null,
               elevation_gain: a.elevationGain,
+              shoe_id: athlete.active_shoe_id || null,
               ...enriched,
             });
           }
 
-          const { data: insertedRows, error: insertError } = await supabase
+          let { data: insertedRows, error: insertError } = await supabase
             .from('athlete_activities')
             .insert(rows)
             .select('id, garmin_activity_id');
 
+          if (insertError?.code === '42703' || insertError?.code === 'PGRST204') {
+            // shoe_id not migrated yet — retry without it rather than failing
+            // sync for every athlete over one missing column.
+            ({ data: insertedRows, error: insertError } = await supabase
+              .from('athlete_activities')
+              .insert(rows.map(({ shoe_id, ...rest }) => rest))
+              .select('id, garmin_activity_id'));
+          }
           if (insertError) throw insertError;
           totalSynced += newActivities.length;
+
+          // One check per batch (not per activity) — checkShoeAlert already
+          // sums every activity on the shoe, so re-checking per-row here would
+          // just re-derive the same total repeatedly.
+          if (athlete.active_shoe_id) await checkShoeAlert(athlete.active_shoe_id);
 
           // Map back to the real row id per Garmin activity, so kudos (which
           // targets athlete_activities.id, not the legacy garmin_activity_id)

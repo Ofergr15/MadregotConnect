@@ -13,6 +13,7 @@ import { LeaderboardsScreen } from '@/components/LeaderboardsScreen';
 import { MemberDiscovery } from '@/components/MemberDiscovery';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
+import { ShoeManager } from '@/components/ShoeManager';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
@@ -628,6 +629,8 @@ function ProfileContent() {
               onClick={() => setActiveTab('notifications')}
             />
           </InsetSection>
+
+          <ShoeManager athleteId={athleteId} />
         </>
       )}
 

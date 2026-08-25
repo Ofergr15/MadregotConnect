@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { checkShoeAlert } from '@/lib/shoes';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,8 @@ export async function POST(req: NextRequest) {
     const sentinelId = -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
 
     const supabase = createServerClient();
+    const { data: athlete } = await supabase.from('athletes').select('active_shoe_id').eq('id', athleteId).maybeSingle();
+
     const row = {
       athlete_id: athleteId,
       garmin_activity_id: sentinelId,
@@ -76,20 +79,37 @@ export async function POST(req: NextRequest) {
       distance: distanceMeters,
       duration: durationSecRounded,
       average_pace: distanceMeters > 0 ? Math.round(durationSecRounded / (distanceMeters / 1000)) : null,
+      shoe_id: athlete?.active_shoe_id || null,
     };
 
-    const { data: inserted, error } = await supabase
+    let { data: inserted, error } = await supabase
       .from('athlete_activities')
       .insert(row)
       .select('id')
       .single();
 
-    if (error) {
+    if (error?.code === '42703' || error?.code === 'PGRST204') {
+      // shoe_id not migrated yet — retry without it rather than failing
+      // manual entry entirely over one missing column.
+      const { shoe_id, ...rowWithoutShoe } = row;
+      ({ data: inserted, error } = await supabase
+        .from('athlete_activities')
+        .insert(rowWithoutShoe)
+        .select('id')
+        .single());
+    }
+
+    if (error || !inserted) {
       return NextResponse.json(
-        { error: 'Failed to save activity', details: error.message },
+        { error: 'Failed to save activity', details: error?.message },
         { status: 500 },
       );
     }
+
+    // Awaited (not fire-and-forget) — a serverless function can be torn down
+    // right after the response is sent, which would cut off an un-awaited
+    // background call before it finishes. checkShoeAlert never throws.
+    if (row.shoe_id) await checkShoeAlert(row.shoe_id);
 
     return NextResponse.json({ activity: { id: inserted.id, ...row } });
   } catch (error: unknown) {

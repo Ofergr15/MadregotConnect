@@ -21,6 +21,7 @@ import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { notifyTeammatesOfActivity, notifyAthlete } from '@/lib/push';
+import { checkShoeAlert } from '@/lib/shoes';
 
 // Mirrors garmin/sync-activities' RUN_TYPE_LABELS — kept as a separate copy
 // since the two syncs' activity_type vocabularies aren't guaranteed to stay
@@ -127,19 +128,21 @@ export async function POST(request: Request) {
     const suppressPush = !!body?.suppressPush;
     const supabase = createServerClient();
 
-    const selectCols = 'id, name, strava_auth, data_source';
-    const { data: athletes, error: athError } = athleteId
-      ? await supabase
-          .from('athletes')
-          .select(selectCols)
-          .eq('id', athleteId)
-          .not('strava_auth', 'is', null)
-      : await supabase
-          .from('athletes')
-          .select(selectCols)
-          .eq('data_source', 'strava')
-          .not('strava_auth', 'is', null)
-          .or(`coach_id.eq.${COACH_ID},coach_id.is.null`);
+    // .returns<any[]>() — cols is a runtime string (not a literal), so Supabase
+    // can't infer a field-shaped row type from it; that would otherwise fall
+    // back to a useless generic error type instead of the athletes row shape.
+    const fetchAthletes = (cols: string) => (
+      athleteId
+        ? supabase.from('athletes').select(cols).eq('id', athleteId).not('strava_auth', 'is', null).returns<any[]>()
+        : supabase.from('athletes').select(cols).eq('data_source', 'strava').not('strava_auth', 'is', null)
+            .or(`coach_id.eq.${COACH_ID},coach_id.is.null`).returns<any[]>()
+    );
+    let { data: athletes, error: athError } = await fetchAthletes('id, name, strava_auth, data_source, active_shoe_id');
+    if (athError?.code === '42703') {
+      // active_shoe_id not migrated yet — degrade to the pre-shoes shape
+      // rather than failing sync for every athlete over one missing column.
+      ({ data: athletes, error: athError } = await fetchAthletes('id, name, strava_auth, data_source'));
+    }
     if (athError) throw athError;
     if (!athletes?.length) {
       return NextResponse.json({ synced: 0, message: 'No athletes with Strava auth found' });
@@ -258,9 +261,10 @@ export async function POST(request: Request) {
             end_lng: a.end_latlng?.[1] || null,
             moving_duration: a.moving_time ? Math.round(a.moving_time) : null,
             has_polyline: !!a.map?.summary_polyline,
+            shoe_id: athlete.active_shoe_id || null,
           };
 
-          const { data: inserted, error: insertError } = await supabase
+          let { data: inserted, error: insertError } = await supabase
             .from('athlete_activities')
             .upsert(row, {
               onConflict: 'athlete_id,garmin_activity_id',
@@ -268,6 +272,20 @@ export async function POST(request: Request) {
             })
             .select('id')
             .maybeSingle();
+
+          if (insertError?.code === '42703' || insertError?.code === 'PGRST204') {
+            // shoe_id not migrated yet — retry without it rather than failing
+            // sync for every athlete over one missing column.
+            const { shoe_id, ...rowWithoutShoe } = row;
+            ({ data: inserted, error: insertError } = await supabase
+              .from('athlete_activities')
+              .upsert(rowWithoutShoe, {
+                onConflict: 'athlete_id,garmin_activity_id',
+                ignoreDuplicates: true,
+              })
+              .select('id')
+              .maybeSingle());
+          }
           if (insertError) {
             insertErrors.push(`${a.id}: ${insertError.message}`);
             console.error('Strava activity insert failed:', a.id, insertError);
@@ -316,6 +334,12 @@ export async function POST(request: Request) {
             activityType: row.activity_type,
             startTimeLocal: a.start_date_local,
           });
+        }
+
+        // One check per batch (not per activity) — checkShoeAlert already
+        // sums every activity on the shoe.
+        if (athlete.active_shoe_id && newActivityPushInfo.length > 0) {
+          await checkShoeAlert(athlete.active_shoe_id);
         }
 
         // Post-workout nudge — same purpose/shape as garmin/sync-activities'
