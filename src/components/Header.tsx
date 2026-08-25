@@ -8,7 +8,7 @@ import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, 
 import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperUser } from '@/lib/constants';
-import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { getViewMode, stopViewAs, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { InsetSection, InsetRow, Sheet } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
@@ -313,14 +313,17 @@ export function Header() {
 
             {isSuper && (
               <button
-                onClick={() => window.dispatchEvent(new Event('open-view-as'))}
-                className="relative group p-2 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors"
-                title={th('viewAsUser')}
-                aria-label={th('viewAsUser')}
+                onClick={() => (viewMode ? stopViewAs() : window.dispatchEvent(new Event('open-view-as')))}
+                className={cn(
+                  'relative group p-2 rounded-lg transition-colors',
+                  viewMode ? 'text-red-400 hover:text-red-300 hover:bg-slate-800' : 'text-amber-400 hover:text-amber-300 hover:bg-slate-800',
+                )}
+                title={viewMode ? th('exitViewAs') : th('viewAsUser')}
+                aria-label={viewMode ? th('exitViewAs') : th('viewAsUser')}
               >
-                <Eye className="h-4.5 w-4.5" />
+                {viewMode ? <LogOut className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                 <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
-                  {th('viewAsUser')}
+                  {viewMode ? th('exitViewAs') : th('viewAsUser')}
                 </span>
               </button>
             )}

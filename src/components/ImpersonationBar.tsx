@@ -94,24 +94,10 @@ export function ImpersonationBar() {
 
   return (
     <>
-      {/* Direct, always-reachable one-tap exit while a preview is active — no
-          menu navigation required. Previously the ONLY way out was profile
-          menu -> "צפייה כמשתמש" -> a small text button below the role grid
-          inside that sheet; that indirection kept getting missed in practice
-          (confirmed repeatedly live), leaving real actions silently blocked.
-          Deliberately a small floating pill, not a persistent top banner —
-          Ofer explicitly asked for the banner removed earlier; this only
-          appears while a preview is genuinely active, and it's the one
-          action anyone would actually want in that state. */}
-      {mode && (
-        <button
-          onClick={() => stopViewAs()}
-          className="fixed bottom-24 inset-x-0 mx-auto z-[300] flex items-center gap-1.5 px-4 py-2.5 rounded-full text-white text-xs font-bold shadow-lg w-fit"
-          style={{ background: 'linear-gradient(90deg,#dc2626,#b91c1c)' }}
-        >
-          <LogOut className="h-4 w-4" /> יציאה מתצוגה — {SCENARIOS.find(s => s.mode === mode)?.label || mode}
-        </button>
-      )}
+      {/* The one-tap exit while a preview is active now lives on the Header's
+          eye icon itself (it swaps to a red LogOut icon and exits directly)
+          instead of a separate floating banner — Ofer asked for the banner
+          removed. The chooser Sheet below still has its own exit row too. */}
 
       {/* Floating trigger above the maintenance gate: when maintenance blocks the
           super user and no scenario is active, the Header eye button is hidden
