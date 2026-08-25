@@ -1213,6 +1213,8 @@
     "feel": "Feel",
     "adaptRecovery": "we'll ask about recovery",
     "difficulty": "Difficulty",
+    "watchEditableHint": "Tap a number or face below to change it",
+    "required": "Required",
     "howFeel": "How did you feel?",
     "pain": "Any pain or discomfort?",
     "painAfterHard": "After a hard effort — any pain?",

@@ -1213,6 +1213,8 @@
     "feel": "הרגשה",
     "adaptRecovery": "נשאל על התאוששות",
     "difficulty": "רמת קושי",
+    "watchEditableHint": "ניתן לגעת במספר או בפרצוף למטה כדי לשנות",
+    "required": "נדרש",
     "howFeel": "איך הרגשת?",
     "pain": "כאב או אי-נוחות?",
     "painAfterHard": "אחרי מאמץ קשה — יש כאב?",

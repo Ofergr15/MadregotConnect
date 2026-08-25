@@ -3,12 +3,34 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Loader2, CheckCircle2, Gauge, MessageCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, Gauge, MessageCircle, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { requestPushOptInPrompt } from '@/components/PushOptIn';
 import { FeedbackThread } from '@/components/FeedbackThread';
 
 const FEEL_FACES = ['😣', '😕', '😐', '🙂', '😄'];
+// Severity color per difficulty band (1-10) — inline hex, not Tailwind classes:
+// the color depends on runtime data, and Tailwind's compiler only includes
+// classes it can see literally in source (same reason WORKOUT_TYPE_COLORS
+// elsewhere in this app uses inline style, not bg-${x} strings).
+const DIFFICULTY_COLOR = (n: number): string => (n <= 3 ? '#10b981' : n <= 6 ? '#4338ff' : n <= 8 ? '#f59e0b' : '#ef4444');
+// One color per FEEL_FACES index (😣 worst → 😄 best) — same palette, inverted.
+const FEEL_COLOR = ['#ef4444', '#f59e0b', '#94a3b8', '#4338ff', '#10b981'];
+
+// A small "still needs your input" marker — every question the watch can't
+// answer (pain, coach-feedback) plus difficulty/feel when there was no watch
+// data to pre-fill them at all. Disappears the moment that question is
+// answered, so progress through the form is visible at a glance instead of
+// every Yes/No pair looking equally unanswered.
+function RequiredTag({ show }: { show: boolean }) {
+  const t = useTranslations('workoutFeedback');
+  if (!show) return null;
+  return (
+    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded-full">
+      {t('required')}
+    </span>
+  );
+}
 
 function FeedbackForm() {
   const t = useTranslations('workoutFeedback');
@@ -135,42 +157,72 @@ function FeedbackForm() {
       )}
 
       {(watchRpe != null || watchFeel != null) && (
-        <div className="flex items-start gap-2 mt-4 rounded-xl bg-primary-600/12 border border-primary-600/30 p-3">
-          <Gauge className="h-4 w-4 text-primary-600 mt-0.5 shrink-0" />
-          <p className="text-xs text-indigo-200">
-            {t('fromWatch')}: {watchRpe != null && `${t('effort')} ${Math.round(watchRpe)}/10`}
-            {watchRpe != null && watchFeel != null && ' · '}
-            {watchFeel != null && `${t('feel')} ${FEEL_FACES[Math.round(watchFeel)]}`}
-            {highEffort && ` — ${t('adaptRecovery')}`}
-          </p>
+        <div
+          className="flex items-start gap-2 mt-4 rounded-xl border p-3"
+          style={{
+            borderColor: `${watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#4338ff'}55`,
+            background: `${watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#4338ff'}18`,
+          }}
+        >
+          <Gauge className="h-4 w-4 mt-0.5 shrink-0" style={{ color: watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#818cf8' }} />
+          <div className="text-xs">
+            <p className="text-indigo-100">
+              {t('fromWatch')}: {watchRpe != null && `${t('effort')} ${Math.round(watchRpe)}/10`}
+              {watchRpe != null && watchFeel != null && ' · '}
+              {watchFeel != null && `${t('feel')} ${FEEL_FACES[Math.round(watchFeel)]}`}
+              {highEffort && ` — ${t('adaptRecovery')}`}
+            </p>
+            {/* Makes explicit that this pre-fill isn't final — the numbers/face
+                below are real inputs, not a locked read-only summary. */}
+            <p className="flex items-center gap-1 text-slate-400 mt-1">
+              <Pencil className="h-3 w-3" /> {t('watchEditableHint')}
+            </p>
+          </div>
         </div>
       )}
 
-      {/* Difficulty 1-10 */}
-      <p className="text-sm font-semibold text-slate-200 mt-5 mb-2">{t('difficulty')}</p>
+      {/* Difficulty 1-10 — color intensity mirrors severity (green→blue→amber→red), same palette as the watch banner above, so the selected value's color IS the answer, not just a highlight. */}
+      <div className="flex items-center gap-1.5 mt-5 mb-2">
+        <p className="text-sm font-semibold text-slate-200">{t('difficulty')}</p>
+        <RequiredTag show={difficulty == null} />
+      </div>
       <div className="grid grid-cols-5 gap-2">
         {scale.map(n => (
           <button key={n} onClick={() => setDifficulty(n)}
-            className={cn('aspect-square rounded-lg text-sm font-bold transition',
-              difficulty === n ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}>
+            className="aspect-square rounded-lg text-sm font-bold transition"
+            style={difficulty === n
+              ? { background: DIFFICULTY_COLOR(n), color: 'white' }
+              : { background: 'rgba(51,65,85,.5)', color: '#cbd5e1' }}
+          >
             {n}
           </button>
         ))}
       </div>
 
-      {/* Feel 0-4 */}
-      <p className="text-sm font-semibold text-slate-200 mt-5 mb-2">{t('howFeel')}</p>
+      {/* Feel 0-4 — selected face gets a colored ring instead of just dimming
+          the rest, so it reads as "this is the answer" at a glance. */}
+      <div className="flex items-center gap-1.5 mt-5 mb-2">
+        <p className="text-sm font-semibold text-slate-200">{t('howFeel')}</p>
+        <RequiredTag show={feel == null} />
+      </div>
       <div className="flex justify-between">
         {FEEL_FACES.map((f, i) => (
-          <button key={i} onClick={() => setFeel(i)}
-            className={cn('text-3xl transition', feel === i ? 'opacity-100 scale-110' : 'opacity-40')}>
+          <button
+            key={i}
+            onClick={() => setFeel(i)}
+            className={cn('text-3xl rounded-full transition p-1.5', feel === i ? 'scale-110' : 'opacity-50')}
+            style={feel === i ? { background: `${FEEL_COLOR[i]}2A`, boxShadow: `0 0 0 2px ${FEEL_COLOR[i]}` } : undefined}
+          >
             {f}
           </button>
         ))}
       </div>
 
       {/* Pain */}
-      <p className="text-sm font-semibold text-slate-200 mt-5 mb-2">{highEffort ? t('painAfterHard') : t('pain')}</p>
+      <div className="flex items-center gap-1.5 mt-5 mb-2">
+        <p className="text-sm font-semibold text-slate-200">{highEffort ? t('painAfterHard') : t('pain')}</p>
+        <RequiredTag show={pain == null} />
+      </div>
       <div className="flex gap-2">
         <button onClick={() => setPain(true)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
@@ -185,7 +237,10 @@ function FeedbackForm() {
       )}
 
       {/* Want feedback */}
-      <p className="text-sm font-semibold text-slate-200 mt-5 mb-2">{feltPoor ? t('wantHelp') : t('wantFeedback')}</p>
+      <div className="flex items-center gap-1.5 mt-5 mb-2">
+        <p className="text-sm font-semibold text-slate-200">{feltPoor ? t('wantHelp') : t('wantFeedback')}</p>
+        <RequiredTag show={wantsFeedback == null} />
+      </div>
       <div className="flex gap-2">
         <button onClick={() => setWantsFeedback(true)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
