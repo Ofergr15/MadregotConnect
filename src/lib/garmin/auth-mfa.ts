@@ -162,7 +162,7 @@ export async function garminLogin(email: string, password: string): Promise<
 
     // Check for account locked
     if (html.includes('locked') || html.includes('too many')) {
-      return { error: 'Account temporarily locked. Wait a few minutes and try again.' };
+      return { error: 'החשבון נחסם זמנית. נסו שוב בעוד כמה דקות.' };
     }
 
     // Check for MFA in HTML body (fallback)
@@ -188,17 +188,20 @@ export async function garminLogin(email: string, password: string): Promise<
     const ticketMatch = TICKET_RE.exec(html);
     if (!ticketMatch) {
       if (html.includes('incorrect') || html.includes('Invalid')) {
-        return { error: 'Wrong email or password.' };
+        return { error: 'אימייל או סיסמה שגויים.' };
       }
       console.error('Garmin login - no ticket found. Status:', step3.status);
-      return { error: 'Login failed. Please check your credentials.' };
+      return { error: 'ההתחברות נכשלה. בדקו את הפרטים שהזנתם.' };
     }
 
     const ticket = ticketMatch[1];
     const tokens = await exchangeTicketForTokens(ticket);
     return { success: true, tokens };
   } catch (err: any) {
-    return { error: err.message || 'Authentication failed' };
+    // A raw network/library exception message here is never something a
+    // Hebrew-speaking athlete needs to see — log it, show a safe fallback.
+    console.error('Garmin login error:', err.message);
+    return { error: 'ההתחברות נכשלה. נסו שוב.' };
   }
 }
 
@@ -209,7 +212,7 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
   try {
     const session = decryptSession(sessionId);
     if (!session) {
-      return { error: 'MFA session expired. Please start login again.' };
+      return { error: 'פג תוקף אימות הזיהוי הדו-שלבי. יש להתחיל את ההתחברות מחדש.' };
     }
 
     const { cookies, csrf, signinParams } = session;
@@ -266,16 +269,17 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
     if (!ticketMatch) {
       console.error('MFA verify - no ticket. Status:', res.status, 'HTML:', (html || '').substring(0, 500));
       if (html.includes('incorrect') || html.includes('Invalid') || html.includes('invalid')) {
-        return { error: 'Invalid verification code. Please try again.' };
+        return { error: 'קוד אימות שגוי. נסו שוב.' };
       }
-      return { error: 'MFA verification failed. Please start login again.' };
+      return { error: 'אימות הזיהוי הדו-שלבי נכשל. יש להתחיל את ההתחברות מחדש.' };
     }
 
     const ticket = ticketMatch[1];
     const tokens = await exchangeTicketForTokens(ticket);
     return { success: true, tokens };
   } catch (err: any) {
-    return { error: err.message || 'MFA verification failed' };
+    console.error('Garmin MFA verify error:', err.message);
+    return { error: 'אימות הזיהוי הדו-שלבי נכשל. נסו שוב.' };
   }
 }
 

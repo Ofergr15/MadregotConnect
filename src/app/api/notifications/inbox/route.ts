@@ -93,11 +93,17 @@ export async function GET(request: Request) {
       `and(audience_type.eq.athlete,audience_id.eq.${athleteId})`,
     ].filter(Boolean).join(',');
 
+    // Ledger rows (idempotency sentinels, url LIKE '#ledger:%') must be
+    // excluded HERE, before .limit(50) — not just in the JS filter below.
+    // An active athlete can accumulate more than 50 ledger rows over time
+    // (post-workout-prompt dedup, RSVP-reminder dedup, etc.), which used to
+    // consume the entire page and hide every real notification behind them.
     let { data, error } = await supabase
       .from('scheduled_notifications')
       .select('id, kind, title_he, body_he, url, last_sent_at, actor_athlete_id, actor:actor_athlete_id ( name, avatar_url )')
       .eq('status', 'sent')
       .or(orClause)
+      .not('url', 'like', '#ledger:%')
       .order('last_sent_at', { ascending: false })
       .limit(50)
       .returns<Record<string, any>[]>();
@@ -108,6 +114,7 @@ export async function GET(request: Request) {
         .select('id, kind, title_he, body_he, url, last_sent_at')
         .eq('status', 'sent')
         .or(orClause)
+        .not('url', 'like', '#ledger:%')
         .order('last_sent_at', { ascending: false })
         .limit(50)
         .returns<Record<string, any>[]>());

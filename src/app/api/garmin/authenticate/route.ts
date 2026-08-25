@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     // Initial login step
     if (!email || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'יש להזין אימייל וסיסמה' },
         { status: 400 }
       );
     }
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Garmin auth error:', error?.message, error?.response?.status, error?.response?.data?.substring?.(0, 300));
     return NextResponse.json(
-      { error: 'Authentication failed. Please try again.' },
+      { error: 'ההתחברות נכשלה. נסו שוב.' },
       { status: 500 }
     );
   }

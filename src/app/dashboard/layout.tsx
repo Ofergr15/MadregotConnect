@@ -30,8 +30,11 @@ export default function DashboardLayout({
     const setFromServer = async () => {
       const id = localStorage.getItem('athlete_id');
       if (!id) { clear(); return; }
+      const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
       try {
-        const res = await fetch(`/api/notifications/unread?athleteId=${id}`);
+        const res = await fetch(`/api/notifications/unread?athleteId=${id}`, {
+          headers: email ? { 'x-user-email': email } : {},
+        });
         const { count } = await res.json();
         if (count > 0) await navigator.setAppBadge(count);
         else await navigator.clearAppBadge();

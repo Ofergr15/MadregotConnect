@@ -83,7 +83,7 @@ export default function JoinPage() {
 
     if (!saveRes.ok) {
       const err = await saveRes.json();
-      throw new Error(err.error || to('failedToSaveConnection'));
+      throw new Error(err.message || err.error || to('failedToSaveConnection'));
     }
 
     const data = await saveRes.json();
@@ -130,7 +130,7 @@ export default function JoinPage() {
       }
 
       if (!authRes.ok) {
-        throw new Error(authData.error || to('failedToConnectGarmin'));
+        throw new Error(authData.message || authData.error || to('failedToConnectGarmin'));
       }
 
       await saveConnection(authData.auth);
@@ -155,7 +155,7 @@ export default function JoinPage() {
       const authData = await authRes.json();
 
       if (!authRes.ok) {
-        throw new Error(authData.error || to('verificationFailed'));
+        throw new Error(authData.message || authData.error || to('verificationFailed'));
       }
 
       await saveConnection(authData.auth);
@@ -364,7 +364,7 @@ export default function JoinPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={to('enterPassword')}
                   className="pe-12"
                   required
                 />
@@ -421,7 +421,7 @@ export default function JoinPage() {
                   });
                   if (!saveRes.ok) {
                     const err = await saveRes.json();
-                    throw new Error(err.error || to('failedToSave'));
+                    throw new Error(err.message || err.error || to('failedToSave'));
                   }
                   const data = await saveRes.json();
                   if (data.athlete) {

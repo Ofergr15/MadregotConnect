@@ -42,9 +42,11 @@ function fmtNum(n: number, locale: string): string {
 
 function useStravaLogin() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const signIn = async () => {
     setLoading(true);
+    setError(null);
     try {
       // Drop Test Runner / stale JWT so /auth/resolve adopts the Strava user.
       const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
@@ -55,11 +57,13 @@ function useStravaLogin() {
       window.location.href = data.authUrl;
     } catch (err) {
       console.error(err);
+      // Previously silent — the spinner just stopped with zero explanation.
+      setError('ההתחברות דרך Strava נכשלה. נסו שוב.');
       setLoading(false);
     }
   };
 
-  return { signIn, loading };
+  return { signIn, loading, error };
 }
 
 /**
@@ -78,17 +82,18 @@ function useStravaLogin() {
  * provider config. Landing straight on `/auth/resolve` reuses working,
  * already-tested plumbing instead.
  *
- * NOTE: this call will fail until the Supabase dashboard's Google provider is
- * enabled with a real Google Cloud OAuth Client ID/Secret + authorized
- * redirect URI (Authentication → Providers → Google) and `/auth/resolve` is
- * added to the dashboard's redirect URL allow-list — entirely outside this
- * codebase.
+ * Google's provider IS configured and working (verified directly against
+ * Supabase's authorize endpoint — it 302s to a real accounts.google.com URL
+ * with a real client_id, unlike Apple's, which 400s). An earlier version of
+ * this comment claimed this would fail; that was stale.
  */
 function useGoogleLogin() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const signIn = async () => {
     setLoading(true);
+    setError(null);
     try {
       const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
       await clearLocalIdentity();
@@ -101,11 +106,13 @@ function useGoogleLogin() {
       // On success the browser navigates away to Google; nothing else to do here.
     } catch (err) {
       console.error(err);
+      // Previously silent — the spinner just stopped with zero explanation.
+      setError('ההתחברות דרך Google נכשלה. נסו שוב.');
       setLoading(false);
     }
   };
 
-  return { signIn, loading };
+  return { signIn, loading, error };
 }
 
 function GoogleBadge({ className = 'bg-white text-[#4285F4]' }: { className?: string }) {
@@ -176,15 +183,35 @@ export default function HomePage() {
   const th = useTranslations('header');
   const locale = useLocale();
   const [checking, setChecking] = useState(true);
-  const { signIn, loading: signingIn } = useStravaLogin();
-  const { signIn: signInWithGoogle, loading: signingInWithGoogle } = useGoogleLogin();
-  const { signIn: signInWithApple, loading: signingInWithApple } = useAppleLogin();
+  const { signIn, loading: signingIn, error: stravaError } = useStravaLogin();
+  const { signIn: signInWithGoogle, loading: signingInWithGoogle, error: googleError } = useGoogleLogin();
+  const signInError = stravaError || googleError;
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState('');
   const [stats, setStats] = useState<PublicStats | null>(null);
+
+  // /auth/resolve and the Strava callback both bounce failures back here as
+  // ?strava=error&reason=... — previously never read at all, so a failed
+  // login just silently dropped the user back on the landing page with the
+  // spinner gone and zero explanation of what happened or what to do next.
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('strava') !== 'error') return;
+    const reason = params.get('reason');
+    setResolveError(
+      reason === 'not_configured'
+        ? 'ההתחברות דרך Strava עדיין לא מוגדרת. פנו למאמן.'
+        : reason === 'no_athlete'
+          ? 'לא נמצא חשבון מתאים להתחברות הזו.'
+          : 'ההתחברות נכשלה. נסו שוב.',
+    );
+    window.history.replaceState({}, '', '/');
+  }, []);
+  const displayError = resolveError || signInError;
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -273,18 +300,20 @@ export default function HomePage() {
                   </>
                 )}
               </button>
-              <button
-                onClick={signInWithApple}
-                disabled={signingInWithApple}
-                className="hidden sm:inline-flex whitespace-nowrap items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full border-2 border-gray-300 hover:border-gray-400 active:scale-[0.98] text-gray-700 text-sm font-bold transition disabled:opacity-50"
+              {/* Apple sign-in isn't configured in Supabase yet (verified: the
+                  authorize endpoint 400s for provider=apple) — a live button
+                  here would be a dead end for every real visitor who taps it.
+                  Same "coming soon" treatment as joinAcademy below. */}
+              <div
+                aria-disabled="true"
+                className="hidden sm:inline-flex whitespace-nowrap items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full border-2 border-gray-300 text-gray-400 text-sm font-bold cursor-not-allowed select-none"
               >
-                {signingInWithApple ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                  <>
-                    <AppleBadge className="text-black" />
-                    {t('signInWithApple')}
-                  </>
-                )}
-              </button>
+                <AppleBadge className="text-gray-400" />
+                {t('signInWithApple')}
+                <span className="text-[9px] font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
+                  {t('comingSoon')}
+                </span>
+              </div>
               <button
                 onClick={signIn}
                 disabled={signingIn}
@@ -385,18 +414,19 @@ export default function HomePage() {
                     </>
                   )}
                 </button>
-                <button
-                  onClick={signInWithApple}
-                  disabled={signingInWithApple}
-                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[46px] rounded-2xl border-2 border-gray-300 hover:border-gray-400 bg-white active:scale-[0.99] text-gray-700 text-sm font-bold transition disabled:opacity-50"
+                <div
+                  aria-disabled="true"
+                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[46px] rounded-2xl border-2 border-gray-300 text-gray-400 text-sm font-bold cursor-not-allowed select-none"
                 >
-                  {signingInWithApple ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                    <>
-                      <AppleBadge className="text-black" />
-                      {t('signInWithApple')}
-                    </>
-                  )}
-                </button>
+                  <AppleBadge className="text-gray-400" />
+                  {t('signInWithApple')}
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
+                    {t('comingSoon')}
+                  </span>
+                </div>
+                {displayError && (
+                  <p className="text-sm text-red-600 text-center" dir="rtl">{displayError}</p>
+                )}
                 <div
                   aria-disabled="true"
                   className="w-full inline-flex items-center justify-center gap-2 min-h-[46px] rounded-2xl border-2 border-gray-300 text-gray-400 text-sm font-semibold cursor-not-allowed select-none"
@@ -723,18 +753,16 @@ export default function HomePage() {
                 </>
               )}
             </button>
-            <button
-              onClick={signInWithApple}
-              disabled={signingInWithApple}
-              className="inline-flex items-center justify-center gap-2.5 bg-white/10 hover:bg-white/20 border-2 border-white/30 active:scale-[0.99] text-white font-bold px-8 py-4 sm:py-5 rounded-xl text-lg transition disabled:opacity-50"
+            <div
+              aria-disabled="true"
+              className="inline-flex items-center justify-center gap-2.5 bg-white/5 border-2 border-white/10 text-white/40 font-bold px-8 py-4 sm:py-5 rounded-xl text-lg cursor-not-allowed select-none"
             >
-              {signingInWithApple ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                <>
-                  <AppleBadge className="text-white" />
-                  {t('signInWithApple')}
-                </>
-              )}
-            </button>
+              <AppleBadge className="text-white/40" />
+              {t('signInWithApple')}
+              <span className="text-[10px] font-black uppercase tracking-wider bg-white/10 text-white/50 px-2 py-1 rounded-full">
+                {t('comingSoon')}
+              </span>
+            </div>
           </div>
         </div>
       </section>

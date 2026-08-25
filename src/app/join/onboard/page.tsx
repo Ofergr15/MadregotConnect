@@ -101,7 +101,7 @@ function OnboardContent() {
       });
       if (!saveRes.ok) {
         const err = await saveRes.json();
-        throw new Error(err.error || t('failedToSave'));
+        throw new Error(err.message || err.error || t('failedToSave'));
       }
       const data = await saveRes.json();
       if (data.athlete) {
@@ -131,7 +131,7 @@ function OnboardContent() {
 
       const authData = await authRes.json();
       if (!authRes.ok) {
-        throw new Error(authData.error || t('verificationFailed'));
+        throw new Error(authData.message || authData.error || t('verificationFailed'));
       }
 
       const auth = authData.auth;
@@ -142,7 +142,7 @@ function OnboardContent() {
       });
       if (!saveRes.ok) {
         const err = await saveRes.json();
-        throw new Error(err.error || t('failedToSaveConnection'));
+        throw new Error(err.message || err.error || t('failedToSaveConnection'));
       }
       const data = await saveRes.json();
       if (data.athlete) {
@@ -180,7 +180,7 @@ function OnboardContent() {
       }
 
       if (!authRes.ok) {
-        throw new Error(authData.error || t('failedToConnectGarmin'));
+        throw new Error(authData.message || authData.error || t('failedToConnectGarmin'));
       }
 
       const auth = authData.auth;
@@ -198,7 +198,7 @@ function OnboardContent() {
 
       if (!saveRes.ok) {
         const err = await saveRes.json();
-        throw new Error(err.error || t('failedToSaveConnection'));
+        throw new Error(err.message || err.error || t('failedToSaveConnection'));
       }
 
       const data = await saveRes.json();
@@ -397,7 +397,7 @@ function OnboardContent() {
                   type={showPassword ? 'text' : 'password'}
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={t('enterPassword')}
                   className="pe-12"
                   required
                 />
@@ -453,7 +453,7 @@ function OnboardContent() {
                   });
                   if (!saveRes.ok) {
                     const err = await saveRes.json();
-                    throw new Error(err.error || t('failedToSave'));
+                    throw new Error(err.message || err.error || t('failedToSave'));
                   }
                   const data = await saveRes.json();
                   if (data.athlete) {

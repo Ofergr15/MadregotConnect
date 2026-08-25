@@ -795,7 +795,7 @@ function ProfileContent() {
                           return;
                         }
                         if (!authRes.ok) {
-                          setGarminError(authData.error || 'Authentication failed');
+                          setGarminError(authData.message || authData.error || 'Authentication failed');
                           setGarminLoading(false);
                           return;
                         }

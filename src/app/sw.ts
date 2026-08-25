@@ -160,35 +160,43 @@ self.addEventListener('push', (event: PushEvent) => {
   const title = data.title || 'Madregot';
   event.waitUntil(
     (async () => {
-      await self.registration.showNotification(title, {
-        body: data.body || '',
-        // Per-notification photo (e.g. the replying coach's avatar) when the
-        // sender has one in scope; otherwise fall back to the app icon so every
-        // pre-existing push (no icon field) still renders exactly as before.
-        icon: data.icon || '/images/icon-192.png',
-        badge: '/images/icon-192.png',
-        tag: data.tag,
-        // Only re-alert on a tag-replace when the sender explicitly asked for
-        // it (e.g. a recurring reminder that should still ping, not just swap
-        // the old card's content silently). The spec requires a non-empty tag
-        // whenever renotify is true, or showNotification throws — guard it.
-        renotify: !!(data.renotify && data.tag),
-        // OS-level action buttons (Chrome/Android + desktop; iOS/WebKit has no
-        // Notification actions API and just ignores this field). Context each
-        // action needs at click time travels alongside in `data`, since the SW
-        // has no page/localStorage to read from.
-        actions: data.actions,
-        data: {
-          url: data.url || '/dashboard',
-          athleteId: data.athleteId,
-          rsvp: data.rsvp,
-          kudosActivityId: data.kudosActivityId,
-        },
-        // `image` (expanded banner photo) isn't in TS's NotificationOptions lib
-        // typing yet, though it's supported at runtime on platforms that honor
-        // it (browsers ignore unknown notification options harmlessly).
-        ...(data.image ? { image: data.image } : {}),
-      } as NotificationOptions & { image?: string });
+      // A push already reported delivered by the push service (no 404/410,
+      // so no dead-subscription cleanup ever triggers) can still fail to
+      // actually show — e.g. permission got revoked between subscribing and
+      // this push arriving. Without this try/catch that failure was an
+      // unhandled rejection inside waitUntil: the notification silently
+      // never appears, with zero visibility anywhere that it happened.
+      try {
+        await self.registration.showNotification(title, {
+          body: data.body || '',
+          // Per-notification photo (e.g. the replying coach's avatar) when the
+          // sender has one in scope; otherwise fall back to the app icon so every
+          // pre-existing push (no icon field) still renders exactly as before.
+          icon: data.icon || '/images/icon-192.png',
+          badge: '/images/icon-192.png',
+          tag: data.tag,
+          // Only re-alert on a tag-replace when the sender explicitly asked for
+          // it (e.g. a recurring reminder that should still ping, not just swap
+          // the old card's content silently). The spec requires a non-empty tag
+          // whenever renotify is true, or showNotification throws — guard it.
+          renotify: !!(data.renotify && data.tag),
+          // OS-level action buttons (Chrome/Android + desktop; iOS/WebKit has no
+          // Notification actions API and just ignores this field). Context each
+          // action needs at click time travels alongside in `data`, since the SW
+          // has no page/localStorage to read from.
+          actions: data.actions,
+          data: {
+            url: data.url || '/dashboard',
+            athleteId: data.athleteId,
+            rsvp: data.rsvp,
+            kudosActivityId: data.kudosActivityId,
+          },
+          // `image` (expanded banner photo) isn't in TS's NotificationOptions lib
+          // typing yet, though it's supported at runtime on platforms that honor
+          // it (browsers ignore unknown notification options harmlessly).
+          ...(data.image ? { image: data.image } : {}),
+        } as NotificationOptions & { image?: string });
+      } catch { /* see comment above — never let this break badge updates below */ }
       // App-icon badge count (iOS 16.4+ installed PWA). Guard: not all engines
       // expose it, and clearing needs the count param on iOS.
       if (typeof data.badge === 'number' && 'setAppBadge' in self.navigator) {
