@@ -50,16 +50,26 @@ export async function subscribeToPush(athleteId: string): Promise<{ ok: boolean;
     if (perm !== 'granted') return { ok: false, error: 'permission_denied' };
 
     const reg = await navigator.serviceWorker.ready;
+
+    // A subscription created before permission was reset (e.g. revoked in
+    // iOS Settings, then re-granted) can still be sitting in the
+    // PushManager — subscribe() then just hands back that same stale
+    // subscription instead of a fresh one. Drop it first so this always
+    // creates a real new subscription tied to the current context.
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) await existing.unsubscribe();
+
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
     });
 
-    await fetch('/api/push/subscribe', {
+    const res = await fetch('/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ athleteId, subscription: sub.toJSON(), userAgent: navigator.userAgent }),
     });
+    if (!res.ok) return { ok: false, error: `save_failed_${res.status}` };
     return { ok: true };
   } catch (err) {
     return { ok: false, error: (err as Error).message };

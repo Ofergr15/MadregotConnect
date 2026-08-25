@@ -41,7 +41,18 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
   const [enabling, setEnabling] = useState(false);
   useEffect(() => {
-    if (typeof Notification !== 'undefined') setPermission(Notification.permission);
+    if (typeof Notification === 'undefined') return;
+    const refresh = () => setPermission(Notification.permission);
+    refresh();
+    // The iOS system permission prompt backgrounds this page while it's up —
+    // re-check on return instead of trusting enablePush's own post-await read,
+    // since that read can land before iOS has actually applied the decision.
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
   }, []);
 
   const enablePush = async () => {
