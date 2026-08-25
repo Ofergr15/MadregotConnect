@@ -6,6 +6,7 @@ import { useApi } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Switch } from '@/components/ui';
 import { subscribeToPush } from '@/lib/pwa';
+import { logClient } from '@/lib/client-log';
 
 type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
 type Prefs = Record<Category, boolean>;
@@ -39,6 +40,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
     { revalidateOnFocus: false },
   );
   const [saving, setSaving] = useState<Category | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const prefs = data?.prefs;
 
   // Push permission can be revoked (iOS Settings → Notifications → off) or
@@ -82,22 +84,32 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   const toggle = async (key: Category) => {
     if (!prefs) return;
     const next = { ...prefs, [key]: !prefs[key] };
+    const actionId = crypto.randomUUID();
     setSaving(key);
+    setSaveError(null);
     mutate({ prefs: next }, false); // optimistic
+    // Logged before the real request so we have server-side proof the tap
+    // happened even if the PUT below never leaves the device (the exact
+    // silent-drop failure mode we've been chasing all night on real iOS).
+    logClient('notif-toggle-attempt', { actionId, category: key, enabled: next[key] });
     try {
       const res = await fetch('/api/athletes/notification-prefs', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-action-id': actionId },
         body: JSON.stringify({ athleteId, category: key, enabled: next[key] }),
-        // iOS suspends a backgrounded PWA's JS almost immediately, which can
-        // abort an in-flight fetch — a quick tap-then-switch-away leaves the
-        // optimistic UI showing the new value while the write never lands,
-        // so it comes back stale (reverted) next time the page loads.
-        // keepalive tells the browser to finish this request regardless.
-        keepalive: true,
       });
-      if (!res.ok) mutate(); // revalidate → roll back on failure/501
-    } catch {
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        setSaveError(`שגיאת שרת (${res.status}): ${body.slice(0, 200)}`);
+        logClient('notif-toggle-server-error', { actionId, status: res.status, body: body.slice(0, 200) });
+        mutate(); // revalidate → roll back on failure/501
+      } else {
+        logClient('notif-toggle-ok', { actionId });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setSaveError(`הבקשה נכשלה: ${message}`);
+      logClient('notif-toggle-client-throw', { actionId, message });
       mutate();
     } finally {
       setSaving(null);

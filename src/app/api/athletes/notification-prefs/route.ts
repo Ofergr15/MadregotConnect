@@ -48,6 +48,9 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     const { athleteId, category, enabled } = await request.json();
+    // Correlates with the client's logClient('notif-toggle-attempt', {actionId})
+    // beacon — `vercel logs --search <actionId>` ties both sides together.
+    console.log('[notification-prefs PUT]', request.headers.get('x-action-id'), { athleteId, category, enabled });
     if (!athleteId || !CATEGORIES.includes(category)) {
       return NextResponse.json({ error: 'athleteId and a valid category required' }, { status: 400 });
     }
