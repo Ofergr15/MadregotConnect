@@ -180,11 +180,16 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       const myAthleteId = localStorage.getItem('athlete_id');
-      const myIsCoach = !!localStorage.getItem('coach_email');
       const syncKey = myAthleteId ? `dashboard_synced:${myAthleteId}` : 'dashboard_synced';
       // Super-user "view as" preview is read-only (sync POST is blocked).
       const isPreviewing = !!localStorage.getItem('view_as_role');
-      const canSync = !!myAthleteId && !myIsCoach && !isPreviewing;
+      // Not gated on isCoach (the component-level state, unrelated to this
+      // effect's own locals) — same reasoning as `filtered` below: a coach
+      // who's also a runner still has their own Strava/Garmin data worth
+      // auto-syncing and still deserves the "just synced, customize your
+      // post" popup for their own runs. A pure-admin coach with no athlete
+      // profile just has myAthleteId=null, so this stays false for them.
+      const canSync = !!myAthleteId && !isPreviewing;
 
       // Fire every independent request up front — none of these wait on each
       // other's response body, so there's no reason to stage them. The only
@@ -244,7 +249,7 @@ export default function DashboardPage() {
         }
 
         // Sync Strava in the background without blocking the dashboard UI.
-        if (willSync && myAthleteId && !myIsCoach) {
+        if (willSync && myAthleteId) {
           try {
             const stravaSyncRes = await fetch('/api/strava/sync-activities', {
               method: 'POST',
