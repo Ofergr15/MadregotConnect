@@ -88,8 +88,13 @@ export function installViewGuard() {
             : (input as Request).url;
 
       if (!isAllowedWhilePreviewing(url, method)) {
+        // `error` is a real sentence, not a code — every call site across the
+        // app just does `err.error || fallback` and shows it verbatim (see
+        // the Garmin-connect flow, which leaked the old raw 'read_only_preview'
+        // string straight into its error banner). `code` is for the rare
+        // caller that wants to detect this programmatically.
         return new Response(
-          JSON.stringify({ error: 'read_only_preview', message: 'View-as preview is read-only.' }),
+          JSON.stringify({ error: 'תצוגה מקדימה היא לקריאה בלבד — לא ניתן לשמור שינויים', code: 'read_only_preview' }),
           { status: 403, headers: { 'Content-Type': 'application/json' } }
         );
       }
