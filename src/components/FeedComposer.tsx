@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 import { createPost, uploadMedia } from '@/lib/feed-client';
 import { Sheet } from '@/components/ui/Sheet';
+import { MentionTextarea } from '@/components/MentionTextarea';
 import type { FeedItem, FeedMedia } from '@/lib/feed/project';
 
 const MAX_IMAGES = 4;
@@ -13,9 +14,10 @@ const MAX_IMAGES = 4;
 interface Props {
   onClose: () => void;
   onPost: (item: FeedItem) => void;
+  myAthleteId: string | null;
 }
 
-export function FeedComposer({ onClose, onPost }: Props) {
+export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
   const t = useTranslations('feed');
   const [body, setBody] = useState('');
   const [media, setMedia] = useState<FeedMedia[]>([]);
@@ -119,10 +121,11 @@ export function FeedComposer({ onClose, onPost }: Props) {
       }
     >
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 min-h-0">
-          <textarea
+          <MentionTextarea
             autoFocus
             value={body}
-            onChange={e => setBody(e.target.value)}
+            onChange={setBody}
+            viewerId={myAthleteId}
             placeholder={t('composerPlaceholder')}
             className="w-full bg-transparent text-white placeholder:text-slate-500 text-base leading-relaxed resize-none focus:outline-none"
             style={{ minHeight: '120px' }}

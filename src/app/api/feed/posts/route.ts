@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
 import { sanitizeMediaList } from '@/lib/feed/media';
+import { notifyMentions } from '@/lib/feed/notify';
 import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
@@ -80,6 +81,12 @@ export async function POST(request: Request) {
           });
         }
       }
+    } catch {
+      // best-effort — never let a push failure affect post creation
+    }
+
+    try {
+      await notifyMentions({ feedItemId: created.id, body, actorAthleteId: auth.user.athleteId, actorName: auth.user.name, kind: 'post' });
     } catch {
       // best-effort — never let a push failure affect post creation
     }

@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { uniqueMentionedAthleteIds } from '@/lib/feed/mentions';
 
 export interface FeedInteractionInput {
   authorAthleteId: string | null;
@@ -63,6 +64,70 @@ export async function notifyFeedInteraction(opts: {
     // it shouldn't be forced-on when nothing else here is.
     category: 'teammates',
   });
+}
+
+export interface MentionNotificationInput {
+  body: string;
+  actorAthleteId: string;
+  actorName: string;
+  kind: 'post' | 'comment';
+}
+
+/**
+ * The mentioned athlete ids to notify plus the shared title/body text, or
+ * null when nobody's actually mentioned. Pure — separated so the text
+ * construction and the mention-parsing/self-exclusion logic (already
+ * covered by uniqueMentionedAthleteIds' own tests) can be tested together
+ * without a live DB/push call.
+ */
+export function buildMentionNotification(
+  input: MentionNotificationInput,
+): { mentionedIds: string[]; title: string; body: string } | null {
+  const { body, actorAthleteId, actorName, kind } = input;
+  const mentionedIds = uniqueMentionedAthleteIds(body, actorAthleteId);
+  if (mentionedIds.length === 0) return null;
+
+  const who = actorName || 'מישהו';
+  const title = `${who} תייג/ה אותך ${kind === 'comment' ? 'בתגובה' : 'בפוסט'} 🏷️`;
+  const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
+
+  return { mentionedIds, title, body: preview };
+}
+
+/**
+ * Best-effort push to every athlete @mentioned in a new post/comment body
+ * (excluding a self-mention). One push per mentioned athlete — a mention is
+ * a direct "someone tagged you" ping, not a group broadcast, so this always
+ * runs regardless of who else got notified for the same post/comment (a
+ * like/comment notifies only the author; a mention can reach anyone tagged,
+ * author included if they're one of the people tagged by someone else).
+ */
+export async function notifyMentions(opts: {
+  feedItemId: string;
+  body: string;
+  actorAthleteId: string;
+  actorName: string;
+  kind: 'post' | 'comment';
+}): Promise<void> {
+  const { feedItemId, actorAthleteId } = opts;
+  const notification = buildMentionNotification(opts);
+  if (!notification) return;
+  const { mentionedIds, title, body: preview } = notification;
+
+  await Promise.all(
+    mentionedIds.map((athleteId) =>
+      notifyAthlete({
+        athleteId,
+        kind: 'mention',
+        actorAthleteId,
+        title,
+        body: preview,
+        url: `/dashboard/feed?item=${feedItemId}`,
+        tag: `feed-mention-${feedItemId}-${athleteId}`,
+        category: 'teammates',
+      }),
+    ),
+  );
 }
 
 export async function loadFeedItemMeta(

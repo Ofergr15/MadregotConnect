@@ -11,6 +11,7 @@ import { FeedLikesSheet } from '@/components/FeedLikesSheet';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedShareSheet } from '@/components/FeedShareSheet';
 import { RouteMinimap } from '@/components/RouteMinimap';
+import { FeedBodyText } from '@/components/FeedBodyText';
 import { toAchievementPayload } from '@/lib/feed/project';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 
@@ -332,7 +333,7 @@ function ActivityCard({
         )}
 
         {item.body && (
-          <p className="text-sm text-slate-300 mb-2 leading-relaxed">{item.body}</p>
+          <p className="text-sm text-slate-300 mb-2 leading-relaxed"><FeedBodyText body={item.body} /></p>
         )}
 
         <ActionRow
@@ -401,7 +402,7 @@ function AchievementCard({
         </div>
 
         {item.body && (
-          <p className="mt-3 text-sm text-slate-300 whitespace-pre-line leading-relaxed">{item.body}</p>
+          <p className="mt-3 text-sm text-slate-300 whitespace-pre-line leading-relaxed"><FeedBodyText body={item.body} /></p>
         )}
 
         {/* Achievements are never activities — no run-chat CTA */}
@@ -435,7 +436,7 @@ function PostCard({
         <AuthorRow item={item} />
 
         {item.body && (
-          <p className="mt-3 text-sm text-slate-100 whitespace-pre-line leading-relaxed">{item.body}</p>
+          <p className="mt-3 text-sm text-slate-100 whitespace-pre-line leading-relaxed"><FeedBodyText body={item.body} /></p>
         )}
 
         {item.media.length > 0 && (

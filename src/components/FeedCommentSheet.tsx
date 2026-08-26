@@ -6,16 +6,19 @@ import { cn } from '@/lib/utils';
 import { useTranslations, useFormatter } from 'next-intl';
 import { fetchComments, addComment, deleteComment } from '@/lib/feed-client';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { FeedBodyText } from '@/components/FeedBodyText';
+import { MentionTextarea } from '@/components/MentionTextarea';
 import { Sheet } from '@/components/ui/Sheet';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed-client';
 
 interface Props {
   item: FeedItem;
+  myAthleteId: string | null;
   onClose: (newCommentCount: number) => void;
 }
 
-export function FeedCommentSheet({ item, onClose }: Props) {
+export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
   const t = useTranslations('feed');
   const format = useFormatter();
   const [comments, setComments] = useState<FeedComment[]>([]);
@@ -24,7 +27,6 @@ export function FeedCommentSheet({ item, onClose }: Props) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,17 +99,14 @@ export function FeedCommentSheet({ item, onClose }: Props) {
       bodyClassName="flex-1 min-h-0 p-0 flex flex-col"
       footer={
         <div className="flex-none flex items-end gap-2 px-4 pt-2 pb-3 border-t border-slate-700/60">
-          <textarea
-            ref={inputRef}
+          <MentionTextarea
             value={draft}
-            onChange={e => {
-              setDraft(e.target.value);
-              e.target.style.height = 'auto';
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-            }}
+            onChange={setDraft}
+            viewerId={myAthleteId}
             onKeyDown={handleKeyDown}
             placeholder={t('addComment')}
             rows={1}
+            autoGrow
             className={cn(
               'flex-1 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5',
               'text-sm text-white placeholder:text-slate-500',
@@ -153,7 +152,7 @@ export function FeedCommentSheet({ item, onClose }: Props) {
             <div className="flex-1 min-w-0">
               <div className="bg-slate-700/50 rounded-2xl rounded-ss-sm px-3 py-2">
                 <p className="text-xs font-semibold text-primary-300 mb-0.5">{c.author.name}</p>
-                <p className="text-sm text-slate-200 leading-snug whitespace-pre-line">{c.body}</p>
+                <p className="text-sm text-slate-200 leading-snug whitespace-pre-line"><FeedBodyText body={c.body} /></p>
               </div>
               <p className="text-[10px] text-slate-600 mt-1 ms-1">{format.relativeTime(new Date(c.createdAt))}</p>
             </div>

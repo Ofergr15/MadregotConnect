@@ -309,6 +309,7 @@ export default function FeedPage() {
       {commentItem && (
         <FeedCommentSheet
           item={commentItem}
+          myAthleteId={myAthleteId}
           onClose={count => handleCommentClose(commentItem.id, count)}
         />
       )}
@@ -317,6 +318,7 @@ export default function FeedPage() {
         <FeedComposer
           onClose={() => setComposerOpen(false)}
           onPost={handlePost}
+          myAthleteId={myAthleteId}
         />
       )}
     </div>

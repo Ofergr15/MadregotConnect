@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, requireAthlete, authError } from '@/lib/auth-session';
-import { notifyFeedInteraction, loadFeedItemMeta } from '@/lib/feed/notify';
+import { notifyFeedInteraction, notifyMentions, loadFeedItemMeta } from '@/lib/feed/notify';
 import { projectComment, validateCommentBody } from '@/lib/feed/comments';
 
 export const dynamic = 'force-dynamic';
@@ -76,6 +76,7 @@ export async function POST(request: Request) {
       kind: 'comment',
       commentBody: body,
     });
+    await notifyMentions({ feedItemId: itemId, body, actorAthleteId: auth.user.athleteId, actorName: auth.user.name, kind: 'comment' });
 
     const { data: item } = await supabase
       .from('feed_items')
