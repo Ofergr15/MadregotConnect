@@ -23,3 +23,14 @@ export function isEventKind(value: unknown): value is EventKind {
 }
 
 export type EventRegistrationStatus = 'registered' | 'waitlisted' | 'cancelled';
+
+/** Hebrew label + emoji per kind, for the "new event" push and any future calendar UI that wants one place to stay in sync with EVENT_KINDS. */
+export const EVENT_KIND_LABELS: Record<EventKind, string> = {
+  race: '🏆 מרוץ',
+  camp: '🏕️ מחנה אימונים',
+  lecture: '🎤 הרצאה',
+  social: '🎉 אירוע חברתי',
+  photo_shoot: '📸 צילומים',
+  sponsor: '🤝 אירוע ספונסר',
+  workout: '🏃 אימון מיוחד',
+};

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
-import { EVENT_KINDS, isEventKind } from '@/lib/events';
+import { EVENT_KINDS, EVENT_KIND_LABELS, isEventKind } from '@/lib/events';
+import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,6 +113,27 @@ export async function POST(request: Request) {
       .single();
 
     if (error) throw error;
+
+    // Previously athletes only learned of a new event by opening the
+    // calendar themselves — nothing ever surfaced it, unlike a new perk
+    // (which already pushes) or a new post. Registration opens the moment
+    // the event exists (this schema has no separate "opens later" concept —
+    // see registration_deadline for the only other date involved), so one
+    // push covers both "there's a new event" and "you can register now."
+    try {
+      const subs = await resolveAudience('all', null);
+      if (subs.length > 0) {
+        await sendPushToSubscriptions(subs, {
+          title: `${EVENT_KIND_LABELS[kind as keyof typeof EVENT_KIND_LABELS]} חדש!`,
+          body: `${name} · ${new Date(date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })}`,
+          url: `/dashboard/calendar/${data.id}`,
+          tag: `event-${data.id}`,
+          category: 'events',
+        });
+      }
+    } catch {
+      // best-effort — never let a push failure affect event creation
+    }
 
     return NextResponse.json({ event: data });
   } catch (error) {
