@@ -1,6 +1,6 @@
 {
   "name": "madregot-connect",
-  "version": "2.34.6",
+  "version": "2.34.7",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -54,6 +54,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.3",
+    "appium-remote-debugger": "^17.1.0",
     "autoprefixer": "^10.4.19",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",

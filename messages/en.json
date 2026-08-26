@@ -73,6 +73,7 @@
     "account": "Account",
     "viewAsUser": "View as user",
     "exitViewAs": "Exit preview",
+    "viewAsActive": "Active — saving is disabled. Tap to exit",
     "viewAll": "View all",
     "notifications": "Notifications",
     "selectGroup": "Select Group"

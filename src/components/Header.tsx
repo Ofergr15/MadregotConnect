@@ -325,6 +325,9 @@ export function Header() {
                 aria-label={viewMode ? th('exitViewAs') : th('viewAsUser')}
               >
                 {viewMode ? <LogOut className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                {viewMode && (
+                  <span className="absolute -top-0.5 -end-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-slate-900" />
+                )}
                 <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
                   {viewMode ? th('exitViewAs') : th('viewAsUser')}
                 </span>
@@ -503,7 +506,13 @@ export function Header() {
             <InsetSection>
               <InsetRow icon={User} iconBg="bg-slate-600" label={t('profile')} href="/dashboard/profile" onClick={() => setMobileMenuOpen(false)} />
               {isSuper && (
-                <InsetRow icon={Eye} iconBg="bg-amber-500" label={th('viewAsUser')} onClick={() => { setMobileMenuOpen(false); window.dispatchEvent(new Event('open-view-as')); }} />
+                <InsetRow
+                  icon={viewMode ? LogOut : Eye}
+                  iconBg={viewMode ? 'bg-red-500' : 'bg-amber-500'}
+                  label={th('viewAsUser')}
+                  sublabel={viewMode ? th('viewAsActive') : undefined}
+                  onClick={() => { setMobileMenuOpen(false); window.dispatchEvent(new Event('open-view-as')); }}
+                />
               )}
             </InsetSection>
 
