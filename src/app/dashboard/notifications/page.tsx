@@ -7,49 +7,16 @@ import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, Thu
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
-
-interface Item {
-  id: string;
-  kind: string;
-  title: string;
-  body: string;
-  url: string;
-  sentAt: string;
-  unread: boolean;
-  actorName?: string | null;
-  actorAvatarUrl?: string | null;
-}
-
-// Real native notification-history UIs are a static chronological list —
-// you can't collapse "Today". Date bucket is the section; category (via
-// styleFor below) is now only a per-row icon/color, not a grouping axis.
-type DateBucket = 'today' | 'yesterday' | 'thisWeek' | 'older';
-const DATE_BUCKETS: DateBucket[] = ['today', 'yesterday', 'thisWeek', 'older'];
-
-function dateBucketFor(iso: string): DateBucket {
-  const then = new Date(iso);
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfYesterday = new Date(startOfToday);
-  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-  const startOfWeek = new Date(startOfToday);
-  startOfWeek.setDate(startOfWeek.getDate() - 7);
-  if (then >= startOfToday) return 'today';
-  if (then >= startOfYesterday) return 'yesterday';
-  if (then >= startOfWeek) return 'thisWeek';
-  return 'older';
-}
-
-// localStorage key for this athlete's locally-dismissed (group "X") notification
-// ids. There's no per-notification read column in the DB — the server's `unread`
-// flag is derived from a single athletes.last_seen_at cutoff (see inbox route),
-// so per-group "mark read" has nothing server-side to toggle. Persisting the
-// dismissed ids client-side (same pattern as the app's other *_dismissed flags,
-// e.g. pwa_install_dismissed) lets the group X clear the highlight without
-// deleting history, and without a new DB table just for this.
-function readStoreKey(athleteId: string): string {
-  return `notif_read_ids_${athleteId}`;
-}
+import {
+  type HistoryItem as Item,
+  type DateBucket,
+  DATE_BUCKETS,
+  dateBucketFor,
+  readStoreKey,
+  styleKindFor,
+  kudosActivityId,
+  rsvpTarget,
+} from '@/lib/notifications/history';
 
 // Locale-aware relative time — "now" / "N min/hours/days ago" — routed through
 // next-intl (`t`) instead of a hardcoded Hebrew table, so an English-locale
@@ -68,42 +35,24 @@ function timeAgo(iso: string, t: (key: string, values?: Record<string, number>) 
   return new Date(iso).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' });
 }
 
-// Icon + colored tile by notification kind / content — a light heuristic on the
-// title so custom coach messages still get a sensible glyph. Colors mirror the
-// design deck: coach=blue, race=gold, achievement=green, workout=indigo.
-// `tile` is the solid-color variant used for the InsetRow icon tile (white
-// icon on a solid bg, the app-wide InsetRow convention).
+// Icon + colored tile per styleKindFor's content heuristic (see
+// src/lib/notifications/history.ts). `tile` is the solid-color variant used
+// for the InsetRow icon tile (white icon on a solid bg, the app-wide
+// InsetRow convention).
+const STYLE_BY_KIND: Record<ReturnType<typeof styleKindFor>, { Icon: typeof Activity; tile: string }> = {
+  coach: { Icon: MessageSquare, tile: 'bg-sky-500' },
+  race: { Icon: Trophy, tile: 'bg-amber-500' },
+  achievement: { Icon: Flame, tile: 'bg-emerald-500' },
+  workout: { Icon: Calendar, tile: 'bg-primary-600' },
+  default: { Icon: Activity, tile: 'bg-slate-500' },
+};
 function styleFor(it: Item): { Icon: typeof Activity; tile: string } {
-  const s = it.title + ' ' + it.body;
-  if (/מאמן|תשובה|💬/.test(s)) return { Icon: MessageSquare, tile: 'bg-sky-500' };
-  if (/מרוץ|מרתון|הרשמה|🏆/.test(s)) return { Icon: Trophy, tile: 'bg-amber-500' };
-  if (/שיא|רצף|הישג|🎉|🔥|🎖/.test(s)) return { Icon: Flame, tile: 'bg-emerald-500' };
-  if (/אימון|נוכחות|מגיעים/.test(s)) return { Icon: Calendar, tile: 'bg-primary-600' };
-  return { Icon: Activity, tile: 'bg-slate-500' };
+  return STYLE_BY_KIND[styleKindFor(it)];
 }
 
 interface Section {
   bucket: DateBucket;
   items: Item[];
-}
-
-// "kudos_activity" rows carry the real activity id as a ?kudos= query param
-// (see notifyTeammatesOfActivity in src/lib/push.ts) so kudos can be given
-// directly from the notification, with no teammate-visible activity-detail
-// page needed at all.
-function kudosActivityId(it: Item): string | null {
-  if (it.kind !== 'kudos_activity') return null;
-  const m = it.url.match(/[?&]kudos=([^&]+)/);
-  return m ? m[1] : null;
-}
-
-// "training_before" rows (day-before / evening-before RSVP reminders) carry
-// the target week+day as a ?rsvp=weekStart:day query param (see cron/tick)
-// so the reminder can be answered right from the inbox row, no navigation.
-function rsvpTarget(it: Item): { weekStart: string; day: number } | null {
-  if (it.kind !== 'training_before') return null;
-  const m = it.url.match(/[?&]rsvp=([^&:]+):(\d)/);
-  return m ? { weekStart: m[1], day: Number(m[2]) } : null;
 }
 
 // Inline RSVP yes/no on a training_before row — loads the athlete's current

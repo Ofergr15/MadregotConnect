@@ -1,20 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { CATEGORIES, DEFAULTS, isMigrationMissing, mergeWithDefaults, type Category } from '@/lib/notifications/prefs';
 
 export const dynamic = 'force-dynamic';
-
-// Per-user notification category preferences. Categories map to the push
-// categories in src/lib/push.ts. A missing key = opted IN (receive everything),
-// so defaults are all-on and nothing is silenced unless explicitly turned off.
-const CATEGORIES = ['workouts', 'coach', 'achievements', 'program', 'teammates', 'news', 'events'] as const;
-type Category = (typeof CATEGORIES)[number];
-const DEFAULTS: Record<Category, boolean> = {
-  workouts: true, coach: true, achievements: true, program: true, teammates: true, news: true, events: true,
-};
-
-function isMigrationMissing(error: { message?: string; code?: string } | null): boolean {
-  return !!error && (/notification_prefs/.test(error.message || '') || error.code === '42703');
-}
 
 // GET /api/athletes/notification-prefs?athleteId=… → { prefs }
 export async function GET(request: Request) {
@@ -25,16 +13,10 @@ export async function GET(request: Request) {
     const { data, error } = await supabase
       .from('athletes').select('notification_prefs').eq('id', athleteId).maybeSingle();
     if (error) {
-      // Only a genuinely-unmigrated column should read as "everything on" —
-      // this used to catch EVERY error (a transient DB hiccup included) and
-      // silently show all-defaults, which looked exactly like a saved
-      // "off" preference randomly flipping back to "on" on its own.
       if (isMigrationMissing(error)) return NextResponse.json({ prefs: DEFAULTS });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    const saved = (data?.notification_prefs || {}) as Partial<Record<Category, boolean>>;
-    // Merge over defaults so any unset category reads as on.
-    const prefs = { ...DEFAULTS, ...saved };
+    const prefs = mergeWithDefaults(data?.notification_prefs as Partial<Record<Category, boolean>> | undefined);
     return NextResponse.json({ prefs });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
@@ -69,7 +51,7 @@ export async function PUT(request: Request) {
       }
       throw error;
     }
-    return NextResponse.json({ prefs: { ...DEFAULTS, ...next } });
+    return NextResponse.json({ prefs: mergeWithDefaults(next) });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }

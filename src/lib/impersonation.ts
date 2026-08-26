@@ -50,7 +50,11 @@ export function stopViewAs() {
 }
 
 // Requests that stay allowed even while previewing (session/auth refresh).
-function isAllowedWhilePreviewing(url: string, method: string): boolean {
+// Exported for testing — this exact decision is what silently blocked every
+// write on a real device for an entire debugging session (a stale
+// view_as_role left in localStorage), invisible to server logs because
+// installViewGuard's synthetic 403 never leaves the client.
+export function isAllowedWhilePreviewing(url: string, method: string): boolean {
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return true;
   const u = url.toLowerCase();
   if (u.includes('/auth/v1/')) return true;

@@ -3,6 +3,23 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 
 /**
+ * Given the maintenance allowlist (lowercased emails) and the athlete rows for
+ * the current subscriptions' recipients, returns the set of athlete ids
+ * allowed through. Pure — the DB round trips live in filterForMaintenance
+ * below, which is what callers actually use.
+ */
+export function computeMaintenanceAllowedIds(
+  allowEmails: Set<string>,
+  athleteRows: Array<{ id: string; email: string | null }>,
+): Set<string> {
+  return new Set(
+    athleteRows
+      .filter((a) => allowEmails.has((a.email || '').toLowerCase()))
+      .map((a) => a.id),
+  );
+}
+
+/**
  * When maintenance mode is ON, only athletes whose email is on the saved
  * maintenance allowlist (or an approver) may receive push. Returns the subs
  * unchanged when maintenance is off. Fails OPEN (returns all) on error.
@@ -19,7 +36,7 @@ async function filterForMaintenance(subs: SubRow[]): Promise<SubRow[]> {
     );
     const ids = [...new Set(subs.map(s => s.athlete_id).filter(Boolean))];
     const { data: aths } = await supabase.from('athletes').select('id, email').in('id', ids);
-    const allowedIds = new Set((aths || []).filter((a: { email: string }) => allowEmails.has((a.email || '').toLowerCase())).map((a: { id: string }) => a.id));
+    const allowedIds = computeMaintenanceAllowedIds(allowEmails, (aths || []) as Array<{ id: string; email: string | null }>);
     return subs.filter(s => allowedIds.has(s.athlete_id));
   } catch {
     return subs; // fail open
@@ -81,6 +98,23 @@ export interface PushPayload {
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };
 
 /**
+ * Given athlete rows (id + their saved notification_prefs) and a category,
+ * returns the set of athlete ids who have explicitly muted it. A missing
+ * prefs object, or a missing key within it, means opted IN — only an
+ * explicit `false` mutes. Pure — filterByCategory below does the DB fetch.
+ */
+export function computeMutedAthleteIds(
+  athleteRows: Array<{ id: string; notification_prefs?: Record<string, boolean> | null }>,
+  category: NotificationCategory,
+): Set<string> {
+  return new Set(
+    athleteRows
+      .filter((a) => a.notification_prefs && a.notification_prefs[category] === false)
+      .map((a) => a.id),
+  );
+}
+
+/**
  * Drop subscriptions whose athlete has muted this notification category. A
  * missing prefs column, missing athlete row, or missing key = opted IN (default
  * is receive-everything), so nothing is silenced unless explicitly turned off.
@@ -93,11 +127,7 @@ async function filterByCategory(subs: SubRow[], category?: NotificationCategory)
     const ids = [...new Set(subs.map(s => s.athlete_id).filter(Boolean))];
     const { data, error } = await supabase.from('athletes').select('id, notification_prefs').in('id', ids);
     if (error) return subs; // column not migrated yet → everyone opted in
-    const muted = new Set(
-      (data || [])
-        .filter((a: { notification_prefs?: Record<string, boolean> | null }) => a.notification_prefs && a.notification_prefs[category] === false)
-        .map((a: { id: string }) => a.id),
-    );
+    const muted = computeMutedAthleteIds((data || []) as Array<{ id: string; notification_prefs?: Record<string, boolean> | null }>, category);
     if (muted.size === 0) return subs;
     return subs.filter(s => !muted.has(s.athlete_id));
   } catch {
@@ -118,6 +148,28 @@ async function filterByCategory(subs: SubRow[], category?: NotificationCategory)
 // real athletes. Batched to exactly 2 queries total regardless of audience
 // size: one for every recipient's group_id/last_seen_at, one for every
 // recently-sent notification, then the per-athlete match happens in memory.
+/**
+ * Does this sent notification count toward this athlete's unread total? True
+ * when it was sent after `since` AND targets them — broadcast to everyone, to
+ * their group specifically, or to them by id. Pure — the single audience-
+ * matching rule shared by the badge count and the inbox history, so a bug
+ * here can't silently leak a group's notifications to the wrong group (or
+ * hide real ones) in just one of the two call sites.
+ */
+export function matchesAudience(
+  notif: { audience_type: string; audience_id: string | null; last_sent_at: string },
+  athlete: { group_id: string | null },
+  athleteId: string,
+  since: string,
+): boolean {
+  if (notif.last_sent_at <= since) return false;
+  return (
+    notif.audience_type === 'all' ||
+    (notif.audience_type === 'group' && notif.audience_id === athlete.group_id) ||
+    (notif.audience_type === 'athlete' && notif.audience_id === athleteId)
+  );
+}
+
 async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   if (athleteIds.length === 0) return counts;
@@ -148,14 +200,7 @@ async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string,
     const since = a.last_seen_at || '1970-01-01';
     let count = 0;
     for (const n of (recentNotifs || []) as Array<{ audience_type: string; audience_id: string | null; last_sent_at: string }>) {
-      if (n.last_sent_at <= since) continue;
-      if (
-        n.audience_type === 'all' ||
-        (n.audience_type === 'group' && n.audience_id === a.group_id) ||
-        (n.audience_type === 'athlete' && n.audience_id === id)
-      ) {
-        count++;
-      }
+      if (matchesAudience(n, a, id, since)) count++;
     }
     // +1 for the notification being delivered right now (send path).
     counts[id] = count + 1;

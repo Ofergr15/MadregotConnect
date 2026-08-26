@@ -5,6 +5,7 @@ import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, 
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState, Switch } from '@/components/ui';
 import { InsetRow, InsetSection } from '@/components/ui/InsetList';
+import { dateOffsetStr, minutesToHHMM, roundToStep, describeNotificationRow, SCHEDULE_STEP_MIN, type StatusIconKind } from '@/lib/notifications/scheduling';
 
 interface Group { id: string; name: string; }
 interface Athlete { id: string; name: string; email: string; }
@@ -28,28 +29,6 @@ const TEMPLATES = [
   { key: 'photos', icon: Camera, label: 'תמונות', titleHe: 'תמונות חדשות עלו! 📸', bodyHe: 'תמונות מהריצה האחרונה זמינות לצפייה', titleEn: 'New photos! 📸', bodyEn: 'Photos from the last run are available to view' },
 ];
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-// Local YYYY-MM-DD for "today + N days" — same date shape the datetime-local
-// / scheduledAt string already uses, just computed from a day offset instead
-// of typed by hand.
-function dateOffsetStr(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-// 5 min is the real delivery-precision ceiling (src/app/api/cron/tick scans
-// scheduled_notifications every 5 min — see vercel.json) — the chooser only
-// ever offers/stores values on that grid so it can't promise more than the
-// backend delivers.
-const SCHEDULE_STEP_MIN = 5;
-function minutesToHHMM(totalMinutes: number): string {
-  const wrapped = ((totalMinutes % 1440) + 1440) % 1440;
-  return `${pad2(Math.floor(wrapped / 60))}:${pad2(wrapped % 60)}`;
-}
-function roundToStep(hhmm: string): string {
-  const [h, m] = hhmm.split(':').map(Number);
-  return minutesToHHMM(Math.round((h * 60 + m) / SCHEDULE_STEP_MIN) * SCHEDULE_STEP_MIN);
-}
 function nowTimeStr(): string {
   const d = new Date();
   // Round UP, not to nearest — a default has to still be in the future.
@@ -97,14 +76,9 @@ function NotificationRowView({ n, onCancel, onRemove }: {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
-  const statusText = n.status === 'sent' ? `נשלח (${n.sent_count})`
-    : n.status === 'cancelled' ? 'בוטל'
-    : n.schedule_type === 'recurring' ? `כל ${n.recur_interval} ${n.recur_unit === 'week' ? 'שבועות' : 'ימים'}`
-    : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן';
-  const audienceText = n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם';
-
-  const Icon = n.status === 'sent' ? CheckCircle : n.status === 'cancelled' ? X : n.schedule_type === 'recurring' ? Repeat : Clock;
-  const iconBg = n.status === 'sent' ? 'bg-green-500' : n.status === 'cancelled' ? 'bg-slate-600' : 'bg-amber-500';
+  const { statusText, audienceText, iconKind, iconBg } = describeNotificationRow(n);
+  const ICON_BY_KIND: Record<StatusIconKind, typeof CheckCircle> = { sent: CheckCircle, cancelled: X, recurring: Repeat, scheduled: Clock };
+  const Icon = ICON_BY_KIND[iconKind];
 
   return (
     <>

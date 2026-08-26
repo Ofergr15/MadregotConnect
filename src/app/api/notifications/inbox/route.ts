@@ -1,54 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isSuperUser } from '@/lib/constants';
+import { UUID_RE, shapeInboxItem, aggregate } from '@/lib/notifications/inbox';
+import { canViewAthleteNotifications } from '@/lib/notifications/access';
 
 export const dynamic = 'force-dynamic';
-
-// Kinds worth collapsing into "X and N others…" when they burst — low-content
-// social pings where only the count matters. Deliberately excludes kinds
-// whose body carries unique information a merge would destroy (a comment's
-// actual text, a badge's name, a coach's actual reply, a teammate's specific
-// run stats) — matching how Strava/Instagram themselves only ever collapse
-// likes/follows, never comments or achievements.
-const GROUPABLE_KINDS = new Set(['like', 'follow']);
-const GROUP_VERB: Record<string, string> = {
-  like: 'אהבו את הפוסט שלך ❤️',
-  follow: 'התחילו לעקוב אחריך 👋',
-};
-
-interface RawItem {
-  id: string; kind: string; title: string; body: string; url: string; sentAt: string; unread: boolean;
-  actorName: string | null; actorAvatarUrl: string | null;
-}
-
-// Merge contiguous runs (already sorted newest-first) sharing the same
-// kind+url into one row — e.g. 5 separate "X liked your post" rows on the
-// same feed item become one "X and 4 others liked your post". Only ever
-// merges ADJACENT items, so an old like from months ago can never absorb
-// into today's burst just because they target the same url.
-function aggregate(items: RawItem[]): RawItem[] {
-  const result: RawItem[] = [];
-  let i = 0;
-  while (i < items.length) {
-    const cur = items[i];
-    if (!GROUPABLE_KINDS.has(cur.kind)) { result.push(cur); i++; continue; }
-    let j = i + 1;
-    while (j < items.length && items[j].kind === cur.kind && items[j].url === cur.url) j++;
-    const run = items.slice(i, j);
-    if (run.length === 1) {
-      result.push(cur);
-    } else {
-      const others = run.length - 1;
-      const who = cur.actorName || 'מישהו';
-      result.push({
-        ...cur,
-        title: `${who} ו${others === 1 ? 'עוד אחד' : `${others} אחרים`} ${GROUP_VERB[cur.kind]}`,
-      });
-    }
-    i = j;
-  }
-  return result;
-}
 
 // GET /api/notifications/inbox?athleteId=… → { items[], unread }
 // The athlete's notification history: sent notifications targeting them (all /
@@ -56,8 +12,6 @@ function aggregate(items: RawItem[]): RawItem[] {
 // last_seen_at. Mirrors the audience-match logic in unreadCountForAthlete.
 // Internal ledger rows (idempotency sentinels stashed with a #ledger: url) are
 // excluded — they aren't member-facing messages.
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export async function GET(request: Request) {
   try {
     const athleteId = new URL(request.url).searchParams.get('athleteId');
@@ -69,15 +23,15 @@ export async function GET(request: Request) {
     // including private one-on-one messages, with zero auth check).
     const supabase = createServerClient();
     const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    let allowed = false;
-    if (isSuperUser(email)) {
-      allowed = true;
-    } else if (email) {
-      const { data: caller } = await supabase.from('athletes').select('id, role').eq('email', email).maybeSingle();
-      const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as { role: string }).role);
-      allowed = isStaff || (caller as { id: string } | null)?.id === athleteId;
+    const isSuper = isSuperUser(email);
+    let caller: { id: string; role: string } | null = null;
+    if (!isSuper && email) {
+      const { data } = await supabase.from('athletes').select('id, role').eq('email', email).maybeSingle();
+      caller = data as { id: string; role: string } | null;
     }
-    if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    if (!canViewAthleteNotifications({ isSuper, caller, athleteId })) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
 
     const { data: a, error: athleteError } = await supabase
       .from('athletes')
@@ -122,20 +76,10 @@ export async function GET(request: Request) {
     if (error) throw error;
 
     const since = a.last_seen_at || '1970-01-01';
-    const rawItems: RawItem[] = (data || [])
+    const rawItems = (data || [])
       // Drop internal idempotency-ledger rows (not real member messages).
       .filter((r: any) => !String(r.url || '').startsWith('#ledger:'))
-      .map((r: any) => ({
-        id: r.id,
-        kind: r.kind,
-        title: r.title_he,
-        body: r.body_he,
-        url: r.url && !r.url.startsWith('#') ? r.url : '/dashboard',
-        sentAt: r.last_sent_at,
-        unread: !!r.last_sent_at && r.last_sent_at > since,
-        actorName: r.actor?.name || null,
-        actorAvatarUrl: r.actor?.avatar_url || null,
-      }));
+      .map((r: any) => shapeInboxItem(r, since));
     const items = aggregate(rawItems);
 
     return NextResponse.json({ items, unread: items.filter((i) => i.unread).length });
