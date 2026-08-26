@@ -202,8 +202,17 @@ export function Switch({
 }) {
   const track = size === 'sm' ? 'w-11 h-6' : 'w-12 h-7';
   const thumb = size === 'sm' ? 'top-0.5 h-5 w-5' : 'top-1 h-5 w-5';
-  const onPos = size === 'sm' ? 'start-[22px]' : 'start-6';
-  const offPos = size === 'sm' ? 'start-0.5' : 'start-1';
+  // Rest position (unchecked) is a fixed inset — sliding "on" is a transform
+  // on top of that, not a second inset value. Both sizes happen to have the
+  // same 20px on/off delta (sm: 2px→22px, md: 4px→24px), so one translate-x
+  // covers both. transform is GPU-composited and direction-explicit; the
+  // previous version animated the logical `start` inset (effectively
+  // left/right under RTL) via `transition-all`, which is layout-triggering
+  // and — combined with RTL logical properties, a newer/less battle-tested
+  // Safari feature — is a plausible source of the "flips then snaps back"
+  // glitches reported on real iOS despite zero corresponding network
+  // activity (i.e. a paint glitch, not a data bug).
+  const restPos = size === 'sm' ? 'start-0.5' : 'start-1';
   return (
     <button
       type="button"
@@ -213,7 +222,7 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative rounded-full transition-colors shrink-0 disabled:opacity-50',
+        'relative rounded-full transition-colors shrink-0 disabled:opacity-50 transform-gpu',
         track,
         checked ? activeColor : 'bg-slate-600',
         className,
@@ -221,7 +230,14 @@ export function Switch({
     >
       {loading
         ? <Loader2 className="w-4 h-4 animate-spin text-white absolute inset-0 m-auto" />
-        : <span className={cn('absolute rounded-full bg-white transition-all', thumb, checked ? onPos : offPos)} />}
+        : <span
+            className={cn(
+              'absolute rounded-full bg-white transition-transform transform-gpu',
+              thumb,
+              restPos,
+              checked && 'translate-x-5 rtl:-translate-x-5',
+            )}
+          />}
     </button>
   );
 }
