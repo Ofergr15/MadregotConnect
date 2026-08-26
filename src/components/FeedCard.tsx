@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, Trash2, Route, MapPin, Mountain, Share2, Award } from 'lucide-react';
+import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
@@ -212,7 +212,10 @@ function ActionRow({
             onClick={() => router.push(`/dashboard/run-chat/${item.activity!.id}`)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-400 hover:text-primary-400 hover:bg-primary-500/10 transition-all active:scale-90"
           >
-            <MessageCircle className="h-4 w-4" />
+            {/* Distinct from the comment button's icon just above — same
+                glyph for two different actions in one row read as a visual
+                duplication bug, not two intentional buttons. */}
+            <MessagesSquare className="h-4 w-4" />
             <span className="text-xs">{runChatLabel}</span>
           </button>
         )}

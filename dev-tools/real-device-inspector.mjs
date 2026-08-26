@@ -90,14 +90,24 @@ const rd = createRemoteDebugger(
 async function connectAndSelect(urlSubstring) {
   await rd.connect();
   await new Promise((r) => setTimeout(r, 800));
-  const pages = Object.values(rd.appDict || {});
-  let target;
-  for (let i = 0; i < 5 && !target; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 500));
-    const [page] = await rd.selectApp();
-    if (page && (!urlSubstring || (page.url || '').includes(urlSubstring))) target = page;
+  // selectApp() returns EVERY open Safari tab/page as an array when there's
+  // more than one, NOT just the frontmost one — grabbing only the first
+  // element (the naive `const [page] = ...` pattern) silently picks the
+  // wrong tab whenever the target page isn't first. Also: call selectApp()
+  // exactly ONCE — calling it repeatedly on the same `rd` instance in a
+  // retry loop was observed to degrade (later calls return no match at all
+  // even when the target page is genuinely open), for reasons not fully
+  // understood. If the first call doesn't find it, that's a real failure,
+  // not a transient one worth retrying via more selectApp() calls.
+  const pages = await rd.selectApp();
+  const target = urlSubstring
+    ? pages.find((p) => (p.url || '').includes(urlSubstring))
+    : pages[0];
+  if (!target) {
+    throw new Error(
+      `No matching inspectable page found (saw: ${pages.map((p) => p.url).join(', ') || 'none'}) — is the app open and in the foreground?`,
+    );
   }
-  if (!target) throw new Error('No matching inspectable page found — is the app open and in the foreground?');
   const [pidPart, pageIdPart] = target.id.split('.');
   await rd.selectPage(pidPart, Number(pageIdPart), true);
   return target;
