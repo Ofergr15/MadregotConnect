@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
+import { MAX_MEDIA_BYTES, isAllowedMediaType, extensionForMimeType } from '@/lib/feed/media';
 
 export const dynamic = 'force-dynamic';
-
-// The client downscales to a long edge of ~1600px before uploading, so anything much
-// larger than this is either a client that skipped the resize or an abuse attempt.
-const MAX_BYTES = 8 * 1024 * 1024;
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 /**
  * POST /api/feed/media  (multipart: file, w?, h?)
@@ -27,22 +23,18 @@ export async function POST(request: Request) {
     const file = form.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'file required' }, { status: 400 });
 
-    if (!file.type.startsWith('image/') || !ALLOWED.includes(file.type)) {
+    if (!isAllowedMediaType(file.type)) {
       return NextResponse.json(
         { error: 'Only JPEG, PNG, WebP or HEIC images are supported' },
         { status: 400 },
       );
     }
-    if (file.size > MAX_BYTES) {
+    if (file.size > MAX_MEDIA_BYTES) {
       return NextResponse.json({ error: 'Image is too large (max 8MB)' }, { status: 400 });
     }
 
     const supabase = createServerClient();
-    const ext =
-      file.type === 'image/png' ? 'png'
-      : file.type === 'image/webp' ? 'webp'
-      : file.type === 'image/heic' || file.type === 'image/heif' ? 'heic'
-      : 'jpg';
+    const ext = extensionForMimeType(file.type);
 
     // crypto.randomUUID is available in the Node runtime Next uses for route handlers.
     const path = `${auth.user.athleteId}/${crypto.randomUUID()}.${ext}`;

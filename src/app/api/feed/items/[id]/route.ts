@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
-import type { FeedMedia } from '@/lib/feed/project';
+import { sanitizeMediaList } from '@/lib/feed/media';
 
 export const dynamic = 'force-dynamic';
 
@@ -128,21 +128,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (rawMedia.length > MAX_IMAGES) {
         return NextResponse.json({ error: `Up to ${MAX_IMAGES} images per post` }, { status: 400 });
       }
-      const media = rawMedia
-        .map((m: unknown) => {
-          const rec = m as { path?: unknown; url?: unknown; w?: unknown; h?: unknown };
-          if (typeof rec?.path !== 'string' || !rec.path.startsWith(`${auth.user.athleteId}/`)) {
-            return null;
-          }
-          const { data } = supabase.storage.from('feed-media').getPublicUrl(rec.path);
-          return {
-            path: rec.path,
-            url: data.publicUrl,
-            w: typeof rec.w === 'number' ? rec.w : null,
-            h: typeof rec.h === 'number' ? rec.h : null,
-          };
-        })
-        .filter((m): m is FeedMedia => m !== null);
+      const media = sanitizeMediaList(rawMedia, auth.user.athleteId).map((m) => ({
+        ...m,
+        url: supabase.storage.from('feed-media').getPublicUrl(m.path).data.publicUrl,
+      }));
       update.media = media.length > 0 ? media : null;
     }
 

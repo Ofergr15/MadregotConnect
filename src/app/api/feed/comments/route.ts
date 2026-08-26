@@ -2,45 +2,14 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, requireAthlete, authError } from '@/lib/auth-session';
 import { notifyFeedInteraction, loadFeedItemMeta } from '@/lib/feed/notify';
+import { projectComment, validateCommentBody } from '@/lib/feed/comments';
 
 export const dynamic = 'force-dynamic';
-
-const MAX_COMMENT_LENGTH = 1000;
 
 const COMMENT_SELECT = `
   id, feed_item_id, athlete_id, body, created_at,
   athletes ( id, name, avatar_url )
 `;
-
-interface RawComment {
-  id: string;
-  feed_item_id: string;
-  athlete_id: string;
-  body: string;
-  created_at: string;
-  athletes?: { id: string; name: string | null; avatar_url: string | null } | null;
-}
-
-function projectComment(
-  value: unknown,
-  viewerAthleteId: string | null,
-  viewerIsStaff: boolean,
-) {
-  const row = value as RawComment;
-  return {
-    id: row.id,
-    itemId: row.feed_item_id,
-    body: row.body,
-    createdAt: row.created_at,
-    author: {
-      athleteId: row.athlete_id,
-      name: row.athletes?.name || 'Unknown',
-      avatarUrl: row.athletes?.avatar_url || null,
-    },
-    // Author may remove their own; staff may remove any (moderation, PRD §19).
-    canDelete: viewerIsStaff || row.athlete_id === viewerAthleteId,
-  };
-}
 
 /** GET /api/feed/comments?itemId=… — flat, oldest first (reads like a conversation). */
 export async function GET(request: Request) {
@@ -80,18 +49,13 @@ export async function POST(request: Request) {
   try {
     const payload = await request.json();
     const itemId = payload?.itemId;
-    const body = typeof payload?.body === 'string' ? payload.body.trim() : '';
 
     if (!itemId || typeof itemId !== 'string') {
       return NextResponse.json({ error: 'itemId required' }, { status: 400 });
     }
-    if (!body) return NextResponse.json({ error: 'Comment cannot be empty' }, { status: 400 });
-    if (body.length > MAX_COMMENT_LENGTH) {
-      return NextResponse.json(
-        { error: `Comment is too long (max ${MAX_COMMENT_LENGTH})` },
-        { status: 400 },
-      );
-    }
+    const validation = validateCommentBody(payload?.body);
+    if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 });
+    const { body } = validation;
 
     const meta = await loadFeedItemMeta(itemId);
     if (!meta) return NextResponse.json({ error: 'Feed item not found' }, { status: 404 });

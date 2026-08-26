@@ -6,15 +6,13 @@ import {
   LIKER_SELECT,
   LIKE_PREVIEW_COUNT,
   projectFeedItem,
-  projectLike,
   type FeedItem,
   type FeedLiker,
 } from '@/lib/feed/project';
+import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
+import { buildLikeIndex } from '@/lib/feed/likes';
 
 export const dynamic = 'force-dynamic';
-
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 40;
 
 /**
  * GET /api/feed?cursor=<occurredAt>,<id>&limit=20
@@ -31,11 +29,14 @@ export async function GET(request: Request) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(
-      MAX_LIMIT,
-      Math.max(1, parseInt(searchParams.get('limit') || String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT),
-    );
-    const cursor = searchParams.get('cursor');
+    const limit = clampFeedLimit(searchParams.get('limit'));
+
+    let parsedCursor;
+    try {
+      parsedCursor = parseFeedCursor(searchParams.get('cursor'));
+    } catch {
+      return NextResponse.json({ error: 'Invalid cursor' }, { status: 400 });
+    }
 
     const supabase = createServerClient();
 
@@ -48,18 +49,12 @@ export async function GET(request: Request) {
       .limit(limit + 1); // one extra row tells us whether more pages exist
 
     // Cursor is "<iso timestamp>,<uuid>": strictly-after in the composite sort order.
-    if (cursor) {
-      const idx = cursor.lastIndexOf(',');
-      const cursorTime = idx === -1 ? cursor : cursor.slice(0, idx);
-      const cursorId = idx === -1 ? '' : cursor.slice(idx + 1);
-      if (!Number.isFinite(Date.parse(cursorTime))) {
-        return NextResponse.json({ error: 'Invalid cursor' }, { status: 400 });
-      }
-      query = cursorId
+    if (parsedCursor) {
+      query = parsedCursor.id
         ? query.or(
-            `occurred_at.lt.${cursorTime},and(occurred_at.eq.${cursorTime},id.lt.${cursorId})`,
+            `occurred_at.lt.${parsedCursor.time},and(occurred_at.eq.${parsedCursor.time},id.lt.${parsedCursor.id})`,
           )
-        : query.lt('occurred_at', cursorTime);
+        : query.lt('occurred_at', parsedCursor.time);
     }
 
     const { data: rows, error } = await query;
@@ -71,8 +66,8 @@ export async function GET(request: Request) {
     // One query resolves BOTH the caller's likes and the "תל ועוד 3" preview for
     // every item on the page — no per-item round trip. Newest-first so the preview
     // names match what the like sheet shows at the top.
-    const likedItemIds = new Set<string>();
-    const likersByItem = new Map<string, FeedLiker[]>();
+    let likedItemIds = new Set<string>();
+    let likersByItem = new Map<string, FeedLiker[]>();
     if (page.length > 0) {
       const { data: likes, error: likesError } = await supabase
         .from('feed_likes')
@@ -84,15 +79,9 @@ export async function GET(request: Request) {
         .order('created_at', { ascending: false });
       if (likesError) throw likesError;
 
-      for (const raw of likes || []) {
-        const projected = projectLike(raw);
-        if (!projected) continue;
-        const { itemId, liker } = projected;
-        if (liker.athleteId === auth.user.athleteId) likedItemIds.add(itemId);
-        const bucket = likersByItem.get(itemId);
-        if (!bucket) likersByItem.set(itemId, [liker]);
-        else if (bucket.length < LIKE_PREVIEW_COUNT) bucket.push(liker);
-      }
+      const index = buildLikeIndex(likes || [], auth.user.athleteId, LIKE_PREVIEW_COUNT);
+      likedItemIds = index.likedItemIds;
+      likersByItem = index.likersByItem;
     }
 
     const ctx = {
