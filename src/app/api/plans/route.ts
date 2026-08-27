@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { requireSession, authError } from '@/lib/auth-session';
 
 /**
  * POST /api/plans - Create a new weekly plan
@@ -8,6 +9,12 @@ import { createServerClient } from '@/lib/supabase/server';
  * group-wide plan.
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireSession(req);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     const { coach_id, week_start_date, original_input, parsed_workouts, status = 'draft', athlete_id } = body;
@@ -62,6 +69,12 @@ export async function POST(req: NextRequest) {
  *        ?coach_id=xxx&athlete_id=yyy → an individual academy athlete's plans
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireSession(req);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const coach_id = searchParams.get('coach_id');
@@ -121,6 +134,12 @@ export async function GET(req: NextRequest) {
  * Body: { plan_id }
  */
 export async function DELETE(req: NextRequest) {
+  const auth = await requireSession(req);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     const { plan_id } = body;
@@ -162,6 +181,12 @@ export async function DELETE(req: NextRequest) {
  * Body: { plan_id, status?, parsed_workouts? }
  */
 export async function PUT(req: NextRequest) {
+  const auth = await requireSession(req);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     const { plan_id, status, parsed_workouts } = body;

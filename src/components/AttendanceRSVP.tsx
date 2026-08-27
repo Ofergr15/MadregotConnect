@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { CheckCircle2, XCircle, Users } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
+import { authHeaders } from '@/lib/api';
 
 const GROUP_PRESETS = ['דבוקה 1', 'דבוקה 2', 'דבוקה 3'];
 
@@ -30,7 +31,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
   const [alreadyAnswered, setAlreadyAnswered] = useState(false);
 
   const refetch = useCallback((id: string) => {
-    return fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&athleteId=${id}`)
+    return fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&athleteId=${id}`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.rsvp) {
@@ -96,7 +97,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
     try {
       const res = await fetch('/api/attendance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           athleteId, weekStart, day,
           attending: isAttending,
@@ -207,7 +208,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
     try {
       const res = await fetch('/api/attendance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           athleteId, weekStart, day, attending: true,
           groupLabel: custom.trim() || preset || null,

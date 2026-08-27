@@ -15,6 +15,7 @@ import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceTo
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
+import { authHeaders } from '@/lib/api';
 import { useTranslations } from 'next-intl';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNav } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
@@ -622,7 +623,7 @@ export default function SettingsPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/admin/users');
+      const response = await fetch('/api/admin/users', { headers: authHeaders() });
       if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
       setUsers(data.users || []);
@@ -661,7 +662,7 @@ export default function SettingsPage() {
     setPendingDelete(null);
     setUpdatingUsers(prev => new Set(prev).add(user.id));
     try {
-      const response = await fetch(`/api/admin/users?id=${user.id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/admin/users?id=${user.id}`, { method: 'DELETE', headers: authHeaders() });
       if (!response.ok) throw new Error('Failed to delete');
       await fetchUsers();
     } catch (err) {
@@ -688,7 +689,7 @@ export default function SettingsPage() {
       const actorEmail = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
       const response = await fetch('/api/admin/users', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ email: user.email, role: newRole, actorEmail }),
       });
 

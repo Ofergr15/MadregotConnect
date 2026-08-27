@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints, ImagePlus } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
+import { authHeaders } from '@/lib/api';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState, Switch } from '@/components/ui';
 import { InsetRow, InsetSection } from '@/components/ui/InsetList';
 import { dateOffsetStr, minutesToHHMM, roundToStep, describeNotificationRow, SCHEDULE_STEP_MIN, type StatusIconKind } from '@/lib/notifications/scheduling';
@@ -285,7 +286,7 @@ export function NotificationCenter() {
     fetch('/api/groups').then(r => r.ok ? r.json() : null).then(d => {
       if (d?.groups) setGroups(d.groups.map((g: any) => ({ id: g.id, name: g.name })));
     }).catch(() => {});
-    fetch('/api/admin/users').then(r => r.ok ? r.json() : null).then(d => {
+    fetch('/api/admin/users', { headers: authHeaders() }).then(r => r.ok ? r.json() : null).then(d => {
       if (d?.users) setAthletes(d.users.map((u: any) => ({ id: u.id, name: u.name, email: u.email })));
     }).catch(() => {});
     // This week's upcoming workouts (from the plan) for one-tap reminders.

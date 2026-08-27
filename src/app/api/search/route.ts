@@ -25,6 +25,23 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const pattern = `%${q}%`;
 
+    // Mirrors GET /api/perks's tier gate exactly — a core_runner-tier perk must
+    // stay invisible to everyone else, including via search.
+    const athleteId = searchParams.get('athleteId');
+    let isCoreRunner = false;
+    if (athleteId) {
+      const { data: athlete } = await supabase.from('athletes').select('role').eq('id', athleteId).maybeSingle();
+      isCoreRunner = (athlete as { role?: string } | null)?.role === 'core_runner';
+    }
+
+    let perksQuery = supabase
+      .from('club_perks')
+      .select('id, sponsor_name, title_he, title_en, image_url')
+      .eq('active', true)
+      .or(`title_he.ilike.${pattern},title_en.ilike.${pattern},sponsor_name.ilike.${pattern}`)
+      .limit(RESULT_LIMIT);
+    if (!isCoreRunner) perksQuery = perksQuery.eq('tier', 'all');
+
     const [membersRes, eventsRes, productsRes, perksRes] = await Promise.all([
       supabase
         .from('athletes')
@@ -44,12 +61,7 @@ export async function GET(request: Request) {
         .eq('active', true)
         .or(`name_he.ilike.${pattern},name_en.ilike.${pattern}`)
         .limit(RESULT_LIMIT),
-      supabase
-        .from('club_perks')
-        .select('id, sponsor_name, title_he, title_en, image_url')
-        .eq('active', true)
-        .or(`title_he.ilike.${pattern},title_en.ilike.${pattern},sponsor_name.ilike.${pattern}`)
-        .limit(RESULT_LIMIT),
+      perksQuery,
     ]);
 
     const members = (membersRes.error ? [] : membersRes.data || []).map(

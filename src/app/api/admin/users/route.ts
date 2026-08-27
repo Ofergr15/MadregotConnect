@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { canGrantAdmin } from '@/lib/constants';
+import { resolveCallerFromEmailHeader, isStaffRole } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -19,9 +20,14 @@ interface User {
   lastSeenAt?: string | null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = createServerClient();
+
+    const caller = await resolveCallerFromEmailHeader(request, supabase);
+    if (!caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
 
     const { data: athletes, error } = await supabase
       .from('athletes')
@@ -63,6 +69,14 @@ export async function PUT(request: Request) {
         { error: 'Email and role are required' },
         { status: 400 }
       );
+    }
+
+    // Any role change requires the actor to be staff (or the super user) —
+    // previously only changes touching 'admin' were gated at all, so any
+    // signed-up user could hand themselves 'coach'/'core_runner'/'viewer'.
+    const caller = await resolveCallerFromEmailHeader(request, supabase);
+    if (!caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
 
     if (!['admin', 'coach', 'runner', 'core_runner', 'viewer'].includes(role)) {
@@ -117,6 +131,12 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const supabase = createServerClient();
+
+    const caller = await resolveCallerFromEmailHeader(request, supabase);
+    if (!caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

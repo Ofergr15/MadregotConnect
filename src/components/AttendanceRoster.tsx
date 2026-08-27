@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Users, Loader2 } from 'lucide-react';
 import { getPlanWeekStart } from '@/lib/utils';
+import { authHeaders } from '@/lib/api';
 
 interface Row { athleteId: string; attending: boolean; groupLabel: string | null; name: string; avatarUrl: string | null; }
 
@@ -17,7 +18,7 @@ export function AttendanceRoster({ weekStart: weekStartProp, day: dayProp }: { w
   const day = dayProp ?? new Date().getDay();
 
   const refetch = useCallback(() => {
-    return fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&roster=1`)
+    return fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&roster=1`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(data => setRows(data?.attendance || []))
       .catch(() => {});

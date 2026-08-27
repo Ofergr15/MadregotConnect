@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
+import { resolveCallerFromEmailHeader, isSelfOrStaff, isStaffRole } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,18 @@ export async function GET(request: Request) {
     const roster = searchParams.get('roster');
 
     const supabase = createServerClient();
+    const caller = await resolveCallerFromEmailHeader(request, supabase);
+    const callerIsStaff = caller.isSuperUser || isStaffRole(caller.athlete?.role);
+
+    // Calendar aggregate and both roster views are staff-only — they expose
+    // every athlete's name/avatar/attendance, not just the caller's own.
+    if (searchParams.get('calendar') || roster) {
+      if (!callerIsStaff) {
+        return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+      }
+    } else if (athleteId && !isSelfOrStaff(caller.athlete, athleteId, caller.isSuperUser)) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
 
     // Calendar aggregate: group all RSVPs in [from,to] by their actual date
     // (week_start_date + day_of_week) into per-day going/not-going counts.
@@ -189,6 +202,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'athleteId, weekStart, day, attending required' }, { status: 400 });
     }
     const supabase = createServerClient();
+    const caller = await resolveCallerFromEmailHeader(request, supabase);
+    if (!isSelfOrStaff(caller.athlete, athleteId, caller.isSuperUser)) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
     const { error } = await supabase
       .from('workout_attendance')
       .upsert(

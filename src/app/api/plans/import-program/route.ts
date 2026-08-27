@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { parseWorkoutPlan } from '@/lib/ai/parser';
 import { COACH_ID } from '@/lib/constants';
+import { requireSession, authError } from '@/lib/auth-session';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -13,7 +14,13 @@ const PROGRAM_WEEKS = [
   { dateRange: '31.05 – 06.06', file: 'week-31-05-06-06-2026.pdf', weekStart: '2026-05-31' },
 ];
 
-export async function POST() {
+export async function POST(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+
   const supabase = createServerClient();
   const results: Array<{ week: string; status: string; error?: string }> = [];
 

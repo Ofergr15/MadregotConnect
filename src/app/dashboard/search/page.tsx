@@ -90,7 +90,12 @@ export default function SearchPage() {
   const locale = useLocale();
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
+  const [athleteId, setAthleteId] = useState('');
   const { navItems } = useNavItems();
+
+  useEffect(() => {
+    setAthleteId(localStorage.getItem('athlete_id') || '');
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(query.trim()), 300);
@@ -98,7 +103,9 @@ export default function SearchPage() {
   }, [query]);
 
   const { data, isLoading } = useApi<SearchData>(
-    debounced.length >= 2 ? `/api/search?q=${encodeURIComponent(debounced)}` : null,
+    debounced.length >= 2
+      ? `/api/search?q=${encodeURIComponent(debounced)}${athleteId ? `&athleteId=${athleteId}` : ''}`
+      : null,
   );
 
   // "Smart search" — sections/pages are matched entirely client-side against

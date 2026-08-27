@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { resolveCallerFromEmailHeader, isSelfOrStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const supabase = createServerClient();
+    const caller = await resolveCallerFromEmailHeader(request, supabase);
+    if (!isSelfOrStaff(caller.athlete, athleteId, caller.isSuperUser)) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
     const { data: survey, error: surveyError } = await supabase.from('surveys').select('options_he, closes_at').eq('id', id).maybeSingle();
     if (surveyError) throw surveyError;
     if (!survey) return NextResponse.json({ error: 'Survey not found' }, { status: 404 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { resolveCallerFromEmailHeader, isSelfOrStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     let myResponse: number | null = null;
     if (athleteId) {
+      const caller = await resolveCallerFromEmailHeader(request, supabase);
+      if (!isSelfOrStaff(caller.athlete, athleteId, caller.isSuperUser)) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
       const { data: resp } = await supabase
         .from('survey_responses')
         .select('option_index')

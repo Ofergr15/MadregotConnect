@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COACH_ID } from '@/lib/constants';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { formatPace } from '@/lib/garmin/pace';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
@@ -108,7 +109,8 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
     if (!athleteId) { setSlots({}); return; }
     let cancelled = false;
     setSlots({});
-    fetch(`/api/plans?coach_id=${COACH_ID}&athlete_id=${athleteId}`)
+    bearerHeaders(false)
+      .then(headers => fetch(`/api/plans?coach_id=${COACH_ID}&athlete_id=${athleteId}`, { headers }))
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (cancelled) return;
@@ -166,7 +168,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
       // Save the plan (individual, flat) so it shows in adherence.
       const saveRes = await fetch('/api/plans', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({
           coach_id: COACH_ID,
           week_start_date: weekStart,
@@ -192,10 +194,10 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
       const count = workouts.length === 1 ? 'אימון אחד' : `${workouts.length} אימונים`;
       setPushResult({ ok, msg: ok ? `נשלחו ${count} לשעון הגרמין של ${selected?.name}.` : (failed?.error || 'השליחה נכשלה.') });
       if (planId) {
-        fetch('/api/plans', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        bearerHeaders().then((headers) => fetch('/api/plans', {
+          method: 'PUT', headers,
           body: JSON.stringify({ plan_id: planId, status: ok ? 'pushed' : 'partial' }),
-        }).catch(() => {});
+        })).catch(() => {});
       }
     } catch (err: any) {
       setError(err.message || 'השליחה נכשלה');

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Trophy, Pencil, Trash2, X, Medal, Check, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseTime, formatTime } from '@/lib/academy/benchmark';
+import { authHeaders } from '@/lib/api';
 import { Spinner, SkeletonList, EmptyState, Sheet, Button, ConfirmSheet } from '@/components/ui';
 
 interface Result {
@@ -60,7 +61,7 @@ export function AcademyResults() {
     setPending(prev => prev.filter(p => p.id !== id));
     try {
       await fetch('/api/academy/benchmarks', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ id, action }),
       });
       fetchResults();
@@ -79,7 +80,7 @@ export function AcademyResults() {
     try {
       const res = await fetch('/api/academy/benchmarks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           id: editing.id,
           testName: editing.test_name || test,
@@ -101,7 +102,7 @@ export function AcademyResults() {
 
   const remove = async (id: string) => {
     setResults(prev => prev.filter(r => r.id !== id));
-    try { await fetch(`/api/academy/benchmarks?id=${id}`, { method: 'DELETE' }); }
+    try { await fetch(`/api/academy/benchmarks?id=${id}`, { method: 'DELETE', headers: authHeaders() }); }
     catch { fetchResults(); }
   };
 

@@ -41,6 +41,7 @@ import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
 
 const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
@@ -125,15 +126,6 @@ function getWeekLabel(dateStr: string, locale: string): string {
   const startLabel = date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   const endLabel = endDate.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   return `${startLabel} – ${endLabel}`;
-}
-
-async function bearerHeaders(includeJson = true): Promise<Record<string, string>> {
-  const { data } = await getSupabase().auth.getSession();
-  const token = data.session?.access_token;
-  return {
-    ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
 }
 
 function ErrorBanner({ message, className }: { message: string; className?: string }) {
@@ -286,7 +278,7 @@ export default function WeeklyPlannerPage() {
     const fetchPlans = async () => {
       setLoadingPlans(true);
       try {
-        const res = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`);
+        const res = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`, { headers: await bearerHeaders(false) });
         if (res.ok) {
           const data = await res.json();
           setAllPlans(data.plans || []);
@@ -545,7 +537,7 @@ export default function WeeklyPlannerPage() {
       setSavingAfterParse(true);
       const saveRes = await fetch('/api/plans', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({
           coach_id: HARDCODED_COACH_ID,
           week_start_date: weekStartDate,
@@ -630,7 +622,7 @@ export default function WeeklyPlannerPage() {
       if (currentPlan && savedPlanId) {
         const putRes = await fetch('/api/plans', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await bearerHeaders(),
           body: JSON.stringify({ plan_id: savedPlanId, parsed_workouts: grouped, status: 'draft' }),
         });
         if (putRes.ok) {
@@ -642,7 +634,7 @@ export default function WeeklyPlannerPage() {
       } else {
         const saveRes = await fetch('/api/plans', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await bearerHeaders(),
           body: JSON.stringify({
             coach_id: HARDCODED_COACH_ID,
             week_start_date: weekStartDate,
@@ -780,7 +772,7 @@ export default function WeeklyPlannerPage() {
     try {
       const saveRes = await fetch('/api/plans', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({
           plan_id: savedPlanId,
           parsed_workouts: groupedPlans,
@@ -861,7 +853,7 @@ export default function WeeklyPlannerPage() {
     try {
       const res = await fetch('/api/plans', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({
           plan_id: savedPlanId,
           parsed_workouts: groupedPlans,
@@ -889,7 +881,7 @@ export default function WeeklyPlannerPage() {
     try {
       const res = await fetch('/api/plans', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ plan_id: savedPlanId }),
       });
       if (!res.ok) throw new Error(t('errors.failedToDeletePlan'));
@@ -987,7 +979,7 @@ export default function WeeklyPlannerPage() {
 
       await fetch('/api/plans', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ plan_id: savedPlanId, status: newStatus }),
       });
 
@@ -1157,10 +1149,10 @@ export default function WeeklyPlannerPage() {
                   setParsing(true);
                   setError(null);
                   try {
-                    const res = await fetch('/api/plans/import-program', { method: 'POST' });
+                    const res = await fetch('/api/plans/import-program', { method: 'POST', headers: await bearerHeaders() });
                     const data = await res.json();
                     if (data.results?.some((r: any) => r.status === 'imported')) {
-                      const plansRes = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`);
+                      const plansRes = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`, { headers: await bearerHeaders(false) });
                       if (plansRes.ok) {
                         const plansData = await plansRes.json();
                         setAllPlans(plansData.plans || []);

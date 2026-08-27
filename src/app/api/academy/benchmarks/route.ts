@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { resolveCallerFromEmailHeader, isSelfOrStaff, isStaffRole } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +91,32 @@ export async function POST(request: Request) {
     }
     const test = testName || '2000m';
     const supabase = createServerClient();
+    const caller = await resolveCallerFromEmailHeader(request, supabase);
+
+    if (id) {
+      // Editing an existing result: only staff, or the athlete/original
+      // submitter it already belongs to, may overwrite it.
+      const { data: existing } = await supabase
+        .from('benchmark_results')
+        .select('athlete_id, submitted_by')
+        .eq('id', id)
+        .eq('coach_id', COACH_ID)
+        .maybeSingle();
+      const owner = existing?.submitted_by || existing?.athlete_id || null;
+      const ownerOk = !!owner && isSelfOrStaff(caller.athlete, owner, caller.isSuperUser);
+      if (!ownerOk && !caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
+    } else if (submittedBy) {
+      // Self-submission: the submitter must be reporting their own result.
+      if (!isSelfOrStaff(caller.athlete, submittedBy, caller.isSuperUser)) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
+    } else if (!caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
+      // Plain coach entry (no submittedBy): staff only.
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+
     const linkedId = athleteId !== undefined ? athleteId : await resolveAthleteId(supabase, athleteName);
 
     // Decide status.
@@ -143,6 +170,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'id and action (approve|reject) required' }, { status: 400 });
     }
     const supabase = createServerClient();
+    const caller = await resolveCallerFromEmailHeader(request, supabase);
+    if (!caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
     if (action === 'reject') {
       const { error } = await supabase.from('benchmark_results').delete().eq('id', id).eq('coach_id', COACH_ID);
       if (error) throw error;
@@ -165,6 +196,10 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
     const supabase = createServerClient();
+    const caller = await resolveCallerFromEmailHeader(request, supabase);
+    if (!caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
     const { error } = await supabase.from('benchmark_results').delete().eq('id', id).eq('coach_id', COACH_ID);
     if (error) throw error;
     return NextResponse.json({ success: true });
