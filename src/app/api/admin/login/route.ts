@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     const supabase = createServerClient();
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id, email, name, role')
+      .select('id, email, name, role, group_id')
       .eq('email', email.toLowerCase())
       .maybeSingle();
 
@@ -67,7 +67,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not authorized as admin' }, { status: 403 });
     }
 
-    return NextResponse.json({ success: true, email: athlete.email, name: athlete.name, role: athlete.role });
+    return NextResponse.json({
+      success: true,
+      email: athlete.email,
+      name: athlete.name,
+      role: athlete.role,
+      athleteId: athlete.id,
+      groupId: athlete.group_id,
+    });
   } catch (error) {
     return NextResponse.json({ error: 'Login failed' }, { status: 500 });
   }

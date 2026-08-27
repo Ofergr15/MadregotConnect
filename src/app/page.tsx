@@ -245,9 +245,18 @@ export default function HomePage() {
       if (!res.ok) throw new Error(data.message || data.error || 'Login failed');
       localStorage.setItem('coach_email', data.email);
       localStorage.setItem('admin_session', 'true');
-      localStorage.removeItem('athlete_id');
-      localStorage.removeItem('athlete_name');
-      localStorage.removeItem('athlete_email');
+      if (data.athleteId) {
+        localStorage.setItem('athlete_id', data.athleteId);
+        localStorage.setItem('athlete_name', data.name || '');
+        localStorage.setItem('athlete_email', data.email);
+        if (data.groupId) localStorage.setItem('athlete_group_id', data.groupId);
+        else localStorage.removeItem('athlete_group_id');
+      } else {
+        localStorage.removeItem('athlete_id');
+        localStorage.removeItem('athlete_name');
+        localStorage.removeItem('athlete_email');
+        localStorage.removeItem('athlete_group_id');
+      }
       router.push('/dashboard');
     } catch (err: any) {
       setAdminError(err.message);
