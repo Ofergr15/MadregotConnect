@@ -81,7 +81,7 @@ export default function AthletesPage() {
       const response = await fetch('/api/athletes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: inviteName, email: inviteEmail }),
+        body: JSON.stringify({ name: inviteName, email: inviteEmail, groupId: inviteGroup || undefined }),
       });
       const data = await response.json();
       if (response.ok) {

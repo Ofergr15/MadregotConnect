@@ -23,7 +23,10 @@ interface CartLine { productId: string; size: string | null; color: string | nul
 interface OrderItem { nameHe: string; nameEn: string; size: string | null; color: string | null; quantity: number; unitPrice: number }
 interface Order { id: string; status: string; total: number; createdAt: string; items: OrderItem[] }
 
-const CART_KEY = 'madregot_store_cart';
+// Scoped per athlete — a bare shared key would leak whoever's cart was left
+// unfinished into the next person's checkout on a shared device, since none
+// of the app's various login/logout paths clear this key.
+const cartKey = (athleteId: string) => `madregot_store_cart_${athleteId}`;
 const STATUS_LABEL_KEY: Record<string, string> = {
   pending_payment: 'statusPendingPayment',
   paid: 'statusPaid',
@@ -57,16 +60,19 @@ function StorePageContent() {
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
 
   useEffect(() => {
-    setAthleteId(localStorage.getItem('athlete_id') || '');
+    const id = localStorage.getItem('athlete_id') || '';
+    setAthleteId(id);
+    if (!id) return;
     try {
-      const raw = localStorage.getItem(CART_KEY);
+      const raw = localStorage.getItem(cartKey(id));
       if (raw) setCart(JSON.parse(raw));
     } catch { /* ignore corrupt cart */ }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(CART_KEY, JSON.stringify(cart));
-  }, [cart]);
+    if (!athleteId) return;
+    localStorage.setItem(cartKey(athleteId), JSON.stringify(cart));
+  }, [athleteId, cart]);
 
   const { data: productsData, isLoading: productsLoading } = useApi<{ products: Product[] }>('/api/store/products');
   const { data: ordersData, isLoading: ordersLoading, mutate: mutateOrders } = useApi<{ orders: Order[] }>(

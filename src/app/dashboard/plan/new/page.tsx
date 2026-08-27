@@ -39,7 +39,7 @@ import { WeekView } from '@/components/WeekView';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
-import { cn } from '@/lib/utils';
+import { cn, toISODate } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
@@ -107,7 +107,7 @@ function getCurrentWeekSunday(offset: number = 0): string {
   const dayOfWeek = now.getDay();
   const sunday = new Date(now);
   sunday.setDate(now.getDate() - dayOfWeek + offset * 7);
-  return sunday.toISOString().split('T')[0];
+  return toISODate(sunday);
 }
 
 function isSaturday(): boolean {

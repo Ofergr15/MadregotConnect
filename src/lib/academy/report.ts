@@ -77,11 +77,17 @@ export async function computeAcademyWeekAdherence(opts: {
   const athleteIds = athletes.map(a => a.id);
 
   // 2) Planned workouts per athlete — individual plan wins, else shared group plan.
+  // Ordered newest-first so `.find()` below picks the most recent plan per
+  // athlete — weekly_plans has no uniqueness constraint on (athlete_id,
+  // week_start_date), and a coach re-pushing a revised plan for the same
+  // athlete/week always INSERTs a new row rather than updating the old one,
+  // so more than one can exist for the same key.
   const indiv = await supabase
     .from('weekly_plans')
-    .select('id, athlete_id, week_start_date, parsed_workouts')
+    .select('id, athlete_id, week_start_date, parsed_workouts, created_at')
     .eq('week_start_date', weekStart)
-    .in('athlete_id', athleteIds);
+    .in('athlete_id', athleteIds)
+    .order('created_at', { ascending: false });
   const individualPlans: any[] = indiv.error ? [] : indiv.data || [];
 
   // The shared/group plan is the coach-wide one (athlete_id IS NULL) — must NOT

@@ -237,6 +237,7 @@ async function evalAttendancePerfectMonth(
       .from('athlete_activities')
       .select('start_time')
       .eq('athlete_id', athleteId)
+      .in('activity_type', PR_RUN_TYPES)
       .gte('start_time', `${firstDayStr}T00:00:00`)
       .lt('start_time', `${nextMonthFirstStr}T00:00:00`),
   ]);

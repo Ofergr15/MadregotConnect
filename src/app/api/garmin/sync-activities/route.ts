@@ -151,9 +151,17 @@ export async function POST(request: Request) {
             });
           }
 
+          // upsert + ignoreDuplicates (not a plain insert) — two overlapping
+          // syncs for the same athlete (e.g. two workout-watch cron
+          // invocations, one running long enough to still be in this
+          // per-activity Garmin API loop when the next fires) can both
+          // compute the same "new" activity from their own existingIds
+          // snapshot; a plain insert would throw a unique_violation on the
+          // second one and fail this whole batch, unlike Strava's per-
+          // activity upsert, which already guards exactly this race.
           let { data: insertedRows, error: insertError } = await supabase
             .from('athlete_activities')
-            .insert(rows)
+            .upsert(rows, { onConflict: 'athlete_id,garmin_activity_id', ignoreDuplicates: true })
             .select('id, garmin_activity_id');
 
           if (insertError?.code === '42703' || insertError?.code === 'PGRST204' || insertError?.code === '23503') {
@@ -167,7 +175,7 @@ export async function POST(request: Request) {
             // prompt all depend on the insert succeeding).
             ({ data: insertedRows, error: insertError } = await supabase
               .from('athlete_activities')
-              .insert(rows.map(({ shoe_id, ...rest }) => rest))
+              .upsert(rows.map(({ shoe_id, ...rest }) => rest), { onConflict: 'athlete_id,garmin_activity_id', ignoreDuplicates: true })
               .select('id, garmin_activity_id'));
           }
           if (insertError) throw insertError;

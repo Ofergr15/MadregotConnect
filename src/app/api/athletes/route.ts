@@ -76,7 +76,7 @@ export async function POST(request: Request) {
   try {
     const supabase = createServerClient();
     const body = await request.json();
-    const { name, email, publicLink } = body;
+    const { name, email, publicLink, groupId } = body;
 
     // Public link mode — generate a reusable token without creating an athlete record
     if (publicLink) {
@@ -124,6 +124,7 @@ export async function POST(request: Request) {
         status: 'invited',
         approved: true,
         invite_token: inviteToken,
+        ...(groupId ? { group_id: groupId } : {}),
       })
       .select()
       .single();

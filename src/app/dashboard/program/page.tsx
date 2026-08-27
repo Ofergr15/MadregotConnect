@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList, Hash, Calendar, CalendarRange } from 'lucide-react';
-import { cn, getPlanWeekStart, isRecentlyPublished } from '@/lib/utils';
+import { cn, isRecentlyPublished, toISODate } from '@/lib/utils';
+import { getDisplayWeekStart } from '@/lib/plans/workout-parsing';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
 import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
 import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
@@ -159,7 +160,7 @@ export default function ProgramPage() {
       // posted this week's plan, the picker silently defaults to whichever
       // week happens to sort first (the most recent PAST upload) — which
       // reads as "here's your plan" when it's really an unrelated old week.
-      const thisWeekStart = getPlanWeekStart(new Date());
+      const thisWeekStart = getDisplayWeekStart(new Date());
       if (!data.some(w => w.week_start_date === thisWeekStart)) {
         data.push({
           id: `current-${thisWeekStart}`,
@@ -186,7 +187,11 @@ export default function ProgramPage() {
 
   const currentWeek = weeks[selectedWeek];
   // Is the selected week the real calendar-current week (contains today)?
-  const thisWeekStart = getPlanWeekStart(new Date());
+  // Uses the same Saturday-20:00 rollover as the dashboard's own "current
+  // week" (getDisplayWeekStart) — plain getPlanWeekStart has no such
+  // rollover, which used to make this page disagree with the dashboard about
+  // which week is "current" for a few hours every Saturday evening.
+  const thisWeekStart = getDisplayWeekStart(new Date());
   const isCurrentWeek = !!currentWeek && currentWeek.week_start_date === thisWeekStart;
   // Does a program row for the actual current week exist at all?
   const currentWeekExists = weeks.some(w => w.week_start_date === thisWeekStart);
@@ -659,12 +664,6 @@ export default function ProgramPage() {
       )}
     </div>
   );
-}
-
-// Local-timezone YYYY-MM-DD (avoids the UTC shift toISOString() introduces near
-// midnight, which could push a Sunday back to the previous Saturday).
-function toISODate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // Given a Sunday ISO date, return the "DD.MM – DD.MM" Sunday→Saturday range.

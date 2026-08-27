@@ -157,11 +157,21 @@ export default function ActivitiesPage() {
     try {
       const id = athleteId || localStorage.getItem('athlete_id');
       if (!id) throw new Error('No athlete');
-      await fetch('/api/strava/sync-activities', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athleteId: id }),
-      });
+      // Fire both — each route no-ops gracefully ({synced:0}) if this athlete
+      // isn't connected to that source, so this works regardless of whether
+      // they're on Garmin, Strava, or both.
+      await Promise.allSettled([
+        fetch('/api/strava/sync-activities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ athleteId: id }),
+        }),
+        fetch('/api/garmin/sync-activities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ athleteId: id }),
+        }),
+      ]);
       const res = await fetchActivitiesScoped({ includeGps: true });
       if (res.ok) {
         const data = await res.json();

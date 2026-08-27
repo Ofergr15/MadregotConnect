@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { groupDisplayName } from '@/lib/utils';
+import { paceLevelFromOffset } from '@/lib/groups/pace-level';
 
 const DEMO_COACH_ID = COACH_ID;
 
@@ -35,12 +36,11 @@ export async function GET(request: Request) {
         ? (paceProfile.offsetSeconds ?? 0)
         : 0;
 
-      let level: 'fast' | 'medium' | 'slow' = 'medium';
-      if (paceOffsetSeconds <= 0) level = 'fast';
-      else if (paceOffsetSeconds <= 15) level = 'medium';
-      else level = 'slow';
-
-      if (paceProfile?.level) level = paceProfile.level;
+      // PUT keeps the stored level in sync with the offset whenever the
+      // offset changes without an explicit override, so trusting the stored
+      // value here is safe (and lets a deliberate override — same offset
+      // bucket, different label — stick).
+      const level: 'fast' | 'medium' | 'slow' = paceProfile?.level || paceLevelFromOffset(paceOffsetSeconds);
 
       const marathonGoal = paceProfile?.marathonGoal || '';
 
@@ -95,9 +95,10 @@ export async function POST(request: Request) {
     }
 
     // Store pace offset, level, and marathon goal in pace_profile as JSONB
+    const offsetSeconds = paceOffsetSeconds ?? 0;
     const paceProfile = {
-      offsetSeconds: paceOffsetSeconds ?? 0,
-      level: level ?? 'medium',
+      offsetSeconds,
+      level: level ?? paceLevelFromOffset(offsetSeconds),
       marathonGoal: marathonGoal || '',
     };
 
@@ -150,10 +151,16 @@ export async function PUT(request: Request) {
         .single();
 
       const existingProfile = (existing?.pace_profile as any) || {};
+      const nextOffsetSeconds = paceOffsetSeconds ?? existingProfile.offsetSeconds ?? 0;
 
       updates.pace_profile = {
-        offsetSeconds: paceOffsetSeconds ?? existingProfile.offsetSeconds ?? 0,
-        level: level ?? existingProfile.level ?? 'medium',
+        offsetSeconds: nextOffsetSeconds,
+        // An explicit `level` always wins (deliberate override). Otherwise,
+        // if the offset itself changed, recompute from the new offset rather
+        // than carrying over a now-stale stored value — that carry-over is
+        // exactly what let a group's badge disagree with its own offset
+        // indefinitely after an edit.
+        level: level ?? (paceOffsetSeconds !== undefined ? paceLevelFromOffset(nextOffsetSeconds) : existingProfile.level ?? 'medium'),
         marathonGoal: marathonGoal !== undefined ? marathonGoal : (existingProfile.marathonGoal || ''),
       };
     }

@@ -928,7 +928,10 @@ function ProfileContent() {
             </div>
           )}
 
-          {/* Manual Sync button - only for Strava if Garmin already has activities */}
+          {/* Manual Sync button — always shown for Strava; for Garmin only
+              while they have zero activities yet (Garmin already auto-syncs
+              via the connect flow + cron, this is just the first kick).
+              Fires whichever connected source(s) apply. */}
           {!hasSynced && (hasStrava || (hasGarmin && !hasActivities)) && (
             <div className="mt-4 pt-4 border-t border-slate-700/30">
               <button
@@ -936,13 +939,22 @@ function ProfileContent() {
                   setSyncing(true);
                   setSyncResult(null);
                   try {
-                    const results = await Promise.allSettled([
-                      fetch('/api/strava/sync-activities', {
+                    const calls = [];
+                    if (hasStrava) {
+                      calls.push(fetch('/api/strava/sync-activities', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ athleteId }),
-                      }),
-                    ]);
+                      }));
+                    }
+                    if (hasGarmin) {
+                      calls.push(fetch('/api/garmin/sync-activities', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ athleteId }),
+                      }));
+                    }
+                    const results = await Promise.allSettled(calls);
                     let totalSynced = 0;
                     for (const r of results) {
                       if (r.status === 'fulfilled' && r.value.ok) {

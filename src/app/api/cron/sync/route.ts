@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { POST as stravaSync } from '../../strava/sync-activities/route';
+import { POST as garminSync } from '../../garmin/sync-activities/route';
 import { snapshotWeeklyKm } from '@/lib/weekly-snapshots';
 
 // Give the sync enough time to walk every athlete (Pro plan allows up to 300s).
@@ -7,7 +8,7 @@ export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 /**
- * Scheduled server-side activity sync (Strava only).
+ * Scheduled server-side activity sync (Strava + Garmin).
  *
  * Auth: Vercel attaches `Authorization: Bearer <CRON_SECRET>` when set.
  */
@@ -34,7 +35,14 @@ async function runSync(request: Request) {
     strava = { error: String(e?.message || e) };
   }
 
-  const totalSynced = strava?.synced || 0;
+  let garmin: any;
+  try {
+    garmin = await garminSync(emptyBody()).then((r) => r.json());
+  } catch (e: any) {
+    garmin = { error: String(e?.message || e) };
+  }
+
+  const totalSynced = (strava?.synced || 0) + (garmin?.synced || 0);
 
   let snapshot: any = null;
   try {
@@ -43,9 +51,9 @@ async function runSync(request: Request) {
     snapshot = { error: String(e?.message || e) };
   }
 
-  console.log('[cron/sync] done', { totalSynced, strava, snapshot });
+  console.log('[cron/sync] done', { totalSynced, strava, garmin, snapshot });
 
-  return NextResponse.json({ ok: true, totalSynced, strava, snapshot });
+  return NextResponse.json({ ok: true, totalSynced, strava, garmin, snapshot });
 }
 
 export async function GET(request: Request) {

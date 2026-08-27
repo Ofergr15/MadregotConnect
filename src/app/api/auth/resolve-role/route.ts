@@ -71,7 +71,16 @@ export async function POST(req: NextRequest) {
 
     if (athlete) {
       if (athlete.approved === false) {
-        return NextResponse.json({ pendingApproval: true, missingGarmin: false });
+        // Include `athlete` even though pending — the client sets athlete_id
+        // from this BEFORE branching on pendingApproval specifically so the
+        // /pending-approval push opt-in has a subscription target; without
+        // it, a returning-but-still-unapproved user never gets offered
+        // "notify me when approved" at all.
+        return NextResponse.json({
+          pendingApproval: true,
+          missingGarmin: false,
+          athlete: { id: athlete.id, name: athlete.name, email: athlete.email, group_id: athlete.group_id },
+        });
       }
       const hasGarmin = !!athlete.garmin_auth;
       const hasStrava = !!athlete.strava_auth;
@@ -106,7 +115,11 @@ export async function POST(req: NextRequest) {
       // Not yet approved → hold at pending, regardless of Garmin (approval owns
       // entry; Garmin/group are optional and can be added from inside the app).
       if (invitedAthlete.approved === false) {
-        return NextResponse.json({ pendingApproval: true, missingGarmin: !hasGarmin });
+        return NextResponse.json({
+          pendingApproval: true,
+          missingGarmin: !hasGarmin,
+          athlete: { id: invitedAthlete.id, name: invitedAthlete.name, email: invitedAthlete.email, group_id: invitedAthlete.group_id },
+        });
       }
       // Approved invited user → straight to the dashboard (no forced onboarding).
       return NextResponse.json({ role: 'runner', athlete: { ...invitedAthlete, garmin_auth: undefined, approved: undefined }, hasGarmin });
@@ -126,7 +139,10 @@ export async function POST(req: NextRequest) {
       // through onboarding just because one is missing. Onboarding is only for
       // brand-new users (handled below). Approval still gates entry.
       if (anyAthlete.approved === false) {
-        return NextResponse.json({ pendingApproval: true });
+        return NextResponse.json({
+          pendingApproval: true,
+          athlete: { id: anyAthlete.id, name: anyAthlete.name, email: anyAthlete.email, group_id: anyAthlete.group_id },
+        });
       }
       if (anyAthlete.status !== 'active') {
         await supabase.from('athletes').update({ status: 'active' }).eq('id', anyAthlete.id);

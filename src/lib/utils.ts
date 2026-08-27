@@ -5,6 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Local-timezone YYYY-MM-DD. Deliberately NOT `d.toISOString().split('T')[0]`
+// — that re-expresses the date in UTC first, which silently rolls a date back
+// by one day for positive-UTC-offset timezones (e.g. Israel) during the
+// window right after local midnight up to the offset (e.g. 00:00–03:00 IDT).
+export function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /**
  * Start of the ACTIVITY week (Sunday) — matches the club's PLAN week
  * (`getPlanWeekStart`/`weekly_plans.week_start_date`) so every week-boundary
@@ -23,7 +31,7 @@ export function cn(...inputs: ClassValue[]) {
 export function getActivityWeekStart(date: Date): string {
   const d = new Date(date);
   d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun → subtract to land on Sunday
-  return d.toISOString().split('T')[0];
+  return toISODate(d);
 }
 
 /**
@@ -35,7 +43,7 @@ export function getActivityWeekStart(date: Date): string {
 export function getPlanWeekStart(date: Date): string {
   const d = new Date(date);
   d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun → subtract to land on Sunday
-  return d.toISOString().split('T')[0];
+  return toISODate(d);
 }
 
 /**

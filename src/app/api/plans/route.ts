@@ -39,11 +39,36 @@ export async function POST(req: NextRequest) {
     // saves keep working on DBs where the column hasn't been migrated yet.
     if (athlete_id) insertRow.athlete_id = athlete_id;
 
-    const { data, error } = await supabase
+    // No DB-level uniqueness on (coach_id, week_start_date[, athlete_id]) — two
+    // near-simultaneous creates for the same week (e.g. the same coach open in
+    // two tabs, both saving right after a 30-180s AI parse) would otherwise
+    // insert two rows and leave one an invisible orphan. Check-then-update
+    // instead of a blind insert closes that window without needing a
+    // migration; still update (not truly atomic), but the realistic race is
+    // "minutes apart", not "same millisecond".
+    let existingQuery = supabase
       .from('weekly_plans')
-      .insert(insertRow)
-      .select()
-      .single();
+      .select('id')
+      .eq('coach_id', coach_id)
+      .eq('week_start_date', week_start_date);
+    existingQuery = athlete_id ? existingQuery.eq('athlete_id', athlete_id) : existingQuery.is('athlete_id', null);
+    const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+
+    let data, error;
+    if (!existingError && existing) {
+      ({ data, error } = await supabase
+        .from('weekly_plans')
+        .update(insertRow)
+        .eq('id', existing.id)
+        .select()
+        .single());
+    } else {
+      ({ data, error } = await supabase
+        .from('weekly_plans')
+        .insert(insertRow)
+        .select()
+        .single());
+    }
 
     if (error) {
       console.error('Error creating plan:', error);
