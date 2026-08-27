@@ -12,9 +12,7 @@
 //     screen, i.e. what a member blocked by maintenance sees.
 //
 // The chosen mode lives in one localStorage key and is read by the Header
-// (nav/role) and the MaintenanceGate. While a mode is active the preview is
-// READ-ONLY (installViewGuard blocks data-mutating requests) so nothing changes
-// while you're just looking around.
+// (nav/role) and the MaintenanceGate.
 
 export const MAINTENANCE_MODE = '__maintenance__';
 
@@ -47,62 +45,4 @@ export function stopViewAs() {
   localStorage.removeItem(KEY);
   localStorage.removeItem('dashboard_synced');
   window.location.assign('/dashboard');
-}
-
-// Requests that stay allowed even while previewing (session/auth refresh).
-// Exported for testing — this exact decision is what silently blocked every
-// write on a real device for an entire debugging session (a stale
-// view_as_role left in localStorage), invisible to server logs because
-// installViewGuard's synthetic 403 never leaves the client.
-export function isAllowedWhilePreviewing(url: string, method: string): boolean {
-  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return true;
-  const u = url.toLowerCase();
-  if (u.includes('/auth/v1/')) return true;
-  // Sending a notification/survey already has its own explicit
-  // confirm-before-send step (NotificationCenter's ConfirmSheet) — that
-  // deliberate-intent gate covers what this guard exists to prevent, so a
-  // role preview shouldn't also block an intentional real send. Only the
-  // real super user can ever be in a preview mode in the first place, so
-  // this never lets a different person's action through.
-  if (u.includes('/api/notifications') || u.includes('/api/admin/surveys')) return true;
-  return false;
-}
-
-// Wrap window.fetch once so that, while a view mode is active, every
-// data-mutating request is short-circuited with a synthetic 403 — the whole
-// preview is read-only without touching any of the app's forms individually.
-let guardInstalled = false;
-export function installViewGuard() {
-  if (typeof window === 'undefined' || guardInstalled) return;
-  guardInstalled = true;
-  const nativeFetch = window.fetch.bind(window);
-
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (isPreviewing()) {
-      const method = (
-        init?.method ||
-        (typeof input !== 'string' && !(input instanceof URL) ? (input as Request).method : 'GET') ||
-        'GET'
-      ).toUpperCase();
-      const url =
-        typeof input === 'string'
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : (input as Request).url;
-
-      if (!isAllowedWhilePreviewing(url, method)) {
-        // `error` is a real sentence, not a code — every call site across the
-        // app just does `err.error || fallback` and shows it verbatim (see
-        // the Garmin-connect flow, which leaked the old raw 'read_only_preview'
-        // string straight into its error banner). `code` is for the rare
-        // caller that wants to detect this programmatically.
-        return new Response(
-          JSON.stringify({ error: 'תצוגה מקדימה היא לקריאה בלבד — לא ניתן לשמור שינויים', code: 'read_only_preview' }),
-          { status: 403, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-    return nativeFetch(input, init);
-  };
 }

@@ -10,7 +10,6 @@ import {
   getViewMode,
   startViewAs,
   stopViewAs,
-  installViewGuard,
   MAINTENANCE_MODE,
 } from '@/lib/impersonation';
 
@@ -44,7 +43,6 @@ export function ImpersonationBar() {
   const [gateBlockingMe, setGateBlockingMe] = useState(false);
 
   useEffect(() => {
-    installViewGuard();
     setMounted(true);
     const current = getViewMode();
     setMode(current);
