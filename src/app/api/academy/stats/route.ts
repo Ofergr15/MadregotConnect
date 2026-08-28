@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { getActivityWeekStart } from '@/lib/utils';
+import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,12 +38,12 @@ export async function GET() {
       return NextResponse.json({
         athletes: [] as AthleteStat[],
         team: { athletes: 0, weekKm: 0, weekRuns: 0, weekDurationMin: 0, totalKm: 0, totalRuns: 0, totalDurationMin: 0 },
-        weekStart: getActivityWeekStart(new Date()),
+        weekStart: getActivityWeekStart(israelDateAnchor()),
       });
     }
 
     const athleteIds = athletes.map((a: any) => a.id);
-    const weekStart = getActivityWeekStart(new Date());
+    const weekStart = getActivityWeekStart(israelDateAnchor());
 
     // All activities for these athletes (non-runs are filtered at ingest, so every
     // row is a run). distance = meters, duration = seconds. Page through — PostgREST

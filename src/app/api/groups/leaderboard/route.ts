@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { getActivityWeekStart, computeWeekStreak } from '@/lib/utils';
+import { getActivityWeekStart, activityWeekStart, computeWeekStreak, israelDateAnchor } from '@/lib/utils';
 
 // Weekly totals — a short staleness window is invisible to users, so this
 // route participates in Next's Data Cache instead of forcing dynamic
@@ -28,18 +28,20 @@ interface LeaderboardEntry {
   eventCount: number;
 }
 
-/** Local (server-clock) calendar-month boundary as an ISO date string — same
- * "good enough, not timezone-precise" approximation the rest of this route's
- * week bucketing already uses. */
+/** First day of `now`'s calendar month as YYYY-MM-DD. Callers pass an
+ * Israel-anchored date, so this is the Israel month. Built by string, not via
+ * toISOString() on a local-midnight Date — that re-expresses midnight in UTC
+ * and lands on the last day of the PREVIOUS month in any positive-offset zone. */
 function monthStartIso(now: Date): string {
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
 export async function GET() {
   try {
     const supabase = createServerClient({ revalidateSeconds: 60 });
-    const now = new Date();
-    // Monday-based week so weekly km matches Garmin/Strava reporting.
+    // Israel's calendar day, not the server's UTC one — see israelDateAnchor.
+    const now = israelDateAnchor();
+    // Sunday-based week (club standard since 2026-08-21), matching weekly_plans.
     const weekStart = getActivityWeekStart(now);
 
     const { data: athletes, error: athError } = await supabase
@@ -113,7 +115,7 @@ export async function GET() {
     for (const act of (historyRes.data || []) as any[]) {
       if (!(act.distance > 0) || (act.activity_type && !RUN_TYPES.includes(act.activity_type))) continue;
       const weeks = weeksByAthlete.get(act.athlete_id) || new Set<string>();
-      weeks.add(getActivityWeekStart(new Date(act.start_time)));
+      weeks.add(activityWeekStart(act.start_time));
       weeksByAthlete.set(act.athlete_id, weeks);
 
       if (act.start_time.slice(0, 10) >= monthStart) {

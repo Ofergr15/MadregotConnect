@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { RefreshCw, Activity, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain, TrendingUp, Plus } from 'lucide-react';
 import { ActivityFeed } from '@/components/ActivityFeed';
-import { cn } from '@/lib/utils';
+import { cn, israelToday } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
 import { Spinner, BigStat } from '@/components/ui';
 import { ManualActivitySheet } from '@/components/ManualActivitySheet';
@@ -418,7 +418,7 @@ export default function ActivitiesPage() {
           </div>
           <div className="flex items-end gap-1.5 sm:gap-3 h-36 sm:h-44">
             {weekData.daily.map((d, i) => {
-              const isToday = d.date === new Date().toISOString().split('T')[0];
+              const isToday = d.date === israelToday();
               const hasMultiple = d.perActivity.length > 1;
               const barH = maxDist > 0 ? (d.distance / maxDist) * 100 : 0;
               const tapped = tappedDay === i;

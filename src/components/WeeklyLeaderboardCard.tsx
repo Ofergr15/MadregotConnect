@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Trophy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { cn, getActivityWeekStart } from '@/lib/utils';
+import { cn, getActivityWeekStart, activityWeekStart, israelDateAnchor } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
 import { SegmentedControl } from '@/components/ui';
 
@@ -47,13 +47,16 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
           const actData = await actRes.json();
           const filtered = (actData.activities || []).filter((a: any) => a.athlete_id === athleteId);
 
-          const weekStart = new Date(getActivityWeekStart(new Date()));
+          const weekStart = new Date(getActivityWeekStart(israelDateAnchor()));
           const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
           setWeeklyKm(Math.round((thisWeekActs.reduce((s: number, a: any) => s + (a.distance || 0), 0) / 1000) * 10) / 10);
 
           const weekMap: Record<string, { km: number; runs: number }> = {};
           filtered.forEach((a: any) => {
-            const key = getActivityWeekStart(new Date(a.start_time)).split('-').reverse().slice(0, 2).join('/'); // DD/MM of the week-start Sunday
+            // activityWeekStart, not getActivityWeekStart: start_time is the
+            // athlete's wall-clock read as UTC, so local getters here shift it +3h
+            // in an Israel browser and a 21:30 Saturday run jumps into next week.
+            const key = activityWeekStart(a.start_time).split('-').reverse().slice(0, 2).join('/'); // DD/MM of the week-start Sunday
             if (!weekMap[key]) weekMap[key] = { km: 0, runs: 0 };
             weekMap[key].km += (a.distance || 0) / 1000;
             weekMap[key].runs += 1;

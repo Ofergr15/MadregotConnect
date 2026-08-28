@@ -1,6 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { getActivityWeekStart } from '@/lib/utils';
+import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 
 /**
  * Recompute and persist weekly km per athlete (and, by group_id, per group)
@@ -8,14 +8,14 @@ import { getActivityWeekStart } from '@/lib/utils';
  * history of the numbers even as activities change.
  *
  * By default it snapshots the current activity week and the previous one
- * (in case a late-arriving activity lands in last week). Weeks are Monday-based
- * to match Garmin/Strava.
+ * (in case a late-arriving activity lands in last week). Weeks start on Sunday
+ * (club standard since 2026-08-21) and are keyed off Israel's calendar day.
  */
 export async function snapshotWeeklyKm(weeksBack = 1): Promise<{ weeks: string[]; rows: number }> {
   const supabase = createServerClient();
 
   // Which week-starts to (re)compute.
-  const now = new Date();
+  const now = israelDateAnchor(); // Israel's calendar day, not the server's UTC one
   const weekStarts: string[] = [];
   for (let i = 0; i <= weeksBack; i++) {
     const d = new Date(now);

@@ -59,8 +59,12 @@ export function getPlanWeekStart(date: Date): string {
  */
 export function computeWeekStreak(weekKeys: Set<string>, now: Date = new Date()): number {
   let streak = 0;
-  let cursor = now;
-  const thisWeekKey = getActivityWeekStart(now);
+  // Anchored to Israel's calendar date at local noon, not the raw instant: the
+  // week helpers below read local date parts, so on Vercel's UTC clock a bare
+  // `new Date()` answers for the UTC date — which is still YESTERDAY between
+  // 00:00 and 03:00 Israel, and on a Sunday that's a whole week off.
+  let cursor = israelDateAnchor(now);
+  const thisWeekKey = getActivityWeekStart(cursor);
   if (!weekKeys.has(thisWeekKey)) cursor = new Date(now.getTime() - 7 * 86400_000);
   for (let i = 0; i < 260; i++) { // cap ~5 years
     const key = getActivityWeekStart(cursor);
@@ -68,6 +72,32 @@ export function computeWeekStreak(weekKeys: Set<string>, now: Date = new Date())
     else break;
   }
   return streak;
+}
+
+/**
+ * Israel's current calendar date (YYYY-MM-DD), DST-aware. This is what "today"
+ * means everywhere in this app — the club is entirely in Israel, while every
+ * server this runs on has a UTC clock.
+ */
+export function israelToday(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date);
+}
+
+/**
+ * Israel's current calendar date as a Date pinned to local noon. Feed THIS to
+ * `getActivityWeekStart`/`getPlanWeekStart`/`toISODate` instead of `new Date()`:
+ * those read local date parts, so on a UTC server a raw `new Date()` gives the
+ * UTC date, which between 00:00 and 03:00 Israel is still yesterday. Noon leaves
+ * ±12h of slack, so the date can't drift again no matter where it's evaluated.
+ *
+ * Note this deliberately does NOT preserve the time of day — it answers "which
+ * day is it in Israel", nothing finer. For the hour/minute use `israelNow`.
+ */
+export function israelDateAnchor(date: Date = new Date()): Date {
+  return new Date(`${israelToday(date)}T12:00:00`);
 }
 
 /**
@@ -98,31 +128,61 @@ export function israelNow(date: Date = new Date()): { weekday: number; hour: num
  * These helpers format/inspect an activity time by its UTC parts, giving back
  * the athlete's real local time regardless of where it's viewed.
  */
+/**
+ * Parses an activity start_time as UTC, whatever shape it arrives in.
+ *
+ * Postgres hands back `2026-07-12T06:01:40+00:00`, which `new Date()` reads as
+ * UTC — but Garmin's own `startTimeLocal` is `2026-07-12 06:01:40`, with a space
+ * and no offset, and JS parses THAT as the viewer's local time. In an Israel
+ * browser that silently turns a 06:01 run into 03:01, which every helper below
+ * then reports as the athlete's "local" time. Since both forms flow through the
+ * app (the sync writes the raw Garmin string), normalise before reading parts.
+ */
+function parseActivityInstant(startTime: string): Date {
+  const s = startTime.trim().replace(' ', 'T');
+  return new Date(/(Z|[+-]\d{2}:?\d{2})$/.test(s) ? s : `${s}Z`);
+}
+
 export function formatActivityTime(startTime: string): string {
-  return new Date(startTime).toLocaleTimeString('en-US', {
+  return parseActivityInstant(startTime).toLocaleTimeString('en-US', {
     hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
   });
 }
 
 export function formatActivityDate(startTime: string): string {
-  return new Date(startTime).toLocaleDateString('en-US', {
+  return parseActivityInstant(startTime).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
   });
 }
 
 /** Athlete-local hour (0-23) of an activity, for morning/evening labels etc. */
 export function activityLocalHour(startTime: string): number {
-  return new Date(startTime).getUTCHours();
+  return parseActivityInstant(startTime).getUTCHours();
 }
 
 /** Athlete-local weekday (0=Sun..6=Sat) of an activity. */
 export function activityLocalDay(startTime: string): number {
-  return new Date(startTime).getUTCDay();
+  return parseActivityInstant(startTime).getUTCDay();
 }
 
 /** Athlete-local calendar day (YYYY-MM-DD) of an activity, by its UTC parts. */
 export function activityLocalDateStr(startTime: string): string {
-  return new Date(startTime).toISOString().split('T')[0];
+  return parseActivityInstant(startTime).toISOString().split('T')[0];
+}
+
+/**
+ * Activity-week (Sunday) key for an activity's start_time — the Convention-A
+ * counterpart to `getActivityWeekStart`, which must only ever be handed a real
+ * calendar Date. Using that one here would double-shift: the athlete's local
+ * time is already the timestamp's UTC wall-clock, so a 21:30 Saturday run read
+ * through local getters in an Israel browser becomes 00:30 Sunday and lands in
+ * the WRONG WEEK. All arithmetic here stays in UTC parts, which makes it give
+ * the same answer on the server and in any viewer's timezone.
+ */
+export function activityWeekStart(startTime: string): string {
+  const d = parseActivityInstant(startTime);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  return d.toISOString().split('T')[0];
 }
 
 export type GroupLevel = 'fast' | 'medium' | 'slow';

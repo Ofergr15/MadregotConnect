@@ -8,6 +8,7 @@ import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
+import { mapActivityDetail } from '@/lib/garmin/activity-detail';
 
 export async function POST(request: Request) {
   try {
@@ -90,48 +91,22 @@ export async function POST(request: Request) {
         if (newActivities.length > 0) {
           const rows: Record<string, any>[] = [];
           for (const a of newActivities) {
-            let enriched: any = {};
+            // Detail and GPS are fetched INDEPENDENTLY, and the polyline is
+            // requested unconditionally. Both matter:
+            //  - the old code only fetched GPS when `detail.hasPolyline` was
+            //    true, but that field reads null on every real response (see
+            //    lib/garmin/activity-detail.ts), so no run ever got a route —
+            //    hence no map anywhere in the app.
+            //  - the old code fetched both inside one try, so a detail failure
+            //    also cost the polyline.
+            // getActivityGpsPoints already returns [] for a genuinely GPS-less
+            // activity (treadmill) or any error, so it's safe to always ask.
+            let detail: any = null;
             try {
-              const detail = await client.getActivityFull(a.activityId);
-              const summ = detail?.summaryDTO || {};
-              // Persist the route polyline so maps load instantly and reliably.
-              // [] means "confirmed no GPS" (treadmill/indoor); only fetch when
-              // the activity claims a polyline to keep sync fast.
-              const gpsPoints = detail.hasPolyline
-                ? await client.getActivityGpsPoints(a.activityId)
-                : [];
-              enriched = {
-                start_lat: detail.startLatitude || null,
-                start_lng: detail.startLongitude || null,
-                end_lat: summ.endLatitude || detail.endLatitude || null,
-                end_lng: summ.endLongitude || detail.endLongitude || null,
-                avg_cadence: summ.averageRunCadence || null,
-                avg_stride_length: summ.strideLength ? Math.round(summ.strideLength * 100) : null,
-                vo2max: detail.vO2MaxValue || null,
-                lap_count: detail.lapCount || null,
-                location_name: detail.locationName || null,
-                has_polyline: detail.hasPolyline || false,
-                gps_points: gpsPoints,
-                moving_duration: summ.movingDuration ? Math.round(summ.movingDuration) : Math.round(a.movingDuration),
-                // Garmin "Self Evaluation" (only present if answered on-watch).
-                perceived_rpe: summ.directWorkoutRpe != null ? summ.directWorkoutRpe / 10 : null,
-                perceived_feel: summ.directWorkoutFeel != null ? summ.directWorkoutFeel / 25 : null,
-              };
-            } catch {
-              enriched = {
-                start_lat: a.startLatitude,
-                start_lng: a.startLongitude,
-                end_lat: a.endLatitude,
-                end_lng: a.endLongitude,
-                avg_cadence: a.averageRunningCadence,
-                avg_stride_length: a.avgStrideLength,
-                vo2max: a.vO2MaxValue,
-                lap_count: a.lapCount,
-                location_name: a.locationName,
-                has_polyline: a.hasPolyline,
-                moving_duration: Math.round(a.movingDuration),
-              };
-            }
+              detail = await client.getActivityFull(a.activityId);
+            } catch { /* the list row + polyline still carry most of it */ }
+            const gpsPoints = await client.getActivityGpsPoints(a.activityId);
+            const enriched = mapActivityDetail(detail, a, gpsPoints);
 
             rows.push({
               athlete_id: athlete.id,
@@ -289,18 +264,40 @@ export async function POST(request: Request) {
   }
 }
 
+/**
+ * Re-runnable enrichment backfill for rows the POST path stored with missing
+ * columns — chiefly the whole pre-fix history, whose `has_polyline: false`
+ * meant no GPS was ever fetched and so no `route_preview` was ever built.
+ *
+ *   ?mode=route    (default) rows with no polyline — the map repair
+ *   ?mode=missing  rows with no avg_cadence — the original behaviour
+ *   ?limit=N       rows per call, 1-100 (default 25; Garmin calls are serial,
+ *                  ~2 requests per row, so keep it inside maxDuration)
+ *
+ * Idempotent and non-destructive: nulls are never written over existing
+ * values, and gps_points/has_polyline are only touched when a real route came
+ * back — a transient Garmin failure must not wipe a route it already has.
+ */
 export async function PATCH(request: Request) {
   try {
     const supabase = createServerClient();
+    const { searchParams } = new URL(request.url);
+    const mode = searchParams.get('mode') === 'missing' ? 'missing' : 'route';
+    const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 25, 1), 100);
 
-    const { data: activities } = await supabase
+    let query = supabase
       .from('athlete_activities')
       .select('id, garmin_activity_id, athlete_id')
-      .is('avg_cadence', null)
-      .limit(20);
+      .not('garmin_activity_id', 'is', null)
+      .order('start_time', { ascending: false })
+      .limit(limit);
+    query = mode === 'missing' ? query.is('avg_cadence', null) : query.or('has_polyline.is.null,has_polyline.eq.false');
+
+    const { data: activities, error: selectError } = await query;
+    if (selectError) throw selectError;
 
     if (!activities || activities.length === 0) {
-      return NextResponse.json({ enriched: 0, message: 'All activities already enriched' });
+      return NextResponse.json({ enriched: 0, mode, message: 'Nothing left to enrich' });
     }
 
     const athleteIds = [...new Set(activities.map(a => a.athlete_id))];
@@ -319,7 +316,24 @@ export async function PATCH(request: Request) {
       clientMap.set(ath.id, new GarminClient(ath.garmin_auth as any));
     }
 
+    // One activity-LIST fetch per athlete, indexed by activityId: the list row
+    // is the fallback source mapActivityDetail needs when the detail response
+    // comes back all-null, and it's a single request for up to 100 rows.
+    const listCache = new Map<string, Map<number, any>>();
+    const listFor = async (athleteId: string, client: GarminClient) => {
+      const cached = listCache.get(athleteId);
+      if (cached) return cached;
+      let index = new Map<number, any>();
+      try {
+        const list = await client.getActivities(0, 100);
+        index = new Map(list.map(a => [a.activityId, a]));
+      } catch { /* fallback source is optional */ }
+      listCache.set(athleteId, index);
+      return index;
+    };
+
     let enriched = 0;
+    let routesAdded = 0;
     const errors: string[] = [];
 
     for (const act of activities) {
@@ -327,29 +341,31 @@ export async function PATCH(request: Request) {
       if (!client) continue;
 
       try {
-        const detail = await client.getActivityFull(act.garmin_activity_id);
-        const summ = detail?.summaryDTO || {};
-        const update: any = {};
-        if (detail.startLatitude) update.start_lat = detail.startLatitude;
-        if (detail.startLongitude) update.start_lng = detail.startLongitude;
-        if (summ.endLatitude || detail.endLatitude) update.end_lat = summ.endLatitude || detail.endLatitude;
-        if (summ.endLongitude || detail.endLongitude) update.end_lng = summ.endLongitude || detail.endLongitude;
-        if (summ.averageRunCadence) update.avg_cadence = summ.averageRunCadence;
-        if (summ.strideLength) update.avg_stride_length = Math.round(summ.strideLength * 100);
-        if (detail.vO2MaxValue) update.vo2max = detail.vO2MaxValue;
-        if (detail.lapCount) update.lap_count = detail.lapCount;
-        if (detail.locationName) update.location_name = detail.locationName;
-        if (detail.hasPolyline != null) update.has_polyline = detail.hasPolyline;
-        if (summ.movingDuration) update.moving_duration = Math.round(summ.movingDuration);
-        // Garmin "Self Evaluation" — backfill on older rows when present.
-        if (summ.directWorkoutRpe != null) update.perceived_rpe = summ.directWorkoutRpe / 10;
-        if (summ.directWorkoutFeel != null) update.perceived_feel = summ.directWorkoutFeel / 25;
+        let detail: any = null;
+        try {
+          detail = await client.getActivityFull(act.garmin_activity_id);
+        } catch { /* the list row + polyline still carry most of it */ }
+        const gpsPoints = await client.getActivityGpsPoints(act.garmin_activity_id);
+        const list = (await listFor(act.athlete_id, client)).get(act.garmin_activity_id) || {};
+        const mapped = mapActivityDetail(detail, list, gpsPoints);
+
+        // Drop nulls: an absent value here means "Garmin didn't tell us", not
+        // "clear the column". Ditto gps_points/has_polyline unless a real
+        // route came back — writing [] would clobber an existing polyline and
+        // re-fire migration 047's trigger to null out route_preview.
+        const { gps_points, has_polyline, ...scalars } = mapped;
+        const update: Record<string, any> = Object.fromEntries(
+          Object.entries(scalars).filter(([, v]) => v != null),
+        );
+        if (has_polyline) {
+          update.gps_points = gps_points;
+          update.has_polyline = true;
+          routesAdded++;
+        }
 
         if (Object.keys(update).length > 0) {
-          await supabase
-            .from('athlete_activities')
-            .update(update)
-            .eq('id', act.id);
+          const { error: updateError } = await supabase.from('athlete_activities').update(update).eq('id', act.id);
+          if (updateError) throw updateError;
           enriched++;
         }
       } catch (e: any) {
@@ -357,7 +373,13 @@ export async function PATCH(request: Request) {
       }
     }
 
-    return NextResponse.json({ enriched, total: activities.length, errors: errors.length > 0 ? errors : undefined });
+    return NextResponse.json({
+      enriched,
+      routesAdded,
+      total: activities.length,
+      mode,
+      errors: errors.length > 0 ? errors : undefined,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

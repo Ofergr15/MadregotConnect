@@ -484,9 +484,10 @@ export function ActivitySyncEditor({
               </div>
             )}
 
-            {/* Audience selector — "Followers" is visibly disabled: the
-                follow-graph feature (#21) doesn't exist yet, so a real
-                Followers audience would silently do nothing. */}
+            {/* Audience selector — "Followers" stays visibly disabled. The
+                follow graph does exist now (lib/follows/club-sync.ts), but it's
+                club-wide by design: everyone mutually follows everyone, so a
+                Followers audience would be indistinguishable from Everyone. */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">{t('audienceTitle')}</p>
               <div className="flex gap-0.5 rounded-xl bg-slate-800 p-1 border border-slate-700">

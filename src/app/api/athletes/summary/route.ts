@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isSuperUser } from '@/lib/constants';
-import { getActivityWeekStart, computeWeekStreak } from '@/lib/utils';
+import { getActivityWeekStart, activityWeekStart, computeWeekStreak, israelDateAnchor } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +53,12 @@ export async function GET(request: Request) {
 
     // All-time total km/hours + this-calendar-month run count (dashboard/stats).
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    // Israel's calendar day, NOT the server's UTC one: between 00:00 and 03:00
+    // Israel a raw `new Date()` still reads as yesterday, so "this week" and
+    // "this month" would both be a period behind — and on a Sunday or the 1st
+    // of a month, off by a whole week/month.
+    const today = israelDateAnchor(now);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
     let totalKm = 0;
     let totalDurationSec = 0;
     let thisMonthRuns = 0;
@@ -66,15 +71,15 @@ export async function GET(request: Request) {
     // Bucket runs by activity-week (Sunday-based ISO date).
     const byWeek = new Map<string, { km: number; runs: number }>();
     for (const r of runs) {
-      const wk = getActivityWeekStart(new Date(r.start_time));
+      const wk = activityWeekStart(r.start_time);
       const b = byWeek.get(wk) || { km: 0, runs: 0 };
       b.km += r.distance / 1000;
       b.runs += 1;
       byWeek.set(wk, b);
     }
 
-    const thisWeekKey = getActivityWeekStart(new Date());
-    const lastWeekKey = getActivityWeekStart(new Date(Date.now() - 7 * 86400_000));
+    const thisWeekKey = getActivityWeekStart(today);
+    const lastWeekKey = getActivityWeekStart(new Date(today.getTime() - 7 * 86400_000));
     const round1 = (n: number) => Math.round(n * 10) / 10;
     const thisWeek = { km: round1(byWeek.get(thisWeekKey)?.km || 0), runs: byWeek.get(thisWeekKey)?.runs || 0 };
     const lastWeek = { km: round1(byWeek.get(lastWeekKey)?.km || 0), runs: byWeek.get(lastWeekKey)?.runs || 0 };
@@ -112,7 +117,7 @@ export async function GET(request: Request) {
     if (sortedWeekTimes.length > 0) {
       const weeksSinceFirst = Math.min(52, Math.floor((now.getTime() - sortedWeekTimes[0]) / (7 * 86400_000)) + 1);
       let active = 0;
-      const cursor = new Date(getActivityWeekStart(now));
+      const cursor = new Date(getActivityWeekStart(today));
       for (let i = 0; i < weeksSinceFirst; i++) {
         const key = cursor.toISOString().split('T')[0];
         if (byWeek.has(key)) active += 1;

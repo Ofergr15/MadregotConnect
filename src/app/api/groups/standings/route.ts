@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { resolveGroup, getActivityWeekStart } from '@/lib/utils';
+import { resolveGroup, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 
 // Monthly squad rivalry, rolled up — a few minutes of staleness is invisible
 // against a month-long window, so this participates in Next's Data Cache
@@ -26,7 +26,7 @@ const iso = (d: Date) =>
 export async function GET() {
   try {
     const supabase = createServerClient({ revalidateSeconds: 300 });
-    const now = new Date();
+    const now = israelDateAnchor(); // Israel's calendar day, not the server's UTC one
     const monthStart = iso(new Date(now.getFullYear(), now.getMonth(), 1));
     const weekStart = getActivityWeekStart(now); // Sunday, for the consistency metric
 

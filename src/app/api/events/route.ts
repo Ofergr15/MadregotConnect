@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { EVENT_KINDS, EVENT_KIND_LABELS, isEventKind } from '@/lib/events';
 import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
+import { israelToday } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,9 @@ export async function GET(request: Request) {
     let query = supabase.from('events').select('*');
 
     if (kind) query = query.eq('kind', kind);
-    query = query.gte('date', from || new Date().toISOString().split('T')[0]);
+    // "Upcoming from today" in Israel — a UTC date would still hide today's
+    // event during the 00:00-03:00 window, or show yesterday's after 21:00.
+    query = query.gte('date', from || israelToday());
     if (to) query = query.lte('date', to);
 
     const { data, error } = await query.order('date', { ascending: true });

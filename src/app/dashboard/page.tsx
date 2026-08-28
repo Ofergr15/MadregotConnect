@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { Calendar, ArrowRight, TrendingUp, TrendingDown, MapPin, Flame } from 'lucide-react';
-import { cn, getActivityWeekStart, getPlanWeekStart, isRecentlyPublished } from '@/lib/utils';
+import { cn, getActivityWeekStart, getPlanWeekStart, isRecentlyPublished, israelDateAnchor } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
 import { useApi } from '@/lib/api';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
@@ -265,7 +265,7 @@ export default function DashboardPage() {
 
           if (myAthleteId) {
             // Activity week (Sunday-based, matches the club's plan week).
-            const weekStart = new Date(getActivityWeekStart(new Date()));
+            const weekStart = new Date(getActivityWeekStart(israelDateAnchor()));
             const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
             setWeeklyRuns(thisWeekActs.length);
           }
@@ -294,7 +294,7 @@ export default function DashboardPage() {
               const filtered = allActs.filter((a: any) => a.athlete_id === myAthleteId);
               setRecentActivities(filtered.slice(0, 3));
 
-              const weekStart = new Date(getActivityWeekStart(new Date()));
+              const weekStart = new Date(getActivityWeekStart(israelDateAnchor()));
               const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
               setWeeklyRuns(thisWeekActs.length);
 

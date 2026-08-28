@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
+import { reconcileClubFollows } from '@/lib/follows/club-sync';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -35,6 +36,15 @@ async function run(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Piggybacks on this sweep because it needs the same thing the sweep does —
+  // one daily pass over the active roster. Athletes can go active through paths
+  // that never call syncClubFollows (an admin status flip, direct SQL), and a
+  // missing follow row silently means their runs notify nobody.
+  let follows: { athletes: number; rows: number } | null = null;
+  try {
+    follows = await reconcileClubFollows(supabase);
+  } catch { /* follow graph is an enhancement; never fail the badge sweep */ }
+
   let checked = 0;
   const awarded: Array<{ athleteId: string; badges: string[] }> = [];
   for (const athlete of athletes || []) {
@@ -51,7 +61,7 @@ async function run(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, checked, awarded });
+  return NextResponse.json({ ok: true, checked, awarded, follows });
 }
 
 export async function GET(request: Request) { return run(request); }

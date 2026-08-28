@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushToSubscriptions, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications } from '@/lib/push';
 import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
-import { israelNow, getPlanWeekStart, getActivityWeekStart } from '@/lib/utils';
+import { israelNow, getPlanWeekStart, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
@@ -400,8 +400,11 @@ async function run(request: Request) {
   // query on both ends (start of last week ≤ x < start of this week) so it
   // can't bleed into today's activities, which belong to the new week.
   if (weekday === 0 && hour === 19) {
-    const thisWeekStart = getActivityWeekStart(now); // today — the new week that just started
-    const recapWeekStart = getActivityWeekStart(new Date(now.getTime() - 7 * 86400_000)); // last week, being recapped
+    // Anchored to Israel's calendar day so the boundaries don't depend on the
+    // gate above happening to fire at an hour where UTC and Israel agree.
+    const anchor = israelDateAnchor(now);
+    const thisWeekStart = getActivityWeekStart(anchor); // today — the new week that just started
+    const recapWeekStart = getActivityWeekStart(new Date(anchor.getTime() - 7 * 86400_000)); // last week, being recapped
     const tag = `recap:${recapWeekStart}`;
     if (!(await already(tag))) {
       const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];

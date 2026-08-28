@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
-import { syncGroupFollows } from '@/lib/follows/group-sync';
+import { syncClubFollows } from '@/lib/follows/club-sync';
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        await syncGroupFollows(supabase, athlete.id, updated?.group_id);
+        await syncClubFollows(supabase, athlete.id);
       } catch { /* best-effort — never break the connect flow itself */ }
 
       try {
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        await syncGroupFollows(supabase, existing.id, updated?.group_id);
+        await syncClubFollows(supabase, existing.id);
       } catch { /* best-effort — never break the connect flow itself */ }
 
       try {
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      await syncGroupFollows(supabase, created.id, created?.group_id);
+      await syncClubFollows(supabase, created.id);
     } catch { /* best-effort — never break the connect flow itself */ }
 
     try {

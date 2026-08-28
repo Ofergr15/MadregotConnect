@@ -21,7 +21,7 @@
  */
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
-import { getActivityWeekStart, getPlanWeekStart, computeWeekStreak, activityLocalDateStr } from '@/lib/utils';
+import { getPlanWeekStart, computeWeekStreak, activityWeekStart, activityLocalDateStr } from '@/lib/utils';
 import { PR_BUCKETS, PR_RUN_TYPES, filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
 
 // Keep in sync with the CHECK constraint in 059_badges.sql. Only the types
@@ -344,7 +344,7 @@ export async function checkAndAwardBadges(
     for (const a of (data || []) as Array<{ activity_type: string | null; distance: number | null; start_time: string }>) {
       if (!(a.distance && a.distance > 0)) continue;
       if (a.activity_type && !PR_RUN_TYPES.includes(a.activity_type)) continue;
-      weekKeys.add(getActivityWeekStart(new Date(a.start_time)));
+      weekKeys.add(activityWeekStart(a.start_time));
     }
     streakCache = computeWeekStreak(weekKeys);
     return streakCache;
