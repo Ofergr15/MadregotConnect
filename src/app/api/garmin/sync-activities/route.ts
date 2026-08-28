@@ -287,6 +287,10 @@ export async function POST(request: Request) {
  * route_preview, so migration 047's trigger fires correctly on UPDATE and the
  * only thing ever missing is the GPS itself.
  *
+ * Reachable set, measured: 1064 rows. The other 230 route-less rows are
+ * Strava-sourced and are skipped by the id filter below — Garmin cannot supply
+ * their routes at any price.
+ *
  * `before` is what makes a full-history sweep terminate. Without it the filter
  * alone can't distinguish "GPS not fetched yet" from "this run genuinely has no
  * GPS" (a treadmill session keeps a NULL gps_points forever), so those rows
@@ -310,7 +314,13 @@ export async function PATCH(request: Request) {
     let query = supabase
       .from('athlete_activities')
       .select('id, garmin_activity_id, athlete_id, start_time, has_polyline')
-      .not('garmin_activity_id', 'is', null)
+      // `> 0`, not merely NOT NULL: a Strava-sourced row stores the NEGATED
+      // Strava id in this column (source='strava', garmin_activity_id =
+      // -strava_activity_id), so a null check lets 230 rows through that Garmin
+      // has never heard of. Every one of them costs two doomed Garmin requests
+      // and comes back all-null, which then looks exactly like "this run has no
+      // GPS". Those rows need Strava's own polyline, not this endpoint.
+      .gt('garmin_activity_id', 0)
       .order('start_time', { ascending: false })
       .limit(limit);
     query = mode === 'missing' ? query.is('avg_cadence', null) : query.is('gps_points', null);
