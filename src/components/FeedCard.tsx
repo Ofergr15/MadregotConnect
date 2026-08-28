@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { activityDayRelation, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
 import { FeedLikesSheet } from '@/components/FeedLikesSheet';
@@ -39,8 +39,37 @@ function isImageUrl(value: string): boolean {
 
 type Translate = ReturnType<typeof useTranslations<'feed'>>;
 
-function AuthorRow({ item }: { item: FeedItem }) {
+/**
+ * The run's own clock time, the way Strava heads a feed card ("Today at 8:00
+ * AM") rather than "6 hours ago".
+ *
+ * The relative form wasn't just less informative here, it was wrong: for an
+ * activity `occurredAt` is `start_time` copied by migration 047's trigger, i.e.
+ * the athlete's wall-clock stored as if it were UTC (Convention A in
+ * lib/utils.ts). Measuring that against a real `Date.now()` understated every
+ * activity by Israel's UTC offset — a flat -3h across live rows, so a run 10.7h
+ * old read "7.7 hours ago" — and anything under 3h old came out in the FUTURE
+ * ("in 2 hours"). Reading it via the Convention-A helpers instead needs no
+ * offset arithmetic at all: the stored wall-clock is already the time to show.
+ *
+ * Posts, achievements and announcements carry a genuine instant in the same
+ * field, so those keep the relative form.
+ */
+function WhenLabel({ item }: { item: FeedItem }) {
   const format = useFormatter();
+  const t = useTranslations('feed');
+  const startTime = item.activity?.startTime;
+  if (!startTime) return <>{format.relativeTime(new Date(item.occurredAt))}</>;
+
+  const time = formatActivityTime(startTime);
+  switch (activityDayRelation(startTime)) {
+    case 'today': return <>{t('whenToday', { time })}</>;
+    case 'yesterday': return <>{t('whenYesterday', { time })}</>;
+    default: return <>{t('whenOn', { date: formatActivityDate(startTime), time })}</>;
+  }
+}
+
+function AuthorRow({ item }: { item: FeedItem }) {
   const identity = (
     <>
       <FeedAvatar name={item.author.name} url={item.author.avatarUrl} />
@@ -48,7 +77,7 @@ function AuthorRow({ item }: { item: FeedItem }) {
         <p className="text-sm font-semibold text-white leading-tight truncate">{item.author.name}</p>
         <p className="text-xs text-slate-500 leading-tight">
           {item.author.groupName ? `${item.author.groupName} · ` : ''}
-          {format.relativeTime(new Date(item.occurredAt))}
+          <WhenLabel item={item} />
         </p>
       </div>
     </>

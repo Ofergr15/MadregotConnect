@@ -185,6 +185,28 @@ export function activityWeekStart(startTime: string): string {
   return d.toISOString().split('T')[0];
 }
 
+/**
+ * Which day word belongs in front of an activity's clock time — the "Today" in
+ * Strava's "Today at 8:00 AM" feed header.
+ *
+ * This is the one place the two conventions meet on purpose: the activity side
+ * is Convention A (its own wall-clock, read via UTC parts) while "today" is a
+ * real Israeli calendar date. That's also why it can't be a date subtraction on
+ * two Dates — one of them isn't a real instant. All arithmetic here is in UTC
+ * parts off a noon anchor, so the answer doesn't depend on where it's evaluated.
+ */
+export function activityDayRelation(
+  startTime: string,
+  now: Date = new Date(),
+): 'today' | 'yesterday' | 'older' {
+  const day = activityLocalDateStr(startTime);
+  const today = israelToday(now);
+  if (day === today) return 'today';
+  const yesterday = new Date(`${today}T12:00:00Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  return day === yesterday.toISOString().split('T')[0] ? 'yesterday' : 'older';
+}
+
 export type GroupLevel = 'fast' | 'medium' | 'slow';
 
 const groupColorMap = {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activityDayRelation,
   activityLocalDateStr,
   activityLocalDay,
   activityLocalHour,
@@ -105,6 +106,66 @@ describe('activity-local accessors', () => {
   it('keeps a late-evening run on its own day', () => {
     expect(activityLocalDateStr('2026-07-12 22:45:00')).toBe('2026-07-12');
     expect(activityLocalHour('2026-07-12 22:45:00')).toBe(22);
+  });
+});
+
+// The day word in the feed header ("Today at 8:00 AM"). Straddles both
+// conventions on purpose: the activity is a stored wall-clock, "today" is a real
+// Israeli calendar date.
+describe('activityDayRelation', () => {
+  const afternoon = new Date('2026-08-28T15:40:00Z'); // 18:40 Israel
+
+  it('labels the same Israeli day as today', () => {
+    expect(activityDayRelation('2026-08-28T08:00:00', afternoon)).toBe('today');
+  });
+
+  it('labels the day before as yesterday, and anything earlier as older', () => {
+    expect(activityDayRelation('2026-08-27T07:29:00', afternoon)).toBe('yesterday');
+    expect(activityDayRelation('2026-08-26T18:33:00', afternoon)).toBe('older');
+  });
+
+  // The window that makes this a helper rather than a one-liner: at 01:30 Israel
+  // the UTC date is still yesterday, so comparing against a UTC "today" would
+  // label a run finished an hour ago as belonging to a previous day.
+  it('uses Israel’s calendar day, not the server’s', () => {
+    const justAfterIsraeliMidnight = new Date('2026-08-27T22:30:00Z'); // 01:30 on the 28th
+    expect(activityDayRelation('2026-08-28T00:30:00', justAfterIsraeliMidnight)).toBe('today');
+    expect(activityDayRelation('2026-08-27T19:00:00', justAfterIsraeliMidnight)).toBe('yesterday');
+  });
+
+  it('crosses a month boundary', () => {
+    expect(activityDayRelation('2026-07-31T22:00:00', new Date('2026-08-01T05:00:00Z'))).toBe('yesterday');
+  });
+
+  it('reads every timestamp shape the same way', () => {
+    for (const form of ['2026-08-28T08:00:00', '2026-08-28 08:00:00', '2026-08-28T08:00:00+00:00']) {
+      expect(activityDayRelation(form, afternoon)).toBe('today');
+    }
+  });
+});
+
+// Why the feed stopped showing "X ago" for activities: start_time is a
+// wall-clock stored as if UTC, so treating it as a real instant and subtracting
+// it from Date.now() is off by Israel's UTC offset — flattering by 3h, and
+// outright in the future for anything under 3h old.
+describe('the relative-time trap on activity timestamps', () => {
+  // Both assertions use the `+00:00` form PostgREST actually sends, so they
+  // hold on any machine — an offsetless literal here would be read as local time
+  // and quietly prove something different on a UTC box than on an Israeli one.
+  it('puts a run that just finished in the future', () => {
+    const now = new Date('2026-08-28T05:30:00Z');       // 08:30 Israel
+    const justFinished = '2026-08-28T08:00:00+00:00';   // 08:00 Israel, half an hour ago
+    expect(new Date(justFinished).getTime()).toBeGreaterThan(now.getTime());
+  });
+
+  it('understates an older run by exactly the offset', () => {
+    const now = new Date('2026-08-28T15:40:00Z'); // 18:40 Israel
+    const naiveHours = (now.getTime() - new Date('2026-08-28T08:00:00Z').getTime()) / 3_600_000;
+    expect(naiveHours).toBeCloseTo(7.67, 1); // truth is 10.67h — the IDT offset, lost
+  });
+
+  it('sidesteps it by formatting the stored wall-clock as-is', () => {
+    expect(formatActivityTime('2026-08-28T08:00:00')).toBe('8:00 AM');
   });
 });
 

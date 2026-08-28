@@ -269,10 +269,31 @@ export async function POST(request: Request) {
  * columns — chiefly the whole pre-fix history, whose `has_polyline: false`
  * meant no GPS was ever fetched and so no `route_preview` was ever built.
  *
- *   ?mode=route    (default) rows with no polyline — the map repair
+ *   ?mode=route    (default) rows with no stored GPS — the map repair
  *   ?mode=missing  rows with no avg_cadence — the original behaviour
  *   ?limit=N       rows per call, 1-100 (default 25; Garmin calls are serial,
  *                  ~2 requests per row, so keep it inside maxDuration)
+ *   ?before=<ISO>  only rows older than this start_time — the batch cursor
+ *
+ * `mode=route` selects on `gps_points IS NULL` — migration 018's own definition
+ * of "not yet fetched" — and deliberately NOT on `has_polyline`. That flag is
+ * unreliable in exactly the rows this backfill exists to repair: the pre-fix
+ * sync read `hasPolyline` from the activity-LIST row (which populates) while
+ * gating the GPS fetch on the detail root (which is null in production), so it
+ * stored has_polyline=true with no route behind it. Measured live: 316 rows
+ * flagged true, gps_points NULL — invisible to a has_polyline filter, and all
+ * of them recent, which is precisely the stretch of feed anyone actually looks
+ * at. Cross-checked at the same time: 0 rows have gps_points without a
+ * route_preview, so migration 047's trigger fires correctly on UPDATE and the
+ * only thing ever missing is the GPS itself.
+ *
+ * `before` is what makes a full-history sweep terminate. Without it the filter
+ * alone can't distinguish "GPS not fetched yet" from "this run genuinely has no
+ * GPS" (a treadmill session keeps a NULL gps_points forever), so those rows
+ * sit at the top of every ascending-recency batch and the caller re-processes
+ * the same 20 rows for eternity — observed live: routesAdded decayed 19 → 8 as
+ * the clog grew. The response returns `nextBefore`, the oldest start_time this
+ * call touched, for the caller to pass back on the next one.
  *
  * Idempotent and non-destructive: nulls are never written over existing
  * values, and gps_points/has_polyline are only touched when a real route came
@@ -284,21 +305,26 @@ export async function PATCH(request: Request) {
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode') === 'missing' ? 'missing' : 'route';
     const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 25, 1), 100);
+    const before = searchParams.get('before');
 
     let query = supabase
       .from('athlete_activities')
-      .select('id, garmin_activity_id, athlete_id')
+      .select('id, garmin_activity_id, athlete_id, start_time, has_polyline')
       .not('garmin_activity_id', 'is', null)
       .order('start_time', { ascending: false })
       .limit(limit);
-    query = mode === 'missing' ? query.is('avg_cadence', null) : query.or('has_polyline.is.null,has_polyline.eq.false');
+    query = mode === 'missing' ? query.is('avg_cadence', null) : query.is('gps_points', null);
+    if (before) query = query.lt('start_time', before);
 
     const { data: activities, error: selectError } = await query;
     if (selectError) throw selectError;
 
     if (!activities || activities.length === 0) {
-      return NextResponse.json({ enriched: 0, mode, message: 'Nothing left to enrich' });
+      return NextResponse.json({ enriched: 0, mode, nextBefore: null, message: 'Nothing left to enrich' });
     }
+
+    // Rows come back newest-first, so the last one is the oldest this call saw.
+    const nextBefore = (activities[activities.length - 1] as { start_time: string }).start_time;
 
     const athleteIds = [...new Set(activities.map(a => a.athlete_id))];
     const { data: athletes } = await supabase
@@ -361,6 +387,13 @@ export async function PATCH(request: Request) {
           update.gps_points = gps_points;
           update.has_polyline = true;
           routesAdded++;
+        } else if (act.has_polyline) {
+          // Garmin has no polyline for this run, yet the flag claims one. Clear
+          // it so `hasRoute` in lib/feed/project.ts stops promising a map that
+          // can never be drawn. gps_points stays NULL rather than [] — "not
+          // fetched" is the honest state, and writing [] would make the row
+          // indistinguishable from a real empty route.
+          update.has_polyline = false;
         }
 
         if (Object.keys(update).length > 0) {
@@ -378,6 +411,7 @@ export async function PATCH(request: Request) {
       routesAdded,
       total: activities.length,
       mode,
+      nextBefore,
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error: any) {
