@@ -1,12 +1,31 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { canGrantAdmin } from '@/lib/constants';
-import { resolveCallerFromEmailHeader, isStaffRole } from '@/lib/auth/self-or-staff';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type UserRole = 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
+
+/**
+ * Staff gate on a VERIFIED session. This route used to resolve its caller from
+ * the `x-user-email` header, which meant sending one line — `x-user-email:
+ * <any coach's address>` — was enough to hand yourself the coach role through
+ * PUT, or delete any athlete and all their activities through DELETE. Nothing
+ * about the request is trusted now except the JWT.
+ */
+async function requireStaff(request: Request) {
+  const { denied, caller } = await resolveVerifiedCaller(request);
+  if (denied) return { denied, caller };
+  if (!caller.isSuperUser && !caller.isStaff) {
+    return {
+      denied: NextResponse.json({ error: 'Staff access required' }, { status: 403 }),
+      caller,
+    };
+  }
+  return { denied: null, caller };
+}
 
 interface User {
   id: string;
@@ -22,12 +41,10 @@ interface User {
 
 export async function GET(request: Request) {
   try {
-    const supabase = createServerClient();
+    const { denied } = await requireStaff(request);
+    if (denied) return denied;
 
-    const caller = await resolveCallerFromEmailHeader(request, supabase);
-    if (!caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
-      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
-    }
+    const supabase = createServerClient();
 
     const { data: athletes, error } = await supabase
       .from('athletes')
@@ -60,23 +77,18 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const { denied, caller } = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const body = await request.json();
-    const { email, role, actorEmail } = body;
+    const { email, role } = body;
 
     if (!email || !role) {
       return NextResponse.json(
         { error: 'Email and role are required' },
         { status: 400 }
       );
-    }
-
-    // Any role change requires the actor to be staff (or the super user) —
-    // previously only changes touching 'admin' were gated at all, so any
-    // signed-up user could hand themselves 'coach'/'core_runner'/'viewer'.
-    const caller = await resolveCallerFromEmailHeader(request, supabase);
-    if (!caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
-      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
 
     if (!['admin', 'coach', 'runner', 'core_runner', 'viewer'].includes(role)) {
@@ -104,7 +116,7 @@ export async function PUT(request: Request) {
     // Only the designated granter may create or remove admins. This blocks both
     // promoting someone TO admin and demoting an existing admin FROM anyone else.
     const touchesAdmin = role === 'admin' || athlete.role === 'admin';
-    if (touchesAdmin && !canGrantAdmin(actorEmail)) {
+    if (touchesAdmin && !canGrantAdmin(caller.email)) {
       return NextResponse.json(
         { error: 'Only the club admin account can grant or remove the admin role.' },
         { status: 403 }
@@ -130,12 +142,10 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = createServerClient();
+    const { denied } = await requireStaff(request);
+    if (denied) return denied;
 
-    const caller = await resolveCallerFromEmailHeader(request, supabase);
-    if (!caller.isSuperUser && !isStaffRole(caller.athlete?.role)) {
-      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
-    }
+    const supabase = createServerClient();
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

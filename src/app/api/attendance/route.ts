@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
-import { resolveCallerFromEmailHeader, isSelfOrStaff, isStaffRole } from '@/lib/auth/self-or-staff';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +22,14 @@ export async function GET(request: Request) {
     const athleteId = searchParams.get('athleteId');
     const roster = searchParams.get('roster');
 
+    // Verified session. The roster and calendar views below list every
+    // athlete's name, avatar and attendance, and used to be reachable with a
+    // forged `x-user-email: <any coach>` header.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    const callerIsStaff = caller.isSuperUser || caller.isStaff;
+
     const supabase = createServerClient();
-    const caller = await resolveCallerFromEmailHeader(request, supabase);
-    const callerIsStaff = caller.isSuperUser || isStaffRole(caller.athlete?.role);
 
     // Calendar aggregate and both roster views are staff-only — they expose
     // every athlete's name/avatar/attendance, not just the caller's own.
@@ -32,7 +37,7 @@ export async function GET(request: Request) {
       if (!callerIsStaff) {
         return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
       }
-    } else if (athleteId && !isSelfOrStaff(caller.athlete, athleteId, caller.isSuperUser)) {
+    } else if (athleteId && !mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
@@ -201,11 +206,20 @@ export async function POST(request: Request) {
     if (!athleteId || !weekStart || day == null || attending == null) {
       return NextResponse.json({ error: 'athleteId, weekStart, day, attending required' }, { status: 400 });
     }
-    const supabase = createServerClient();
-    const caller = await resolveCallerFromEmailHeader(request, supabase);
-    if (!isSelfOrStaff(caller.athlete, athleteId, caller.isSuperUser)) {
+    // NOTE: the service worker also POSTs here, for the RSVP buttons on a push
+    // notification (src/app/sw.ts) — and it sends no identity at all, so that
+    // path has been 403ing on every tap since the header gate landed. Verified
+    // against production. A bearer token is not reachable from a service worker
+    // (the session lives in localStorage), so fixing the notification buttons
+    // needs a signed action token in the push payload; requiring a real session
+    // here changes nothing for them in the meantime.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
+
+    const supabase = createServerClient();
     const { error } = await supabase
       .from('workout_attendance')
       .upsert(

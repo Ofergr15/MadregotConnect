@@ -73,7 +73,7 @@ async function run(request: Request) {
   let synced: unknown = null;
   if (!dryRun) {
     try {
-      const { POST: syncPost } = await import('../../garmin/sync-activities/route');
+      const { runSyncRequest: syncPost } = await import('../../garmin/sync-activities/route');
       synced = await syncPost(new Request('http://internal/sync', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

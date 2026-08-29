@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { isSuperUser } from '@/lib/constants';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
-// POST /api/workout-feedback/reply { feedbackId, reply, actorEmail }
+// POST /api/workout-feedback/reply { feedbackId, reply }
 // A coach writes back on a post-workout feedback row. Staff-only (coach/admin/
 // academy_coach via the DB, or super-user). Stores the reply on the row and
 // pushes the athlete so they know the coach responded. Degrades gracefully if
@@ -13,23 +13,21 @@ export const dynamic = 'force-dynamic';
 // with a clear message rather than a 500.
 export async function POST(request: Request) {
   try {
-    const { feedbackId, reply, actorEmail } = await request.json();
+    // Staff gate on the VERIFIED session. The actor used to be `actorEmail` from
+    // the body, so anyone could post a "coach reply" under a coach's name and
+    // push it to the athlete.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!caller.isSuperUser && !caller.isStaff) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+
+    const { feedbackId, reply } = await request.json();
     if (!feedbackId || typeof reply !== 'string' || !reply.trim()) {
       return NextResponse.json({ error: 'feedbackId and reply required' }, { status: 400 });
     }
-    const email = (actorEmail || '').toLowerCase().trim();
 
     const supabase = createServerClient();
-
-    // Staff gate: super-user, or a DB role of coach/admin/academy_coach.
-    let allowed = isSuperUser(email);
-    if (!allowed && email) {
-      const { data: caller } = await supabase
-        .from('athletes').select('role').eq('email', email)
-        .in('role', ['coach', 'admin', 'academy_coach']).maybeSingle();
-      allowed = !!caller;
-    }
-    if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
     // Find the feedback row + its athlete (for the push + activity link).
     const { data: fb } = await supabase
@@ -44,7 +42,7 @@ export async function POST(request: Request) {
       .update({
         coach_reply: reply.trim().slice(0, 2000),
         coach_reply_at: new Date().toISOString(),
-        coach_reply_by: email || null,
+        coach_reply_by: caller.email || null,
       })
       .eq('id', feedbackId);
     if (error) {
@@ -72,7 +70,7 @@ export async function POST(request: Request) {
       let coachName = '';
       let coachAvatarUrl = '';
       try {
-        const { data: coachRow } = await supabase.from('athletes').select('id, name, avatar_url').eq('email', email).maybeSingle();
+        const { data: coachRow } = await supabase.from('athletes').select('id, name, avatar_url').eq('email', caller.email).maybeSingle();
         coachId = coachRow?.id || '';
         coachName = coachRow?.name?.trim() || '';
         coachAvatarUrl = coachRow?.avatar_url?.trim() || '';
@@ -102,10 +100,19 @@ export async function POST(request: Request) {
 // reply_seen_at once. Degrades gracefully if migration 036 isn't applied.
 export async function PATCH(request: Request) {
   try {
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+
     const { feedbackId, athleteId } = await request.json();
     if (!feedbackId || !athleteId) {
       return NextResponse.json({ error: 'feedbackId and athleteId required' }, { status: 400 });
     }
+    // Clearing somebody else's "new reply" badge is harmless but pointless —
+    // and it shouldn't be possible.
+    if (!mayActFor(caller, athleteId)) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+
     const supabase = createServerClient();
 
     // Only stamp when this athlete owns the row and it isn't already seen.

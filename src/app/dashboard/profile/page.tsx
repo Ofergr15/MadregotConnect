@@ -829,7 +829,7 @@ function ProfileContent() {
                           try {
                             const syncRes = await fetch('/api/garmin/sync-activities', {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
+                              headers: await bearerHeaders(),
                               body: JSON.stringify({ athleteId }),
                             });
                             if (syncRes.ok) {
@@ -941,17 +941,18 @@ function ProfileContent() {
                   setSyncResult(null);
                   try {
                     const calls = [];
+                    const syncHeaders = await bearerHeaders();
                     if (hasStrava) {
                       calls.push(fetch('/api/strava/sync-activities', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: syncHeaders,
                         body: JSON.stringify({ athleteId }),
                       }));
                     }
                     if (hasGarmin) {
                       calls.push(fetch('/api/garmin/sync-activities', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: syncHeaders,
                         body: JSON.stringify({ athleteId }),
                       }));
                     }

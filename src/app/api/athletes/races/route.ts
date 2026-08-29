@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { isSuperUser } from '@/lib/constants';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { recomputeRaceMatches } from '@/lib/races/match-athlete-races';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 
@@ -11,23 +11,20 @@ export const dynamic = 'force-dynamic';
 // against `events` where kind='race') then returns every activity currently
 // flagged as a race for this athlete, newest first, plus the total count.
 // Authorization mirrors /api/athletes/prs: a caller may fetch their own
-// races; verified staff (coach/admin/academy_coach via x-user-email) may
-// fetch any athlete's.
+// races; staff (coach/admin/academy_coach) may fetch any athlete's. Identity
+// comes from the verified session — it used to come from `x-user-email`, so a
+// forged header exposed anyone's race history and let anyone rewrite their
+// race tags.
 async function authorize(
-  supabase: ReturnType<typeof createServerClient>,
   request: Request,
   athleteId: string,
-): Promise<boolean> {
-  const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-  if (isSuperUser(email)) return true; // consistent w/ view-as
-  if (!email) return false;
-  const { data: caller } = await supabase
-    .from('athletes')
-    .select('id, role')
-    .eq('email', email)
-    .maybeSingle();
-  const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as any).role);
-  return isStaff || (caller as any)?.id === athleteId;
+): Promise<{ denied: Response | null; email: string }> {
+  const { denied, caller } = await resolveVerifiedCaller(request);
+  if (denied) return { denied, email: '' };
+  if (!mayActFor(caller, athleteId)) {
+    return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }), email: '' };
+  }
+  return { denied: null, email: caller.email };
 }
 
 export async function GET(request: Request) {
@@ -39,9 +36,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
 
-    if (!(await authorize(supabase, request, athleteId))) {
-      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    }
+    const { denied } = await authorize(request, athleteId);
+    if (denied) return denied;
 
     try {
       const { matched } = await recomputeRaceMatches(supabase, athleteId);
@@ -110,9 +106,8 @@ export async function PATCH(request: Request) {
       );
     }
 
-    if (!(await authorize(supabase, request, athleteId))) {
-      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    }
+    const { denied, email: actor } = await authorize(request, athleteId);
+    if (denied) return denied;
 
     const { data: activity, error: activityError } = await supabase
       .from('athlete_activities')
@@ -124,7 +119,6 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Activity not found for this athlete' }, { status: 404 });
     }
 
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
     const { data: match, error } = await supabase
       .from('race_matches')
       .upsert(
@@ -135,7 +129,7 @@ export async function PATCH(request: Request) {
           is_race: isRace,
           match_method: 'manual',
           evidence: { reason: 'manual_override' },
-          overridden_by: email || null,
+          overridden_by: actor || null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'activity_id' },

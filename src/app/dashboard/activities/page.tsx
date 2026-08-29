@@ -8,6 +8,7 @@ import { ActivityFeed } from '@/components/ActivityFeed';
 import { cn, israelToday } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
 import { Spinner, BigStat } from '@/components/ui';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { ManualActivitySheet } from '@/components/ManualActivitySheet';
 
 interface ActivityEntry {
@@ -160,15 +161,16 @@ export default function ActivitiesPage() {
       // Fire both — each route no-ops gracefully ({synced:0}) if this athlete
       // isn't connected to that source, so this works regardless of whether
       // they're on Garmin, Strava, or both.
+      const syncHeaders = await bearerHeaders();
       await Promise.allSettled([
         fetch('/api/strava/sync-activities', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: syncHeaders,
           body: JSON.stringify({ athleteId: id }),
         }),
         fetch('/api/garmin/sync-activities', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: syncHeaders,
           body: JSON.stringify({ athleteId: id }),
         }),
       ]);

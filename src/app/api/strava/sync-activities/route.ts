@@ -24,6 +24,7 @@ import { notifyTeammatesOfActivity } from '@/lib/push';
 import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -117,6 +118,13 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const athleteId = body?.athleteId as string | undefined;
+
+    // Same gate as the Garmin sync: your own athleteId, or staff for a
+    // whole-club sync. Nothing calls this in-process, so there's no cron
+    // bypass to keep here.
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
+
     // suppressPush: skip the inline post-workout feedback nudge — mirrors
     // garmin/sync-activities' same param, for a future cron teaser to reuse.
     const suppressPush = !!body?.suppressPush;

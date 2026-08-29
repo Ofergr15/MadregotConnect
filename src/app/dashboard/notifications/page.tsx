@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useApi, authHeaders } from '@/lib/api';
+import { useApi, apiHeaders } from '@/lib/api';
 import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
 import {
   type HistoryItem as Item,
@@ -63,7 +63,8 @@ function RsvpInlineButtons({ weekStart, day, athleteId }: { weekStart: string; d
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&athleteId=${athleteId}`, { headers: authHeaders() })
+    apiHeaders()
+      .then(h => fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&athleteId=${athleteId}`, { headers: h }))
       .then(r => (r.ok ? r.json() : null))
       .then(data => { if (data?.rsvp) setAttending(data.rsvp.attending); })
       .catch(() => {});
@@ -78,7 +79,7 @@ function RsvpInlineButtons({ weekStart, day, athleteId }: { weekStart: string; d
     try {
       const res = await fetch('/api/attendance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ athleteId, weekStart, day, attending: next }),
       });
       if (!res.ok) throw new Error();

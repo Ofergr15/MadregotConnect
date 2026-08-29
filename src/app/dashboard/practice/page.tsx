@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Play, X, Pencil, Loader2, Check, Plus, Trash2 } from 'lucide-react';
 import { Sheet, SegmentedControl, Button } from '@/components/ui';
+import { apiHeaders } from '@/lib/api';
 
 interface Video {
   id: string;
@@ -189,11 +190,10 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
     setSaving(true);
     setError('');
     try {
-      const actorEmail = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
       const res = await fetch('/api/practice-videos', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videos: rows, actorEmail }),
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ videos: rows }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data?.error || 'Save failed'); return; }

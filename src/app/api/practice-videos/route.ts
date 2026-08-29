@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove } from '@/lib/constants';
+import { requireApprover } from '@/lib/auth/require-approver';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,10 +63,10 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const { videos, actorEmail } = await request.json();
-    if (!canApprove(actorEmail)) {
-      return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
-    }
+    const { denied } = await requireApprover(request);
+    if (denied) return denied;
+
+    const { videos } = await request.json();
     const clean = sanitize(videos);
     const supabase = createServerClient();
     const { error } = await supabase

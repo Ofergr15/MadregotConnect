@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Construction, X, Plus } from 'lucide-react';
-import { useApi, authHeaders } from '@/lib/api';
+import { useApi, apiHeaders } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Switch } from '@/components/ui';
@@ -61,7 +61,7 @@ export function MaintenanceAllowlist() {
   const allowlist = data?.allowlist ?? [];
 
   useEffect(() => {
-    fetch('/api/admin/users', { headers: authHeaders() }).then(r => r.ok ? r.json() : null).then(d => {
+    apiHeaders().then(h => fetch('/api/admin/users', { headers: h })).then(r => r.ok ? r.json() : null).then(d => {
       if (d?.users) setAthletes(d.users.filter((u: any) => u.email).map((u: any) => ({ name: u.name || u.email, email: u.email })));
     }).catch(() => {});
   }, []);

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { resolveCallerFromEmailHeader, isSelfOrStaff } from '@/lib/auth/self-or-staff';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,11 +18,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'optionIndex is required' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
-    const caller = await resolveCallerFromEmailHeader(request, supabase);
-    if (!isSelfOrStaff(caller.athlete, athleteId, caller.isSuperUser)) {
+    // Verified session, so a response can't be stuffed into the poll under
+    // another athlete's id by forging a header.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
+
+    const supabase = createServerClient();
     const { data: survey, error: surveyError } = await supabase.from('surveys').select('options_he, closes_at').eq('id', id).maybeSingle();
     if (surveyError) throw surveyError;
     if (!survey) return NextResponse.json({ error: 'Survey not found' }, { status: 404 });

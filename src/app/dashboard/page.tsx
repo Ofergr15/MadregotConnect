@@ -16,6 +16,7 @@ import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_LABELS as typeLabels } from '@/lib/plans/workout-parsing';
 import { Spinner, Card, BigStat, EmptyState, Button } from '@/components/ui';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 const RACE_DATE = new Date('2026-12-06T09:00:00');
 const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
@@ -276,7 +277,7 @@ export default function DashboardPage() {
           try {
             const stravaSyncRes = await fetch('/api/strava/sync-activities', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: await bearerHeaders(),
               body: JSON.stringify({ athleteId: myAthleteId }),
             });
             if (!stravaSyncRes.ok) throw new Error('Strava sync failed');

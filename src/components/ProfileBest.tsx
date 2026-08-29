@@ -5,7 +5,7 @@ import { Trophy, Medal, Plus, Loader2, Clock, CheckCircle2 } from 'lucide-react'
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { parseTime, formatTime } from '@/lib/academy/benchmark';
-import { authHeaders } from '@/lib/api';
+import { apiHeaders } from '@/lib/api';
 import { Sheet, InsetSection, InsetRow } from '@/components/ui';
 
 interface Result {
@@ -71,7 +71,7 @@ export function ProfileBest({ athleteId, athleteName }: { athleteId: string; ath
     setMsg(null);
     try {
       const res = await fetch('/api/academy/benchmarks', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        method: 'POST', headers: await apiHeaders(true),
         body: JSON.stringify({
           testName: form.test,
           athleteName: athleteName,

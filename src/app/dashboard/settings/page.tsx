@@ -15,7 +15,7 @@ import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceTo
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
-import { authHeaders } from '@/lib/api';
+import { apiHeaders } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNav } from '@/components/ui';
@@ -627,7 +627,7 @@ export default function SettingsPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/admin/users', { headers: authHeaders() });
+      const response = await fetch('/api/admin/users', { headers: await apiHeaders() });
       if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
       setUsers(data.users || []);
@@ -667,7 +667,7 @@ export default function SettingsPage() {
     setPendingDelete(null);
     setUpdatingUsers(prev => new Set(prev).add(user.id));
     try {
-      const response = await fetch(`/api/admin/users?id=${user.id}`, { method: 'DELETE', headers: authHeaders() });
+      const response = await fetch(`/api/admin/users?id=${user.id}`, { method: 'DELETE', headers: await apiHeaders() });
       if (!response.ok) throw new Error('Failed to delete');
       await fetchUsers();
     } catch (err) {
@@ -691,11 +691,12 @@ export default function SettingsPage() {
     setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
 
     try {
-      const actorEmail = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
+      // No actorEmail — who may grant a role (and specifically who may grant
+      // 'admin') is decided from the verified session server-side.
       const response = await fetch('/api/admin/users', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email: user.email, role: newRole, actorEmail }),
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ email: user.email, role: newRole }),
       });
 
       if (!response.ok) {

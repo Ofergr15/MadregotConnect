@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Switch } from '@/components/ui';
+import { apiHeaders } from '@/lib/api';
 
 interface Cfg {
   teamDays: number[];
@@ -22,11 +23,9 @@ export function ReminderConfig() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(false);
-  const [actorEmail, setActorEmail] = useState('');
   const [pickerFor, setPickerFor] = useState<PickerTarget>(null);
 
   useEffect(() => {
-    setActorEmail(localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '');
     fetch('/api/reminder-config').then(r => r.ok ? r.json() : null).then(d => setCfg(d?.config || null)).catch(() => {});
   }, []);
 
@@ -35,8 +34,8 @@ export function ReminderConfig() {
     setSaving(true);
     try {
       const res = await fetch('/api/reminder-config', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: next, actorEmail }),
+        method: 'PUT', headers: await apiHeaders(true),
+        body: JSON.stringify({ config: next }),
       });
       if (res.ok) { setFlash(true); setTimeout(() => setFlash(false), 1500); }
     } catch { /* ignore */ }

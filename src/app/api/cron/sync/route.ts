@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { POST as garminSync } from '../../garmin/sync-activities/route';
+import { runSyncRequest as garminSync } from '../../garmin/sync-activities/route';
 import { snapshotWeeklyKm } from '@/lib/weekly-snapshots';
 import { israelNow } from '@/lib/utils';
 

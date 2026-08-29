@@ -9,8 +9,27 @@ import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
 import { mapActivityDetail } from '@/lib/garmin/activity-detail';
+import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
+/**
+ * HTTP entry point. Anyone could previously trigger a full-club Garmin sync —
+ * one unauthenticated POST per second was a free way to burn the club's Garmin
+ * rate limit and push a feedback nudge at every athlete.
+ *
+ * The crons call `runSyncRequest` below directly instead of going through this
+ * gate: they authenticate with CRON_SECRET at their own entry point, and an
+ * in-process call has no session to present.
+ */
 export async function POST(request: Request) {
+  // clone() because the body is read again inside runSyncRequest, and a Request
+  // body can only be consumed once.
+  const { athleteId } = await request.clone().json().catch(() => ({} as { athleteId?: string }));
+  const { denied } = await requireCallerForAthlete(request, athleteId);
+  if (denied) return denied;
+  return runSyncRequest(request);
+}
+
+export async function runSyncRequest(request: Request) {
   try {
     // suppressPush: skip the inline post-workout feedback nudge. Used by the
     // morning workout-watch cron, which sends its own "new workout detected"
@@ -305,6 +324,14 @@ export async function POST(request: Request) {
  */
 export async function PATCH(request: Request) {
   try {
+    // Staff-only: this walks the activity table making two Garmin requests per
+    // row, so an open handler was a way to burn the club's Garmin quota.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!caller.isSuperUser && !caller.isStaff) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode') === 'missing' ? 'missing' : 'route';
@@ -431,6 +458,14 @@ export async function PATCH(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    // Staff-only: this is the raw-Garmin-field dump used for debugging, and it
+    // returns a real athlete's activity payload verbatim.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!caller.isSuperUser && !caller.isStaff) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+
     const supabase = createServerClient();
     const { data: athletes } = await supabase
       .from('athletes')
@@ -469,29 +504,23 @@ export async function PUT(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const athleteId = searchParams.get('athleteId');
-    // Coaches/admins may request the whole club (roster feed); everyone else is
-    // scoped to their own activities. Coach status is proven via x-user-email
-    // checked against the DB — NOT trusted from the client — so a runner can't
-    // just omit athleteId to see everyone's names/HR/GPS (the prior P0 leak).
-    let isStaff = false;
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    if (email) {
-      const { data: me } = await supabase
-        .from('athletes')
-        .select('role')
-        .eq('email', email)
-        .in('role', ['coach', 'admin', 'academy_coach'])
-        .maybeSingle();
-      isStaff = !!me;
-    }
 
-    // A non-staff caller MUST pass their own athleteId and gets only their rows.
-    if (!isStaff && !athleteId) {
-      return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
-    }
+    // Coaches/admins may request the whole club (roster feed); everyone else is
+    // scoped to their own activities.
+    //
+    // The previous version resolved staff status from `x-user-email`, and — worse
+    // — never checked that a non-staff caller's `athleteId` was their OWN. So an
+    // unauthenticated GET naming any athlete returned that athlete's entire
+    // history: verified live against production, 147 activities / 5.9MB with
+    // name, HR, pace and GPS start/end coordinates. No client in the app calls
+    // this GET at all.
+    const { denied, caller } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
+    const isStaff = caller.isSuperUser || caller.isStaff;
+
+    const supabase = createServerClient();
 
     const baseCols = `
         id, athlete_id, garmin_activity_id, activity_name, activity_type,

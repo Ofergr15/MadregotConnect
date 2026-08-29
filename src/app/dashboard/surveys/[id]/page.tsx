@@ -6,7 +6,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { CheckCircle2, HelpCircle, Loader2 } from 'lucide-react';
 import { Card, EmptyState, LoadingBlock } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { authHeaders } from '@/lib/api';
+import { apiHeaders } from '@/lib/api';
 
 interface Survey {
   id: string;
@@ -34,7 +34,8 @@ export default function SurveyPage() {
   useEffect(() => {
     const id = localStorage.getItem('athlete_id') || '';
     setAthleteId(id);
-    fetch(`/api/surveys/${surveyId}${id ? `?athleteId=${id}` : ''}`, { headers: authHeaders() })
+    apiHeaders()
+      .then(h => fetch(`/api/surveys/${surveyId}${id ? `?athleteId=${id}` : ''}`, { headers: h }))
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => { setSurvey(d.survey); setMyResponse(d.myResponse); })
       .catch(() => setNotFound(true))
@@ -48,7 +49,7 @@ export default function SurveyPage() {
     try {
       const res = await fetch(`/api/surveys/${surveyId}/respond`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ athleteId, optionIndex }),
       });
       const data = await res.json().catch(() => ({}));

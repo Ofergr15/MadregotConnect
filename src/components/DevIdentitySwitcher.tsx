@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { FlaskConical, Loader2, MessageCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 const TEST_ACCOUNTS = [
   { label: 'Test Runner', email: 'test-runner@madregot.local' },
@@ -99,7 +100,7 @@ function DevBar() {
       if (!athleteId) throw new Error('No athlete_id in localStorage — sign in first');
       const res = await fetch('/api/strava/sync-activities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ athleteId }),
       });
       const json = await res.json();
