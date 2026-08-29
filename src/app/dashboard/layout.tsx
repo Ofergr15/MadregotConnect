@@ -10,6 +10,7 @@ import { PullToRefresh } from '@/components/PullToRefresh';
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/ui';
+import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 
 export default function DashboardLayout({
@@ -30,11 +31,15 @@ export default function DashboardLayout({
     const setFromServer = async () => {
       const id = localStorage.getItem('athlete_id');
       if (!id) { clear(); return; }
-      const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
       try {
+        // `keepalive` because this runs while the page is being torn down
+        // (pagehide/backgrounding) and apiHeaders() has to await the session
+        // first — without it the request can be cancelled before it leaves.
         const res = await fetch(`/api/notifications/unread?athleteId=${id}`, {
-          headers: email ? { 'x-user-email': email } : {},
+          headers: await apiHeaders(),
+          keepalive: true,
         });
+        if (!res.ok) return; // don't clear the badge on an auth/network failure
         const { count } = await res.json();
         if (count > 0) await navigator.setAppBadge(count);
         else await navigator.clearAppBadge();

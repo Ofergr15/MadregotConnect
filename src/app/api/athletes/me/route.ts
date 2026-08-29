@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 const GENDERS = ['male', 'female'] as const;
 type Gender = (typeof GENDERS)[number];
@@ -14,11 +15,19 @@ type ShirtSize = (typeof SHIRT_SIZES)[number];
 const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
 const FULL_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone, discoverable`;
 
+// GET /api/athletes/me?id=…
+// Self-or-staff: this projection carries the athlete's email, phone and
+// onboarding/provider state, so it isn't the public one (see
+// src/lib/athletes/public-profile.ts). Ungated, `?id=<anyone>` returned any
+// club member's contact details to an anonymous caller.
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
   if (!id) {
     return NextResponse.json({ error: 'id required' }, { status: 400 });
   }
+
+  const { denied } = await requireCallerForAthlete(req, id);
+  if (denied) return denied;
 
   const supabase = createServerClient();
   let { data, error } = await supabase.from('athletes').select(FULL_COLUMNS).eq('id', id).single();
@@ -55,9 +64,10 @@ export async function GET(req: NextRequest) {
 }
 
 // PUT /api/athletes/me { id, name, birthDate, gender, shoeSize, shirtSize, phone }
-// Owner-only: `id` is the caller's own athlete id (stored in localStorage) —
-// same trust model as PUT /api/athletes/notification-prefs. Every field is
-// optional so the Settings > Personal Info form can save a partial edit.
+// Self-or-staff on `id` — the athlete themself from their profile screen, or
+// staff editing a member from Settings > Personal Info. `id` used to be taken
+// on trust from localStorage, which let anyone rewrite any athlete's name.
+// Every field is optional so the form can save a partial edit.
 // `name` is the one field that isn't purely personal-info — it's shown
 // everywhere (headers, feed, leaderboards), so it's trimmed and required to
 // be non-empty when present (an athlete can't blank out their own name).
@@ -69,6 +79,10 @@ export async function PUT(req: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
+
+    const { denied } = await requireCallerForAthlete(req, id);
+    if (denied) return denied;
+
     if (gender !== undefined && gender !== null && !GENDERS.includes(gender)) {
       return NextResponse.json({ error: "gender must be 'male' or 'female'" }, { status: 400 });
     }

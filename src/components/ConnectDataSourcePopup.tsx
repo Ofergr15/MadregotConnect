@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Activity, X } from 'lucide-react';
+import { apiHeaders } from '@/lib/api';
 
 /**
  * First-run "connect your training data" nudge (roadmap flow #22, step 2).
@@ -47,10 +48,11 @@ export function ConnectDataSourcePopup() {
     if (sessionDismissed) return;
 
     let mounted = true;
-    fetch(`/api/athletes/me?id=${athleteId}`)
-      .then(res => res.json())
+    apiHeaders()
+      .then(headers => fetch(`/api/athletes/me?id=${athleteId}`, { headers }))
+      .then(res => (res.ok ? res.json() : null))
       .then(data => {
-        if (mounted && data.athlete && !data.athlete.hasGarmin && !data.athlete.hasStrava) {
+        if (mounted && data?.athlete && !data.athlete.hasGarmin && !data.athlete.hasStrava) {
           setShow(true);
         }
       })

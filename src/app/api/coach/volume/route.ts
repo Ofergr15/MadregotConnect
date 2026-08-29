@@ -1,31 +1,29 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { COACH_ID, isSuperUser } from '@/lib/constants';
+import { COACH_ID } from '@/lib/constants';
 import { resolveGroup } from '@/lib/utils';
+import { requireStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/coach/volume?weeks=8
 // Team volume overview: every active athlete's recent weekly km (from the
 // durable weekly_km_snapshots table), so a coach can spot who's ramping up or
-// dropping off at a glance. Staff-only (coach/admin/academy_coach via
-// x-user-email, or super-user). Returns per-athlete { series[], thisWeekKm,
-// deltaKm, avgKm } plus the shared week axis, sorted by this-week volume desc.
+// dropping off at a glance. Staff-only (coach/admin/academy_coach, or
+// super-user), from the verified session. Returns per-athlete { series[],
+// thisWeekKm, deltaKm, avgKm } plus the shared week axis, sorted by this-week
+// volume desc.
 export async function GET(request: Request) {
   try {
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const weeks = Math.min(Math.max(Number(searchParams.get('weeks')) || 8, 2), 26);
 
-    // Staff auth (mirror /api/coach/pulse).
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    let allowed = isSuperUser(email);
-    if (!allowed && email) {
-      const { data: caller } = await supabase.from('athletes').select('role').eq('email', email)
-        .in('role', ['coach', 'admin', 'academy_coach']).maybeSingle();
-      allowed = !!caller;
-    }
-    if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    // Staff auth from the verified session (mirror /api/coach/pulse). The old
+    // `x-user-email` lookup meant one forged header returned every athlete's
+    // full training volume — verified against production.
+    const denied = await requireStaff(request);
+    if (denied) return denied;
 
     // Active roster (name/squad).
     const { data: athletes } = await supabase

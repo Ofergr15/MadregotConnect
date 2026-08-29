@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, Images, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiHeaders } from '@/lib/api';
 import { Card, Button, Spinner, Sheet, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
@@ -70,14 +71,13 @@ export default function ReviewPage() {
     setSending(true);
     setError(false);
     try {
+      // Identity (athlete, name, email, squad) is stamped server-side from the
+      // session — the local athleteName/groupName below are only for the "filing
+      // as …" line this screen shows.
       const res = await fetch('/api/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({
-          athleteId,
-          athleteName,
-          athleteEmail,
-          groupName,
           message: message.trim(),
           category,
           image: imagePreview || undefined,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveGroup } from '@/lib/utils';
+import { requireStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic';
 //             (difficulty ≥9) from post-workout feedback in the window.
 //  celebrate: athletes who set a PR (5K/10K/HM/FM) or ran a standout week in the
 //             window.
-// Staff-only (coach/admin/academy_coach via x-user-email against the DB).
+// Staff-only (coach/admin/academy_coach, from the verified session).
 const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
 const BUCKETS = [
   { key: '5k', label: '5K', meters: 5000, tol: 0.06 },
@@ -28,12 +29,11 @@ export async function GET(request: Request) {
     const since = new Date(Date.now() - days * 86400_000);
     const sinceISO = since.toISOString();
 
-    // Staff auth.
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    if (!email) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    const { data: caller } = await supabase.from('athletes').select('role').eq('email', email)
-      .in('role', ['coach', 'admin', 'academy_coach']).maybeSingle();
-    if (!caller) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    // Staff auth, from the verified session. Resolving staff from `x-user-email`
+    // meant one forged header returned the whole club's pain flags, difficulty
+    // scores and PRs — verified against production.
+    const denied = await requireStaff(request);
+    if (denied) return denied;
 
     // Active athletes (name/squad).
     const { data: athletes } = await supabase

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiHeaders } from '@/lib/api';
 import { useTranslations, useLocale } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
@@ -204,7 +205,8 @@ function ProfileContent() {
       .catch(() => {});
 
     if (id) {
-      fetch(`/api/athletes/me?id=${id}`)
+      apiHeaders()
+        .then(headers => fetch(`/api/athletes/me?id=${id}`, { headers }))
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.athlete) {

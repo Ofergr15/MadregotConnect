@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, Image, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
+import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { clearIdentityKeys } from '@/lib/auth/identity-keys';
 import { isSuperUser } from '@/lib/constants';
@@ -114,13 +115,15 @@ export function Header() {
         .then(data => { if (data) setAvailableGroups(data.groups || data || []); })
         .catch(() => {});
       // Athlete notification history for the bell inbox (unread count + preview).
-      const identityEmail = email || coachEmail || '';
-      fetch(`/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}`, {
-        headers: identityEmail ? { 'x-user-email': identityEmail } : {},
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (Array.isArray(data?.items)) setInbox(data.items); })
-        .catch(() => {});
+      // apiHeaders() is async (it reads the session for the bearer token), hence
+      // the IIFE rather than a bare fetch().then chain.
+      (async () => {
+        const res = await fetch(`/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}`, {
+          headers: await apiHeaders(),
+        }).catch(() => null);
+        const data = res?.ok ? await res.json().catch(() => null) : null;
+        if (Array.isArray(data?.items)) setInbox(data.items);
+      })();
     }
   }, []);
 

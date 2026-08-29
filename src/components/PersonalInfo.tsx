@@ -5,6 +5,7 @@ import { CheckCircle2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Button, SegmentedControl, Skeleton, Switch } from '@/components/ui';
+import { apiHeaders } from '@/lib/api';
 
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
 type ShirtSize = (typeof SHIRT_SIZES)[number];
@@ -50,7 +51,8 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
 
   useEffect(() => {
     if (!athleteId) return;
-    fetch(`/api/athletes/me?id=${athleteId}`)
+    apiHeaders()
+      .then(headers => fetch(`/api/athletes/me?id=${athleteId}`, { headers }))
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
         const a = data?.athlete;
@@ -87,7 +89,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
     try {
       const res = await fetch('/api/athletes/me', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ id: athleteId, ...data }),
       });
       if (res.ok) {

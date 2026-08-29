@@ -87,6 +87,22 @@ export async function resolveVerifiedCaller(
 }
 
 /**
+ * Staff-or-super-user gate for a route that isn't scoped to a single athlete —
+ * club-wide coach views (team volume, the coach radar) and admin triage.
+ * Returns a Response to bail out with, or null when the caller may proceed.
+ *
+ * Several routes hand-rolled this exact three-liner; new ones should use this.
+ */
+export async function requireStaff(request: Request): Promise<Response | null> {
+  const { denied, caller } = await resolveVerifiedCaller(request);
+  if (denied) return denied;
+  if (!caller.isSuperUser && !caller.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+  return null;
+}
+
+/**
  * Gate for a route that acts on one athlete when given an id, and on the whole
  * club when not — the shape both activity-sync routes have. A non-staff caller
  * must name themselves; omitting the id means "sync everybody", so that's

@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { isSuperUser } from '@/lib/constants';
 import { UUID_RE, shapeInboxItem, aggregate } from '@/lib/notifications/inbox';
-import { canViewAthleteNotifications } from '@/lib/notifications/access';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,21 +16,17 @@ export async function GET(request: Request) {
     const athleteId = new URL(request.url).searchParams.get('athleteId');
     if (!athleteId || !UUID_RE.test(athleteId)) return NextResponse.json({ items: [], unread: 0 });
 
-    // Scoped auth identical to /api/athletes/summary and /prs: own athlete,
-    // staff, or super-user — this was previously wide open (any athleteId in
-    // the query string returned that athlete's full notification history,
-    // including private one-on-one messages, with zero auth check).
-    const supabase = createServerClient();
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    const isSuper = isSuperUser(email);
-    let caller: { id: string; role: string } | null = null;
-    if (!isSuper && email) {
-      const { data } = await supabase.from('athletes').select('id, role').eq('email', email).maybeSingle();
-      caller = data as { id: string; role: string } | null;
-    }
-    if (!canViewAthleteNotifications({ isSuper, caller, athleteId })) {
+    // Own athlete, staff, or super-user — resolved from the verified session.
+    // The identity used to come from `x-user-email`, so any athleteId plus a
+    // forged header returned that athlete's full notification history,
+    // including private one-on-one messages.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
+
+    const supabase = createServerClient();
 
     const { data: a, error: athleteError } = await supabase
       .from('athletes')

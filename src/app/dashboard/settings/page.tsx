@@ -525,7 +525,7 @@ export default function SettingsPage() {
   const fetchFeedback = async () => {
     try {
       setFeedbackLoading(true);
-      const res = await fetch('/api/feedback');
+      const res = await fetch('/api/feedback', { headers: await apiHeaders() });
       if (!res.ok) return;
       const data = await res.json();
       setFeedbackItems(data.feedback || []);
@@ -545,7 +545,7 @@ export default function SettingsPage() {
       if (notes !== undefined) body.admin_notes = notes;
       await fetch('/api/feedback', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify(body),
       });
     } catch {
@@ -558,7 +558,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/feedback', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ id }),
       });
       if (res.ok) {

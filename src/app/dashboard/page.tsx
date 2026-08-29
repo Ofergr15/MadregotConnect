@@ -6,7 +6,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { Calendar, ArrowRight, TrendingUp, TrendingDown, MapPin, Flame } from 'lucide-react';
 import { cn, getActivityWeekStart, getPlanWeekStart, isRecentlyPublished, israelDateAnchor } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
-import { useApi } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRSVP';
 import { NextWorkoutCard } from '@/components/NextWorkoutCard';
@@ -220,7 +220,9 @@ export default function DashboardPage() {
       // real ordering constraints are downstream: the activities snapshot must
       // be read BEFORE the background sync starts, and the sync must finish
       // before refetching — both handled below, after these all resolve.
-      const mePromise = canSync ? fetch(`/api/athletes/me?id=${myAthleteId}`) : null;
+      const mePromise = canSync
+        ? apiHeaders().then(headers => fetch(`/api/athletes/me?id=${myAthleteId}`, { headers }))
+        : null;
       const activitiesPromise = fetchActivities();
 
       try {
