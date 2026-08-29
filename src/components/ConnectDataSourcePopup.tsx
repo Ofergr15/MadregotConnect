@@ -29,8 +29,13 @@ export function ConnectDataSourcePopup() {
     if (window.location.pathname.includes('/profile')) return;
     if (window.location.pathname.includes('/activities')) return;
 
-    const role = localStorage.getItem('role');
-    if (role === 'admin' || role === 'coach') return;
+    // Staff don't get nagged to connect a watch. This read `localStorage.role`,
+    // a key nothing in the app has ever written — so the bypass never fired and
+    // coaches got the popup on every dashboard page. These are the keys that
+    // actually exist (same test as dashboard/program's isAdmin).
+    const isStaff =
+      localStorage.getItem('admin_session') === 'true' || !!localStorage.getItem('coach_email');
+    if (isStaff) return;
 
     const athleteId = localStorage.getItem('athlete_id');
     if (!athleteId) return;

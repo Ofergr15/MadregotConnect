@@ -9,8 +9,19 @@ export const dynamic = 'force-dynamic';
 
 // Runs every 5 minutes, but only during Israeli waking hours — nobody uploads a
 // run at 03:00, and each pass costs a Garmin round trip per athlete.
-const FIRST_HOUR = 5;   // 05:00 Israel — the club's earliest runs start ~05:00
-const LAST_HOUR = 23;   // exclusive, so the last pass is 22:55
+export const FIRST_HOUR = 5;   // 05:00 Israel — the club's earliest runs start ~05:00
+export const LAST_HOUR = 23;   // exclusive, so the last pass is 22:55
+
+/**
+ * Whether an Israeli wall-clock hour is inside the sync window.
+ *
+ * Exported and pure so the skip branch is actually testable — live, it can only
+ * be observed before 05:00 or after 23:00 Israel, and Vercel keeps no historical
+ * logs to check it after the fact.
+ */
+export function isWithinSyncWindow(hour: number): boolean {
+  return hour >= FIRST_HOUR && hour < LAST_HOUR;
+}
 
 /**
  * Scheduled server-side activity sync — Garmin only.
@@ -46,7 +57,7 @@ async function runSync(request: Request) {
   // manual POST/GET is exempt so the endpoint stays usable for a forced sync.
   const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron') ?? false;
   const { hour } = israelNow();
-  if (isVercelCron && (hour < FIRST_HOUR || hour >= LAST_HOUR)) {
+  if (isVercelCron && !isWithinSyncWindow(hour)) {
     return NextResponse.json({ ok: true, skipped: `${hour}:00 Israel is outside ${FIRST_HOUR}:00-${LAST_HOUR}:00` });
   }
 
