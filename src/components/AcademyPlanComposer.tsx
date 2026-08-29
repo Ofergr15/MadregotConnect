@@ -144,7 +144,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
     try {
       await fetch('/api/academy/workouts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ name: w.name, workout: w }),
       });
       fetchLibrary();
@@ -153,7 +153,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
 
   const deleteLibraryWorkout = async (id: string) => {
     try {
-      await fetch(`/api/academy/workouts?id=${id}`, { method: 'DELETE' });
+      await fetch(`/api/academy/workouts?id=${id}`, { method: 'DELETE', headers: await bearerHeaders(false) });
       setLibrary(prev => prev.filter(w => w.id !== id));
     } catch { /* ignore */ }
   };
@@ -183,7 +183,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
 
       const res = await fetch('/api/garmin/push-workouts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ planId, workouts, athleteIds: [athleteId], weekStartDate: weekStart }),
       });
       const data = await res.json();

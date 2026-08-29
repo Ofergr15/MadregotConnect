@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, X, Save, CheckCircle2 } from 'lucide-react';
 import { AcademySettings as Settings, DEFAULT_ACADEMY_SETTINGS } from '@/lib/academy/settings';
 import { Card, Button, Spinner, LoadingBlock, Switch } from '@/components/ui';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 const DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
 
@@ -30,7 +31,7 @@ export function AcademySettingsPanel() {
     setSaved(false);
     try {
       const res = await fetch('/api/academy/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: await bearerHeaders(),
         body: JSON.stringify({ settings: s }),
       });
       if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }

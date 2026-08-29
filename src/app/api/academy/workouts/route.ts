@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { authError, requireSession } from '@/lib/auth-session';
 
 export const dynamic = 'force-dynamic';
+
+/** Staff-only: this is coach-authored content for the whole club. */
+async function requireStaff(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+  return null;
+}
 
 /**
  * Academy workout library — reusable single-workout templates.
@@ -30,6 +41,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const body = await request.json();
     const { name, workout } = body;
     if (!name || !workout) {
@@ -56,6 +70,9 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });

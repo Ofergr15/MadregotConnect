@@ -590,7 +590,7 @@ export default function WeeklyPlannerPage() {
     try {
       const res = await fetch('/api/plans/sync-from-program', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ week_start_date: weekStartDate }),
       });
 
@@ -953,7 +953,7 @@ export default function WeeklyPlannerPage() {
 
         const res = await fetch('/api/garmin/push-workouts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await bearerHeaders(),
           body: JSON.stringify({
             planId: savedPlanId,
             workouts: workoutsToSend,
@@ -1007,7 +1007,7 @@ export default function WeeklyPlannerPage() {
     try {
       const res = await fetch('/api/garmin/push-workouts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({
           planId: savedPlanId,
           workouts: pushDays

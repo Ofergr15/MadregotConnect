@@ -4,6 +4,7 @@ import { parseWorkoutPlan } from '@/lib/ai/parser';
 import { COACH_ID } from '@/lib/constants';
 import * as fs from 'fs';
 import * as path from 'path';
+import { authError, requireSession } from '@/lib/auth-session';
 
 const PROGRAM_WEEKS = [
   { file: 'week-28-06-04-07-2026.pdf', weekStart: '2026-06-28' },
@@ -13,7 +14,16 @@ const PROGRAM_WEEKS = [
   { file: 'week-31-05-06-06-2026.pdf', weekStart: '2026-05-31' },
 ];
 
+// Staff-only: re-parses bundled program PDFs through Claude (real API spend) and
+// overwrites weekly_plans. It has no caller in the app — kept gated rather than
+// removed, but it is a deletion candidate.
 export async function POST(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+
   const { weekStart } = await request.json().catch(() => ({ weekStart: null }));
   const supabase = createServerClient();
   const results: Array<{ week: string; status: string; error?: string }> = [];

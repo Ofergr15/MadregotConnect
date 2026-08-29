@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove } from '@/lib/constants';
+import { requireApprover } from '@/lib/auth/require-approver';
 import { createAndSendSurvey } from '@/lib/surveys';
 
 export const dynamic = 'force-dynamic';
@@ -49,12 +49,11 @@ export async function GET() {
 // Notification Center list as every other notification, then pushes.
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { actorEmail, question_he, question_en, options_he, options_en, audience_type, audience_id } = body;
+    const { denied, email: actorEmail } = await requireApprover(request);
+    if (denied) return denied;
 
-    if (!canApprove(actorEmail)) {
-      return NextResponse.json({ error: 'Not authorized to send surveys.' }, { status: 403 });
-    }
+    const body = await request.json();
+    const { question_he, question_en, options_he, options_en, audience_type, audience_id } = body;
     if (!question_he?.trim()) {
       return NextResponse.json({ error: 'question_he is required' }, { status: 400 });
     }

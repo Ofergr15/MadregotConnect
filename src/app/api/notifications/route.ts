@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove } from '@/lib/constants';
 import { sendPushToSubscriptions, resolveAudience } from '@/lib/push';
+import { requireApprover } from '@/lib/auth/require-approver';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,14 +17,9 @@ function computeNextRun(body: any): string | null {
 // GET /api/notifications — list scheduled + sent (admin).
 export async function GET(request: Request) {
   try {
-    // Previously unauthenticated — anyone who knew this URL could dump every
-    // past/scheduled broadcast, including 1:1 messages targeted at a single
-    // athlete plus the sending admin's email. POST/PUT/DELETE below already
-    // gate on this; GET was the one gap.
-    const actorEmail = request.headers.get('x-user-email') || '';
-    if (!canApprove(actorEmail)) {
-      return NextResponse.json({ error: 'Not authorized to view notifications.' }, { status: 403 });
-    }
+    const { denied } = await requireApprover(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('scheduled_notifications')
@@ -42,12 +37,12 @@ export async function GET(request: Request) {
 // POST /api/notifications — create (and, for schedule_type 'now', send immediately).
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { actorEmail, title_he, body_he } = body;
+    const { denied, email: actorEmail } = await requireApprover(request);
+    if (denied) return denied;
 
-    if (!canApprove(actorEmail)) {
-      return NextResponse.json({ error: 'Not authorized to send notifications.' }, { status: 403 });
-    }
+    const body = await request.json();
+    const { title_he, body_he } = body;
+
     if (!title_he || !body_he) {
       return NextResponse.json({ error: 'title_he and body_he are required' }, { status: 400 });
     }
@@ -130,11 +125,11 @@ export async function POST(request: Request) {
 // PUT /api/notifications — edit a scheduled notification, or cancel it.
 export async function PUT(request: Request) {
   try {
+    const { denied } = await requireApprover(request);
+    if (denied) return denied;
+
     const body = await request.json();
-    const { id, actorEmail } = body;
-    if (!canApprove(actorEmail)) {
-      return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
-    }
+    const { id } = body;
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     // Same runaway-recurrence guard as POST — see the comment there.
     const effectiveScheduleType = body.schedule_type ?? body.scheduleType;
@@ -180,12 +175,11 @@ export async function PUT(request: Request) {
 // DELETE /api/notifications?id=… — remove a notification.
 export async function DELETE(request: Request) {
   try {
+    const { denied } = await requireApprover(request);
+    if (denied) return denied;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const actorEmail = searchParams.get('actorEmail');
-    if (!canApprove(actorEmail)) {
-      return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
-    }
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     const supabase = createServerClient();
     const { error } = await supabase.from('scheduled_notifications').delete().eq('id', id);

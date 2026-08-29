@@ -6,6 +6,7 @@ import { Calendar, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PlanDetail } from '@/components/PlanDetail';
 import { Card, Button, EmptyState, SkeletonList } from '@/components/ui';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 interface PlanHistory {
   id: string;
@@ -90,7 +91,7 @@ export default function HistoryPage() {
 
       const response = await fetch('/api/garmin/push-workouts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({
           planId,
           workouts,

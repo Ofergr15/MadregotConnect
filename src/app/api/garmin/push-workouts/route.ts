@@ -6,6 +6,7 @@ import { ParsedWorkout } from '@/lib/ai/types';
 import { PaceProfile } from '@/lib/garmin/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { notifyAthlete } from '@/lib/push';
+import { authError, requireSession } from '@/lib/auth-session';
 
 interface PushResult {
   athleteId: string;
@@ -14,8 +15,17 @@ interface PushResult {
   error?: string;
 }
 
+// Staff-only. This writes workouts onto athletes' actual Garmin watches and
+// push-notifies each of them, so an open handler let anyone spam the whole club's
+// devices with arbitrary training.
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireSession(req);
+    if (!auth.ok) return authError(auth);
+    if (!auth.user.isStaff) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+
     const { planId, workouts, athleteIds, weekStartDate } = await req.json();
 
     if (!workouts || !athleteIds || !weekStartDate) {

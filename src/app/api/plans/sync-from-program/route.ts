@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { parseWorkoutPlan } from '@/lib/ai/parser';
 import * as fs from 'fs';
 import * as path from 'path';
+import { authError, requireSession } from '@/lib/auth-session';
 
 // Parsing the program PDF runs Opus 4.8 vision + adaptive thinking (30–180s).
 // Same reasoning as /api/parse-workout — give it room so the function isn't
@@ -21,6 +22,14 @@ export const maxDuration = 300;
  */
 export async function POST(req: NextRequest) {
   try {
+    // Staff-only: another Claude-parsing entry point, so an open handler was
+    // unauthenticated spend on the club's API budget.
+    const auth = await requireSession(req);
+    if (!auth.ok) return authError(auth);
+    if (!auth.user.isStaff) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+
     const { week_start_date } = await req.json();
 
     if (!week_start_date) {

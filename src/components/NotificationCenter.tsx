@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints, ImagePlus } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { authHeaders } from '@/lib/api';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState, Switch } from '@/components/ui';
 import { InsetRow, InsetSection } from '@/components/ui/InsetList';
 import { dateOffsetStr, minutesToHHMM, roundToStep, describeNotificationRow, SCHEDULE_STEP_MIN, type StatusIconKind } from '@/lib/notifications/scheduling';
@@ -126,7 +127,6 @@ function NotificationRowView({ n, onCancel, onRemove }: {
 }
 
 export function NotificationCenter() {
-  const [actorEmail, setActorEmail] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [list, setList] = useState<NotificationRow[]>([]);
@@ -211,11 +211,9 @@ export function NotificationCenter() {
   const loadList = useCallback(async () => {
     setLoading(true);
     try {
-      // Read localStorage directly rather than the `actorEmail` state var —
-      // this is called synchronously from the mount effect right after
-      // setActorEmail(...), before that state update has actually applied.
-      const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-      const res = await fetch('/api/notifications', { headers: email ? { 'x-user-email': email } : {} });
+      // The server identifies the approver from the session, so there's no
+      // longer a localStorage email to race with the mount effect.
+      const res = await fetch('/api/notifications', { headers: await bearerHeaders(false) });
       const data = await res.json();
       setList(data.notifications || []);
     } catch { /* noop */ }
@@ -259,9 +257,8 @@ export function NotificationCenter() {
     try {
       const res = await fetch('/api/admin/recurring-surveys', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({
-          actorEmail,
           dayOfWeek: editingTemplate.day_of_week,
           questionHe: tplQuestionHe,
           questionEn: tplQuestionEn || null,
@@ -282,7 +279,6 @@ export function NotificationCenter() {
   };
 
   useEffect(() => {
-    setActorEmail(localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '');
     fetch('/api/groups').then(r => r.ok ? r.json() : null).then(d => {
       if (d?.groups) setGroups(d.groups.map((g: any) => ({ id: g.id, name: g.name })));
     }).catch(() => {});
@@ -323,8 +319,12 @@ export function NotificationCenter() {
     try {
       const form = new FormData();
       form.append('file', file);
-      form.append('actorEmail', actorEmail);
-      const res = await fetch('/api/admin/notifications/image', { method: 'POST', body: form });
+      // No Content-Type — fetch has to set the multipart boundary itself.
+      const res = await fetch('/api/admin/notifications/image', {
+        method: 'POST',
+        headers: await bearerHeaders(false),
+        body: form,
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || data.error || 'העלאה נכשלה');
       setImageUrl(data.url);
@@ -345,9 +345,8 @@ export function NotificationCenter() {
     try {
       const res = await fetch('/api/admin/surveys', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({
-          actorEmail,
           question_he: surveyQuestionHe,
           question_en: surveyQuestionEn || null,
           options_he: cleanOptionsHe,
@@ -379,9 +378,8 @@ export function NotificationCenter() {
     try {
       const res = await fetch('/api/notifications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({
-          actorEmail,
           title_he: titleHe, body_he: bodyHe,
           title_en: titleEn || null, body_en: bodyEn || null,
           image_url: imageUrl || null,
@@ -406,14 +404,14 @@ export function NotificationCenter() {
   };
 
   const remove = async (id: string) => {
-    await fetch(`/api/notifications?id=${id}&actorEmail=${encodeURIComponent(actorEmail)}`, { method: 'DELETE' });
+    await fetch(`/api/notifications?id=${id}`, { method: 'DELETE', headers: await bearerHeaders(false) });
     loadList();
   };
   const cancel = async (id: string) => {
     await fetch('/api/notifications', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, actorEmail, status: 'cancelled' }),
+      headers: await bearerHeaders(),
+      body: JSON.stringify({ id, status: 'cancelled' }),
     });
     loadList();
   };

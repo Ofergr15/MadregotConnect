@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { authError, requireSession } from '@/lib/auth-session';
+
+/** Staff-only: this is coach-authored content for the whole club. */
+async function requireStaff(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+  return null;
+}
 
 // GET - List all nutrition plans for the coach
 export async function GET(request: Request) {
@@ -29,6 +40,9 @@ export async function GET(request: Request) {
 // POST - Create a new nutrition plan
 export async function POST(request: Request) {
   try {
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const body = await request.json();
     const { week_label, content } = body;
@@ -66,6 +80,9 @@ export async function POST(request: Request) {
 // DELETE - Delete a nutrition plan
 export async function DELETE(request: Request) {
   try {
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

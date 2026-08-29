@@ -1,26 +1,23 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove } from '@/lib/constants';
+import { requireApprover } from '@/lib/auth/require-approver';
 
 export const dynamic = 'force-dynamic';
 
-// Same shape as /api/admin/perks/image, but gated with canApprove(actorEmail)
-// — the rest of the Notification Center (/api/notifications) uses that same
-// convention rather than requireSession's real-JWT requirement, which isn't
-// reliably present for every admin session in this app (see AttendanceRSVP /
-// ActivitySyncEditor's own NOT_SIGNED_IN handling for the same gap).
+// Same shape as /api/admin/perks/image. It used to gate on an `actorEmail` form
+// field because a real JWT wasn't reliably present for admin sessions — that was
+// true until /admin/login started minting one (v2.34.23), so it now uses the
+// same verified-session gate as the rest of the Notification Center.
 const MAX_BYTES = 4 * 1024 * 1024;
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
 
-// POST /api/admin/notifications/image (multipart: file, actorEmail)
+// POST /api/admin/notifications/image (multipart: file)
 export async function POST(request: Request) {
   try {
-    const form = await request.formData();
-    const actorEmail = form.get('actorEmail') as string | null;
-    if (!canApprove(actorEmail)) {
-      return NextResponse.json({ error: 'Not authorized to upload notification images.' }, { status: 403 });
-    }
+    const { denied } = await requireApprover(request);
+    if (denied) return denied;
 
+    const form = await request.formData();
     const file = form.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'file required' }, { status: 400 });
 

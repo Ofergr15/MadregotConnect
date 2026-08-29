@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove } from '@/lib/constants';
+import { requireApprover } from '@/lib/auth/require-approver';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,17 +21,16 @@ export async function GET() {
   }
 }
 
-// PATCH /api/admin/recurring-surveys { actorEmail, dayOfWeek, questionHe, questionEn?, optionsHe, optionsEn?, active? }
+// PATCH /api/admin/recurring-surveys { dayOfWeek, questionHe, questionEn?, optionsHe, optionsEn?, active? }
 // Upserts by day_of_week — each team day's template is independently
 // editable; changing Tuesday's never touches Friday's row.
 export async function PATCH(request: Request) {
   try {
-    const body = await request.json();
-    const { actorEmail, dayOfWeek, questionHe, questionEn, optionsHe, optionsEn, active } = body;
+    const { denied } = await requireApprover(request);
+    if (denied) return denied;
 
-    if (!canApprove(actorEmail)) {
-      return NextResponse.json({ error: 'Not authorized to edit survey templates.' }, { status: 403 });
-    }
+    const body = await request.json();
+    const { dayOfWeek, questionHe, questionEn, optionsHe, optionsEn, active } = body;
     if (typeof dayOfWeek !== 'number' || dayOfWeek < 0 || dayOfWeek > 6) {
       return NextResponse.json({ error: 'dayOfWeek (0-6) is required' }, { status: 400 });
     }

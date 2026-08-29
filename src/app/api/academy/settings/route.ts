@@ -3,8 +3,19 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { normalizeSettings, DEFAULT_ACADEMY_SETTINGS } from '@/lib/academy/settings';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
+import { authError, requireSession } from '@/lib/auth-session';
 
 export const dynamic = 'force-dynamic';
+
+/** Staff-only: this is coach-authored content for the whole club. */
+async function requireStaff(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+  return null;
+}
 
 /** GET /api/academy/settings → the coach's academy settings (defaults if unset). */
 export async function GET() {
@@ -15,6 +26,9 @@ export async function GET() {
 /** PUT /api/academy/settings — upsert the settings blob. */
 export async function PUT(request: Request) {
   try {
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const body = await request.json();
     const settings = normalizeSettings(body.settings ?? body);
 
