@@ -5,6 +5,7 @@ import { Footprints, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Switch, ConfirmSheet } from '@/components/ui';
+import { apiHeaders } from '@/lib/api';
 
 interface Shoe {
   id: string;
@@ -41,7 +42,8 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
 
   const load = useCallback(() => {
     if (!athleteId) { setLoading(false); return; }
-    fetch(`/api/shoes?athleteId=${encodeURIComponent(athleteId)}`)
+    apiHeaders()
+      .then(headers => fetch(`/api/shoes?athleteId=${encodeURIComponent(athleteId)}`, { headers }))
       .then(r => (r.ok ? r.json() : null))
       .then(data => { if (data) setShoes(data.shoes || []); })
       .catch(() => {})
@@ -82,7 +84,7 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
       if (adding) {
         const res = await fetch('/api/shoes', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await apiHeaders(true),
           body: JSON.stringify({
             athleteId, name,
             distanceLimitKm: limit ? Number(limit) : null,
@@ -97,14 +99,14 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
         if (active && shoes.length > 0) {
           await fetch('/api/shoes', {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await apiHeaders(true),
             body: JSON.stringify({ id: data.shoe.id, athleteId, setActive: true }),
           });
         }
       } else if (editingId) {
         const res = await fetch('/api/shoes', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await apiHeaders(true),
           body: JSON.stringify({
             id: editingId, athleteId, name,
             distanceLimitKm: limit ? Number(limit) : null,
@@ -131,7 +133,10 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
   const remove = async (id: string) => {
     setSheetOpen(false);
     try {
-      await fetch(`/api/shoes?id=${encodeURIComponent(id)}&athleteId=${encodeURIComponent(athleteId)}`, { method: 'DELETE' });
+      await fetch(`/api/shoes?id=${encodeURIComponent(id)}&athleteId=${encodeURIComponent(athleteId)}`, {
+        method: 'DELETE',
+        headers: await apiHeaders(),
+      });
     } finally {
       load();
     }

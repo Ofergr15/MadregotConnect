@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { requireStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
   try {
+    // Applicant PII — phone numbers and the full intake questionnaire.
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const { searchParams } = new URL(request.url);
     const all = searchParams.get('all') === '1';
 

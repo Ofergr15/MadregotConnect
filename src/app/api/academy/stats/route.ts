@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
+import { requireStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,8 +24,12 @@ interface AthleteStat {
  * km, and time — both this (Sunday-based, activity) week and all-time.
  * Reuses the leaderboard Map-accumulate aggregation, scoped to academy athletes.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Named per-athlete volume across the academy — the coach dashboard's table.
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
 
     // Academy athletes (graceful if is_academy not migrated).

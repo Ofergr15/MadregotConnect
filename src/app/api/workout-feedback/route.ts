@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushToSubscriptions } from '@/lib/push';
 import { APPROVER_EMAILS } from '@/lib/constants';
+import { requireCallerForAthlete, requireStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,10 @@ export async function GET(request: Request) {
     const activityId = searchParams.get('activityId');
 
     if (searchParams.get('list')) {
+      // Club-wide triage list: every athlete's pain reports and comments.
+      const deniedList = await requireStaff(request);
+      if (deniedList) return deniedList;
+
       const supabase = createServerClient();
       const days = Math.min(Math.max(Number(searchParams.get('days')) || 30, 1), 180);
       const since = new Date(Date.now() - days * 86400_000).toISOString();
@@ -138,6 +143,10 @@ export async function GET(request: Request) {
     if (!athleteId || !activityId) {
       return NextResponse.json({ error: 'athleteId and activityId required' }, { status: 400 });
     }
+
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
+
     const supabase = createServerClient();
 
     const { data: activity } = await supabase
@@ -190,6 +199,12 @@ export async function POST(request: Request) {
     if (!athleteId) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
+
+    // The row is keyed on athlete_id, so without this anyone could file (or
+    // overwrite, via the upsert) a pain report in someone else's name.
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
+
     const supabase = createServerClient();
 
     const { error } = await supabase

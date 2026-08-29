@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,11 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    // No athleteId means the whole academy's compliance table — staff only.
+    // With one, an athlete may pull their own.
+    const { denied } = await requireCallerForAthlete(request, searchParams.get('athleteId'));
+    if (denied) return denied;
+
     const report = await computeAcademyWeekAdherence({
       weekStart: searchParams.get('weekStart'),
       onlyAthleteId: searchParams.get('athleteId'),

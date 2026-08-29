@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { APPROVER_EMAILS } from '@/lib/constants';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { subscriptionsForAthletes, sendPushToSubscriptions, persistNotifications } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const athleteId = searchParams.get('athleteId');
     if (!athleteId) return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
+
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
 
     const supabase = createServerClient();
     const { data: orders, error } = await supabase
@@ -89,6 +93,11 @@ export async function POST(request: Request) {
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'At least one item is required' }, { status: 400 });
     }
+
+    // An order is a real-world commitment with a phone number attached — only
+    // the athlete themselves (or staff ordering on their behalf) may place it.
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
 
     const supabase = createServerClient();
     const productIds = Array.from(new Set(items.map((i) => i.productId)));

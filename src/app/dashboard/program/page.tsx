@@ -132,9 +132,10 @@ export default function ProgramPage() {
 
   async function fetchWeeks() {
     try {
+      const headers = await bearerHeaders(false);
       const [pwRes, wpRes] = await Promise.all([
-        fetch('/api/program-weeks'),
-        fetch('/api/plans/weeks'),
+        fetch('/api/program-weeks', { headers }),
+        fetch('/api/plans/weeks', { headers }),
       ]);
       const pwData: ProgramWeek[] = pwRes.ok ? await pwRes.json() : [];
       const wpWeekStarts: string[] = wpRes.ok ? (await wpRes.json()).weekStarts || [] : [];
@@ -204,7 +205,8 @@ export default function ProgramPage() {
     if (!currentWeek) { setWeekPlan(null); return; }
     let cancelled = false;
     setWeekPlanLoading(true);
-    fetch(`/api/plans/week?weekStart=${currentWeek.week_start_date}`)
+    bearerHeaders(false)
+      .then(headers => fetch(`/api/plans/week?weekStart=${currentWeek.week_start_date}`, { headers }))
       .then(r => (r.ok ? r.json() : null))
       .then(data => { if (!cancelled) setWeekPlan(data); })
       .catch(() => { if (!cancelled) setWeekPlan(null); })

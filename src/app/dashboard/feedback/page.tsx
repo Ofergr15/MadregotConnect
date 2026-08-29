@@ -7,6 +7,7 @@ import { Loader2, CheckCircle2, Gauge, MessageCircle, Pencil } from 'lucide-reac
 import { cn } from '@/lib/utils';
 import { requestPushOptInPrompt } from '@/components/PushOptIn';
 import { FeedbackThread } from '@/components/FeedbackThread';
+import { apiHeaders } from '@/lib/api';
 
 const FEEL_FACES = ['😣', '😕', '😐', '🙂', '😄'];
 // Severity color per difficulty band (1-10) — inline hex, not Tailwind classes:
@@ -60,7 +61,8 @@ function FeedbackForm() {
     setAthleteId(id);
     setAthleteEmail(localStorage.getItem('athlete_email') || '');
     if (!id || !activityId) { setLoading(false); return; }
-    fetch(`/api/workout-feedback?athleteId=${id}&activityId=${activityId}`)
+    apiHeaders()
+      .then(headers => fetch(`/api/workout-feedback?athleteId=${id}&activityId=${activityId}`, { headers }))
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data) return;
@@ -104,7 +106,7 @@ function FeedbackForm() {
     try {
       const res = await fetch('/api/workout-feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback, comment }),
       });
       if (!res.ok) throw new Error('save failed');

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { requireMember } from '@/lib/auth/self-or-staff';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 
 /**
@@ -14,6 +15,12 @@ import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
  */
 export async function GET(req: NextRequest) {
   try {
+    // Club-wide training content — every athlete's Program page reads it, so
+    // membership is the bar, not staff. Gate before the 400 so an outsider
+    // can't distinguish "bad param" from "not allowed".
+    const denied = await requireMember(req);
+    if (denied) return denied;
+
     const weekStart = req.nextUrl.searchParams.get('weekStart');
     if (!weekStart || !/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
       return NextResponse.json({ error: 'weekStart (YYYY-MM-DD) is required' }, { status: 400 });

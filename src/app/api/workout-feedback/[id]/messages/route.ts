@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isSuperUser } from '@/lib/constants';
 import { subscriptionsForAthletes, sendPushToSubscriptions } from '@/lib/push';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,15 +30,20 @@ async function resolveSide(
   return null;
 }
 
-// GET /api/workout-feedback/[id]/messages?viewerEmail=…
+// GET /api/workout-feedback/[id]/messages
 // Roadmap #1, Personal Chat & Feedback System — the thread for one feedback
 // row (see migration 063). Marks the viewer's side as caught-up to "now" as
 // a side effect, same as the old single-reply PATCH's reply_seen_at did.
+//
+// The viewer's identity comes from the session, never from the request: the
+// `?viewerEmail=` this used to trust was enough to read any athlete's private
+// thread by simply naming them.
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const { searchParams } = new URL(request.url);
-    const viewerEmail = (searchParams.get('viewerEmail') || '').toLowerCase().trim();
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    const viewerEmail = caller.email.toLowerCase().trim();
 
     const supabase = createServerClient();
     const { data: fb, error: fbError } = await supabase
@@ -94,14 +100,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-// POST /api/workout-feedback/[id]/messages { senderEmail, body }
+// POST /api/workout-feedback/[id]/messages { body }
 // Either side may post — the owning athlete, or any staff member. Pushes the
 // OTHER side (category 'coach' either direction, matching the existing
 // single-reply push's category so notification prefs already cover it).
+//
+// The sender is the session holder; the `senderEmail` this used to take from
+// the body would have let anyone post as the coach.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const { senderEmail, body } = await request.json();
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    const { body } = await request.json();
     const trimmed = typeof body === 'string' ? body.trim().slice(0, 2000) : '';
     if (!trimmed) return NextResponse.json({ error: 'body is required' }, { status: 400 });
 
@@ -113,7 +124,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .maybeSingle();
     if (fbError || !fb) return NextResponse.json({ error: 'feedback not found' }, { status: 404 });
 
-    const email = (senderEmail || '').toLowerCase().trim();
+    const email = caller.email.toLowerCase().trim();
     const side = await resolveSide(supabase, email, fb.athlete_id);
     if (!side) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 

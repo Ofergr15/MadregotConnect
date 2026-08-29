@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { requireMember } from '@/lib/auth/self-or-staff';
 
 /**
  * Distinct week_start_dates that have an AI-parsed `weekly_plans` row — used
@@ -8,8 +9,11 @@ import { COACH_ID } from '@/lib/constants';
  * data but no `program_weeks` PDF row (the two tables are populated by
  * separate flows and can drift out of sync with each other).
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const denied = await requireMember(request);
+    if (denied) return denied;
+
     const supabase = createServerClient({ revalidateSeconds: 300 });
     const { data } = await supabase
       .from('weekly_plans')

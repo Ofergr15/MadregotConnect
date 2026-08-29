@@ -5,6 +5,7 @@ import { GarminClient } from '@/lib/garmin/client';
 import { activityLocalDateStr } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
+import { requireCallerForAthlete, requireMember } from '@/lib/auth/self-or-staff';
 import { flattenPlannedSteps, matchLapsToSteps, buildPlannedBands, Lap } from '@/lib/academy/segments';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,18 @@ export async function GET(request: Request) {
     const date = searchParams.get('date');
     if (!athleteId || !date) {
       return NextResponse.json({ error: 'athleteId and date are required' }, { status: 400 });
+    }
+
+    // Two different trust levels behind one route. `bands` returns only the
+    // day's PLANNED paces — club training content, and the feed requests it for
+    // whoever's activity is being expanded, so any member may. The default mode
+    // returns that athlete's own laps and per-segment verdicts: self-or-staff.
+    if (searchParams.get('bands')) {
+      const denied = await requireMember(request);
+      if (denied) return denied;
+    } else {
+      const { denied } = await requireCallerForAthlete(request, athleteId);
+      if (denied) return denied;
     }
 
     const supabase = createServerClient();

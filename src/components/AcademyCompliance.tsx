@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus, ListChecks, ClipboardCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
-import { useApi } from '@/lib/api';
+import { useApi, apiHeaders } from '@/lib/api';
 import { Spinner, LoadingBlock, EmptyState } from '@/components/ui';
 
 // Mirror of the adherence API response (kept structural to avoid importing server types).
@@ -273,7 +273,9 @@ function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string })
     if (segments || loading) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/academy/segments?athleteId=${athleteId}&date=${date}`);
+      const res = await fetch(`/api/academy/segments?athleteId=${athleteId}&date=${date}`, {
+        headers: await apiHeaders(),
+      });
       const data = await res.json();
       setSegments(data.segments || []);
       if (!data.aligned) setReason(data.reason || 'נתוני מקטעים לא זמינים');

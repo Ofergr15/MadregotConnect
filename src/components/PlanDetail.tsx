@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Calendar, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiHeaders } from '@/lib/api';
 
 interface DeliveryDetail {
   id: string;
@@ -60,7 +61,9 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
     if (deliveries.length > 0) return; // Already loaded
 
     try {
-      const response = await fetch(`/api/plans/history?planId=${planId}`);
+      const response = await fetch(`/api/plans/history?planId=${planId}`, {
+        headers: await apiHeaders(),
+      });
       if (!response.ok) throw new Error('Failed to fetch deliveries');
 
       const data = await response.json();

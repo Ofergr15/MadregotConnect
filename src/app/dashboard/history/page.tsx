@@ -47,7 +47,7 @@ export default function HistoryPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/plans/history');
+      const response = await fetch('/api/plans/history', { headers: await bearerHeaders(false) });
 
       if (!response.ok) {
         throw new Error('Failed to fetch plans');

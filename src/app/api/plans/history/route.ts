@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { requireStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,12 @@ interface DeliveryDetail {
 
 export async function GET(req: NextRequest) {
   try {
+    // Coach-only tool: this returns every plan's `original_input` (the coach's
+    // raw prompt) plus per-athlete delivery rows with garmin workout ids and
+    // error messages. Athletes read their plan through /api/plans/week instead.
+    const denied = await requireStaff(req);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const { searchParams } = new URL(req.url);
     const planId = searchParams.get('planId');

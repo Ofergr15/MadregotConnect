@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, MessageCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
+import { apiHeaders } from '@/lib/api';
 
 interface ThreadMessage {
   id: string;
@@ -21,6 +22,9 @@ interface ThreadMessage {
  * own feedback page) — never a popup Sheet, matching where the old reply
  * composer already lived.
  */
+// `viewerEmail` is only a "do we know who's looking yet" signal for skipping the
+// fetch — the server takes the viewer's identity from the session, never from
+// the request, so passing a different address here changes nothing.
 export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string; viewerEmail: string }) {
   const t = useTranslations('feedbackThread');
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
@@ -33,7 +37,8 @@ export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string
   const load = useCallback(() => {
     if (!viewerEmail) { setLoading(false); return; }
     setLoading(true);
-    fetch(`/api/workout-feedback/${feedbackId}/messages?viewerEmail=${encodeURIComponent(viewerEmail)}`)
+    apiHeaders()
+      .then((headers) => fetch(`/api/workout-feedback/${feedbackId}/messages`, { headers }))
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setMessages(data?.messages || []))
       .catch(() => {})
@@ -54,8 +59,8 @@ export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string
     try {
       const res = await fetch(`/api/workout-feedback/${feedbackId}/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senderEmail: viewerEmail, body }),
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ body }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || t('sendError'));

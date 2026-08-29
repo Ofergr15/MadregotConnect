@@ -64,7 +64,9 @@ export function AcademyRegistrations() {
   const fetchRegs = useCallback(async (all: boolean) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/academy/registrations${all ? '?all=1' : ''}`);
+      const res = await fetch(`/api/academy/registrations${all ? '?all=1' : ''}`, {
+        headers: await bearerHeaders(false),
+      });
       const data = await res.json();
       setRegs(data.registrations || []);
     } catch (err) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { checkShoeAlert } from '@/lib/shoes';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,9 @@ export async function GET(request: Request) {
   try {
     const athleteId = new URL(request.url).searchParams.get('athleteId');
     if (!athleteId) return NextResponse.json({ shoes: [] });
+
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
 
     const supabase = createServerClient();
     const [{ data: athlete }, { data: shoes }, { data: acts }] = await Promise.all([
@@ -82,6 +86,9 @@ export async function POST(request: Request) {
     const limitError = validateLimits(distanceLimitKm, alertBeforeKm);
     if (limitError) return NextResponse.json({ error: limitError }, { status: 400 });
 
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const { data: shoe, error } = await supabase
       .from('shoes')
@@ -117,6 +124,11 @@ export async function PATCH(request: Request) {
     const body = await request.json().catch(() => ({}));
     const { id, athleteId } = body;
     if (!id || !athleteId) return NextResponse.json({ error: 'id and athleteId required' }, { status: 400 });
+
+    // Every write below is already scoped by athlete_id — this makes sure the
+    // athlete_id is the caller's own rather than whatever the client sent.
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
 
     const supabase = createServerClient();
     const [{ data: existing, error: fetchError }, { data: athleteRow }] = await Promise.all([
@@ -207,6 +219,9 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
     const athleteId = searchParams.get('athleteId');
     if (!id || !athleteId) return NextResponse.json({ error: 'id and athleteId required' }, { status: 400 });
+
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
 
     const supabase = createServerClient();
     const { data: athlete } = await supabase.from('athletes').select('active_shoe_id').eq('id', athleteId).maybeSingle();

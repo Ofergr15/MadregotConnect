@@ -87,6 +87,19 @@ export async function resolveVerifiedCaller(
 }
 
 /**
+ * The weakest real gate: any verified member of this club, staff or runner.
+ *
+ * For club-internal content that every athlete legitimately sees — the shared
+ * weekly program, leaderboards, the planned-pace overlay on a teammate's run.
+ * `requireSession` already rejects a valid Supabase user with no `athletes` or
+ * `coaches` row, so this is "logged in AND belongs here", not merely "logged in".
+ */
+export async function requireMember(request: Request): Promise<Response | null> {
+  const { denied } = await resolveVerifiedCaller(request);
+  return denied;
+}
+
+/**
  * Staff-or-super-user gate for a route that isn't scoped to a single athlete —
  * club-wide coach views (team volume, the coach radar) and admin triage.
  * Returns a Response to bail out with, or null when the caller may proceed.

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ShoppingBag, ShoppingCart, X, Plus, Minus, Trash2, CheckCircle2, Package } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
-import { useApi } from '@/lib/api';
+import { useApi, apiHeaders } from '@/lib/api';
 import { Card, Button, EmptyState, SkeletonCard, SegmentedControl, Sheet } from '@/components/ui';
 
 interface Product {
@@ -133,7 +133,7 @@ function StorePageContent() {
     try {
       const res = await fetch('/api/store/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({
           athleteId,
           items: cart.map((l) => ({ productId: l.productId, size: l.size, color: l.color, quantity: l.quantity })),

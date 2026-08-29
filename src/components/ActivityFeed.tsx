@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { cn, formatActivityTime, formatActivityDate, activityLocalHour, activityLocalDay, activityLocalDateStr } from '@/lib/utils';
 import { fetchActivityDetails } from '@/lib/activities-client';
+import { apiHeaders } from '@/lib/api';
 import { projectBandsToBins, PlannedKmPoint } from '@/lib/academy/segments';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 
@@ -710,7 +711,10 @@ function ActivityCard({
       if (useSplits.length >= 2) {
         const date = activityLocalDateStr(activity.start_time);
         try {
-          const pr = await fetch(`/api/academy/segments?athleteId=${encodeURIComponent(activity.athlete_id)}&date=${date}&bands=1`);
+          const pr = await fetch(
+            `/api/academy/segments?athleteId=${encodeURIComponent(activity.athlete_id)}&date=${date}&bands=1`,
+            { headers: await apiHeaders() },
+          );
           if (pr.ok) {
             const pj = await pr.json();
             if (Array.isArray(pj?.bands) && pj.bands.length) {
