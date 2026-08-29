@@ -5,6 +5,7 @@ import {
   signActionToken,
   verifyActionToken,
 } from '@/lib/auth/action-token';
+import { actionScopeFor } from '@/lib/push';
 
 const KEY = 'a'.repeat(64);
 const OTHER_KEY = 'b'.repeat(64);
@@ -116,5 +117,37 @@ describe('action token', () => {
   // send path can't disagree and silently produce two different scopes.
   it('builds the same rsvp scope from a string or numeric day', () => {
     expect(rsvpScope('2026-08-30', '2')).toBe(rsvpScope('2026-08-30', 2));
+  });
+});
+
+// The mint side (src/lib/push.ts, at send time) and the verify side (the route,
+// on the way back in) each compute the scope independently. A token is only
+// useful if they agree — and a disagreement would look exactly like the bug this
+// whole change fixes: a dead button holding a perfectly valid token.
+describe('minted scope matches what the routes recompute', () => {
+  beforeEach(() => {
+    process.env.ENCRYPTION_KEY = KEY;
+  });
+
+  it('rsvp: push payload scope === the scope /api/attendance derives from its body', () => {
+    // What the reminder sends (cron/tick), day as a number.
+    const minted = actionScopeFor({ title: 't', body: 'b', rsvp: { weekStart: '2026-08-30', day: 2 } });
+    // What the route computes from the POSTed JSON, where day arrives unnormalised.
+    expect(minted).toBe(rsvpScope('2026-08-30', 2));
+    expect(minted).toBe(rsvpScope('2026-08-30', '2'));
+    // End to end through a real token, as the button actually does it.
+    const token = signActionToken(ME, minted!, NOW)!;
+    expect(verifyActionToken(token, ME, rsvpScope('2026-08-30', '2'), NOW)).toBe(true);
+  });
+
+  it('kudos: push payload scope === the scope the route derives from its [id] param', () => {
+    const minted = actionScopeFor({ title: 't', body: 'b', kudosActivityId: ACTIVITY });
+    expect(minted).toBe(kudosScope(ACTIVITY));
+    const token = signActionToken(ME, minted!, NOW)!;
+    expect(verifyActionToken(token, ME, kudosScope(ACTIVITY), NOW)).toBe(true);
+  });
+
+  it('is null for a payload with no action buttons, so no token is minted', () => {
+    expect(actionScopeFor({ title: 't', body: 'b' })).toBeNull();
   });
 });

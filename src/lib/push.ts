@@ -100,7 +100,11 @@ export interface PushPayload {
 // when the payload has no buttons that hit the API. Derived from the payload
 // rather than passed in, so a caller can't accidentally mint a wider token than
 // the notification it's attached to.
-function actionScopeFor(payload: PushPayload): string | null {
+//
+// Exported for the test that pins this to the scope each route recomputes on the
+// way back in: if the two ever disagree the button fails with a perfectly valid
+// token, which is the one failure mode neither side can catch alone.
+export function actionScopeFor(payload: PushPayload): string | null {
   if (payload.rsvp) return rsvpScope(payload.rsvp.weekStart, payload.rsvp.day);
   if (payload.kudosActivityId) return kudosScope(payload.kudosActivityId);
   return null;
