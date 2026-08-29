@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Construction, X, Plus } from 'lucide-react';
 import { useApi, authHeaders } from '@/lib/api';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Switch } from '@/components/ui';
 
@@ -12,11 +13,6 @@ import { Sheet, Switch } from '@/components/ui';
 // separate ALLOWLIST card shown only when maintenance is on. Both read the same
 // SWR-cached /api/maintenance, so state stays in sync from one fetch.
 interface MaintenanceData { maintenance: boolean; allowlist: string[] }
-
-function actorEmail() {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-}
 
 // One inset row: colored construction glyph + label + inline toggle. Uses the
 // real InsetRow primitive (icon tile + label/sublabel + trailing slot) instead
@@ -34,8 +30,8 @@ export function MaintenanceRow() {
     mutate({ maintenance: !on, allowlist: data?.allowlist ?? [] }, false);
     try {
       const res = await fetch('/api/maintenance', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ on: !on, actorEmail: actorEmail() }),
+        method: 'PUT', headers: await bearerHeaders(),
+        body: JSON.stringify({ on: !on }),
       });
       const d = await res.json();
       if (res.ok) mutate({ maintenance: !!d.maintenance, allowlist: d.allowlist ?? data?.allowlist ?? [] }, false);
@@ -75,8 +71,8 @@ export function MaintenanceAllowlist() {
     mutate({ maintenance: on, allowlist: next }, false); // optimistic
     try {
       const res = await fetch('/api/maintenance', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allowlist: next, actorEmail: actorEmail() }),
+        method: 'PUT', headers: await bearerHeaders(),
+        body: JSON.stringify({ allowlist: next }),
       });
       const d = await res.json();
       if (res.ok) mutate({ maintenance: !!d.maintenance, allowlist: d.allowlist ?? next }, false);

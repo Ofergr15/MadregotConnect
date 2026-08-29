@@ -9,6 +9,7 @@ import {
   SegmentedControl, Sheet, Button, Card, EmptyState,
   Skeleton, SkeletonCard, SkeletonList, InsetSection, InsetRow,
 } from '@/components/ui';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 interface Athlete {
   id: string;
@@ -102,7 +103,7 @@ export default function GroupsPage() {
     try {
       const response = await fetch('/api/groups', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify(updates),
       });
       if (response.ok) {

@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { authError, requireSession } from '@/lib/auth-session';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+// Same split as /api/admin/tab-permissions: open GET (the tab bar needs it on
+// every load), staff-only PUT.
 
 export async function GET() {
   try {
@@ -27,6 +31,12 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
+    const auth = await requireSession(request);
+    if (!auth.ok) return authError(auth);
+    if (!auth.user.isStaff) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+
     const supabase = createServerClient();
     const body = await request.json();
     const { role, tab, enabled } = body;

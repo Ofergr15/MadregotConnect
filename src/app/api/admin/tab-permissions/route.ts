@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { authError, requireSession } from '@/lib/auth-session';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+// GET stays open: Header and BottomTabBar read it on every page load, including
+// before an athlete's session resolves, and it only reveals which tabs a role
+// can see. PUT is staff-only — it decides what every role in the club can reach.
 
 export async function GET() {
   try {
@@ -27,6 +32,12 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
+    const auth = await requireSession(request);
+    if (!auth.ok) return authError(auth);
+    if (!auth.user.isStaff) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+
     const supabase = createServerClient();
     const body = await request.json();
     const { role, tab, enabled } = body;

@@ -16,6 +16,7 @@ import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
 import { authHeaders } from '@/lib/api';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNav } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
@@ -493,11 +494,13 @@ export default function SettingsPage() {
         const saved = savedMobilePermissions.find(s => s.role === p.role && s.tab === p.tab);
         return saved?.enabled !== p.enabled;
       });
+      // One token read for the whole batch, not one per changed row.
+      const headers = await bearerHeaders();
       await Promise.all(
         changed.map(p =>
           fetch('/api/admin/mobile-tab-permissions', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ role: p.role, tab: p.tab, enabled: p.enabled }),
           })
         )
@@ -593,11 +596,12 @@ export default function SettingsPage() {
         const saved = savedPermissions.find(s => s.role === p.role && s.tab === p.tab);
         return saved?.enabled !== p.enabled;
       });
+      const headers = await bearerHeaders();
       await Promise.all(
         changed.map(p =>
           fetch('/api/admin/tab-permissions', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ role: p.role, tab: p.tab, enabled: p.enabled }),
           })
         )
@@ -637,11 +641,12 @@ export default function SettingsPage() {
   const handleApprove = async (user: User) => {
     setUpdatingUsers(prev => new Set(prev).add(user.id));
     try {
-      const approverEmail = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
+      // The approver is taken from the verified session server-side — sending it
+      // from here would only be advisory.
       const response = await fetch('/api/admin/approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athleteId: user.id, approverEmail }),
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ athleteId: user.id }),
       });
       if (!response.ok) throw new Error('Failed to approve');
       await fetchUsers();

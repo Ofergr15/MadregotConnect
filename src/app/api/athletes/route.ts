@@ -4,8 +4,27 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isProtectedEmail } from '@/lib/constants';
 import { groupDisplayName } from '@/lib/utils';
 import { syncClubFollows } from '@/lib/follows/club-sync';
+import { authError, requireSession, type SessionUser } from '@/lib/auth-session';
+import { athleteWriteError, denyAthleteWrite } from '@/lib/auth/athlete-write-scope';
 
 const DEMO_COACH_ID = COACH_ID;
+
+/**
+ * Staff gate for creating and deleting athletes. GET stays open: the athletes,
+ * academy, profile, photos and plan screens all read the roster, several of them
+ * before a session has resolved.
+ */
+async function requireStaff(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return { denied: authError(auth), user: null };
+  if (!auth.user.isStaff) {
+    return {
+      denied: NextResponse.json({ error: 'Staff access required' }, { status: 403 }),
+      user: null,
+    };
+  }
+  return { denied: null, user: auth.user as SessionUser };
+}
 
 // GET - List all athletes for the coach
 export async function GET(request: Request) {
@@ -74,6 +93,9 @@ export async function GET(request: Request) {
 // POST - Create a new athlete invitation
 export async function POST(request: Request) {
   try {
+    const { denied } = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const body = await request.json();
     const { name, email, publicLink, groupId } = body;
@@ -148,8 +170,17 @@ export async function POST(request: Request) {
 }
 
 // PUT - Update athlete (group, status, etc.)
+//
+// Deliberately self-OR-staff rather than staff-only: this same handler serves
+// the coach moving someone between groups AND an athlete picking their own group
+// on /dashboard/profile. Athletes are limited to their own row and to `groupId`;
+// `status` (activate/suspend) and `isAcademy` stay staff-only, or anyone could
+// reinstate a suspended account or grant themselves academy access.
 export async function PUT(request: Request) {
   try {
+    const auth = await requireSession(request);
+    if (!auth.ok) return authError(auth);
+
     const supabase = createServerClient();
     const body = await request.json();
     const { id, groupId, status, isAcademy } = body;
@@ -159,6 +190,19 @@ export async function PUT(request: Request) {
         { error: 'Athlete ID is required' },
         { status: 400 }
       );
+    }
+
+    const requested = Object.entries({ groupId, status, isAcademy })
+      .filter(([, v]) => v !== undefined)
+      .map(([k]) => k);
+    const denial = denyAthleteWrite(
+      { isStaff: auth.user.isStaff, athleteId: auth.user.athleteId },
+      id,
+      requested,
+    );
+    if (denial) {
+      const { error, status: code } = athleteWriteError(denial);
+      return NextResponse.json({ error }, { status: code });
     }
 
     const updates: Record<string, any> = {};
@@ -193,6 +237,9 @@ export async function PUT(request: Request) {
 // DELETE - Remove an athlete
 export async function DELETE(request: Request) {
   try {
+    const { denied } = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

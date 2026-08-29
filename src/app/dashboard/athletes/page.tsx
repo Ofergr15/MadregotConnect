@@ -11,6 +11,7 @@ import { useApi } from '@/lib/api';
 import { isProtectedEmail } from '@/lib/constants';
 import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow, Card, Button, EmptyState, BigStat } from '@/components/ui';
 import { useTranslations } from 'next-intl';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 interface Athlete {
   id: string;
@@ -80,7 +81,7 @@ export default function AthletesPage() {
     try {
       const response = await fetch('/api/athletes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ name: inviteName, email: inviteEmail, groupId: inviteGroup || undefined }),
       });
       const data = await response.json();
@@ -102,7 +103,7 @@ export default function AthletesPage() {
     try {
       await fetch('/api/athletes', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ id: athleteId, groupId }),
       });
       mutateAthletes();
@@ -117,7 +118,7 @@ export default function AthletesPage() {
     try {
       await fetch('/api/admin/athlete-source', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ athleteId, dataSource: source }),
       });
       mutateAthletes();
@@ -142,7 +143,7 @@ export default function AthletesPage() {
     try {
       await fetch('/api/athletes', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ id: athleteId, status }),
       });
       mutateAthletes();
@@ -154,7 +155,7 @@ export default function AthletesPage() {
 
   const deleteAthlete = async (athleteId: string) => {
     try {
-      await fetch(`/api/athletes?id=${athleteId}`, { method: 'DELETE' });
+      await fetch(`/api/athletes?id=${athleteId}`, { method: 'DELETE', headers: await bearerHeaders(false) });
       mutateAthletes();
       setConfirmDelete(null);
       setActiveMenu(null);
@@ -176,7 +177,7 @@ export default function AthletesPage() {
     try {
       const response = await fetch('/api/athletes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ publicLink: true }),
       });
       const data = await response.json();
@@ -516,7 +517,7 @@ ${inviteLink}`;
                   const newEnabled = !athlete.stravaEnabled;
                   await fetch('/api/admin/athlete-source', {
                     method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: await bearerHeaders(),
                     body: JSON.stringify({ athleteId: athlete.id, stravaEnabled: newEnabled }),
                   });
                   mutateAthletes();

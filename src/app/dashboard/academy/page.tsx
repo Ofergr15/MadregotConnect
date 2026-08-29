@@ -14,6 +14,7 @@ import { AcademyStats } from '@/components/AcademyStats';
 import { AcademyResults } from '@/components/AcademyResults';
 import { AcademySettingsPanel } from '@/components/AcademySettings';
 import { AcademyRegistrations } from '@/components/AcademyRegistrations';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 interface Athlete {
   id: string;
@@ -116,7 +117,7 @@ export default function AcademyPage() {
     try {
       const res = await fetch('/api/athletes', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ id: athleteId, isAcademy }),
       });
       if (!res.ok) throw new Error('save failed');

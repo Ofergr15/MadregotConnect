@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, Check, Trash2, Mail, Phone, ExternalLink, Copy,
 import { cn } from '@/lib/utils';
 import { canApprove } from '@/lib/constants';
 import { Spinner, SkeletonList, EmptyState, ConfirmSheet } from '@/components/ui';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 interface Registration {
   id: string;
@@ -77,13 +78,11 @@ export function AcademyRegistrations() {
 
   const approve = async (id: string) => {
     setBusy(id);
-    const approverEmail = typeof window !== 'undefined'
-      ? (localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '')
-      : '';
     try {
+      // The approver identity comes from the verified session, server-side.
       await fetch('/api/admin/approve', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athleteId: id, approverEmail }),
+        method: 'POST', headers: await bearerHeaders(),
+        body: JSON.stringify({ athleteId: id }),
       });
       fetchRegs(showAll);
     } catch { /* ignore */ } finally { setBusy(null); }
@@ -92,7 +91,7 @@ export function AcademyRegistrations() {
   const reject = async (id: string) => {
     setBusy(id);
     setRegs(prev => prev.filter(r => r.id !== id));
-    try { await fetch(`/api/athletes?id=${id}`, { method: 'DELETE' }); }
+    try { await fetch(`/api/athletes?id=${id}`, { method: 'DELETE', headers: await bearerHeaders(false) }); }
     catch { fetchRegs(showAll); } finally { setBusy(null); }
   };
 

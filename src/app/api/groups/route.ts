@@ -3,10 +3,25 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { groupDisplayName } from '@/lib/utils';
 import { paceLevelFromOffset } from '@/lib/groups/pace-level';
+import { authError, requireSession } from '@/lib/auth-session';
 
 const DEMO_COACH_ID = COACH_ID;
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Staff gate for the write handlers. GET stays open — half the app reads the
+ * group list (Header, tab bar, profile, onboarding, leaderboards) and it holds
+ * nothing sensitive; the auth blobs are deliberately mapped to booleans below.
+ */
+async function requireStaff(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+  return null;
+}
 
 // GET - List all groups for the coach with athlete details
 export async function GET(request: Request) {
@@ -83,6 +98,9 @@ export async function GET(request: Request) {
 // POST - Create a new group
 export async function POST(request: Request) {
   try {
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const body = await request.json();
     const { name, paceOffsetSeconds, level, marathonGoal } = body;
@@ -127,6 +145,9 @@ export async function POST(request: Request) {
 // PUT - Update a group
 export async function PUT(request: Request) {
   try {
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const body = await request.json();
     const { id, name, paceOffsetSeconds, level, marathonGoal } = body;
@@ -188,6 +209,9 @@ export async function PUT(request: Request) {
 // DELETE - Delete a group
 export async function DELETE(request: Request) {
   try {
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

@@ -1,12 +1,23 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { authError, requireSession } from '@/lib/auth-session';
 
+// Self-or-staff, like PUT /api/athletes: the coach switches any athlete's data
+// source from the athletes screen, and an athlete with both watches connected
+// switches their own from /dashboard/profile.
 export async function PATCH(request: Request) {
   try {
+    const auth = await requireSession(request);
+    if (!auth.ok) return authError(auth);
+
     const { athleteId, dataSource, stravaEnabled } = await request.json();
 
     if (!athleteId) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
+    }
+
+    if (!auth.user.isStaff && athleteId !== auth.user.athleteId) {
+      return NextResponse.json({ error: 'You can only change your own data source' }, { status: 403 });
     }
 
     const supabase = createServerClient();

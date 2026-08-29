@@ -19,6 +19,7 @@ import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { APP_VERSION } from '@/lib/version';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
 
@@ -269,7 +270,7 @@ function ProfileContent() {
     try {
       const res = await fetch('/api/athletes', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify({ id: athleteId, groupId: selectedGroupId }),
       });
 
@@ -909,7 +910,7 @@ function ProfileContent() {
                 const newSource = dataSource === 'strava' ? 'garmin' : 'strava';
                 await fetch('/api/admin/athlete-source', {
                   method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: await bearerHeaders(),
                   body: JSON.stringify({ athleteId, dataSource: newSource }),
                 });
                 setDataSource(newSource);

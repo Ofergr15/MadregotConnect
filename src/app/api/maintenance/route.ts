@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { canApprove } from '@/lib/constants';
+import { authError, requireSession } from '@/lib/auth-session';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,13 +31,21 @@ export async function GET(request: Request) {
 }
 
 // PUT /api/maintenance  — toggle and/or update the allowlist (approver only)
-//   { actorEmail, on?: boolean, allowlist?: string[] }
+//   Bearer <supabase jwt> + { on?: boolean, allowlist?: string[] }
+//
+// The actor is the VERIFIED session email, never a value from the body. It used
+// to be `body.actorEmail`, which meant anyone could lock the whole club out of
+// the app by posting an approver's address — and APPROVER_EMAILS ships in the
+// client bundle, so those addresses are public.
 export async function PUT(request: Request) {
   try {
-    const { on, allowlist, actorEmail } = await request.json();
+    const auth = await requireSession(request);
+    if (!auth.ok) return authError(auth);
+    const actorEmail = auth.user.email;
     if (!canApprove(actorEmail)) {
       return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
     }
+    const { on, allowlist } = await request.json();
     const supabase = createServerClient();
     const now = new Date().toISOString();
     const rows: Array<{ key: string; value: string; updated_at: string }> = [];

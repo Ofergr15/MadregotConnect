@@ -499,7 +499,7 @@ export default function WeeklyPlannerPage() {
 
       const res = await fetch('/api/parse-workout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bearerHeaders(),
         body: JSON.stringify(body),
         signal: controller.signal,
       });

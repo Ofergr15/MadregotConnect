@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { randomBytes } from 'crypto';
 import { canApprove } from '@/lib/constants';
+import { authError, requireSession } from '@/lib/auth-session';
 import { notifyUserApproved, notifyAdminUserApproved, notifyAcademyApproved } from '@/lib/email';
 import { notifyAthlete } from '@/lib/push';
 
@@ -9,8 +10,11 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireSession(req);
+    if (!auth.ok) return authError(auth);
+
     const supabase = createServerClient();
-    const { athleteId, approverEmail } = await req.json();
+    const { athleteId } = await req.json();
 
     if (!athleteId) {
       return NextResponse.json({ error: 'athleteId is required' }, { status: 400 });
@@ -18,6 +22,11 @@ export async function POST(req: NextRequest) {
 
     // Only allowlisted accounts may approve new registrations. This is the
     // authoritative check — the UI also hides the button, but that's cosmetic.
+    // The approver is the VERIFIED session email; it used to be read from the
+    // request body, so any anonymous caller could self-approve an account by
+    // naming an approver (and APPROVER_EMAILS is public — it ships in the
+    // client bundle).
+    const approverEmail = auth.user.email;
     if (!canApprove(approverEmail)) {
       return NextResponse.json(
         { error: 'You are not authorized to approve registrations.' },
