@@ -243,6 +243,14 @@ export default function HomePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'Login failed');
+      // Adopt the real Supabase session the route just minted, so bearer-gated
+      // routes work from the password login too (see /api/admin/login).
+      if (data.session?.access_token && data.session?.refresh_token) {
+        await getSupabase().auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+      }
       localStorage.setItem('coach_email', data.email);
       localStorage.setItem('admin_session', 'true');
       if (data.athleteId) {

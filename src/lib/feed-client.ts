@@ -34,17 +34,11 @@ let inFlightReauth: Promise<string | null> | null = null;
 async function trySilentReauth(): Promise<string | null> {
   if (inFlightReauth) return inFlightReauth;
   const run = async (): Promise<string | null> => {
-    const email =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || ''
-        : '';
-    if (!email) return null;
     try {
-      const res = await fetch('/api/auth/silent-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+      // No body: the route takes the identity from its signed httpOnly device
+      // cookie, never from what the client claims. Returns 401 on a browser
+      // that never completed a real login, and the caller falls back.
+      const res = await fetch('/api/auth/silent-session', { method: 'POST' });
       if (!res.ok) return null;
       const { session } = await res.json();
       if (!session?.access_token || !session?.refresh_token) return null;

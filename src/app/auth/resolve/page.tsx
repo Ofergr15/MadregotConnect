@@ -116,6 +116,19 @@ export default function AuthResolvePage() {
           return;
         }
 
+        // Now that a real session exists, issue the httpOnly device cookie that
+        // /api/auth/silent-session requires to re-mint one later. Best-effort:
+        // failing only costs the silent self-heal, not this login.
+        try {
+          const issued = await fetch('/api/auth/device-token', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          authLog(debugId, 'resolve:device_token', { ok: issued.ok, status: issued.status });
+        } catch {
+          authLog(debugId, 'resolve:device_token', { ok: false, status: 0 });
+        }
+
         authLog(debugId, 'resolve:role_start');
         await resolveRole(session.user, debugId, authLog);
       } catch (error) {

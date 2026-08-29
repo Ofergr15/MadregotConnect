@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Loader2, Shield } from 'lucide-react';
 import { Card, Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { getSupabase } from '@/lib/supabase/client';
 
 // Local input primitive (kept local to this screen rather than promoted to
 // the shared ui/index.tsx) — rounded-2xl, min-h-[44px], one consistent focus
@@ -50,6 +51,15 @@ export default function AdminLoginPage() {
 
       if (!res.ok) {
         throw new Error(data.message || data.error || t('loginFailed'));
+      }
+
+      // Adopt the real Supabase session the route just minted, so bearer-gated
+      // routes (/api/plans, POST /api/program-weeks) work from this login too.
+      if (data.session?.access_token && data.session?.refresh_token) {
+        await getSupabase().auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
       }
 
       localStorage.setItem('coach_email', data.email);

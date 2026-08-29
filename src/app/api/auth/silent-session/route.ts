@@ -1,7 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
+import {
+  DEVICE_COOKIE,
+  DEVICE_COOKIE_OPTIONS,
+  readDeviceToken,
+  signDeviceToken,
+} from '@/lib/auth/device-token';
 
 function adminClient() {
   return createClient(
@@ -11,8 +17,8 @@ function adminClient() {
   );
 }
 
-// POST /api/auth/silent-session — mints a fresh Supabase session for an
-// already-known athlete/coach email, without a real re-login.
+// POST /api/auth/silent-session — mints a fresh Supabase session for a browser
+// that already completed a real login but has since lost its session.
 //
 // The feed's Supabase-JWT requirement (see feed-client.ts's authHeaders) was
 // designed around the assumption every account keeps a live session — but
@@ -23,32 +29,48 @@ function adminClient() {
 // back except reconnecting Strava. This route gives feed-client.ts a way to
 // silently re-mint one, the same self-heal philosophy already used for the
 // app-icon badge count (see dashboard/layout.tsx) applied to auth instead.
-export async function POST(request: Request) {
+//
+// The identity comes from the signed httpOnly device cookie, NEVER from the
+// request body. This route used to take an email and return real access and
+// refresh tokens for it after only checking the address existed in `athletes`,
+// which made knowing any member's email sufficient to take over their account —
+// and, since staff are athletes rows too, to clear every requireSession gate in
+// the app. It also answered "unknown_email" for addresses it didn't recognise,
+// confirming membership to anyone who asked.
+export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json().catch(() => ({}));
-    if (!email || typeof email !== 'string') {
-      return NextResponse.json({ error: 'email required' }, { status: 400 });
+    const email = readDeviceToken(request.cookies.get(DEVICE_COOKIE)?.value);
+    if (!email) {
+      // No proof this browser ever logged in. The caller falls back to a real
+      // login; deliberately says nothing about whether any address is a member.
+      return NextResponse.json({ error: 'no_device_token' }, { status: 401 });
     }
-    const normalized = email.toLowerCase().trim();
 
-    // Only for an email that's already a real athlete/coach in this club —
-    // never mint a session for an arbitrary address.
+    // The cookie is long-lived, so re-check the account still exists and is not
+    // deactivated — a token issued a year ago must not outlive the membership.
     const supabase = createServerClient();
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id')
-      .ilike('email', normalized)
+      .select('id, status')
+      .ilike('email', email)
       .maybeSingle();
     if (!athlete) {
-      return NextResponse.json({ error: 'unknown_email' }, { status: 404 });
+      const gone = NextResponse.json({ error: 'no_device_token' }, { status: 401 });
+      gone.cookies.delete(DEVICE_COOKIE);
+      return gone;
     }
 
-    const result = await createSyntheticSession(adminClient(), normalized);
+    const result = await createSyntheticSession(adminClient(), email);
     if (result.error || !result.session) {
       console.error('silent-session failed:', result.error);
       return NextResponse.json({ error: result.error || 'session_create_failed' }, { status: 500 });
     }
-    return NextResponse.json({ session: result.session });
+
+    const response = NextResponse.json({ session: result.session });
+    // Slide the expiry so an actively-used browser never has to log in again.
+    const refreshed = signDeviceToken(email);
+    if (refreshed) response.cookies.set(DEVICE_COOKIE, refreshed, DEVICE_COOKIE_OPTIONS);
+    return response;
   } catch (err) {
     console.error('silent-session failed:', err);
     return NextResponse.json({ error: 'silent_session_failed' }, { status: 500 });

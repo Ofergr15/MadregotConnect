@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
+import { createSyntheticSession } from '@/lib/auth/synthetic-session';
+import { DEVICE_COOKIE, DEVICE_COOKIE_OPTIONS, signDeviceToken } from '@/lib/auth/device-token';
 
 // Best-effort throttle: this is a single shared password checked with a
 // plain !==, with no rate limiting at all before this. Module-scope state
@@ -67,14 +70,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not authorized as admin' }, { status: 403 });
     }
 
-    return NextResponse.json({
+    // Mint a real Supabase session for this staff account.
+    //
+    // This login used to hand back nothing but a flag the client wrote to
+    // localStorage as `admin_session`, which meant "staff" existed in the
+    // browser but not on the server: every route gated by requireSession
+    // (/api/plans, POST /api/program-weeks) rejected this login path while the
+    // UI still rendered its buttons. Same machinery as the Strava callback.
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+    const authResult = await createSyntheticSession(authClient, athlete.email!.toLowerCase(), {
+      athlete_id: athlete.id,
+      name: athlete.name,
+    });
+    if (authResult.error || !authResult.session) {
+      console.error('admin login session mint failed:', authResult.error);
+      return NextResponse.json({ error: 'Could not establish session' }, { status: 500 });
+    }
+
+    const response = NextResponse.json({
       success: true,
       email: athlete.email,
       name: athlete.name,
       role: athlete.role,
       athleteId: athlete.id,
       groupId: athlete.group_id,
+      session: authResult.session,
     });
+
+    const deviceToken = signDeviceToken(athlete.email!);
+    if (deviceToken) response.cookies.set(DEVICE_COOKIE, deviceToken, DEVICE_COOKIE_OPTIONS);
+    return response;
   } catch (error) {
     return NextResponse.json({ error: 'Login failed' }, { status: 500 });
   }
