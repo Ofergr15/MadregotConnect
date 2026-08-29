@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { requireSession, authError } from '@/lib/auth-session';
 
 export async function GET() {
   const supabase = createServerClient();
@@ -15,7 +16,19 @@ export async function GET() {
   return NextResponse.json(data);
 }
 
+// Staff only. This writes the club's program: it upserts program_weeks on
+// week_start_date and uploads to the program-plans bucket with upsert: true, at
+// a path derived purely from the week — so an unauthenticated caller could
+// overwrite any published week's training and nutrition PDF. Matches the gate on
+// /api/plans; GET stays open because the athlete program page reads it
+// unauthenticated and the PDF URLs it returns are public bucket URLs anyway.
 export async function POST(request: NextRequest) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isStaff) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+
   const supabase = createServerClient();
   const formData = await request.formData();
 

@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, Image, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
+import { clearIdentityKeys } from '@/lib/auth/identity-keys';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, stopViewAs, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { InsetSection, InsetRow, Sheet } from '@/components/ui';
@@ -179,15 +180,8 @@ export function Header() {
   const handleLogout = async () => {
     const supabase = getSupabase();
     await supabase.auth.signOut();
-    localStorage.removeItem('athlete_id');
-    localStorage.removeItem('athlete_name');
-    localStorage.removeItem('athlete_email');
-    localStorage.removeItem('athlete_group_id');
-    localStorage.removeItem('coach_email');
-    localStorage.removeItem('admin_session');
-    localStorage.removeItem('dashboard_synced');
-    // Clear any active "view as" scenario.
-    localStorage.removeItem('view_as_role');
+    // Includes any active "view as" scenario — see IDENTITY_KEYS.
+    clearIdentityKeys();
     router.push('/');
   };
 

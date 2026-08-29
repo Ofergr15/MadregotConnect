@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList, Hash, Calendar, CalendarRange } from 'lucide-react';
 import { cn, isRecentlyPublished, toISODate } from '@/lib/utils';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { getDisplayWeekStart } from '@/lib/plans/workout-parsing';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
 import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
@@ -876,7 +877,13 @@ function UploadForm({
     if (nutritionFile) formData.append('nutrition_pdf', nutritionFile);
 
     try {
-      const res = await fetch('/api/program-weeks', { method: 'POST', body: formData });
+      // bearerHeaders(false): no Content-Type, so fetch sets the multipart
+      // boundary itself. POST is staff-gated by requireSession.
+      const res = await fetch('/api/program-weeks', {
+        method: 'POST',
+        headers: await bearerHeaders(false),
+        body: formData,
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error);
       onSuccess();
