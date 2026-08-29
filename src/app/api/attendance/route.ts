@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { ACTION_TOKEN_HEADER, rsvpScope, verifyActionToken } from '@/lib/auth/action-token';
 
 export const dynamic = 'force-dynamic';
 
@@ -206,17 +207,25 @@ export async function POST(request: Request) {
     if (!athleteId || !weekStart || day == null || attending == null) {
       return NextResponse.json({ error: 'athleteId, weekStart, day, attending required' }, { status: 400 });
     }
-    // NOTE: the service worker also POSTs here, for the RSVP buttons on a push
-    // notification (src/app/sw.ts) — and it sends no identity at all, so that
-    // path has been 403ing on every tap since the header gate landed. Verified
-    // against production. A bearer token is not reachable from a service worker
-    // (the session lives in localStorage), so fixing the notification buttons
-    // needs a signed action token in the push payload; requiring a real session
-    // here changes nothing for them in the meantime.
-    const { denied, caller } = await resolveVerifiedCaller(request);
-    if (denied) return denied;
-    if (!mayActFor(caller, athleteId)) {
-      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    // Two ways to be authorized here, because two very different callers post
+    // to this route:
+    //
+    //  1. The app, with a verified Supabase session (the normal path).
+    //  2. The RSVP buttons on a push notification, which run in the service
+    //     worker — no page, no localStorage, so no session to read and no bearer
+    //     token to send. Those carry a server-signed token instead, scoped to
+    //     this athlete and this exact practice day, so it can't be replayed as a
+    //     different athlete, a different day, or a different kind of action.
+    //
+    // Checking the token first keeps the notification path off the session
+    // lookup entirely; a request with no token behaves exactly as before.
+    const token = request.headers.get(ACTION_TOKEN_HEADER);
+    if (!verifyActionToken(token, athleteId, rsvpScope(weekStart, day))) {
+      const { denied, caller } = await resolveVerifiedCaller(request);
+      if (denied) return denied;
+      if (!mayActFor(caller, athleteId)) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
     }
 
     const supabase = createServerClient();

@@ -151,6 +151,7 @@ self.addEventListener('push', (event: PushEvent) => {
     athleteId?: string;
     rsvp?: { weekStart: string; day: number };
     kudosActivityId?: string;
+    actionToken?: string;
   } = {};
   try {
     data = event.data ? event.data.json() : {};
@@ -190,6 +191,10 @@ self.addEventListener('push', (event: PushEvent) => {
             athleteId: data.athleteId,
             rsvp: data.rsvp,
             kudosActivityId: data.kudosActivityId,
+            // Server-signed authorization for this athlete to press this
+            // notification's buttons — the SW's stand-in for the bearer token
+            // it can't reach. See src/lib/auth/action-token.ts.
+            actionToken: data.actionToken,
           },
           // `image` (expanded banner photo) isn't in TS's NotificationOptions lib
           // typing yet, though it's supported at runtime on platforms that honor
@@ -209,6 +214,22 @@ self.addEventListener('push', (event: PushEvent) => {
   );
 });
 
+// A service worker can't read the Supabase session (it lives in localStorage, in
+// the page), so an action button has no bearer token to send. Instead the send
+// path signs a token scoped to this athlete and this exact action and ships it in
+// the push payload; forwarding it here is what makes the button authorized. An
+// older notification that predates this (no token in its data) simply gets no
+// header and is rejected — the same dead button it already was.
+// The header name is spelled out rather than imported from action-token.ts:
+// that module pulls in node:crypto, which must not end up in the service-worker
+// bundle. Keep it in sync with ACTION_TOKEN_HEADER there.
+function actionHeaders(token: string | undefined): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'x-action-token': token } : {}),
+  };
+}
+
 // Tell every open tab an action fired so an already-mounted screen (e.g.
 // AttendanceRSVP/AttendanceRoster, still showing the pre-action state) can
 // refetch instead of silently going stale until a manual reload. `ok: false`
@@ -225,6 +246,7 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
     athleteId?: string;
     rsvp?: { weekStart: string; day: number };
     kudosActivityId?: string;
+    actionToken?: string;
   }) || {};
   const action = event.action;
   event.notification.close();
@@ -239,7 +261,7 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
       event.waitUntil(
         fetch('/api/attendance', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: actionHeaders(notifData.actionToken),
           body: JSON.stringify({
             athleteId: notifData.athleteId,
             weekStart: notifData.rsvp.weekStart,
@@ -258,7 +280,7 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
       event.waitUntil(
         fetch(`/api/activities/${notifData.kudosActivityId}/kudos`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: actionHeaders(notifData.actionToken),
           body: JSON.stringify({ athleteId: notifData.athleteId }),
         })
           .then((r) => broadcastAction('kudos', r.ok, { activityId: notifData.kudosActivityId }))

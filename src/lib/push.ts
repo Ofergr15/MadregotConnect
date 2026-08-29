@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { kudosScope, rsvpScope, signActionToken } from '@/lib/auth/action-token';
 
 /**
  * Given the maintenance allowlist (lowercased emails) and the athlete rows for
@@ -93,6 +94,16 @@ export interface PushPayload {
   rsvp?: { weekStart: string; day: number };
   /** Context for the SW's 'kudos' action handler. */
   kudosActivityId?: string;
+}
+
+// The scope an action button on this payload is allowed to act within, or null
+// when the payload has no buttons that hit the API. Derived from the payload
+// rather than passed in, so a caller can't accidentally mint a wider token than
+// the notification it's attached to.
+function actionScopeFor(payload: PushPayload): string | null {
+  if (payload.rsvp) return rsvpScope(payload.rsvp.weekStart, payload.rsvp.day);
+  if (payload.kudosActivityId) return kudosScope(payload.kudosActivityId);
+  return null;
 }
 
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };
@@ -259,6 +270,7 @@ export async function sendPushToSubscriptions(subs: SubRow[], payload: PushPaylo
 
   let sent = 0;
   const deadIds: string[] = [];
+  const scope = actionScopeFor(payload);
 
   await Promise.all(
     subs.map(async (s) => {
@@ -266,7 +278,17 @@ export async function sendPushToSubscriptions(subs: SubRow[], payload: PushPaylo
       // athleteId, so an OS-level notification action (which runs in the SW,
       // with no page/localStorage to read from) knows who's acting.
       const badge = payload.badge != null ? payload.badge : (unread[s.athlete_id] ?? 1);
-      const body = JSON.stringify({ ...payload, badge, athleteId: s.athlete_id });
+      // …and, when the notification has action buttons, that athlete's own
+      // signed authorization to press them. Minted per recipient here because
+      // this is the only point that knows who the payload is going to, so a
+      // token can never authorize anyone but the device that received it.
+      const actionToken = scope ? signActionToken(s.athlete_id, scope) : null;
+      const body = JSON.stringify({
+        ...payload,
+        badge,
+        athleteId: s.athlete_id,
+        ...(actionToken ? { actionToken } : {}),
+      });
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },

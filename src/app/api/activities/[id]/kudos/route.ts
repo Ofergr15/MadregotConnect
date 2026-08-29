@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { ACTION_TOKEN_HEADER, kudosScope, verifyActionToken } from '@/lib/auth/action-token';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +47,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { athleteId } = await request.json();
     if (!athleteId) return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
 
+    // This route took the giver's identity straight from the body with no check
+    // at all, so anyone could give kudos as anybody — which also fired a push at
+    // the activity's owner naming whoever the caller claimed to be.
+    //
+    // Two legitimate callers, same split as /api/attendance: the in-app button
+    // (verified session) and the 👍 button on a push notification, which runs in
+    // the service worker and can't reach a session — that one carries a token
+    // scoped to this athlete and this activity.
+    const token = request.headers.get(ACTION_TOKEN_HEADER);
+    if (!verifyActionToken(token, athleteId, kudosScope(id))) {
+      const { denied, caller } = await resolveVerifiedCaller(request);
+      if (denied) return denied;
+      if (!mayActFor(caller, athleteId)) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
+    }
+
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('activity_kudos')
@@ -85,11 +104,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 }
 
 // DELETE /api/activities/[id]/kudos { athleteId } — un-kudos. Idempotent.
+// Session-only, deliberately: no notification carries an un-kudos button, so
+// there is no service-worker caller to accommodate here. Ungated, this removed
+// anyone's reaction on anyone's activity.
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const { athleteId } = await request.json();
     if (!athleteId) return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
+
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
 
     const supabase = createServerClient();
     const { error } = await supabase

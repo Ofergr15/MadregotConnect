@@ -140,7 +140,7 @@ function KudosButton({ activityId, athleteId }: { activityId: string; athleteId:
     try {
       await fetch(`/api/activities/${activityId}/kudos`, {
         method: next ? 'POST' : 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ athleteId }),
       });
     } catch { setGiven(!next); } // revert on failure
