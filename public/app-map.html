@@ -20,6 +20,13 @@
   .cta a.primary{background:var(--indigo);color:#fff;box-shadow:0 10px 24px rgba(67,56,255,.35)}
   .cta a.secondary{background:rgba(30,41,59,.7);color:#fff;border:1px solid rgba(51,65,85,.7)}
 
+  .access{margin-top:22px;background:rgba(15,23,42,.55);border:1px solid rgba(51,65,85,.55);border-radius:18px;padding:18px 20px;max-width:640px;margin-inline:auto;text-align:start}
+  .access b{font-size:14px;font-weight:900;display:block;margin-bottom:10px}
+  .access ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+  .access li{font-size:13.5px;color:var(--s400);line-height:1.55}
+  .access a{color:var(--indigo-l);font-weight:800;text-decoration:none}
+  .access .note{margin-top:13px;font-size:12.5px;color:var(--s500);line-height:1.65;max-width:none;margin-inline:0}
+
   .sec{margin:54px 0 6px;display:flex;align-items:center;gap:12px}
   .sec h2{font-size:21px;font-weight:900;white-space:nowrap}
   .sec .tag{font-size:11.5px;font-weight:800;padding:4px 11px;border-radius:999px;white-space:nowrap}
@@ -96,6 +103,15 @@
       <a class="primary" href="/iphone-preview" target="_blank" rel="noopener">📱 תצוגת iPhone חיה ואינטראקטיבית</a>
       <a class="secondary" href="https://madregot-connect.vercel.app/dashboard" target="_blank" rel="noopener">פתח את האפליקציה במסך מלא →</a>
     </div>
+    <div class="access">
+      <b>🎨 כל הקישורים לעבודה — במקום אחד</b>
+      <ul>
+        <li><a href="https://madregot-connect.vercel.app/app-map.html" target="_blank" rel="noopener">מפת האפליקציה ↗</a> — הדף הזה, כדאי לשמור במועדפים</li>
+        <li><a href="https://madregot-connect.vercel.app/dashboard" target="_blank" rel="noopener">האפליקציה החיה ↗</a> — כל המסכים, על נתונים אמיתיים</li>
+        <li><a href="https://madregot-connect.vercel.app/iphone-preview" target="_blank" rel="noopener">תצוגת iPhone ↗</a> — האפליקציה בתוך מסגרת מכשיר</li>
+      </ul>
+      <p class="note"><b style="display:inline">התחברות:</b> Google, עם כתובת המייל שקיבלה הרשאה. אם מופיע מסך "בונים מחדש את המדרגות 🚧" — הכתובת לא ברשימת ההרשאות, בקשו הוספה.</p>
+    </div>
     <div class="legend">
       <span><span class="dot old"></span><b>ישן</b> — לפני המהפך</span>
       <span><span class="dot new"></span><b>חדש</b> — הגרסה החדשה</span>
@@ -139,7 +155,7 @@
       screens: [
         { label: 'בית (ספורטאי)', desc: 'לוח הבקרה היומי — RSVP, סטרייק, האימון הקרוב', old: 'home-athlete-old.png', new: 'home-athlete.png', path: '/dashboard' },
         { label: 'תוכנית שבועית', desc: 'חדש · "המדרגות של השבוע" — כרטיס גיבור + מדרגה לכל יום לפי עצימות', old: 'program-old.png', new: 'program.png', path: '/dashboard/program' },
-        { label: 'פיד', desc: 'לייקים, תגובות, שיתוף ריצה, Squad Battle ולוח מובילים שבועי', old: 'feed-old.png', new: 'feed.png', path: '/dashboard/feed' },
+        { label: 'פיד', desc: 'כל ריצה עם מפת מסלול, מרחק, קצב, זמן, דופק וטיפוס · לייקים, תגובות, שיתוף לסטורי, Squad Battle ולוח מובילים שבועי', old: 'feed-old.png', new: 'feed.png', path: '/dashboard/feed' },
         { label: 'פרופיל', desc: 'עודכן · שורות: תוכנית השבוע, המספרים שלי (סטטיסטיקה/תגים/פעילויות), חשבון (פרטים אישיים/דבוקה/נעקבים/מקור נתונים/שיתוף/התראות)', old: 'profile-old.png', new: 'profile.png', path: '/dashboard/profile' },
         { label: 'פרטים אישיים', desc: 'חדש · שם/תאריך לידה/מגדר/מידת נעל/מידת חולצה/טלפון — נוסף גם לפרופיל (היה רק בהגדרות, חסום לצוות בלבד), כדי שכל ספורטאי יוכל בפועל להגיע אליו', new: 'personal-info.png', path: '/dashboard/profile', badge: 'new-only' },
         { label: 'פרופיל חבר / נעקבים', desc: 'חדש · מעקב א-סימטרי בסטייל Strava — פרופיל ציבורי לכל חבר קבוצה, רשימת נעקבים בפרופיל שלי', new: 'teammate-profile.png', path: '/dashboard/teammate/[id]', badge: 'new-only' },
