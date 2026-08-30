@@ -5,7 +5,7 @@ import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyP
 import { useApi, apiHeaders } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Switch } from '@/components/ui';
-import { subscribeToPush, ensurePushSubscription } from '@/lib/pwa';
+import { subscribeToPush } from '@/lib/pwa';
 import { logClient } from '@/lib/client-log';
 
 type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
@@ -81,21 +81,34 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
     }
   };
 
-  // Re-register this device with the push service and the server. Offered even
-  // when permission is already 'granted', because that's exactly the state that
-  // used to be unrecoverable: iOS can drop the subscription while permission
-  // stays granted, and every path here bailed out the moment it saw 'granted'.
+  // Force a genuinely NEW subscription for this device. Offered even when
+  // permission is already 'granted', because that's exactly the state that used
+  // to be unrecoverable: iOS can break a subscription while permission stays
+  // granted, and every path here bailed out the moment it saw 'granted'.
+  //
+  // This deliberately uses subscribeToPush (unsubscribe, then subscribe) rather
+  // than ensurePushSubscription's refresh-in-place. Measured on a real device:
+  // four endpoints, three of them known-dead, all returned 201 to 52
+  // consecutive sends and displayed nothing. Apple keeps accepting pushes for
+  // an endpoint that is still registered but no longer reaches a live service
+  // worker, and getSubscription() keeps handing that endpoint back — so
+  // re-posting it repairs nothing. Only discarding it and minting a new one
+  // guarantees a live endpoint. subscribeToPush also reports the endpoint it
+  // discarded, so the dead row is deleted instead of lingering as a ghost.
+  //
+  // requestPermission() inside it resolves immediately (no prompt) when
+  // permission is already granted.
   const [refreshing, setRefreshing] = useState(false);
   const [refreshResult, setRefreshResult] = useState<string | null>(null);
   const refreshSub = async () => {
     setRefreshing(true);
     setRefreshResult(null);
     try {
-      const result = await ensurePushSubscription(athleteId);
-      logClient('push-refresh-manual', { ...result });
+      const result = await subscribeToPush(athleteId);
+      logClient('push-resubscribe-manual', { ...result });
       setRefreshResult(
         result.ok
-          ? (result.action === 'resubscribed' ? 'נרשם מחדש — נסו שליחת בדיקה' : 'המנוי עודכן')
+          ? 'מנוי חדש נוצר — שלחו התראת בדיקה'
           : `לא הצליח: ${result.error || 'unknown'}`,
       );
     } finally {
@@ -125,10 +138,10 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       const { sent, total } = (await res.json()) as { sent: number; total: number };
       setTestResult(
         total === 0
-          ? 'אין מנוי פוש במכשיר — נסו "רענון מנוי פוש"'
+          ? 'אין מנוי פוש במכשיר — נסו "תיקון התראות במכשיר"'
           : sent === 0
-            ? `נשלחו 0 מתוך ${total} — נסו "רענון מנוי פוש"`
-            : `נשלחו ${sent} מתוך ${total} — אמורה להגיע התראה`,
+            ? `נשלחו 0 מתוך ${total} — נסו "תיקון התראות במכשיר"`
+            : `נשלחו ${sent} מתוך ${total} — אם לא הגיעה, נסו "תיקון התראות במכשיר"`,
       );
     } catch (err) {
       setTestResult(`הבקשה נכשלה: ${err instanceof Error ? err.message : String(err)}`);
@@ -206,7 +219,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
           <InsetRow
             icon={RefreshCw}
             iconBg="bg-sky-600"
-            label={refreshing ? 'מרענן...' : 'רענון מנוי פוש'}
+            label={refreshing ? 'מתקן...' : 'תיקון התראות במכשיר'}
             sublabel={refreshResult || 'אם לא מגיעות התראות — התחילו מכאן'}
             onClick={refreshing ? undefined : refreshSub}
           />
