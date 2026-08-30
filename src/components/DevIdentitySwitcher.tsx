@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { FlaskConical, Loader2, MessageCircle, RefreshCw } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Columns2,
+  FlaskConical,
+  Loader2,
+  MessageCircle,
+  RefreshCw,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -28,7 +36,10 @@ function DevBar() {
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stravaAthletes, setStravaAthletes] = useState<StravaAthlete[]>([]);
-  const openRunChatActivityId = pathname.match(/^\/dashboard\/run-chat\/([^/]+)$/)?.[1] || null;
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const hasMobileBottomNav = pathname.startsWith('/dashboard');
+  const openRunChatActivityId =
+    pathname.match(/^\/dashboard\/run-chat\/([^/]+)(?:\/demo)?$/)?.[1] || null;
 
   const loadStravaAthletes = async () => {
     try {
@@ -121,8 +132,26 @@ function DevBar() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 z-[9999] flex flex-col gap-1 items-start">
-      <div className="flex flex-wrap items-center gap-2 bg-yellow-900/90 backdrop-blur border border-yellow-600/80 rounded-xl px-3 py-1.5 shadow-lg max-w-[min(100vw-2rem,42rem)]">
+    <div
+      className={cn(
+        'fixed left-4 z-[9999] flex flex-col items-start gap-1',
+        openRunChatActivityId
+          ? 'top-2 bottom-auto flex-col-reverse md:top-auto md:bottom-4 md:flex-col'
+          : hasMobileBottomNav
+          ? 'bottom-[calc(env(safe-area-inset-bottom)+4rem)] md:bottom-4'
+          : 'bottom-4',
+      )}
+      data-testid="dev-toolbar"
+    >
+      <div
+        id="dev-toolbar-actions"
+        className={cn(
+          'flex-wrap items-center gap-2 bg-yellow-900/90 backdrop-blur border border-yellow-600/80 rounded-xl px-3 py-1.5 shadow-lg max-w-[min(100vw-2rem,42rem)]',
+          mobileOpen ? 'flex' : 'hidden',
+          'md:flex',
+        )}
+        data-testid="dev-toolbar-actions"
+      >
         <FlaskConical className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
         <span className="text-[10px] font-semibold text-yellow-400 uppercase tracking-wide">Dev</span>
         {TEST_ACCOUNTS.map(({ label, email }) => (
@@ -195,6 +224,14 @@ function DevBar() {
           Test chat
         </button>
         <button
+          onClick={() => router.push(`/dashboard/run-chat/${TEST_ACTIVITY_ID}/demo`)}
+          className="text-[11px] px-2 py-0.5 rounded-lg bg-emerald-900/70 text-emerald-200 hover:bg-emerald-800/70 flex items-center gap-1"
+          title="Open runner and coach live side by side"
+        >
+          <Columns2 className="h-3 w-3" />
+          Live demo
+        </button>
+        <button
           onClick={async () => {
             setLoading('reseed');
             setError(null);
@@ -231,6 +268,20 @@ function DevBar() {
           {loading === 'reseed' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reset chat'}
         </button>
       </div>
+      <button
+        type="button"
+        className="flex min-h-11 items-center gap-1.5 rounded-full border border-yellow-600/80 bg-yellow-900/95 px-3 text-xs font-semibold uppercase tracking-wide text-yellow-300 shadow-lg backdrop-blur md:hidden"
+        aria-expanded={mobileOpen}
+        aria-controls="dev-toolbar-actions"
+        onClick={() => setMobileOpen((open) => !open)}
+        data-testid="dev-toolbar-toggle"
+      >
+        <FlaskConical className="h-4 w-4" />
+        Dev
+        {mobileOpen
+          ? <ChevronDown className="h-4 w-4" />
+          : <ChevronUp className="h-4 w-4" />}
+      </button>
       {error && (
         <p className="text-[10px] text-red-400 bg-slate-900/90 rounded-lg px-2 py-1 max-w-xs">{error}</p>
       )}

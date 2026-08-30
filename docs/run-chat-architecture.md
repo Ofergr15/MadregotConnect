@@ -10,6 +10,9 @@ actual activity data, AI tool traces, related historical runs, and normal chat.
 
 - Page and Stream composition:
   `src/app/dashboard/run-chat/[activityId]/page.tsx`
+- Shared chat panel and side-by-side development demo:
+  `src/components/run-chat/RunChatPanel.tsx` and
+  `src/app/dashboard/run-chat/[activityId]/demo/page.tsx`
 - Chat creation, membership, and reset:
   `src/app/api/run-chat/route.ts`
 - First-open seeding and attachment backfill:
@@ -47,6 +50,19 @@ server-side session verification.
    attachments.
 5. Development reset deletes the channel, database row, and generated artifacts
    so the next open recreates the initial state.
+
+The dev-only live demo mints separate runner and coach Stream tokens and mounts
+two independent clients against the same channel. Only the runner pane listens
+for AI mentions, preventing duplicate AI turns while still handling mentions
+sent from either pane.
+
+## Prompt-edited plans
+
+The first AI plan message has an `Edit plan with prompt` action. The plan route
+parses the prompt, stores the structured workout with `source: "prompt_edit"`,
+renders a content-hashed clipboard image, and updates the original Stream
+message. Prompt-edited plans must survive reopen; weekly matching must not
+overwrite them. Development reset intentionally restores the original seed.
 
 ## Structured attachments
 
@@ -95,5 +111,7 @@ may contain both in one message, so rendering and backfill must support both.
 - `npm run typecheck`
 - `npm test`
 - `npm run lint` (four unrelated exhaustive-deps warnings are currently known)
+- `npm run test:ui` for the runner/coach synchronization, toolbar geometry, and
+  prompt-edit action
 - Browser-check collapsed/expanded width, RTL alignment, reactions, tool traces,
   historical route/lap enrichment, and Stream's 5 KB attachment limit.

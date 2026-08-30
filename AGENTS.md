@@ -32,3 +32,6 @@ For the run-chat and AI coach subsystem, also read
 
 Run `npm run check` before committing. Parser, activity matching, clipboard,
 and run-analysis changes require their regression tests to remain green.
+
+Run-chat UI changes also require `npm run test:ui`. The dev bar's **Live demo**
+opens runner and coach as independent online Stream users in side-by-side panes.

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 // Native-style pull-to-refresh for the installed iOS PWA (Safari's built-in PTR
 // doesn't exist in standalone mode, so we hand-roll it).
@@ -19,6 +20,8 @@ const MAX_PULL = 110; // px cap on the indicator travel
 const RESISTANCE = 0.5; // drag feels heavier than 1:1 finger movement
 
 export function PullToRefresh() {
+  const pathname = usePathname();
+  const disabled = pathname.startsWith('/dashboard/run-chat/');
   const [pull, setPull] = useState(0); // current indicator offset in px
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef(0);
@@ -27,9 +30,40 @@ export function PullToRefresh() {
 
   useEffect(() => {
     // Skip entirely on non-touch devices — no gesture to support.
-    if (typeof window === 'undefined' || !('ontouchstart' in window)) return;
+    if (
+      typeof window === 'undefined' ||
+      !('ontouchstart' in window) ||
+      disabled
+    ) {
+      return;
+    }
 
     const onTouchStart = (e: TouchEvent) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (
+        target?.closest(
+          '[data-pull-to-refresh-ignore], input, textarea, [contenteditable="true"]',
+        )
+      ) {
+        dragging.current = false;
+        return;
+      }
+
+      // Nested scroll areas own their vertical gesture, even when they are at
+      // scrollTop 0. Otherwise a chat/list drag can become a page reload.
+      let ancestor: Element | null = target;
+      while (ancestor && ancestor !== document.body) {
+        const style = window.getComputedStyle(ancestor);
+        if (
+          /(auto|scroll)/.test(style.overflowY) &&
+          ancestor.scrollHeight > ancestor.clientHeight
+        ) {
+          dragging.current = false;
+          return;
+        }
+        ancestor = ancestor.parentElement;
+      }
+
       // Only begin if scrolled to the very top and not already refreshing.
       if (refreshing) return;
       const top = window.scrollY || document.documentElement.scrollTop || 0;
@@ -79,11 +113,13 @@ export function PullToRefresh() {
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [refreshing]);
+  }, [disabled, refreshing]);
 
   // Progress 0→1 toward the threshold; drives rotation + fade before release.
   const progress = Math.min(pull / THRESHOLD, 1);
   const visible = pull > 0 || refreshing;
+
+  if (disabled) return null;
 
   return (
     <div

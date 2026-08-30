@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PushOptIn } from '@/components/PushOptIn';
@@ -12,6 +12,7 @@ import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
 
 export default function DashboardLayout({
   children,
@@ -19,6 +20,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const isRunChat = pathname.startsWith('/dashboard/run-chat/');
   const [authorized, setAuthorized] = useState(false);
 
   // App-icon badge self-heal. iOS PWAs can't reliably set the badge from a
@@ -88,18 +91,25 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col">
+    <div className={cn('flex flex-col', isRunChat ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]')}>
       <PullToRefresh />
-      <Header />
-      <InstallPrompt />
-      <PushOptIn />
-      <ConnectDataSourcePopup />
-      {/* Bottom padding on mobile clears the fixed tab bar (~64px + safe area);
-          md+ keeps the desktop header nav and needs no bar padding. */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-8">
-        <PageTransition>{children}</PageTransition>
+      <div className={isRunChat ? 'hidden md:contents' : 'contents'}>
+        <Header />
+      </div>
+      {!isRunChat && <InstallPrompt />}
+      {!isRunChat && <PushOptIn />}
+      {!isRunChat && <ConnectDataSourcePopup />}
+      <main
+        className={cn(
+          'w-full',
+          isRunChat
+            ? 'h-full min-h-0 overflow-hidden p-0 md:mx-auto md:h-auto md:max-w-7xl md:flex-1 md:px-6 md:pt-5 md:pb-8 lg:px-8'
+            : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-[calc(72px+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 lg:px-8',
+        )}
+      >
+        {isRunChat ? children : <PageTransition>{children}</PageTransition>}
       </main>
-      <BottomTabBar />
+      {!isRunChat && <BottomTabBar />}
     </div>
   );
 }

@@ -66,7 +66,7 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
       <Collapsible
         open={expanded}
         onOpenChange={setExpanded}
-        className="my-1 w-[28rem] max-w-full"
+        className="run-chat-strava-collapsible my-1 w-[28rem] max-w-full"
       >
         <Card
           className="run-chat-strava-card w-full overflow-hidden border-blue-300/15 bg-[#193b76] text-start text-slate-100 shadow-none"

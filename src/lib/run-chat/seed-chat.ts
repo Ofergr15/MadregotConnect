@@ -6,6 +6,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Channel as StreamChannel } from 'stream-chat';
+import { createHash } from 'crypto';
 import { CLIPBOARD_VERSION, renderGarminClipboardPng } from './garmin-clipboard';
 import { LAPS_CLIPBOARD_VERSION } from './strava-laps-clipboard';
 import { ensureLapsArtifact } from './run-artifacts';
@@ -26,7 +27,13 @@ import {
 } from './attachments';
 
 const BUCKET = 'run-chat';
-const CLIPBOARD_PATH = (activityId: string) => `${activityId}/clipboard-${CLIPBOARD_VERSION}.png`;
+
+function clipboardRevision(workout: PlannedWorkout): string {
+  return createHash('sha256').update(JSON.stringify(workout)).digest('hex').slice(0, 12);
+}
+
+const CLIPBOARD_PATH = (activityId: string, workout: PlannedWorkout) =>
+  `${activityId}/clipboard-${CLIPBOARD_VERSION}-${clipboardRevision(workout)}.png`;
 
 export interface RunChatRow {
   id: string;
@@ -102,13 +109,13 @@ async function ensureClipboardImage(
     }
     return preferredImageUrl;
   }
-  if (chat.clipboard_image_url?.includes(`clipboard-${CLIPBOARD_VERSION}`)) {
+  const path = CLIPBOARD_PATH(chat.activity_id, workout);
+  if (chat.clipboard_image_url?.includes(path)) {
     return chat.clipboard_image_url;
   }
 
   await ensureBucket(supabase);
   const png = await renderGarminClipboardPng(workout);
-  const path = CLIPBOARD_PATH(chat.activity_id);
 
   const { error: upErr } = await supabase.storage
     .from(BUCKET)
@@ -116,7 +123,7 @@ async function ensureClipboardImage(
   if (upErr) throw upErr;
 
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  const url = `${urlData.publicUrl}?v=${CLIPBOARD_VERSION}`;
+  const url = `${urlData.publicUrl}?v=${clipboardRevision(workout)}`;
 
   const { error } = await supabase
     .from('run_chats')
@@ -144,10 +151,15 @@ async function ensurePlanSeedMessage(
   plannedText: string,
   plannedWorkout: PlannedWorkout,
   imageUrl: string,
+  preferredMessageId?: string,
 ) {
   const { messages } = await channel.query({ messages: { limit: 40 } });
   const seed = messages.find(
-    (m) => m.user?.id === AI_USER_ID && (m.text || '').includes('תוכנית האימון'),
+    (message) =>
+      message.user?.id === AI_USER_ID &&
+      (message.id === preferredMessageId ||
+        (message as unknown as Record<string, unknown>).run_chat_seed === 'plan' ||
+        (message.text || '').includes('תוכנית האימון')),
   );
   const text = `📋 תוכנית האימון להיום:\n${plannedText}`;
   const attachments = [imageAttachment(imageUrl, plannedWorkout.title || 'תוכנית אימון')];
@@ -157,6 +169,7 @@ async function ensurePlanSeedMessage(
       text,
       user_id: AI_USER_ID,
       attachments,
+      run_chat_seed: 'plan',
     } as Record<string, unknown>);
     return;
   }
@@ -168,10 +181,43 @@ async function ensurePlanSeedMessage(
   );
   if (hasCurrent && seed.text === text) return;
 
-  await channel.getClient().updateMessage(
-    { id: seed.id!, text, attachments },
+  const client = channel.getClient();
+  await client.updateMessage(
+    {
+      id: seed.id!,
+      text,
+      attachments,
+      run_chat_seed: 'plan',
+    } as unknown as Parameters<typeof client.updateMessage>[0],
     AI_USER_ID,
   );
+}
+
+export async function applyEditedChatPlan(opts: {
+  supabase: SupabaseClient;
+  channel: StreamChannel;
+  chat: RunChatRow;
+  plannedText: string;
+  plannedWorkout: PlannedWorkout;
+  messageId?: string;
+}): Promise<RunChatRow> {
+  const { supabase, channel, plannedText, messageId } = opts;
+  const plannedWorkout = { ...opts.plannedWorkout, source: 'prompt_edit' as const };
+  const imageUrl = await ensureClipboardImage(supabase, opts.chat, plannedWorkout);
+  const { data: updated, error } = await supabase
+    .from('run_chats')
+    .update({
+      planned_text: plannedText,
+      planned_workout: plannedWorkout,
+      clipboard_image_url: imageUrl,
+    })
+    .eq('id', opts.chat.id)
+    .select('*')
+    .single();
+  if (error) throw error;
+
+  await ensurePlanSeedMessage(channel, plannedText, plannedWorkout, imageUrl, messageId);
+  return updated as RunChatRow;
 }
 
 async function ensureActualsSeedMessage(
@@ -346,12 +392,14 @@ export async function ensureChatSeeded(opts: {
     weeklyPlanText,
     structuredWorkout,
   );
+  const existingWorkout = chat.planned_workout as PlannedWorkout | null;
+  const wasPromptEdited = existingWorkout?.source === 'prompt_edit';
 
   const needsPlan =
     !chat.planned_text ||
     !chat.planned_workout ||
-    chat.activity_id === TEST_ACTIVITY_ID ||
-    (Boolean(structuredWorkout) &&
+    (!wasPromptEdited &&
+      Boolean(structuredWorkout) &&
       JSON.stringify(chat.planned_workout) !== JSON.stringify(plannedWorkout));
 
   if (needsPlan) {
@@ -373,11 +421,11 @@ export async function ensureChatSeeded(opts: {
     supabase,
     chat,
     workout,
-    publishedImageUrl,
+    wasPromptEdited ? null : publishedImageUrl,
   );
   chat = { ...chat, clipboard_image_url: imageUrl };
 
-  await ensurePlanSeedMessage(channel, plannedText, workout, imageUrl);
+  await ensurePlanSeedMessage(channel, chat.planned_text || plannedText, workout, imageUrl);
   await ensureActualsSeedMessage(supabase, channel, chat);
   await ensureHistoricalRunAttachments(supabase, channel, chat.activity_id);
 

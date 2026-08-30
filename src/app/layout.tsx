@@ -9,6 +9,7 @@ import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { ImpersonationBar } from '@/components/ImpersonationBar';
 import { UpdatePrompt } from '@/components/UpdatePrompt';
 import { DevIdentitySwitcher } from '@/components/DevIdentitySwitcher';
+import { DevServiceWorkerCleanup } from '@/components/DevServiceWorkerCleanup';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
 
@@ -63,11 +64,15 @@ export default async function RootLayout({
   return (
     <html lang={locale} dir={dir}>
       <body className={`${heebo.variable} ${inter.variable} font-sans`}>
-        <SerwistProvider swUrl="/serwist/sw.js">
+        <SerwistProvider
+          swUrl="/serwist/sw.js"
+          disable={process.env.NODE_ENV === 'development'}
+        >
           <NextIntlClientProvider locale={locale} messages={messages} key={locale}>
             <Providers>{children}</Providers>
           </NextIntlClientProvider>
         </SerwistProvider>
+        {process.env.NODE_ENV === 'development' && <DevServiceWorkerCleanup />}
         <AppSplash />
         <MaintenanceGate />
         <ImpersonationBar />

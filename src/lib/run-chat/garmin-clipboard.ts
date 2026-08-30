@@ -8,11 +8,12 @@ import sharp from 'sharp';
 import {
   type PlannedWorkout,
   type WorkoutSegment,
+  expandWorkoutSteps,
   flattenClipboardSteps,
 } from './mock-workout';
 
 /** Bump when the renderer changes so stored images regenerate. */
-export const CLIPBOARD_VERSION = 'v5';
+export const CLIPBOARD_VERSION = 'v6';
 
 /** Horizontal inset for steps nested under a Repeat block (Garmin "tab"). */
 const REPEAT_INDENT_PX = 28;
@@ -157,6 +158,7 @@ function stepRows(steps: WorkoutSegment[], contentW: number): { svg: string; hei
 /** Build a Garmin-clipboard PNG buffer for the given planned workout. */
 export async function renderGarminClipboardPng(workout: PlannedWorkout): Promise<Buffer> {
   const steps = flattenClipboardSteps(workout);
+  const intensitySteps = expandWorkoutSteps(workout);
   const width = 390;
   const padX = 20;
   const contentW = width - padX * 2;
@@ -182,7 +184,7 @@ export async function renderGarminClipboardPng(workout: PlannedWorkout): Promise
 
   <!-- Intensity strip -->
   <g transform="translate(${padX},${titleH})">
-    ${sparklineBars(steps, contentW)}
+    ${sparklineBars(intensitySteps, contentW)}
   </g>
 
   <!-- Step list -->
