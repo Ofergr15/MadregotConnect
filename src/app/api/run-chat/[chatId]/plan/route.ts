@@ -45,7 +45,9 @@ export async function POST(
       .maybeSingle();
 
     if (!chat) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (!canAccessChat(user, chat)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!user.isStaff || !canAccessChat(user, chat)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const plannedWorkout = await parsePromptWorkout(plannedText.trim());
     const stream = getStreamServerClient();

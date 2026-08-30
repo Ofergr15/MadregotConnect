@@ -140,57 +140,89 @@ export async function POST(request: Request) {
       (user.athleteId === existingChat.athlete_id || user.athleteId === existingChat.coach_id);
 
     if (existingChat?.stream_channel_id && isExistingMember) {
-      const { data: coachAthlete } = existingChat.coach_id
-        ? await supabase
-            .from('athletes')
-            .select('id, name, email')
-            .eq('id', existingChat.coach_id)
-            .maybeSingle()
-        : { data: null };
-
-      // Backfills and artifact-version checks are useful, but they should not
-      // hold every refresh behind several sequential Stream API round trips.
-      // Run them once per server process after the response is sent.
-      if (!maintainedChats.has(existingChat.id)) {
-        maintainedChats.add(existingChat.id);
-        after(async () => {
-          try {
-            const matched = await ensureMatchedWorkout(
-              supabase,
-              activityId,
-              activity.athlete_id,
-            );
-            const channel = getStreamServerClient().channel(
-              CHANNEL_TYPE,
-              channelId(activityId),
-            );
-            await ensureChatSeeded({
-              supabase,
-              channel,
-              chat: existingChat,
-              weeklyPlanText: matched?.plannedText || null,
-              structuredWorkout: matched?.plannedWorkout || null,
-              publishedImageUrl: matched?.clipboardImageUrl || null,
-            });
-          } catch (maintenanceError) {
-            maintainedChats.delete(existingChat.id);
-            console.warn('Run-chat background maintenance failed:', maintenanceError);
-          }
-        });
+      const fastStream = getStreamServerClient();
+      const fastChannel = fastStream.channel(CHANNEL_TYPE, channelId(activityId));
+      let openerMembershipReady = false;
+      try {
+        // The client calls channel.watch() immediately after this response. Keep
+        // this single repair synchronous; all slower profile/artifact work stays
+        // in after() so normal refreshes remain fast.
+        await fastChannel.addMembers([user.athleteId!]);
+        openerMembershipReady = true;
+      } catch {
+        // A missing/stale Stream channel needs the full create/repair path below.
       }
 
-      return NextResponse.json({
-        chat: existingChat,
-        activity: activityPayload,
-        coach: coachAthlete
-          ? {
-              id: coachAthlete.id,
-              name: coachAthlete.name || coachAthlete.email || 'Coach',
-              image: humanCoachAvatarUrl(),
+      if (openerMembershipReady) {
+        const { data: coachAthlete } = existingChat.coach_id
+          ? await supabase
+              .from('athletes')
+              .select('id, name, email')
+              .eq('id', existingChat.coach_id)
+              .maybeSingle()
+          : { data: null };
+
+        // Backfills and artifact-version checks are useful, but they should not
+        // hold every refresh behind several sequential Stream API round trips.
+        // Run them once per server process after the response is sent.
+        if (!maintainedChats.has(existingChat.id)) {
+          maintainedChats.add(existingChat.id);
+          after(async () => {
+            try {
+              await ensureAiUser(fastStream);
+              const resolvedCoach = await resolveCoachStreamUser(
+                fastStream,
+                supabase,
+                activity.athlete_id,
+              );
+              const repairedMembers = [
+                activity.athlete_id,
+                AI_USER_ID,
+                user.athleteId!,
+                resolvedCoach?.streamId,
+              ].filter(Boolean) as string[];
+              await upsertStreamUsersFromAthletes(
+                fastStream,
+                supabase,
+                [activity.athlete_id, existingChat.coach_id, user.athleteId].filter(
+                  Boolean,
+                ) as string[],
+              );
+              await fastChannel.addMembers([...new Set(repairedMembers)]);
+
+              const matched = await ensureMatchedWorkout(
+                supabase,
+                activityId,
+                activity.athlete_id,
+              );
+              await ensureChatSeeded({
+                supabase,
+                channel: fastChannel,
+                chat: existingChat,
+                weeklyPlanText: matched?.plannedText || null,
+                structuredWorkout: matched?.plannedWorkout || null,
+                publishedImageUrl: matched?.clipboardImageUrl || null,
+              });
+            } catch (maintenanceError) {
+              maintainedChats.delete(existingChat.id);
+              console.warn('Run-chat background maintenance failed:', maintenanceError);
             }
-          : null,
-        planMatch: null,
-      });
+          });
+        }
+
+        return NextResponse.json({
+          chat: existingChat,
+          activity: activityPayload,
+          coach: coachAthlete
+            ? {
+                id: coachAthlete.id,
+                name: coachAthlete.name || coachAthlete.email || 'Coach',
+                image: humanCoachAvatarUrl(),
+              }
+            : null,
+          planMatch: null,
+        });
+      }
     }
 
     const stream = getStreamServerClient();

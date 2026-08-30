@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authError, requireSession } from '@/lib/auth-session';
 import { createServerClient } from '@/lib/supabase/server';
 import {
   ensureAiUser,
@@ -17,6 +18,9 @@ export async function GET(request: Request) {
   if (process.env.NODE_ENV === 'production') {
     return NextResponse.json({ error: 'Not available in production' }, { status: 403 });
   }
+
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
 
   const activityId = new URL(request.url).searchParams.get('activityId');
   if (!activityId) {
@@ -42,6 +46,9 @@ export async function GET(request: Request) {
     if (!runner) {
       return NextResponse.json({ error: 'Runner not found' }, { status: 404 });
     }
+    if (!auth.user.isStaff && auth.user.athleteId !== runner.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const stream = getStreamServerClient();
     await ensureAiUser(stream);
@@ -49,7 +56,6 @@ export async function GET(request: Request) {
     if (!coach) {
       return NextResponse.json({ error: 'Coach not found for runner' }, { status: 404 });
     }
-
     await upsertStreamUsersFromAthletes(
       stream,
       supabase,
@@ -65,6 +71,7 @@ export async function GET(request: Request) {
           token: stream.createToken(runner.id),
           userName: runner.name || runner.email,
           roleLabel: roleLabel(runner.role || 'runner'),
+          isStaff: ['coach', 'academy_coach', 'admin'].includes(runner.role || ''),
           imageUrl: runner.avatar_url || null,
         },
         coach: {
@@ -73,6 +80,7 @@ export async function GET(request: Request) {
           token: stream.createToken(coach.streamId),
           userName: coach.name,
           roleLabel: 'מאמן',
+          isStaff: true,
           imageUrl: coach.image,
         },
       },

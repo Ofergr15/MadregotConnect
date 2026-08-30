@@ -54,7 +54,9 @@ export default function RunChatDemoPage() {
           },
           body: JSON.stringify({ activityId }),
         }),
-        fetch(`/api/dev/run-chat-participants?activityId=${encodeURIComponent(activityId)}`),
+        fetch(`/api/dev/run-chat-participants?activityId=${encodeURIComponent(activityId)}`, {
+          headers: { Authorization: `Bearer ${supabaseToken}` },
+        }),
       ]);
       const chatBody = await chatResponse.json();
       const participantsBody = await participantsResponse.json();

@@ -164,6 +164,9 @@ test('the first plan message opens prompt-based rebuilding', async ({ page }) =>
     });
   });
 
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Test Coach', exact: true }).click();
+  await page.waitForURL('**/dashboard');
   await page.goto(`/dashboard/run-chat/${ACTIVITY_ID}`);
   const planMessage = page.locator('.run-chat-msg').filter({ hasText: 'תוכנית האימון' }).first();
   await expect(planMessage).toBeVisible();

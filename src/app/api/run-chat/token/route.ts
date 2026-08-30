@@ -76,6 +76,7 @@ export async function POST(request: Request) {
       token,
       userName: baseName,
       roleLabel,
+      isStaff: user.isStaff,
       imageUrl: image ?? null,
       aiAvatarUrl: aiCoachAvatarUrl(),
     });

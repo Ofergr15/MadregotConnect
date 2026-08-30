@@ -68,6 +68,7 @@ interface ChatPanelProps {
   onBack?: () => void;
   viewerLabel?: string;
   enableAiTrigger?: boolean;
+  canEditPlan?: boolean;
 }
 
 function ChatPanel({
@@ -80,6 +81,7 @@ function ChatPanel({
   onBack,
   viewerLabel,
   enableAiTrigger = true,
+  canEditPlan = false,
 }: ChatPanelProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const aiInFlight = useRef(false);
@@ -172,7 +174,11 @@ function ChatPanel({
       </div>
 
       <div className="run-chat-shell flex min-h-0 flex-1 flex-col">
-        <PlanEditPromptProvider chatId={chat.id} supabaseToken={supabaseToken}>
+        <PlanEditPromptProvider
+          chatId={chat.id}
+          supabaseToken={supabaseToken}
+          canEditPlan={canEditPlan}
+        >
           <Chat client={client} i18nInstance={i18n} theme="str-chat__theme-dark">
             <WithComponents
               overrides={{
@@ -295,6 +301,7 @@ export function ConnectedRunChat({
       onBack={onBack}
       viewerLabel={viewerLabel}
       enableAiTrigger={enableAiTrigger}
+      canEditPlan={Boolean(tokenData.isStaff)}
     />
   );
 }

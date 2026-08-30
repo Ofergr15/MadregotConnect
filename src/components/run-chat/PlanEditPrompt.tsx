@@ -94,12 +94,14 @@ export function RunChatMessageActions() {
 interface PlanEditPromptProviderProps {
   chatId: string;
   supabaseToken: string;
+  canEditPlan: boolean;
   children: ReactNode;
 }
 
 export function PlanEditPromptProvider({
   chatId,
   supabaseToken,
+  canEditPlan,
   children,
 }: PlanEditPromptProviderProps) {
   const t = useTranslations('runChat');
@@ -149,7 +151,7 @@ export function PlanEditPromptProvider({
   };
 
   return (
-    <PlanEditContext.Provider value={openEditor}>
+    <PlanEditContext.Provider value={canEditPlan ? openEditor : null}>
       {children}
       {messageId && typeof document !== 'undefined'
         ? createPortal(

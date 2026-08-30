@@ -11,6 +11,8 @@ export interface StreamTokenData {
   userName: string;
   /** Optional role label for UI (רץ / מאמן / …) */
   roleLabel?: string;
+  /** Whether the verified app identity may perform staff-only chat actions. */
+  isStaff?: boolean;
   /** Club / Google profile photo when available */
   imageUrl?: string | null;
 }
