@@ -2,10 +2,17 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // /api/push/subscribe now DELETES rows, so the exact filter set matters more
 // than the happy path: too broad and it unsubscribes a device that was working
-// fine. The reap exists because subscribeToPush mints a brand-new endpoint on
-// every press while the server kept every previous one forever (one iPhone had
-// accumulated four), and Apple answers 201 for those orphans — so they inflate
-// delivery counts instead of 410-ing themselves out.
+// fine. The cleanup exists because subscribeToPush mints a brand-new endpoint
+// on every press while the server kept every previous one forever (one iPhone
+// had accumulated four), and Apple answers 201 for those ghosts — so they
+// inflate delivery counts instead of 410-ing themselves out.
+//
+// It is driven by the client naming the endpoint it discarded, never inferred.
+// Two inferences were tried and rejected: athlete + user_agent alone deletes a
+// genuine second device with an identical UA string, and gating that on a stale
+// last_success_at is inert exactly because Apple's 201 keeps a ghost's
+// timestamp fresh forever. Verified live: all four of one athlete's endpoints —
+// three of them ghosts — returned 201 to 52 consecutive sends.
 
 type Filter = { fn: string; args: unknown[] };
 let ops: Array<{ table: string; op: string; filters: Filter[] }>;
@@ -40,6 +47,7 @@ const body = (over: Record<string, unknown> = {}) => ({
   athleteId: 'a1',
   subscription: { endpoint: 'https://web.push.apple.com/new', keys: { p256dh: 'p', auth: 'a' } },
   userAgent: 'Mozilla/5.0 (iPhone)',
+  replacesEndpoint: 'https://web.push.apple.com/old',
   ...over,
 });
 
@@ -50,34 +58,41 @@ const reap = () => ops.find((o) => o.op === 'delete');
 
 beforeEach(() => { ops = []; upsertError = null; });
 
-describe('POST /api/push/subscribe — orphan reaping', () => {
-  it('scopes the delete to this athlete, this device, and only OTHER endpoints', async () => {
+describe('POST /api/push/subscribe — retiring a superseded endpoint', () => {
+  it('deletes exactly the named endpoint, scoped to this athlete', async () => {
     const res = await post(body());
     expect(res.status).toBe(200);
 
     const del = reap();
     expect(del?.table).toBe('push_subscriptions');
     expect(del?.filters).toEqual([
+      // Scoped by athlete so a stray endpoint string can't delete anyone else's row.
       { fn: 'eq', args: ['athlete_id', 'a1'] },
-      { fn: 'eq', args: ['user_agent', 'Mozilla/5.0 (iPhone)'] },
-      // Without this the row just upserted would delete itself.
-      { fn: 'neq', args: ['endpoint', 'https://web.push.apple.com/new'] },
-      { fn: 'lt', args: ['last_success_at', expect.any(String)] },
+      { fn: 'eq', args: ['endpoint', 'https://web.push.apple.com/old'] },
     ]);
   });
 
-  it('only reaps endpoints with no confirmed delivery in the last 7 days', async () => {
-    await post(body());
-    const cutoff = reap()?.filters.find((f) => f.fn === 'lt')?.args[1] as string;
-    const ageDays = (Date.now() - Date.parse(cutoff)) / 86_400_000;
-    expect(ageDays).toBeGreaterThan(6.9);
-    expect(ageDays).toBeLessThan(7.1);
+  it('deletes nothing when the client names no predecessor', async () => {
+    // ensurePushSubscription's refresh path: the endpoint it found is the one
+    // it re-posts, so there is nothing to retire. Deleting on a guess here
+    // would unsubscribe a healthy device.
+    await post(body({ replacesEndpoint: undefined }));
+    expect(reap()).toBeUndefined();
   });
 
-  it('reaps nothing when the client sent no user agent — a device it cannot identify', async () => {
-    // Matching on athlete_id alone would wipe every OTHER device this athlete owns.
-    await post(body({ userAgent: undefined }));
+  it('never deletes the endpoint it was just asked to store', async () => {
+    // A client that reports the same endpoint as both current and superseded
+    // (a no-op resubscribe) must not delete the row it just upserted.
+    await post(body({ replacesEndpoint: 'https://web.push.apple.com/new' }));
     expect(reap()).toBeUndefined();
+  });
+
+  it('does not touch other devices belonging to the same athlete', async () => {
+    // The rejected heuristic: matching on athlete + user_agent would have
+    // deleted a genuine second same-model iPhone's subscription.
+    await post(body());
+    const filters = reap()?.filters.map((f) => f.args[0]);
+    expect(filters).not.toContain('user_agent');
   });
 
   it('upserts on endpoint, so re-subscribing the same device updates rather than duplicates', async () => {
@@ -86,7 +101,7 @@ describe('POST /api/push/subscribe — orphan reaping', () => {
     expect(up?.filters[0].args[1]).toEqual({ onConflict: 'endpoint' });
   });
 
-  it('does not reap when the upsert itself failed — never trade a stored subscription for a lost one', async () => {
+  it('does not delete when the upsert itself failed — never trade a stored subscription for a lost one', async () => {
     upsertError = { message: 'insert failed' };
     const res = await post(body());
     expect(res.status).toBe(500);

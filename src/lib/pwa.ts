@@ -36,15 +36,29 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
 /**
  * Hand a subscription to the server. Shared by every path below so they all
  * record `user_agent` and refresh `last_success_at` identically.
+ *
+ * `replacesEndpoint` is the endpoint this one supersedes on this same device,
+ * when the caller just discarded one to mint this. The server deletes exactly
+ * that row — the only way to retire a superseded endpoint, because Apple
+ * answers 201 (accepted, then silently discarded) for an endpoint that is
+ * still registered but no longer bound to a live service worker, so it never
+ * 404/410s itself out of the table. Without this, every press of "enable
+ * notifications" left another permanent ghost inflating delivery counts.
  */
 async function saveSubscription(
   athleteId: string,
   sub: PushSubscription,
+  replacesEndpoint?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch('/api/push/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ athleteId, subscription: sub.toJSON(), userAgent: navigator.userAgent }),
+    body: JSON.stringify({
+      athleteId,
+      subscription: sub.toJSON(),
+      userAgent: navigator.userAgent,
+      ...(replacesEndpoint && replacesEndpoint !== sub.endpoint ? { replacesEndpoint } : {}),
+    }),
   });
   if (!res.ok) return { ok: false, error: `save_failed_${res.status}` };
   return { ok: true };
@@ -133,9 +147,16 @@ export async function subscribeToPush(athleteId: string): Promise<{ ok: boolean;
     // effort: iOS can throw unsubscribing a subscription left in a weird
     // state, and failing to clean up the old one must never block getting a
     // working new one.
+    // Remember what we're throwing away: the server can't work out which row
+    // belonged to this device on its own (Apple never reports the old endpoint
+    // as dead), so this is the only chance to name it.
+    let replaced: string | null = null;
     try {
       const existing = await reg.pushManager.getSubscription();
-      if (existing) await existing.unsubscribe();
+      if (existing) {
+        replaced = existing.endpoint;
+        await existing.unsubscribe();
+      }
     } catch { /* ignore — proceed to subscribe regardless */ }
 
     const sub = await reg.pushManager.subscribe({
@@ -143,7 +164,7 @@ export async function subscribeToPush(athleteId: string): Promise<{ ok: boolean;
       applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
     });
 
-    return await saveSubscription(athleteId, sub);
+    return await saveSubscription(athleteId, sub, replaced);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

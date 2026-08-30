@@ -152,8 +152,7 @@ describe('sendPushDetailed — per-athlete delivery counts', () => {
 
     await sendPushDetailed([sub('s1', 'a1'), sub('s2', 'a1')], { title: 'hi', body: 'x' });
     const updated = writes.updated.find((u) => u.table === 'push_subscriptions');
-    // s2 failed, so it must NOT look freshly alive — that's what makes the
-    // column usable for reaping orphans in /api/push/subscribe.
+    // s2 failed, so it must NOT look freshly alive.
     expect(updated?.ids).toEqual(['s1']);
     expect(updated?.patch.last_success_at).toBeTypeOf('string');
   });

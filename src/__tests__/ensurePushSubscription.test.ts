@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { ensurePushSubscription } from '@/lib/pwa';
+import { ensurePushSubscription, subscribeToPush } from '@/lib/pwa';
 
 // The client half of the same failure: iOS can drop a device's PushManager
 // subscription while Notification.permission stays 'granted', and every
@@ -118,5 +118,51 @@ describe('ensurePushSubscription', () => {
     const result = await ensurePushSubscription('a1');
     expect(result.ok).toBe(false);
     expect(result.error).toContain('AbortError');
+  });
+
+  it('sends no replacesEndpoint — it never discards anything, so there is nothing to retire', async () => {
+    setup({ existing: liveSubscription('https://web.push.apple.com/already-here') });
+    await ensurePushSubscription('a1');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).replacesEndpoint).toBeUndefined();
+  });
+});
+
+describe('subscribeToPush — naming the endpoint it discards', () => {
+  it('tells the server which endpoint this one supersedes', async () => {
+    // The server cannot infer this: Apple keeps answering 201 for the old
+    // endpoint, so it never reports itself dead and would linger forever,
+    // silently inflating every delivery count for this athlete.
+    const existing = liveSubscription('https://web.push.apple.com/superseded');
+    setup({ existing });
+    vi.stubGlobal('Notification', { permission: 'granted', requestPermission: vi.fn().mockResolvedValue('granted') });
+
+    const result = await subscribeToPush('a1');
+    expect(result.ok).toBe(true);
+    expect(existing.unsubscribe).toHaveBeenCalled();
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(sent.replacesEndpoint).toBe('https://web.push.apple.com/superseded');
+    expect(sent.subscription.endpoint).toBe('https://web.push.apple.com/fresh');
+  });
+
+  it('omits replacesEndpoint when there was no prior subscription to discard', async () => {
+    setup({ existing: null });
+    vi.stubGlobal('Notification', { permission: 'granted', requestPermission: vi.fn().mockResolvedValue('granted') });
+
+    await subscribeToPush('a1');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).replacesEndpoint).toBeUndefined();
+  });
+
+  it('still subscribes when unsubscribing the old one throws, and reports no predecessor it failed to drop', async () => {
+    // iOS can throw unsubscribing a subscription left in a weird state, and
+    // that must never block getting a working new one. The endpoint is captured
+    // before the unsubscribe attempt, so it is still named for retirement.
+    const existing = liveSubscription('https://web.push.apple.com/wedged');
+    existing.unsubscribe = vi.fn().mockRejectedValue(new Error('InvalidStateError'));
+    setup({ existing });
+    vi.stubGlobal('Notification', { permission: 'granted', requestPermission: vi.fn().mockResolvedValue('granted') });
+
+    const result = await subscribeToPush('a1');
+    expect(result.ok).toBe(true);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).replacesEndpoint).toBe('https://web.push.apple.com/wedged');
   });
 });

@@ -358,11 +358,16 @@ export async function sendPushDetailed(
     await supabase.from('push_subscriptions').delete().in('id', deadIds);
   }
 
-  // Mark the endpoints that actually accepted the push. Until now
-  // `last_success_at` was written once at subscribe time and never again —
-  // a name that promised delivery evidence while holding none. Keeping it
-  // honest is also what lets /api/push/subscribe reap a device's orphaned
-  // endpoints without risking a live second device with the same UA string.
+  // Mark the endpoints the push service accepted. Until now `last_success_at`
+  // was written once at subscribe time and never again — a name that promised
+  // delivery evidence while holding none.
+  //
+  // Read it as "the push service took a push for this endpoint", NOT "a device
+  // displayed it": Apple returns 201 for an endpoint that is still registered
+  // but no longer bound to a live service worker, so a ghost endpoint gets
+  // stamped here exactly like a working one. That's precisely why retiring
+  // superseded endpoints is driven by the client naming them
+  // (`replacesEndpoint` in /api/push/subscribe) rather than by this column.
   if (okIds.length > 0) {
     await supabase
       .from('push_subscriptions')
