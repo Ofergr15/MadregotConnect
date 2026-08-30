@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trophy, Users, Zap, Heart, Camera, Loader2, Shield, Route, Activity, Clock, GraduationCap } from 'lucide-react';
+import { Trophy, Users, Zap, Heart, Camera, Loader2, Shield, Route, Activity, Clock } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { getSupabase } from '@/lib/supabase/client';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
@@ -66,112 +66,15 @@ function useStravaLogin() {
   return { signIn, loading, error };
 }
 
-/**
- * Google Sign-In (roadmap flow #22: Google creates the account; Strava/Garmin
- * connect is a separate, optional step from the dashboard/profile page).
- *
- * Uses Supabase's standard OAuth redirect. `getSupabase()` doesn't set an
- * explicit `flowType`, so it defaults to `implicit` — Supabase redirects back
- * with the session tokens in the URL *hash fragment*
- * (`#access_token=…&refresh_token=…`), which `/auth/resolve` already knows how
- * to consume (it's the same shape the Strava synthetic-session bootstrap
- * produces). Deliberately NOT routed through `/auth/callback` (the `?code=`
- * PKCE exchange route): that route builds a fresh server-side Supabase client
- * with no access to the browser's localStorage-held `code_verifier`, so the
- * exchange would fail with AuthPKCECodeVerifierMissingError regardless of
- * provider config. Landing straight on `/auth/resolve` reuses working,
- * already-tested plumbing instead.
- *
- * Google's provider IS configured and working (verified directly against
- * Supabase's authorize endpoint — it 302s to a real accounts.google.com URL
- * with a real client_id, unlike Apple's, which 400s). An earlier version of
- * this comment claimed this would fail; that was stale.
- */
-function useGoogleLogin() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const signIn = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
-      await clearLocalIdentity();
-      const supabase = getSupabase();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/resolve` },
-      });
-      if (error) throw error;
-      // On success the browser navigates away to Google; nothing else to do here.
-    } catch (err) {
-      console.error(err);
-      // Previously silent — the spinner just stopped with zero explanation.
-      setError('ההתחברות דרך Google נכשלה. נסו שוב.');
-      setLoading(false);
-    }
-  };
-
-  return { signIn, loading, error };
-}
-
-function GoogleBadge({ className = 'bg-white text-[#4285F4]' }: { className?: string }) {
-  return (
-    <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-black ${className}`}>
-      G
-    </span>
-  );
-}
-
-/**
- * Apple Sign-In. Mirrors {@link useGoogleLogin} exactly (same implicit-flow
- * redirect to `/auth/resolve`, same "clear stale local identity first"
- * bootstrap) — only the OAuth `provider` differs. See the comment above
- * `useGoogleLogin` for why this deliberately lands on `/auth/resolve` rather
- * than `/auth/callback`.
- *
- * NOTE: like Google, this will fail until Supabase's Apple provider is
- * configured (Authentication → Providers → Apple, Sign in with Apple Services
- * ID + private key) and `/auth/resolve` is in the redirect URL allow-list.
- *
- * Known v1 edge case (accepted product decision, not handled here): an
- * existing member's first Apple sign-in via Apple's private-relay email won't
- * match their existing `athletes.email` row, so they'd go through onboarding
- * again rather than being linked to their old account.
- */
-function useAppleLogin() {
-  const [loading, setLoading] = useState(false);
-
-  const signIn = async () => {
-    setLoading(true);
-    try {
-      const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
-      await clearLocalIdentity();
-      const supabase = getSupabase();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'apple',
-        options: { redirectTo: `${window.location.origin}/auth/resolve` },
-      });
-      if (error) throw error;
-      // On success the browser navigates away to Apple; nothing else to do here.
-    } catch (err) {
-      console.error(err);
-      setLoading(false);
-    }
-  };
-
-  return { signIn, loading };
-}
-
-function AppleBadge({ className = 'text-black' }: { className?: string }) {
+function StravaMark({ className = 'h-5 w-5' }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 384 512"
+      viewBox="0 0 24 24"
       aria-hidden="true"
-      className={`h-4 w-4 ${className}`}
+      className={className}
       fill="currentColor"
     >
-      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.4-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.5-90-61.5-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1-2 49.9-15.2 69.5-34.3z" />
+      <path d="m15.387 17.944-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066M10.463 8.392l2.835 5.436h4.173L10.463 0l-7 13.828h4.169" />
     </svg>
   );
 }
@@ -184,8 +87,6 @@ export default function HomePage() {
   const locale = useLocale();
   const [checking, setChecking] = useState(true);
   const { signIn, loading: signingIn, error: stravaError } = useStravaLogin();
-  const { signIn: signInWithGoogle, loading: signingInWithGoogle, error: googleError } = useGoogleLogin();
-  const signInError = stravaError || googleError;
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -211,7 +112,7 @@ export default function HomePage() {
     );
     window.history.replaceState({}, '', '/');
   }, []);
-  const displayError = resolveError || signInError;
+  const displayError = resolveError || stravaError;
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -306,39 +207,13 @@ export default function HomePage() {
             <div className="flex items-center gap-1.5 sm:gap-2">
               <LocaleSwitcher />
               <button
-                onClick={signInWithGoogle}
-                disabled={signingInWithGoogle}
-                className="hidden sm:inline-flex whitespace-nowrap items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full border-2 border-gray-300 hover:border-gray-400 active:scale-[0.98] text-gray-700 text-sm font-bold transition disabled:opacity-50"
-              >
-                {signingInWithGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                  <>
-                    <GoogleBadge className="bg-gray-100 text-[#4285F4]" />
-                    {t('signInWithGoogle')}
-                  </>
-                )}
-              </button>
-              {/* Apple sign-in isn't configured in Supabase yet (verified: the
-                  authorize endpoint 400s for provider=apple) — a live button
-                  here would be a dead end for every real visitor who taps it.
-                  Same "coming soon" treatment as joinAcademy below. */}
-              <div
-                aria-disabled="true"
-                className="hidden sm:inline-flex whitespace-nowrap items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full border-2 border-gray-300 text-gray-400 text-sm font-bold cursor-not-allowed select-none"
-              >
-                <AppleBadge className="text-gray-400" />
-                {t('signInWithApple')}
-                <span className="text-[9px] font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
-                  {t('comingSoon')}
-                </span>
-              </div>
-              <button
                 onClick={signIn}
                 disabled={signingIn}
-                className="whitespace-nowrap inline-flex items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 rounded-full bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-sm font-bold shadow-lg shadow-primary-600/25 transition disabled:opacity-50"
+                className="inline-flex min-h-10 items-center justify-center gap-2.5 whitespace-nowrap rounded-full bg-[#FC4C02] px-4 text-sm font-bold text-white shadow-lg shadow-orange-600/20 transition hover:bg-[#e34402] active:scale-[0.98] disabled:opacity-50 sm:px-5"
               >
                 {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                   <>
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#FC4C02] text-white text-[9px] font-black">S</span>
+                    <StravaMark className="h-4 w-4 text-white" />
                     {t('signInWithStrava')}
                   </>
                 )}
@@ -410,50 +285,18 @@ export default function HomePage() {
                 <button
                   onClick={signIn}
                   disabled={signingIn}
-                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-primary-600 hover:bg-primary-700 active:scale-[0.99] text-white text-base font-bold shadow-lg shadow-primary-600/25 transition disabled:opacity-50"
+                  className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-6 text-base font-bold text-white shadow-xl shadow-orange-600/20 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50"
                 >
                   {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                     <>
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-primary-600 text-xs font-black">G</span>
+                      <StravaMark className="h-5 w-5 text-white" />
                       {t('signInWithStrava')}
                     </>
                   )}
                 </button>
-                <button
-                  onClick={signInWithGoogle}
-                  disabled={signingInWithGoogle}
-                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[46px] rounded-2xl border-2 border-gray-300 hover:border-gray-400 bg-white active:scale-[0.99] text-gray-700 text-sm font-bold transition disabled:opacity-50"
-                >
-                  {signingInWithGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                    <>
-                      <GoogleBadge className="bg-gray-100 text-[#4285F4]" />
-                      {t('signInWithGoogle')}
-                    </>
-                  )}
-                </button>
-                <div
-                  aria-disabled="true"
-                  className="w-full inline-flex items-center justify-center gap-2.5 min-h-[46px] rounded-2xl border-2 border-gray-300 text-gray-400 text-sm font-bold cursor-not-allowed select-none"
-                >
-                  <AppleBadge className="text-gray-400" />
-                  {t('signInWithApple')}
-                  <span className="text-[10px] font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
-                    {t('comingSoon')}
-                  </span>
-                </div>
                 {displayError && (
                   <p className="text-sm text-red-600 text-center" dir="rtl">{displayError}</p>
                 )}
-                <div
-                  aria-disabled="true"
-                  className="w-full inline-flex items-center justify-center gap-2 min-h-[46px] rounded-2xl border-2 border-gray-300 text-gray-400 text-sm font-semibold cursor-not-allowed select-none"
-                >
-                  <GraduationCap className="h-4 w-4" />
-                  {t('joinAcademy')}
-                  <span className="text-[10px] font-black uppercase tracking-wider bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
-                    {t('comingSoon')}
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -725,61 +568,31 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="relative overflow-hidden py-24 lg:py-32 px-4 sm:px-8 lg:px-20 bg-primary-600">
-        <div className="pointer-events-none absolute -top-24 -start-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" aria-hidden="true"></div>
-        <div className="pointer-events-none absolute -bottom-32 -end-16 h-96 w-96 rounded-full bg-black/10 blur-3xl" aria-hidden="true"></div>
-        <div className="relative max-w-4xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase tracking-tight text-white mb-6">
-            {t('readyToRun')}
-          </h2>
-          <p className="text-xl text-white/80 mb-10">
-            {t('joinCommunity')}
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <div
-              aria-disabled="true"
-              className="inline-flex items-center gap-3 bg-white/40 text-primary-600/50 font-bold px-8 py-4 sm:px-10 sm:py-5 rounded-xl text-lg cursor-not-allowed select-none"
-            >
-              <GraduationCap className="h-5 w-5" />
-              {t('joinAcademy')}
-              <span className="text-xs font-black uppercase tracking-wider bg-white/30 text-primary-600/70 px-2 py-0.5 rounded-full">
-                {t('comingSoon')}
-              </span>
-            </div>
+      <section className="bg-[#f0f0f0] px-4 py-16 sm:px-8 sm:py-20 lg:px-20 lg:py-24">
+        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-16 text-center shadow-2xl sm:px-12 sm:py-20">
+          <div className="pointer-events-none absolute -end-20 -top-24 h-72 w-72 rounded-full bg-[#FC4C02]/25 blur-3xl" aria-hidden="true"></div>
+          <div className="pointer-events-none absolute -bottom-28 -start-16 h-72 w-72 rounded-full bg-primary-600/20 blur-3xl" aria-hidden="true"></div>
+          <div className="relative mx-auto max-w-3xl">
+            <h2 className="text-3xl font-black uppercase tracking-tight text-white sm:text-5xl md:text-6xl">
+              {t('readyToRun')}
+            </h2>
+            <p className="mx-auto mt-5 max-w-xl text-base text-slate-300 sm:text-lg">
+              {t('joinCommunity')}
+            </p>
             <button
               onClick={signIn}
               disabled={signingIn}
-              className="inline-flex items-center justify-center gap-2.5 bg-white text-primary-600 hover:bg-white/90 active:scale-[0.99] font-bold px-8 py-4 sm:py-5 rounded-xl text-lg transition disabled:opacity-50"
+              className="mt-9 inline-flex min-h-14 w-full max-w-sm items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-8 text-base font-bold text-white shadow-xl shadow-orange-950/30 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50 sm:text-lg"
             >
-              {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+              {signingIn ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
                 <>
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-white text-xs font-black">G</span>
+                  <StravaMark className="h-5 w-5 text-white" />
                   {t('signInWithStrava')}
                 </>
               )}
             </button>
-            <button
-              onClick={signInWithGoogle}
-              disabled={signingInWithGoogle}
-              className="inline-flex items-center justify-center gap-2.5 bg-white/10 hover:bg-white/20 border-2 border-white/30 active:scale-[0.99] text-white font-bold px-8 py-4 sm:py-5 rounded-xl text-lg transition disabled:opacity-50"
-            >
-              {signingInWithGoogle ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                <>
-                  <GoogleBadge />
-                  {t('signInWithGoogle')}
-                </>
-              )}
-            </button>
-            <div
-              aria-disabled="true"
-              className="inline-flex items-center justify-center gap-2.5 bg-white/5 border-2 border-white/10 text-white/40 font-bold px-8 py-4 sm:py-5 rounded-xl text-lg cursor-not-allowed select-none"
-            >
-              <AppleBadge className="text-white/40" />
-              {t('signInWithApple')}
-              <span className="text-[10px] font-black uppercase tracking-wider bg-white/10 text-white/50 px-2 py-1 rounded-full">
-                {t('comingSoon')}
-              </span>
-            </div>
           </div>
         </div>
       </section>
