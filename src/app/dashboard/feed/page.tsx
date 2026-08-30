@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { PenSquare, MessageSquare, AlertCircle, LogIn } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { PenSquare, MessageSquare, AlertCircle, LogIn, X } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useTranslations } from 'next-intl';
-import { fetchFeed, deletePost } from '@/lib/feed-client';
+import { fetchFeed, deletePost, fetchFeedItemByActivity } from '@/lib/feed-client';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
@@ -41,6 +42,42 @@ export default function FeedPage() {
   const [myName, setMyName] = useState('');
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
   const [isStaff, setIsStaff] = useState(false);
+
+  // ── Deep link from a push ────────────────────────────────────────────────
+  // "🏃 X finished a run" notifications carry the activity id, and tapping one
+  // has to land on THAT run rather than the top of the feed. The run may be
+  // anywhere — page 4 of the feed, or older than anything loaded — so it is
+  // fetched directly by activity id (the feed_item for it always exists;
+  // trg_feed_item_for_activity, migration 047) and pinned above the feed
+  // instead of hunting for it in `items`.
+  //
+  // `kudos` is the legacy spelling of the same param, still sitting in every
+  // notification row written before this link existed.
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const focusActivityId = searchParams.get('activity') || searchParams.get('kudos');
+  const [focusItem, setFocusItem] = useState<FeedItem | null>(null);
+  const [focusError, setFocusError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusActivityId) { setFocusItem(null); setFocusError(null); return; }
+    let cancelled = false;
+    setFocusError(null);
+    fetchFeedItemByActivity(focusActivityId)
+      .then(({ item }) => { if (!cancelled) setFocusItem(item); })
+      // A deleted run, or one whose feed item was never created, must not break
+      // the whole page — the feed below still renders normally.
+      .catch((err: unknown) => { if (!cancelled) setFocusError((err as Error).message || t('loadError')); })
+      .finally(() => { if (cancelled) setFocusItem(null); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusActivityId]);
+
+  const clearFocus = () => {
+    setFocusItem(null);
+    setFocusError(null);
+    router.replace('/dashboard/feed', { scroll: false });
+  };
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const hasMore = cursor !== null;
@@ -172,6 +209,9 @@ export default function FeedPage() {
   const handleDelete = async (item: FeedItem) => {
     try {
       await deletePost(item.id);
+      // Deleting the pinned run has to unpin it too, or the deep link keeps a
+      // now-deleted card on screen.
+      setFocusItem(prev => (prev?.id === item.id ? null : prev));
       setItems(prev => {
         const next = prev.filter(i => i.id !== item.id);
         if (lastFeedPage) lastFeedPage = { ...lastFeedPage, items: next };
@@ -217,6 +257,41 @@ export default function FeedPage() {
       >
         <Spinner size={22} />
       </div>
+
+      {/* ═══ The run a push notification was about ═══
+          Pinned at the very top, above everything else: the notification
+          promised this specific run, so it has to be the first thing on screen
+          and not something to scroll for. */}
+      {focusActivityId && (focusItem || focusError) && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between px-1 mb-2">
+            <span className="text-xs font-medium text-slate-500">{t('focusedTitle')}</span>
+            <button
+              onClick={clearFocus}
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 min-h-[32px] px-1"
+            >
+              {t('focusedShowAll')}
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {focusItem ? (
+            <div className="rounded-2xl ring-2 ring-primary-500/50">
+              <FeedCard
+                item={focusItem}
+                commentCount={focusItem.commentCount}
+                myAthleteId={myAthleteId}
+                isStaff={isStaff}
+                onComment={i => setCommentItem(i)}
+                onDelete={handleDelete}
+              />
+            </div>
+          ) : (
+            <div className="bg-slate-800/50 border border-slate-700/30 rounded-2xl px-4 py-3 text-center">
+              <p className="text-sm text-slate-400">{t('focusedMissing')}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ═══ SQUAD RIVALRY + WEEKLY LEADERBOARD — moved here from the (now
           hero-only) home page. Feed is where "how's everyone doing" content
@@ -280,7 +355,9 @@ export default function FeedPage() {
 
       {!loading && items.length > 0 && (
         <div className="space-y-3">
-          {items.map(item => (
+          {/* The pinned card above is the same feed item, so skip it here
+              rather than showing the run twice. */}
+          {items.filter(item => item.id !== focusItem?.id).map(item => (
             <FeedCard
               key={item.id}
               item={item}

@@ -464,13 +464,15 @@ export async function notifyTeammatesOfActivity(activity: {
   const verb = athlete.gender === 'male' ? 'סיים' : athlete.gender === 'female' ? 'סיימה' : 'סיים/ה';
   const title = `🏃 ${name} ${verb} ריצה`;
   const body = `${km} ק"מ`;
-  // No teammate-visible activity-detail page exists yet (the per-activity
-  // run-chat link is owner/coach-only — canAccessChat in
-  // src/lib/run-chat/access.ts 403s any other athlete), so this falls back to
-  // the shared activities feed — but carries the real activity id as a query
-  // param so the notification row itself can offer a "give kudos" action
-  // without needing that detail page at all.
-  const url = `/dashboard/activities?kudos=${activity.activityId}`;
+  // Deep-links to the club feed focused on THIS run. It used to point at
+  // /dashboard/activities?kudos=…, which could not work two ways over: that
+  // page filters to the viewer's OWN activities for a non-coach, so the run
+  // being announced was never on it, and nothing there read the query param
+  // anyway — so tapping "X finished a run" dumped you at the top of your own
+  // feed. /dashboard/feed reads ?activity= and pulls that exact card up (via
+  // the feed item the trg_feed_item_for_activity trigger already creates for
+  // every activity), which is also where kudos/comments live.
+  const url = `/dashboard/feed?activity=${activity.activityId}`;
 
   // Send BEFORE persisting — same reasoning as notifyAthlete: computeUnreadCounts
   // (inside sendPushToSubscriptions) adds +1 per recipient for "the notification

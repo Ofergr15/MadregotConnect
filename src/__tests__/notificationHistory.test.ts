@@ -73,7 +73,18 @@ describe('styleKindFor', () => {
 
 describe('kudosActivityId', () => {
   it('extracts the activity id for a kudos_activity kind', () => {
+    expect(kudosActivityId({ kind: 'kudos_activity', url: '/dashboard/feed?activity=abc-123' })).toBe('abc-123');
+  });
+
+  it('still reads the legacy ?kudos= spelling', () => {
+    // Every "X finished a run" notification sent before the link was pointed at
+    // /dashboard/feed is still in athletes' history with this shape. Its link
+    // goes somewhere useless, but its inbox kudos button should keep working.
     expect(kudosActivityId({ kind: 'kudos_activity', url: '/dashboard/activities?kudos=abc-123' })).toBe('abc-123');
+  });
+
+  it('extracts correctly when activity is not the first query param', () => {
+    expect(kudosActivityId({ kind: 'kudos_activity', url: '/dashboard/feed?foo=1&activity=xyz' })).toBe('xyz');
   });
 
   it('returns null for any other kind, even with a matching query param', () => {

@@ -127,6 +127,17 @@ export default function ActivitiesPage() {
     setAthleteId(storedAthleteId);
     fetchActivities();
 
+    // Legacy deep link from every "🏃 X finished a run" push sent before the
+    // link was fixed: those rows point here with ?kudos=<activityId>. This page
+    // can't show the run — filteredActivities below narrows to the viewer's OWN
+    // activities for a non-coach — so hand it to the feed, which can. Thousands
+    // of those rows are already in athletes' notification history.
+    const legacyKudos = searchParams.get('kudos');
+    if (legacyKudos) {
+      router.replace(`/dashboard/feed?activity=${encodeURIComponent(legacyKudos)}`);
+      return;
+    }
+
     // Deep link from ConnectDataSourcePopup's "log manually instead" option.
     if (searchParams.get('logManual') === '1') {
       setShowManualEntry(true);

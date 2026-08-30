@@ -1338,7 +1338,10 @@
       "cardPace": "Avg pace",
       "cardTime": "Time",
       "cardHr": "HR"
-    }
+    },
+    "focusedTitle": "From your notification",
+    "focusedShowAll": "Show the whole feed",
+    "focusedMissing": "That run isn't available any more"
   },
   "photos": {
     "title": "Photos",

@@ -57,13 +57,18 @@ export function styleKindFor(it: Pick<HistoryItem, 'title' | 'body'>): StyleKind
   return 'default';
 }
 
-// "kudos_activity" rows carry the real activity id as a ?kudos= query param
-// (see notifyTeammatesOfActivity in src/lib/push.ts) so kudos can be given
-// directly from the notification, with no teammate-visible activity-detail
-// page needed at all.
+// "kudos_activity" rows carry the real activity id as a query param (see
+// notifyTeammatesOfActivity in src/lib/push.ts) so kudos can be given straight
+// from the inbox row, with no navigation.
+//
+// Both spellings are accepted on purpose. Current rows use ?activity=, which
+// /dashboard/feed reads to pull that run's card up; rows written before that
+// link existed use ?kudos= and point at /dashboard/activities. Those older rows
+// are already in every athlete's history, and their kudos button is worth
+// keeping alive even though their link goes somewhere useless.
 export function kudosActivityId(it: Pick<HistoryItem, 'kind' | 'url'>): string | null {
   if (it.kind !== 'kudos_activity') return null;
-  const m = it.url.match(/[?&]kudos=([^&]+)/);
+  const m = it.url.match(/[?&](?:activity|kudos)=([^&]+)/);
   return m ? m[1] : null;
 }
 

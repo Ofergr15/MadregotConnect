@@ -1338,7 +1338,10 @@
       "cardPace": "קצב ממוצע",
       "cardTime": "זמן",
       "cardHr": "דופק"
-    }
+    },
+    "focusedTitle": "מההתראה שקיבלתם",
+    "focusedShowAll": "הצגת כל הפיד",
+    "focusedMissing": "הריצה הזו לא זמינה יותר"
   },
   "photos": {
     "title": "תמונות",
