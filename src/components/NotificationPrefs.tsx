@@ -135,13 +135,23 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
         setTestResult(`שגיאת שרת (${res.status})`);
         return;
       }
-      const { sent, total } = (await res.json()) as { sent: number; total: number };
+      const { sent, total, confirmed } = (await res.json()) as {
+        sent: number;
+        total: number;
+        confirmed?: number;
+      };
+      // `confirmed` is the only real evidence — see /api/push/receipt. A
+      // confirmed 0 is reported as unconfirmed rather than failed on purpose: a
+      // locked or offline phone can miss the receipt window and still show the
+      // notification a moment later.
       setTestResult(
         total === 0
           ? 'אין מנוי פוש במכשיר — נסו "תיקון התראות במכשיר"'
           : sent === 0
             ? `נשלחו 0 מתוך ${total} — נסו "תיקון התראות במכשיר"`
-            : `נשלחו ${sent} מתוך ${total} — אם לא הגיעה, נסו "תיקון התראות במכשיר"`,
+            : confirmed && confirmed > 0
+              ? `✅ הגיעה ואושרה ב-${confirmed} מתוך ${total} מכשירים`
+              : `נשלחו ${sent} מתוך ${total} — אך אף מכשיר לא אישר קבלה. אם לא הגיעה, נסו "תיקון התראות במכשיר"`,
       );
     } catch (err) {
       setTestResult(`הבקשה נכשלה: ${err instanceof Error ? err.message : String(err)}`);

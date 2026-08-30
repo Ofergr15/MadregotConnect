@@ -313,7 +313,6 @@ export async function sendPushDetailed(
   let sent = 0;
   const byAthlete: Record<string, number> = {};
   const deadIds: string[] = [];
-  const okIds: string[] = [];
   const failures: string[] = [];
   const scope = actionScopeFor(payload);
 
@@ -341,7 +340,6 @@ export async function sendPushDetailed(
         );
         sent++;
         byAthlete[s.athlete_id] = (byAthlete[s.athlete_id] || 0) + 1;
-        okIds.push(s.id);
       } catch (err: unknown) {
         const status = (err as { statusCode?: number })?.statusCode;
         if (status === 404 || status === 410) deadIds.push(s.id);
@@ -358,23 +356,14 @@ export async function sendPushDetailed(
     await supabase.from('push_subscriptions').delete().in('id', deadIds);
   }
 
-  // Mark the endpoints the push service accepted. Until now `last_success_at`
-  // was written once at subscribe time and never again — a name that promised
-  // delivery evidence while holding none.
-  //
-  // Read it as "the push service took a push for this endpoint", NOT "a device
-  // displayed it": Apple returns 201 for an endpoint that is still registered
-  // but no longer bound to a live service worker, so a ghost endpoint gets
-  // stamped here exactly like a working one. That's precisely why retiring
-  // superseded endpoints is driven by the client naming them
-  // (`replacesEndpoint` in /api/push/subscribe) rather than by this column.
-  if (okIds.length > 0) {
-    await supabase
-      .from('push_subscriptions')
-      .update({ last_success_at: new Date().toISOString() })
-      .in('id', okIds);
-  }
-
+  // Deliberately NOT stamping last_success_at here, even though every send
+  // counted above was accepted with a 2xx. Acceptance is not delivery: Apple returns
+  // 201 for an endpoint that is still registered but no longer bound to a live
+  // service worker, so stamping here marked ghosts as freshly alive and made
+  // the column useless as evidence — it could never single out a dead
+  // endpoint, because nothing a dead endpoint does looks different from here.
+  // The only writer is now /api/push/receipt, which the service worker calls
+  // after showNotification actually resolved on the device.
   if (failures.length > 0) {
     console.warn(`[push] "${payload.title}": ${failures.length}/${subs.length} failed — ${failures.join(', ')}`);
   }

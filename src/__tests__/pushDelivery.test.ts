@@ -1,7 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-// What this pins down: a push that the push service accepts is the ONLY thing
-// that may be recorded as delivered.
+// What this pins down: nothing may be counted for a recipient unless the push
+// service actually accepted a push for one of their devices — and acceptance,
+// in turn, may never be written to the one column that claims real delivery
+// evidence (last_success_at, whose only writer is /api/push/receipt).
 //
 // The bug these tests exist for: sendPushToSubscriptions returned a bare total
 // and swallowed every non-404/410 error, while persistNotifications hardcoded
@@ -146,21 +148,16 @@ describe('sendPushDetailed — per-athlete delivery counts', () => {
     expect(warnings().some((w) => w.includes('failed'))).toBe(false);
   });
 
-  it('stamps last_success_at on exactly the endpoints that accepted the push', async () => {
-    sendNotification.mockImplementation((s: { endpoint: string }) =>
-      s.endpoint.endsWith('s2') ? Promise.reject(pushError(500)) : Promise.resolve({}));
-
+  it('never stamps last_success_at, however cleanly the push was accepted', async () => {
+    // The subtle version of the same lie. An earlier fix stamped this column
+    // for every 2xx, which reads as delivery evidence and is not: Apple returns
+    // 201 for an endpoint that is still registered but no longer reaches a live
+    // service worker, so a ghost got marked freshly alive on every send and the
+    // column could never identify one. /api/push/receipt — called by the
+    // service worker after showNotification actually resolved — is the only
+    // writer, which is what makes a stale timestamp real evidence.
     await sendPushDetailed([sub('s1', 'a1'), sub('s2', 'a1')], { title: 'hi', body: 'x' });
-    const updated = writes.updated.find((u) => u.table === 'push_subscriptions');
-    // s2 failed, so it must NOT look freshly alive.
-    expect(updated?.ids).toEqual(['s1']);
-    expect(updated?.patch.last_success_at).toBeTypeOf('string');
-  });
-
-  it('never touches last_success_at when every send failed', async () => {
-    sendNotification.mockRejectedValue(pushError(500));
-    await sendPushDetailed([sub('s1', 'a1')], { title: 'hi', body: 'x' });
-    expect(writes.updated).toHaveLength(0);
+    expect(writes.updated.filter((u) => u.table === 'push_subscriptions')).toHaveLength(0);
   });
 });
 

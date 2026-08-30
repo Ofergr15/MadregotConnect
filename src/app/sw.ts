@@ -201,6 +201,27 @@ self.addEventListener('push', (event: PushEvent) => {
           // it (browsers ignore unknown notification options harmlessly).
           ...(data.image ? { image: data.image } : {}),
         } as NotificationOptions & { image?: string });
+        // Delivery receipt. This is the ONLY evidence anywhere in the system
+        // that a push actually reached a phone: Apple returns 201 for an
+        // endpoint that is still registered but no longer bound to a live
+        // service worker, so the send path's success status proves nothing.
+        // Measured on a real device: four endpoints, three of them ghosts, took
+        // 52 consecutive sends with 201 and displayed none of them.
+        //
+        // Only reached when showNotification above resolved, so it means "this
+        // device displayed it" — not "the push service took it". Deliberately
+        // after the await, so a slow/failing receipt can never delay or
+        // suppress the notification itself.
+        try {
+          const sub = await self.registration.pushManager.getSubscription();
+          if (sub) {
+            await fetch('/api/push/receipt', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ endpoint: sub.endpoint }),
+            });
+          }
+        } catch { /* offline, or the receipt route is older than this SW — the notification still showed */ }
       } catch { /* see comment above — never let this break badge updates below */ }
       // App-icon badge count (iOS 16.4+ installed PWA). Guard: not all engines
       // expose it, and clearing needs the count param on iOS.
