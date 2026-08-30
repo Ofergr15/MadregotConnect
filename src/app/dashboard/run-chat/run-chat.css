@@ -346,6 +346,18 @@
   max-width: 100% !important;
 }
 
+.run-chat-shell .run-chat-msg .str-chat__message-inner {
+  width: fit-content;
+}
+
+.run-chat-shell .run-chat-msg--me .str-chat__message-inner {
+  align-self: flex-start;
+}
+
+.run-chat-shell .run-chat-msg--other .str-chat__message-inner {
+  align-self: flex-end;
+}
+
 .run-chat-shell .run-chat-msg .str-chat__message-inner,
 .run-chat-shell .run-chat-msg .str-chat__message-metadata {
   direction: rtl;
@@ -400,29 +412,42 @@
 
 .run-chat-shell .str-chat__message-options {
   position: absolute !important;
+  grid-area: unset !important;
   top: 0;
   z-index: 6;
   /* width still set by Stream via --str-chat-message-options-size */
 }
 
-/* Me bubbles sit on the left → toolbar floats to the right of the bubble */
-.run-chat-shell .str-chat__message--me .str-chat__message-options {
-  left: calc(100% + 0.25rem);
-  right: auto;
+/* Me bubbles sit on the left → toolbar floats to the right of the bubble.
+ * Use our wrapper classes: Stream's --me/--other classes are not guaranteed
+ * on messages rendered through the custom MessageUI. */
+.run-chat-shell .run-chat-msg--me .str-chat__message-options {
+  left: auto !important;
+  right: 0 !important;
+  transform: translateX(calc(100% + 0.375rem)) !important;
 }
 
 /* Other (AI) on the right → toolbar floats to the left of the bubble */
-.run-chat-shell .str-chat__message--other .str-chat__message-options {
-  right: calc(100% + 0.25rem);
-  left: auto;
+.run-chat-shell .run-chat-msg--other .str-chat__message-options {
+  right: auto !important;
+  left: 0 !important;
+  transform: translateX(calc(-100% - 0.375rem)) !important;
 }
 
-.run-chat-shell .str-chat__message--other
+.run-chat-shell .run-chat-msg--other
   .str-chat__message-inner:has(.run-chat-strava-card)
   .str-chat__message-options {
   top: 0.25rem;
-  right: calc(100% + 0.5rem);
-  left: auto;
+  right: auto !important;
+  left: 0 !important;
+  transform: translateX(calc(-100% - 0.375rem)) !important;
+}
+
+/* Each side-by-side demo pane gets its own bounded chat column. */
+.run-chat-demo-grid .run-chat-shell {
+  --run-chat-column-width: 100%;
+  --str-chat__message-max-width: min(28rem, 82%);
+  --str-chat__message-with-attachment-max-width: min(28rem, 82%);
 }
 
 /* Thread links must not collapse into one character per line on short bubbles. */
@@ -582,6 +607,26 @@
   color: rgb(100 116 139) !important;
 }
 
+.run-chat-shell .run-chat-contenteditable {
+  width: 100%;
+  min-height: 1.5rem;
+  max-height: 9rem;
+  padding: 0;
+  overflow-y: auto;
+  color: rgb(241 245 249) !important;
+  background: transparent !important;
+  caret-color: rgb(248 250 252);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.run-chat-shell .run-chat-contenteditable:empty::before {
+  color: rgb(100 116 139);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
 .run-chat-shell .run-chat-mention-rail {
   min-height: 46px;
 }
@@ -601,5 +646,249 @@
 @media (min-width: 768px) {
   .run-chat-shell .str-chat__thread {
     max-width: 40%;
+  }
+}
+
+/* ── Mobile: edge-to-edge, ChatGPT-like reading rhythm ───────────────────── */
+@media (max-width: 767px) {
+  .run-chat-page {
+    width: 100%;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overscroll-behavior-y: contain;
+  }
+
+  .run-chat-header {
+    min-height: 3.75rem;
+    padding: 0.625rem 1rem !important;
+  }
+
+  .run-chat-header p:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .run-chat-shell,
+  .run-chat-shell .str-chat,
+  .run-chat-shell .str-chat__channel {
+    --run-chat-column-width: 100%;
+    --str-chat__message-max-width: calc(100vw - 2rem);
+    --str-chat__message-with-attachment-max-width: calc(100vw - 2rem);
+  }
+
+  .run-chat-shell .str-chat__list .str-chat__ul,
+  .run-chat-shell .str-chat__virtual-list .str-chat__ul,
+  .run-chat-shell .str-chat__message-list-scroll {
+    width: 100%;
+    padding-inline: 1rem;
+    scrollbar-width: none;
+  }
+
+  .run-chat-shell .str-chat__message-list {
+    scrollbar-width: none;
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .run-chat-shell .str-chat__message-list::-webkit-scrollbar,
+  .run-chat-shell .str-chat__message-list-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .run-chat-shell .str-chat__li {
+    padding-block: 0.45rem !important;
+  }
+
+  /* ChatGPT does not spend a permanent mobile column on avatars or names. */
+  .run-chat-shell .run-chat-msg {
+    display: block;
+    width: 100%;
+  }
+
+  .run-chat-shell .run-chat-msg__avatar,
+  .run-chat-shell .run-chat-msg__name {
+    display: none;
+  }
+
+  .run-chat-shell .run-chat-msg__main,
+  .run-chat-shell .run-chat-msg .str-chat__message {
+    width: 100%;
+  }
+
+  .run-chat-shell .run-chat-msg--other .str-chat__message {
+    align-items: stretch;
+  }
+
+  .run-chat-shell .run-chat-msg--other .str-chat__message-inner {
+    width: 100%;
+    align-self: stretch;
+  }
+
+  .run-chat-shell .run-chat-msg--me .str-chat__message-inner {
+    width: fit-content;
+    max-width: 86% !important;
+  }
+
+  .run-chat-shell .run-chat-msg .str-chat__message-text-inner {
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  /* Assistant prose reads as page content; the user's message remains a pill. */
+  .run-chat-shell
+    .run-chat-msg--other
+    .str-chat__message-bubble:not(:has(.run-chat-attachments)) {
+    padding-inline: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .run-chat-shell .run-chat-msg--me .str-chat__message-bubble {
+    padding: 0.75rem 1rem !important;
+    border: 0 !important;
+    border-radius: 1.375rem 1.375rem 0.375rem 1.375rem !important;
+    background: rgb(51 65 85) !important;
+    box-shadow: none !important;
+  }
+
+  /* Rich responses are one clean, full-width block instead of nested cards. */
+  .run-chat-shell .str-chat__message-inner:has(.run-chat-strava-card),
+  .run-chat-shell .str-chat__message-inner:has(.run-chat-clipboard-thumb) {
+    width: 100% !important;
+    max-width: 100% !important;
+    align-self: stretch;
+  }
+
+  .run-chat-shell .str-chat__message-bubble:has(.run-chat-strava-card),
+  .run-chat-shell .str-chat__message-bubble:has(.run-chat-clipboard-thumb) {
+    /* A definite viewport length avoids Stream's shrink-to-fit attachment cycle. */
+    width: calc(100vw - 2rem) !important;
+    max-width: calc(100vw - 2rem) !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .run-chat-shell .str-chat__message-bubble:has(.run-chat-strava-card) .str-chat__message-text {
+    margin-top: 0.75rem;
+    padding: 0 0.25rem !important;
+    border: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .run-chat-shell .run-chat-attachments,
+  .run-chat-shell .run-chat-strava-collapsible,
+  .run-chat-shell .run-chat-strava-card,
+  .run-chat-shell .str-chat__attachment-list {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .run-chat-shell .run-chat-strava-card {
+    border-radius: 1.5rem;
+  }
+
+  .run-chat-shell .run-chat-clipboard-thumb,
+  .run-chat-shell
+    .str-chat__attachment-list
+    .str-chat__message-attachment--image {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 1.5rem;
+  }
+
+  .run-chat-shell .str-chat__message-metadata {
+    margin-top: 0.35rem;
+  }
+
+  /* On a narrow screen actions float above the selected message, as in ChatGPT. */
+  .run-chat-shell .run-chat-msg--me .str-chat__message-options {
+    top: -2.5rem;
+    right: 0 !important;
+    left: auto !important;
+    transform: none !important;
+  }
+
+  .run-chat-shell .run-chat-msg--other .str-chat__message-options,
+  .run-chat-shell
+    .run-chat-msg--other
+    .str-chat__message-inner:has(.run-chat-strava-card)
+    .str-chat__message-options {
+    top: -2.5rem;
+    right: auto !important;
+    left: 0 !important;
+    transform: none !important;
+  }
+
+  /* One floating composer pill with all controls contained inside it. */
+  .run-chat-shell .run-chat-composer-shell {
+    padding: 0.5rem 1rem calc(0.625rem + env(safe-area-inset-bottom)) !important;
+    border-top: 0;
+    background:
+      linear-gradient(to top, rgb(15 23 42) 78%, rgb(15 23 42 / 0));
+  }
+
+  .run-chat-shell .run-chat-composer-row {
+    min-height: 3.375rem;
+    gap: 0.125rem;
+    padding: 0.1875rem 0.3125rem;
+    border: 1px solid rgb(71 85 105 / 0.55);
+    border-radius: 9999px;
+    background: rgb(30 41 59 / 0.88);
+    box-shadow: 0 6px 24px rgb(2 6 23 / 0.22);
+  }
+
+  .run-chat-shell .str-chat__message-composer {
+    min-height: 2.875rem;
+    padding: 0 0.125rem !important;
+    border: 0 !important;
+    border-radius: 9999px !important;
+    background: transparent !important;
+  }
+
+  .run-chat-shell .str-chat__textarea__textarea,
+  .run-chat-shell .run-chat-contenteditable {
+    /* iOS Safari zooms the page when focusing inputs below 16px. */
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+  }
+
+  .run-chat-shell .str-chat__attachment-selector__menu-button,
+  .run-chat-shell .str-chat__send-button {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+    min-width: 2.25rem !important;
+    min-height: 2.25rem !important;
+  }
+
+  .run-chat-shell .str-chat__send-button:disabled {
+    width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    overflow: hidden;
+    border: 0 !important;
+    opacity: 0;
+  }
+
+  .run-chat-shell .run-chat-mention-rail {
+    min-height: 2.5rem;
+    gap: 0.125rem;
+  }
+
+  .run-chat-shell .run-chat-mention-rail button {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+    border-color: rgb(71 85 105 / 0.35) !important;
+    background: rgb(15 23 42 / 0.45) !important;
   }
 }

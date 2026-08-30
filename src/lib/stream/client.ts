@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useCreateChatClient, Streami18n } from 'stream-chat-react';
+import { Streami18n, useCreateChatClient } from 'stream-chat-react';
 import type { StreamChat } from 'stream-chat';
 
 export interface StreamTokenData {
@@ -11,6 +11,8 @@ export interface StreamTokenData {
   userName: string;
   /** Optional role label for UI (רץ / מאמן / …) */
   roleLabel?: string;
+  /** Whether the verified app identity may perform staff-only chat actions. */
+  isStaff?: boolean;
   /** Club / Google profile photo when available */
   imageUrl?: string | null;
 }

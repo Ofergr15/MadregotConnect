@@ -45,6 +45,8 @@ export interface PlannedWorkout {
   /** Coach shorthand prompt */
   prompt: string;
   segments: WorkoutSegment[];
+  /** Provenance used to preserve prompt edits or link back to a weekly plan match. */
+  source?: 'prompt_edit' | Record<string, unknown>;
 }
 
 /**
@@ -129,4 +131,28 @@ export function flattenClipboardSteps(workout: PlannedWorkout): WorkoutSegment[]
     }
   }
   return out;
+}
+
+/**
+ * Expand repeat blocks into their actual execution order for the intensity graph.
+ * The step list still uses {@link flattenClipboardSteps} so it shows one nested
+ * interval/recovery pair under a Repeat row, as Garmin does.
+ */
+export function expandWorkoutSteps(workout: PlannedWorkout): WorkoutSegment[] {
+  const expand = (segments: WorkoutSegment[]): WorkoutSegment[] => {
+    const out: WorkoutSegment[] = [];
+    for (const segment of segments) {
+      if (segment.kind === 'repeat' && segment.steps?.length) {
+        const repetitions = Math.min(Math.max(segment.reps ?? 1, 1), 100);
+        for (let repetition = 0; repetition < repetitions; repetition += 1) {
+          out.push(...expand(segment.steps));
+        }
+      } else {
+        out.push({ ...segment, steps: undefined, indent: undefined });
+      }
+    }
+    return out;
+  };
+
+  return expand(workout.segments);
 }

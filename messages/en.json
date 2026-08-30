@@ -1429,7 +1429,18 @@
     "toolResult": "Result",
     "tagCoach": "Tag coach",
     "expandDetails": "Show details",
-    "collapseDetails": "Hide details"
+    "collapseDetails": "Hide details",
+    "editPlanWithPrompt": "Edit with prompt",
+    "editPlanTitle": "Edit workout plan",
+    "editPlanDescription": "Describe the workout again and AI will update the plan and card.",
+    "editPlanPlaceholder": "For example: 10 km easy",
+    "rebuildPlan": "Rebuild plan",
+    "editPlanFailed": "Could not update the plan",
+    "cancel": "Cancel",
+    "close": "Close",
+    "runnerView": "Runner view",
+    "coachView": "Coach view",
+    "liveDemo": "Live demo"
   },
   "teammate": {
     "notFound": "Athlete not found",

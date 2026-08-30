@@ -6,7 +6,7 @@
  * On first open (and backfill): seed planned workout + Garmin clipboard PNG
  * on the AI Coach's first Stream message.
  */
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { createServerClient } from '@/lib/supabase/server';
 import {
@@ -17,6 +17,7 @@ import {
   resolveCoachStreamUser,
   upsertStreamUsersFromAthletes,
   AI_USER_ID,
+  humanCoachAvatarUrl,
 } from '@/lib/stream/server';
 import { canAccessChat } from '@/lib/run-chat/access';
 import { ensureChatSeeded } from '@/lib/run-chat/seed-chat';
@@ -24,6 +25,8 @@ import { ensureMatchedWorkout } from '@/lib/plans/matched-workout';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+const maintainedChats = new Set<string>();
 
 /**
  * DELETE /api/run-chat?activityId=…
@@ -125,6 +128,103 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { data: existingChat } = await supabase
+      .from('run_chats')
+      .select('*')
+      .eq('activity_id', activityId)
+      .maybeSingle();
+
+    const isExistingMember =
+      existingChat &&
+      user.athleteId &&
+      (user.athleteId === existingChat.athlete_id || user.athleteId === existingChat.coach_id);
+
+    if (existingChat?.stream_channel_id && isExistingMember) {
+      const fastStream = getStreamServerClient();
+      const fastChannel = fastStream.channel(CHANNEL_TYPE, channelId(activityId));
+      let openerMembershipReady = false;
+      try {
+        // The client calls channel.watch() immediately after this response. Keep
+        // this single repair synchronous; all slower profile/artifact work stays
+        // in after() so normal refreshes remain fast.
+        await fastChannel.addMembers([user.athleteId!]);
+        openerMembershipReady = true;
+      } catch {
+        // A missing/stale Stream channel needs the full create/repair path below.
+      }
+
+      if (openerMembershipReady) {
+        const { data: coachAthlete } = existingChat.coach_id
+          ? await supabase
+              .from('athletes')
+              .select('id, name, email')
+              .eq('id', existingChat.coach_id)
+              .maybeSingle()
+          : { data: null };
+
+        // Backfills and artifact-version checks are useful, but they should not
+        // hold every refresh behind several sequential Stream API round trips.
+        // Run them once per server process after the response is sent.
+        if (!maintainedChats.has(existingChat.id)) {
+          maintainedChats.add(existingChat.id);
+          after(async () => {
+            try {
+              await ensureAiUser(fastStream);
+              const resolvedCoach = await resolveCoachStreamUser(
+                fastStream,
+                supabase,
+                activity.athlete_id,
+              );
+              const repairedMembers = [
+                activity.athlete_id,
+                AI_USER_ID,
+                user.athleteId!,
+                resolvedCoach?.streamId,
+              ].filter(Boolean) as string[];
+              await upsertStreamUsersFromAthletes(
+                fastStream,
+                supabase,
+                [activity.athlete_id, existingChat.coach_id, user.athleteId].filter(
+                  Boolean,
+                ) as string[],
+              );
+              await fastChannel.addMembers([...new Set(repairedMembers)]);
+
+              const matched = await ensureMatchedWorkout(
+                supabase,
+                activityId,
+                activity.athlete_id,
+              );
+              await ensureChatSeeded({
+                supabase,
+                channel: fastChannel,
+                chat: existingChat,
+                weeklyPlanText: matched?.plannedText || null,
+                structuredWorkout: matched?.plannedWorkout || null,
+                publishedImageUrl: matched?.clipboardImageUrl || null,
+              });
+            } catch (maintenanceError) {
+              maintainedChats.delete(existingChat.id);
+              console.warn('Run-chat background maintenance failed:', maintenanceError);
+            }
+          });
+        }
+
+        return NextResponse.json({
+          chat: existingChat,
+          activity: activityPayload,
+          coach: coachAthlete
+            ? {
+                id: coachAthlete.id,
+                name: coachAthlete.name || coachAthlete.email || 'Coach',
+                image: humanCoachAvatarUrl(),
+              }
+            : null,
+          planMatch: null,
+        });
+      }
+    }
+
     const stream = getStreamServerClient();
     await ensureAiUser(stream);
     const resolvedCoach = await resolveCoachStreamUser(
@@ -171,11 +271,7 @@ export async function POST(request: Request) {
       // Existing members are harmless; channel.watch below will surface real failures.
     }
 
-    let { data: chat } = await supabase
-      .from('run_chats')
-      .select('*')
-      .eq('activity_id', activityId)
-      .maybeSingle();
+    let chat = existingChat;
 
     const matched = await ensureMatchedWorkout(
       supabase,

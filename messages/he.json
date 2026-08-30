@@ -1429,7 +1429,18 @@
     "toolResult": "תוצאה",
     "tagCoach": "תייג את המאמן",
     "expandDetails": "הצג פרטים",
-    "collapseDetails": "הסתר פרטים"
+    "collapseDetails": "הסתר פרטים",
+    "editPlanWithPrompt": "ערוך עם הנחיה",
+    "editPlanTitle": "עריכת תוכנית האימון",
+    "editPlanDescription": "תאר את האימון מחדש וה-AI יעדכן את התוכנית והכרטיס.",
+    "editPlanPlaceholder": "לדוגמה: 10 ק״מ קל",
+    "rebuildPlan": "בנה תוכנית מחדש",
+    "editPlanFailed": "עדכון התוכנית נכשל",
+    "cancel": "ביטול",
+    "close": "סגור",
+    "runnerView": "תצוגת רץ",
+    "coachView": "תצוגת מאמן",
+    "liveDemo": "דמו חי"
   },
   "teammate": {
     "notFound": "הספורטאי/ת לא נמצא/ה",
