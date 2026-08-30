@@ -3,9 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bell, X } from 'lucide-react';
-import { isStandalone, isIosDevice, subscribeToPush } from '@/lib/pwa';
+import { isStandalone, isIosDevice, subscribeToPush, ensurePushSubscription } from '@/lib/pwa';
+import { logClient } from '@/lib/client-log';
 
 const DISMISS_KEY = 'push_optin_dismissed';
+// Last day (YYYY-MM-DD) the subscription self-heal ran successfully on this
+// device — see ensurePushSubscription. Once a day is plenty: the thing it
+// repairs only changes when iOS drops the subscription.
+const HEAL_KEY = 'push_sub_healed_on';
+// Belt to the localStorage braces: never run the heal twice in one page life,
+// even if the effect re-runs or the recheck event fires.
+let healAttempted = false;
 // Set once a concrete push benefit is imminent for this athlete (see
 // requestPushOptInPrompt below). We gate on this instead of showing the ask on
 // every dashboard load, so it only surfaces right when the value is obvious —
@@ -32,6 +40,31 @@ export function PushOptIn({ title, description }: { title?: string; description?
 
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    // Repair a subscription iOS dropped behind our back. This runs for athletes
+    // who ALREADY granted permission — precisely the case every other path here
+    // returns early on, which is why a dead subscription used to stay dead.
+    const heal = () => {
+      if (healAttempted) return;
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      const athleteId = localStorage.getItem('athlete_id');
+      if (!athleteId) return;
+      const today = new Date().toISOString().slice(0, 10);
+      if (localStorage.getItem(HEAL_KEY) === today) return;
+      healAttempted = true;
+      ensurePushSubscription(athleteId)
+        .then((result) => {
+          // Stamp only on success, so a failing device retries next open
+          // instead of going quiet until tomorrow.
+          if (result.ok) localStorage.setItem(HEAL_KEY, today);
+          // A resubscribe means we just found (and fixed) a dropped
+          // subscription — worth a server-side record, since the whole point is
+          // that this failure is otherwise invisible. Failures too.
+          if (result.action === 'resubscribed' || !result.ok) logClient('push-heal', { ...result });
+        })
+        .catch(() => {});
+    };
+    heal();
 
     const check = () => {
       if (Notification.permission === 'granted' || Notification.permission === 'denied') return;

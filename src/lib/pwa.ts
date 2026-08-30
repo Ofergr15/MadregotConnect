@@ -34,6 +34,80 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 /**
+ * Hand a subscription to the server. Shared by every path below so they all
+ * record `user_agent` and refresh `last_success_at` identically.
+ */
+async function saveSubscription(
+  athleteId: string,
+  sub: PushSubscription,
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ athleteId, subscription: sub.toJSON(), userAgent: navigator.userAgent }),
+  });
+  if (!res.ok) return { ok: false, error: `save_failed_${res.status}` };
+  return { ok: true };
+}
+
+/**
+ * Make sure this device has a working, server-known push subscription — the
+ * self-heal for the failure that made a whole morning of teammate
+ * notifications vanish silently.
+ *
+ * iOS can drop a PushManager subscription on its own (PWA offloaded, storage
+ * reclaimed, app re-added to the home screen) while `Notification.permission`
+ * stays `'granted'`. Nothing then recovered: PushOptIn bails out the moment
+ * permission is granted, and NotificationPrefs only offered its "enable"
+ * row when permission was NOT granted, so the one state that needed fixing
+ * was the one state with no way out. Meanwhile the server kept the old
+ * endpoints forever — Apple answers 201 for an endpoint that is still
+ * registered but no longer maps to a live service worker, so the push is
+ * accepted, silently discarded, and never 410s into the dead-subscription
+ * cleanup. Everything looked healthy from both ends and nothing arrived.
+ *
+ * Unlike subscribeToPush this never prompts and never unsubscribes: it
+ * refreshes what's there, or creates one only when there is genuinely none.
+ * Safe to call on every app open.
+ */
+export async function ensurePushSubscription(
+  athleteId: string,
+): Promise<{ ok: boolean; action: 'refreshed' | 'resubscribed' | 'skipped'; error?: string }> {
+  try {
+    if (!athleteId) return { ok: false, action: 'skipped', error: 'no_athlete' };
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return { ok: false, action: 'skipped', error: 'unsupported' };
+    }
+    // Only meaningful once permission exists — asking for it is PushOptIn's job,
+    // and calling requestPermission() here would turn an app open into a prompt.
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+      return { ok: false, action: 'skipped', error: 'not_granted' };
+    }
+    const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapid) return { ok: false, action: 'skipped', error: 'missing_vapid' };
+
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) {
+      // Still subscribed — re-post it so the server's copy of the keys is
+      // current and `last_success_at` moves, which is what marks this endpoint
+      // as live and lets the stale ones be reaped.
+      return { ...(await saveSubscription(athleteId, existing)), action: 'refreshed' };
+    }
+
+    // Gone underneath us. No unsubscribe needed (there's nothing to unsubscribe),
+    // and no prompt either, since permission is already granted.
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
+    });
+    return { ...(await saveSubscription(athleteId, sub)), action: 'resubscribed' };
+  } catch (err) {
+    return { ok: false, action: 'skipped', error: (err as Error).message };
+  }
+}
+
+/**
  * Requests permission (if needed) and subscribes this device to push,
  * persisting the subscription server-side. Shared by PushOptIn's contextual
  * banner and NotificationPrefs' always-available "enable notifications" row
@@ -69,13 +143,7 @@ export async function subscribeToPush(athleteId: string): Promise<{ ok: boolean;
       applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
     });
 
-    const res = await fetch('/api/push/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ athleteId, subscription: sub.toJSON(), userAgent: navigator.userAgent }),
-    });
-    if (!res.ok) return { ok: false, error: `save_failed_${res.status}` };
-    return { ok: true };
+    return await saveSubscription(athleteId, sub);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

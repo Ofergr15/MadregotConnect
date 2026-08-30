@@ -254,26 +254,67 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
 /**
  * Send a push payload to a set of subscriptions. Dead subscriptions (404/410)
  * are pruned. Returns how many were delivered.
+ *
+ * Thin wrapper over sendPushDetailed for the many callers that only need the
+ * total. Prefer sendPushDetailed for fan-outs, where a single total says
+ * nothing about which recipient actually got anything.
  */
 export async function sendPushToSubscriptions(subs: SubRow[], payload: PushPayload): Promise<number> {
-  if (!ensureConfigured() || subs.length === 0) return 0;
+  const { sent } = await sendPushDetailed(subs, payload);
+  return sent;
+}
+
+/**
+ * Send a push payload and report, per athlete, how many of their devices it
+ * actually reached.
+ *
+ * Every early return and every swallowed error in here used to be completely
+ * silent — no log line, no counter, no status change anywhere — while
+ * persistNotifications simultaneously wrote `status:'sent', sent_count:1` for
+ * each recipient regardless. A morning where 260 teammate notifications
+ * reached zero phones was therefore indistinguishable, from any record the app
+ * kept, from a morning where they all arrived. Every `return 0` below now says
+ * why, and the real per-athlete count is handed back so the persisted rows can
+ * tell the truth.
+ */
+export async function sendPushDetailed(
+  subs: SubRow[],
+  payload: PushPayload,
+): Promise<{ sent: number; byAthlete: Record<string, number> }> {
+  const empty = { sent: 0, byAthlete: {} as Record<string, number> };
+  if (subs.length === 0) return empty;
+  if (!ensureConfigured()) {
+    console.warn(`[push] VAPID keys missing — dropped "${payload.title}" for ${subs.length} subscription(s)`);
+    return empty;
+  }
   const supabase = createServerClient();
 
   // While maintenance mode is ON, only the allowlist (+ approvers) may receive
   // ANY push — everyone else is walled off from the app, so don't nag them.
+  const beforeMaintenance = subs.length;
   subs = await filterForMaintenance(subs);
-  if (subs.length === 0) return 0;
+  if (subs.length === 0) {
+    console.warn(`[push] maintenance allowlist dropped all ${beforeMaintenance} subscription(s) for "${payload.title}"`);
+    return empty;
+  }
 
   // Respect each athlete's per-category notification preference (default: on).
+  const beforeCategory = subs.length;
   subs = await filterByCategory(subs, payload.category);
-  if (subs.length === 0) return 0;
+  if (subs.length === 0) {
+    console.warn(`[push] category "${payload.category}" muted by all ${beforeCategory} recipient(s) of "${payload.title}"`);
+    return empty;
+  }
 
   // Badge is a per-athlete unread count (unless the caller pinned one explicitly).
   const athleteIds = [...new Set(subs.map((s) => s.athlete_id).filter(Boolean))];
   const unread = payload.badge != null ? {} : await computeUnreadCounts(athleteIds);
 
   let sent = 0;
+  const byAthlete: Record<string, number> = {};
   const deadIds: string[] = [];
+  const okIds: string[] = [];
+  const failures: string[] = [];
   const scope = actionScopeFor(payload);
 
   await Promise.all(
@@ -299,10 +340,16 @@ export async function sendPushToSubscriptions(subs: SubRow[], payload: PushPaylo
           body,
         );
         sent++;
+        byAthlete[s.athlete_id] = (byAthlete[s.athlete_id] || 0) + 1;
+        okIds.push(s.id);
       } catch (err: unknown) {
         const status = (err as { statusCode?: number })?.statusCode;
         if (status === 404 || status === 410) deadIds.push(s.id);
-        // other errors (network/timeout): leave the subscription in place
+        // other errors (network/timeout): leave the subscription in place, but
+        // say so. These were swallowed entirely, which meant an expired VAPID
+        // key (401/403), an oversized payload (413), or push-service rate
+        // limiting (429) all looked exactly like a normal quiet morning.
+        else failures.push(`${s.endpoint.slice(0, 40)}…=${status ?? (err as Error)?.message ?? 'unknown'}`);
       }
     }),
   );
@@ -310,7 +357,26 @@ export async function sendPushToSubscriptions(subs: SubRow[], payload: PushPaylo
   if (deadIds.length > 0) {
     await supabase.from('push_subscriptions').delete().in('id', deadIds);
   }
-  return sent;
+
+  // Mark the endpoints that actually accepted the push. Until now
+  // `last_success_at` was written once at subscribe time and never again —
+  // a name that promised delivery evidence while holding none. Keeping it
+  // honest is also what lets /api/push/subscribe reap a device's orphaned
+  // endpoints without risking a live second device with the same UA string.
+  if (okIds.length > 0) {
+    await supabase
+      .from('push_subscriptions')
+      .update({ last_success_at: new Date().toISOString() })
+      .in('id', okIds);
+  }
+
+  if (failures.length > 0) {
+    console.warn(`[push] "${payload.title}": ${failures.length}/${subs.length} failed — ${failures.join(', ')}`);
+  }
+  if (sent === 0) {
+    console.warn(`[push] "${payload.title}": reached 0 of ${subs.length} subscription(s) (${deadIds.length} pruned as dead)`);
+  }
+  return { sent, byAthlete };
 }
 
 /**
@@ -416,7 +482,7 @@ export async function notifyTeammatesOfActivity(activity: {
   // (inside sendPushToSubscriptions) adds +1 per recipient for "the notification
   // being delivered right now", assuming its row isn't in the DB yet. Persisting
   // first would double-count it and inflate every follower's app-icon badge by 1.
-  const sent = await sendPushToSubscriptions(subs, {
+  const { sent, byAthlete } = await sendPushDetailed(subs, {
     // Distance is in the TITLE itself, not just the body — iOS shows the
     // title even when a locked-screen preview or notification summary
     // collapses/hides the body line, so the km can't get lost the way a
@@ -439,6 +505,9 @@ export async function notifyTeammatesOfActivity(activity: {
   // Persist one row per follower (not just push) so this shows up in each
   // follower's Notification Center history afterward, same as any other
   // social-activity notification — best-effort, never blocks/undoes the push above.
+  // byAthlete is threaded through so a row that reached nobody records 0 rather
+  // than claiming a delivery: this exact fan-out is the one that wrote 260
+  // "sent" rows for a morning where every single push was silently discarded.
   await persistNotifications(followerIds.map((followerId) => ({
     athleteId: followerId,
     kind: 'kudos_activity',
@@ -446,7 +515,7 @@ export async function notifyTeammatesOfActivity(activity: {
     title,
     body,
     url,
-  })));
+  })), byAthlete);
 
   return sent;
 }
@@ -455,17 +524,28 @@ export async function notifyTeammatesOfActivity(activity: {
  * Persist one scheduled_notifications row per recipient — for fan-out cases
  * (one event, several recipients — e.g. every follower of an athlete who just
  * ran, or every coach when an order comes in) where the actual push is
- * already sent as one batched sendPushToSubscriptions call. Best-effort,
- * never throws.
+ * already sent as one batched sendPushDetailed call. Best-effort, never throws.
+ *
+ * Pass `sentByAthlete` (sendPushDetailed's second return value) so each row
+ * records how many of THAT recipient's devices the push actually reached. This
+ * used to hardcode `sent_count: 1` for every row, which is how 260 rows came to
+ * claim they'd been delivered on a morning when not one of them arrived. With
+ * the map supplied, 0 means "we have a record of this notification but no
+ * device took it" — an honest answer the history could not previously give.
+ * Omitting the map keeps the old optimistic 1 for callers that genuinely don't
+ * know their per-recipient split.
  */
-export async function persistNotifications(rows: Array<{
-  athleteId: string;
-  kind: string;
-  actorAthleteId?: string | null;
-  title: string;
-  body: string;
-  url: string;
-}>): Promise<void> {
+export async function persistNotifications(
+  rows: Array<{
+    athleteId: string;
+    kind: string;
+    actorAthleteId?: string | null;
+    title: string;
+    body: string;
+    url: string;
+  }>,
+  sentByAthlete?: Record<string, number>,
+): Promise<void> {
   if (rows.length === 0) return;
   try {
     const supabase = createServerClient();
@@ -481,7 +561,7 @@ export async function persistNotifications(rows: Array<{
         schedule_type: 'now',
         status: 'sent',
         last_sent_at: new Date().toISOString(),
-        sent_count: 1,
+        sent_count: sentByAthlete ? (sentByAthlete[r.athleteId] ?? 0) : 1,
       })),
     );
   } catch { /* best-effort */ }
@@ -514,19 +594,24 @@ export async function notifyAthlete(opts: {
   // delivered right now" — that +1 assumes this row isn't in the DB yet. Persisting
   // first would make the row match the same query, double-counting it and
   // inflating the OS app-icon badge by 1 on every call.
+  let byAthlete: Record<string, number> | undefined;
   try {
     const subs = await subscriptionsForAthletes([opts.athleteId]);
     if (subs.length > 0) {
-      await sendPushToSubscriptions(subs, {
+      ({ byAthlete } = await sendPushDetailed(subs, {
         title: opts.title,
         body: opts.body,
         url: opts.url,
         tag: opts.tag,
         category: opts.category,
         ...(opts.icon ? { icon: opts.icon } : {}),
-      });
+      }));
+    } else {
+      // No subscription at all: the row below is inbox-only by definition, and
+      // saying so beats recording a phantom delivery.
+      byAthlete = {};
     }
-  } catch { /* push is best-effort */ }
+  } catch { /* push is best-effort — leave byAthlete undefined (unknown) */ }
 
   await persistNotifications([{
     athleteId: opts.athleteId,
@@ -535,7 +620,7 @@ export async function notifyAthlete(opts: {
     title: opts.title,
     body: opts.body,
     url: opts.url,
-  }]);
+  }], byAthlete);
 }
 
 /** All athlete ids of the club (for computing non-responders). */

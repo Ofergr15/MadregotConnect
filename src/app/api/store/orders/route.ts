@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { APPROVER_EMAILS } from '@/lib/constants';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
-import { subscriptionsForAthletes, sendPushToSubscriptions, persistNotifications } from '@/lib/push';
+import { subscriptionsForAthletes, sendPushDetailed, persistNotifications } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -167,6 +167,24 @@ export async function POST(request: Request) {
       if (coachIds.length > 0) {
         const title = '🛒 הזמנה חדשה בחנות';
         const body = `${athlete?.name || 'ספורטאי/ת'}: ${lineItems.length} פריטים · ${total} ₪`;
+        // Send first, persist second — the badge count inside sendPushDetailed
+        // adds +1 for "the notification being delivered right now" on the
+        // assumption its row isn't in the DB yet, so persisting first made this
+        // row match that query too and bumped every coach's app-icon badge by
+        // an extra 1. Sending first also yields the real per-coach delivery
+        // count for the persisted rows instead of an assumed 1.
+        const subs = await subscriptionsForAthletes(coachIds);
+        let byAthlete: Record<string, number> | undefined;
+        if (subs.length > 0) {
+          ({ byAthlete } = await sendPushDetailed(subs, {
+            title,
+            body,
+            url: '/dashboard/store',
+            tag: `store-order-${order.id}`,
+          }));
+        } else {
+          byAthlete = {};
+        }
         await persistNotifications(coachIds.map((coachId) => ({
           athleteId: coachId,
           kind: 'store_order',
@@ -174,16 +192,7 @@ export async function POST(request: Request) {
           title,
           body,
           url: '/dashboard/store',
-        })));
-        const subs = await subscriptionsForAthletes(coachIds);
-        if (subs.length > 0) {
-          await sendPushToSubscriptions(subs, {
-            title,
-            body,
-            url: '/dashboard/store',
-            tag: `store-order-${order.id}`,
-          });
-        }
+        })), byAthlete);
       }
     } catch {
       // best-effort — never let a push failure affect order creation

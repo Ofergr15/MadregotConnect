@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushToSubscriptions, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications } from '@/lib/push';
+import { sendPushToSubscriptions, sendPushDetailed, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications } from '@/lib/push';
 import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
 import { israelNow, getPlanWeekStart, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
@@ -123,7 +123,7 @@ async function run(request: Request) {
         const body = `מחר, יום ${dayName}, אימון קבוצתי — נתראה!`;
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
         const subs = await resolveAudience('all', null);
-        const sent = await sendPushToSubscriptions(subs, {
+        const { sent, byAthlete } = await sendPushDetailed(subs, {
           title, body, url, tag,
           category: 'workouts',
           actions: [
@@ -137,7 +137,7 @@ async function run(request: Request) {
         // a parseable url — GET /api/notifications/inbox excludes #ledger:
         // rows, so without this the inbox's RsvpInlineButtons could never
         // reach a real training_before item no matter how many reminders fired.
-        await persistNotifications(subs.map((s) => ({ athleteId: s.athlete_id, kind: 'training_before', title, body, url })));
+        await persistNotifications(subs.map((s) => ({ athleteId: s.athlete_id, kind: 'training_before', title, body, url })), byAthlete);
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
       }
@@ -168,7 +168,7 @@ async function run(request: Request) {
           ? `${rsvpPhrase} לאימון יום ${dayName} — ומה איתך?`
           : `עדכנו אותנו אם אתם מגיעים לאימון יום ${dayName}`;
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
-        const sent = await sendPushToSubscriptions(subs, {
+        const { sent, byAthlete } = await sendPushDetailed(subs, {
           title, body, url, tag,
           category: 'workouts',
           actions: [
@@ -177,7 +177,7 @@ async function run(request: Request) {
           ],
           rsvp: { weekStart: teamDayWeekStart, day: teamDay },
         });
-        await persistNotifications(nonResponders.map((athleteId) => ({ athleteId, kind: 'training_before', title, body, url })));
+        await persistNotifications(nonResponders.map((athleteId) => ({ athleteId, kind: 'training_before', title, body, url })), byAthlete);
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
       }

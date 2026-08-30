@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing } from 'lucide-react';
-import { useApi } from '@/lib/api';
+import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing, Send, RefreshCw } from 'lucide-react';
+import { useApi, apiHeaders } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Switch } from '@/components/ui';
-import { subscribeToPush } from '@/lib/pwa';
+import { subscribeToPush, ensurePushSubscription } from '@/lib/pwa';
 import { logClient } from '@/lib/client-log';
 
 type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
@@ -81,6 +81,62 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
     }
   };
 
+  // Re-register this device with the push service and the server. Offered even
+  // when permission is already 'granted', because that's exactly the state that
+  // used to be unrecoverable: iOS can drop the subscription while permission
+  // stays granted, and every path here bailed out the moment it saw 'granted'.
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<string | null>(null);
+  const refreshSub = async () => {
+    setRefreshing(true);
+    setRefreshResult(null);
+    try {
+      const result = await ensurePushSubscription(athleteId);
+      logClient('push-refresh-manual', { ...result });
+      setRefreshResult(
+        result.ok
+          ? (result.action === 'resubscribed' ? 'נרשם מחדש — נסו שליחת בדיקה' : 'המנוי עודכן')
+          : `לא הצליח: ${result.error || 'unknown'}`,
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Send a real push to this athlete's own devices and report the count. Two
+  // taps to answer "are my notifications actually working?" — previously
+  // unanswerable from the device, since the in-app history showed every
+  // notification as delivered regardless of what the phone received.
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const sendTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/push/test', {
+        method: 'POST',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ athleteId }),
+      });
+      if (!res.ok) {
+        setTestResult(`שגיאת שרת (${res.status})`);
+        return;
+      }
+      const { sent, total } = (await res.json()) as { sent: number; total: number };
+      setTestResult(
+        total === 0
+          ? 'אין מנוי פוש במכשיר — נסו "רענון מנוי פוש"'
+          : sent === 0
+            ? `נשלחו 0 מתוך ${total} — נסו "רענון מנוי פוש"`
+            : `נשלחו ${sent} מתוך ${total} — אמורה להגיע התראה`,
+      );
+    } catch (err) {
+      setTestResult(`הבקשה נכשלה: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const toggle = async (key: Category) => {
     if (!prefs) return;
     const next = { ...prefs, [key]: !prefs[key] };
@@ -135,6 +191,27 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
           />
         </InsetSection>
       )}
+      {/* Always available — a granted permission is no proof of a live
+          subscription, so these two rows are the only self-service way to tell
+          a working device from a silently dead one. */}
+      <InsetSection header="בדיקת התראות">
+        <InsetRow
+          icon={Send}
+          iconBg="bg-green-600"
+          label={testing ? 'שולח...' : 'שליחת התראת בדיקה'}
+          sublabel={testResult || 'שולח התראה אמיתית למכשירים שלך'}
+          onClick={testing ? undefined : sendTest}
+        />
+        {permission === 'granted' && (
+          <InsetRow
+            icon={RefreshCw}
+            iconBg="bg-sky-600"
+            label={refreshing ? 'מרענן...' : 'רענון מנוי פוש'}
+            sublabel={refreshResult || 'אם לא מגיעות התראות — התחילו מכאן'}
+            onClick={refreshing ? undefined : refreshSub}
+          />
+        )}
+      </InsetSection>
       <InsetSection header="התראות">
         {ROWS.map(({ key, label, icon, bg }) => {
           const on = prefs[key];
