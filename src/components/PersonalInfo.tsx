@@ -31,11 +31,9 @@ type EditField = 'name' | 'birthDate' | 'gender' | 'shoeSize' | 'shirtSize' | 'p
 // collected for Academy registrants (academy_intake JSON + a promoted phone
 // column) but had no self-service path for regular club members — same
 // fields, same InsetSection + drill-in-Sheet pattern as everything else here.
-// Saves via PUT /api/athletes/me, which takes the athleteId from the request
-// body and does not verify it — "owner-only" describes what this component
-// sends, not what the route enforces. /api/athletes/notification-prefs used to
-// share that model and no longer does (it now gates on resolveVerifiedCaller +
-// mayActFor); this route is still on the batch-6 auth-sweep list.
+// Saves via PUT /api/athletes/me, which gates the `id` it is given on
+// requireCallerForAthlete (self-or-staff, resolved from the verified session)
+// — so staff can edit a member here too, not just the athlete themself.
 export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const t = useTranslations('settings');
   const [initial, setInitial] = useState<PersonalInfoData | null>(null);

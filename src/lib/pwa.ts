@@ -1,3 +1,5 @@
+import { apiHeaders } from '@/lib/api';
+
 /** True when running as the installed home-screen app, not a regular browser tab. */
 export function isStandalone(): boolean {
   return (
@@ -51,8 +53,13 @@ async function saveSubscription(
   replacesEndpoint?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch('/api/push/subscribe', {
+    // apiHeaders carries the bearer token the route now requires — it gates the
+    // athleteId on the verified session, so a subscription posted without
+    // credentials 401s and this device silently stops receiving anything. That
+    // failure is visible: the `save_failed_401` below is surfaced on the device
+    // by NotificationPrefs rather than swallowed.
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await apiHeaders(true),
     body: JSON.stringify({
       athleteId,
       subscription: sub.toJSON(),

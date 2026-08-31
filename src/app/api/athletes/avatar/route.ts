@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
 // Upload a manual profile photo → avatars bucket → save on the athlete.
+//
+// Self-or-staff on the `athleteId` in the form. The upload path is
+// `${athleteId}.${ext}` with `upsert: true` and the avatar_url lands on that
+// athlete's row, so an unchecked athleteId meant anyone could replace any
+// club member's profile photo with any image — visible to the whole club in the
+// feed, leaderboards and member list, with nothing to show who did it.
 export async function POST(request: Request) {
   try {
     const form = await request.formData();
@@ -16,6 +23,9 @@ export async function POST(request: Request) {
     if (!file.type.startsWith('image/')) {
       return NextResponse.json({ error: 'file must be an image' }, { status: 400 });
     }
+
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
 
     const supabase = createServerClient();
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();

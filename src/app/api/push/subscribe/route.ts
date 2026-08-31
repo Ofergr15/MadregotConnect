@@ -1,15 +1,26 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
 // Store (or refresh) a device's push subscription for an athlete.
+//
+// Self-or-staff on `athleteId`. This one mattered more than it looks: the
+// athleteId was taken from the request body and never checked, so a single
+// POST could register YOUR device against someone else's id — and from then on
+// their notifications, including the coach's one-on-one replies, would be
+// delivered to your phone. Nothing in the app would have shown either of you
+// that it had happened.
 export async function POST(request: Request) {
   try {
     const { athleteId, subscription, userAgent, replacesEndpoint } = await request.json();
     if (!athleteId || !subscription?.endpoint || !subscription?.keys) {
       return NextResponse.json({ error: 'athleteId and subscription required' }, { status: 400 });
     }
+
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
 
     const supabase = createServerClient();
     // Upsert on endpoint (unique) so re-subscribing the same device updates keys

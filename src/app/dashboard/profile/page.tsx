@@ -296,7 +296,9 @@ function ProfileContent() {
     try {
       const res = await fetch('/api/athletes/follow', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        // The route checks that the caller IS followerId, from the verified
+        // session — so this needs the bearer token, not just a content type.
+        headers: await apiHeaders(true),
         body: JSON.stringify({ followerId: athleteId, followeeId }),
       });
       if (res.ok) {
@@ -339,7 +341,13 @@ function ProfileContent() {
       const form = new FormData();
       form.append('file', file);
       form.append('athleteId', athleteId);
-      const res = await fetch('/api/athletes/avatar', { method: 'POST', body: form });
+      // apiHeaders(false) on purpose: no Content-Type, so fetch sets the
+      // multipart boundary itself. The route gates athleteId on the session.
+      const res = await fetch('/api/athletes/avatar', {
+        method: 'POST',
+        headers: await apiHeaders(false),
+        body: form,
+      });
       const data = await res.json();
       if (res.ok && data.avatarUrl) setAvatarUrl(data.avatarUrl);
     } catch { /* ignore — keep existing photo */ }
@@ -816,7 +824,11 @@ function ProfileContent() {
                         }
                         const connectRes = await fetch('/api/athletes/connect', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          // This is the token-less update path on an already-
+                          // active row, which now needs the session: it writes
+                          // garmin_auth, and the route can't otherwise tell this
+                          // athlete from anyone naming their email address.
+                          headers: await apiHeaders(true),
                           body: JSON.stringify({ garminAuth: authData.auth, name: athleteName, email: athleteEmail }),
                         });
                         if (connectRes.ok) {

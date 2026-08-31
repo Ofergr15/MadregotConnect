@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Search, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useApi } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { EmptyState, SkeletonList, Button } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { cn } from '@/lib/utils';
@@ -53,7 +53,8 @@ export function MemberDiscovery({ viewerId }: { viewerId: string }) {
     try {
       const res = await fetch('/api/athletes/follow', {
         method: nextFollowing ? 'POST' : 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        // The route checks the caller IS followerId, from the verified session.
+        headers: await apiHeaders(true),
         body: JSON.stringify({ followerId: viewerId, followeeId: athlete.id }),
       });
       if (!res.ok) throw new Error('failed');

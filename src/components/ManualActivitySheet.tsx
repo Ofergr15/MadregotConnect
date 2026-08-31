@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
 import { Sheet } from '@/components/ui';
+import { apiHeaders } from '@/lib/api';
 
 /**
  * Manual activity entry — the fallback for athletes with neither Strava nor
@@ -81,7 +82,9 @@ export function ManualActivitySheet({
     try {
       const res = await fetch('/api/athletes/activities/manual', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // The route gates athleteId on the verified session now — a manual run
+        // writes into someone's real training history, so it needs credentials.
+        headers: await apiHeaders(true),
         body: JSON.stringify({
           athleteId,
           date,

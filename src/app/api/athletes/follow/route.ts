@@ -1,8 +1,23 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The caller has to BE the follower (or be staff acting for them).
+ *
+ * `followerId` is the actor in both directions, and neither handler used to
+ * check it: a forged POST made any athlete appear to follow any other — and
+ * fired a "X started following you 👋" push in their name — while a forged
+ * DELETE quietly severed a follow neither party asked to end. Following is what
+ * the feed is built on, so both directions are worth gating.
+ */
+async function gateAsFollower(request: Request, followerId: string): Promise<Response | null> {
+  const { denied } = await requireCallerForAthlete(request, followerId);
+  return denied;
+}
 
 // POST /api/athletes/follow { followerId, followeeId }
 // Asymmetric, instant follow (no approval — same trust model as clicking
@@ -21,6 +36,9 @@ export async function POST(request: Request) {
     if (followerId === followeeId) {
       return NextResponse.json({ error: 'Cannot follow yourself' }, { status: 400 });
     }
+
+    const denied = await gateAsFollower(request, followerId);
+    if (denied) return denied;
 
     const supabase = createServerClient();
     // ignoreDuplicates + select(): a genuinely new follow returns the inserted
@@ -69,6 +87,9 @@ export async function DELETE(request: Request) {
     if (!followerId || !followeeId) {
       return NextResponse.json({ error: 'followerId and followeeId are required' }, { status: 400 });
     }
+
+    const denied = await gateAsFollower(request, followerId);
+    if (denied) return denied;
 
     const supabase = createServerClient();
     const { error } = await supabase

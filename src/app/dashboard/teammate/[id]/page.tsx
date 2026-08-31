@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { AlertCircle, UserCheck, UserPlus, Users } from 'lucide-react';
-import { useApi } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { Button, Card, EmptyState, LoadingBlock, BigStat, Skeleton, BackNav } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 
@@ -78,7 +78,9 @@ export default function TeammateProfilePage() {
     try {
       const res = await fetch('/api/athletes/follow', {
         method: connections.isFollowing ? 'DELETE' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // Both directions check that the caller IS followerId, from the
+        // verified session — hence the bearer token, not just a content type.
+        headers: await apiHeaders(true),
         body: JSON.stringify({ followerId: viewerId, followeeId: id }),
       });
       if (res.ok) {

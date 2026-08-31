@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { checkShoeAlert } from '@/lib/shoes';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,14 @@ export const dynamic = 'force-dynamic';
  *
  * Body: { athleteId, date: 'YYYY-MM-DD', time?: 'HH:MM', distanceKm: number,
  *         durationSeconds: number, activityName?: string, activityType?: string }
+ *
+ * Self-or-staff on `athleteId` (staff included on purpose — a coach logging a
+ * run for an athlete who can't is a real support case). Ungated, this wrote a
+ * run into anyone's training history: it lands in the club feed under their
+ * name, counts toward their weekly volume, leaderboards and streaks, and adds
+ * mileage to whatever shoe they have active — possibly firing that shoe's
+ * worn-out alert. Nothing marks a manual row as suspect, so there'd be no way
+ * to tell an invented run from a real one after the fact.
  */
 
 const ALLOWED_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running'];
@@ -47,6 +56,9 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(duration) || duration <= 0) {
       return NextResponse.json({ error: 'durationSeconds must be a positive number' }, { status: 400 });
     }
+
+    const { denied } = await requireCallerForAthlete(req, athleteId);
+    if (denied) return denied;
 
     const timeStr = /^\d{2}:\d{2}$/.test(time || '') ? time : '07:00';
     // No timezone suffix: athlete_activities.start_time holds "UTC-shaped"

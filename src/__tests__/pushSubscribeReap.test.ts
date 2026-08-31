@@ -18,6 +18,21 @@ type Filter = { fn: string; args: unknown[] };
 let ops: Array<{ table: string; op: string; filters: Filter[] }>;
 let upsertError: { message: string } | null;
 
+// The route gates athleteId on the verified session now — forging it used to
+// register YOUR device against someone else's id, from which point their
+// notifications arrived on your phone. Resolving a real session needs a real
+// Supabase JWT, so the decision is stubbed here (it has its own unit tests in
+// selfOrStaff.test.ts) and what this file pins is that the gate is consulted at
+// all, and consulted BEFORE anything touches the table.
+let gateDenied: Response | null;
+let gatedFor: Array<string | null | undefined>;
+vi.mock('@/lib/auth/self-or-staff', () => ({
+  requireCallerForAthlete: async (_req: Request, target: string | null | undefined) => {
+    gatedFor.push(target);
+    return { denied: gateDenied, caller: { email: 'a1@test', isSuperUser: false, isStaff: false, athleteId: 'a1' } };
+  },
+}));
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
     from(table: string) {
@@ -56,7 +71,7 @@ const post = (payload: unknown) =>
 
 const reap = () => ops.find((o) => o.op === 'delete');
 
-beforeEach(() => { ops = []; upsertError = null; });
+beforeEach(() => { ops = []; upsertError = null; gateDenied = null; gatedFor = []; });
 
 describe('POST /api/push/subscribe — retiring a superseded endpoint', () => {
   it('deletes exactly the named endpoint, scoped to this athlete', async () => {
@@ -112,5 +127,38 @@ describe('POST /api/push/subscribe — retiring a superseded endpoint', () => {
     const res = await post({ athleteId: 'a1', subscription: { endpoint: 'x' } }); // no keys
     expect(res.status).toBe(400);
     expect(ops).toHaveLength(0);
+  });
+});
+
+describe('POST /api/push/subscribe — who may register a device', () => {
+  it('checks the caller against the athleteId in the body', async () => {
+    await post(body());
+    expect(gatedFor).toEqual(['a1']);
+  });
+
+  it('stores nothing at all when the gate denies', async () => {
+    // The whole point: a forged athleteId must not reach the upsert, or the
+    // device is registered against someone else's notifications regardless of
+    // what status code comes back.
+    gateDenied = new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 });
+    const res = await post(body());
+    expect(res.status).toBe(403);
+    expect(ops).toHaveLength(0);
+  });
+
+  it('returns the auth layer\'s own response rather than inventing one', async () => {
+    // A missing token has to read as 401, not 403 or 500 — the client
+    // (saveSubscription) surfaces `save_failed_401` on the device, which is how
+    // a credential problem becomes visible instead of silently going quiet.
+    gateDenied = new Response(JSON.stringify({ error: 'Missing bearer token' }), { status: 401 });
+    expect((await post(body())).status).toBe(401);
+  });
+
+  it('validates the payload before the gate — a 400 stays a 400', async () => {
+    // Cheap local checks first, so a malformed body doesn't cost a session
+    // lookup and doesn't come back as a confusing 401.
+    gateDenied = new Response(null, { status: 401 });
+    expect((await post({ subscription: null })).status).toBe(400);
+    expect(gatedFor).toHaveLength(0);
   });
 });

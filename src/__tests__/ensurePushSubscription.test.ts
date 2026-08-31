@@ -1,6 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { ensurePushSubscription, subscribeToPush } from '@/lib/pwa';
 
+// apiHeaders reaches for localStorage and a real Supabase client for the session
+// token, neither of which exists here. Stubbed so the POST still carries a
+// bearer header — /api/push/subscribe gates athleteId on the verified session
+// now, so a credential-less save is a 401 and this device goes silent.
+vi.mock('@/lib/api', () => ({
+  apiHeaders: vi.fn(async () => ({ 'Content-Type': 'application/json', Authorization: 'Bearer test-token' })),
+}));
+
 // The client half of the same failure: iOS can drop a device's PushManager
 // subscription while Notification.permission stays 'granted', and every
 // existing code path bailed out the moment it saw 'granted' — so the one state
@@ -118,6 +126,15 @@ describe('ensurePushSubscription', () => {
     const result = await ensurePushSubscription('a1');
     expect(result.ok).toBe(false);
     expect(result.error).toContain('AbortError');
+  });
+
+  it('sends the session bearer token — without it the save 401s and the device goes silent', async () => {
+    // The route now gates athleteId on the verified session. This POST used to
+    // send Content-Type and nothing else, which is exactly why the route could
+    // only "know" who was subscribing by trusting the id in the body.
+    setup({ existing: liveSubscription('https://web.push.apple.com/already-here') });
+    await ensurePushSubscription('a1');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer test-token');
   });
 
   it('sends no replacesEndpoint — it never discards anything, so there is nothing to retire', async () => {
