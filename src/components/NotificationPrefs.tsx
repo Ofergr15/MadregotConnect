@@ -174,7 +174,10 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
     try {
       const res = await fetch('/api/athletes/notification-prefs', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-action-id': actionId },
+        // apiHeaders supplies the bearer token the route now requires. This PUT
+        // used to send no credentials at all, which is precisely why the route
+        // could only "enforce" ownership by trusting the athleteId in the body.
+        headers: { ...(await apiHeaders(true)), 'x-action-id': actionId },
         body: JSON.stringify({ athleteId, category: key, enabled: next[key] }),
       });
       if (!res.ok) {

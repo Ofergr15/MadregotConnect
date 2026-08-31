@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMigrationMissing, mergeWithDefaults, DEFAULTS, CATEGORIES } from '@/lib/notifications/prefs';
+import { isMigrationMissing, mergeWithDefaults, DEFAULTS, CATEGORIES, KIND_CATEGORY, isKindMuted, isLedgerRow } from '@/lib/notifications/prefs';
 
 describe('isMigrationMissing', () => {
   it('is false for null (no error)', () => {
@@ -58,5 +58,97 @@ describe('mergeWithDefaults', () => {
     const result = mergeWithDefaults({ news: true });
     expect(result.news).toBe(true);
     expect(Object.keys(result)).toEqual(Object.keys(DEFAULTS));
+  });
+});
+
+describe('KIND_CATEGORY', () => {
+  it('every mapped category is a real preference category', () => {
+    // A typo here would silently make a kind unmutable rather than fail loudly,
+    // since isKindMuted only ever reads prefs[category].
+    for (const [kind, category] of Object.entries(KIND_CATEGORY)) {
+      expect(CATEGORIES, `${kind} → ${category}`).toContain(category);
+    }
+  });
+
+  it('covers every kind that exists in production', () => {
+    // Snapshot of `SELECT DISTINCT kind FROM scheduled_notifications` taken
+    // 2026-08-31 (875 rows), minus the two deliberate omissions below. A kind
+    // added later without a mapping stays in the badge — this test is what says
+    // whether that was a decision or an oversight.
+    const inProduction = [
+      'kudos_activity', 'badge', 'training_before', 'activity_sync_editor',
+      'workout_detected', 'like', 'post_workout_prompt', 'custom', 'comment',
+      'survey', 'follow', 'kudos',
+    ];
+    for (const kind of inProduction) {
+      expect(KIND_CATEGORY[kind], `unmapped kind: ${kind}`).toBeDefined();
+    }
+  });
+
+  it('deliberately does NOT map the kinds whose push ignores preferences', () => {
+    // Badge and push have to agree: these two send with no `category`, so no
+    // toggle silences them and the badge must keep counting them.
+    expect(KIND_CATEGORY['approval']).toBeUndefined();
+    expect(KIND_CATEGORY['store_order']).toBeUndefined();
+  });
+
+  it('the ledger bookkeeping kind is not mapped — it is excluded by url, not category', () => {
+    expect(KIND_CATEGORY['post_workout_prompt_ledger']).toBeUndefined();
+  });
+});
+
+describe('isKindMuted', () => {
+  it('is false when the athlete has no saved prefs at all', () => {
+    expect(isKindMuted('kudos_activity', null)).toBe(false);
+    expect(isKindMuted('kudos_activity', undefined)).toBe(false);
+    expect(isKindMuted('kudos_activity', {})).toBe(false);
+  });
+
+  it('mutes a kind whose category is explicitly off', () => {
+    expect(isKindMuted('kudos_activity', { teammates: false })).toBe(true);
+    expect(isKindMuted('badge', { achievements: false })).toBe(true);
+  });
+
+  it('an explicit true is not muted', () => {
+    expect(isKindMuted('kudos_activity', { teammates: true })).toBe(false);
+  });
+
+  it('muting one category never mutes a kind from another', () => {
+    expect(isKindMuted('kudos_activity', { workouts: false, news: false })).toBe(false);
+  });
+
+  it('an unmapped or unknown kind is never muted', () => {
+    expect(isKindMuted('approval', { teammates: false, news: false })).toBe(false);
+    expect(isKindMuted('some_kind_invented_next_year', { teammates: false })).toBe(false);
+  });
+
+  it('all six teammate kinds are muted by the one אימוני חברי הקבוצה toggle', () => {
+    // The specific question this whole change came from: turning that row off
+    // has to silence the run announcements, the kudos, and the feed pings.
+    for (const kind of ['kudos_activity', 'kudos', 'like', 'comment', 'mention', 'follow']) {
+      expect(isKindMuted(kind, { teammates: false }), kind).toBe(true);
+    }
+  });
+});
+
+describe('isLedgerRow', () => {
+  it('recognises the #ledger: sentinel prefix', () => {
+    expect(isLedgerRow('#ledger:postWorkoutPrompt:a1:2026-08-02')).toBe(true);
+    expect(isLedgerRow('#ledger:')).toBe(true);
+  });
+
+  it('a real notification url is not a ledger row', () => {
+    expect(isLedgerRow('/dashboard/feed?activity=abc')).toBe(false);
+    expect(isLedgerRow('/dashboard?rsvp=2026-01-05:3')).toBe(false);
+  });
+
+  it('handles a null/undefined/empty url without throwing', () => {
+    expect(isLedgerRow(null)).toBe(false);
+    expect(isLedgerRow(undefined)).toBe(false);
+    expect(isLedgerRow('')).toBe(false);
+  });
+
+  it('only matches at the start — "#ledger:" elsewhere in the url is a real url', () => {
+    expect(isLedgerRow('/dashboard/feed?note=#ledger:x')).toBe(false);
   });
 });

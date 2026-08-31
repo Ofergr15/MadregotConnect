@@ -1,14 +1,38 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { CATEGORIES, DEFAULTS, isMigrationMissing, mergeWithDefaults, type Category } from '@/lib/notifications/prefs';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Self-or-staff, resolved from the verified session — the same gate
+ * GET /api/notifications/inbox uses.
+ *
+ * Both handlers took the target athleteId straight from the request and trusted
+ * it ("the athleteId is the caller's own id (stored in localStorage)" — which
+ * describes what the app's own UI does, not what the endpoint enforced). Any
+ * signed-in athlete could therefore read anyone's preferences, and, worse,
+ * silence anyone's notifications: a single PUT with someone else's id and
+ * `enabled: false` mutes their coach messages, and nothing in the app would
+ * show them why they went quiet.
+ */
+async function gate(request: Request, athleteId: string): Promise<Response | null> {
+  const { denied, caller } = await resolveVerifiedCaller(request);
+  if (denied) return denied;
+  if (!mayActFor(caller, athleteId)) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+  return null;
+}
 
 // GET /api/athletes/notification-prefs?athleteId=… → { prefs }
 export async function GET(request: Request) {
   try {
     const athleteId = new URL(request.url).searchParams.get('athleteId');
     if (!athleteId) return NextResponse.json({ prefs: DEFAULTS });
+    const denied = await gate(request, athleteId);
+    if (denied) return denied;
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('athletes').select('notification_prefs').eq('id', athleteId).maybeSingle();
@@ -24,9 +48,8 @@ export async function GET(request: Request) {
 }
 
 // PUT /api/athletes/notification-prefs { athleteId, category, enabled }
-// Owner-only: the athleteId is the caller's own id (stored in localStorage).
-// Merges the single toggle into the saved map. Degrades gracefully (501) if the
-// column isn't migrated yet.
+// Owner-or-staff, enforced by `gate` above. Merges the single toggle into the
+// saved map. Degrades gracefully (501) if the column isn't migrated yet.
 export async function PUT(request: Request) {
   try {
     const { athleteId, category, enabled } = await request.json();
@@ -36,6 +59,8 @@ export async function PUT(request: Request) {
     if (!athleteId || !CATEGORIES.includes(category)) {
       return NextResponse.json({ error: 'athleteId and a valid category required' }, { status: 400 });
     }
+    const denied = await gate(request, athleteId);
+    if (denied) return denied;
     const supabase = createServerClient();
     // Read current, merge, write back (small JSON; no concurrent-writer concern per user).
     const cur = await supabase.from('athletes').select('notification_prefs').eq('id', athleteId).maybeSingle();

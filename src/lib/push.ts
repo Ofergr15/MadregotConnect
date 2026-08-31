@@ -2,6 +2,7 @@ import webpush from 'web-push';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { kudosScope, rsvpScope, signActionToken } from '@/lib/auth/action-token';
+import { isKindMuted, isLedgerRow } from '@/lib/notifications/prefs';
 
 /**
  * Given the maintenance allowlist (lowercased emails) and the athlete rows for
@@ -185,6 +186,54 @@ export function matchesAudience(
   );
 }
 
+/**
+ * Does this row count toward the app-icon badge for this athlete? Three rules,
+ * in one place because the badge and the inbox history must agree — they
+ * didn't, and every way they disagreed made the badge too high:
+ *
+ *  1. Ledger sentinels are bookkeeping, not messages (the inbox already hid
+ *     them, so the badge counted rows the athlete could never open or clear).
+ *  2. It has to target them — the pre-existing audience rule.
+ *  3. A muted category doesn't count. Turning a toggle off stopped the push
+ *     but not the badge, so the number climbed for notifications that were
+ *     deliberately never delivered.
+ *
+ * Pure, so all three rules are testable without a DB.
+ */
+export function countsTowardBadge(
+  notif: { kind: string; url?: string | null; audience_type: string; audience_id: string | null; last_sent_at: string },
+  athlete: { group_id: string | null },
+  athleteId: string,
+  since: string,
+  prefs?: Record<string, boolean> | null,
+): boolean {
+  if (isLedgerRow(notif.url)) return false;
+  if (!matchesAudience(notif, athlete, athleteId, since)) return false;
+  return !isKindMuted(notif.kind, prefs);
+}
+
+/**
+ * Each athlete's saved notification_prefs, for the badge counters. Isolated
+ * into its own query (rather than widening the callers' athlete selects) so an
+ * unmigrated column can only cost the mute rule — it can't take the whole
+ * count down with it. Fails OPEN: no prefs = nothing muted = count everything,
+ * matching filterByCategory on the send path.
+ */
+async function prefsByAthlete(athleteIds: string[]): Promise<Map<string, Record<string, boolean>>> {
+  const byId = new Map<string, Record<string, boolean>>();
+  if (athleteIds.length === 0) return byId;
+  try {
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from('athletes').select('id, notification_prefs').in('id', athleteIds);
+    if (error) return byId;
+    for (const a of (data || []) as Array<{ id: string; notification_prefs?: Record<string, boolean> | null }>) {
+      if (a.notification_prefs) byId.set(a.id, a.notification_prefs);
+    }
+  } catch { /* fail open */ }
+  return byId;
+}
+
 async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   if (athleteIds.length === 0) return counts;
@@ -195,6 +244,7 @@ async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string,
     .select('id, group_id, last_seen_at')
     .in('id', athleteIds);
   const athleteById = new Map((athletesData || []).map((a: { id: string; group_id: string | null; last_seen_at: string | null }) => [a.id, a]));
+  const prefsById = await prefsByAthlete(athleteIds);
 
   const earliestSince = (athletesData || []).reduce(
     (min: string, a: { last_seen_at: string | null }) => {
@@ -205,7 +255,7 @@ async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string,
   );
   const { data: recentNotifs } = await supabase
     .from('scheduled_notifications')
-    .select('audience_type, audience_id, last_sent_at')
+    .select('kind, url, audience_type, audience_id, last_sent_at')
     .eq('status', 'sent')
     .gt('last_sent_at', earliestSince);
 
@@ -213,11 +263,14 @@ async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string,
     const a = athleteById.get(id);
     if (!a) { counts[id] = 1; continue; }
     const since = a.last_seen_at || '1970-01-01';
+    const prefs = prefsById.get(id);
     let count = 0;
-    for (const n of (recentNotifs || []) as Array<{ audience_type: string; audience_id: string | null; last_sent_at: string }>) {
-      if (matchesAudience(n, a, id, since)) count++;
+    for (const n of (recentNotifs || []) as Array<{ kind: string; url: string | null; audience_type: string; audience_id: string | null; last_sent_at: string }>) {
+      if (countsTowardBadge(n, a, id, since, prefs)) count++;
     }
-    // +1 for the notification being delivered right now (send path).
+    // +1 for the notification being delivered right now (send path). Only
+    // reached for subscriptions that survived filterByCategory, so this
+    // notification is by definition one the athlete hasn't muted.
     counts[id] = count + 1;
   }
   return counts;
@@ -242,13 +295,21 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
     a.group_id ? `and(audience_type.eq.group,audience_id.eq.${a.group_id})` : null,
     `and(audience_type.eq.athlete,audience_id.eq.${athleteId})`,
   ].filter(Boolean).join(',');
-  const { count } = await supabase
+  // Was a head-only `count: 'exact'`, which is why this drifted from the inbox:
+  // a bare count cannot exclude ledger rows or a muted category, because it
+  // never sees kind or url. Fetching the rows costs one small result set (only
+  // this athlete's, only since their last open) and lets the same
+  // countsTowardBadge rule decide here as in computeUnreadCounts.
+  const { data: rows } = await supabase
     .from('scheduled_notifications')
-    .select('id', { count: 'exact', head: true })
+    .select('kind, url, audience_type, audience_id, last_sent_at')
     .eq('status', 'sent')
     .gt('last_sent_at', since)
     .or(orClause);
-  return count || 0;
+  const prefs = (await prefsByAthlete([athleteId])).get(athleteId);
+  return ((rows || []) as Array<{ kind: string; url: string | null; audience_type: string; audience_id: string | null; last_sent_at: string }>)
+    .filter((n) => countsTowardBadge(n, a, athleteId, since, prefs))
+    .length;
 }
 
 /**

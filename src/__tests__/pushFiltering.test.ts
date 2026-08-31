@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeMutedAthleteIds, computeMaintenanceAllowedIds, matchesAudience } from '@/lib/push';
+import { computeMutedAthleteIds, computeMaintenanceAllowedIds, matchesAudience, countsTowardBadge } from '@/lib/push';
 
 describe('computeMutedAthleteIds', () => {
   it('an athlete with no notification_prefs object at all is NOT muted (default opted-in)', () => {
@@ -96,5 +96,69 @@ describe('matchesAudience', () => {
 
   it('an unrecognized audience_type never matches', () => {
     expect(matchesAudience({ audience_type: 'weird', audience_id: 'a1', last_sent_at: after }, athlete, 'a1', since)).toBe(false);
+  });
+});
+
+describe('countsTowardBadge', () => {
+  // The app-icon badge and the inbox list are two views of the same rows, and
+  // every way they disagreed made the badge read too high. Each case below is
+  // one of those disagreements.
+  const athlete = { group_id: 'g1' };
+  const SINCE = '2026-08-01T00:00:00Z';
+  const row = (over: Partial<{ kind: string; url: string | null; audience_type: string; audience_id: string | null; last_sent_at: string }> = {}) => ({
+    kind: 'kudos_activity',
+    url: '/dashboard/feed?activity=1',
+    audience_type: 'athlete',
+    audience_id: 'a1',
+    last_sent_at: '2026-08-02T00:00:00Z',
+    ...over,
+  });
+
+  it('counts an ordinary notification targeting the athlete', () => {
+    expect(countsTowardBadge(row(), athlete, 'a1', SINCE)).toBe(true);
+  });
+
+  it('never counts a #ledger: idempotency row, however well it matches', () => {
+    // 77 of these existed in production, hidden from the inbox but counted by
+    // the badge — unread notifications the athlete could not open or clear.
+    expect(countsTowardBadge(row({ url: '#ledger:postWorkoutPrompt:a1:2026-08-02' }), athlete, 'a1', SINCE)).toBe(false);
+  });
+
+  it('never counts a ledger row broadcast to everyone', () => {
+    // The worst shape: cron/tick writes its training_before sentinel with
+    // audience_type 'all', so one row inflated EVERY athlete's badge.
+    const led = row({ kind: 'training_before', url: '#ledger:trainingBefore:2026-08-02', audience_type: 'all', audience_id: null });
+    expect(countsTowardBadge(led, athlete, 'a1', SINCE)).toBe(false);
+    expect(countsTowardBadge(led, { group_id: null }, 'someone-else', SINCE)).toBe(false);
+  });
+
+  it('does not count a notification whose category the athlete muted', () => {
+    expect(countsTowardBadge(row(), athlete, 'a1', SINCE, { teammates: false })).toBe(false);
+  });
+
+  it('still counts it when a DIFFERENT category is muted', () => {
+    expect(countsTowardBadge(row(), athlete, 'a1', SINCE, { news: false, workouts: false })).toBe(true);
+  });
+
+  it('applies the audience rule as before — a muted-category check never overrides it', () => {
+    expect(countsTowardBadge(row({ audience_id: 'other' }), athlete, 'a1', SINCE)).toBe(false);
+    expect(countsTowardBadge(row({ last_sent_at: SINCE }), athlete, 'a1', SINCE)).toBe(false);
+  });
+
+  it('counts a kind with no category mapping even when prefs exist', () => {
+    // `approval` and `store_order` send their push without a category, so no
+    // toggle mutes them; the badge has to agree, or it under-counts instead.
+    expect(countsTowardBadge(row({ kind: 'approval' }), athlete, 'a1', SINCE, { teammates: false, news: false })).toBe(true);
+    expect(countsTowardBadge(row({ kind: 'store_order' }), athlete, 'a1', SINCE, { news: false })).toBe(true);
+  });
+
+  it('counts a group broadcast for a member, and mutes it by category all the same', () => {
+    const g = row({ kind: 'custom', audience_type: 'group', audience_id: 'g1' });
+    expect(countsTowardBadge(g, athlete, 'a1', SINCE)).toBe(true);
+    expect(countsTowardBadge(g, athlete, 'a1', SINCE, { news: false })).toBe(false);
+  });
+
+  it('treats a missing url as an ordinary row, not a ledger row', () => {
+    expect(countsTowardBadge(row({ url: null }), athlete, 'a1', SINCE)).toBe(true);
   });
 });

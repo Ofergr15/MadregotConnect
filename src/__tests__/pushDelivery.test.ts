@@ -232,3 +232,55 @@ describe('persistNotifications — sent_count tells the truth', () => {
     expect(writes.inserted[0].rows.every((r) => r.audience_type === 'athlete')).toBe(true);
   });
 });
+
+describe('app-icon badge — what the athlete actually sees on the home screen', () => {
+  /** The badge number delivered to the first (only) push in this test. */
+  const deliveredBadge = (): number =>
+    JSON.parse(String((sendNotification.mock.calls[0] as unknown[])[1])).badge;
+
+  const notif = (over: Record<string, unknown> = {}) => ({
+    kind: 'kudos_activity',
+    url: '/dashboard/feed?activity=1',
+    audience_type: 'athlete',
+    audience_id: 'a1',
+    status: 'sent',
+    last_sent_at: '2026-08-02T00:00:00Z',
+    ...over,
+  });
+
+  it('counts real unread notifications plus the one being delivered', () => {
+    tables.scheduled_notifications = [notif(), notif()];
+    return sendPushDetailed([sub('s1', 'a1')], { title: 'hi', body: 'x', category: 'teammates' })
+      .then(() => expect(deliveredBadge()).toBe(3));
+  });
+
+  it('does not count #ledger: bookkeeping rows', async () => {
+    // These are invisible in the inbox, so every one of them was a number the
+    // athlete had no way to clear. 26 of the 77 in production were
+    // audience_type 'all', hitting everybody at once — hence both shapes here.
+    tables.scheduled_notifications = [
+      notif(),
+      notif({ kind: 'training_before', url: '#ledger:trainingBefore:2026-08-02', audience_type: 'all', audience_id: null }),
+      notif({ kind: 'post_workout_prompt_ledger', url: '#ledger:postWorkoutPrompt:a1:2026-08-02' }),
+    ];
+    await sendPushDetailed([sub('s1', 'a1')], { title: 'hi', body: 'x', category: 'teammates' });
+    expect(deliveredBadge()).toBe(2); // the one real row + this delivery
+  });
+
+  it('does not count notifications from a category the athlete muted', async () => {
+    // a1 muted teammates, so the two kudos rows below were never delivered to
+    // them — the badge used to climb for them anyway, which is how "I turned
+    // אימוני חברי הקבוצה off" still produced a growing red number.
+    tables.athletes = [{ id: 'a1', email: 'a1@x.test', notification_prefs: { teammates: false }, group_id: null, last_seen_at: null }];
+    tables.scheduled_notifications = [notif(), notif()];
+    // A coach message still gets through — that toggle is on.
+    await sendPushDetailed([sub('s1', 'a1')], { title: 'coach', body: 'x', category: 'coach' });
+    expect(deliveredBadge()).toBe(1);
+  });
+
+  it('an explicitly pinned badge still overrides the computed count', async () => {
+    tables.scheduled_notifications = [notif(), notif()];
+    await sendPushDetailed([sub('s1', 'a1')], { title: 'hi', body: 'x', badge: 7 });
+    expect(deliveredBadge()).toBe(7);
+  });
+});
