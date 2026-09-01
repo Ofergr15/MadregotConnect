@@ -18,13 +18,17 @@ import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation'
 
 export interface NavItem { href: string; tab: string; labelKey: string; icon: React.ComponentType<{ className?: string }>; }
 
+// Named because it's force-added for academy members below as well as being a
+// permission-gated staff tab — one definition so the two can't drift.
+export const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy', labelKey: 'academy', icon: GraduationCap };
+
 export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
   { href: '/dashboard/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
   { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
-  { href: '/dashboard/academy', tab: 'academy', labelKey: 'academy', icon: GraduationCap },
+  ACADEMY_ITEM,
   { href: '/dashboard/groups', tab: 'groups', labelKey: 'groups', icon: Layers },
   { href: '/dashboard/activities', tab: 'activities', labelKey: 'activities', icon: Route },
   { href: '/dashboard/program', tab: 'program', labelKey: 'program', icon: ClipboardList },
@@ -48,6 +52,7 @@ interface TabPermission { role: string; tab: string; enabled: boolean; }
 export function useNavItems() {
   const [isAthlete, setIsAthlete] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isAcademyMember, setIsAcademyMember] = useState(false);
   const [isSuper, setIsSuper] = useState(false);
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
@@ -67,7 +72,10 @@ export function useNavItems() {
       setIsSuper(isSuperUser(e));
       fetch('/api/auth/me', { headers: { 'x-user-email': e } })
         .then(res => (res.ok ? res.json() : null))
-        .then(data => { if (data?.role) setUserRole(data.role); })
+        .then(data => {
+          if (data?.role) setUserRole(data.role);
+          if (data?.isAcademy) setIsAcademyMember(true);
+        })
         .catch(() => {});
     };
     if (email) resolveEmail(email);
@@ -95,6 +103,13 @@ export function useNavItems() {
       if (!items.some(i => i.tab === 'profile')) items.push(PROFILE_ITEM);
     }
     if (isStaffView && !items.some(i => i.tab === 'coach-tools')) items.push(COACH_TOOLS_ITEM);
+    // Academy members reach the academy regardless of role_tab_permissions.
+    // Membership is the `is_academy` flag, not a role — an athlete whose role is
+    // plain `runner` can be in the academy — so no permission row can express
+    // it. Migration 022 denies `academy_user` this tab on purpose, because the
+    // only thing behind it was the coach's admin console; /dashboard/academy now
+    // serves an athlete their own view, so the row is theirs to have.
+    if (isAcademyMember && !items.some(i => i.tab === 'academy')) items.push(ACADEMY_ITEM);
     return items;
   })();
 

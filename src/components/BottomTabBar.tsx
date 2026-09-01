@@ -30,13 +30,17 @@ import { Sheet } from '@/components/ui';
 
 interface NavItem { href: string; tab: string; labelKey: string; icon: any; }
 
+// Named because it's force-added for academy members below as well as being a
+// permission-gated staff tab.
+const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy', labelKey: 'academy', icon: GraduationCap };
+
 const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
   { href: '/dashboard/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
   { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
-  { href: '/dashboard/academy', tab: 'academy', labelKey: 'academy', icon: GraduationCap },
+  ACADEMY_ITEM,
   { href: '/dashboard/groups', tab: 'groups', labelKey: 'groups', icon: Layers },
   { href: '/dashboard/activities', tab: 'activities', labelKey: 'activities', icon: Route },
   { href: '/dashboard/program', tab: 'program', labelKey: 'program', icon: ClipboardList },
@@ -70,6 +74,7 @@ export function BottomTabBar() {
   const t = useTranslations('nav');
   const [isAthlete, setIsAthlete] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isAcademyMember, setIsAcademyMember] = useState(false);
   const [isSuper, setIsSuper] = useState(false);
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
@@ -90,7 +95,10 @@ export function BottomTabBar() {
       setIsSuper(isSuperUser(e));
       fetch('/api/auth/me', { headers: { 'x-user-email': e } })
         .then(res => (res.ok ? res.json() : null))
-        .then(data => { if (data?.role) setUserRole(data.role); })
+        .then(data => {
+          if (data?.role) setUserRole(data.role);
+          if (data?.isAcademy) setIsAcademyMember(true);
+        })
         .catch(() => {});
     };
     if (email) resolveEmail(email);
@@ -121,6 +129,10 @@ export function BottomTabBar() {
     // Coach Tools hub — every staff account gets it, same force-add pattern as
     // `settings` above (not gated by the DB tab-permissions table).
     if (isStaffView && !items.some(i => i.tab === 'coach-tools')) items.push(COACH_TOOLS_ITEM);
+    // Academy members get the academy row whatever their role — membership is
+    // the `is_academy` flag, which no role_tab_permissions row can express. See
+    // the same force-add in useNavItems for the full reasoning.
+    if (isAcademyMember && !items.some(i => i.tab === 'academy')) items.push(ACADEMY_ITEM);
     return items.length ? items : [ALL_NAV_ITEMS[0], PROFILE_ITEM];
   })();
 
