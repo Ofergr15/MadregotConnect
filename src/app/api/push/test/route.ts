@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
-import { subscriptionsForAthletes, sendPushDetailed } from '@/lib/push';
+import { subscriptionsForAthletes, sendPushLocalized } from '@/lib/push';
+import { PUSH_TEST_COPY } from '@/lib/notifications/copy';
 import { createServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -54,16 +55,20 @@ export async function POST(request: Request) {
       (before || []).map((r) => [r.id as string, (r.last_success_at as string | null) ?? '']),
     );
 
-    const { sent } = await sendPushDetailed(subs, {
-      title: 'בדיקת התראות ✅',
-      body: 'ההתראות עובדות! אם קיבלת את זה, הכל מוגדר כמו שצריך.',
+    // Localized like every other push, and worth it here specifically: this
+    // button sits directly under the language row, so it is the one way an
+    // athlete can check that the setting took effect without waiting for a
+    // teammate to go for a run.
+    const { sent } = await sendPushLocalized(subs, (locale) => ({
+      title: PUSH_TEST_COPY[locale].title,
+      body: PUSH_TEST_COPY[locale].body,
       url: '/dashboard/notifications',
       // Fresh tag per send so a second test isn't collapsed into the first —
       // a replaced notification looks like nothing arrived.
       tag: `push-test-${Date.now()}`,
       // A test that a mute could silence would answer the wrong question.
       badge: 0,
-    });
+    }));
 
     // Wait for the devices to report back. A receipt is a full round trip —
     // push service → phone → service worker → our API — so it needs a real

@@ -15,9 +15,21 @@ export function isMigrationMissing(error: { message?: string; code?: string } | 
   return !!error && (/notification_prefs/.test(error.message || '') || error.code === '42703');
 }
 
+/**
+ * What actually sits in `athletes.notification_prefs`: the category booleans,
+ * plus the athlete's notification `language` (see notifications/locale.ts for
+ * why the language is stored here rather than in a column or the UI's locale
+ * cookie). Anything reading a category out of this object must tolerate the
+ * extra key — `computeMutedAthleteIds` and `isKindMuted` both do, since they
+ * only ever look up known category names.
+ */
+export type SavedPrefs = Partial<Record<Category, boolean>> & { language?: string };
+
 // Merge a partial saved map over the all-on defaults so any category the
-// athlete has never touched still reads as enabled.
-export function mergeWithDefaults(saved: Partial<Record<Category, boolean>> | null | undefined): Record<Category, boolean> {
+// athlete has never touched still reads as enabled. `language` passes straight
+// through when set — it has no default here on purpose, so the client can tell
+// "never chose one" apart from "chose Hebrew".
+export function mergeWithDefaults(saved: SavedPrefs | null | undefined): Record<Category, boolean> & { language?: string } {
   return { ...DEFAULTS, ...(saved || {}) };
 }
 

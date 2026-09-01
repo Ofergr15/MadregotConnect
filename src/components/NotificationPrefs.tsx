@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing, Send, RefreshCw } from 'lucide-react';
+import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing, Send, RefreshCw, Globe } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Switch } from '@/components/ui';
@@ -9,7 +9,22 @@ import { subscribeToPush } from '@/lib/pwa';
 import { logClient } from '@/lib/client-log';
 
 type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
-type Prefs = Record<Category, boolean>;
+type Language = 'he' | 'en';
+type Prefs = Record<Category, boolean> & { language?: Language };
+
+const LANGUAGES: { key: Language; label: string }[] = [
+  { key: 'he', label: 'עברית' },
+  { key: 'en', label: 'English' },
+];
+
+// The UI's language is a cookie (NEXT_LOCALE, read by next-intl per request);
+// the notification language is a saved athlete preference, because the crons and
+// sync jobs that send almost every push have no request and therefore no cookie.
+// One control has to write both, or picking English would translate the app and
+// leave every notification in Hebrew.
+function readLocaleCookie(): Language {
+  return /NEXT_LOCALE=en/.test(document.cookie) ? 'en' : 'he';
+}
 
 // The toggleable categories, with a colored glyph + Hebrew label, matching the
 // push categories in src/lib/push.ts.
@@ -160,6 +175,44 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
     }
   };
 
+  // Which language is shown as selected. An athlete who has never picked one has
+  // no saved `language`, so fall back to the cookie the UI is already using —
+  // showing 'he' there would claim a choice they never made, and would read as
+  // wrong to anyone whose browser put them in English via Accept-Language.
+  const [cookieLocale, setCookieLocale] = useState<Language | null>(null);
+  useEffect(() => setCookieLocale(readLocaleCookie()), []);
+  const language: Language | null = prefs?.language ?? cookieLocale;
+
+  const [savingLanguage, setSavingLanguage] = useState<Language | null>(null);
+  const [languageError, setLanguageError] = useState<string | null>(null);
+  const chooseLanguage = async (next: Language) => {
+    if (next === language) return;
+    setSavingLanguage(next);
+    setLanguageError(null);
+    try {
+      const res = await fetch('/api/athletes/notification-prefs', {
+        method: 'PUT',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ athleteId, language: next }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        setLanguageError(`שגיאת שרת (${res.status}): ${body.slice(0, 200)}`);
+        return;
+      }
+      // Only now switch the UI: the cookie change forces a reload, which would
+      // abandon the request above mid-flight and leave the app in English while
+      // every notification stayed in Hebrew — the exact split this row exists to
+      // prevent.
+      document.cookie = `NEXT_LOCALE=${next};path=/;max-age=${60 * 60 * 24 * 365}`;
+      window.location.reload();
+    } catch (err) {
+      setLanguageError(`הבקשה נכשלה: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSavingLanguage(null);
+    }
+  };
+
   const toggle = async (key: Category) => {
     if (!prefs) return;
     const next = { ...prefs, [key]: !prefs[key] };
@@ -216,6 +269,25 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
             onClick={permission === 'denied' ? undefined : enablePush}
           />
         </InsetSection>
+      )}
+      {/* Bilingual header and labels on purpose: this is the one row someone who
+          can't read the current language still has to be able to find. */}
+      <InsetSection header="שפה / Language">
+        {LANGUAGES.map(({ key, label }) => (
+          <InsetRow
+            key={key}
+            icon={Globe}
+            iconBg={key === 'he' ? 'bg-indigo-500' : 'bg-teal-500'}
+            label={label}
+            sublabel={key === language ? 'האפליקציה וההתראות / app + notifications' : undefined}
+            value={savingLanguage === key ? '…' : key === language ? '✓' : undefined}
+            valueSuccess={key === language}
+            onClick={savingLanguage || key === language ? undefined : () => chooseLanguage(key)}
+          />
+        ))}
+      </InsetSection>
+      {languageError && (
+        <p className="px-4 pb-2 text-xs text-red-400" dir="auto">{languageError}</p>
       )}
       {/* Always available — a granted permission is no proof of a live
           subscription, so these two rows are the only self-service way to tell

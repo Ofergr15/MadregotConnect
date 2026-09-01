@@ -346,6 +346,72 @@ describe('teammate-activity copy — the same event read two different ways', ()
     expect(pushed().body).toBe('אסף אלקסלסי סיים/ה ריצה • 8.3 ק"מ');
   });
 
+  it('writes the history row in the FOLLOWER\'s language, not the runner\'s', async () => {
+    // The runner is irrelevant to the wording — their followers are the readers.
+    tables.athletes = [
+      { id: 'runner', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', avatar_url: null, notification_prefs: { language: 'he' }, group_id: null, last_seen_at: null },
+      { id: 'f1', email: 'f1@x.test', notification_prefs: { language: 'en' }, group_id: null, last_seen_at: null },
+    ];
+    tables.athlete_follows = [{ follower_id: 'f1' }];
+    tables.push_subscriptions = [sub('s1', 'f1')];
+    await notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300 });
+    expect(historyRow().title_he).toBe('🏃 Itai Spiegel completed a run');
+    expect(historyRow().body_he).toBe('8.3 km');
+  });
+
+  it('sends one run to two followers in two languages, from a single call', async () => {
+    // This is the whole mechanism: sendPushDetailed takes ONE payload for many
+    // subscriptions, so localizing per recipient means grouping the
+    // subscriptions by their athlete's saved language and sending per group.
+    // Without it, whichever language won would be wrong for somebody.
+    tables.athletes = [
+      { id: 'runner', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'f_en', email: 'en@x.test', notification_prefs: { language: 'en' }, group_id: null, last_seen_at: null },
+      { id: 'f_he', email: 'he@x.test', notification_prefs: { language: 'he' }, group_id: null, last_seen_at: null },
+    ];
+    tables.athlete_follows = [{ follower_id: 'f_en' }, { follower_id: 'f_he' }];
+    tables.push_subscriptions = [sub('s_en', 'f_en'), sub('s_he', 'f_he')];
+
+    const sent = await notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300 });
+
+    // Both devices were reached, and the returned count is the merged total —
+    // callers must not be able to tell that two sends happened underneath.
+    expect(sent).toBe(2);
+
+    const delivered = (sendNotification.mock.calls as unknown[][]).map((c) => {
+      const p = JSON.parse(String(c[1]));
+      return { athleteId: p.athleteId, title: p.title, body: p.body, action: p.actions?.[0]?.title };
+    });
+    expect(delivered.find((d) => d.athleteId === 'f_en')).toMatchObject({
+      title: '🏃 New Activity',
+      body: 'Itai Spiegel completed a run • 8.3 km',
+      // The action button is copy too — an English notification with a Hebrew
+      // button on it is the seam this is meant to close.
+      action: '👍 Kudos',
+    });
+    expect(delivered.find((d) => d.athleteId === 'f_he')).toMatchObject({
+      title: '🏃 פעילות חדשה',
+      body: 'Itai Spiegel סיים ריצה • 8.3 ק"מ',
+      action: '👍 קודוס',
+    });
+  });
+
+  it('makes exactly one send when everyone shares a language', async () => {
+    // The club's reality today. Grouping must not cost an extra push, or an
+    // all-Hebrew club pays for a feature it never uses.
+    tables.athletes = [
+      { id: 'runner', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'f1', email: 'f1@x.test', notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'f2', email: 'f2@x.test', notification_prefs: { language: 'he' }, group_id: null, last_seen_at: null },
+    ];
+    tables.athlete_follows = [{ follower_id: 'f1' }, { follower_id: 'f2' }];
+    tables.push_subscriptions = [sub('s1', 'f1'), sub('s2', 'f2')];
+    await notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300 });
+    // Two devices, two webpush calls — but one payload, so both titles match.
+    const titles = new Set((sendNotification.mock.calls as unknown[][]).map((c) => JSON.parse(String(c[1])).title));
+    expect(titles).toEqual(new Set(['🏃 פעילות חדשה']));
+  });
+
   it('still sends the runner photo as icon, for the platforms that honour it', async () => {
     // iOS ignores it — measured: a runner with a Google avatar_url got the
     // club's app icon on the lock screen anyway, because WebKit takes the

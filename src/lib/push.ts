@@ -3,6 +3,12 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { kudosScope, rsvpScope, signActionToken } from '@/lib/auth/action-token';
 import { isKindMuted, isLedgerRow } from '@/lib/notifications/prefs';
+import {
+  DEFAULT_NOTIFICATION_LOCALE,
+  localeFromPrefs,
+  type NotificationLocale,
+} from '@/lib/notifications/locale';
+import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/copy';
 
 /**
  * Given the maintenance allowlist (lowercased emails) and the athlete rows for
@@ -232,6 +238,74 @@ async function prefsByAthlete(athleteIds: string[]): Promise<Map<string, Record<
     }
   } catch { /* fail open */ }
   return byId;
+}
+
+/**
+ * Each athlete's chosen notification language, defaulting to Hebrew for anyone
+ * who never picked one.
+ *
+ * Same query shape as prefsByAthlete, and for the same reason: it reads the one
+ * JSONB column, so an unmigrated or unreadable column costs the language and
+ * nothing else. Fails to the default rather than throwing — a Hebrew
+ * notification is a far better outcome than no notification.
+ */
+export async function localesForAthletes(athleteIds: string[]): Promise<Map<string, NotificationLocale>> {
+  const byId = new Map<string, NotificationLocale>();
+  if (athleteIds.length === 0) return byId;
+  try {
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from('athletes').select('id, notification_prefs').in('id', athleteIds);
+    if (error) return byId;
+    for (const a of (data || []) as Array<{ id: string; notification_prefs?: Record<string, unknown> | null }>) {
+      byId.set(a.id, localeFromPrefs(a.notification_prefs));
+    }
+  } catch { /* fail open — callers treat a missing entry as the default */ }
+  return byId;
+}
+
+/**
+ * Send one push whose wording follows each recipient's own language setting.
+ *
+ * sendPushDetailed takes a single payload for many subscriptions, which is
+ * right for everything except the words in it. Rather than thread a locale
+ * through that function (and every one of its ~25 call sites), this groups the
+ * subscriptions by their athlete's language and sends one payload per group,
+ * merging the results so callers still get a single {sent, byAthlete}.
+ *
+ * A club where everyone shares one language — which is today's reality — costs
+ * exactly one extra query and makes exactly one sendPushDetailed call, because
+ * empty groups are never sent.
+ */
+export async function sendPushLocalized(
+  subs: SubRow[],
+  build: (locale: NotificationLocale) => PushPayload,
+): Promise<{ sent: number; byAthlete: Record<string, number> }> {
+  if (subs.length === 0) return { sent: 0, byAthlete: {} };
+  const locales = await localesForAthletes([...new Set(subs.map((s) => s.athlete_id).filter(Boolean))]);
+
+  const groups = new Map<NotificationLocale, SubRow[]>();
+  for (const s of subs) {
+    const locale = locales.get(s.athlete_id) ?? DEFAULT_NOTIFICATION_LOCALE;
+    const group = groups.get(locale);
+    if (group) group.push(s);
+    else groups.set(locale, [s]);
+  }
+
+  let sent = 0;
+  const byAthlete: Record<string, number> = {};
+  // Sequential on purpose: each sendPushDetailed already fans out over its own
+  // group in parallel, and there are at most two groups. Running them
+  // concurrently would double the burst of maintenance/category/badge queries
+  // for no measurable win.
+  for (const [locale, group] of groups) {
+    const result = await sendPushDetailed(group, build(locale));
+    sent += result.sent;
+    for (const [athleteId, n] of Object.entries(result.byAthlete)) {
+      byAthlete[athleteId] = (byAthlete[athleteId] || 0) + n;
+    }
+  }
+  return { sent, byAthlete };
 }
 
 async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string, number>> {
@@ -521,30 +595,30 @@ export async function notifyTeammatesOfActivity(activity: {
 
   const km = (activity.distanceMeters / 1000).toFixed(1);
 
-  const name = (athlete.name || '').trim() || 'חבר/ה לקבוצה';
-  // Gender-neutral fallback when the athlete hasn't filled in their gender
-  // (migration 057, optional field) — otherwise a natural gendered verb.
-  const verb = athlete.gender === 'male' ? 'סיים' : athlete.gender === 'female' ? 'סיימה' : 'סיים/ה';
-
-  // Strava's shape: a fixed header line, then who did what underneath. It used
-  // to be the other way round — the whole sentence in the title with a bare
-  // `1.7 ק"מ` body — on the reasoning that iOS always shows the title, so the
-  // distance couldn't get lost there. Six of these stacked on a lock screen
-  // (measured, not imagined) is what changed the answer: six different long
-  // Hebrew sentences read as noise, where a repeated header reads as one
-  // channel you can skim. The distance moves into the body next to the name so
-  // it still travels with the sentence rather than standing alone.
-  const title = '🏃 פעילות חדשה';
-  const body = `${name} ${verb} ריצה • ${km} ק"מ`;
-
+  // Wording comes from src/lib/notifications/copy.ts, per RECIPIENT language —
+  // the runner's own setting is irrelevant here, since this notification is
+  // read by their followers. The copy module also owns the Hebrew gendered verb
+  // and the no-name fallback, so an English notification can't end up with a
+  // Hebrew word wedged into it.
+  //
+  // The push uses Strava's shape: a fixed header line, then who did what
+  // underneath. It used to be the other way round — the whole sentence in the
+  // title with a bare `1.7 ק"מ` body — on the reasoning that iOS always shows
+  // the title, so the distance couldn't get lost there. Six of these stacked on
+  // a lock screen (measured, not imagined) is what changed the answer: six
+  // different long sentences read as noise, where a repeated header reads as
+  // one channel you can skim. The distance moves into the body next to the name
+  // so it still travels with the sentence rather than standing alone.
+  //
   // The in-app history keeps the name in the LABEL (it renders title as label,
   // body as sublabel — notifications/page.tsx:269). A fixed header works on a
   // lock screen, where iOS adds "from Madregot" and the club icon around it,
   // but the history is a bare list of rows: twenty identical "פעילות חדשה"
   // labels would push every name into the second line and make the one screen
-  // built for scanning them unscannable.
-  const historyTitle = `🏃 ${name} ${verb} ריצה`;
-  const historyBody = `${km} ק"מ`;
+  // built for scanning them unscannable. Hence four strings, not two.
+  const copyFor = (locale: NotificationLocale) =>
+    teammateActivityCopy(locale, { name: athlete.name, gender: athlete.gender, km });
+
   // Deep-links to the club feed focused on THIS run. It used to point at
   // /dashboard/activities?kudos=…, which could not work two ways over: that
   // page filters to the viewer's OWN activities for a non-coach, so the run
@@ -559,13 +633,13 @@ export async function notifyTeammatesOfActivity(activity: {
   // (inside sendPushToSubscriptions) adds +1 per recipient for "the notification
   // being delivered right now", assuming its row isn't in the DB yet. Persisting
   // first would double-count it and inflate every follower's app-icon badge by 1.
-  const { sent, byAthlete } = await sendPushDetailed(subs, {
-    title,
-    body,
+  const { sent, byAthlete } = await sendPushLocalized(subs, (locale) => ({
+    title: copyFor(locale).pushTitle,
+    body: copyFor(locale).pushBody,
     url,
     tag: `teammate-activity-${activity.activityKey}`,
     category: 'teammates',
-    actions: [{ action: 'kudos', title: '👍 קודוס' }],
+    actions: [{ action: 'kudos', title: KUDOS_ACTION_LABEL[locale] }],
     kudosActivityId: activity.activityId,
     // Both are sent and BOTH are ignored on iOS — measured from a real lock
     // screen, not assumed: Itai Spiegel has a Google profile photo in
@@ -576,7 +650,7 @@ export async function notifyTeammatesOfActivity(activity: {
     // runner's photo because a native app can attach one — a PWA cannot.
     // Kept because Chrome/Android does honour both.
     ...(athlete.avatar_url ? { icon: athlete.avatar_url, image: athlete.avatar_url } : {}),
-  });
+  }));
 
   // Persist one row per follower (not just push) so this shows up in each
   // follower's Notification Center history afterward, same as any other
@@ -584,14 +658,24 @@ export async function notifyTeammatesOfActivity(activity: {
   // byAthlete is threaded through so a row that reached nobody records 0 rather
   // than claiming a delivery: this exact fan-out is the one that wrote 260
   // "sent" rows for a morning where every single push was silently discarded.
-  await persistNotifications(followerIds.map((followerId) => ({
-    athleteId: followerId,
-    kind: 'kudos_activity',
-    actorAthleteId: activity.athleteId,
-    title: historyTitle,
-    body: historyBody,
-    url,
-  })), byAthlete);
+  //
+  // Localized per follower for the same reason the push is: these rows ARE the
+  // in-app history, so a Hebrew row here would undo the setting the moment the
+  // athlete opened the app. Followers with no subscription still get a row (they
+  // are in followerIds, not just in subs), so their language is looked up
+  // separately rather than reused from the send above.
+  const historyLocales = await localesForAthletes(followerIds);
+  await persistNotifications(followerIds.map((followerId) => {
+    const copy = copyFor(historyLocales.get(followerId) ?? DEFAULT_NOTIFICATION_LOCALE);
+    return {
+      athleteId: followerId,
+      kind: 'kudos_activity',
+      actorAthleteId: activity.athleteId,
+      title: copy.historyTitle,
+      body: copy.historyBody,
+      url,
+    };
+  }), byAthlete);
 
   return sent;
 }
