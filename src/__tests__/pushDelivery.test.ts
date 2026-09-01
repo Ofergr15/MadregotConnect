@@ -63,7 +63,8 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
-const { sendPushDetailed, sendPushToSubscriptions, persistNotifications } = await import('@/lib/push');
+const { sendPushDetailed, sendPushToSubscriptions, persistNotifications, notifyTeammatesOfActivity } =
+  await import('@/lib/push');
 
 const sub = (id: string, athleteId: string) => ({
   id,
@@ -282,5 +283,75 @@ describe('app-icon badge — what the athlete actually sees on the home screen',
     tables.scheduled_notifications = [notif(), notif()];
     await sendPushDetailed([sub('s1', 'a1')], { title: 'hi', body: 'x', badge: 7 });
     expect(deliveredBadge()).toBe(7);
+  });
+});
+
+describe('teammate-activity copy — the same event read two different ways', () => {
+  /** The payload the push service was handed for the first (only) recipient. */
+  const pushed = () => JSON.parse(String((sendNotification.mock.calls[0] as unknown[])[1]));
+
+  /** The history row persisted for the follower. */
+  const historyRow = () =>
+    writes.inserted.find((w) => w.table === 'scheduled_notifications')?.rows[0] as Record<string, unknown>;
+
+  /** One runner, one follower with one device. */
+  const run = (runner: Record<string, unknown> = {}, distanceMeters = 8300) => {
+    tables.athletes = [
+      { id: 'runner', email: 'r@x.test', name: 'אסף אלקסלסי', gender: 'male', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null, ...runner },
+      { id: 'f1', email: 'f1@x.test', notification_prefs: null, group_id: null, last_seen_at: null },
+    ];
+    tables.athlete_follows = [{ follower_id: 'f1' }];
+    tables.push_subscriptions = [sub('s1', 'f1')];
+    return notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters });
+  };
+
+  it('puts a fixed header in the push title and who-did-what in the body', async () => {
+    // Strava's shape, and the reason for it is the lock screen: six of these
+    // stacked, each with a different long Hebrew sentence as its title, read as
+    // noise. A repeated header reads as one channel you can skim.
+    await run();
+    expect(pushed().title).toBe('🏃 פעילות חדשה');
+    expect(pushed().body).toBe('אסף אלקסלסי סיים ריצה • 8.3 ק"מ');
+  });
+
+  it('keeps the distance in the body rather than letting it stand alone', async () => {
+    // The old shape sent a bare `8.3 ק"מ` as the whole body. Moving the name
+    // down there is only safe if the distance comes with it — a body that is
+    // just a name would drop the one fact the notification exists to deliver.
+    await run();
+    expect(pushed().body).toContain('8.3 ק"מ');
+  });
+
+  it('the header does not vary by runner, so the push groups as one channel', async () => {
+    await run({ name: 'נועה', gender: 'female' });
+    expect(pushed().title).toBe('🏃 פעילות חדשה');
+    expect(pushed().body).toBe('נועה סיימה ריצה • 8.3 ק"מ');
+  });
+
+  it('names the runner in the HISTORY title instead — that screen is a bare list', async () => {
+    // notifications/page.tsx renders title as the row label and body as its
+    // sublabel. Twenty identical "פעילות חדשה" labels would push every name
+    // into the second line and make the one screen built for scanning them
+    // unscannable, so the two surfaces deliberately disagree.
+    await run();
+    expect(historyRow().title_he).toBe('🏃 אסף אלקסלסי סיים ריצה');
+    expect(historyRow().body_he).toBe('8.3 ק"מ');
+    expect(historyRow().title_he).not.toBe(pushed().title);
+  });
+
+  it('falls back to a gender-neutral verb when gender was never filled in', async () => {
+    // gender is optional (migration 057) and most rows have it null, so this
+    // is the common path, not the edge case.
+    await run({ gender: null });
+    expect(pushed().body).toBe('אסף אלקסלסי סיים/ה ריצה • 8.3 ק"מ');
+  });
+
+  it('still sends the runner photo as icon, for the platforms that honour it', async () => {
+    // iOS ignores it — measured: a runner with a Google avatar_url got the
+    // club's app icon on the lock screen anyway, because WebKit takes the
+    // notification image from the installed PWA's manifest and nothing else.
+    // Chrome/Android does honour it, which is why it is still sent.
+    await run({ avatar_url: 'https://lh3.googleusercontent.com/a/photo' });
+    expect(pushed().icon).toBe('https://lh3.googleusercontent.com/a/photo');
   });
 });

@@ -474,10 +474,12 @@ export async function subscriptionsForAthletes(athleteIds: string[]): Promise<Su
 /**
  * Notify an athlete's followers (everyone with an athlete_follows row where
  * followee_id = this athlete — see migration 060) that they just finished a
- * run. Title is deliberately just name + verb (no distance) so it never
- * truncates on a lock screen; the body is just the km — full stats (pace,
- * duration, HR) are a tap away on the activities feed, not worth the noise
- * in the notification itself. This is deliberately scoped to "friends I
+ * run. The push carries a fixed header title and puts who-did-what in the
+ * body (Strava's shape — see the copy block below); the persisted history row
+ * keeps the name in the title instead, because that screen is a bare list.
+ * Either way it stops at name + distance — full stats (pace, duration, HR)
+ * are a tap away on the feed, not worth the noise in the notification
+ * itself. This is deliberately scoped to "friends I
  * follow", not the athlete's training group: follow is opt-in per-person, so
  * it's a much more relevant audience than everyone who happens to share a
  * pace group.
@@ -523,8 +525,26 @@ export async function notifyTeammatesOfActivity(activity: {
   // Gender-neutral fallback when the athlete hasn't filled in their gender
   // (migration 057, optional field) — otherwise a natural gendered verb.
   const verb = athlete.gender === 'male' ? 'סיים' : athlete.gender === 'female' ? 'סיימה' : 'סיים/ה';
-  const title = `🏃 ${name} ${verb} ריצה`;
-  const body = `${km} ק"מ`;
+
+  // Strava's shape: a fixed header line, then who did what underneath. It used
+  // to be the other way round — the whole sentence in the title with a bare
+  // `1.7 ק"מ` body — on the reasoning that iOS always shows the title, so the
+  // distance couldn't get lost there. Six of these stacked on a lock screen
+  // (measured, not imagined) is what changed the answer: six different long
+  // Hebrew sentences read as noise, where a repeated header reads as one
+  // channel you can skim. The distance moves into the body next to the name so
+  // it still travels with the sentence rather than standing alone.
+  const title = '🏃 פעילות חדשה';
+  const body = `${name} ${verb} ריצה • ${km} ק"מ`;
+
+  // The in-app history keeps the name in the LABEL (it renders title as label,
+  // body as sublabel — notifications/page.tsx:269). A fixed header works on a
+  // lock screen, where iOS adds "from Madregot" and the club icon around it,
+  // but the history is a bare list of rows: twenty identical "פעילות חדשה"
+  // labels would push every name into the second line and make the one screen
+  // built for scanning them unscannable.
+  const historyTitle = `🏃 ${name} ${verb} ריצה`;
+  const historyBody = `${km} ק"מ`;
   // Deep-links to the club feed focused on THIS run. It used to point at
   // /dashboard/activities?kudos=…, which could not work two ways over: that
   // page filters to the viewer's OWN activities for a non-coach, so the run
@@ -540,10 +560,6 @@ export async function notifyTeammatesOfActivity(activity: {
   // being delivered right now", assuming its row isn't in the DB yet. Persisting
   // first would double-count it and inflate every follower's app-icon badge by 1.
   const { sent, byAthlete } = await sendPushDetailed(subs, {
-    // Distance is in the TITLE itself, not just the body — iOS shows the
-    // title even when a locked-screen preview or notification summary
-    // collapses/hides the body line, so the km can't get lost the way a
-    // bare "X finished a run" title did before.
     title,
     body,
     url,
@@ -551,11 +567,14 @@ export async function notifyTeammatesOfActivity(activity: {
     category: 'teammates',
     actions: [{ action: 'kudos', title: '👍 קודוס' }],
     kudosActivityId: activity.activityId,
-    // `icon` (small, corner badge) works broadly incl. iOS 16.4+ PWA push;
-    // `image` (large expanded banner) is Chrome/Android-only today — iOS's
-    // Web Push notification API doesn't render it regardless of what's sent,
-    // a platform limitation, not something fixable from here. Both point at
-    // the same photo so it shows as richly as each platform allows.
+    // Both are sent and BOTH are ignored on iOS — measured from a real lock
+    // screen, not assumed: Itai Spiegel has a Google profile photo in
+    // avatar_url, his notification arrived with `icon` set to it, and iOS drew
+    // the club's app icon anyway. WebKit's Web Push takes the notification
+    // image from the installed PWA's manifest icon and nothing else; `image`
+    // (the expanded banner) it doesn't implement at all. Strava can show a
+    // runner's photo because a native app can attach one — a PWA cannot.
+    // Kept because Chrome/Android does honour both.
     ...(athlete.avatar_url ? { icon: athlete.avatar_url, image: athlete.avatar_url } : {}),
   });
 
@@ -569,8 +588,8 @@ export async function notifyTeammatesOfActivity(activity: {
     athleteId: followerId,
     kind: 'kudos_activity',
     actorAthleteId: activity.athleteId,
-    title,
-    body,
+    title: historyTitle,
+    body: historyBody,
     url,
   })), byAthlete);
 
