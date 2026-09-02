@@ -6,6 +6,7 @@
  */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,21 +20,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'activityId and athleteId required' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    if (!email) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
-
-    const { data: caller } = await supabase
-      .from('athletes')
-      .select('id, role')
-      .eq('email', email)
-      .maybeSingle();
-    const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes(caller.role as string);
-    if (!caller || (!isStaff && caller.id !== athleteId)) {
+    // This response is the full GPS trace of a run — where someone lives and
+    // when they were out. Identity comes from the session, so it can't be
+    // claimed with a header.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
+
+    const supabase = createServerClient();
 
     // Prefer DB uuid; also accept legacy garmin_activity_id / strava_activity_id.
     const isUuid = /^[0-9a-f-]{36}$/i.test(activityId);

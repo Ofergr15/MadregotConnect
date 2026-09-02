@@ -12,6 +12,7 @@
  */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,21 +23,17 @@ export async function GET(request: Request) {
     const athleteId = searchParams.get('athleteId');
     const includeGps = searchParams.get('include') === 'gps';
 
-    let isStaff = false;
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    if (email) {
-      const { data: me } = await supabase
-        .from('athletes')
-        .select('role')
-        .eq('email', email)
-        .in('role', ['coach', 'admin', 'academy_coach'])
-        .maybeSingle();
-      isStaff = !!me;
-    }
-
-    if (!isStaff && !athleteId) {
-      return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
-    }
+    // The doc comment above was the intended contract but nothing enforced it:
+    // staff-ness came from an unverified x-user-email (forge a coach's address
+    // and the athlete_id filter dropped, returning the whole club's names, HR
+    // and GPS traces), and a runner's own athleteId was never checked against
+    // who they actually were — any athlete UUID returned that athlete's last
+    // 200 activities to anyone who asked. requireCallerForAthlete enforces both
+    // halves from the session: omitting the id means "the whole club", so it's
+    // staff-only, and naming an id requires being that athlete or staff.
+    const { denied, caller } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
+    const isStaff = caller.isSuperUser || caller.isStaff;
 
     const baseCols = `
         id, athlete_id, garmin_activity_id, strava_activity_id, source,
@@ -53,6 +50,10 @@ export async function GET(request: Request) {
         .select(cols)
         .order('start_time', { ascending: false })
         .limit(200);
+      // Staff deliberately get the club-wide list even when they named an
+      // athlete — the coach screens filter client-side and rely on having
+      // everyone. Unchanged here; the gate above is what decides who counts as
+      // staff in the first place.
       if (!isStaff && athleteId) q = q.eq('athlete_id', athleteId);
       return q;
     };

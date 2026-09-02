@@ -7,6 +7,7 @@ import {
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
+import { apiHeaders } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 
@@ -67,16 +68,18 @@ export function useNavItems() {
       .then(data => { if (data?.permissions) setPermissions(data.permissions); setPermissionsLoaded(true); })
       .catch(() => setPermissionsLoaded(true));
 
+    // The email still decides super-user status locally, but the ROLE now comes
+    // from the session — /api/auth/me stopped answering for whatever address it
+    // was handed. apiHeaders() is async, hence the inner IIFE.
     const resolveEmail = (e: string) => {
       if (!e) return;
       setIsSuper(isSuperUser(e));
-      fetch('/api/auth/me', { headers: { 'x-user-email': e } })
-        .then(res => (res.ok ? res.json() : null))
-        .then(data => {
-          if (data?.role) setUserRole(data.role);
-          if (data?.isAcademy) setIsAcademyMember(true);
-        })
-        .catch(() => {});
+      (async () => {
+        const res = await fetch('/api/auth/me', { headers: await apiHeaders() }).catch(() => null);
+        const data = res?.ok ? await res.json().catch(() => null) : null;
+        if (data?.role) setUserRole(data.role);
+        if (data?.isAcademy) setIsAcademyMember(true);
+      })();
     };
     if (email) resolveEmail(email);
     else {

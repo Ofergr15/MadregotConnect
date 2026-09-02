@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { isSuperUser } from '@/lib/constants';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { computeChallengeProgress, type ChallengeRow } from '@/lib/challenges/engine';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 // award-evaluation engine (checkAndAwardChallenges) is the only writer of
 // completions; this route is purely a read surface for the Profile >
 // Challenges screen. Auth mirrors GET /api/athletes/badges: a caller may
-// fetch their own progress; verified staff may fetch anyone's.
+// fetch their own progress; staff may fetch anyone's.
 interface ChallengeCatalogRow extends ChallengeRow {
   description_he: string | null;
   description_en: string | null;
@@ -26,16 +26,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
 
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    let allowed = false;
-    if (isSuperUser(email)) {
-      allowed = true;
-    } else if (email) {
-      const { data: caller } = await supabase.from('athletes').select('id, role').eq('email', email).maybeSingle();
-      const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as { role?: string }).role || '');
-      allowed = isStaff || (caller as { id?: string } | null)?.id === athleteId;
-    }
-    if (!allowed) {
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

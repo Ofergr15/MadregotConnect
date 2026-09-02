@@ -1,6 +1,7 @@
 'use client';
 
 import { getSupabase } from '@/lib/supabase/client';
+import { trySilentReauth } from '@/lib/auth/silent-reauth';
 import type { FeedItem, FeedLiker, FeedMedia } from '@/lib/feed/project';
 
 /**
@@ -18,42 +19,6 @@ export interface FeedComment {
   createdAt: string;
   author: { athleteId: string; name: string; avatarUrl: string | null };
   canDelete: boolean;
-}
-
-// Silently re-mints the Supabase session when it's gone missing (see
-// /api/auth/silent-session's own comment for why this happens) instead of
-// forcing a real re-login. Best-effort: returns null on any failure, and the
-// caller falls back to the existing NOT_SIGNED_IN behavior.
-//
-// createSyntheticSession rotates the underlying auth user's password on every
-// call — two concurrent callers in the same tab (e.g. two feed components
-// mounting together, or React Strict Mode's double-invoke) race on that
-// rotation and one of them fails to sign in with its now-stale password.
-// Sharing one in-flight promise across concurrent calls avoids that.
-let inFlightReauth: Promise<string | null> | null = null;
-async function trySilentReauth(): Promise<string | null> {
-  if (inFlightReauth) return inFlightReauth;
-  const run = async (): Promise<string | null> => {
-    try {
-      // No body: the route takes the identity from its signed httpOnly device
-      // cookie, never from what the client claims. Returns 401 on a browser
-      // that never completed a real login, and the caller falls back.
-      const res = await fetch('/api/auth/silent-session', { method: 'POST' });
-      if (!res.ok) return null;
-      const { session } = await res.json();
-      if (!session?.access_token || !session?.refresh_token) return null;
-      const { data, error } = await getSupabase().auth.setSession({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      });
-      if (error) return null;
-      return data.session?.access_token ?? null;
-    } catch {
-      return null;
-    }
-  };
-  inFlightReauth = run().finally(() => { inFlightReauth = null; });
-  return inFlightReauth;
 }
 
 async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {

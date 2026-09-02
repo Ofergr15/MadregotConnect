@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { isSuperUser } from '@/lib/constants';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getActivityWeekStart, activityWeekStart, computeWeekStreak, israelDateAnchor } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -28,17 +28,9 @@ export async function GET(request: Request) {
     const athleteId = searchParams.get('athleteId');
     if (!athleteId) return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
 
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    let allowed = false;
-    if (isSuperUser(email)) {
-      allowed = true;
-    } else if (email) {
-      const { data: caller } = await supabase
-        .from('athletes').select('id, role').eq('email', email).maybeSingle();
-      const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as any).role);
-      allowed = isStaff || (caller as any)?.id === athleteId;
-    }
-    if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
     const { data: acts, error } = await supabase
       .from('athlete_activities')

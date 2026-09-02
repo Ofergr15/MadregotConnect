@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { isSuperUser } from '@/lib/constants';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic';
 // separate task and the only writer of athlete_badges; this route is purely a
 // read surface for the Profile > Badges screen and the feed's achievement
 // cards' underlying data model. Auth mirrors /api/athletes/prs and
-// /api/athletes/races: a caller may fetch their own badge status; verified
-// staff (coach/admin/academy_coach via x-user-email) may fetch anyone's.
+// /api/athletes/races: a caller may fetch their own badge status; staff
+// (coach/admin/academy_coach, proven by their session) may fetch anyone's.
 interface BadgeCatalogRow {
   id: string;
   code: string;
@@ -40,21 +40,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
 
-    // Authorization: caller must own this athleteId or be staff.
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    let allowed = false;
-    if (isSuperUser(email)) {
-      allowed = true; // super user may view any athlete's badges (consistent w/ view-as)
-    } else if (email) {
-      const { data: caller } = await supabase
-        .from('athletes')
-        .select('id, role')
-        .eq('email', email)
-        .maybeSingle();
-      const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as { role?: string }).role || '');
-      allowed = isStaff || (caller as { id?: string } | null)?.id === athleteId;
-    }
-    if (!allowed) {
+    // Authorization: caller must own this athleteId or be staff. The super user
+    // may view anyone's badges (consistent w/ view-as) — mayActFor covers that.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

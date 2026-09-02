@@ -3,34 +3,28 @@
 import useSWR, { SWRConfiguration } from 'swr';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
-// The app's OLD auth convention: every scoped endpoint read x-user-email,
-// resolved from the coach/athlete email stored in localStorage. It's forgeable —
-// it's just a string the client picks — so routes are being migrated to the
-// verified Supabase session (src/lib/auth-session.ts). Kept for the routes that
-// haven't been migrated yet.
-export function authHeaders(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  const email = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-  return email ? { 'x-user-email': email } : {};
-}
+// The app's OLD auth convention was an `x-user-email` header, read from the
+// coach/athlete email in localStorage. It was forgeable — just a string the
+// client picks — and it's gone from both sides now: no route reads it (see
+// resolveVerifiedCaller in src/lib/auth/self-or-staff.ts) and nothing here sends
+// it. Everything below carries the verified Supabase session instead.
 
 /**
- * Headers for a hand-written fetch: the verified bearer token plus the legacy
- * x-user-email, same as the SWR fetcher. Pass `true` when there's a JSON body.
+ * Headers for a hand-written fetch: the verified bearer token, same as the SWR
+ * fetcher. Pass `true` when there's a JSON body.
  *
  * Pass `false` (the default) for GET/DELETE and for FormData — fetch has to set
  * the multipart boundary itself.
  */
 export async function apiHeaders(includeJson = false): Promise<Record<string, string>> {
-  return { ...authHeaders(), ...(await bearerHeaders(includeJson)) };
+  return bearerHeaders(includeJson);
 }
 
-// Sends BOTH: the real bearer token for migrated routes, and x-user-email for
-// the ones still on the old convention. Doing it here means every useApi() GET
-// in the app authenticates properly without touching each caller.
+// Doing this here means every useApi() GET in the app authenticates properly
+// without touching each caller.
 export async function apiFetcher<T = unknown>(url: string): Promise<T> {
   const res = await fetch(url, {
-    headers: { ...authHeaders(), ...(await bearerHeaders(false)) },
+    headers: await bearerHeaders(false),
   });
   if (!res.ok) {
     const err = new Error(`Request failed: ${res.status}`) as Error & { status?: number };

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { isSuperUser } from '@/lib/constants';
-import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 
 // Coach/admin-flavoured roles that may act on behalf of any athlete. Kept as
@@ -144,28 +143,9 @@ export async function requireCallerForAthlete(
   return { denied: null, caller };
 }
 
-/**
- * Resolves the caller's athlete row (if any) from the `x-user-email` header —
- * this app's established "self or staff" auth convention (see src/lib/api.ts's
- * authHeaders on the client side). This header is client-supplied and not
- * cryptographically verified, so it stops the app's own UI from acting as the
- * wrong person, but not a raw API call that forges the header.
- *
- * DEPRECATED for anything that matters — use `resolveVerifiedCaller` above.
- * The only remaining legitimate use is a caller that genuinely cannot hold a
- * bearer token, i.e. the service worker acting on a notification tap, which has
- * no access to the session in localStorage.
- */
-export async function resolveCallerFromEmailHeader(
-  request: Request,
-  supabase: ReturnType<typeof createServerClient>,
-): Promise<{ email: string; isSuperUser: boolean; athlete: CallerAthlete | null }> {
-  const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-  if (!email) return { email: '', isSuperUser: false, athlete: null };
-  const { data } = await supabase.from('athletes').select('id, role').eq('email', email).maybeSingle();
-  return {
-    email,
-    isSuperUser: isSuperUser(email),
-    athlete: data ? { athleteId: data.id, role: data.role || null } : null,
-  };
-}
+// `resolveCallerFromEmailHeader` lived here: it read the caller's identity from
+// the client-supplied `x-user-email` header, which stopped the app's own UI from
+// acting as the wrong person but not a raw API call that simply wrote a different
+// address. It's gone because no route reads that header any more — every one of
+// them resolves identity through `resolveVerifiedCaller` above. Deleted rather
+// than left deprecated so it can't be reached for by the next route.

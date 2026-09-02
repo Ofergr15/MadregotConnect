@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { isSuperUser } from '@/lib/constants';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { filterQualifyingRuns, computeDistanceBests } from '@/lib/prs/pr-buckets';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
 // athlete_activities (Garmin + Strava write the same table/units: distance in
 // meters, duration in seconds). Whole-activity distance-time bests only — no new
 // data capture. Scoped like the activities API: a caller may fetch their own
-// PRs; verified staff (coach/admin/academy_coach via x-user-email) may fetch any.
+// PRs; staff (coach/admin/academy_coach) may fetch any. Identity comes from the
+// Supabase session, not from a header the caller writes themselves.
 //
 // Bucket definitions + tolerance-window/run-type filtering live in
 // lib/prs/pr-buckets.ts — the badge award engine's `pr_bucket` rule_type
@@ -26,21 +27,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
 
-    // Authorization: caller must own this athleteId or be staff.
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    let allowed = false;
-    if (isSuperUser(email)) {
-      allowed = true; // super user may view any athlete's PRs (consistent w/ view-as)
-    } else if (email) {
-      const { data: caller } = await supabase
-        .from('athletes')
-        .select('id, role')
-        .eq('email', email)
-        .maybeSingle();
-      const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as any).role);
-      allowed = isStaff || (caller as any)?.id === athleteId;
-    }
-    if (!allowed) {
+    // Authorization: caller must own this athleteId or be staff. The super user
+    // may view anyone's PRs (consistent w/ view-as) — mayActFor covers that.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

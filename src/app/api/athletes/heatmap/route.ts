@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { isSuperUser } from '@/lib/constants';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,20 +19,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
 
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    let allowed = false;
-    if (isSuperUser(email)) {
-      allowed = true;
-    } else if (email) {
-      const { data: caller } = await supabase
-        .from('athletes')
-        .select('id, role')
-        .eq('email', email)
-        .maybeSingle();
-      const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as any).role);
-      allowed = isStaff || (caller as any)?.id === athleteId;
-    }
-    if (!allowed) {
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

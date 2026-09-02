@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { GarminClient } from '@/lib/garmin/client';
 
 export async function GET(request: Request) {
@@ -12,25 +13,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'activityId and athleteId required' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
-
-    // Ownership check: the caller must be the target athlete OR verified staff.
-    // Identity is proven via x-user-email against the DB (not trusted from the
-    // client) so a user can't pull another athlete's activity via their Garmin
-    // creds by guessing athleteId (the prior authorization gap).
-    const email = (request.headers.get('x-user-email') || '').toLowerCase().trim();
-    if (!email) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
-    const { data: caller } = await supabase
-      .from('athletes')
-      .select('id, role')
-      .eq('email', email)
-      .maybeSingle();
-    const isStaff = !!caller && ['coach', 'admin', 'academy_coach'].includes((caller as any).role);
-    if (!caller || (!isStaff && (caller as any).id !== athleteId)) {
+    // Ownership check: the caller must be the target athlete OR staff. This
+    // route calls Garmin with the TARGET athlete's stored credentials, so the id
+    // has to be tied to a real identity — x-user-email only looked like it did
+    // that, since the caller writes that header themselves.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!mayActFor(caller, athleteId)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
+
+    const supabase = createServerClient();
 
     const { data: athlete, error } = await supabase
       .from('athletes')

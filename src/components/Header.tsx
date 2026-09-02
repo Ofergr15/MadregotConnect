@@ -133,10 +133,14 @@ export function Header() {
   useEffect(() => {
     if (!userEmail) return;
     setIsSuper(isSuperUser(userEmail));
-    fetch('/api/auth/me', { headers: { 'x-user-email': userEmail } })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (data?.role) setUserRole(data.role); })
-      .catch(() => {});
+    // The route reads the role off the session now, not off userEmail — sending
+    // an address was enough to be handed that address's role. apiHeaders() is
+    // async (it reads the session for the bearer token), hence the IIFE.
+    (async () => {
+      const res = await fetch('/api/auth/me', { headers: await apiHeaders() }).catch(() => null);
+      const data = res?.ok ? await res.json().catch(() => null) : null;
+      if (data?.role) setUserRole(data.role);
+    })();
   }, [userEmail]);
 
   // Staff (admin/coach/academy_coach) get the pending benchmark-approval queue
