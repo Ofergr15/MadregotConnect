@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing, Send, RefreshCw, Globe } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
@@ -12,6 +13,9 @@ type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' 
 type Language = 'he' | 'en';
 type Prefs = Record<Category, boolean> & { language?: Language };
 
+// Each language named in itself, never translated — the same reason the section
+// header below stays bilingual: someone stuck in a language they can't read has
+// to be able to recognise their own.
 const LANGUAGES: { key: Language; label: string }[] = [
   { key: 'he', label: 'עברית' },
   { key: 'en', label: 'English' },
@@ -26,16 +30,18 @@ function readLocaleCookie(): Language {
   return /NEXT_LOCALE=en/.test(document.cookie) ? 'en' : 'he';
 }
 
-// The toggleable categories, with a colored glyph + Hebrew label, matching the
-// push categories in src/lib/push.ts.
-const ROWS: { key: Category; label: string; icon: typeof Calendar; bg: string }[] = [
-  { key: 'workouts', label: 'תזכורות ואימונים', icon: Calendar, bg: 'bg-primary-600' },
-  { key: 'coach', label: 'הודעות מהמאמן', icon: MessageSquare, bg: 'bg-sky-500' },
-  { key: 'achievements', label: 'הישגים וסיכומים', icon: Flame, bg: 'bg-emerald-500' },
-  { key: 'program', label: 'תוכנית שבועית', icon: ClipboardList, bg: 'bg-amber-500' },
-  { key: 'teammates', label: 'אימוני חברי הקבוצה', icon: Users, bg: 'bg-orange-500' },
-  { key: 'news', label: 'עדכונים והודעות כלליות', icon: Megaphone, bg: 'bg-rose-500' },
-  { key: 'events', label: 'תזכורות לאירועים ותחרויות', icon: PartyPopper, bg: 'bg-violet-500' },
+// The toggleable categories, with a colored glyph, matching the push categories
+// in src/lib/push.ts. Labels come from messages/{he,en}.json under
+// notificationPrefs.categories — keyed by the same category name, so the two
+// can't drift apart.
+const ROWS: { key: Category; icon: typeof Calendar; bg: string }[] = [
+  { key: 'workouts', icon: Calendar, bg: 'bg-primary-600' },
+  { key: 'coach', icon: MessageSquare, bg: 'bg-sky-500' },
+  { key: 'achievements', icon: Flame, bg: 'bg-emerald-500' },
+  { key: 'program', icon: ClipboardList, bg: 'bg-amber-500' },
+  { key: 'teammates', icon: Users, bg: 'bg-orange-500' },
+  { key: 'news', icon: Megaphone, bg: 'bg-rose-500' },
+  { key: 'events', icon: PartyPopper, bg: 'bg-violet-500' },
 ];
 
 // Per-user notification preferences — each athlete chooses which categories of
@@ -43,6 +49,7 @@ const ROWS: { key: Category; label: string; icon: typeof Calendar; bg: string }[
 // Hidden until we know the athleteId. Degrades gracefully pre-migration (the API
 // returns all-on defaults and PUT is a no-op 501, so toggles simply won't stick).
 export function NotificationPrefs({ athleteId }: { athleteId: string }) {
+  const t = useTranslations('notificationPrefs');
   const { data, mutate } = useApi<{ prefs: Prefs }>(
     athleteId ? `/api/athletes/notification-prefs?athleteId=${encodeURIComponent(athleteId)}` : null,
     // Disabled specifically here: this is what actually caused the "toggle it
@@ -123,8 +130,8 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       logClient('push-resubscribe-manual', { ...result });
       setRefreshResult(
         result.ok
-          ? 'מנוי חדש נוצר — שלחו התראת בדיקה'
-          : `לא הצליח: ${result.error || 'unknown'}`,
+          ? t('repairOk')
+          : t('repairFailed', { error: result.error || 'unknown' }),
       );
     } finally {
       setRefreshing(false);
@@ -147,7 +154,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
         body: JSON.stringify({ athleteId }),
       });
       if (!res.ok) {
-        setTestResult(`שגיאת שרת (${res.status})`);
+        setTestResult(t('serverError', { status: res.status }));
         return;
       }
       const { sent, total, confirmed } = (await res.json()) as {
@@ -159,17 +166,21 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       // confirmed 0 is reported as unconfirmed rather than failed on purpose: a
       // locked or offline phone can miss the receipt window and still show the
       // notification a moment later.
+      // Every "try X" message names the repair row by passing its own label in,
+      // so renaming that row can't leave these instructions pointing at a row
+      // that no longer exists under that name.
+      const repair = t('repair');
       setTestResult(
         total === 0
-          ? 'אין מנוי פוש במכשיר — נסו "תיקון התראות במכשיר"'
+          ? t('noSubscription', { repair })
           : sent === 0
-            ? `נשלחו 0 מתוך ${total} — נסו "תיקון התראות במכשיר"`
+            ? t('sentNone', { total, repair })
             : confirmed && confirmed > 0
-              ? `✅ הגיעה ואושרה ב-${confirmed} מתוך ${total} מכשירים`
-              : `נשלחו ${sent} מתוך ${total} — אך אף מכשיר לא אישר קבלה. אם לא הגיעה, נסו "תיקון התראות במכשיר"`,
+              ? t('sentConfirmed', { confirmed, total })
+              : t('sentUnconfirmed', { sent, total, repair }),
       );
     } catch (err) {
-      setTestResult(`הבקשה נכשלה: ${err instanceof Error ? err.message : String(err)}`);
+      setTestResult(t('requestFailed', { message: err instanceof Error ? err.message : String(err) }));
     } finally {
       setTesting(false);
     }
@@ -197,7 +208,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       });
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        setLanguageError(`שגיאת שרת (${res.status}): ${body.slice(0, 200)}`);
+        setLanguageError(t('serverErrorBody', { status: res.status, body: body.slice(0, 200) }));
         return;
       }
       // Only now switch the UI: the cookie change forces a reload, which would
@@ -207,7 +218,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       document.cookie = `NEXT_LOCALE=${next};path=/;max-age=${60 * 60 * 24 * 365}`;
       window.location.reload();
     } catch (err) {
-      setLanguageError(`הבקשה נכשלה: ${err instanceof Error ? err.message : String(err)}`);
+      setLanguageError(t('requestFailed', { message: err instanceof Error ? err.message : String(err) }));
     } finally {
       setSavingLanguage(null);
     }
@@ -235,7 +246,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       });
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        setSaveError(`שגיאת שרת (${res.status}): ${body.slice(0, 200)}`);
+        setSaveError(t('serverErrorBody', { status: res.status, body: body.slice(0, 200) }));
         logClient('notif-toggle-server-error', { actionId, status: res.status, body: body.slice(0, 200) });
         mutate(); // revalidate → roll back on failure/501
       } else {
@@ -243,7 +254,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setSaveError(`הבקשה נכשלה: ${message}`);
+      setSaveError(t('requestFailed', { message }));
       logClient('notif-toggle-client-throw', { actionId, message });
       mutate();
     } finally {
@@ -254,17 +265,20 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   if (!athleteId || !prefs) return null;
 
   return (
-    <div dir="rtl">
+    // No dir of its own: <html dir> already follows the locale (see
+    // src/app/layout.tsx), and forcing rtl here left the English version of this
+    // screen — the very screen where English is chosen — laid out right-to-left.
+    <div>
       {permission && permission !== 'granted' && (
-        <InsetSection header="פוש">
+        <InsetSection header={t('pushHeader')}>
           <InsetRow
             icon={BellRing}
             iconBg="bg-red-500"
-            label={enabling ? 'מפעיל...' : 'הפעלת התראות פוש'}
+            label={enabling ? t('enabling') : t('enable')}
             sublabel={
-              enableError ? `שגיאה: ${enableError}`
-                : permission === 'denied' ? 'חסום — יש לאשר בהגדרות המכשיר'
-                : 'לא הופעלו במכשיר הזה'
+              enableError ? t('enableError', { error: enableError })
+                : permission === 'denied' ? t('permissionDenied')
+                : t('notEnabledHere')
             }
             onClick={permission === 'denied' ? undefined : enablePush}
           />
@@ -272,14 +286,14 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       )}
       {/* Bilingual header and labels on purpose: this is the one row someone who
           can't read the current language still has to be able to find. */}
-      <InsetSection header="שפה / Language">
+      <InsetSection header={t('languageHeader')}>
         {LANGUAGES.map(({ key, label }) => (
           <InsetRow
             key={key}
             icon={Globe}
             iconBg={key === 'he' ? 'bg-indigo-500' : 'bg-teal-500'}
             label={label}
-            sublabel={key === language ? 'האפליקציה וההתראות / app + notifications' : undefined}
+            sublabel={key === language ? t('languageActive') : undefined}
             value={savingLanguage === key ? '…' : key === language ? '✓' : undefined}
             valueSuccess={key === language}
             onClick={savingLanguage || key === language ? undefined : () => chooseLanguage(key)}
@@ -292,27 +306,28 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       {/* Always available — a granted permission is no proof of a live
           subscription, so these two rows are the only self-service way to tell
           a working device from a silently dead one. */}
-      <InsetSection header="בדיקת התראות">
+      <InsetSection header={t('testHeader')}>
         <InsetRow
           icon={Send}
           iconBg="bg-green-600"
-          label={testing ? 'שולח...' : 'שליחת התראת בדיקה'}
-          sublabel={testResult || 'שולח התראה אמיתית למכשירים שלך'}
+          label={testing ? t('sending') : t('sendTest')}
+          sublabel={testResult || t('sendTestHint')}
           onClick={testing ? undefined : sendTest}
         />
         {permission === 'granted' && (
           <InsetRow
             icon={RefreshCw}
             iconBg="bg-sky-600"
-            label={refreshing ? 'מתקן...' : 'תיקון התראות במכשיר'}
-            sublabel={refreshResult || 'אם לא מגיעות התראות — התחילו מכאן'}
+            label={refreshing ? t('repairing') : t('repair')}
+            sublabel={refreshResult || t('repairHint')}
             onClick={refreshing ? undefined : refreshSub}
           />
         )}
       </InsetSection>
-      <InsetSection header="התראות">
-        {ROWS.map(({ key, label, icon, bg }) => {
+      <InsetSection header={t('categoriesHeader')}>
+        {ROWS.map(({ key, icon, bg }) => {
           const on = prefs[key];
+          const label = t(`categories.${key}`);
           return (
             <InsetRow
               key={key}
@@ -324,6 +339,11 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
           );
         })}
       </InsetSection>
+      {/* A failed toggle was set into state and then never rendered, so the
+          optimistic switch just flicked back with no explanation. */}
+      {saveError && (
+        <p className="px-4 pb-2 text-xs text-red-400" dir="auto">{saveError}</p>
+      )}
     </div>
   );
 }

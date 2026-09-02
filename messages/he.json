@@ -557,7 +557,9 @@
     "reminderDayBefore": "תזכורת יום לפני (לכולם)",
     "reminderEveningBefore": "ערב לפני — למי שלא ענה",
     "reminderFooterNote": "לפי שעון ישראל. הסקר שלאחר האימון נשלח אוטומטית לאחר סנכרון כל ריצה.",
-    "selectHour": "בחרו שעה"
+    "selectHour": "בחרו שעה",
+    "notifPrefsSignIn": "התחברו כספורטאי כדי לנהל העדפות התראות אישיות.",
+    "personalInfoSignIn": "התחברו כספורטאי כדי לערוך פרטים אישיים."
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",
@@ -1261,6 +1263,42 @@
       "yesterday": "אתמול",
       "thisWeek": "השבוע",
       "older": "מוקדם יותר"
+    }
+  },
+  "notificationPrefs": {
+    "pushHeader": "פוש",
+    "enable": "הפעלת התראות פוש",
+    "enabling": "מפעיל...",
+    "enableError": "שגיאה: {error}",
+    "permissionDenied": "חסום — יש לאשר בהגדרות המכשיר",
+    "notEnabledHere": "לא הופעלו במכשיר הזה",
+    "languageHeader": "שפה / Language",
+    "languageActive": "האפליקציה וההתראות / app + notifications",
+    "testHeader": "בדיקת התראות",
+    "sendTest": "שליחת התראת בדיקה",
+    "sending": "שולח...",
+    "sendTestHint": "שולח התראה אמיתית למכשירים שלך",
+    "repair": "תיקון התראות במכשיר",
+    "repairing": "מתקן...",
+    "repairHint": "אם לא מגיעות התראות — התחילו מכאן",
+    "repairOk": "מנוי חדש נוצר — שלחו התראת בדיקה",
+    "repairFailed": "לא הצליח: {error}",
+    "noSubscription": "אין מנוי פוש במכשיר — נסו \"{repair}\"",
+    "sentNone": "נשלחו 0 מתוך {total} — נסו \"{repair}\"",
+    "sentConfirmed": "✅ הגיעה ואושרה ב-{confirmed} מתוך {total} מכשירים",
+    "sentUnconfirmed": "נשלחו {sent} מתוך {total} — אך אף מכשיר לא אישר קבלה. אם לא הגיעה, נסו \"{repair}\"",
+    "serverError": "שגיאת שרת ({status})",
+    "serverErrorBody": "שגיאת שרת ({status}): {body}",
+    "requestFailed": "הבקשה נכשלה: {message}",
+    "categoriesHeader": "התראות",
+    "categories": {
+      "workouts": "תזכורות ואימונים",
+      "coach": "הודעות מהמאמן",
+      "achievements": "הישגים וסיכומים",
+      "program": "תוכנית שבועית",
+      "teammates": "אימוני חברי הקבוצה",
+      "news": "עדכונים והודעות כלליות",
+      "events": "תזכורות לאירועים ותחרויות"
     }
   },
   "attendance": {

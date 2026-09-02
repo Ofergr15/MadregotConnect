@@ -813,13 +813,13 @@ export default function SettingsPage() {
       {/* Notification preferences detail (per-user category toggles) */}
       {activeTab === 'notifprefs' && notifPrefsAthleteId && <NotificationPrefs athleteId={notifPrefsAthleteId} />}
       {activeTab === 'notifprefs' && !notifPrefsAthleteId && (
-        <p className="text-sm text-slate-500 text-center py-10" dir="rtl">התחברו כספורטאי כדי לנהל העדפות התראות אישיות.</p>
+        <p className="text-sm text-slate-500 text-center py-10" dir="auto">{t('notifPrefsSignIn')}</p>
       )}
 
       {/* Personal info detail (birth date / gender / shoe size) */}
       {activeTab === 'personalInfo' && notifPrefsAthleteId && <PersonalInfo athleteId={notifPrefsAthleteId} />}
       {activeTab === 'personalInfo' && !notifPrefsAthleteId && (
-        <p className="text-sm text-slate-500 text-center py-10" dir="rtl">התחברו כספורטאי כדי לערוך פרטים אישיים.</p>
+        <p className="text-sm text-slate-500 text-center py-10" dir="auto">{t('personalInfoSignIn')}</p>
       )}
 
       {error && (

@@ -557,7 +557,9 @@
     "reminderDayBefore": "Day-before reminder (everyone)",
     "reminderEveningBefore": "Evening-before reminder (for those who haven't responded)",
     "reminderFooterNote": "Israel time. Post-workout survey fires automatically after each run syncs.",
-    "selectHour": "Select time"
+    "selectHour": "Select time",
+    "notifPrefsSignIn": "Sign in as an athlete to manage your own notification preferences.",
+    "personalInfoSignIn": "Sign in as an athlete to edit your personal details."
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",
@@ -1261,6 +1263,42 @@
       "yesterday": "Yesterday",
       "thisWeek": "This week",
       "older": "Older"
+    }
+  },
+  "notificationPrefs": {
+    "pushHeader": "Push",
+    "enable": "Turn on push notifications",
+    "enabling": "Turning on...",
+    "enableError": "Error: {error}",
+    "permissionDenied": "Blocked — allow notifications in your device settings",
+    "notEnabledHere": "Not enabled on this device",
+    "languageHeader": "Language / שפה",
+    "languageActive": "app + notifications / האפליקציה וההתראות",
+    "testHeader": "Test notifications",
+    "sendTest": "Send a test notification",
+    "sending": "Sending...",
+    "sendTestHint": "Sends a real notification to your devices",
+    "repair": "Fix notifications on this device",
+    "repairing": "Fixing...",
+    "repairHint": "Notifications not arriving? Start here",
+    "repairOk": "New subscription created — send a test notification",
+    "repairFailed": "Did not work: {error}",
+    "noSubscription": "No push subscription on this device — try \"{repair}\"",
+    "sentNone": "Sent to 0 of {total} — try \"{repair}\"",
+    "sentConfirmed": "✅ Arrived and confirmed on {confirmed} of {total} devices",
+    "sentUnconfirmed": "Sent to {sent} of {total} — but no device confirmed receipt. If it did not arrive, try \"{repair}\"",
+    "serverError": "Server error ({status})",
+    "serverErrorBody": "Server error ({status}): {body}",
+    "requestFailed": "Request failed: {message}",
+    "categoriesHeader": "Notifications",
+    "categories": {
+      "workouts": "Reminders and workouts",
+      "coach": "Messages from the coach",
+      "achievements": "Achievements and recaps",
+      "program": "Weekly program",
+      "teammates": "Workouts from your teammates",
+      "news": "Updates and announcements",
+      "events": "Event and race reminders"
     }
   },
   "attendance": {
