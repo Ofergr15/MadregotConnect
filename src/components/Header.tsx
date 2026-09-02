@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, Image, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
@@ -30,7 +30,10 @@ const allNavItems = [
   { href: '/dashboard/team-volume', tab: 'team-volume', labelKey: 'teamVolume', icon: BarChart3 },
   { href: '/dashboard/calendar', tab: 'calendar', labelKey: 'calendar', icon: CalendarDays },
   { href: '/dashboard/history', tab: 'history', labelKey: 'history', icon: Clock },
-  { href: '/dashboard/photos', tab: 'photos', labelKey: 'photos', icon: Image },
+  // Photos is still being built — nav entry and route disabled for now. Restore
+  // this line (+ re-add the lucide Image import) alongside the BottomTabBar
+  // MoreCard and the page itself (see photos/page.tsx).
+  // { href: '/dashboard/photos', tab: 'photos', labelKey: 'photos', icon: Image },
   { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },
   { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench },
 ];
