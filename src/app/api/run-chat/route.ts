@@ -224,7 +224,7 @@ export async function POST(request: Request) {
         });
       }
     }
-
+    
     const stream = getStreamServerClient();
     await ensureAiUser(stream);
     const resolvedCoach = await resolveCoachStreamUser(

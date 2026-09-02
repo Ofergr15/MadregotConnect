@@ -31,23 +31,32 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
-    // 1) Never cache the app's own API — guarantees data freshness and avoids
-    //    persisting any authenticated response body.
-    {
-      matcher: ({ url }) => url.pathname.startsWith('/api/'),
-      handler: new NetworkOnly(),
-    },
-    // 2) Never cache Supabase (auth tokens + live data).
-    {
-      matcher: ({ url }) => url.hostname.endsWith('.supabase.co'),
-      handler: new NetworkOnly(),
-    },
-    // 3) Never intercept OAuth callbacks / PKCE code exchanges.
+    // 1) Never intercept OAuth callbacks / PKCE code exchanges — navigationPreload
+    //    sends a direct network request AND the SW would make a second fetch via
+    //    NetworkOnly, consuming a one-time-use code twice. Return the preload
+    //    response directly to guarantee exactly one round-trip to the server.
+    //    Must be listed before the /api/* rule or that rule wins first.
     {
       matcher: ({ url, request }) =>
         request.mode === 'navigate' &&
         (/^\/(auth|garmin-callback|serwist)(\/|$)/.test(url.pathname) ||
           url.searchParams.has('code')),
+      handler: {
+        handle: async ({ event }) => {
+          const preload = await (event as FetchEvent).preloadResponse;
+          return preload || fetch((event as FetchEvent).request);
+        },
+      },
+    },
+    // 2) Never cache the app's own API — guarantees data freshness and avoids
+    //    persisting any authenticated response body.
+    {
+      matcher: ({ url }) => url.pathname.startsWith('/api/'),
+      handler: new NetworkOnly(),
+    },
+    // 3) Never cache Supabase (auth tokens + live data).
+    {
+      matcher: ({ url }) => url.hostname.endsWith('.supabase.co'),
       handler: new NetworkOnly(),
     },
     // 4) Don't mediate the Races-page map (Leaflet CDN + CARTO map tiles).

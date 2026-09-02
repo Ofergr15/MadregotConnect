@@ -64,8 +64,11 @@ const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-
 // staff. `practice-attendance` is deliberately absent from the staff order: it's
 // the FAB's own target (see primaryActionHref below), so it must never also be
 // eligible as a flat primary tab — the same destination reachable twice.
-const ATHLETE_PRIMARY_ORDER = ['dashboard', 'program', 'feed', 'profile'];
-const STAFF_PRIMARY_ORDER = ['dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
+// Feed leads both lists — it's the app's landing page now. Only the first 4
+// entries fit as flat tabs, so the staff list's 5th (coach-tools) rides in
+// "More" whenever the first four are all enabled.
+const ATHLETE_PRIMARY_ORDER = ['feed', 'dashboard', 'program', 'profile'];
+const STAFF_PRIMARY_ORDER = ['feed', 'dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
 
 interface TabPermission { role: string; tab: string; enabled: boolean; }
 
@@ -79,6 +82,15 @@ export function BottomTabBar() {
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // The athlete "Confirm" action and the Dashboard tab both lead to /dashboard
+  // (the RSVP card lives at its top), so the pathname alone can't say which slot
+  // should be highlighted there — the last-tapped one wins. Cleared whenever the
+  // viewer leaves /dashboard so a later return via deep link or back-gesture
+  // defaults to the Dashboard tab again.
+  const [confirmTapped, setConfirmTapped] = useState(false);
+  useEffect(() => {
+    if (pathname !== '/dashboard') setConfirmTapped(false);
+  }, [pathname]);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -211,16 +223,17 @@ export function BottomTabBar() {
         className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-slate-700/60 bg-slate-900/85 backdrop-blur-xl transform-gpu"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
+        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, onClick: () => setConfirmTapped(false), active: item.tab === 'dashboard' ? isActive(item.href) && !confirmTapped : undefined }))}
 
         {/* Athlete "Confirm" shares its href with the Dashboard tab (the RSVP
-            card lives at the top of /dashboard), so it must never derive its
-            active state from the pathname — both slots would light up at once.
-            It's an action, not a location. Staff's roster IS its own page, so
-            location-based active state stays meaningful there. */}
-        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), label: t(primaryActionLabelKey as any), icon: CalendarCheck, active: isStaffView && isActive(primaryActionHref) })}
+            card lives at the top of /dashboard), so both deriving active state
+            from the pathname would light the two slots at once. Instead the
+            confirmTapped flag decides which of the pair owns the /dashboard
+            highlight. Staff's roster IS its own page, so plain location-based
+            active state stays meaningful there. */}
+        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), label: t(primaryActionLabelKey as any), icon: CalendarCheck, onClick: () => setConfirmTapped(!isStaffView), active: isStaffView ? isActive(primaryActionHref) : isActive('/dashboard') && confirmTapped })}
 
-        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
+        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, onClick: () => setConfirmTapped(false), active: item.tab === 'dashboard' ? isActive(item.href) && !confirmTapped : undefined }))}
 
         {overflow.length > 0 && (
           <button

@@ -63,7 +63,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state');
-  const origin = new URL(request.url).origin;
+  // Behind a Cloudflare tunnel, request.url carries the internal localhost URL.
+  // NEXT_PUBLIC_APP_URL is the public-facing origin the client's browser can reach.
+  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || new URL(request.url).origin;
   const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
     ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
     : 'missing';
@@ -77,15 +79,58 @@ export async function GET(request: Request) {
 
   if (!code || !state) {
     console.error(`[auth-debug:${debugId}] callback:missing_params`);
-    return NextResponse.redirect(new URL('/?strava=error&reason=missing_params', request.url));
+    return NextResponse.redirect(new URL('/?strava=error&reason=missing_params', origin));
   }
   if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
     console.error(`[auth-debug:${debugId}] callback:not_configured`);
-    return NextResponse.redirect(new URL('/?strava=error&reason=not_configured', request.url));
+    return NextResponse.redirect(new URL('/?strava=error&reason=not_configured', origin));
   }
 
   try {
-    const tokenData = await exchangeCode(code);
+    let tokenData: TokenPayload;
+    try {
+      tokenData = await exchangeCode(code);
+    } catch (exchangeErr: any) {
+      // If the code is already spent (duplicate callback hit), check whether the
+      // first call already created a session for this user. Look up the most
+      // recently created athlete whose Strava auth was updated in the last minute.
+      const isInvalidCode =
+        typeof exchangeErr?.message === 'string' && exchangeErr.message.includes('"invalid"');
+      if (isInvalidCode && state === 'login') {
+        const admin = adminClient();
+        const cutoff = new Date(Date.now() - 60_000).toISOString();
+        const { data: recent } = await admin
+          .from('athletes')
+          .select('id, email, name, strava_athlete_id')
+          .eq('data_source', 'strava')
+          .gte('updated_at', cutoff)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (recent?.id) {
+          console.info(`[auth-debug:${debugId}] callback:duplicate_code_recovered`, {
+            athleteId: recent.id,
+          });
+          const authResult = await createSyntheticSession(admin, recent.email, {
+            strava_athlete_id: recent.strava_athlete_id,
+            athlete_id: recent.id,
+            name: recent.name,
+          });
+          if (authResult.session) {
+            const sessionFragment = new URLSearchParams({
+              access_token: authResult.session.access_token,
+              refresh_token: authResult.session.refresh_token,
+              expires_in: String(authResult.session.expires_in),
+              token_type: authResult.session.token_type,
+              type: 'strava',
+              debug_id: debugId,
+            });
+            return NextResponse.redirect(`${origin}/auth/resolve#${sessionFragment.toString()}`);
+          }
+        }
+      }
+      throw exchangeErr;
+    }
     const stravaId = tokenData.athlete?.id;
     console.info(`[auth-debug:${debugId}] callback:code_exchanged`, {
       hasAccessToken: !!tokenData.access_token,
@@ -94,7 +139,7 @@ export async function GET(request: Request) {
     });
     if (!stravaId) {
       console.error(`[auth-debug:${debugId}] callback:no_athlete`);
-      return NextResponse.redirect(new URL('/?strava=error&reason=no_athlete', request.url));
+      return NextResponse.redirect(new URL('/?strava=error&reason=no_athlete', origin));
     }
 
     const stravaAuth = {
@@ -126,10 +171,10 @@ export async function GET(request: Request) {
       if (error) {
         console.error('Failed to save Strava auth:', error);
         return NextResponse.redirect(
-          new URL('/dashboard/athletes?strava=error&reason=save_failed', request.url),
+          new URL('/dashboard/athletes?strava=error&reason=save_failed', origin),
         );
       }
-      return NextResponse.redirect(new URL('/dashboard/athletes?strava=connected', request.url));
+      return NextResponse.redirect(new URL('/dashboard/athletes?strava=connected', origin));
     }
 
     // ── Login mode ───────────────────────────────────────────────────────────
@@ -150,7 +195,7 @@ export async function GET(request: Request) {
     });
     if (existingError) {
       console.error('Strava login athlete lookup failed:', existingError);
-      return NextResponse.redirect(new URL('/?strava=error&reason=lookup_failed', request.url));
+      return NextResponse.redirect(new URL('/?strava=error&reason=lookup_failed', origin));
     }
 
     let athleteId = existing?.id as string | undefined;
@@ -194,7 +239,7 @@ export async function GET(request: Request) {
         .single();
       if (insertErr || !created) {
         console.error('Strava login athlete insert failed:', insertErr);
-        return NextResponse.redirect(new URL('/?strava=error&reason=save_failed', request.url));
+        return NextResponse.redirect(new URL('/?strava=error&reason=save_failed', origin));
       }
       athleteId = created.id;
     }
@@ -213,7 +258,7 @@ export async function GET(request: Request) {
       return NextResponse.redirect(
         new URL(
           `/?strava=error&reason=session_create_failed&debug=${encodeURIComponent(debugId)}`,
-          request.url,
+          origin,
         ),
       );
     }
@@ -231,7 +276,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error(`[auth-debug:${debugId}] callback:exception`, err);
     return NextResponse.redirect(
-      new URL(`/?strava=error&reason=unknown&debug=${debugId}`, request.url),
+      new URL(`/?strava=error&reason=unknown&debug=${debugId}`, origin),
     );
   }
 }

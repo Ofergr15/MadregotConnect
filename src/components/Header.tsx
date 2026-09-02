@@ -201,7 +201,7 @@ export function Header() {
         <div className="flex items-center justify-between h-14">
           {/* Logo + Review */}
           <div className="flex items-center gap-3 shrink-0">
-            <Link href="/dashboard" className="flex items-center gap-2.5">
+            <Link href="/feed" className="flex items-center gap-2.5">
               <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0 invert" />
               <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
             </Link>
