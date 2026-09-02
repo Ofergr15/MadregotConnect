@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { followCopy } from '@/lib/notifications/copy';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -60,8 +61,7 @@ export async function POST(request: Request) {
           athleteId: followeeId,
           kind: 'follow',
           actorAthleteId: followerId,
-          title: `${who} התחיל/ה לעקוב אחריך 👋`,
-          body: 'היכנסו לפרופיל שלכם כדי לראות',
+          copy: (locale) => followCopy(locale, { name: who }),
           url: '/dashboard/profile',
           tag: `follow-${followerId}-${followeeId}`,
           category: 'teammates',

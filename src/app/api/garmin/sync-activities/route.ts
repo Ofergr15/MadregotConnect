@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from '@/lib/garmin/client';
 import { COACH_ID } from '@/lib/constants';
 import { notifyAthlete, notifyTeammatesOfActivity } from '@/lib/push';
+import { activitySyncedCopy } from '@/lib/notifications/copy';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { checkShoeAlert } from '@/lib/shoes';
@@ -248,8 +249,7 @@ export async function runSyncRequest(request: Request) {
                 await notifyAthlete({
                   athleteId: athlete.id,
                   kind: 'activity_sync_editor',
-                  title: 'האימון שלך סונכרן! 🏃',
-                  body: 'התאמה אישית של הפוסט לפני שהוא יוצא לפיד',
+                  copy: activitySyncedCopy,
                   url: `/dashboard?editActivity=${latestRowId}`,
                   tag: `activity-sync-editor-${latestRowId}`,
                   category: 'workouts',

@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { APPROVER_EMAILS } from '@/lib/constants';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
-import { subscriptionsForAthletes, sendPushDetailed, persistNotifications } from '@/lib/push';
+import { subscriptionsForAthletes, sendPushLocalized, persistNotifications, localesForAthletes } from '@/lib/push';
+import { storeOrderCopy } from '@/lib/notifications/copy';
+import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 
 export const dynamic = 'force-dynamic';
 
@@ -165,8 +167,8 @@ export async function POST(request: Request) {
       const { data: coaches } = await supabase.from('athletes').select('id').in('email', APPROVER_EMAILS);
       const coachIds = (coaches || []).map((c: { id: string }) => c.id);
       if (coachIds.length > 0) {
-        const title = '🛒 הזמנה חדשה בחנות';
-        const body = `${athlete?.name || 'ספורטאי/ת'}: ${lineItems.length} פריטים · ${total} ₪`;
+        const build = (locale: NotificationLocale) =>
+          storeOrderCopy(locale, { athleteName: athlete?.name, itemCount: lineItems.length, total });
         // Send first, persist second — the badge count inside sendPushDetailed
         // adds +1 for "the notification being delivered right now" on the
         // assumption its row isn't in the DB yet, so persisting first made this
@@ -176,21 +178,22 @@ export async function POST(request: Request) {
         const subs = await subscriptionsForAthletes(coachIds);
         let byAthlete: Record<string, number> | undefined;
         if (subs.length > 0) {
-          ({ byAthlete } = await sendPushDetailed(subs, {
-            title,
-            body,
+          ({ byAthlete } = await sendPushLocalized(subs, (locale) => ({
+            ...build(locale),
             url: '/dashboard/store',
             tag: `store-order-${order.id}`,
-          }));
+          })));
         } else {
           byAthlete = {};
         }
+        // A coach with no subscription still gets an inbox row, so the language
+        // is looked up from the coach ids rather than from `subs`.
+        const rowLocales = await localesForAthletes(coachIds);
         await persistNotifications(coachIds.map((coachId) => ({
           athleteId: coachId,
           kind: 'store_order',
           actorAthleteId: athleteId,
-          title,
-          body,
+          ...build(rowLocales.get(coachId) ?? DEFAULT_NOTIFICATION_LOCALE),
           url: '/dashboard/store',
         })), byAthlete);
       }

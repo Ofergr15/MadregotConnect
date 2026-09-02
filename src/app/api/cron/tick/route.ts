@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushToSubscriptions, sendPushDetailed, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications } from '@/lib/push';
+import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications, localesForAthletes } from '@/lib/push';
+import {
+  trainingDayBeforeCopy, trainingEveningBeforeCopy, RSVP_ACTION_LABELS, newWeekProgramCopy,
+  eventTomorrowCopy, eventClosingCopy, weeklyRecapCopy, surveyNudgeCopy,
+} from '@/lib/notifications/copy';
+import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
 import { israelNow, getPlanWeekStart, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
-
-// 0=Sun..6=Sat, matching israelNow()/getDay(). Used to make reminder copy name
-// the actual day instead of a generic "tomorrow" (same convention as
-// practice-attendance/page.tsx and NotificationCenter.tsx).
-const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 /** Format seconds-per-km as m:ss (e.g. 312 -> "5:12"), for the weekly recap. */
 function formatPace(secPerKm: number): string {
@@ -118,26 +118,33 @@ async function run(request: Request) {
     if (dayBefore.enabled && weekday === dayBeforeWeekday && hour === dayBefore.hour) {
       const tag = `dayBefore:${teamDayWeekStart}:${teamDay}`;
       if (!(await already(tag))) {
-        const dayName = DAY_NAMES[teamDay];
-        const title = `תזכורת אימון ליום ${dayName} 🏃`;
-        const body = `מחר, יום ${dayName}, אימון קבוצתי — נתראה!`;
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
         const subs = await resolveAudience('all', null);
-        const { sent, byAthlete } = await sendPushDetailed(subs, {
-          title, body, url, tag,
+        const build = (locale: NotificationLocale) => trainingDayBeforeCopy(locale, { day: teamDay });
+        const { sent, byAthlete } = await sendPushLocalized(subs, (locale) => ({
+          ...build(locale), url, tag,
           category: 'workouts',
           actions: [
-            { action: 'rsvp_yes', title: '✅ מגיע/ה' },
-            { action: 'rsvp_no', title: '❌ לא הפעם' },
+            { action: 'rsvp_yes', title: RSVP_ACTION_LABELS[locale].yes },
+            { action: 'rsvp_no', title: RSVP_ACTION_LABELS[locale].no },
           ],
           rsvp: { weekStart: teamDayWeekStart, day: teamDay },
-        });
+        }));
         // Persist a real per-athlete row (not just the #ledger: idempotency
         // marker) so this reminder actually shows up in the in-app inbox with
         // a parseable url — GET /api/notifications/inbox excludes #ledger:
         // rows, so without this the inbox's RsvpInlineButtons could never
         // reach a real training_before item no matter how many reminders fired.
-        await persistNotifications(subs.map((s) => ({ athleteId: s.athlete_id, kind: 'training_before', title, body, url })), byAthlete);
+        // Localized per recipient for the same reason the push is: these rows
+        // ARE the in-app inbox, so a Hebrew row would undo the setting the
+        // moment the athlete opened the app.
+        const rowLocales = await localesForAthletes([...new Set(subs.map((s) => s.athlete_id))]);
+        await persistNotifications(subs.map((s) => ({
+          athleteId: s.athlete_id,
+          kind: 'training_before',
+          ...build(rowLocales.get(s.athlete_id) ?? DEFAULT_NOTIFICATION_LOCALE),
+          url,
+        })), byAthlete);
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
       }
@@ -161,23 +168,26 @@ async function run(request: Request) {
         const all = await allAthleteIds();
         const nonResponders = all.filter(id => !answeredIds.has(id));
         const subs = await subscriptionsForAthletes(nonResponders);
-        const dayName = DAY_NAMES[teamDay];
-        const rsvpPhrase = goingCount === 1 ? 'חבר אחד כבר אישר הגעה' : `${goingCount} חברים כבר אישרו הגעה`;
-        const title = 'מגיעים מחר לאימון? 🏟️';
-        const body = goingCount > 0
-          ? `${rsvpPhrase} לאימון יום ${dayName} — ומה איתך?`
-          : `עדכנו אותנו אם אתם מגיעים לאימון יום ${dayName}`;
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
-        const { sent, byAthlete } = await sendPushDetailed(subs, {
-          title, body, url, tag,
+        const build = (locale: NotificationLocale) => trainingEveningBeforeCopy(locale, { day: teamDay, goingCount });
+        const { sent, byAthlete } = await sendPushLocalized(subs, (locale) => ({
+          ...build(locale), url, tag,
           category: 'workouts',
           actions: [
-            { action: 'rsvp_yes', title: '✅ מגיע/ה' },
-            { action: 'rsvp_no', title: '❌ לא הפעם' },
+            { action: 'rsvp_yes', title: RSVP_ACTION_LABELS[locale].yes },
+            { action: 'rsvp_no', title: RSVP_ACTION_LABELS[locale].no },
           ],
           rsvp: { weekStart: teamDayWeekStart, day: teamDay },
-        });
-        await persistNotifications(nonResponders.map((athleteId) => ({ athleteId, kind: 'training_before', title, body, url })), byAthlete);
+        }));
+        // Non-responders without a subscription still get an inbox row, so their
+        // language is looked up from the id list rather than from `subs`.
+        const rowLocales = await localesForAthletes(nonResponders);
+        await persistNotifications(nonResponders.map((athleteId) => ({
+          athleteId,
+          kind: 'training_before',
+          ...build(rowLocales.get(athleteId) ?? DEFAULT_NOTIFICATION_LOCALE),
+          url,
+        })), byAthlete);
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent}`);
       }
@@ -237,12 +247,10 @@ async function run(request: Request) {
           .maybeSingle();
         const surveyId = ledgerRow?.body_he;
         if (surveyId) {
-          const dayName = DAY_NAMES[teamDay];
           const sent = await notifySurveyNonResponders({
             surveyId,
             audienceType: 'all',
-            title: 'עוד לא ענית על הדבוקות? 🏃',
-            body: `בחרו דבוקה לאימון יום ${dayName} לפני שהזמן נגמר`,
+            copy: (locale) => surveyNudgeCopy(locale, { day: teamDay }),
             tag,
           });
           await markFired(tag, sent);
@@ -291,13 +299,12 @@ async function run(request: Request) {
         const { data: coaches } = await supabase.from('athletes').select('id').in('email', APPROVER_EMAILS);
         const coachIds = (coaches || []).map((c: { id: string }) => c.id);
         const subs = await subscriptionsForAthletes(coachIds);
-        const sent = await sendPushToSubscriptions(subs, {
-          title: `שבוע חדש מתחיל (${upcomingDateLabel}) 📅`,
-          body: `העלו את התוכניות לשבוע ${upcomingDateLabel}: ${parts.join(' · ')}`,
+        const { sent } = await sendPushLocalized(subs, (locale) => ({
+          ...newWeekProgramCopy(locale, { dateLabel: upcomingDateLabel, parts }),
           url: '/dashboard/program',
           tag,
           category: 'program',
-        });
+        }));
         await markFired(tag, sent);
         fired.push(`${tag} → ${sent} (training:${hasTraining} nutrition:${hasNutrition})`);
       } else {
@@ -335,13 +342,12 @@ async function run(request: Request) {
 
       const subs = await subscriptionsForAthletes(athleteIds);
       const timeLabel = ev.start_time ? ` בשעה ${String(ev.start_time).slice(0, 5)}` : '';
-      const sent = await sendPushToSubscriptions(subs, {
-        title: `מחר: ${ev.name} 🗓️`,
-        body: `נרשמת ל${ev.name}${timeLabel}${ev.location ? ` · ${ev.location}` : ''}. בהצלחה!`,
+      const { sent } = await sendPushLocalized(subs, (locale) => ({
+        ...eventTomorrowCopy(locale, { name: ev.name, timeLabel, location: ev.location }),
         url: `/dashboard/calendar/${ev.id}`,
         tag,
         category: 'events',
-      });
+      }));
       await markFired(tag, sent);
       fired.push(`${tag} → ${sent}`);
     }
@@ -377,13 +383,12 @@ async function run(request: Request) {
       if (notRegisteredIds.length === 0) { await markFired(tag, 0); continue; }
 
       const subs = await subscriptionsForAthletes(notRegisteredIds);
-      const sent = await sendPushToSubscriptions(subs, {
-        title: `ההרשמה נסגרת מחר: ${ev.name} ⏰`,
-        body: `אם מתכננים להשתתף ב${ev.name}, זו ההזדמנות האחרונה להירשם.`,
+      const { sent } = await sendPushLocalized(subs, (locale) => ({
+        ...eventClosingCopy(locale, { name: ev.name }),
         url: `/dashboard/calendar/${ev.id}`,
         tag,
         category: 'events',
-      });
+      }));
       await markFired(tag, sent);
       fired.push(`${tag} → ${sent}`);
     }
@@ -453,18 +458,14 @@ async function run(request: Request) {
             const subs = subsByAthlete.get(athleteId) || [];
             if (subs.length === 0) return 0;
             const km = Math.round(s.km * 10) / 10;
-            const runsLabel = s.runs === 1 ? 'ריצה' : 'ריצות';
             const paceStr = s.sec > 0 && s.km > 0 ? formatPace(s.sec / s.km) : null;
-            const body = paceStr
-              ? `השבוע רצת ${km} ק״מ ב-${s.runs} ${runsLabel}, בקצב ממוצע של ${paceStr} לק״מ. כל הכבוד!`
-              : `השבוע רצת ${km} ק״מ ב-${s.runs} ${runsLabel}. כל הכבוד!`;
-            return sendPushToSubscriptions(subs, {
-              title: 'הסיכום השבועי שלך 🏅',
-              body,
+            const { sent } = await sendPushLocalized(subs, (locale) => ({
+              ...weeklyRecapCopy(locale, { km, runs: s.runs, pace: paceStr }),
               url: '/dashboard',
               tag,
               category: 'achievements',
-            });
+            }));
+            return sent;
           }),
         );
         totalSent = sentCounts.reduce((a, b) => a + b, 0);

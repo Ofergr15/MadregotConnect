@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { UUID_RE, shapeInboxItem, aggregate } from '@/lib/notifications/inbox';
+import { localeFromPrefs } from '@/lib/notifications/locale';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
 
     const { data: a, error: athleteError } = await supabase
       .from('athletes')
-      .select('group_id, last_seen_at')
+      .select('group_id, last_seen_at, notification_prefs')
       .eq('id', athleteId)
       .maybeSingle();
     if (athleteError) throw athleteError;
@@ -75,7 +76,9 @@ export async function GET(request: Request) {
       // Drop internal idempotency-ledger rows (not real member messages).
       .filter((r: any) => !String(r.url || '').startsWith('#ledger:'))
       .map((r: any) => shapeInboxItem(r, since));
-    const items = aggregate(rawItems);
+    // Merged bursts are composed here rather than at send time, so they need
+    // the athlete's notification language too.
+    const items = aggregate(rawItems, localeFromPrefs(a.notification_prefs));
 
     return NextResponse.json({ items, unread: items.filter((i) => i.unread).length });
   } catch (err: unknown) {

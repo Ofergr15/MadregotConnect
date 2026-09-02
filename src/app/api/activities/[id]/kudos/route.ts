@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { kudosCopy } from '@/lib/notifications/copy';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { ACTION_TOKEN_HEADER, kudosScope, verifyActionToken } from '@/lib/auth/action-token';
 
@@ -86,8 +87,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             athleteId: activity.athlete_id,
             kind: 'kudos',
             actorAthleteId: athleteId,
-            title: `${who} נתן/ה לך קודוס על הריצה! 👍`,
-            body: 'לחצו לצפייה',
+            copy: (locale) => kudosCopy(locale, { name: who }),
             // The club feed focused on the run that got the kudos — see the
             // same link in notifyTeammatesOfActivity. /dashboard/activities
             // cannot show it: it filters to the viewer's own activities.

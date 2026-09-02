@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { feedInteractionCopy, mentionCopy } from '@/lib/notifications/copy';
 import { uniqueMentionedAthleteIds } from '@/lib/feed/mentions';
 
 export interface FeedInteractionInput {
@@ -12,29 +13,17 @@ export interface FeedInteractionInput {
 }
 
 /**
- * Builds the title/body for a feed like/comment push, or null when there's
- * nothing to send (a system item with no author, or you interacting with
- * your own item). Pure — separated from notifyFeedInteraction below so the
- * actual text-construction logic (and its "skip when own item" guard) has
- * somewhere to be tested without a live DB/push call.
+ * Whether this feed interaction is worth a notification at all — false for a
+ * system item with no author, or for someone interacting with their own item.
+ *
+ * This used to also build the title and body, but the recipient's notification
+ * language isn't known until the send path resolves it, and this function is
+ * called before that. So it keeps the guard (the part with a decision in it)
+ * and hands the wording to feedInteractionCopy.
  */
-export function buildFeedInteractionNotification(
-  input: FeedInteractionInput,
-): { title: string; body: string } | null {
-  const { authorAthleteId, actorAthleteId, actorName, kind, commentBody } = input;
-  if (!authorAthleteId || authorAthleteId === actorAthleteId) return null;
-
-  const who = actorName || 'מישהו';
-  const title = kind === 'like' ? `${who} אהב את הפוסט שלך ❤️` : `${who} הגיב לך 💬`;
-  const preview = (commentBody || '').trim();
-  const body =
-    kind === 'like'
-      ? 'היכנסו לפיד כדי לראות'
-      : preview.length > 80
-        ? `${preview.slice(0, 80)}…`
-        : preview || 'היכנסו לפיד כדי לראות';
-
-  return { title, body };
+export function shouldNotifyFeedInteraction(input: FeedInteractionInput): boolean {
+  const { authorAthleteId, actorAthleteId } = input;
+  return !!authorAthleteId && authorAthleteId !== actorAthleteId;
 }
 
 /** Best-effort push to the author of a liked or commented feed item. */
@@ -47,16 +36,14 @@ export async function notifyFeedInteraction(opts: {
   /** Comment text, used to preview the comment in the notification body. */
   commentBody?: string;
 }): Promise<void> {
-  const { feedItemId, authorAthleteId, actorAthleteId, kind } = opts;
-  const notification = buildFeedInteractionNotification(opts);
-  if (!notification) return;
+  const { feedItemId, authorAthleteId, actorAthleteId, actorName, kind, commentBody } = opts;
+  if (!shouldNotifyFeedInteraction(opts)) return;
 
   await notifyAthlete({
     athleteId: authorAthleteId as string,
     kind,
     actorAthleteId,
-    title: notification.title,
-    body: notification.body,
+    copy: (locale) => feedInteractionCopy(locale, { name: actorName, kind, commentBody }),
     url: `/feed?item=${feedItemId}`,
     tag: `feed-${kind}-${feedItemId}`,
     // Same "what my teammates are up to" bucket as notifyTeammatesOfActivity
@@ -74,24 +61,22 @@ export interface MentionNotificationInput {
 }
 
 /**
- * The mentioned athlete ids to notify plus the shared title/body text, or
- * null when nobody's actually mentioned. Pure — separated so the text
- * construction and the mention-parsing/self-exclusion logic (already
- * covered by uniqueMentionedAthleteIds' own tests) can be tested together
- * without a live DB/push call.
+ * Who to notify about a mention, plus the preview of the text they were
+ * mentioned in — or null when nobody's actually mentioned. The body IS the
+ * mention's own text, so unlike the title there is nothing here to translate;
+ * the title comes from mentionCopy on the send path, once the recipient's
+ * language is known.
  */
 export function buildMentionNotification(
   input: MentionNotificationInput,
-): { mentionedIds: string[]; title: string; body: string } | null {
-  const { body, actorAthleteId, actorName, kind } = input;
+): { mentionedIds: string[]; body: string } | null {
+  const { body, actorAthleteId } = input;
   const mentionedIds = uniqueMentionedAthleteIds(body, actorAthleteId);
   if (mentionedIds.length === 0) return null;
 
-  const who = actorName || 'מישהו';
-  const title = `${who} תייג/ה אותך ${kind === 'comment' ? 'בתגובה' : 'בפוסט'} 🏷️`;
   const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
 
-  return { mentionedIds, title, body: preview };
+  return { mentionedIds, body: preview };
 }
 
 /**
@@ -109,10 +94,10 @@ export async function notifyMentions(opts: {
   actorName: string;
   kind: 'post' | 'comment';
 }): Promise<void> {
-  const { feedItemId, actorAthleteId } = opts;
+  const { feedItemId, actorAthleteId, actorName, kind } = opts;
   const notification = buildMentionNotification(opts);
   if (!notification) return;
-  const { mentionedIds, title, body: preview } = notification;
+  const { mentionedIds, body: preview } = notification;
 
   await Promise.all(
     mentionedIds.map((athleteId) =>
@@ -120,8 +105,9 @@ export async function notifyMentions(opts: {
         athleteId,
         kind: 'mention',
         actorAthleteId,
-        title,
-        body: preview,
+        // One preview shared by everyone tagged; only the title follows each
+        // recipient's own language.
+        copy: (locale) => ({ ...mentionCopy(locale, { name: actorName, kind }), body: preview }),
         url: `/feed?item=${feedItemId}`,
         tag: `feed-mention-${feedItemId}-${athleteId}`,
         category: 'teammates',

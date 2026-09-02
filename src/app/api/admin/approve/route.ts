@@ -5,6 +5,7 @@ import { canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { notifyUserApproved, notifyAdminUserApproved, notifyAcademyApproved } from '@/lib/email';
 import { notifyAthlete } from '@/lib/push';
+import { approvalCopy } from '@/lib/notifications/copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,8 +104,7 @@ export async function POST(req: NextRequest) {
           await notifyAthlete({
             athleteId,
             kind: 'approval',
-            title: `${athlete.name}, אושרת! 🎉`,
-            body: 'ההרשמה שלך אושרה — היכנס/י כדי לראות את תוכנית האימונים שלך',
+            copy: (locale) => approvalCopy(locale, { name: athlete.name }),
             url: '/dashboard',
             tag: 'approval',
             // No category — this is the one moment a pending athlete has been

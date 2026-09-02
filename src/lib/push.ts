@@ -265,6 +265,23 @@ export async function localesForAthletes(athleteIds: string[]): Promise<Map<stri
 }
 
 /**
+ * One athlete's chosen notification language.
+ *
+ * The single-recipient counterpart to localesForAthletes, for the many senders
+ * that notify exactly one person (a kudos, a coach reply, an approval). Those
+ * can't use sendPushLocalized — there is nothing to group — so they resolve the
+ * locale first and then build their strings, which also keeps the chosen
+ * language visible at the call site rather than buried in a callback.
+ *
+ * Costs one small query. Falls back to the default rather than throwing, for the
+ * same reason as everything else on this path: a Hebrew notification beats none.
+ */
+export async function notificationLocaleFor(athleteId: string): Promise<NotificationLocale> {
+  const locales = await localesForAthletes([athleteId]);
+  return locales.get(athleteId) ?? DEFAULT_NOTIFICATION_LOCALE;
+}
+
+/**
  * Send one push whose wording follows each recipient's own language setting.
  *
  * sendPushDetailed takes a single payload for many subscriptions, which is
@@ -736,19 +753,40 @@ export async function persistNotifications(
  * the moment it's dismissed or missed. Both halves are independently
  * best-effort — a failure in one never blocks the other or the caller.
  */
-export async function notifyAthlete(opts: {
+interface NotifyAthleteBase {
   athleteId: string;
   /** Free-text category for this row's `kind` column, e.g. 'like' | 'comment' | 'badge' | 'follow' | 'feedback_reply'. */
   kind: string;
   /** Who did this to the recipient — null for system-generated (e.g. a badge award). */
   actorAthleteId?: string | null;
-  title: string;
-  body: string;
   url: string;
   tag?: string;
   category?: NotificationCategory;
   icon?: string;
-}): Promise<void> {
+}
+
+/**
+ * Either fixed strings, or a builder that gets the recipient's own notification
+ * language. A union rather than two optional fields so a caller can't supply
+ * both and leave it ambiguous which one wins.
+ *
+ * `title`/`body` is still the right choice when the text isn't ours to
+ * translate — a coach's reply, an admin's announcement, a survey question. Use
+ * `copy` for everything the app writes itself.
+ */
+export type NotifyAthleteOptions = NotifyAthleteBase &
+  (
+    | { title: string; body: string; copy?: never }
+    | { copy: (locale: NotificationLocale) => { title: string; body: string }; title?: never; body?: never }
+  );
+
+export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<void> {
+  // The recipient's language, resolved once and used for both the push and the
+  // history row — they must agree, or opening the app would undo the setting.
+  const { title, body } = opts.copy
+    ? opts.copy(await notificationLocaleFor(opts.athleteId))
+    : { title: opts.title, body: opts.body };
+
   // Send BEFORE persisting: computeUnreadCounts (inside sendPushToSubscriptions)
   // counts already-'sent' rows since last_seen_at and adds +1 for "the one being
   // delivered right now" — that +1 assumes this row isn't in the DB yet. Persisting
@@ -759,8 +797,8 @@ export async function notifyAthlete(opts: {
     const subs = await subscriptionsForAthletes([opts.athleteId]);
     if (subs.length > 0) {
       ({ byAthlete } = await sendPushDetailed(subs, {
-        title: opts.title,
-        body: opts.body,
+        title,
+        body,
         url: opts.url,
         tag: opts.tag,
         category: opts.category,
@@ -777,8 +815,8 @@ export async function notifyAthlete(opts: {
     athleteId: opts.athleteId,
     kind: opts.kind,
     actorAthleteId: opts.actorAthleteId,
-    title: opts.title,
-    body: opts.body,
+    title,
+    body,
     url: opts.url,
   }], byAthlete);
 }

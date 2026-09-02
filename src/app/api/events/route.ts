@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
-import { EVENT_KINDS, EVENT_KIND_LABELS, isEventKind } from '@/lib/events';
-import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
+import { EVENT_KINDS, isEventKind } from '@/lib/events';
+import { resolveAudience, sendPushLocalized } from '@/lib/push';
+import { newEventCopy } from '@/lib/notifications/copy';
 import { israelToday } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -126,13 +127,12 @@ export async function POST(request: Request) {
     try {
       const subs = await resolveAudience('all', null);
       if (subs.length > 0) {
-        await sendPushToSubscriptions(subs, {
-          title: `${EVENT_KIND_LABELS[kind as keyof typeof EVENT_KIND_LABELS]} חדש!`,
-          body: `${name} · ${new Date(date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })}`,
+        await sendPushLocalized(subs, (locale) => ({
+          ...newEventCopy(locale, { kind, name, date }),
           url: `/dashboard/calendar/${data.id}`,
           tag: `event-${data.id}`,
           category: 'events',
-        });
+        }));
       }
     } catch {
       // best-effort — never let a push failure affect event creation

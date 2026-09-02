@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { shoeLimitCopy } from '@/lib/notifications/copy';
 
 /**
  * Checks one shoe's accumulated mileage against its limit/alert-before
@@ -33,8 +34,9 @@ export async function checkShoeAlert(shoeId: string): Promise<void> {
       await notifyAthlete({
         athleteId: shoe.athlete_id,
         kind: 'shoe_limit',
-        title: `הנעליים "${shoe.name}" הגיעו למגבלת הק״מ 👟`,
-        body: `${kmRounded} ק״מ מתוך ${limitRounded} — כדאי לשקול זוג חדש`,
+        copy: (locale) => shoeLimitCopy(locale, {
+          name: shoe.name, km: kmRounded, limit: limitRounded, reached: true,
+        }),
         url: '/dashboard/settings',
         category: 'workouts',
       });
@@ -43,8 +45,9 @@ export async function checkShoeAlert(shoeId: string): Promise<void> {
       await notifyAthlete({
         athleteId: shoe.athlete_id,
         kind: 'shoe_limit',
-        title: `הנעליים "${shoe.name}" מתקרבות למגבלה 👟`,
-        body: `${kmRounded} ק״מ מתוך ${limitRounded} ק״מ`,
+        copy: (locale) => shoeLimitCopy(locale, {
+          name: shoe.name, km: kmRounded, limit: limitRounded, reached: false,
+        }),
         url: '/dashboard/settings',
         category: 'workouts',
       });

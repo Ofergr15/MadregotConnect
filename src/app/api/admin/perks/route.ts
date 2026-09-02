@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
-import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
+import { resolveAudience, sendPushLocalized } from '@/lib/push';
+import { newPerkCopy } from '@/lib/notifications/copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,13 +102,14 @@ export async function POST(request: Request) {
     try {
       const subs = await resolveAudience('all', null);
       if (subs.length > 0) {
-        await sendPushToSubscriptions(subs, {
-          title: '🎁 הטבה חדשה!',
-          body: `${sponsorName.trim()}: ${titleHe.trim()}`,
+        // Only the header follows the reader's language — the sponsor and the
+        // perk title are whatever the admin typed, in whatever language.
+        await sendPushLocalized(subs, (locale) => ({
+          ...newPerkCopy(locale, { sponsor: sponsorName.trim(), title: titleHe.trim() }),
           url: '/dashboard/benefits',
           tag: `perk-${data.id}`,
           category: 'news',
-        });
+        }));
       }
     } catch {
       // best-effort — never let a push failure affect perk creation

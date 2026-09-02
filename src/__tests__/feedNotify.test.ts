@@ -1,59 +1,75 @@
 import { describe, expect, it } from 'vitest';
-import { buildFeedInteractionNotification, buildMentionNotification } from '@/lib/feed/notify';
+import { buildMentionNotification, shouldNotifyFeedInteraction } from '@/lib/feed/notify';
+import { feedInteractionCopy, mentionCopy } from '@/lib/notifications/copy';
 
 const ALICE = '11111111-1111-1111-1111-111111111111';
 const BOB = '22222222-2222-2222-2222-222222222222';
 
-describe('buildFeedInteractionNotification', () => {
-  it('returns null for a system item with no author — nobody to notify', () => {
-    expect(buildFeedInteractionNotification({
+// The title/body construction these two used to own now lives in
+// notifications/copy.ts, because the wording depends on the recipient's chosen
+// language and that isn't known until the send path resolves it. What's left
+// here is the part with a decision in it — who gets notified — and the copy
+// module's own assertions moved down into the second block.
+
+describe('shouldNotifyFeedInteraction', () => {
+  it('is false for a system item with no author — nobody to notify', () => {
+    expect(shouldNotifyFeedInteraction({
       authorAthleteId: null, actorAthleteId: 'a1', actorName: 'Alice', kind: 'like',
-    })).toBeNull();
+    })).toBe(false);
   });
 
-  it("returns null when the actor is the item's own author — never notify yourself", () => {
-    expect(buildFeedInteractionNotification({
+  it("is false when the actor is the item's own author — never notify yourself", () => {
+    expect(shouldNotifyFeedInteraction({
       authorAthleteId: 'a1', actorAthleteId: 'a1', actorName: 'Alice', kind: 'like',
-    })).toBeNull();
+    })).toBe(false);
   });
 
-  it('builds a like notification with a generic body (no content preview for likes)', () => {
-    const result = buildFeedInteractionNotification({
+  it('is true when someone else interacts with your item', () => {
+    expect(shouldNotifyFeedInteraction({
       authorAthleteId: 'author', actorAthleteId: 'actor', actorName: 'Alice', kind: 'like',
-    });
-    expect(result?.title).toContain('Alice');
-    expect(result?.title).toContain('אהב');
-    expect(result?.body).toBe('היכנסו לפיד כדי לראות');
+    })).toBe(true);
+  });
+});
+
+describe('feedInteractionCopy', () => {
+  it('gives a like a generic body — there is no content to preview', () => {
+    const he = feedInteractionCopy('he', { name: 'Alice', kind: 'like' });
+    expect(he.title).toContain('Alice');
+    expect(he.title).toContain('אהב');
+    expect(he.body).toBe('היכנסו לפיד כדי לראות');
+
+    const en = feedInteractionCopy('en', { name: 'Alice', kind: 'like' });
+    expect(en.title).toBe('Alice liked your post ❤️');
+    expect(en.body).toBe('Open the feed to take a look');
   });
 
-  it('builds a comment notification that previews the actual comment text', () => {
-    const result = buildFeedInteractionNotification({
-      authorAthleteId: 'author', actorAthleteId: 'actor', actorName: 'Alice', kind: 'comment', commentBody: 'Nice run today!',
-    });
-    expect(result?.title).toContain('הגיב');
-    expect(result?.body).toBe('Nice run today!');
+  it('previews the actual comment text', () => {
+    expect(feedInteractionCopy('he', { name: 'Alice', kind: 'comment', commentBody: 'Nice run today!' }))
+      .toMatchObject({ body: 'Nice run today!' });
+    expect(feedInteractionCopy('en', { name: 'Alice', kind: 'comment', commentBody: 'Nice run today!' }))
+      .toEqual({ title: 'Alice commented on your post 💬', body: 'Nice run today!' });
   });
 
-  it('truncates a long comment preview to 80 chars with an ellipsis', () => {
+  it('truncates a long comment preview to 80 chars with an ellipsis, in both languages', () => {
     const long = 'x'.repeat(120);
-    const result = buildFeedInteractionNotification({
-      authorAthleteId: 'author', actorAthleteId: 'actor', actorName: 'Alice', kind: 'comment', commentBody: long,
-    });
-    expect(result?.body).toBe(`${'x'.repeat(80)}…`);
+    for (const locale of ['he', 'en'] as const) {
+      expect(feedInteractionCopy(locale, { name: 'Alice', kind: 'comment', commentBody: long }).body)
+        .toBe(`${'x'.repeat(80)}…`);
+    }
   });
 
-  it('falls back to a generic prompt when a comment notification has no body text at all', () => {
-    const result = buildFeedInteractionNotification({
-      authorAthleteId: 'author', actorAthleteId: 'actor', actorName: 'Alice', kind: 'comment', commentBody: '   ',
-    });
-    expect(result?.body).toBe('היכנסו לפיד כדי לראות');
+  it('falls back to a generic prompt when a comment has no body text at all', () => {
+    expect(feedInteractionCopy('he', { name: 'Alice', kind: 'comment', commentBody: '   ' }).body)
+      .toBe('היכנסו לפיד כדי לראות');
+    expect(feedInteractionCopy('en', { name: 'Alice', kind: 'comment', commentBody: '   ' }).body)
+      .toBe('Open the feed to take a look');
   });
 
-  it('falls back the actor name to a generic "מישהו" when actorName is empty', () => {
-    const result = buildFeedInteractionNotification({
-      authorAthleteId: 'author', actorAthleteId: 'actor', actorName: '', kind: 'like',
-    });
-    expect(result?.title).toContain('מישהו');
+  it('falls back the actor name to a generic one, in the reader\'s own language', () => {
+    // A Hebrew "מישהו" wedged into an otherwise-English notification is exactly
+    // the seam the copy module exists to close.
+    expect(feedInteractionCopy('he', { name: '', kind: 'like' }).title).toContain('מישהו');
+    expect(feedInteractionCopy('en', { name: '', kind: 'like' }).title).toContain('Someone');
   });
 });
 
@@ -67,18 +83,10 @@ describe('buildMentionNotification', () => {
     expect(buildMentionNotification({ body, actorAthleteId: ALICE, actorName: 'Alice', kind: 'post' })).toBeNull();
   });
 
-  it('returns the mentioned ids and a "tagged you in a post" title for a post', () => {
+  it('returns the mentioned ids', () => {
     const body = `Great run @[Bob](${BOB})!`;
     const result = buildMentionNotification({ body, actorAthleteId: ALICE, actorName: 'Alice', kind: 'post' });
     expect(result?.mentionedIds).toEqual([BOB]);
-    expect(result?.title).toContain('Alice');
-    expect(result?.title).toContain('בפוסט');
-  });
-
-  it('uses a "tagged you in a comment" title for a comment', () => {
-    const body = `@[Bob](${BOB}) check this out`;
-    const result = buildMentionNotification({ body, actorAthleteId: ALICE, actorName: 'Alice', kind: 'comment' });
-    expect(result?.title).toContain('בתגובה');
   });
 
   it('notifies multiple distinct mentioned athletes from one body', () => {
@@ -95,10 +103,18 @@ describe('buildMentionNotification', () => {
     expect(result?.body.endsWith('…')).toBe(true);
     expect(result?.body.length).toBe(81);
   });
+});
 
-  it('falls back the actor name to "מישהו" when empty', () => {
-    const body = `@[Bob](${BOB})`;
-    const result = buildMentionNotification({ body, actorAthleteId: ALICE, actorName: '', kind: 'post' });
-    expect(result?.title).toContain('מישהו');
+describe('mentionCopy', () => {
+  it('distinguishes a post from a comment', () => {
+    expect(mentionCopy('he', { name: 'Alice', kind: 'post' }).title).toContain('בפוסט');
+    expect(mentionCopy('he', { name: 'Alice', kind: 'comment' }).title).toContain('בתגובה');
+    expect(mentionCopy('en', { name: 'Alice', kind: 'post' }).title).toBe('Alice mentioned you in a post 🏷️');
+    expect(mentionCopy('en', { name: 'Alice', kind: 'comment' }).title).toBe('Alice mentioned you in a comment 🏷️');
+  });
+
+  it('falls back the actor name in each language', () => {
+    expect(mentionCopy('he', { name: '', kind: 'post' }).title).toContain('מישהו');
+    expect(mentionCopy('en', { name: '', kind: 'post' }).title).toContain('Someone');
   });
 });

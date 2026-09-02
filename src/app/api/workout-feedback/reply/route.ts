@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
+import { coachReplyCopy } from '@/lib/notifications/copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,8 +80,10 @@ export async function POST(request: Request) {
         athleteId: fb.athlete_id,
         kind: 'feedback_reply',
         actorAthleteId: coachId || null,
-        title: coachName ? `💬 תשובה מ${coachName}` : '💬 תשובה מהמאמן',
-        body: reply.trim().slice(0, 120),
+        copy: (locale) => ({
+          ...coachReplyCopy(locale, { coachName }),
+          body: reply.trim().slice(0, 120),
+        }),
         url,
         tag: `coach-reply-${feedbackId}`,
         category: 'coach',

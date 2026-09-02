@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushToSubscriptions, resolveAudience } from '@/lib/push';
+import { sendPushLocalized, resolveAudience } from '@/lib/push';
+import { pickBilingual } from '@/lib/notifications/copy';
 import { requireApprover } from '@/lib/auth/require-approver';
 
 export const dynamic = 'force-dynamic';
@@ -97,9 +98,12 @@ export async function POST(request: Request) {
     // scanner cron's next tick.
     if (row.schedule_type === 'now') {
       const subs = await resolveAudience(row.audience_type, row.audience_id);
-      const sent = await sendPushToSubscriptions(subs, {
-        title: row.title_he || row.title_en || 'Madregot',
-        body: row.body_he || row.body_en || '',
+      // Each recipient gets the column they can read. This used to be
+      // `title_he || title_en`, which meant an admin who filled in BOTH
+      // languages still only ever reached Hebrew.
+      const { sent } = await sendPushLocalized(subs, (locale) => ({
+        title: pickBilingual(locale, { he: row.title_he, en: row.title_en }) || 'Madregot',
+        body: pickBilingual(locale, { he: row.body_he, en: row.body_en }),
         url: row.url,
         tag: `notif-${created.id}`,
         // Coach-composed general announcements are the "news" toggle — this
@@ -108,7 +112,7 @@ export async function POST(request: Request) {
         // normal category like everything else instead of forced-on.
         category: 'news',
         ...(row.image_url ? { icon: row.image_url, image: row.image_url } : {}),
-      });
+      }));
       await supabase
         .from('scheduled_notifications')
         .update({ status: 'sent', last_sent_at: new Date().toISOString(), sent_count: sent })

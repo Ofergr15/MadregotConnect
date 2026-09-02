@@ -4,7 +4,8 @@ import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
 import { sanitizeMediaList } from '@/lib/feed/media';
 import { notifyMentions } from '@/lib/feed/notify';
-import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
+import { resolveAudience, sendPushLocalized } from '@/lib/push';
+import { feedPostCopy } from '@/lib/notifications/copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,13 +73,12 @@ export async function POST(request: Request) {
           .filter((s) => s.athlete_id !== auth.user.athleteId);
         if (subs.length > 0) {
           const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
-          await sendPushToSubscriptions(subs, {
-            title: `${auth.user.name || 'מישהו'} פרסם/ה בפיד 📸`,
-            body: preview || 'לחצו לצפייה',
+          await sendPushLocalized(subs, (locale) => ({
+            ...feedPostCopy(locale, { name: auth.user.name, preview }),
             url: `/feed?item=${created.id}`,
             tag: `feed-post-${created.id}`,
             category: 'teammates',
-          });
+          }));
         }
       }
     } catch {

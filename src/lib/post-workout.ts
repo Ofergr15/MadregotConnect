@@ -1,19 +1,9 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { postWorkoutPromptCopy } from '@/lib/notifications/copy';
 import { getPlanWeekStart } from '@/lib/utils';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { COACH_ID } from '@/lib/constants';
-
-// Mirrors garmin/sync-activities' and strava/sync-activities' own copies.
-const RUN_TYPE_LABELS: Record<string, string> = {
-  running: 'ריצה',
-  trail_running: 'ריצת שטח',
-  treadmill_running: 'ריצת הליכון',
-  track_running: 'ריצת מסלול',
-  virtual_run: 'ריצה וירטואלית',
-  street_running: 'ריצת רחוב',
-  indoor_running: 'ריצה באולם',
-};
 
 // Activities recorded within this many ms of each other are treated as one
 // session (e.g. a watch auto-splitting a long run around a pause, or a
@@ -139,16 +129,14 @@ export async function notifyMainWorkoutFeedback(opts: { athleteId: string; dateS
 
     const main = await pickMainActivity(acts as Act[], opts.dateStr);
     const km = main.distance > 0 ? Math.round((main.distance / 1000) * 10) / 10 : null;
-    const label = RUN_TYPE_LABELS[main.activity_type as string] || 'ריצה';
-    const body = km
-      ? `${label} של ${km} ק״מ — איך היה? ספרו לנו במשוב קצר`
-      : 'איך היה? ספרו לנו במשוב קצר';
 
     await notifyAthlete({
       athleteId: opts.athleteId,
       kind: 'post_workout_prompt',
-      title: 'כל הכבוד על האימון! 🏃',
-      body,
+      copy: (locale) => postWorkoutPromptCopy(locale, {
+        activityType: main.activity_type as string | null,
+        km,
+      }),
       url: `/dashboard/feedback?activity=${main.garmin_activity_id}`,
       tag: `post-workout-${main.garmin_activity_id}`,
       category: 'workouts',

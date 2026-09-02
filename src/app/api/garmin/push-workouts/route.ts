@@ -6,6 +6,7 @@ import { ParsedWorkout } from '@/lib/ai/types';
 import { PaceProfile } from '@/lib/garmin/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { notifyAthlete } from '@/lib/push';
+import { planPushedCopy } from '@/lib/notifications/copy';
 import { authError, requireSession } from '@/lib/auth-session';
 
 interface PushResult {
@@ -151,10 +152,7 @@ export async function POST(req: NextRequest) {
           await notifyAthlete({
             athleteId: athlete.id,
             kind: 'plan_pushed',
-            title: 'האימונים שלך מוכנים! 🏃',
-            body: workouts.length === 1
-              ? 'אימון חדש מחכה לך — לחצו לצפייה'
-              : `${workouts.length} אימונים חדשים מחכים לך — לחצו לצפייה`,
+            copy: (locale) => planPushedCopy(locale, { count: workouts.length }),
             url: '/dashboard/program',
             tag: `plan-push-${planId || weekStartDate}`,
             category: 'program',

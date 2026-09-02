@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushToSubscriptions, resolveAudience } from '@/lib/push';
+import { sendPushLocalized, resolveAudience } from '@/lib/push';
+import { pickBilingual } from '@/lib/notifications/copy';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -46,16 +47,15 @@ async function run(request: Request) {
   for (const n of due || []) {
     try {
       const subs = await resolveAudience(n.audience_type, n.audience_id);
-      // Prefer Hebrew (app default); fall back to English if only that was filled.
-      const title = n.title_he || n.title_en || 'Madregot';
-      const body = n.body_he || n.body_en || '';
       // Recurring notifications reuse the same `notif-${n.id}` tag on every
       // fire (one-time ones only ever send once), so each new occurrence
       // REPLACES the prior one on the lock screen — set renotify so that
       // replacement still alerts the athlete instead of silently swapping it.
-      const sent = await sendPushToSubscriptions(subs, {
-        title,
-        body,
+      // Each recipient gets the column they can read, falling back to
+      // whichever one the admin actually filled in.
+      const { sent } = await sendPushLocalized(subs, (locale) => ({
+        title: pickBilingual(locale, { he: n.title_he, en: n.title_en }) || 'Madregot',
+        body: pickBilingual(locale, { he: n.body_he, en: n.body_en }),
         url: n.url,
         tag: `notif-${n.id}`,
         renotify: n.schedule_type === 'recurring',
@@ -65,7 +65,7 @@ async function run(request: Request) {
         // is mutable.
         category: 'news',
         ...(n.image_url ? { icon: n.image_url, image: n.image_url } : {}),
-      });
+      }));
 
       if (n.schedule_type === 'recurring' && n.recur_interval && n.recur_unit) {
         await supabase

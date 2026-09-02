@@ -1,5 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushToSubscriptions, resolveAudience, subscriptionsForAthletes, allAthleteIds } from '@/lib/push';
+import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds } from '@/lib/push';
+import { pickBilingual, SURVEY_PROMPT_BODY, type PushCopy } from '@/lib/notifications/copy';
+import type { NotificationLocale } from '@/lib/notifications/locale';
 
 /**
  * Create a survey + its announcing scheduled_notifications row + send the
@@ -57,13 +59,16 @@ export async function createAndSendSurvey(opts: {
   if (notifError) throw notifError;
 
   const subs = await resolveAudience(notifRow.audience_type, notifRow.audience_id);
-  const sent = await sendPushToSubscriptions(subs, {
-    title: notifRow.title_he,
-    body: notifRow.body_he,
+  // The question is authored once but stored in both languages, so each
+  // recipient gets the column they can actually read (falling back to the
+  // filled-in one when the author skipped a translation).
+  const { sent } = await sendPushLocalized(subs, (locale) => ({
+    title: pickBilingual(locale, { he: notifRow.title_he, en: notifRow.title_en }),
+    body: pickBilingual(locale, { he: notifRow.body_he, en: notifRow.body_en }) || SURVEY_PROMPT_BODY[locale],
     url: notifRow.url,
     tag: `survey-${survey.id}`,
     category: 'news',
-  });
+  }));
   await supabase
     .from('scheduled_notifications')
     .update({ status: 'sent', last_sent_at: new Date().toISOString(), sent_count: sent })
@@ -81,8 +86,8 @@ export async function notifySurveyNonResponders(opts: {
   surveyId: string;
   audienceType: string;
   audienceId?: string | null;
-  title: string;
-  body: string;
+  /** Nudge wording, resolved per recipient — see notifyAthlete's copy option. */
+  copy: (locale: NotificationLocale) => PushCopy;
   tag: string;
 }): Promise<number> {
   const supabase = createServerClient();
@@ -102,11 +107,11 @@ export async function notifySurveyNonResponders(opts: {
   if (nonResponders.length === 0) return 0;
 
   const subs = await subscriptionsForAthletes(nonResponders);
-  return sendPushToSubscriptions(subs, {
-    title: opts.title,
-    body: opts.body,
+  const { sent } = await sendPushLocalized(subs, (locale) => ({
+    ...opts.copy(locale),
     url: `/dashboard/surveys/${opts.surveyId}`,
     tag: opts.tag,
     category: 'news',
-  });
+  }));
+  return sent;
 }

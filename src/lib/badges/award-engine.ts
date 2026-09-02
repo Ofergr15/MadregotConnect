@@ -21,6 +21,7 @@
  */
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { badgeEarnedCopy } from '@/lib/notifications/copy';
 import { getPlanWeekStart, computeWeekStreak, activityWeekStart, activityLocalDateStr } from '@/lib/utils';
 import { PR_BUCKETS, PR_RUN_TYPES, filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
 
@@ -444,8 +445,9 @@ export async function awardBadge(
   await notifyAthlete({
     athleteId,
     kind: 'badge',
-    title: `🏅 באדג' חדש: ${badge.name_he}`,
-    body: 'לחצו לצפייה בהישג שלכם',
+    // The badge's own name is already bilingual in the DB, so this is the one
+    // notification whose nouns don't come from the copy module.
+    copy: (locale) => badgeEarnedCopy(locale, { nameHe: badge.name_he, nameEn: badge.name_en }),
     url: '/dashboard/profile',
     tag: `badge-${badge.code}-${athleteId}`,
     category: 'achievements',

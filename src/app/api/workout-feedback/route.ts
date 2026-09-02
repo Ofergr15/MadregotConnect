@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushToSubscriptions } from '@/lib/push';
+import { sendPushLocalized } from '@/lib/push';
+import { feedbackAlertCopy } from '@/lib/notifications/copy';
 import { APPROVER_EMAILS } from '@/lib/constants';
 import { requireCallerForAthlete, requireStaff } from '@/lib/auth/self-or-staff';
 
@@ -252,14 +253,13 @@ export async function POST(request: Request) {
             .select('id, endpoint, p256dh, auth, athlete_id')
             .in('athlete_id', coachIds);
           if (subs && subs.length > 0) {
-            await sendPushToSubscriptions(subs as any, {
-              title: '⚠️ משוב אימון',
-              body: `${name}: ${reason}`,
+            await sendPushLocalized(subs as any, (locale) => ({
+              ...feedbackAlertCopy(locale, { athleteName: name, reason }),
               url: '/dashboard/review',
               tag: `feedback-alert-${athleteId}`,
               badge: 1,
               ...(athleteAvatarUrl ? { icon: athleteAvatarUrl } : {}),
-            });
+            }));
           }
         }
       } catch { /* never let the alert fail the submit */ }
