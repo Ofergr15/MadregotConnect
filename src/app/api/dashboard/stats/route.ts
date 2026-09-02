@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { requireStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+// GET /api/dashboard/stats — the coach hero strip's numbers. Staff-only, not
+// merely member-gated: the response isn't the counts the name suggests. It also
+// carries recentActivity, which is built from athlete NAMES and their join
+// state ("<name> was invited", "<name> connected their Garmin"), plus the
+// workout-delivery success rate. It's rendered inside `{isCoach && …}` on the
+// dashboard and nowhere else, so no athlete screen loses anything.
+export async function GET(request: Request) {
   try {
+    const denied = await requireStaff(request);
+    if (denied) return denied;
+
     const supabase = createServerClient();
     const DEMO_COACH_ID = COACH_ID;
 

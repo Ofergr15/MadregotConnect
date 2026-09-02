@@ -48,8 +48,11 @@ export function MentionTextarea({
   const [query, setQuery] = useState<string | null>(null);
   const [queryStart, setQueryStart] = useState(0);
 
+  // The route takes the viewer from the session, so viewerId is out of the URL.
+  // It stays as part of the fetch gate: a mention list is only useful once we
+  // know who's typing, and this keeps the "don't fetch yet" timing unchanged.
   const { data } = useApi<{ athletes: DiscoverAthlete[] }>(
-    query !== null && viewerId ? `/api/athletes/discover?viewerId=${encodeURIComponent(viewerId)}` : null,
+    query !== null && viewerId ? '/api/athletes/discover' : null,
   );
   const suggestions = (data?.athletes || [])
     .filter((a) => a.name.toLowerCase().includes((query || '').toLowerCase()))

@@ -40,6 +40,14 @@ export interface VerifiedCaller {
   isStaff: boolean;
   /** Null for a staff account with no `athletes` row. */
   athleteId: string | null;
+  /**
+   * The caller's own role, straight off the session. `isStaff` answers the
+   * common question, but roles outside STAFF_ROLES carry entitlements too —
+   * `core_runner` unlocks the premium perk tier — and those routes were reading
+   * the role back out of the DB by an id the caller supplied. It's free here:
+   * `requireSession` already selected it.
+   */
+  role: string;
 }
 
 /**
@@ -71,7 +79,7 @@ export async function resolveVerifiedCaller(
   if (!auth.ok) {
     return {
       denied: authError(auth),
-      caller: { email: '', isSuperUser: false, isStaff: false, athleteId: null },
+      caller: { email: '', isSuperUser: false, isStaff: false, athleteId: null, role: '' },
     };
   }
   return {
@@ -81,6 +89,7 @@ export async function resolveVerifiedCaller(
       isSuperUser: isSuperUser(auth.user.email),
       isStaff: auth.user.isStaff,
       athleteId: auth.user.athleteId,
+      role: auth.user.role,
     },
   };
 }

@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { cn, getActivityWeekStart, activityWeekStart, israelDateAnchor } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
 import { SegmentedControl } from '@/components/ui';
+import { apiHeaders } from '@/lib/api';
 
 interface Props {
   athleteId: string | null;
@@ -31,11 +32,14 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
     if (!athleteId) return;
     (async () => {
       try {
+        // Both the leaderboard and the weekly plan are session-gated now, so
+        // resolve the bearer header once and reuse it for the pair.
+        const headers = await apiHeaders();
         const [actRes, lbRes, grpRes, weeklyRes] = await Promise.all([
           fetchActivities(),
-          fetch('/api/groups/leaderboard'),
+          fetch('/api/groups/leaderboard', { headers }),
           fetch('/api/groups'),
-          fetch('/api/dashboard/weekly'),
+          fetch('/api/dashboard/weekly', { headers }),
         ]);
 
         if (weeklyRes.ok) {

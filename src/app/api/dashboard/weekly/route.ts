@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { requireMember } from '@/lib/auth/self-or-staff';
+import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getDisplayWeekStart, extractWorkouts, getWorkoutKm, buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 
 // A coach pushes a new plan roughly once a week (weekly_plans has only 10
@@ -10,8 +12,14 @@ import { getDisplayWeekStart, extractWorkouts, getWorkoutKm, buildWeekBreakdown 
 // `revalidateSeconds` maps to the underlying fetch's cache behavior.
 export const revalidate = 300;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // The coach's training plan — club-internal, and every athlete reads it, so
+    // requireMember rather than requireStaff. Same static-render trade as the
+    // leaderboard: the plan queries stay cached for 300s.
+    const denied = await requireMember(request);
+    if (denied) return denied;
+
     const supabase = createServerClient({ revalidateSeconds: 300 });
     const now = new Date();
     // Plan week to display — rolls to next week after Saturday 20:00 Israel time.
@@ -121,6 +129,7 @@ export async function GET() {
       publishedAt: currentPlan?.status === 'pushed' ? currentPlan.created_at : null,
     });
   } catch (error) {
+    rethrowIfDynamicBailout(error);
     console.error('Weekly dashboard error:', error);
     return NextResponse.json({ error: 'Failed to fetch weekly data' }, { status: 500 });
   }

@@ -1,12 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { requireMember } from '@/lib/auth/self-or-staff';
+import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getActivityWeekStart, activityWeekStart, computeWeekStreak, israelDateAnchor } from '@/lib/utils';
 
 // Weekly totals — a short staleness window is invisible to users, so this
 // route participates in Next's Data Cache instead of forcing dynamic
 // rendering on every request. See src/lib/supabase/server.ts for how
 // `revalidateSeconds` maps to the underlying fetch's cache behavior.
+//
+// Reading the caller's session below means the ROUTE is no longer statically
+// prerendered (it was ○ in the build output, now ƒ). The expensive part is
+// unaffected: `revalidateSeconds: 60` caches the three Supabase queries in the
+// Data Cache, so a burst of athletes opening the leaderboard still costs one
+// round of DB work per minute — only the ranking arithmetic is per-request.
 export const revalidate = 60;
 
 // Qualifying "run" activity types for the streak metric — matches
@@ -36,8 +44,15 @@ function monthStartIso(now: Date): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Club-internal: every member legitimately sees the leaderboard, but it's
+    // the whole active roster by name with each person's weekly distance, run
+    // count, streak and monthly volume — a training log for ~20 named people,
+    // which was readable by anyone who knew the URL.
+    const denied = await requireMember(request);
+    if (denied) return denied;
+
     const supabase = createServerClient({ revalidateSeconds: 60 });
     // Israel's calendar day, not the server's UTC one — see israelDateAnchor.
     const now = israelDateAnchor();
@@ -180,6 +195,7 @@ export async function GET() {
       groupLeaderboards, weekStart, monthStart,
     });
   } catch (error: any) {
+    rethrowIfDynamicBailout(error);
     console.error('Leaderboard error:', error);
     return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
   }

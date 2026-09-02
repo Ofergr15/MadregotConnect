@@ -86,7 +86,6 @@ export default function DashboardPage() {
   // tab shows the last-known stats/weekly instantly (keepPreviousData) while
   // quietly revalidating in the background, instead of a blank spinner every
   // single time — the concrete fix for "moving between screens feels slow".
-  const { data: stats, isLoading: statsLoading } = useApi<DashboardStats>('/api/dashboard/stats');
   const { data: weekly, isLoading: weeklyLoading } = useApi<WeeklyData>('/api/dashboard/weekly');
   const { data: reminderConfig } = useApi<{ config?: { teamDays?: number[]; workoutHour?: number } }>('/api/reminder-config');
   // Admin-editable team-workout days (0=Sun..6=Sat) → which days the RSVP card
@@ -107,6 +106,12 @@ export default function DashboardPage() {
   const [countdown, setCountdown] = useState({ d: 0, h: 0, m: 0, s: 0 });
   const [week, setWeek] = useState(0);
   const [isCoach, setIsCoach] = useState(false);
+  // Keyed on isCoach: /api/dashboard/stats is staff-only now, and its numbers
+  // only ever render inside the `{isCoach && …}` strip below. Asking for it as a
+  // runner would be three 403s (SWR retries twice) for something that can't be
+  // displayed. Declared here rather than beside the `weekly` read above because
+  // it has to come after isCoach exists.
+  const { data: stats } = useApi<DashboardStats>(isCoach ? '/api/dashboard/stats' : null);
   const [athleteId, setAthleteId] = useState<string | null>(null);
   // A push notification's ?rsvp=weekStart:day deep-link (see cron/tick's
   // training_before pushes) — previously ignored entirely, so tapping the
@@ -324,10 +329,15 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  // Only the very first-ever load (no cached stats/weekly yet) blocks on a
-  // spinner — keepPreviousData means a revisit shows the last-known content
-  // instantly while these quietly revalidate in the background.
-  if (statsLoading || weeklyLoading) return (
+  // Only the very first-ever load (no cached plan yet) blocks on a spinner —
+  // keepPreviousData means a revisit shows the last-known content instantly
+  // while it quietly revalidates in the background.
+  //
+  // `weekly` alone, not stats too: the stats key only becomes non-null once
+  // isCoach resolves, so gating the spinner on its loading state would put the
+  // spinner BACK on screen a moment after a coach's page had already rendered.
+  // Nothing is lost — the coach strip reads `stats?.x || 0`, so it just fills in.
+  if (weeklyLoading) return (
     <div className="flex items-center justify-center h-[60vh]">
       <Spinner size={40} />
     </div>

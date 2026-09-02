@@ -288,7 +288,9 @@ export function NotificationCenter() {
     // This week's upcoming workouts (from the plan) for one-tap reminders.
     const DN = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
     const todayDow = new Date().getDay();
-    fetch('/api/dashboard/weekly').then(r => r.ok ? r.json() : null).then(d => {
+    // Session-gated now (requireMember), so this needs the bearer header — the
+    // same treatment /api/admin/users gets above.
+    apiHeaders().then(h => fetch('/api/dashboard/weekly', { headers: h })).then(r => r.ok ? r.json() : null).then(d => {
       const days = (d?.dailyDistances || []).filter((x: any) => x.dayOfWeek >= todayDow && x.max > 0);
       setUpcoming(days.map((x: any) => ({
         dayOfWeek: x.dayOfWeek,

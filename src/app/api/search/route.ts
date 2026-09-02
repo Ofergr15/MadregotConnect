@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,12 +11,18 @@ const RESULT_LIMIT = 8;
 // Roadmap #17 — In-App Global Search. Members, events, plus the actual
 // content inside Store and Benefits (product/perk names) — not just the
 // section names, which the client-side "sections" category already covers.
-// Feed posts still aren't included: they require a real Supabase JWT the way
-// member/event/store/perk data doesn't, which would force a different auth
-// model for this one route. Extend with more categories as those surfaces
-// mature.
+//
+// The old note here said feed posts were excluded because they "require a real
+// Supabase JWT the way member/event/store/perk data doesn't". That was the bug,
+// not the design: the members category is a name-prefix lookup over the whole
+// active roster, which made this the easiest way to enumerate the club without
+// an account. It's session-gated now, so adding feed posts is no longer a
+// different auth model — just more categories.
 export async function GET(request: Request) {
   try {
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get('q') || '').trim();
     if (q.length < MIN_QUERY_LENGTH) {
@@ -26,13 +33,10 @@ export async function GET(request: Request) {
     const pattern = `%${q}%`;
 
     // Mirrors GET /api/perks's tier gate exactly — a core_runner-tier perk must
-    // stay invisible to everyone else, including via search.
-    const athleteId = searchParams.get('athleteId');
-    let isCoreRunner = false;
-    if (athleteId) {
-      const { data: athlete } = await supabase.from('athletes').select('role').eq('id', athleteId).maybeSingle();
-      isCoreRunner = (athlete as { role?: string } | null)?.role === 'core_runner';
-    }
+    // stay invisible to everyone else, including via search. Same fix, too: the
+    // tier is the CALLER's own, not that of whatever id they sent.
+    const isCoreRunner =
+      caller.role === 'core_runner' || caller.isStaff || caller.isSuperUser;
 
     let perksQuery = supabase
       .from('club_perks')

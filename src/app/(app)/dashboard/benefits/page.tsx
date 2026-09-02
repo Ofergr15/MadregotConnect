@@ -33,13 +33,11 @@ function BenefitsPageContent() {
   const locale = useLocale();
   const [perk, setPerk] = useState<Perk | null>(null);
   const [copied, setCopied] = useState(false);
-  const [athleteId, setAthleteId] = useState<string | null>(null);
 
-  useEffect(() => { setAthleteId(localStorage.getItem('athlete_id')); }, []);
-
-  const { data, isLoading } = useApi<{ perks: Perk[] }>(
-    athleteId ? `/api/perks?athleteId=${encodeURIComponent(athleteId)}` : '/api/perks'
-  );
+  // No athleteId in the URL any more: the route reads the caller's tier off
+  // the session, so sending an id decided nothing and waiting for localStorage
+  // only delayed the first fetch by a render.
+  const { data, isLoading } = useApi<{ perks: Perk[] }>('/api/perks');
   const perks = data?.perks || [];
 
   const title = (p: Perk) => (locale === 'he' ? p.titleHe : p.titleEn);

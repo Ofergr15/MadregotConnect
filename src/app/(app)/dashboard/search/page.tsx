@@ -90,22 +90,17 @@ export default function SearchPage() {
   const locale = useLocale();
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
-  const [athleteId, setAthleteId] = useState('');
   const { navItems } = useNavItems();
-
-  useEffect(() => {
-    setAthleteId(localStorage.getItem('athlete_id') || '');
-  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(query.trim()), 300);
     return () => clearTimeout(timer);
   }, [query]);
 
+  // athleteId dropped from the query string — the route takes the caller's perk
+  // tier from the session now, so sending it decided nothing.
   const { data, isLoading } = useApi<SearchData>(
-    debounced.length >= 2
-      ? `/api/search?q=${encodeURIComponent(debounced)}${athleteId ? `&athleteId=${athleteId}` : ''}`
-      : null,
+    debounced.length >= 2 ? `/api/search?q=${encodeURIComponent(debounced)}` : null,
   );
 
   // "Smart search" — sections/pages are matched entirely client-side against

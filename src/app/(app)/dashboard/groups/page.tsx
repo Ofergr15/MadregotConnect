@@ -73,7 +73,9 @@ export default function GroupsPage() {
 
   const fetchLeaderboard = async () => {
     try {
-      const response = await fetch('/api/groups/leaderboard');
+      // requireMember on the route — the bearer header is what carries identity.
+      // false = no JSON Content-Type; this is a GET with no body.
+      const response = await fetch('/api/groups/leaderboard', { headers: await bearerHeaders(false) });
       const data = await response.json();
       setLeaderboard(data.leaderboard || []);
       setLeaderboardByStreak(data.leaderboardByStreak || []);

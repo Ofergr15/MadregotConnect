@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/athletes/discover?viewerId=<id>
+// GET /api/athletes/discover
 // Roadmap #21, Phase 6 — Member Discovery. The Follow system (migration 060)
 // only ever had two entry points: a teammate's own profile page, or names
 // already showing up in the feed/leaderboards — there was no way to browse
@@ -12,6 +13,12 @@ export const dynamic = 'force-dynamic';
 // viewer already follows them, for a search-as-you-type list client-side —
 // the club is small enough (~20s of athletes) that filtering client-side
 // beats a query round trip per keystroke.
+//
+// The viewer used to arrive as `?viewerId=<id>`, unverified — so this returned
+// the club roster to anyone, and passing somebody else's id returned THEIR
+// follow graph (who they follow is not the caller's business). It's the session's
+// athleteId now, which is also why the parameter is gone rather than just
+// checked: there is nothing left for a caller to legitimately say here.
 interface AthleteRow {
   id: string;
   name: string;
@@ -23,11 +30,13 @@ interface AthleteRow {
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const viewerId = searchParams.get('viewerId');
-    if (!viewerId) {
-      return NextResponse.json({ error: 'viewerId required' }, { status: 400 });
-    }
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    // A staff account with no `athletes` row has no follow graph and isn't in
+    // the roster it would be browsing — an empty list is the honest answer, and
+    // it keeps the `.eq('follower_id', null)` query below from ever being built.
+    if (!caller.athleteId) return NextResponse.json({ athletes: [] });
+    const viewerId = caller.athleteId;
 
     const supabase = createServerClient();
 

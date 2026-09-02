@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { requireMember } from '@/lib/auth/self-or-staff';
+import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { resolveGroup, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 
 // Monthly squad rivalry, rolled up — a few minutes of staleness is invisible
@@ -17,14 +19,25 @@ export const revalidate = 300;
 //  - attendancePerMember: month practice-attendances (attending=true) ÷ members
 //  - consistencyPct     : % of members with ≥1 run THIS week
 // Ranked by a normalized blended score (each metric scaled 0..1 vs the best
-// squad, equally weighted). Public read (team-wide info, no private data).
+// squad, equally weighted).
+//
+// This one really is squad-level only — no names, no ids beyond group_id — so
+// the old "public read, no private data" note was honest about the payload. It's
+// still member-gated now: it's a per-member breakdown of how hard each squad in
+// a private club trains, which isn't ours to publish, and leaving one club
+// aggregate open makes "is this route gated?" a per-route question again.
 const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
 
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const denied = await requireMember(request);
+    if (denied) return denied;
+
+    // Same trade as the leaderboard: the route stops being statically
+    // prerendered, but revalidateSeconds keeps the queries in the Data Cache.
     const supabase = createServerClient({ revalidateSeconds: 300 });
     const now = israelDateAnchor(); // Israel's calendar day, not the server's UTC one
     const monthStart = iso(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -122,6 +135,7 @@ export async function GET() {
 
     return NextResponse.json({ squads, monthStart });
   } catch (error: any) {
+    rethrowIfDynamicBailout(error);
     console.error('Standings error:', error);
     return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
   }

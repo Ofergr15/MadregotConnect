@@ -1,26 +1,31 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/perks?athleteId=… — the public perk list (active only), filtered
-// by tier. Roadmap #5, Benefits / Discounts. Some sponsor deals have a
-// richer 'core_runner' tier on top of the 'all' base offer everyone gets
-// (see migration 070) — athleteId is optional (no auth required, same
-// "public read" convention as GET /api/store/products) but when given,
-// core-runner-tier perks only show for athletes with that role. No athleteId
-// → 'all' tier only, the safe default.
+// GET /api/perks — the club's perk list (active only), filtered by tier.
+// Roadmap #5, Benefits / Discounts. Some sponsor deals have a richer
+// 'core_runner' tier on top of the 'all' base offer everyone gets (see
+// migration 070).
+//
+// This used to be an open read that took `?athleteId=…` and looked that
+// athlete's role up in the DB to decide the tier. Two problems, one of them
+// real money: the response carries `discount_code` and `redeem_url`, so the
+// whole sponsor deal set was public to anyone who found the URL — and naming
+// ANY core_runner athlete's id (they show up by name on the leaderboard) also
+// handed over the premium tier. Both halves now come from the session: club
+// membership to see perks at all, and the caller's OWN role for the tier.
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const athleteId = searchParams.get('athleteId');
-    const supabase = createServerClient();
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    // Staff review the full catalogue (there's an admin screen behind it), and
+    // the super user sees everything by convention.
+    const isCoreRunner =
+      caller.role === 'core_runner' || caller.isStaff || caller.isSuperUser;
 
-    let isCoreRunner = false;
-    if (athleteId) {
-      const { data: athlete } = await supabase.from('athletes').select('role').eq('id', athleteId).maybeSingle();
-      isCoreRunner = (athlete as { role?: string } | null)?.role === 'core_runner';
-    }
+    const supabase = createServerClient();
 
     let query = supabase
       .from('club_perks')

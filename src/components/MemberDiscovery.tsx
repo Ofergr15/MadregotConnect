@@ -35,9 +35,10 @@ export function MemberDiscovery({ viewerId }: { viewerId: string }) {
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
-  const { data, isLoading } = useApi<DiscoverData>(
-    viewerId ? `/api/athletes/discover?viewerId=${encodeURIComponent(viewerId)}` : null,
-  );
+  // The route takes the viewer from the session, so viewerId is no longer in
+  // the URL — it's kept as the fetch gate (don't ask for a follow-flagged
+  // roster before we know who's looking) and for the follow call below.
+  const { data, isLoading } = useApi<DiscoverData>(viewerId ? '/api/athletes/discover' : null);
 
   const athletes = useMemo(() => {
     const list = data?.athletes || [];

@@ -3,10 +3,10 @@
 import { getSupabase } from '@/lib/supabase/client';
 import { trySilentReauth } from '@/lib/auth/silent-reauth';
 
-// Attaches the signed-in coach/admin's real Supabase session token as a
-// Bearer header, for routes gated by requireSession/requireAthlete
-// (src/lib/auth-session.ts) — as opposed to the app's more common
-// x-user-email convention (src/lib/api.ts's authHeaders).
+// Attaches the caller's real Supabase session token as a Bearer header. This is
+// now the app's ONLY way of proving who's asking — the x-user-email convention
+// it used to sit alongside is gone (no route reads it, nothing sends it), so
+// every gated route, athlete or staff, is reached through here.
 export async function bearerHeaders(includeJson = true): Promise<Record<string, string>> {
   const { data } = await getSupabase().auth.getSession();
   // A missing session is the normal state for an athlete who hasn't touched the
