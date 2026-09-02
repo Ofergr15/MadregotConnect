@@ -76,7 +76,7 @@ export default function FeedPage() {
   const clearFocus = () => {
     setFocusItem(null);
     setFocusError(null);
-    router.replace('/dashboard/feed', { scroll: false });
+    router.replace('/feed', { scroll: false });
   };
 
   const sentinelRef = useRef<HTMLDivElement>(null);

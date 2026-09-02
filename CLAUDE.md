@@ -49,7 +49,9 @@ but don't add new ones.
 src/
   app/
     api/**/route.ts     ~45 REST routes (see "API conventions")
-    dashboard/**        Coach + athlete UI, all client components
+    (app)/              Signed-in shell (layout.tsx: auth gate, Header, tab bar)
+      dashboard/**      Coach + athlete UI, all client components
+      feed/             The feed — the app's landing page, served at /feed
     (auth pages)        page.tsx, login, join/[token], academy-register, …
   components/           Shared UI (WorkoutEditor, ActivityFeed, Academy*, …)
   lib/

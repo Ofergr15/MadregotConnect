@@ -76,7 +76,7 @@ export default function AdminLoginPage() {
         localStorage.removeItem('athlete_email');
         localStorage.removeItem('athlete_group_id');
       }
-      router.push('/dashboard');
+      router.push('/feed');
     } catch (err: any) {
       setError(err.message);
     } finally {

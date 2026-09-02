@@ -62,7 +62,7 @@ export function styleKindFor(it: Pick<HistoryItem, 'title' | 'body'>): StyleKind
 // from the inbox row, with no navigation.
 //
 // Both spellings are accepted on purpose. Current rows use ?activity=, which
-// /dashboard/feed reads to pull that run's card up; rows written before that
+// /feed reads to pull that run's card up; rows written before that
 // link existed use ?kudos= and point at /dashboard/activities. Those older rows
 // are already in every athlete's history, and their kudos button is worth
 // keeping alive even though their link goes somewhere useless.

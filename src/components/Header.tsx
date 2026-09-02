@@ -16,7 +16,7 @@ import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 const allNavItems = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
-  { href: '/dashboard/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
+  { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
   { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },

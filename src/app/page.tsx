@@ -166,7 +166,7 @@ export default function HomePage() {
         localStorage.removeItem('athlete_email');
         localStorage.removeItem('athlete_group_id');
       }
-      router.push('/dashboard');
+      router.push('/feed');
     } catch (err: any) {
       setAdminError(err.message);
     } finally {

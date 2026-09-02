@@ -75,7 +75,7 @@ export async function POST(request: Request) {
           await sendPushToSubscriptions(subs, {
             title: `${auth.user.name || 'מישהו'} פרסם/ה בפיד 📸`,
             body: preview || 'לחצו לצפייה',
-            url: `/dashboard/feed?item=${created.id}`,
+            url: `/feed?item=${created.id}`,
             tag: `feed-post-${created.id}`,
             category: 'teammates',
           });

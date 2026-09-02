@@ -36,7 +36,7 @@ const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy', labe
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
-  { href: '/dashboard/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
+  { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
   { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
@@ -177,8 +177,8 @@ export function BottomTabBar() {
   // centered in the bar regardless of how many tabs (1-4) this role has.
   const midIndex = Math.ceil(primary.length / 2);
 
-  const renderIconButton = ({ href, ariaLabel, label, icon: Icon, onClick }: { href: string; ariaLabel: string; label: string; icon: any; onClick?: () => void }) => {
-    const active = isActive(href);
+  const renderIconButton = ({ href, ariaLabel, label, icon: Icon, onClick, active }: { href: string; ariaLabel: string; label: string; icon: any; onClick?: () => void; active?: boolean }) => {
+    const isActiveState = active ?? isActive(href);
     return (
       <Link
         key={href}
@@ -187,7 +187,7 @@ export function BottomTabBar() {
         aria-label={ariaLabel}
         className={cn(
           'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
-          active ? 'text-primary-400' : 'text-slate-400'
+          isActiveState ? 'text-primary-400' : 'text-slate-400'
         )}
       >
         <Icon className="h-6 w-6" strokeWidth={1.75} />
@@ -213,7 +213,12 @@ export function BottomTabBar() {
       >
         {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
 
-        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), label: t(primaryActionLabelKey as any), icon: CalendarCheck })}
+        {/* Athlete "Confirm" shares its href with the Dashboard tab (the RSVP
+            card lives at the top of /dashboard), so it must never derive its
+            active state from the pathname — both slots would light up at once.
+            It's an action, not a location. Staff's roster IS its own page, so
+            location-based active state stays meaningful there. */}
+        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), label: t(primaryActionLabelKey as any), icon: CalendarCheck, active: isStaffView && isActive(primaryActionHref) })}
 
         {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
 

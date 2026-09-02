@@ -7,7 +7,7 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 const nextConfig = {
   // Next 16 blocks cross-origin dev chunks by default. Allow the stable ngrok
   // tunnel used to exercise the local app from physical mobile devices.
-  allowedDevOrigins: ['unstout-lustily-noma.ngrok-free.dev'],
+  allowedDevOrigins: ['unstout-lustily-noma.ngrok-free.dev', 'madregot.tal.bo'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.supabase.co' },
