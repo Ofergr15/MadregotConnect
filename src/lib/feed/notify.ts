@@ -57,7 +57,7 @@ export async function notifyFeedInteraction(opts: {
     actorAthleteId,
     title: notification.title,
     body: notification.body,
-    url: `/dashboard/feed?item=${feedItemId}`,
+    url: `/feed?item=${feedItemId}`,
     tag: `feed-${kind}-${feedItemId}`,
     // Same "what my teammates are up to" bucket as notifyTeammatesOfActivity
     // — a like/comment is exactly this kind of low-stakes social ping, and
@@ -122,7 +122,7 @@ export async function notifyMentions(opts: {
         actorAthleteId,
         title,
         body: preview,
-        url: `/dashboard/feed?item=${feedItemId}`,
+        url: `/feed?item=${feedItemId}`,
         tag: `feed-mention-${feedItemId}-${athleteId}`,
         category: 'teammates',
       }),

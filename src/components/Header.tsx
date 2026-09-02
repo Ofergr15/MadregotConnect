@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, Image, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
+import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
@@ -16,7 +16,7 @@ import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 const allNavItems = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
-  { href: '/dashboard/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
+  { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
   { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
@@ -30,7 +30,10 @@ const allNavItems = [
   { href: '/dashboard/team-volume', tab: 'team-volume', labelKey: 'teamVolume', icon: BarChart3 },
   { href: '/dashboard/calendar', tab: 'calendar', labelKey: 'calendar', icon: CalendarDays },
   { href: '/dashboard/history', tab: 'history', labelKey: 'history', icon: Clock },
-  { href: '/dashboard/photos', tab: 'photos', labelKey: 'photos', icon: Image },
+  // Photos is still being built — nav entry and route disabled for now. Restore
+  // this line (+ re-add the lucide Image import) alongside the BottomTabBar
+  // MoreCard and the page itself (see photos/page.tsx).
+  // { href: '/dashboard/photos', tab: 'photos', labelKey: 'photos', icon: Image },
   { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },
   { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench },
 ];
@@ -198,7 +201,7 @@ export function Header() {
         <div className="flex items-center justify-between h-14">
           {/* Logo + Review */}
           <div className="flex items-center gap-3 shrink-0">
-            <Link href="/dashboard" className="flex items-center gap-2.5">
+            <Link href="/feed" className="flex items-center gap-2.5">
               <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0 invert" />
               <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
             </Link>

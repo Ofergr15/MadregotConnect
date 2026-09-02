@@ -91,7 +91,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             // The club feed focused on the run that got the kudos — see the
             // same link in notifyTeammatesOfActivity. /dashboard/activities
             // cannot show it: it filters to the viewer's own activities.
-            url: `/dashboard/feed?activity=${id}`,
+            url: `/feed?activity=${id}`,
             tag: `kudos-${id}-${athleteId}`,
             category: 'teammates',
             ...(giver?.avatar_url ? { icon: giver.avatar_url } : {}),

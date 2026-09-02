@@ -7,7 +7,10 @@ import { Providers } from './providers';
 import { AppSplash } from '@/components/AppSplash';
 import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { ImpersonationBar } from '@/components/ImpersonationBar';
-import { UpdatePrompt } from '@/components/UpdatePrompt';
+// UpdatePrompt intentionally unmounted for now — the "new version available"
+// bubble was popping too often. Re-enable by restoring this import and the
+// <UpdatePrompt /> line below; until then, users refresh manually after deploys.
+// import { UpdatePrompt } from '@/components/UpdatePrompt';
 import { DevIdentitySwitcher } from '@/components/DevIdentitySwitcher';
 import { DevServiceWorkerCleanup } from '@/components/DevServiceWorkerCleanup';
 import { SpeedInsights } from '@vercel/speed-insights/next';
@@ -76,7 +79,7 @@ export default async function RootLayout({
         <AppSplash />
         <MaintenanceGate />
         <ImpersonationBar />
-        <UpdatePrompt />
+        {/* <UpdatePrompt /> — disabled, see note on the import above */}
         <DevIdentitySwitcher />
         <SpeedInsights />
       </body>

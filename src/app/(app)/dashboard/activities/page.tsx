@@ -134,7 +134,7 @@ export default function ActivitiesPage() {
     // of those rows are already in athletes' notification history.
     const legacyKudos = searchParams.get('kudos');
     if (legacyKudos) {
-      router.replace(`/dashboard/feed?activity=${encodeURIComponent(legacyKudos)}`);
+      router.replace(`/feed?activity=${encodeURIComponent(legacyKudos)}`);
       return;
     }
 

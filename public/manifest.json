@@ -3,7 +3,7 @@
   "name": "Madregot After 2KM",
   "short_name": "​",
   "description": "Running club training platform",
-  "start_url": "/dashboard",
+  "start_url": "/feed",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#4338ff",

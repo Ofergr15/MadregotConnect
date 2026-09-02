@@ -14,7 +14,10 @@ import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
-export default function DashboardLayout({
+// Shared shell for every signed-in surface — /dashboard/* and /feed — via the
+// (app) route group, so navigating between them keeps one mounted layout
+// (no auth-spinner flash or Header refetch on feed ↔ dashboard hops).
+export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;

@@ -4,12 +4,11 @@ import type { NextRequest } from 'next/server';
 export function proxy(request: NextRequest) {
   const response = NextResponse.next();
 
+  // Hebrew for everyone by default — English is opt-in via the LocaleSwitcher.
+  // (Previously sniffed Accept-Language, which gave English-browser members an
+  // English app on first visit.)
   if (!request.cookies.get('NEXT_LOCALE')) {
-    const acceptLanguage = request.headers.get('accept-language') || '';
-    const prefersHebrew = acceptLanguage.includes('he');
-    const preferredLocale = prefersHebrew || !acceptLanguage.includes('en') ? 'he' : 'en';
-
-    response.cookies.set('NEXT_LOCALE', preferredLocale, {
+    response.cookies.set('NEXT_LOCALE', 'he', {
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
     });

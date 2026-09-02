@@ -624,10 +624,10 @@ export async function notifyTeammatesOfActivity(activity: {
   // page filters to the viewer's OWN activities for a non-coach, so the run
   // being announced was never on it, and nothing there read the query param
   // anyway — so tapping "X finished a run" dumped you at the top of your own
-  // feed. /dashboard/feed reads ?activity= and pulls that exact card up (via
+  // feed. /feed reads ?activity= and pulls that exact card up (via
   // the feed item the trg_feed_item_for_activity trigger already creates for
   // every activity), which is also where kudos/comments live.
-  const url = `/dashboard/feed?activity=${activity.activityId}`;
+  const url = `/feed?activity=${activity.activityId}`;
 
   // Send BEFORE persisting — same reasoning as notifyAthlete: computeUnreadCounts
   // (inside sendPushToSubscriptions) adds +1 per recipient for "the notification

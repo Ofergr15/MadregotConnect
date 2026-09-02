@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, Menu, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift, Camera,
+  BarChart3, Menu, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
@@ -36,7 +36,7 @@ const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy', labe
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
-  { href: '/dashboard/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
+  { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
   { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
@@ -64,8 +64,11 @@ const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-
 // staff. `practice-attendance` is deliberately absent from the staff order: it's
 // the FAB's own target (see primaryActionHref below), so it must never also be
 // eligible as a flat primary tab — the same destination reachable twice.
-const ATHLETE_PRIMARY_ORDER = ['dashboard', 'program', 'feed', 'profile'];
-const STAFF_PRIMARY_ORDER = ['dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
+// Feed leads both lists — it's the app's landing page now. Only the first 4
+// entries fit as flat tabs, so the staff list's 5th (coach-tools) rides in
+// "More" whenever the first four are all enabled.
+const ATHLETE_PRIMARY_ORDER = ['feed', 'dashboard', 'program', 'profile'];
+const STAFF_PRIMARY_ORDER = ['feed', 'dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
 
 interface TabPermission { role: string; tab: string; enabled: boolean; }
 
@@ -79,6 +82,15 @@ export function BottomTabBar() {
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // The athlete "Confirm" action and the Dashboard tab both lead to /dashboard
+  // (the RSVP card lives at its top), so the pathname alone can't say which slot
+  // should be highlighted there — the last-tapped one wins. Cleared whenever the
+  // viewer leaves /dashboard so a later return via deep link or back-gesture
+  // defaults to the Dashboard tab again.
+  const [confirmTapped, setConfirmTapped] = useState(false);
+  useEffect(() => {
+    if (pathname !== '/dashboard') setConfirmTapped(false);
+  }, [pathname]);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -177,8 +189,8 @@ export function BottomTabBar() {
   // centered in the bar regardless of how many tabs (1-4) this role has.
   const midIndex = Math.ceil(primary.length / 2);
 
-  const renderIconButton = ({ href, ariaLabel, label, icon: Icon, onClick }: { href: string; ariaLabel: string; label: string; icon: any; onClick?: () => void }) => {
-    const active = isActive(href);
+  const renderIconButton = ({ href, ariaLabel, label, icon: Icon, onClick, active }: { href: string; ariaLabel: string; label: string; icon: any; onClick?: () => void; active?: boolean }) => {
+    const isActiveState = active ?? isActive(href);
     return (
       <Link
         key={href}
@@ -187,7 +199,7 @@ export function BottomTabBar() {
         aria-label={ariaLabel}
         className={cn(
           'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
-          active ? 'text-primary-400' : 'text-slate-400'
+          isActiveState ? 'text-primary-400' : 'text-slate-400'
         )}
       >
         <Icon className="h-6 w-6" strokeWidth={1.75} />
@@ -211,11 +223,17 @@ export function BottomTabBar() {
         className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-slate-700/60 bg-slate-900/85 backdrop-blur-xl transform-gpu"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
+        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, onClick: () => setConfirmTapped(false), active: item.tab === 'dashboard' ? isActive(item.href) && !confirmTapped : undefined }))}
 
-        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), label: t(primaryActionLabelKey as any), icon: CalendarCheck })}
+        {/* Athlete "Confirm" shares its href with the Dashboard tab (the RSVP
+            card lives at the top of /dashboard), so both deriving active state
+            from the pathname would light the two slots at once. Instead the
+            confirmTapped flag decides which of the pair owns the /dashboard
+            highlight. Staff's roster IS its own page, so plain location-based
+            active state stays meaningful there. */}
+        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), label: t(primaryActionLabelKey as any), icon: CalendarCheck, onClick: () => setConfirmTapped(!isStaffView), active: isStaffView ? isActive(primaryActionHref) : isActive('/dashboard') && confirmTapped })}
 
-        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
+        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, onClick: () => setConfirmTapped(false), active: item.tab === 'dashboard' ? isActive(item.href) && !confirmTapped : undefined }))}
 
         {overflow.length > 0 && (
           <button
@@ -248,7 +266,10 @@ export function BottomTabBar() {
               <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={Gift} label={t('benefits' as any)} href="/dashboard/benefits" active={isActive('/dashboard/benefits')} onClick={() => setMoreOpen(false)} />
-              <MoreCard icon={Camera} label={t('photos' as any)} href="/dashboard/photos" active={isActive('/dashboard/photos')} onClick={() => setMoreOpen(false)} />
+              {/* Photos is still being built — card and route disabled for now.
+                  Restore with the Header nav entry and the page (re-add the
+                  lucide Camera import too). */}
+              {/* <MoreCard icon={Camera} label={t('photos' as any)} href="/dashboard/photos" active={isActive('/dashboard/photos')} onClick={() => setMoreOpen(false)} /> */}
             </div>
           </div>
 
