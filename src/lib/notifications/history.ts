@@ -47,13 +47,19 @@ export function readStoreKey(athleteId: string): string {
 // function; the page maps the key to an actual icon + Tailwind class.
 // Colors mirror the design deck: coach=blue, race=gold, achievement=green,
 // workout=indigo.
+// Each pattern carries the English words matching its Hebrew ones, because
+// notification rows are now persisted in the recipient's own language (see
+// lib/notifications/copy.ts) — a Hebrew-only heuristic would drop every row in
+// an English athlete's history to the generic icon. The English side is kept
+// deliberately narrow, so both languages bucket the same notification the same
+// way (e.g. a kudos push is 'default' in both, not 'workout' in one).
 export type StyleKind = 'coach' | 'race' | 'achievement' | 'workout' | 'default';
 export function styleKindFor(it: Pick<HistoryItem, 'title' | 'body'>): StyleKind {
   const s = it.title + ' ' + it.body;
-  if (/מאמן|תשובה|💬/.test(s)) return 'coach';
-  if (/מרוץ|מרתון|הרשמה|🏆/.test(s)) return 'race';
-  if (/שיא|רצף|הישג|🎉|🔥|🎖/.test(s)) return 'achievement';
-  if (/אימון|נוכחות|מגיעים/.test(s)) return 'workout';
+  if (/מאמן|תשובה|💬|coach|reply/i.test(s)) return 'coach';
+  if (/מרוץ|מרתון|הרשמה|🏆|race|marathon|registration/i.test(s)) return 'race';
+  if (/שיא|רצף|הישג|🎉|🔥|🎖|record|streak|achievement/i.test(s)) return 'achievement';
+  if (/אימון|נוכחות|מגיעים|session|training|attendance/i.test(s)) return 'workout';
   return 'default';
 }
 

@@ -62,8 +62,28 @@ describe('styleKindFor', () => {
     expect(styleKindFor({ title: '', body: 'מי מגיעים היום' })).toBe('workout');
   });
 
+  // History rows are persisted in the recipient's own notification language
+  // (lib/notifications/copy.ts), so an English athlete's inbox has to reach the
+  // same icon as the Hebrew equivalent — not fall through to 'default'. These
+  // strings are the real output of the copy builders.
+  it('matches the English wording of the same notifications', () => {
+    expect(styleKindFor({ title: '💬 Reply from Yossi', body: 'thanks!' })).toBe('coach');
+    expect(styleKindFor({ title: 'Registration closes tomorrow: Night Run ⏰', body: '' })).toBe('race');
+    expect(styleKindFor({ title: '🏅 New badge: 100 km', body: 'Tap to see your achievement' })).toBe('achievement');
+    expect(styleKindFor({ title: 'Coming to training tomorrow? 🏟️', body: '' })).toBe('workout');
+    expect(styleKindFor({ title: '🏃 Session detected: Trail run', body: '' })).toBe('workout');
+  });
+
+  it('buckets a kudos push the same way in both languages', () => {
+    // Neither wording should be pulled into 'workout' — the Hebrew says ריצה,
+    // not אימון, so the English must not match on a broader word either.
+    expect(styleKindFor({ title: 'דנה נתן/ה לך קודוס על הריצה! 👍', body: 'לחצו לצפייה' })).toBe('default');
+    expect(styleKindFor({ title: 'Dana gave you kudos on your run! 👍', body: 'Tap to view' })).toBe('default');
+  });
+
   it('falls back to "default" for unrecognized content', () => {
     expect(styleKindFor({ title: 'הודעה כללית', body: 'תוכן רגיל' })).toBe('default');
+    expect(styleKindFor({ title: 'A general notice', body: 'nothing special' })).toBe('default');
   });
 
   it('checks combined title+body, not title alone', () => {
