@@ -16,6 +16,7 @@ import {
   INSTALL_SESSION_SKIP_KEY,
   OFFER_SETTLE_MS,
   isInstallStepAnswered,
+  recordInstallOfferSkipped,
 } from '@/lib/onboarding/first-run-order';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -129,6 +130,10 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
 
   const skipForSession = useCallback(() => {
     sessionStorage.setItem(INSTALL_SESSION_SKIP_KEY, '1');
+    // Banked across visits as well, so the offer can retire itself after a few
+    // of these — on iOS nothing ever tells us the icon was added, so otherwise
+    // "back next visit" runs forever (see INSTALL_MAX_OFFERS).
+    recordInstallOfferSkipped();
     show(null);
     setAnswered(true);
   }, [show]);

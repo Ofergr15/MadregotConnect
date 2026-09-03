@@ -4,6 +4,7 @@
   "short_name": "​",
   "description": "Running club training platform",
   "start_url": "/feed",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#DFDFDF",
   "theme_color": "#DFDFDF",

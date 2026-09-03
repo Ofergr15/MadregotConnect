@@ -1,10 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
   INSTALL_DISMISS_KEY,
+  INSTALL_MAX_OFFERS,
+  INSTALL_OFFER_COUNT_KEY,
   INSTALL_SESSION_SKIP_KEY,
   TOUR_HOME,
   canStartTour,
   isInstallStepAnswered,
+  recordInstallOfferSkipped,
   tourExitTarget,
 } from '@/lib/onboarding/first-run-order';
 import { isIosSafari } from '@/lib/pwa';
@@ -36,8 +39,12 @@ function browser(opts: {
     navigator: { userAgent: opts.ua ?? IPHONE_SAFARI, standalone: opts.standalone },
   });
   vi.stubGlobal('document', opts.touch ? { ontouchend: null } : {});
-  vi.stubGlobal('localStorage', { getItem: (k: string) => local[k] ?? null });
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => local[k] ?? null,
+    setItem: (k: string, v: string) => { local[k] = v; },
+  });
   vi.stubGlobal('sessionStorage', { getItem: (k: string) => session[k] ?? null });
+  return { local, session };
 }
 
 beforeEach(() => vi.unstubAllGlobals());
@@ -75,6 +82,35 @@ describe('isInstallStepAnswered', () => {
     // "never ask again" — the whole difference between the two buttons.
     browser({ local: { [INSTALL_SESSION_SKIP_KEY]: '1' } });
     expect(isInstallStepAnswered()).toBe(false);
+  });
+
+  it('is answered once the offer has come back enough times to have made its point', () => {
+    // The iOS dead end: they added the icon, but the installed app has its own
+    // storage container, so this Safari tab will never hear about it. Coming
+    // back "next visit" forever is a nag aimed at someone who already installed.
+    browser({ local: { [INSTALL_OFFER_COUNT_KEY]: String(INSTALL_MAX_OFFERS) } });
+    expect(isInstallStepAnswered()).toBe(true);
+  });
+
+  it('still asks one visit below the cap — a reminder is the whole point', () => {
+    browser({ local: { [INSTALL_OFFER_COUNT_KEY]: String(INSTALL_MAX_OFFERS - 1) } });
+    expect(isInstallStepAnswered()).toBe(false);
+  });
+
+  it('treats a junk count as no count, rather than locking the offer out', () => {
+    browser({ local: { [INSTALL_OFFER_COUNT_KEY]: 'nonsense' } });
+    expect(isInstallStepAnswered()).toBe(false);
+  });
+});
+
+describe('recordInstallOfferSkipped', () => {
+  it('counts the soft skips, and the last allowed one retires the offer', () => {
+    const { local } = browser();
+    for (let i = 1; i < INSTALL_MAX_OFFERS; i++) recordInstallOfferSkipped();
+    expect(isInstallStepAnswered()).toBe(false);
+    recordInstallOfferSkipped();
+    expect(local[INSTALL_OFFER_COUNT_KEY]).toBe(String(INSTALL_MAX_OFFERS));
+    expect(isInstallStepAnswered()).toBe(true);
   });
 });
 

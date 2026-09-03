@@ -19,6 +19,31 @@ import type { OnboardingState } from './use-onboarding';
 export const INSTALL_DISMISS_KEY = 'pwa_install_dismissed';
 /** Soft "not now" — gone for this visit, back on the next one. */
 export const INSTALL_SESSION_SKIP_KEY = 'pwa_install_skipped_session';
+/** How many visits have been shown the offer and waved it away. */
+export const INSTALL_OFFER_COUNT_KEY = 'pwa_install_offers';
+
+/**
+ * How many times the offer is allowed back before it retires itself.
+ *
+ * iOS never reports that the icon was added, and the installed app gets its OWN
+ * storage container — so a Safari tab can't read what the home screen already
+ * knows, and "ask again next visit" means asking someone who installed weeks
+ * ago, on every single visit, forever. (That's the shape of the complaint: the
+ * install sheet coming back in a browser tab, and the tour queued up behind it.)
+ * Three is where a reminder turns into a nag; past that this device counts as
+ * having answered.
+ */
+export const INSTALL_MAX_OFFERS = 3;
+
+/** How many times this device has waved the offer away. */
+export function installOfferCount(): number {
+  return Number(localStorage.getItem(INSTALL_OFFER_COUNT_KEY)) || 0;
+}
+
+/** Bank one more soft skip, so the offer can count its own way out. */
+export function recordInstallOfferSkipped(): void {
+  localStorage.setItem(INSTALL_OFFER_COUNT_KEY, String(installOfferCount() + 1));
+}
 
 /**
  * How long to wait for `beforeinstallprompt` before concluding this device
@@ -33,8 +58,9 @@ export const TOUR_HOME = '/dashboard/profile';
 
 /**
  * Has this device already settled the install question before we ask anything?
- * Installed, opted out for good, or waved away this visit — all three mean
- * there is nothing to show and the tour is free to start immediately.
+ * Installed, opted out for good, waved away this visit, or waved away enough
+ * visits to have made its point — all of them mean there is nothing to show and
+ * the tour is free to start immediately.
  *
  * Deliberately device-local: being installed is a property of a DEVICE, not of
  * a person, so the same runner on a phone and a laptop is two different
@@ -44,7 +70,8 @@ export function isInstallStepAnswered(): boolean {
   return (
     isStandalone() ||
     localStorage.getItem(INSTALL_DISMISS_KEY) === '1' ||
-    sessionStorage.getItem(INSTALL_SESSION_SKIP_KEY) === '1'
+    sessionStorage.getItem(INSTALL_SESSION_SKIP_KEY) === '1' ||
+    installOfferCount() >= INSTALL_MAX_OFFERS
   );
 }
 
