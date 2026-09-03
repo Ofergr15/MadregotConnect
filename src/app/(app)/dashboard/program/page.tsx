@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronLeft, ChevronRight, Plus, Upload, Loader2, ClipboardList, Hash, Calendar, CalendarRange } from 'lucide-react';
 import { cn, isRecentlyPublished, toISODate } from '@/lib/utils';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { useApi } from '@/lib/api';
 import { getDisplayWeekStart } from '@/lib/plans/workout-parsing';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
 import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
@@ -93,9 +94,13 @@ const WORKOUT_VIDEOS: WorkoutVideo[] = [
 
 export default function ProgramPage() {
   const t = useTranslations('program');
-  const [weeks, setWeeks] = useState<ProgramWeek[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedWeek, setSelectedWeek] = useState(0);
+  // The week on screen, held as its Sunday rather than an index into `weeks`:
+  // the list arrives from the network and revalidates in the background, so an
+  // index means "whatever is in slot 3 now". It also makes the current week
+  // known before any request comes back, which is what lets the three loads
+  // below all start in the same tick — see `weekStart` on the plan fetch.
+  const thisWeekStart = getDisplayWeekStart(new Date());
+  const [selectedStart, setSelectedStart] = useState(thisWeekStart);
   const [activeView, setActiveView] = useState<'training' | 'nutrition' | 'workout'>('training');
   // Controls the native week-picker Sheet (replaces an anchored web-style
   // dropdown menu — see the Sheet render below).
@@ -104,13 +109,6 @@ export default function ProgramPage() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | ExerciseCategory>('all');
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  // Weeks that have AI-parsed structured data in `weekly_plans` (regardless of
-  // whether a `program_weeks` PDF row also exists) — used both to add
-  // PDF-less weeks to the picker and to make the "training plan uploaded"
-  // status row honest when a native plan exists but no PDF was ever attached.
-  const [structuredWeekStarts, setStructuredWeekStarts] = useState<Set<string>>(new Set());
-  const [weekPlan, setWeekPlan] = useState<WeekPlanResponse | null>(null);
-  const [weekPlanLoading, setWeekPlanLoading] = useState(false);
   const [selectedSession, setSelectedSession] = useState<WeekPlanSession | null>(null);
   // Which group's pace is highlighted in the workout-detail sheet — mirrors the
   // dashboard's own remembered pick (localStorage `view_group`) rather than
@@ -123,7 +121,6 @@ export default function ProgramPage() {
     setIsAdmin(adminSession || !!coachEmail);
     const storedGroup = parseInt(localStorage.getItem('view_group') || '', 10);
     if (storedGroup >= 0 && storedGroup <= 2) setViewGroup(storedGroup);
-    fetchWeeks();
   }, []);
 
   const pickViewGroup = (idx: number) => {
@@ -131,89 +128,84 @@ export default function ProgramPage() {
     try { localStorage.setItem('view_group', String(idx)); } catch { /* ignore */ }
   };
 
-  async function fetchWeeks() {
-    try {
-      const headers = await bearerHeaders(false);
-      const [pwRes, wpRes] = await Promise.all([
-        fetch('/api/program-weeks', { headers }),
-        fetch('/api/plans/weeks', { headers }),
-      ]);
-      const pwData: ProgramWeek[] = pwRes.ok ? await pwRes.json() : [];
-      const wpWeekStarts: string[] = wpRes.ok ? (await wpRes.json()).weekStarts || [] : [];
-      setStructuredWeekStarts(new Set(wpWeekStarts));
+  // The three loads this page needs, all started together.
+  //
+  // They used to be a hand-rolled useEffect + fetch + useState triad that ran
+  // the week lists in parallel and then waited for them before asking for the
+  // selected week's plan — two round trips before anything rendered, on every
+  // single visit, because nothing was cached. The plan request only needed the
+  // *week* though, and the week the page opens on is today's, which is a local
+  // date calculation. So all three go out at once now, and SWR keeps the answers
+  // for the next visit: coming back to the tab paints the last-known program
+  // immediately and refreshes behind it.
+  const { data: pwData, isLoading: pwLoading, mutate: mutateWeeks } = useApi<ProgramWeek[]>('/api/program-weeks');
+  const { data: wpData, isLoading: wpLoading, mutate: mutatePlanWeeks } = useApi<{ weekStarts?: string[] }>('/api/plans/weeks');
+  // Selected week only — SWR caches per key, so stepping back to a week already
+  // viewed is instant and re-picking today's costs nothing.
+  const { data: weekPlanData, isLoading: weekPlanLoading } = useApi<WeekPlanResponse>(
+    `/api/plans/week?weekStart=${selectedStart}`,
+  );
+  const weekPlan = weekPlanData ?? null;
+  const loading = pwLoading || wpLoading;
 
-      // A week with a parsed plan but no PDF upload has no `program_weeks` row
-      // at all — synthesize one so it still shows up in the week picker.
-      const existingStarts = new Set(pwData.map(w => w.week_start_date));
-      const synthetic: ProgramWeek[] = wpWeekStarts
-        .filter(ws => !existingStarts.has(ws))
-        .map(ws => ({
-          id: `wp-${ws}`,
-          week_number: 0, // unknown for synthetic entries — label falls back to the date range
-          date_range: deriveDateRange(ws),
-          week_start_date: ws,
-          training_pdf_url: null,
-          nutrition_pdf_url: null,
-        }));
+  // Weeks that have AI-parsed structured data in `weekly_plans` (regardless of
+  // whether a `program_weeks` PDF row also exists) — used both to add
+  // PDF-less weeks to the picker and to make the "training plan uploaded"
+  // status row honest when a native plan exists but no PDF was ever attached.
+  const structuredWeekStarts = useMemo(() => new Set(wpData?.weekStarts || []), [wpData]);
 
-      const data = [...pwData, ...synthetic];
+  const weeks = useMemo<ProgramWeek[]>(() => {
+    const rows = pwData || [];
+    const wpWeekStarts = wpData?.weekStarts || [];
 
-      // Guarantee an entry for the actual current week even when nothing has
-      // been uploaded/parsed for it yet. Without this, if the coach hasn't
-      // posted this week's plan, the picker silently defaults to whichever
-      // week happens to sort first (the most recent PAST upload) — which
-      // reads as "here's your plan" when it's really an unrelated old week.
-      const thisWeekStart = getDisplayWeekStart(new Date());
-      if (!data.some(w => w.week_start_date === thisWeekStart)) {
-        data.push({
-          id: `current-${thisWeekStart}`,
-          week_number: 0,
-          date_range: deriveDateRange(thisWeekStart),
-          week_start_date: thisWeekStart,
-          training_pdf_url: null,
-          nutrition_pdf_url: null,
-        });
-      }
+    // A week with a parsed plan but no PDF upload has no `program_weeks` row
+    // at all — synthesize one so it still shows up in the week picker.
+    const existingStarts = new Set(rows.map(w => w.week_start_date));
+    const synthetic: ProgramWeek[] = wpWeekStarts
+      .filter(ws => !existingStarts.has(ws))
+      .map(ws => ({
+        id: `wp-${ws}`,
+        week_number: 0, // unknown for synthetic entries — label falls back to the date range
+        date_range: deriveDateRange(ws),
+        week_start_date: ws,
+        training_pdf_url: null,
+        nutrition_pdf_url: null,
+      }));
 
-      // Newest-first, matching /api/program-weeks' own ordering.
-      data.sort((a, b) => b.week_start_date.localeCompare(a.week_start_date));
-      setWeeks(data);
-      // Select the week that actually CONTAINS today (by plan-week Sunday), not
-      // just the most-recently-uploaded one — otherwise last week shows as
-      // "Current" and its plans mask that this week's are missing.
-      const idx = data.findIndex(w => w.week_start_date === thisWeekStart);
-      if (idx >= 0) setSelectedWeek(idx);
-    } finally {
-      setLoading(false);
+    const data = [...rows, ...synthetic];
+
+    // Guarantee an entry for the actual current week even when nothing has
+    // been uploaded/parsed for it yet. Without this, if the coach hasn't
+    // posted this week's plan, the picker silently defaults to whichever
+    // week happens to sort first (the most recent PAST upload) — which
+    // reads as "here's your plan" when it's really an unrelated old week.
+    if (!data.some(w => w.week_start_date === thisWeekStart)) {
+      data.push({
+        id: `current-${thisWeekStart}`,
+        week_number: 0,
+        date_range: deriveDateRange(thisWeekStart),
+        week_start_date: thisWeekStart,
+        training_pdf_url: null,
+        nutrition_pdf_url: null,
+      });
     }
-  }
 
-  const currentWeek = weeks[selectedWeek];
+    // Newest-first, matching /api/program-weeks' own ordering.
+    return data.sort((a, b) => b.week_start_date.localeCompare(a.week_start_date));
+  }, [pwData, wpData, thisWeekStart]);
+
+  // The week the picker is on. Defaults to the one that CONTAINS today rather
+  // than the most-recently-uploaded one — otherwise last week shows as
+  // "Current" and its plans mask that this week's are missing.
+  const currentWeek = weeks.find(w => w.week_start_date === selectedStart);
   // Is the selected week the real calendar-current week (contains today)?
-  // Uses the same Saturday-20:00 rollover as the dashboard's own "current
-  // week" (getDisplayWeekStart) — plain getPlanWeekStart has no such
+  // `thisWeekStart` uses the same Saturday-20:00 rollover as the dashboard's own
+  // "current week" (getDisplayWeekStart) — plain getPlanWeekStart has no such
   // rollover, which used to make this page disagree with the dashboard about
   // which week is "current" for a few hours every Saturday evening.
-  const thisWeekStart = getDisplayWeekStart(new Date());
-  const isCurrentWeek = !!currentWeek && currentWeek.week_start_date === thisWeekStart;
+  const isCurrentWeek = selectedStart === thisWeekStart;
   // Does a program row for the actual current week exist at all?
   const currentWeekExists = weeks.some(w => w.week_start_date === thisWeekStart);
-
-  // Fetch the selected week's AI-parsed structured plan (native day cards) —
-  // independent of the program_weeks PDF row, so a week with a parsed plan but
-  // no PDF still renders real content instead of "no plan uploaded".
-  useEffect(() => {
-    if (!currentWeek) { setWeekPlan(null); return; }
-    let cancelled = false;
-    setWeekPlanLoading(true);
-    bearerHeaders(false)
-      .then(headers => fetch(`/api/plans/week?weekStart=${currentWeek.week_start_date}`, { headers }))
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (!cancelled) setWeekPlan(data); })
-      .catch(() => { if (!cancelled) setWeekPlan(null); })
-      .finally(() => { if (!cancelled) setWeekPlanLoading(false); });
-    return () => { cancelled = true; };
-  }, [currentWeek?.week_start_date]);
 
   // Filter exercises based on category
   const filteredExercises = categoryFilter === 'all'
@@ -353,13 +345,13 @@ export default function ProgramPage() {
           dismiss, focus trap) replacing the old anchored dropdown menu. */}
       <Sheet open={weekPickerOpen} onOpenChange={setWeekPickerOpen} title={t('selectWeek')}>
         <div className="space-y-1.5">
-          {weeks.map((week, i) => (
+          {weeks.map((week) => (
             <button
               key={week.id}
-              onClick={() => { setSelectedWeek(i); setWeekPickerOpen(false); }}
+              onClick={() => { setSelectedStart(week.week_start_date); setWeekPickerOpen(false); }}
               className={cn(
                 'w-full text-start px-4 py-3.5 min-h-[44px] rounded-xl flex items-center justify-between gap-3 transition-colors active:scale-[0.98]',
-                i === selectedWeek
+                week.week_start_date === selectedStart
                   ? 'bg-brand-600/20 border border-brand-600/40'
                   : 'border border-transparent hover:bg-page/50'
               )}
@@ -672,7 +664,7 @@ export default function ProgramPage() {
         <UploadForm
           nextWeekNumber={weeks.length > 0 ? Math.max(0, ...weeks.map(w => w.week_number)) + 1 : 1}
           onClose={() => setShowUploadForm(false)}
-          onSuccess={() => { setShowUploadForm(false); fetchWeeks(); }}
+          onSuccess={() => { setShowUploadForm(false); mutateWeeks(); mutatePlanWeeks(); }}
         />
       )}
     </div>
