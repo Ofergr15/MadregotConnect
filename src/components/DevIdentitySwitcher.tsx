@@ -30,6 +30,10 @@ type StravaAthlete = {
   strava_athlete_id: number | null;
 };
 
+// Deliberately NOT on the designer's light system: this is a dev-only debug
+// overlay that floats above whatever screen you're on, and it has to be
+// unmistakably not-the-app. Its dark amber palette stayed as-is when every real
+// screen was converted — don't "fix" it to brand colours.
 function DevBar() {
   const router = useRouter();
   const pathname = usePathname();

@@ -25,7 +25,10 @@ export const viewport: Viewport = {
   // Pinch-zoom left enabled (no maximumScale/userScalable) — disabling it is a
   // WCAG 1.4.4 failure and blocks low-vision users.
   viewportFit: 'cover',
-  themeColor: '#4338ff',
+  // Page grey, not the brand blue: the app is on the designer's light system
+  // now, so Android's status/URL bar blends into the top of the page instead of
+  // sitting on it as a blue band.
+  themeColor: '#DFDFDF',
 };
 
 export const metadata: Metadata = {
@@ -34,7 +37,12 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    // 'default' (dark glyphs) rather than 'black-translucent' (white glyphs):
+    // the light system puts page grey under the status bar, where white iOS
+    // glyphs are unreadable. NOTE: this also stops the web view extending
+    // beneath the status bar, so it wants one look on a real device — every
+    // safe-area-inset-top padding in the app stays valid either way.
+    statusBarStyle: 'default',
     title: 'Madregot',
   },
   // Next's appleWebApp only emits the (now-deprecated) apple- prefixed tag;

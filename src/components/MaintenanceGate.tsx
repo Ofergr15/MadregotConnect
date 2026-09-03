@@ -71,8 +71,13 @@ export function MaintenanceGate() {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex flex-col items-center text-white text-center px-6 pt-24 pb-8 safe-top safe-bottom overflow-hidden"
-      style={{ background: 'radial-gradient(130% 80% at 50% 8%, #16213b 0%, #0f172a 46%, #0b1120 100%)' }}
+      className="fixed inset-0 z-[200] flex flex-col items-center text-ink-700 text-center px-6 pt-24 pb-8 safe-top safe-bottom overflow-hidden"
+      // On the light system like every other screen. This one had to move: with
+      // maintenance mode on, it's the FIRST thing most people see, right after a
+      // light splash — a dark navy field here would read as a different app. The
+      // same white-to-page-grey vignette as AppSplash, so splash -> gate is one
+      // continuous surface with no flash between them.
+      style={{ background: 'radial-gradient(130% 80% at 50% 8%, #FFFFFF 0%, #DFDFDF 46%, #D2D2D2 100%)' }}
     >
       {/* drifting dust */}
       <div className="mg-dust absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
@@ -83,8 +88,13 @@ export function MaintenanceGate() {
       <div className="relative z-[2] mt-3 flex items-center justify-center">
         <div className="mg-glow absolute" aria-hidden="true" />
         <div className="relative w-40 h-40 flex items-center justify-center z-[2]">
-          <img src="/images/logo-white.png" alt="Madregot — After 2KM Running Club"
-            className="w-full h-full object-contain" style={{ filter: 'drop-shadow(0 8px 18px rgba(8,12,25,.55))' }} />
+          {/* The dark mark (logo.png is black shaped by its alpha channel), same as
+              the Header and the splash — the white one is invisible on page grey.
+              The sweep's mask uses this same file so the shimmer stays inside the
+              silhouette, and screen-blending white over a black mark is what makes
+              the highlight visible at all. */}
+          <img src="/images/logo.png" alt="Madregot — After 2KM Running Club"
+            className="w-full h-full object-contain" style={{ filter: 'drop-shadow(0 8px 18px rgba(29,30,38,.18))' }} />
           <div className="mg-sweep absolute inset-0 pointer-events-none" aria-hidden="true"><i /></div>
         </div>
       </div>
@@ -93,14 +103,16 @@ export function MaintenanceGate() {
       <div className="relative z-[3] mt-7">
         {isAsaf ? (
           <>
-            <h1 className="text-2xl font-bold leading-snug" dir="rtl">רגע, אסף 💨</h1>
-            <p className="mt-3 max-w-[300px] mx-auto text-[15px] leading-relaxed text-slate-300" dir="rtl">{ASAF_MESSAGE}</p>
+            <h1 className="text-2xl font-bold leading-snug text-ink-900" dir="rtl">רגע, אסף 💨</h1>
+            <p className="mt-3 max-w-[300px] mx-auto text-[15px] leading-relaxed text-ink-500" dir="rtl">{ASAF_MESSAGE}</p>
           </>
         ) : (
           <>
-            <h1 className="text-2xl font-bold leading-snug" dir="rtl">בונים מחדש את המדרגות 🚧</h1>
-            <p className="mt-3 max-w-[250px] mx-auto text-[15px] leading-relaxed text-slate-400" dir="rtl">הצוות שלנו עובד על שדרוג. נחזור בקרוב!</p>
-            <p className="mt-4 text-xs tracking-wide text-slate-500" dir="ltr">We&apos;re rebuilding the stairs — back soon.</p>
+            <h1 className="text-2xl font-bold leading-snug text-ink-900" dir="rtl">בונים מחדש את המדרגות 🚧</h1>
+            {/* ink-500, not ink-400: #969696 is only ~2.2:1 on the page grey — it
+                was tuned to sit on the old navy. */}
+            <p className="mt-3 max-w-[250px] mx-auto text-[15px] leading-relaxed text-ink-500" dir="rtl">הצוות שלנו עובד על שדרוג. נחזור בקרוב!</p>
+            <p className="mt-4 text-xs tracking-wide text-ink-500" dir="ltr">We&apos;re rebuilding the stairs — back soon.</p>
           </>
         )}
 
@@ -109,7 +121,11 @@ export function MaintenanceGate() {
         {isSuper && (
           <button
             onClick={() => window.dispatchEvent(new Event('open-view-as'))}
-            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-200 text-sm font-bold hover:bg-amber-500/30 transition-colors"
+            // The light system's primary button (same as ui/Button's `primary`) —
+            // the old amber outline was a warning colour on a dark field, and on
+            // white it both loses contrast and reads as an alert rather than the
+            // one thing you're meant to tap.
+            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-pill bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 transition-colors"
             dir="rtl"
           >
             <Eye className="h-4 w-4" /> תצוגה כמשתמש אחר
@@ -122,7 +138,9 @@ export function MaintenanceGate() {
         {!isSuper && noIdentity && (
           <Link
             href="/"
-            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-700/50 border border-slate-600/60 text-slate-200 text-sm font-bold hover:bg-slate-700/80 transition-colors"
+            // ui/Button's `secondary`: an outline pill on the page grey. (A
+            // translucent page-grey fill on a page-grey background was invisible.)
+            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-pill bg-card border border-brand-600 text-brand-600 text-sm font-bold hover:bg-brand-600/5 transition-colors"
             dir="rtl"
           >
             <LogIn className="h-4 w-4" /> התחברות מחדש
@@ -147,16 +165,19 @@ export function MaintenanceGate() {
           ))}
           <div className="mg-runner"><span>🏃</span></div>
         </div>
-        <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-300" dir="rtl">
+        <div className="flex items-center gap-2.5 text-xs font-semibold text-ink-500" dir="rtl">
           <svg className="mg-hat w-6 h-6" viewBox="0 0 48 48" aria-hidden="true">
             <defs>
+              {/* Band 3 — the light system's one warning colour, and orange is a
+                  real hard-hat colour, so the icon still reads as a hard hat.
+                  (The old amber #fbbf24 was near-invisible on the page grey.) */}
               <linearGradient id="mgHat" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#fbbf24" /><stop offset="1" stopColor="#f59e0b" />
+                <stop offset="0" stopColor="#FF6A33" /><stop offset="1" stopColor="#FF5315" />
               </linearGradient>
             </defs>
             <rect x="5" y="33" width="38" height="6" rx="3" fill="url(#mgHat)" />
             <path d="M13 34 C13 21 18 15 24 15 C30 15 35 21 35 34 Z" fill="url(#mgHat)" />
-            <rect x="22" y="15" width="4" height="19" rx="2" fill="#d97706" opacity=".85" />
+            <rect x="22" y="15" width="4" height="19" rx="2" fill="#C43C0B" opacity=".85" />
           </svg>
           <span>עדכון מערכת בתהליך</span>
         </div>

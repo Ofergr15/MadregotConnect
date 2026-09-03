@@ -60,7 +60,7 @@ export function Header() {
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [groupName, setGroupName] = useState<string | null>(null);
-  const [groupColor, setGroupColor] = useState<string>('#6366f1');
+  const [groupColor, setGroupColor] = useState<string>('#159AFF');
   const [showGroupPicker, setShowGroupPicker] = useState(false);
   const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -200,13 +200,17 @@ export function Header() {
     : userEmail ? userEmail[0].toUpperCase() : '?';
 
   return (
-    <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40 safe-top">
+    // The frames give the header no bar of its own — it floats on the page grey
+    // with no rule under it, and the round white icon buttons carry the chrome.
+    <header className="backdrop-blur-md sticky top-0 z-40 safe-top bg-page/95">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           {/* Logo + Review */}
           <div className="flex items-center gap-3 shrink-0">
             <Link href="/feed" className="flex items-center gap-2.5">
-              <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0 invert" />
+              {/* The mark is a dark PNG; `brightness-0` flattens it to solid
+                  black, which is what the page grey wants. */}
+              <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0" />
               <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
             </Link>
             {navReady && navItems.some(i => i.tab === 'review') && (() => {
@@ -217,8 +221,8 @@ export function Header() {
                   className={cn(
                     'hidden md:flex items-center gap-2 px-4 h-9 rounded-xl font-bold text-sm transition-all',
                     isActive
-                      ? 'bg-amber-400 text-slate-900 shadow-md shadow-amber-400/25'
-                      : 'bg-amber-400/15 text-amber-300 border border-amber-400/30 hover:bg-amber-400/25 hover:text-amber-200'
+                      ? 'bg-band-3 text-ink-900 shadow-md shadow-band-3/25'
+                      : 'bg-band-3/15 text-band-3 border border-band-3/30 hover:bg-band-3/25'
                   )}
                 >
                   <MessageSquare className="h-4 w-4" />
@@ -233,7 +237,7 @@ export function Header() {
             {!navReady ? (
               <>
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="w-11 h-11 rounded-xl bg-slate-800/50 animate-pulse" />
+                  <div key={i} className={cn('w-11 h-11 rounded-xl animate-pulse', 'bg-card')} />
                 ))}
               </>
             ) : (
@@ -245,14 +249,15 @@ export function Header() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      'relative group flex items-center justify-center w-11 h-11 rounded-xl transition-all',
+                      'relative group flex items-center justify-center w-11 h-11 transition-all',
+                      'rounded-pill',
                       isActive
-                        ? 'bg-primary-600 text-white shadow-md shadow-primary-600/25'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                        ? 'bg-brand-600 text-white'
+                        : 'text-ink-400 hover:text-brand-600 hover:bg-card',
                     )}
                   >
                     <Icon className="h-5 w-5" />
-                    <span className="absolute -bottom-9 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2.5 py-1 bg-slate-800 border border-slate-600 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                    <span className={cn('absolute -bottom-9 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2.5 py-1 text-ink-700 text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50', 'bg-ink-900')}>
                       {t(item.labelKey as any)}
                     </span>
                   </Link>
@@ -264,7 +269,7 @@ export function Header() {
           {/* Desktop: User */}
           <div className="hidden md:flex items-center gap-2.5 shrink-0">
             <LocaleSwitcher />
-            <span className="text-sm text-slate-400 font-medium hidden lg:inline">{userName}</span>
+            <span className={cn('text-sm font-medium hidden lg:inline', 'text-ink-500')}>{userName}</span>
 
             {groupName && (
               <div className="hidden lg:block">
@@ -294,7 +299,7 @@ export function Header() {
                             setShowGroupPicker(false);
                             window.location.reload();
                           }}
-                          className="w-full min-h-[44px] text-start px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-700/50 transition-colors flex items-center gap-2.5"
+                          className="w-full min-h-[44px] text-start px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-page/50 transition-colors flex items-center gap-2.5"
                         >
                           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                           <span style={{ color }}>{displayName}</span>
@@ -306,12 +311,12 @@ export function Header() {
               </div>
             )}
 
-            {/* Desktop-only search entry point (roadmap #17) — mobile's
-                equivalent lives as a static row in BottomTabBar's "More"
-                sheet, since the mobile header has no room for another icon. */}
+            {/* Search (roadmap #17). Mobile has its own entry below — the round
+                icon button next to the bell — plus a row in BottomTabBar's
+                "More" sheet. */}
             <Link
               href="/dashboard/search"
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className={cn('p-2 rounded-lg transition-colors', 'text-ink-400 hover:text-brand-600 hover:bg-card')}
               title={t('search')}
               aria-label={t('search')}
             >
@@ -323,16 +328,16 @@ export function Header() {
                 onClick={() => (viewMode ? stopViewAs() : window.dispatchEvent(new Event('open-view-as')))}
                 className={cn(
                   'relative group p-2 rounded-lg transition-colors',
-                  viewMode ? 'text-red-400 hover:text-red-300 hover:bg-slate-800' : 'text-amber-400 hover:text-amber-300 hover:bg-slate-800',
+                  viewMode ? 'text-accent-red hover:text-accent-red hover:bg-page' : 'text-band-3 hover:text-band-3 hover:bg-page',
                 )}
                 title={viewMode ? th('exitViewAs') : th('viewAsUser')}
                 aria-label={viewMode ? th('exitViewAs') : th('viewAsUser')}
               >
                 {viewMode ? <LogOut className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                 {viewMode && (
-                  <span className="absolute -top-0.5 -end-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-slate-900" />
+                  <span className="absolute -top-0.5 -end-0.5 h-2.5 w-2.5 rounded-full bg-accent-red ring-2 ring-page" />
                 )}
-                <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-slate-800 border border-slate-600 text-white text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-card border border-ink-300 text-ink-700 text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
                   {viewMode ? th('exitViewAs') : th('viewAsUser')}
                 </span>
               </button>
@@ -346,34 +351,34 @@ export function Header() {
             <div>
               <button
                 onClick={() => { setShowNotifications(!showNotifications); setShowGroupPicker(false); }}
-                className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className={cn('relative p-2 rounded-lg transition-colors', 'text-ink-400 hover:text-brand-600 hover:bg-card')}
                 aria-label={th('notifications')}
               >
                 <Bell className="h-4.5 w-4.5" />
                 {badge > 0 && (
-                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent-red text-white text-[10px] font-bold flex items-center justify-center">
                     {badge}
                   </span>
                 )}
               </button>
               <Sheet open={showNotifications} onOpenChange={setShowNotifications} title={th('notifications')}>
                 {empty ? (
-                  <p className="text-xs text-slate-400 text-center py-6">{th('nothingNew')}</p>
+                  <p className="text-xs text-ink-400 text-center py-6">{th('nothingNew')}</p>
                 ) : (
                   <div className="space-y-1 pb-2">
                     {/* Staff: pending benchmark approvals. */}
                     {pendingResults.length > 0 && (
                       <>
                         <div className="px-1 py-2 flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                          <span className="text-xs font-bold text-white">{pendingResults.length} result{pendingResults.length !== 1 ? 's' : ''} awaiting approval</span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-accent-red" />
+                          <span className="text-xs font-bold text-ink-700">{pendingResults.length} result{pendingResults.length !== 1 ? 's' : ''} awaiting approval</span>
                         </div>
                         <div className="max-h-40 overflow-y-auto py-1">
                           {pendingResults.map(r => (
                             <div key={r.id} className="px-1 py-2 flex items-center gap-2 text-xs">
-                              <span className="flex-1 min-w-0 truncate text-slate-200" dir="auto">{r.athlete_name}</span>
-                              <span className="text-slate-400">{r.test_name}</span>
-                              <span className="font-bold text-white tabular-nums">
+                              <span className="flex-1 min-w-0 truncate text-ink-700" dir="auto">{r.athlete_name}</span>
+                              <span className="text-ink-400">{r.test_name}</span>
+                              <span className="font-bold text-ink-700 tabular-nums">
                                 {Math.floor(r.time_seconds / 60)}:{(r.time_seconds % 60).toFixed(r.time_seconds % 1 ? 2 : 0).padStart(r.time_seconds % 1 ? 5 : 2, '0')}
                               </span>
                             </div>
@@ -382,7 +387,7 @@ export function Header() {
                         <Link
                           href="/dashboard/academy?tab=results"
                           onClick={() => setShowNotifications(false)}
-                          className="block min-h-[44px] flex items-center justify-center border-t border-slate-700/60 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
+                          className="block min-h-[44px] flex items-center justify-center border-t border-page/60 text-xs font-semibold text-brand-600 hover:text-brand-700 text-center"
                         >
                           Review in Academy → Results
                         </Link>
@@ -398,15 +403,15 @@ export function Header() {
                               key={n.id}
                               href={n.url || '/dashboard'}
                               onClick={() => setShowNotifications(false)}
-                              className="flex items-start gap-2 px-1 py-2 rounded-lg hover:bg-slate-700/40 transition-colors"
+                              className="flex items-start gap-2 px-1 py-2 rounded-lg hover:bg-page/40 transition-colors"
                             >
                               {n.actorAvatarUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={n.actorAvatarUrl} alt="" className="mt-0.5 w-6 h-6 rounded-full object-cover shrink-0" />
-                              ) : n.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" />}
+                              ) : n.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-600 shrink-0" />}
                               <span className={`flex-1 min-w-0 ${n.unread || n.actorAvatarUrl ? '' : 'ps-3.5'}`}>
-                                <span className={`block text-xs truncate ${n.unread ? 'font-bold text-white' : 'font-semibold text-slate-200'}`} dir="auto">{n.title}</span>
-                                <span className="block text-[11px] text-slate-400 truncate" dir="auto">{n.body}</span>
+                                <span className={`block text-xs truncate ${n.unread ? 'font-bold text-ink-700' : 'font-semibold text-ink-700'}`} dir="auto">{n.title}</span>
+                                <span className="block text-[11px] text-ink-400 truncate" dir="auto">{n.body}</span>
                               </span>
                             </Link>
                           ))}
@@ -414,7 +419,7 @@ export function Header() {
                         <Link
                           href="/dashboard/notifications"
                           onClick={() => setShowNotifications(false)}
-                          className="block min-h-[44px] flex items-center justify-center border-t border-slate-700/60 text-xs font-semibold text-primary-400 hover:text-primary-300 text-center"
+                          className="block min-h-[44px] flex items-center justify-center border-t border-page/60 text-xs font-semibold text-brand-600 hover:text-brand-700 text-center"
                         >
                           {th('viewAll')}
                         </Link>
@@ -427,12 +432,15 @@ export function Header() {
               );
             })()}
 
-            <div className="bg-primary-600/20 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-primary-300 ring-1 ring-primary-500/20">
+            <div className={cn(
+              'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold',
+              'bg-brand-600 text-white',
+            )}>
               {initials}
             </div>
             <button
               onClick={handleLogout}
-              className="p-2.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
+              className={cn('p-2.5 rounded-lg transition-colors', 'text-ink-400 hover:text-accent-red hover:bg-card')}
               title={tc('signOut')}
               aria-label={tc('signOut')}
             >
@@ -448,11 +456,14 @@ export function Header() {
               <Link
                 href="/dashboard/notifications"
                 aria-label={th('notifications')}
-                className="relative flex items-center justify-center w-11 h-11 rounded-full text-slate-300 active:scale-95 transition-transform"
+                className={cn(
+                  'relative flex items-center justify-center w-11 h-11 rounded-full active:scale-95 transition-transform',
+                  'bg-card text-brand-600',
+                )}
               >
                 <Bell className="h-5 w-5" />
                 {inbox.filter(i => i.unread).length > 0 && (
-                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent-red text-white text-[10px] font-bold flex items-center justify-center">
                     {inbox.filter(i => i.unread).length}
                   </span>
                 )}
@@ -461,13 +472,19 @@ export function Header() {
             <Link
               href="/dashboard/search"
               aria-label={t('search')}
-              className="flex items-center justify-center w-11 h-11 rounded-full text-slate-300 active:scale-95 transition-transform"
+              className={cn(
+                'flex items-center justify-center w-11 h-11 rounded-full active:scale-95 transition-transform',
+                'bg-card text-brand-600',
+              )}
             >
               <SearchIcon className="h-5 w-5" />
             </Link>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="flex items-center justify-center w-11 h-11 rounded-full bg-primary-600/20 ring-1 ring-primary-500/20 text-sm font-bold text-primary-300 active:scale-95 transition-transform"
+              className={cn(
+                'flex items-center justify-center w-11 h-11 rounded-full text-sm font-bold active:scale-95 transition-transform',
+                'bg-brand-600 text-white',
+              )}
               aria-label={mobileMenuOpen ? tc('close') : th('account')}
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : initials}
@@ -485,12 +502,15 @@ export function Header() {
           <div className="py-3 px-4">
             {/* Identity header */}
             <div className="flex items-center gap-3 mb-4 px-1">
-              <div className="bg-primary-600/30 w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-primary-300">
+              <div className={cn(
+                'w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold',
+                'bg-brand-600 text-white',
+              )}>
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-semibold text-white truncate">{userName}</span>
+                  <span className={cn('text-base font-semibold truncate', 'text-ink-700')}>{userName}</span>
                   {groupName && (
                     <span className="text-2xs font-bold px-2 py-0.5 rounded-md border flex-shrink-0" style={{ color: groupColor, borderColor: `${groupColor}40`, backgroundColor: `${groupColor}15` }}>
                       {groupName}
@@ -501,18 +521,18 @@ export function Header() {
                     (e.g. strava_123@strava.madregot.local) — never a real email
                     the athlete recognizes, so it's hidden rather than shown. */}
                 {userEmail && !userEmail.endsWith('.madregot.local') && (
-                  <div className="text-xs text-slate-400 truncate" dir="ltr">{userEmail}</div>
+                  <div className={cn('text-xs truncate', 'text-ink-400')} dir="ltr">{userEmail}</div>
                 )}
               </div>
             </div>
 
             {/* Inset-grouped account actions */}
             <InsetSection>
-              <InsetRow icon={User} iconBg="bg-slate-600" label={t('profile')} href="/dashboard/profile" onClick={() => setMobileMenuOpen(false)} />
+              <InsetRow icon={User} iconBg={'bg-brand-600'} label={t('profile')} href="/dashboard/profile" onClick={() => setMobileMenuOpen(false)} />
               {isSuper && (
                 <InsetRow
                   icon={viewMode ? LogOut : Eye}
-                  iconBg={viewMode ? 'bg-red-500' : 'bg-amber-500'}
+                  iconBg={viewMode ? 'bg-accent-red' : 'bg-band-3'}
                   label={th('viewAsUser')}
                   sublabel={viewMode ? th('viewAsActive') : undefined}
                   onClick={() => { setMobileMenuOpen(false); window.dispatchEvent(new Event('open-view-as')); }}
@@ -521,12 +541,12 @@ export function Header() {
             </InsetSection>
 
             <div className="flex items-center justify-between px-1 mb-3">
-              <span className="text-2xs font-bold uppercase tracking-wider text-slate-400">{tc('language') || 'Language'}</span>
+              <span className={cn('text-2xs font-bold uppercase tracking-wider', 'text-ink-400')}>{tc('language') || 'Language'}</span>
               <LocaleSwitcher />
             </div>
 
             <InsetSection>
-              <InsetRow icon={LogOut} iconBg="bg-red-500" label={tc('signOut')} danger onClick={() => { setMobileMenuOpen(false); handleLogout(); }} />
+              <InsetRow icon={LogOut} iconBg="bg-accent-red" label={tc('signOut')} danger onClick={() => { setMobileMenuOpen(false); handleLogout(); }} />
             </InsetSection>
           </div>
         </div>

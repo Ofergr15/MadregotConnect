@@ -83,15 +83,6 @@ export function BottomTabBar() {
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  // The athlete "Confirm" action and the Dashboard tab both lead to /dashboard
-  // (the RSVP card lives at its top), so the pathname alone can't say which slot
-  // should be highlighted there — the last-tapped one wins. Cleared whenever the
-  // viewer leaves /dashboard so a later return via deep link or back-gesture
-  // defaults to the Dashboard tab again.
-  const [confirmTapped, setConfirmTapped] = useState(false);
-  useEffect(() => {
-    if (pathname !== '/dashboard') setConfirmTapped(false);
-  }, [pathname]);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -174,35 +165,44 @@ export function BottomTabBar() {
   const overflow = navItems.filter(i => byTab.has(i.tab));
   const isActive = (href: string) => pathname === href;
   const overflowActive = overflow.some(i => isActive(i.href));
+  // The static quick-action pages are reachable from the "More" sheet only, so
+  // they light its slot up exactly like an overflow page does.
+  const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits'];
+  const moreActive = MORE_SHEET_HREFS.some(isActive);
 
-  // The primary action: one role-aware "do something now" destination,
-  // additive to the 4 primary tabs + More. Athletes → confirm attendance for
-  // their next workout (the AttendanceRSVP card lives at the top of
-  // /dashboard). Staff (coach/admin/academy_coach) → the attendance roster —
-  // deliberately excluded from STAFF_PRIMARY_ORDER above so it's reachable via
-  // this slot only, never as a redundant second flat tab to the same page.
-  // Rendered as a plain icon button now (no elevation/color), same as every
-  // other slot in the bar.
-  const primaryActionHref = isStaffView ? '/dashboard/practice-attendance' : '/dashboard';
-  const primaryActionAriaKey = isStaffView ? 'attendanceRosterAria' : 'confirmAttendanceAria';
-  // Short visible label for the primary-action slot — distinct from the long
-  // descriptive aria-label sentence above (screen-reader only).
-  const primaryActionLabelKey = isStaffView ? 'practiceAttendance' : 'confirm';
-  // Split the primary tabs around the middle so this slot lands visually
-  // centered in the bar regardless of how many tabs (1-4) this role has.
-  const midIndex = Math.ceil(primary.length / 2);
+  // STAFF ONLY: one "do something now" destination, additive to the 4 primary
+  // tabs + More — the attendance roster, deliberately excluded from
+  // STAFF_PRIMARY_ORDER above so it's reachable via this slot only, never as a
+  // redundant second flat tab to the same page. Rendered as a plain icon button
+  // (no elevation/color), same as every other slot in the bar.
+  //
+  // Athletes used to get a mirror of this slot ("אישור") pointing at /dashboard,
+  // which is where the Dashboard tab already goes — a fifth slot to a page the
+  // bar could already open. Confirming attendance now belongs to the Program tab
+  // instead: AttendanceConfirmCard sits at the top of /dashboard/program. The
+  // athlete bar is back to its four real destinations (feed · dashboard ·
+  // program · profile), which is also exactly what the first-run tour promises.
+  const midIndex = isStaffView
+    // Split the staff tabs around the middle so the roster slot lands visually
+    // centered in the bar regardless of how many tabs (1-4) that role has.
+    ? Math.ceil(primary.length / 2)
+    // No middle slot for athletes: everything renders in the first half.
+    : primary.length;
 
-  const renderIconButton = ({ href, ariaLabel, label, icon: Icon, onClick, active }: { href: string; ariaLabel: string; label: string; icon: any; onClick?: () => void; active?: boolean }) => {
-    const isActiveState = active ?? isActive(href);
+  const activeColor = 'text-brand-600 font-bold';
+  const idleColor = 'text-ink-400';
+
+  const renderIconButton = ({ href, ariaLabel, label, icon: Icon }: { href: string; ariaLabel: string; label: string; icon: any }) => {
+    const isActiveState = isActive(href);
     return (
       <Link
         key={href}
         href={href}
-        onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } onClick?.(); }}
+        onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } }}
         aria-label={ariaLabel}
         className={cn(
           'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
-          isActiveState ? 'text-primary-400' : 'text-slate-400'
+          isActiveState ? activeColor : idleColor,
         )}
       >
         <Icon className="h-6 w-6" strokeWidth={1.75} />
@@ -218,39 +218,44 @@ export function BottomTabBar() {
           (banking-app reference) so it's still clear what each icon is — no
           elevated FAB, no bold/weight jump on the active tab. */}
       <nav
+        // Anchor for the first-run tour's "these are your tabs" step (see
+        // FirstRunTour). md:hidden, so the step self-skips on desktop.
+        data-tour="tabbar"
         // transform-gpu forces its own GPU compositing layer — iOS Safari has a
         // long-standing bug where a `fixed` element that also has
         // `backdrop-filter` (backdrop-blur-xl) can visually drift with scroll
         // momentum instead of staying pinned to the viewport, especially in
         // standalone PWA mode. This is the standard workaround.
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-slate-700/60 bg-slate-900/85 backdrop-blur-xl transform-gpu"
+        // The frames' bar: near-white and translucent over the page grey, with a
+        // page-grey hairline instead of a shadow.
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-page bg-card/95 backdrop-blur-xl transform-gpu"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, onClick: () => setConfirmTapped(false), active: item.tab === 'dashboard' ? isActive(item.href) && !confirmTapped : undefined }))}
+        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
 
-        {/* Athlete "Confirm" shares its href with the Dashboard tab (the RSVP
-            card lives at the top of /dashboard), so both deriving active state
-            from the pathname would light the two slots at once. Instead the
-            confirmTapped flag decides which of the pair owns the /dashboard
-            highlight. Staff's roster IS its own page, so plain location-based
-            active state stays meaningful there. */}
-        {renderIconButton({ href: primaryActionHref, ariaLabel: t(primaryActionAriaKey as any), label: t(primaryActionLabelKey as any), icon: CalendarCheck, onClick: () => setConfirmTapped(!isStaffView), active: isStaffView ? isActive(primaryActionHref) : isActive('/dashboard') && confirmTapped })}
+        {/* The roster IS its own page, so plain location-based active state is
+            meaningful here — no disambiguation needed now that no slot shares an
+            href with a tab. */}
+        {isStaffView && renderIconButton({ href: '/dashboard/practice-attendance', ariaLabel: t('attendanceRosterAria' as any), label: t('practiceAttendance' as any), icon: CalendarCheck })}
 
-        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, onClick: () => setConfirmTapped(false), active: item.tab === 'dashboard' ? isActive(item.href) && !confirmTapped : undefined }))}
+        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
 
-        {overflow.length > 0 && (
-          <button
-            onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } setMoreOpen(true); }}
-            aria-label={t('more' as any)}
-            className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
-              overflowActive ? 'text-primary-400' : 'text-slate-400'
-            )}
-          >
-            <Menu className="h-6 w-6" strokeWidth={1.75} />
-            <span className="text-[10px] leading-none font-medium">{t('more' as any)}</span>
-          </button>
-        )}
+        {/* "עוד" is unconditional: the sheet always has the static quick-actions
+            group (search/store/benefits), so it's never empty — and it used to
+            vanish entirely for a role whose every enabled tab fit in the bar
+            (e.g. `viewer`: activities/dashboard/program), taking the only mobile
+            route to those three pages with it. */}
+        <button
+          onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } setMoreOpen(true); }}
+          aria-label={t('more' as any)}
+          className={cn(
+            'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
+            overflowActive || moreActive ? activeColor : idleColor,
+          )}
+        >
+          <Menu className="h-6 w-6" strokeWidth={1.75} />
+          <span className="text-[10px] leading-none font-medium">{t('more' as any)}</span>
+        </button>
       </nav>
 
       {/* "More" sheet — grouped grid of quick-action cards (references: My
@@ -264,7 +269,7 @@ export function BottomTabBar() {
               #5, Benefits/Discounts; Photos — was previously unreachable from
               mobile nav entirely, same "every role, always visible" fix). */}
           <div>
-            <p className="px-1 mb-2 text-2xs font-bold uppercase tracking-wider text-slate-500">{t('quickActions' as any)}</p>
+            <p className={cn('px-1 mb-2 text-2xs font-bold uppercase tracking-wider', 'text-ink-400')}>{t('quickActions' as any)}</p>
             <div className="grid grid-cols-3 gap-3">
               <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />
@@ -278,7 +283,7 @@ export function BottomTabBar() {
 
           {overflow.length > 0 && (
             <div>
-              <p className="px-1 mb-2 text-2xs font-bold uppercase tracking-wider text-slate-500">{t('morePages' as any)}</p>
+              <p className={cn('px-1 mb-2 text-2xs font-bold uppercase tracking-wider', 'text-ink-400')}>{t('morePages' as any)}</p>
               <div className="grid grid-cols-3 gap-3">
                 {overflow.map(item => (
                   <MoreCard
@@ -309,12 +314,15 @@ function MoreCard({ icon: Icon, label, href, active, onClick }: { icon: any; lab
     <Link
       href={href}
       onClick={onClick}
-      className="flex flex-col items-center gap-2 rounded-2xl bg-slate-800/60 border border-slate-700/50 p-3 text-center active:scale-[0.96] transition-transform"
+      className="flex flex-col items-center gap-2 rounded-card bg-page p-3 text-center active:scale-[0.96] transition-transform"
     >
-      <span className={cn('w-11 h-11 rounded-full flex items-center justify-center shrink-0', active ? 'bg-primary-600' : 'bg-slate-700')}>
-        <Icon className="h-5 w-5 text-white" />
+      <span className={cn(
+        'w-11 h-11 rounded-full flex items-center justify-center shrink-0',
+        active ? 'bg-brand-600' : 'bg-card',
+      )}>
+        <Icon className={cn('h-5 w-5', active ? 'text-white' : 'text-brand-600')} />
       </span>
-      <span className="text-2xs font-semibold text-white leading-tight" dir="auto">{label}</span>
+      <span className="text-2xs font-semibold leading-tight text-ink-700" dir="auto">{label}</span>
     </Link>
   );
 }

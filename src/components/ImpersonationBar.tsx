@@ -17,11 +17,11 @@ import {
 // yourself — this only changes which ROLE the app renders as, plus a scenario
 // that force-shows the maintenance screen. See src/lib/impersonation.ts.
 const SCENARIOS: Array<{ mode: string; label: string; icon: any; tone: string }> = [
-  { mode: 'admin', label: 'מנהל', icon: Shield, tone: 'text-violet-300' },
-  { mode: 'coach', label: 'מאמן', icon: Megaphone, tone: 'text-sky-300' },
-  { mode: 'runner', label: 'רץ', icon: Footprints, tone: 'text-emerald-300' },
-  { mode: 'viewer', label: 'צופה', icon: Glasses, tone: 'text-slate-300' },
-  { mode: MAINTENANCE_MODE, label: 'מסך תחזוקה', icon: Construction, tone: 'text-amber-300' },
+  { mode: 'admin', label: 'מנהל', icon: Shield, tone: 'text-violet-700' },
+  { mode: 'coach', label: 'מאמן', icon: Megaphone, tone: 'text-band-2' },
+  { mode: 'runner', label: 'רץ', icon: Footprints, tone: 'text-accent-600' },
+  { mode: 'viewer', label: 'צופה', icon: Glasses, tone: 'text-ink-500' },
+  { mode: MAINTENANCE_MODE, label: 'מסך תחזוקה', icon: Construction, tone: 'text-band-3' },
 ];
 
 // Super-user "view as" control. Always mounted in the root layout (a sibling of
@@ -103,8 +103,11 @@ export function ImpersonationBar() {
       {!mode && gateBlockingMe && (
         <button
           onClick={() => setChooserOpen(true)}
-          className="fixed top-3 end-3 z-[300] flex items-center gap-1.5 px-3 py-2 rounded-full text-white text-xs font-bold shadow-lg safe-top"
-          style={{ background: 'linear-gradient(90deg,#b45309,#d97706)' }}
+          // Band 3 with white text: it floats over the maintenance gate, which is
+          // now light, so the old dark amber gradient carried ink-700 text on a
+          // brown fill — dark on dark. Kept a warning colour rather than the brand
+          // blue so it still reads as admin chrome, not part of the app.
+          className="fixed top-3 end-3 z-[300] flex items-center gap-1.5 px-3 py-2 rounded-full bg-band-3 text-white text-xs font-bold shadow-lg safe-top"
         >
           <Eye className="h-4 w-4" /> תצוגת משתמש
         </button>
@@ -113,7 +116,7 @@ export function ImpersonationBar() {
       {/* Scenario chooser */}
       <Sheet open={chooserOpen} onOpenChange={setChooserOpen} title="תצוגה כמשתמש">
         <div dir="rtl">
-          <p className="px-1 pt-1 text-xs text-slate-400 leading-relaxed">
+          <p className="px-1 pt-1 text-xs text-ink-400 leading-relaxed">
             נשארים מחוברים כ‑Ofer — בוחרים איזו תצוגה לראות:
           </p>
 
@@ -130,12 +133,12 @@ export function ImpersonationBar() {
                     'flex flex-col items-center justify-center gap-2 py-4 rounded-xl border transition-colors',
                     isMaint ? 'col-span-2' : '',
                     activeMode
-                      ? 'bg-amber-500/20 border-amber-500/50'
-                      : 'bg-slate-900/60 border-slate-700 hover:border-slate-500 hover:bg-slate-900'
+                      ? 'bg-band-3/20 border-band-3/50'
+                      : 'bg-page/60 border-page hover:border-ink-300 hover:bg-ink-300/40'
                   )}
                 >
                   <Icon className={cn('h-6 w-6', s.tone)} />
-                  <span className="text-sm font-bold text-white">{s.label}</span>
+                  <span className="text-sm font-bold text-ink-700">{s.label}</span>
                 </button>
               );
             })}
@@ -144,13 +147,13 @@ export function ImpersonationBar() {
           {mode && (
             <button
               onClick={() => stopViewAs()}
-              className="w-full flex items-center justify-center gap-2 mt-3 px-4 py-3 border-t border-slate-700 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors"
+              className="w-full flex items-center justify-center gap-2 mt-3 px-4 py-3 border-t border-page text-sm font-bold text-ink-500 hover:text-ink-900 hover:bg-page/50 transition-colors"
             >
               <LogOut className="h-4 w-4" /> חזרה לתצוגה שלי
             </button>
           )}
 
-          <div className="mt-3 px-4 py-2.5 border-t border-slate-700 text-[11px] text-slate-500 text-center leading-relaxed">
+          <div className="mt-3 px-4 py-2.5 border-t border-page text-[11px] text-ink-400 text-center leading-relaxed">
             תצוגה בלבד — שמירת נתונים מושבתת במצב זה.
           </div>
         </div>

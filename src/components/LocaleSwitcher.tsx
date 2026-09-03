@@ -55,7 +55,7 @@ export function LocaleSwitcher() {
     <button
       onClick={switchLocale}
       disabled={switching}
-      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:border-slate-400 transition-colors disabled:opacity-50"
+      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-ink-300 text-ink-500 hover:text-ink-900 hover:border-ink-300 transition-colors disabled:opacity-50"
       title={locale === 'he' ? 'Switch to English' : 'עבור לעברית'}
     >
       <Globe className="h-3.5 w-3.5" />

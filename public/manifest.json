@@ -5,8 +5,8 @@
   "description": "Running club training platform",
   "start_url": "/feed",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#4338ff",
+  "background_color": "#DFDFDF",
+  "theme_color": "#DFDFDF",
   "orientation": "portrait-primary",
   "icons": [
     { "src": "/images/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

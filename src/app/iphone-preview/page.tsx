@@ -41,7 +41,10 @@ const CSS = `
   .ipv-phone .ipv-action{position:absolute;top:120px;left:-3px;width:3px;height:34px;background:linear-gradient(270deg,var(--ti-3),var(--ti-1));border-radius:3px 0 0 3px}
   .ipv-screen{position:relative;overflow:hidden;border-radius:52px;background:#000;box-shadow:0 0 0 2px #000}
   .ipv-screen .ipv-scaler{position:absolute;top:0;left:0;transform-origin:top left}
-  .ipv-screen iframe{display:block;border:0;background:#0b1120}
+  /* Page grey behind the iframe (the app's own background) so a screen that's
+     still loading doesn't flash navy inside the bezel. The dark chrome AROUND
+     the phones stays — it's a presentation frame, not an app surface. */
+  .ipv-screen iframe{display:block;border:0;background:#DFDFDF}
   .ipv-island{position:absolute;top:16px;left:50%;transform:translateX(-50%);width:33%;height:30px;background:#000;border-radius:18px;z-index:5;pointer-events:none}
   .ipv-home{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:34%;height:5px;background:rgba(255,255,255,.85);border-radius:3px;z-index:5;pointer-events:none}
 

@@ -9,6 +9,7 @@ import { ConnectDataSourcePopup } from '@/components/ConnectDataSourcePopup';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { PageTransition } from '@/components/PageTransition';
+import { FirstRunTour } from '@/components/onboarding/FirstRunTour';
 import { Spinner } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
@@ -26,6 +27,13 @@ export default function AppLayout({
   const pathname = usePathname();
   const isRunChat = pathname.startsWith('/dashboard/run-chat/');
   const [authorized, setAuthorized] = useState(false);
+  // The first-run tour owns the screen while it runs. The three popups below all
+  // ask for something the tour is in the middle of explaining (install, push
+  // permission, connect a watch) and any of them can appear on a timer — landing
+  // one on top of a spotlight would talk over it, and the push prompt in
+  // particular burns a permission you only get to ask for once.
+  const [tourActive, setTourActive] = useState(false);
+  const popupsAllowed = !isRunChat && !tourActive;
 
   // App-icon badge self-heal. iOS PWAs can't reliably set the badge from a
   // background push, but the foreground path IS reliable — so: clear it when the
@@ -87,21 +95,26 @@ export default function AppLayout({
 
   if (!authorized) {
     return (
-      <div className="min-h-[100dvh] bg-slate-900 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-page flex items-center justify-center">
         <Spinner size={32} />
       </div>
     );
   }
 
   return (
-    <div className={cn('flex flex-col', isRunChat ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]')}>
+    <div
+      // min-h-[100dvh] is what makes the page grey cover the viewport, so a
+      // short screen doesn't end in a band of raw background.
+      className={cn('flex flex-col', isRunChat ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]')}
+    >
       <PullToRefresh />
       <div className={isRunChat ? 'hidden md:contents' : 'contents'}>
         <Header />
       </div>
-      {!isRunChat && <InstallPrompt />}
-      {!isRunChat && <PushOptIn />}
-      {!isRunChat && <ConnectDataSourcePopup />}
+      {popupsAllowed && <InstallPrompt />}
+      {popupsAllowed && <PushOptIn />}
+      {popupsAllowed && <ConnectDataSourcePopup />}
+      {!isRunChat && <FirstRunTour onActiveChange={setTourActive} />}
       <main
         className={cn(
           'w-full',

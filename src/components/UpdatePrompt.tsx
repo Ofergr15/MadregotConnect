@@ -86,7 +86,7 @@ export function UpdatePrompt() {
       onClick={refresh}
       dir="rtl"
       className="fixed left-1/2 -translate-x-1/2 z-[310] flex items-center gap-2.5 px-4 py-2.5 rounded-full text-white text-sm font-bold shadow-xl safe-bottom animate-bounce-gentle"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 16px)', background: 'linear-gradient(90deg,#4338ff,#6366f1)' }}
+      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 16px)', background: 'linear-gradient(90deg,#1525FF,#159AFF)' }}
     >
       <RefreshCw className="h-4 w-4" />
       גרסה חדשה זמינה — הקישו לרענון

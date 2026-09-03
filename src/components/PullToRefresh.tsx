@@ -132,11 +132,11 @@ export function PullToRefresh() {
       }}
     >
       <div
-        className="mt-2 flex items-center justify-center w-9 h-9 rounded-full bg-slate-800/95 border border-slate-600 shadow-lg safe-top"
+        className="mt-2 flex items-center justify-center w-9 h-9 rounded-full bg-card/95 border border-ink-300 shadow-lg safe-top"
         style={{ boxShadow: '0 4px 14px rgba(0,0,0,.35)' }}
       >
         <RefreshCw
-          className={refreshing ? 'h-4.5 w-4.5 text-primary-400 animate-spin' : 'h-4.5 w-4.5 text-primary-400'}
+          className={refreshing ? 'h-4.5 w-4.5 text-brand-600 animate-spin' : 'h-4.5 w-4.5 text-brand-600'}
           style={
             refreshing
               ? undefined

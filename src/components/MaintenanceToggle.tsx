@@ -43,10 +43,10 @@ export function MaintenanceRow() {
   return (
     <InsetRow
       icon={Construction}
-      iconBg={on ? 'bg-amber-500' : 'bg-slate-600'}
+      iconBg={on ? 'bg-band-3' : 'bg-ink-300'}
       label="מצב תחזוקה"
       sublabel={on ? 'רק מורשים רואים את האפליקציה' : 'האפליקציה פתוחה לכולם'}
-      trailing={<Switch checked={!!on} onChange={toggle} disabled={saving || on == null} loading={saving} activeColor="bg-green-500" ariaLabel="Toggle maintenance mode" />}
+      trailing={<Switch checked={!!on} onChange={toggle} disabled={saving || on == null} loading={saving} activeColor="bg-accent-600" ariaLabel="Toggle maintenance mode" />}
     />
   );
 }
@@ -95,20 +95,20 @@ export function MaintenanceAllowlist() {
   const available = athletes.filter(a => !allowlist.includes(a.email.toLowerCase()));
 
   return (
-    <div className="mb-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-      <p className="text-xs font-semibold text-slate-300 mb-2" dir="rtl">
+    <div className="mb-5 rounded-2xl border border-band-3/30 bg-band-3/10 p-4">
+      <p className="text-xs font-semibold text-ink-500 mb-2" dir="rtl">
         מורשים בזמן תחזוקה {allowlist.length > 0 && `(${allowlist.length})`}
       </p>
       <div className="flex flex-col gap-1.5 mb-2">
-        {allowlist.length === 0 && <span className="text-xs text-amber-400" dir="rtl">⚠️ אף אחד לא מורשה — הפעלת תחזוקה תנעל את כולם. הוסיפו משתמשים למטה.</span>}
+        {allowlist.length === 0 && <span className="text-xs text-band-3" dir="rtl">⚠️ אף אחד לא מורשה — הפעלת תחזוקה תנעל את כולם. הוסיפו משתמשים למטה.</span>}
         {allowlist.map(e => {
           const u = athletes.find(a => a.email.toLowerCase() === e);
           return (
-            <div key={e} className="flex items-center gap-2 bg-slate-700/40 rounded-lg px-2.5 py-1.5 min-w-0">
-              <span className="text-sm text-slate-200 flex-1 min-w-0 truncate">{u ? u.name : e}{u && <span className="text-slate-500 text-xs"> · {e}</span>}</span>
+            <div key={e} className="flex items-center gap-2 bg-page/40 rounded-lg px-2.5 py-1.5 min-w-0">
+              <span className="text-sm text-ink-700 flex-1 min-w-0 truncate">{u ? u.name : e}{u && <span className="text-ink-400 text-xs"> · {e}</span>}</span>
               {/* Padded hit-area (p-2.5 -m-2.5): visually unchanged 16px icon,
                   but the tappable region grows to the 44px minimum. */}
-              <button onClick={() => removeEmail(e)} className="p-2.5 -m-2.5 text-slate-400 hover:text-red-400 shrink-0" aria-label={`Remove ${e}`}><X className="w-4 h-4" /></button>
+              <button onClick={() => removeEmail(e)} className="p-2.5 -m-2.5 text-ink-400 hover:text-accent-red shrink-0" aria-label={`Remove ${e}`}><X className="w-4 h-4" /></button>
             </div>
           );
         })}
@@ -119,18 +119,18 @@ export function MaintenanceAllowlist() {
       <button
         onClick={() => setPickerOpen(true)}
         disabled={saving || available.length === 0}
-        className="inline-flex items-center gap-1 min-h-[44px] bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-semibold px-3 rounded-lg"
+        className="inline-flex items-center gap-1 min-h-[44px] bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-3 rounded-lg"
       >
         <Plus className="w-4 h-4" /> הוספה
       </button>
 
       <Sheet open={pickerOpen} onOpenChange={setPickerOpen} title="בחרו משתמש">
-        <div className="rounded-2xl bg-slate-900/40 overflow-hidden divide-y divide-slate-700/50">
+        <div className="rounded-2xl bg-page/40 overflow-hidden divide-y divide-page/50">
           {available.map(a => (
             <InsetRow key={a.email} label={a.name} sublabel={a.email} onClick={() => addEmail(a.email)} />
           ))}
           {available.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-slate-500" dir="rtl">אין משתמשים נוספים</p>
+            <p className="px-4 py-6 text-center text-sm text-ink-400" dir="rtl">אין משתמשים נוספים</p>
           )}
         </div>
       </Sheet>

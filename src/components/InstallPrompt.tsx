@@ -93,14 +93,14 @@ export function InstallPrompt() {
       onClick={notNow}
     >
       <div
-        className="w-full max-w-md bg-slate-800 rounded-t-3xl sm:rounded-3xl border border-slate-700 shadow-2xl overflow-hidden safe-bottom"
+        className="w-full max-w-md bg-card rounded-t-3xl sm:rounded-3xl border border-page shadow-2xl overflow-hidden safe-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-5">
-          <h2 className="text-base font-bold text-white">
+          <h2 className="text-base font-bold text-ink-700">
             {showIosSteps ? t('iosStepsTitle') : t('title')}
           </h2>
-          <button onClick={notNow} aria-label={t('dismiss')} className="-m-2 p-2 text-slate-400 hover:text-white">
+          <button onClick={notNow} aria-label={t('dismiss')} className="-m-2 p-2 text-ink-400 hover:text-ink-900">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -114,42 +114,42 @@ export function InstallPrompt() {
                 { icon: PartyPopper, text: t('iosStep3') },
               ].map((step, i) => (
                 <li key={i} className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-sm font-bold text-primary-400">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-600/20 text-sm font-bold text-brand-600">
                     {i + 1}
                   </span>
-                  <step.icon className="h-4 w-4 shrink-0 text-slate-300" />
-                  <span className="text-sm text-slate-200">{step.text}</span>
+                  <step.icon className="h-4 w-4 shrink-0 text-ink-500" />
+                  <span className="text-sm text-ink-700">{step.text}</span>
                 </li>
               ))}
             </ol>
             <button
               onClick={dontAskAgain}
-              className="mt-5 w-full rounded-xl bg-primary-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
+              className="mt-5 w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
             >
               {t('gotIt')}
             </button>
           </div>
         ) : (
           <div className="flex flex-col items-center px-5 pb-5 pt-3 text-center">
-            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-primary-500/20">
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-brand-600/20">
               <Image src="/images/icon-192.png" alt="" width={40} height={40} />
             </div>
-            <p className="mt-3 text-xs leading-relaxed text-slate-400">{t('description')}</p>
+            <p className="mt-3 text-xs leading-relaxed text-ink-400">{t('description')}</p>
             <div className="mt-4 flex w-full flex-col gap-2">
               <button
                 onClick={handleInstall}
-                className="w-full rounded-xl bg-primary-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
+                className="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
               >
                 {t('installButton')}
               </button>
               <button
                 onClick={notNow}
-                className="w-full rounded-xl border border-slate-600 py-3 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700"
+                className="w-full rounded-xl border border-ink-300 py-3 text-sm font-medium text-ink-700 transition-colors hover:bg-page"
               >
                 {t('skip')}
               </button>
             </div>
-            <button onClick={dontAskAgain} className="mt-3 text-xs text-slate-500 underline hover:text-slate-300">
+            <button onClick={dontAskAgain} className="mt-3 text-xs text-ink-400 underline hover:text-ink-500">
               {t('dontAskAgain')}
             </button>
           </div>
