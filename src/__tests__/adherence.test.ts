@@ -59,6 +59,48 @@ describe('buildPlannedWorkout — planned metric extraction', () => {
       '2026-07-13'
     );
     expect(p.durationSec).toBe(3000); // 10km * 300s/km
+    expect(p.durationEstimated).toBe(false); // the pace was prescribed, so this is derived not guessed
+  });
+
+  it('flags a duration it had to guess (open-ended step, no pace)', () => {
+    const p = buildPlannedWorkout(
+      workout([{ type: 'active', durationType: 'open', targetType: 'no_target' }]),
+      '2026-07-13'
+    );
+    expect(p.durationEstimated).toBe(true);
+  });
+
+  it('grades pace for a continuous single-pace run', () => {
+    const p = buildPlannedWorkout(
+      workout([{ type: 'active', durationType: 'distance', durationValue: 10000, targetType: 'pace', targetPaceMinPerKm: 290, targetPaceMaxPerKm: 310 }]),
+      '2026-07-13'
+    );
+    expect(p.gradedPaceMin).toBe(290);
+    expect(p.gradedPaceMax).toBe(310);
+  });
+
+  it('refuses to grade whole-run pace for a structured session, but keeps the work band', () => {
+    const p = buildPlannedWorkout(
+      workout([
+        { type: 'warmup', durationType: 'distance', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 330, targetPaceMaxPerKm: 360 },
+        {
+          type: 'interval', durationType: 'open', repeatCount: 5,
+          repeatSteps: [
+            { order: 1, type: 'interval', durationType: 'distance', durationValue: 1000, targetType: 'pace', targetPaceMinPerKm: 195, targetPaceMaxPerKm: 200 } as WorkoutStep,
+            { order: 2, type: 'recovery', durationType: 'time', durationValue: 60, targetType: 'no_target' } as WorkoutStep,
+          ],
+        },
+      ]),
+      '2026-07-13'
+    );
+    // The coach's prescription is still reported...
+    expect(p.paceMin).toBe(195);
+    // ...but one whole-run average can't measure it: the warmup is 2 km of the 7.
+    expect(p.gradedPaceMin).toBeUndefined();
+    const a = assessWorkout(p, { id: 'i1', date: '2026-07-13', distance: 7000, duration: 2200, averagePace: 314 });
+    expect(a.pace.status).toBe('unknown');
+    expect(a.pace.plannedMin).toBe(195); // shown
+    expect(a.pace.comparedMin).toBeNull(); // but not graded
   });
 });
 
@@ -154,6 +196,42 @@ describe('assessWeek — matching + rollup', () => {
     ];
     const week = assessWeek(samedayPlan, activities);
     expect(week.completedCount).toBe(1); // one matched, the other missed
+  });
+
+  it('honours an explicit attribution, including a session moved to another day', () => {
+    // 'Mon Easy' is planned for 07-13 but was run on 07-14. Matching by date alone
+    // called that a missed workout plus an unplanned run; the attribution says it
+    // is the same session, so it counts.
+    const keyed = [
+      buildPlannedWorkout(
+        workout([{ type: 'active', durationType: 'distance', durationValue: 8000, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 300 }], { name: 'Mon Easy', workoutKey: 'day-1-part-1-single' }),
+        '2026-07-13',
+      ),
+    ];
+    const activities: ActualActivity[] = [
+      { id: 'shifted', date: '2026-07-14', distance: 8000, duration: 2400, movingDuration: 2400, averagePace: 300 },
+    ];
+    expect(assessWeek(keyed, activities).completedCount).toBe(0);
+    const week = assessWeek(keyed, activities, undefined, new Map([['day-1-part-1-single', ['shifted']]]));
+    expect(week.completedCount).toBe(1);
+    expect(week.workouts[0].actual?.id).toBe('shifted');
+    expect(week.workouts[0].distance.status).toBe('on_target');
+  });
+
+  it('an attributed activity is not also given to another day, but unattributed days still fall back', () => {
+    const keyed = [
+      buildPlannedWorkout(workout([{ type: 'active', durationType: 'distance', durationValue: 8000, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 300 }], { name: 'Mon', workoutKey: 'mon' }), '2026-07-13'),
+      buildPlannedWorkout(workout([{ type: 'active', durationType: 'distance', durationValue: 5000, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 300 }], { name: 'Tue', workoutKey: 'tue' }), '2026-07-14'),
+    ];
+    const activities: ActualActivity[] = [
+      { id: 'a', date: '2026-07-14', distance: 8000, duration: 2400, averagePace: 300 },
+      { id: 'b', date: '2026-07-14', distance: 5000, duration: 1500, averagePace: 300 },
+    ];
+    // 'a' is the Monday session run a day late; Tuesday has no attribution.
+    const week = assessWeek(keyed, activities, undefined, new Map([['mon', ['a']]]));
+    expect(week.workouts[0].actual?.id).toBe('a');
+    expect(week.workouts[1].actual?.id).toBe('b');
+    expect(week.completedCount).toBe(2);
   });
 
   it('picks the same-day activity closest to planned distance', () => {

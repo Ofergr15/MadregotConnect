@@ -20,17 +20,42 @@ export interface ActivityPartMatch {
     activityOrder: number;
     partIndex: number;
     matchedNameTokens: string[];
+    /** 0 = ran on the planned day, 1 = shifted by a day. See DAY_SHIFT_SCORE. */
+    dayDelta: number;
+    plannedDayOfWeek: number;
   };
 }
+
+/**
+ * Starting score for a pair on the planned day, and for one shifted by a day.
+ *
+ * Attribution used to require an exact date, which meant an athlete who moved
+ * Tuesday's intervals to Wednesday was recorded as having skipped Tuesday AND run
+ * something unplanned on Wednesday. Measured against production, 41 unclaimed plan
+ * slots had an unused activity sitting exactly one day away.
+ *
+ * A shifted day is allowed but heavily penalised rather than accepted outright, so
+ * whenever an activity does exist on the planned day it always wins the slot —
+ * greedy assignment takes the highest-scoring pair first. The 18-point handicap
+ * also means a shifted pair only clears the 45 threshold when the distance is a
+ * genuinely close fit (within ~1.3× tolerance), not merely because both days had
+ * a run in them.
+ */
+const SAME_DAY_SCORE = 30;
+const DAY_SHIFT_SCORE = 12;
+const MAX_DAY_DELTA = 1;
 
 function pairScore(
   activity: MatchableActivity,
   workout: ParsedWorkout,
   activityOrder: number,
 ): ActivityPartMatch | null {
-  if (!workout.workoutKey || activityLocalDay(activity.start_time) !== workout.dayOfWeek) {
-    return null;
-  }
+  if (!workout.workoutKey) return null;
+  // Linear, not circular: the caller has already narrowed the activities to this
+  // plan's Sun→Sat week, so a Sunday workout run on Saturday is six days late,
+  // not one day early.
+  const dayDelta = Math.abs(activityLocalDay(activity.start_time) - workout.dayOfWeek);
+  if (dayDelta > MAX_DAY_DELTA) return null;
 
   const actual = activity.distance || null;
   const expected = workout.expectedDistanceM || null;
@@ -44,7 +69,7 @@ function pairScore(
     return null;
   }
 
-  let score = 30; // same plan day
+  let score = dayDelta === 0 ? SAME_DAY_SCORE : DAY_SHIFT_SCORE;
   if (difference != null && tolerance != null) {
     score += Math.max(0, 50 * (1 - difference / Math.max(tolerance * 2, 1)));
   } else {
@@ -72,12 +97,15 @@ function pairScore(
       activityOrder,
       partIndex,
       matchedNameTokens,
+      dayDelta,
+      plannedDayOfWeek: workout.dayOfWeek,
     },
   };
 }
 
 /**
- * Greedy one-to-one assignment after scoring every valid same-day pair.
+ * Greedy one-to-one assignment after scoring every valid pair — the planned day
+ * plus, at a penalty, the day either side of it.
  * Existing manual matches should be removed from both input arrays by the caller.
  */
 export function matchActivityParts(

@@ -1,7 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ParsedWeeklyPlan, ParsedWorkout, WorkoutStep } from './types';
 import { WORKOUT_PARSER_SYSTEM_PROMPT } from './prompt';
-import { workoutDistanceMeters } from '@/lib/workout-distance';
+import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
+
+// Re-exported from its old home: the normalizer moved to lib/plans so the READ
+// paths (matching, adherence) can use it without pulling the Anthropic client in.
+export { normalizeWorkoutParts };
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -113,84 +117,6 @@ function validateAndFixStep(step: WorkoutStep): WorkoutStep {
   }
 
   return fixed;
-}
-
-function inferPartKind(
-  workout: ParsedWorkout,
-  partCount: number,
-): NonNullable<ParsedWorkout['partKind']> {
-  if (workout.partKind) return workout.partKind;
-  if (partCount === 1) return 'single';
-  const text = `${workout.name} ${workout.description || ''}`.toLowerCase();
-  if (/מבחן|test|race|time trial|3000/.test(text)) return 'test';
-  if (workout.steps.every((step) => step.type === 'warmup')) return 'warmup';
-  if (workout.steps.every((step) => step.type === 'cooldown' || step.type === 'recovery')) {
-    return 'cooldown';
-  }
-  return 'main';
-}
-
-function expectedDuration(steps: WorkoutStep[]): number | undefined {
-  let total = 0;
-  let hasTime = false;
-  for (const step of steps) {
-    if (step.repeatCount && step.repeatSteps) {
-      const nested = expectedDuration(step.repeatSteps);
-      if (nested) {
-        total += nested * step.repeatCount;
-        hasTime = true;
-      }
-    } else if (step.durationType === 'time' && step.durationValue) {
-      total += step.durationValue;
-      hasTime = true;
-    }
-  }
-  return hasTime ? total : undefined;
-}
-
-export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
-  const perDay = new Map<number, ParsedWorkout[]>();
-  for (const workout of plan.workouts) {
-    const list = perDay.get(workout.dayOfWeek) || [];
-    list.push(workout);
-    perDay.set(workout.dayOfWeek, list);
-  }
-
-  return {
-    workouts: plan.workouts.map((workout) => {
-      const siblings = perDay.get(workout.dayOfWeek) || [workout];
-      const inferredIndex = siblings.indexOf(workout) + 1;
-      const partIndex = workout.partIndex || inferredIndex;
-      const partCount = siblings.length;
-      const partKind = inferPartKind(workout, partCount);
-      const measuredDistance = workoutDistanceMeters(workout);
-      const expectedDistanceM = workout.expectedDistanceM || measuredDistance || undefined;
-      const expectedDurationSec = workout.expectedDurationSec || expectedDuration(workout.steps);
-      const distanceToleranceM =
-        workout.distanceToleranceM ||
-        (expectedDistanceM ? Math.max(150, Math.round(expectedDistanceM * 0.08)) : undefined);
-      const defaultTokens = [
-        partKind,
-        partKind === 'test' ? 'מבחן' : '',
-        expectedDistanceM ? String(Math.round(expectedDistanceM)) : '',
-      ].filter(Boolean);
-
-      return {
-        ...workout,
-        workoutKey: `day-${workout.dayOfWeek}-part-${partIndex}-${partKind}`,
-        partIndex,
-        partCount,
-        partKind,
-        expectedDistanceM,
-        expectedDurationSec,
-        distanceToleranceM,
-        activityNameTokens:
-          workout.activityNameTokens?.filter(Boolean).length
-            ? workout.activityNameTokens.filter(Boolean)
-            : defaultTokens,
-      };
-    }),
-  };
 }
 
 function validatePlan(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {

@@ -29,7 +29,8 @@ interface Workout {
   name: string;
   completed: boolean;
   distance: { plannedMin: number; plannedMax: number; actual: number | null };
-  duration: { planned: number; actual: number | null };
+  // `estimated` — no time was prescribed, so `planned` is a guess: see adherence.ts.
+  duration: { planned: number; actual: number | null; estimated?: boolean };
   pace: { actual: number | null };
 }
 
@@ -177,12 +178,14 @@ export function AcademyMyView({ athleteId }: {
                     <div className="mt-0.5 text-xs text-ink-400 tabular-nums">
                       {km(w.distance.actual)} / {km(w.distance.plannedMin)} {t('kmUnit')}
                       {' · '}
-                      {mins(w.duration.actual)} / {mins(w.duration.planned)} {t('minUnit')}
+                      {mins(w.duration.actual)}
+                      {!w.duration.estimated && ` / ${mins(w.duration.planned)}`} {t('minUnit')}
                       {w.pace.actual != null && ` · ${formatPace(w.pace.actual)}`}
                     </div>
                   ) : (
                     <div className="mt-0.5 text-xs text-ink-400">
-                      {km(w.distance.plannedMin)} {t('kmUnit')} · {mins(w.duration.planned)} {t('minUnit')}
+                      {km(w.distance.plannedMin)} {t('kmUnit')}
+                      {!w.duration.estimated && ` · ${mins(w.duration.planned)} ${t('minUnit')}`}
                     </div>
                   )}
                 </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
+import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 
 /**
  * POST /api/plans - Create a new weekly plan
@@ -32,7 +33,11 @@ export async function POST(req: NextRequest) {
       coach_id,
       week_start_date,
       original_input: original_input || null,
-      parsed_workouts,
+      // Stamp the matcher hints (workoutKey / expectedDistanceM / partIndex) on
+      // the way in. Without this the planner's own saves produced plans that
+      // activity-matcher.ts rejects outright, so nothing an athlete ran could
+      // ever be attributed to the workout it was run for.
+      parsed_workouts: normalizeParsedWorkouts(parsed_workouts),
       status,
     };
     // Only include athlete_id when targeting an individual athlete, so group-plan
@@ -234,7 +239,8 @@ export async function PUT(req: NextRequest) {
 
     const updates: Record<string, unknown> = {};
     if (status) updates.status = status;
-    if (parsed_workouts) updates.parsed_workouts = parsed_workouts;
+    // Same normalization as POST — an edit must not strip the matcher hints.
+    if (parsed_workouts) updates.parsed_workouts = normalizeParsedWorkouts(parsed_workouts);
 
     const { data, error } = await supabase
       .from('weekly_plans')

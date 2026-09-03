@@ -66,6 +66,30 @@ describe('activity part matcher', () => {
     ]);
   });
 
+  it('claims a session run a day late, recording the shift', () => {
+    // 2026-08-12 is the Wednesday after the planned Tuesday.
+    const matches = matchActivityParts([
+      { id: 'late-test', start_time: '2026-08-12T17:20:00Z', distance: 3010, activity_name: '3000 TEST' },
+    ], parts);
+    expect(matches.map((match) => match.workoutKey)).toEqual(['test']);
+    expect(matches[0].evidence.dayDelta).toBe(1);
+  });
+
+  it('prefers the activity on the planned day over one a day away', () => {
+    const matches = matchActivityParts([
+      { id: 'on-day', start_time: '2026-08-11T17:20:00Z', distance: 3010, activity_name: 'Evening Run' },
+      { id: 'day-after', start_time: '2026-08-12T17:20:00Z', distance: 3005, activity_name: 'Evening Run' },
+    ], [parts[1]]);
+    expect(matches.map((match) => match.activityId)).toEqual(['on-day']);
+  });
+
+  it('ignores an activity two days from the planned day', () => {
+    const matches = matchActivityParts([
+      { id: 'much-later', start_time: '2026-08-13T17:20:00Z', distance: 3010, activity_name: '3000 TEST' },
+    ], parts);
+    expect(matches).toEqual([]);
+  });
+
   it('does not force a very different distance into the test part', () => {
     const matches = matchActivityParts([
       {

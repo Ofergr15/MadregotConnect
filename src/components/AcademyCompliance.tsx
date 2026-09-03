@@ -16,8 +16,19 @@ interface WorkoutAdherence {
   name: string;
   completed: boolean;
   distance: { status: MetricStatus; plannedMin: number; plannedMax: number; actual: number | null };
-  duration: { status: MetricStatus; planned: number; actual: number | null };
-  pace: { status: PaceStatus; plannedMin: number | null; plannedMax: number | null; actual: number | null };
+  // `estimated` — the plan set no time, so `planned` is the engine's own guess and
+  // isn't graded. `comparedMin/Max` — the band `pace.status` was judged against,
+  // null for a structured session where a whole-run average can't judge it. Both
+  // from lib/academy/adherence.ts.
+  duration: { status: MetricStatus; planned: number; actual: number | null; estimated: boolean };
+  pace: {
+    status: PaceStatus;
+    plannedMin: number | null;
+    plannedMax: number | null;
+    comparedMin: number | null;
+    comparedMax: number | null;
+    actual: number | null;
+  };
   score: number;
 }
 
@@ -206,19 +217,29 @@ export function AcademyCompliance() {
                                       actual={km(wk.distance.actual)}
                                       status={wk.distance.status}
                                     />
+                                    {/* An estimated planned time isn't graded (see
+                                        adherence.ts durationEstimated), so don't
+                                        present the estimate as a target. */}
                                     <Metric
                                       label="זמן"
-                                      plan={mins(wk.duration.planned)}
+                                      plan={wk.duration.estimated ? 'לא נקבע' : mins(wk.duration.planned)}
                                       actual={mins(wk.duration.actual)}
                                       status={wk.duration.status}
                                     />
+                                    {/* Show the prescribed work band, but say so
+                                        when a single whole-run average can't judge
+                                        it — a structured session is graded in the
+                                        per-segment panel below, not here. */}
                                     <Metric
                                       label="קצב"
-                                      plan={wk.pace.plannedMin != null
-                                        ? `${formatPace(wk.pace.plannedMin)}${wk.pace.plannedMax && wk.pace.plannedMax !== wk.pace.plannedMin ? `–${formatPace(wk.pace.plannedMax)}` : ''}/ק"מ`
-                                        : '—'}
+                                      plan={paceBandLabel(wk.pace.plannedMin, wk.pace.plannedMax)}
                                       actual={wk.pace.actual != null ? `${formatPace(wk.pace.actual)}/ק"מ` : '—'}
                                       status={wk.pace.status}
+                                      hint={
+                                        wk.pace.comparedMin == null && wk.pace.plannedMin != null
+                                          ? 'אימון מובנה — ממוצע הקצב של כל הריצה לא מודד את קצב העבודה. הפירוט לפי מקטע למטה.'
+                                          : undefined
+                                      }
                                     />
                                   </div>
                                   <SegmentsPanel athleteId={a.athleteId} date={wk.date} />
@@ -244,9 +265,15 @@ export function AcademyCompliance() {
   );
 }
 
-function Metric({ label, plan, actual, status }: { label: string; plan: string; actual: string; status: MetricStatus | PaceStatus }) {
+function paceBandLabel(min: number | null, max: number | null): string {
+  if (min == null) return '—';
+  const suffix = max != null && max !== min ? `–${formatPace(max)}` : '';
+  return `${formatPace(min)}${suffix}/ק"מ`;
+}
+
+function Metric({ label, plan, actual, status, hint }: { label: string; plan: string; actual: string; status: MetricStatus | PaceStatus; hint?: string }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5" title={hint}>
       <span className="text-ink-400">{label}:</span>
       <span className="text-ink-500">{actual}</span>
       <span className="text-ink-400">/ {plan}</span>

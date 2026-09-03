@@ -1,6 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { activityLocalDateStr } from '@/lib/utils';
+import { activityLocalDateStr, resolveGroup } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import {
   assessWeek,
@@ -10,6 +10,8 @@ import {
   WeekAdherence,
 } from './adherence';
 import { loadAcademySettings } from './settings-server';
+import { isMissingMatchesTable } from '@/lib/plans/match-athlete-activities';
+import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 
 export interface AthleteAdherence {
   athleteId: string;
@@ -37,10 +39,28 @@ export function addDaysStr(dateStr: string, days: number): string {
   return d.toISOString().split('T')[0];
 }
 
-// A weekly_plans.parsed_workouts blob → ParsedWorkout[] (flat or grouped).
-function extractWorkouts(parsed: any): ParsedWorkout[] {
-  if (!parsed) return [];
+/**
+ * A weekly_plans.parsed_workouts blob → the ParsedWorkout[] for ONE group.
+ *
+ * `groupNumber` matters: this used to always take the first group it found —
+ * group1 — for every athlete. Distances happen to be identical across the three
+ * groups in the plans published so far, but PACES are not: measured over the
+ * published plans, 67% of group-2/3 work-pace bands differ from group 1's, by a
+ * median of 10 s/km and up to 20 s/km. Against the ±5 s/km pace tolerance that
+ * means a group-2 or group-3 athlete running exactly what their coach prescribed
+ * was graded "slower than target" by construction.
+ *
+ * Falls back to any group present, then to any nested `workouts` array, so an
+ * unusual blob still yields a plan rather than nothing.
+ */
+function extractWorkouts(raw: any, groupNumber = 1): ParsedWorkout[] {
+  if (!raw) return [];
+  // Normalized so `workoutKey` is present even on plans published before the write
+  // paths normalized — without it there is nothing to join activity_plan_matches on.
+  const parsed = normalizeParsedWorkouts(raw) as any;
   if (Array.isArray(parsed.workouts)) return parsed.workouts;
+  const preferred = parsed[`group${groupNumber}`]?.workouts;
+  if (Array.isArray(preferred)) return preferred;
   for (const key of ['group1', 'group2', 'group3']) {
     if (parsed[key]?.workouts && Array.isArray(parsed[key].workouts)) return parsed[key].workouts;
   }
@@ -66,7 +86,7 @@ export async function computeAcademyWeekAdherence(opts: {
   // 1) Academy athletes (or a single requested one).
   const athRes = await supabase
     .from('athletes')
-    .select('id, name, is_academy')
+    .select('id, name, is_academy, group_id')
     .eq('coach_id', COACH_ID);
 
   let athletes: any[] = athRes.error ? [] : (athRes.data || []).filter((a: any) => a.is_academy);
@@ -75,6 +95,19 @@ export async function computeAcademyWeekAdherence(opts: {
   if (!athletes.length) return { weekStart, weekEnd, athletes: [] };
 
   const athleteIds = athletes.map(a => a.id);
+
+  // Which of the plan's three group variants each athlete is actually graded
+  // against. One query for the whole table rather than per athlete — see
+  // extractWorkouts for why using the wrong group misgrades pace.
+  const groupsRes = await supabase.from('groups').select('id, name');
+  const groupNames = new Map<string, string>(
+    (groupsRes.data || []).map((g: any) => [g.id, g.name]),
+  );
+  const groupNumberOf = (athlete: any): number => {
+    if (!athlete.group_id) return 2; // ungrouped athletes sit with the middle group
+    const index = resolveGroup(groupNames.get(athlete.group_id)).index;
+    return index >= 0 ? index + 1 : 2;
+  };
 
   // 2) Planned workouts per athlete — individual plan wins, else shared group plan.
   // Ordered newest-first so `.find()` below picks the most recent plan per
@@ -109,7 +142,6 @@ export async function computeAcademyWeekAdherence(opts: {
       .order('created_at', { ascending: false });
   }
   const sharedPlan = (shared.data || [])[0];
-  const sharedWorkouts = sharedPlan ? extractWorkouts(sharedPlan.parsed_workouts) : [];
 
   const toPlanned = (workouts: ParsedWorkout[]): PlannedWorkout[] => {
     const seen = new Set<number>();
@@ -123,9 +155,36 @@ export async function computeAcademyWeekAdherence(opts: {
   };
 
   const plannedByAthlete = new Map<string, PlannedWorkout[]>();
+  const planIdByAthlete = new Map<string, string>();
   for (const a of athletes) {
     const own = individualPlans.find(p => p.athlete_id === a.id);
-    plannedByAthlete.set(a.id, toPlanned(own ? extractWorkouts(own.parsed_workouts) : sharedWorkouts));
+    const plan = own || sharedPlan;
+    if (plan?.id) planIdByAthlete.set(a.id, plan.id);
+    plannedByAthlete.set(a.id, toPlanned(extractWorkouts(plan?.parsed_workouts, groupNumberOf(a))));
+  }
+
+  // Which activity was attributed to which workout — the SAME attribution the
+  // matcher wrote and the coach can override, rather than this engine's own guess
+  // by date. Absent (unmigrated table, or an athlete not yet re-synced) it simply
+  // stays empty and assessWeek falls back to matching by day.
+  const attributionByAthlete = new Map<string, Map<string, string[]>>();
+  const planIds = Array.from(new Set(planIdByAthlete.values()));
+  if (planIds.length) {
+    const matchRes = await supabase
+      .from('activity_plan_matches')
+      .select('athlete_id, weekly_plan_id, workout_key, activity_id')
+      .in('athlete_id', athleteIds)
+      .in('weekly_plan_id', planIds);
+    if (matchRes.error && !isMissingMatchesTable(matchRes.error)) throw matchRes.error;
+    for (const row of (matchRes.data || []) as any[]) {
+      // Ignore a match against a plan this athlete isn't actually graded on.
+      if (planIdByAthlete.get(row.athlete_id) !== row.weekly_plan_id) continue;
+      const forAthlete = attributionByAthlete.get(row.athlete_id) || new Map<string, string[]>();
+      const ids = forAthlete.get(row.workout_key) || [];
+      ids.push(row.activity_id);
+      forAthlete.set(row.workout_key, ids);
+      attributionByAthlete.set(row.athlete_id, forAthlete);
+    }
   }
 
   // 3) Actual activities for the week.
@@ -155,7 +214,12 @@ export async function computeAcademyWeekAdherence(opts: {
   const result: AthleteAdherence[] = athletes.map(a => ({
     athleteId: a.id,
     name: a.name,
-    week: assessWeek(plannedByAthlete.get(a.id) || [], actualByAthlete.get(a.id) || [], tolerances),
+    week: assessWeek(
+      plannedByAthlete.get(a.id) || [],
+      actualByAthlete.get(a.id) || [],
+      tolerances,
+      attributionByAthlete.get(a.id),
+    ),
   }));
 
   return { weekStart, weekEnd, athletes: result };

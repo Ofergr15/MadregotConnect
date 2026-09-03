@@ -8,6 +8,7 @@ import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
+import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
 import { mapActivityDetail } from '@/lib/garmin/activity-detail';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -257,6 +258,18 @@ export async function runSyncRequest(request: Request) {
               }
             }
           } catch { /* push is best-effort */ }
+
+          // Attribute the new runs to the workouts they were run for. Only the
+          // Strava sync used to do this, and the club is overwhelmingly Garmin —
+          // so for most athletes nothing was ever matched to a plan unless a
+          // coach opened the match-review panel by hand.
+          try {
+            await matchAthleteActivities(supabase, athlete.id);
+          } catch (matchError) {
+            // activity_plan_matches (migration 054) may not be applied; the sync
+            // itself must still succeed.
+            console.warn(`Plan matching for ${athlete.id} skipped:`, matchError);
+          }
 
           // New activities can move a PR bucket, the cumulative-distance total,
           // or the run streak — all evaluated in TypeScript (not SQL), so this

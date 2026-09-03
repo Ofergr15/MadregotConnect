@@ -2,6 +2,7 @@ import type { createServerClient } from '@/lib/supabase/server';
 import type { GroupedWeeklyPlans, ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
 import { activityLocalDateStr, resolveGroup } from '@/lib/utils';
 import { matchActivityParts, type MatchableActivity } from './activity-matcher';
+import { normalizeParsedWorkouts } from './normalize-plan';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -18,9 +19,19 @@ function isGrouped(value: unknown): value is GroupedWeeklyPlans {
   return Boolean(object?.group1?.workouts && object?.group2?.workouts && object?.group3?.workouts);
 }
 
+/**
+ * The group's plan, normalized on the way out.
+ *
+ * Normalizing HERE, on the read side, is what lets the nine plan weeks that were
+ * saved before the write paths normalized (see lib/plans/normalize-plan.ts) start
+ * matching without a data migration: `workoutKey` is derived deterministically
+ * from dayOfWeek/partIndex/partKind, so a plan normalized lazily now gets exactly
+ * the key it would have been given at publish time.
+ */
 function workoutPlanForGroup(value: unknown, groupNumber: number): ParsedWeeklyPlan | null {
-  if (isGrouped(value)) return value[`group${groupNumber}` as keyof GroupedWeeklyPlans];
-  const plan = value as ParsedWeeklyPlan | null;
+  const normalized = normalizeParsedWorkouts(value);
+  if (isGrouped(normalized)) return normalized[`group${groupNumber}` as keyof GroupedWeeklyPlans];
+  const plan = normalized as ParsedWeeklyPlan | null;
   return Array.isArray(plan?.workouts) ? plan : null;
 }
 

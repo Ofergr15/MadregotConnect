@@ -304,6 +304,7 @@
     "cancel": "Cancel",
     "matchReviewTitle": "Activity → workout matches",
     "matchReviewDesc": "Automatic matches use date, part order, distance tolerance, and activity name. A staff selection becomes the durable override.",
+    "matchesUnavailable": "Matching is switched off until database migration 054_activity_plan_matches.sql is applied. The week's activities are listed below, but a match can't be saved yet.",
     "noActivitiesStored": "No activities are stored for this plan week yet.",
     "backToClipboards": "Back to clipboards",
     "refreshMatches": "Refresh matches",

@@ -39,7 +39,7 @@ import { WeekView } from '@/components/WeekView';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
-import { cn, toISODate } from '@/lib/utils';
+import { cn, toISODate, activityLocalDay, formatActivityTime } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
@@ -100,6 +100,25 @@ interface MatchReviewData {
     score: number | null;
   }>;
   athletes: Array<{ id: string; name: string }>;
+  // False when activity_plan_matches (migration 054) isn't applied — the route
+  // still returns the week's activities, but nothing can be matched or saved.
+  matchesAvailable?: boolean;
+}
+
+/**
+ * How far from its planned day a run may still be offered as a candidate for a
+ * workout. Kept equal to MAX_DAY_DELTA in lib/plans/activity-matcher, so a coach
+ * can hand-confirm exactly the pairings the automatic matcher considers — before,
+ * a session moved by a day could be auto-matched but not manually re-pointed,
+ * and its name rendered as a raw workout key.
+ */
+const MATCH_DAY_TOLERANCE = 1;
+
+function matchCandidates(workouts: ParsedWorkout[], startTime: string): ParsedWorkout[] {
+  const day = activityLocalDay(startTime);
+  return workouts
+    .filter((workout) => Math.abs(workout.dayOfWeek - day) <= MATCH_DAY_TOLERANCE)
+    .sort((a, b) => Math.abs(a.dayOfWeek - day) - Math.abs(b.dayOfWeek - day));
 }
 
 function getCurrentWeekSunday(offset: number = 0): string {
@@ -838,6 +857,14 @@ export default function WeeklyPlannerPage() {
         body: JSON.stringify({ activityId, workoutKey }),
       });
       const body = await res.json();
+      // 503 = activity_plan_matches (migration 054) isn't applied. Retrying can't
+      // help, so say so once in the panel instead of raising a failure toast the
+      // coach would keep hitting.
+      if (res.status === 503) {
+        setMatchReview(prev => (prev ? { ...prev, matchesAvailable: false } : prev));
+        setMatchReviewLoading(false);
+        return;
+      }
       if (!res.ok) throw new Error(body.error || t('errors.couldNotUpdateMatch'));
       await loadMatchReview();
     } catch (err: unknown) {
@@ -1726,6 +1753,12 @@ export default function WeeklyPlannerPage() {
             <p className="mb-4 text-xs text-ink-400">
               {t('matchReviewDesc')}
             </p>
+            {matchReview?.matchesAvailable === false && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-accent-red/30 bg-accent-red/10 p-3 text-xs text-ink-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-accent-red" />
+                <span>{t('matchesUnavailable')}</span>
+              </div>
+            )}
             <div className="min-h-0">
               {matchReviewLoading && !matchReview ? (
                 <div className="flex h-52 items-center justify-center">
@@ -1740,10 +1773,7 @@ export default function WeeklyPlannerPage() {
                     const athlete = matchReview.athletes.find(
                       (candidate) => candidate.id === activity.athlete_id,
                     );
-                    const day = new Date(activity.start_time).getUTCDay();
-                    const candidates = matchReview.workouts.filter(
-                      (workout) => workout.dayOfWeek === day,
-                    );
+                    const candidates = matchCandidates(matchReview.workouts, activity.start_time);
                     return (
                       <div
                         key={activity.id}
@@ -1754,13 +1784,11 @@ export default function WeeklyPlannerPage() {
                             <span className="font-medium text-ink-700">
                               {athlete?.name || activity.athlete_id}
                             </span>
+                            {/* Athlete-local, via the utils helpers: a raw
+                                `new Date(start_time)` misreads Garmin's
+                                space-separated startTimeLocal as viewer-local. */}
                             <span className="text-xs text-ink-400">
-                              {new Date(activity.start_time).toLocaleString(locale === 'he' ? 'he-IL' : 'en-GB', {
-                                weekday: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                timeZone: 'UTC',
-                              })}
+                              {DAY_LABELS[activityLocalDay(activity.start_time)]} · {formatActivityTime(activity.start_time)}
                             </span>
                             {match && (
                               <span className={cn(
@@ -1782,7 +1810,7 @@ export default function WeeklyPlannerPage() {
                         <button
                           type="button"
                           onClick={() => setMatchPickerActivityId(activity.id)}
-                          disabled={matchReviewLoading}
+                          disabled={matchReviewLoading || matchReview.matchesAvailable === false}
                           className="w-full min-h-[44px] flex items-center justify-between gap-2 rounded-lg border border-ink-300 bg-page px-3 py-2 text-sm text-ink-700 text-start disabled:opacity-50"
                         >
                           <span className="truncate">
@@ -1822,8 +1850,7 @@ export default function WeeklyPlannerPage() {
         {matchPickerActivityId && matchReview && (() => {
           const activity = matchReview.activities.find((a) => a.id === matchPickerActivityId);
           if (!activity) return null;
-          const day = new Date(activity.start_time).getUTCDay();
-          const candidates = matchReview.workouts.filter((workout) => workout.dayOfWeek === day);
+          const candidates = matchCandidates(matchReview.workouts, activity.start_time);
           const match = matchReview.matches.find((candidate) => candidate.activity_id === activity.id);
           return (
             <InsetSection>

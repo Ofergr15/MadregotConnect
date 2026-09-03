@@ -31,7 +31,9 @@ interface WorkoutRow {
   name: string;
   completed: boolean;
   distance: { status: string; plannedMin: number; plannedMax: number; actual: number | null };
-  duration: { status: string; planned: number; actual: number | null };
+  // `estimated` — the plan set no time, so `planned` is the engine's own guess
+  // and must not be shown as a target. See lib/academy/adherence.ts.
+  duration: { status: string; planned: number; actual: number | null; estimated?: boolean };
   pace: { status: string; plannedMin: number | null; plannedMax: number | null; actual: number | null };
   score: number;
 }
@@ -220,7 +222,8 @@ export function MemberSheet({
                       <div className="mt-0.5 text-xs text-ink-400 tabular-nums">
                         {km(w.distance.actual)} / {km(w.distance.plannedMin)} {t('kmUnit')}
                         {' · '}
-                        {mins(w.duration.actual)} / {mins(w.duration.planned)} {t('minUnit')}
+                        {mins(w.duration.actual)}
+                        {!w.duration.estimated && ` / ${mins(w.duration.planned)}`} {t('minUnit')}
                         {w.pace.actual != null && ` · ${formatPace(w.pace.actual)}`}
                       </div>
                     ) : (

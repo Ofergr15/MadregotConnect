@@ -5,6 +5,7 @@ import { COACH_ID } from '@/lib/constants';
 import * as fs from 'fs';
 import * as path from 'path';
 import { authError, requireSession } from '@/lib/auth-session';
+import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 
 const PROGRAM_WEEKS = [
   { file: 'week-28-06-04-07-2026.pdf', weekStart: '2026-06-28' },
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
           coach_id: COACH_ID,
           week_start_date: week.weekStart,
           original_input: `Re-imported from: ${week.file}`,
-          parsed_workouts: parsed as any,
+          parsed_workouts: normalizeParsedWorkouts(parsed) as any,
           status: 'pushed',
         });
 
