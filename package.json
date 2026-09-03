@@ -36,6 +36,7 @@
     "next-intl": "^4.13.6",
     "oauth-1.0a": "^2.2.6",
     "openai": "^6.45.0",
+    "posthog-js": "^1.425.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "recharts": "^3.9.0",
