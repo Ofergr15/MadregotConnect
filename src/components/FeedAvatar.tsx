@@ -30,7 +30,7 @@ export function FeedAvatar({ name, url, className, textClassName, maxChars = 2 }
   return (
     <div
       className={cn(
-        'w-9 h-9 rounded-full bg-primary-600/20 flex items-center justify-center shrink-0 overflow-hidden',
+        'w-9 h-9 rounded-full bg-brand-600/10 flex items-center justify-center shrink-0 overflow-hidden',
         className,
       )}
     >
@@ -44,7 +44,7 @@ export function FeedAvatar({ name, url, className, textClassName, maxChars = 2 }
           className="w-full h-full object-cover"
         />
       ) : (
-        <span className={cn('text-primary-400 text-xs font-bold', textClassName)}>
+        <span className={cn('text-brand-600 text-xs font-bold', textClassName)}>
           {initialsOf(name, maxChars)}
         </span>
       )}

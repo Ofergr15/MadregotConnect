@@ -153,7 +153,7 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
             <InsetRow
               key={s.id}
               icon={Footprints}
-              iconBg={s.retired ? 'bg-slate-600' : 'bg-primary-600'}
+              iconBg={s.retired ? 'bg-ink-300' : 'bg-brand-600'}
               label={s.name}
               sublabel={s.isActive && !s.retired ? 'פעיל כרגע' : s.retired ? 'בדימוס' : undefined}
               value={s.distanceLimitKm ? `${s.kmUsed} / ${s.distanceLimitKm} ק״מ` : `${s.kmUsed} ק״מ`}
@@ -163,7 +163,7 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
             />
           );
         })}
-        <InsetRow icon={Plus} iconBg="bg-slate-600" label="הוספת נעליים" onClick={openAdd} />
+        <InsetRow icon={Plus} iconBg="bg-ink-300" label="הוספת נעליים" onClick={openAdd} />
       </InsetSection>
 
       <Sheet
@@ -173,60 +173,60 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
       >
         <div dir="rtl" className="space-y-4">
           <div>
-            <p className="text-xs font-semibold text-slate-400 mb-1.5">שם</p>
+            <p className="text-xs font-semibold text-ink-400 mb-1.5">שם</p>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="לדוגמה: Pegasus 41"
               maxLength={60}
-              className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+              className="w-full bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-xs font-semibold text-slate-400 mb-1.5">מגבלת ק״מ (אופציונלי)</p>
+              <p className="text-xs font-semibold text-ink-400 mb-1.5">מגבלת ק״מ (אופציונלי)</p>
               <input
                 type="number"
                 inputMode="numeric"
                 value={limit}
                 onChange={e => setLimit(e.target.value)}
                 placeholder="600"
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                className="w-full bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
               />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-400 mb-1.5">התראה כמה ק״מ לפני</p>
+              <p className="text-xs font-semibold text-ink-400 mb-1.5">התראה כמה ק״מ לפני</p>
               <input
                 type="number"
                 inputMode="numeric"
                 value={alertBefore}
                 onChange={e => setAlertBefore(e.target.value)}
                 placeholder="50"
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                className="w-full bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
               />
             </div>
           </div>
 
           <div className="flex items-center justify-between py-1">
-            <span className="text-sm font-medium text-white">נעליים פעילות כרגע</span>
+            <span className="text-sm font-medium text-ink-700">נעליים פעילות כרגע</span>
             <Switch checked={active} onChange={setActive} ariaLabel="נעליים פעילות" />
           </div>
           {!adding && (
             <div className="flex items-center justify-between py-1">
-              <span className="text-sm font-medium text-white">בדימוס</span>
+              <span className="text-sm font-medium text-ink-700">בדימוס</span>
               <Switch checked={retired} onChange={setRetired} ariaLabel="בדימוס" />
             </div>
           )}
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-accent-red">{error}</p>}
 
           <button
             onClick={save}
             disabled={saving}
             className={cn(
               'w-full min-h-[48px] rounded-xl font-bold text-base transition-colors active:scale-[0.98]',
-              !saving ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-slate-700 text-slate-500',
+              !saving ? 'bg-brand-600 hover:bg-brand-700 text-white' : 'bg-page text-ink-400',
             )}
           >
             {saving ? '...' : 'שמירה'}
@@ -235,7 +235,7 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
           {!adding && editingId && (
             <button
               onClick={() => setConfirmDeleteId(editingId)}
-              className="w-full flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-sm font-semibold text-red-400 hover:text-red-300 transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-sm font-semibold text-accent-red hover:text-accent-red transition-colors"
             >
               <Trash2 className="h-4 w-4" /> מחיקת נעליים
             </button>

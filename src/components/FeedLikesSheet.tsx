@@ -37,17 +37,17 @@ export function FeedLikesSheet({ itemId, likeCount, seed = [], onClose }: Props)
       onOpenChange={open => { if (!open) onClose(); }}
       title={
         <span className="flex items-center gap-2">
-          <Heart className="h-4 w-4 fill-rose-400 text-rose-400" />
+          <Heart className="h-4 w-4 fill-accent-red text-accent-red" />
           {t('likedBy')}
           {likeCount > 0 && (
-            <span className="text-sm font-medium text-slate-400 tabular-nums">{likeCount}</span>
+            <span className="text-sm font-medium text-ink-400 tabular-nums">{likeCount}</span>
           )}
         </span>
       }
       trailingAction={
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          className="p-1.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
           aria-label={t('close')}
         >
           <X className="h-5 w-5" />
@@ -58,20 +58,20 @@ export function FeedLikesSheet({ itemId, likeCount, seed = [], onClose }: Props)
     >
       {loading && likers.length === 0 && (
         <div className="flex justify-center py-8">
-          <div className="h-5 w-5 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
+          <div className="h-5 w-5 rounded-full border-2 border-brand-600 border-t-transparent animate-spin" />
         </div>
       )}
       {!loading && likers.length === 0 && (
-        <p className="text-center text-sm text-slate-500 py-8">{t('noLikesYet')}</p>
+        <p className="text-center text-sm text-ink-400 py-8">{t('noLikesYet')}</p>
       )}
       {likers.map(l => (
         <div key={l.athleteId} className="flex items-center gap-3 py-2">
           <FeedAvatar name={l.name} url={l.avatarUrl} />
-          <span className="text-sm text-slate-200 truncate">{l.name}</span>
+          <span className="text-sm text-ink-700 truncate">{l.name}</span>
         </div>
       ))}
       {!loading && hidden > 0 && (
-        <p className="text-center text-xs text-slate-500 py-3">{t('andMore', { count: hidden })}</p>
+        <p className="text-center text-xs text-ink-400 py-3">{t('andMore', { count: hidden })}</p>
       )}
     </Sheet>
   );

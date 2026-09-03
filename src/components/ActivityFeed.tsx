@@ -83,11 +83,11 @@ function getTimeLabel(startTime: string): string {
 
 function inferRunTypeFromActivity(distanceKm: number, avgPaceSec: number | null): { type: string; label: string; color: string; bg: string } {
   const types: Record<string, { label: string; color: string; bg: string }> = {
-    long_run: { label: 'Long Run', color: 'text-purple-400', bg: 'bg-purple-500/15' },
-    tempo: { label: 'Tempo', color: 'text-orange-400', bg: 'bg-orange-500/15' },
-    intervals: { label: 'Intervals', color: 'text-red-400', bg: 'bg-red-500/15' },
-    easy: { label: 'Easy', color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
-    recovery: { label: 'Recovery', color: 'text-slate-400', bg: 'bg-slate-500/15' },
+    long_run: { label: 'Long Run', color: 'text-purple-600', bg: 'bg-purple-500/15' },
+    tempo: { label: 'Tempo', color: 'text-band-3', bg: 'bg-band-3/15' },
+    intervals: { label: 'Intervals', color: 'text-accent-red', bg: 'bg-accent-red/15' },
+    easy: { label: 'Easy', color: 'text-accent-600', bg: 'bg-accent-600/15' },
+    recovery: { label: 'Recovery', color: 'text-ink-400', bg: 'bg-ink-300/15' },
   };
 
   if (distanceKm >= 16) return { type: 'long_run', ...types.long_run };
@@ -99,11 +99,11 @@ function inferRunTypeFromActivity(distanceKm: number, avgPaceSec: number | null)
 
 function getHRZone(hr: number, maxHR = 190): { zone: number; label: string; color: string; bgColor: string } {
   const pct = hr / maxHR;
-  if (pct < 0.6) return { zone: 1, label: 'Easy', color: 'text-slate-400', bgColor: '#94a3b8' };
-  if (pct < 0.7) return { zone: 2, label: 'Aerobic', color: 'text-blue-400', bgColor: '#60a5fa' };
-  if (pct < 0.8) return { zone: 3, label: 'Tempo', color: 'text-green-400', bgColor: '#4ade80' };
-  if (pct < 0.9) return { zone: 4, label: 'Threshold', color: 'text-orange-400', bgColor: '#fb923c' };
-  return { zone: 5, label: 'VO2max', color: 'text-red-400', bgColor: '#f87171' };
+  if (pct < 0.6) return { zone: 1, label: 'Easy', color: 'text-ink-400', bgColor: '#969696' };
+  if (pct < 0.7) return { zone: 2, label: 'Aerobic', color: 'text-band-2', bgColor: '#60a5fa' };
+  if (pct < 0.8) return { zone: 3, label: 'Tempo', color: 'text-accent-600', bgColor: '#16a34a' };
+  if (pct < 0.9) return { zone: 4, label: 'Threshold', color: 'text-band-3', bgColor: '#fb923c' };
+  return { zone: 5, label: 'VO2max', color: 'text-accent-red', bgColor: '#D74E4E' };
 }
 
 function getPaceColor(pace: number, minPace: number, maxPace: number): string {
@@ -191,8 +191,8 @@ function RouteMap({ points, height = 300, splits }: {
           L.polyline(segment, { color: getPaceColor(splits[i].averagePace, minP, maxP), weight: 5, opacity: 0.9 }).addTo(map);
         }
       } else {
-        L.polyline(latlngs, { color: '#4338ff', weight: 4, opacity: 0.9 }).addTo(map);
-        L.polyline(latlngs, { color: '#4338ff', weight: 8, opacity: 0.2 }).addTo(map);
+        L.polyline(latlngs, { color: '#1525FF', weight: 4, opacity: 0.9 }).addTo(map);
+        L.polyline(latlngs, { color: '#1525FF', weight: 8, opacity: 0.2 }).addTo(map);
       }
 
       L.circleMarker(latlngs[0], { radius: 7, fillColor: '#22c55e', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
@@ -222,22 +222,22 @@ function RouteMap({ points, height = 300, splits }: {
           onClick={() => setColorByPace(!colorByPace)}
           className={cn(
             'absolute top-3 end-3 z-[1000] px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-lg',
-            colorByPace ? 'bg-white text-slate-900' : 'bg-slate-800/90 text-slate-300 hover:text-white border border-slate-600'
+            colorByPace ? 'bg-white text-ink-900' : 'bg-card/90 text-ink-500 hover:text-ink-900 border border-ink-300'
           )}
         >
           {colorByPace ? '● Pace Colors' : '○ Color by Pace'}
         </button>
       )}
       {colorByPace && (
-        <div className="absolute bottom-3 start-3 z-[1000] bg-slate-800/90 rounded-lg px-3 py-2 flex items-center gap-2 text-3xs font-medium shadow-lg">
-          <span className="text-slate-400">Fast</span>
+        <div className="absolute bottom-3 start-3 z-[1000] bg-card/90 rounded-lg px-3 py-2 flex items-center gap-2 text-3xs font-medium shadow-lg">
+          <span className="text-ink-400">Fast</span>
           <div className="flex gap-0.5">
             <div className="w-4 h-2 rounded-sm bg-[#22c55e]" />
             <div className="w-4 h-2 rounded-sm bg-[#eab308]" />
             <div className="w-4 h-2 rounded-sm bg-[#f97316]" />
             <div className="w-4 h-2 rounded-sm bg-[#ef4444]" />
           </div>
-          <span className="text-slate-400">Slow</span>
+          <span className="text-ink-400">Slow</span>
         </div>
       )}
     </div>
@@ -329,9 +329,9 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: (PlannedKmP
 
   return (
     <div>
-      <h4 className="text-3xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
         <Timer className="h-3 w-3" /> Pace per KM
-        {hasPlan && <span className="text-3xs text-emerald-400 ms-2">— dashed = planned</span>}
+        {hasPlan && <span className="text-3xs text-accent-600 ms-2">— dashed = planned</span>}
       </h4>
       <svg
         ref={svgRef}
@@ -343,12 +343,12 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: (PlannedKmP
       >
         <defs>
           <linearGradient id="paceGradFW" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#4338ff" stopOpacity={0.3} />
-            <stop offset="100%" stopColor="#4338ff" stopOpacity={0.02} />
+            <stop offset="0%" stopColor="#1525FF" stopOpacity={0.3} />
+            <stop offset="100%" stopColor="#1525FF" stopOpacity={0.02} />
           </linearGradient>
         </defs>
         {yLabels.map((l, i) => (
-          <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
+          <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#DFDFDF" strokeWidth="0.5" strokeDasharray="4 4" />
         ))}
         <path d={areaPath} fill="url(#paceGradFW)" />
         {/* Planned pace band + dashed center, per contiguous paced run. */}
@@ -361,31 +361,31 @@ function PaceChart({ splits, planned }: { splits: Split[]; planned?: (PlannedKmP
             />
           </g>
         ))}
-        <path d={linePath} fill="none" stroke="#4338ff" strokeWidth="3" strokeLinecap="round" />
+        <path d={linePath} fill="none" stroke="#1525FF" strokeWidth="3" strokeLinecap="round" />
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={hoverIdx === i ? 6 : 3.5} fill="#4338ff" stroke="#1e1b4b" strokeWidth="2" className="transition-all" />
+          <circle key={i} cx={p.x} cy={p.y} r={hoverIdx === i ? 6 : 3.5} fill="#1525FF" stroke="#FFFFFF" strokeWidth="2" className="transition-all" />
         ))}
         {hoverIdx !== null && (
           <g>
-            <line x1={points[hoverIdx].x} x2={points[hoverIdx].x} y1={pad.top} y2={pad.top + chartH} stroke="#4338ff" strokeWidth="1" opacity={0.4} strokeDasharray="3 3" />
-            <rect x={points[hoverIdx].x - 40} y={points[hoverIdx].y - 28} width="80" height="22" rx="4" fill="#1e293b" stroke="#4338ff" strokeWidth="1" />
+            <line x1={points[hoverIdx].x} x2={points[hoverIdx].x} y1={pad.top} y2={pad.top + chartH} stroke="#1525FF" strokeWidth="1" opacity={0.4} strokeDasharray="3 3" />
+            <rect x={points[hoverIdx].x - 40} y={points[hoverIdx].y - 28} width="80" height="22" rx="4" fill="#1D1E26" stroke="#1525FF" strokeWidth="1" />
             <text x={points[hoverIdx].x} y={points[hoverIdx].y - 14} textAnchor="middle" className="fill-white" fontSize="12" fontWeight="700">
               {formatPace(paces[hoverIdx])} /km
             </text>
-            <text x={points[hoverIdx].x} y={pad.top + chartH + 14} textAnchor="middle" className="fill-slate-300" fontSize="10" fontWeight="600">
+            <text x={points[hoverIdx].x} y={pad.top + chartH + 14} textAnchor="middle" className="fill-ink-500" fontSize="10" fontWeight="600">
               KM {hoverIdx + 1}
             </text>
           </g>
         )}
-        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#BBBBBB" strokeWidth="1" />
         {splits.map((_, i) => {
           const km = i + 1;
           if (km % xInterval !== 0 && km !== splits.length) return null;
-          return <text key={i} x={toX(km)} y={height - 12} textAnchor="middle" className="fill-slate-400" fontSize="11" fontWeight="500">{km}</text>;
+          return <text key={i} x={toX(km)} y={height - 12} textAnchor="middle" className="fill-ink-400" fontSize="11" fontWeight="500">{km}</text>;
         })}
-        <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
+        <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#BBBBBB" strokeWidth="1" />
         {yLabels.map((l, i) => (
-          <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-slate-400" fontSize="11">{formatPace(l.pace)}</text>
+          <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-ink-400" fontSize="11">{formatPace(l.pace)}</text>
         ))}
       </svg>
     </div>
@@ -422,11 +422,11 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
   const areaPath = linePath + ` L ${points[points.length - 1].x.toFixed(1)} ${pad.top + chartH} L ${points[0].x.toFixed(1)} ${pad.top + chartH} Z`;
 
   const zones = [
-    { min: 0, max: maxHR * 0.6, color: '#94a3b8' },
+    { min: 0, max: maxHR * 0.6, color: '#969696' },
     { min: maxHR * 0.6, max: maxHR * 0.7, color: '#60a5fa' },
-    { min: maxHR * 0.7, max: maxHR * 0.8, color: '#4ade80' },
+    { min: maxHR * 0.7, max: maxHR * 0.8, color: '#16a34a' },
     { min: maxHR * 0.8, max: maxHR * 0.9, color: '#fb923c' },
-    { min: maxHR * 0.9, max: maxHR * 1.1, color: '#f87171' },
+    { min: maxHR * 0.9, max: maxHR * 1.1, color: '#D74E4E' },
   ];
 
   const ySteps = 5;
@@ -439,7 +439,7 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
 
   return (
     <div>
-      <h4 className="text-3xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
         <Heart className="h-3 w-3" /> Heart Rate
       </h4>
       <svg
@@ -452,7 +452,7 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
       >
         <defs>
           <linearGradient id="hrGradFW" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f87171" stopOpacity={0.3} />
+            <stop offset="0%" stopColor="#D74E4E" stopOpacity={0.3} />
             <stop offset="50%" stopColor="#fb923c" stopOpacity={0.12} />
             <stop offset="100%" stopColor="#fb923c" stopOpacity={0.02} />
           </linearGradient>
@@ -464,35 +464,35 @@ function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
           return <rect key={i} x={pad.left} y={y1} width={chartW} height={y2 - y1} fill={z.color} opacity={0.05} />;
         })}
         {yLabels.map((l, i) => (
-          <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
+          <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#DFDFDF" strokeWidth="0.5" strokeDasharray="4 4" />
         ))}
         <path d={areaPath} fill="url(#hrGradFW)" />
-        <path d={linePath} fill="none" stroke="#f87171" strokeWidth="3" strokeLinecap="round" />
+        <path d={linePath} fill="none" stroke="#D74E4E" strokeWidth="3" strokeLinecap="round" />
         {points.map((p, i) => {
           const zone = getHRZone(p.hr, maxHR);
-          return <circle key={i} cx={p.x} cy={p.y} r={hoverIdx === i ? 6 : 3.5} fill={zone.bgColor} stroke="#1e1b4b" strokeWidth="2" className="transition-all" />;
+          return <circle key={i} cx={p.x} cy={p.y} r={hoverIdx === i ? 6 : 3.5} fill={zone.bgColor} stroke="#FFFFFF" strokeWidth="2" className="transition-all" />;
         })}
         {hoverIdx !== null && hrs[hoverIdx] > 0 && (
           <g>
-            <line x1={points[hoverIdx].x} x2={points[hoverIdx].x} y1={pad.top} y2={pad.top + chartH} stroke="#f87171" strokeWidth="1" opacity={0.4} strokeDasharray="3 3" />
-            <rect x={points[hoverIdx].x - 42} y={points[hoverIdx].y - 28} width="84" height="22" rx="4" fill="#1e293b" stroke="#f87171" strokeWidth="1" />
+            <line x1={points[hoverIdx].x} x2={points[hoverIdx].x} y1={pad.top} y2={pad.top + chartH} stroke="#D74E4E" strokeWidth="1" opacity={0.4} strokeDasharray="3 3" />
+            <rect x={points[hoverIdx].x - 42} y={points[hoverIdx].y - 28} width="84" height="22" rx="4" fill="#1D1E26" stroke="#D74E4E" strokeWidth="1" />
             <text x={points[hoverIdx].x} y={points[hoverIdx].y - 14} textAnchor="middle" className="fill-white" fontSize="12" fontWeight="700">
               {hrs[hoverIdx]} bpm
             </text>
-            <text x={points[hoverIdx].x} y={pad.top + chartH + 14} textAnchor="middle" className="fill-slate-300" fontSize="10" fontWeight="600">
+            <text x={points[hoverIdx].x} y={pad.top + chartH + 14} textAnchor="middle" className="fill-ink-500" fontSize="10" fontWeight="600">
               KM {hoverIdx + 1}
             </text>
           </g>
         )}
-        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#BBBBBB" strokeWidth="1" />
         {splits.map((_, i) => {
           const km = i + 1;
           if (km % xInterval !== 0 && km !== splits.length) return null;
-          return <text key={i} x={toX(km)} y={height - 12} textAnchor="middle" className="fill-slate-400" fontSize="11" fontWeight="500">{km}</text>;
+          return <text key={i} x={toX(km)} y={height - 12} textAnchor="middle" className="fill-ink-400" fontSize="11" fontWeight="500">{km}</text>;
         })}
-        <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
+        <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#BBBBBB" strokeWidth="1" />
         {yLabels.map((l, i) => (
-          <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-slate-400" fontSize="11">{l.hr}</text>
+          <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-ink-400" fontSize="11">{l.hr}</text>
         ))}
       </svg>
     </div>
@@ -529,11 +529,11 @@ function ElevationChart({ splits }: { splits: Split[] }) {
 
   return (
     <div>
-      <h4 className="text-3xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
         <Mountain className="h-3 w-3" /> Elevation per KM
         <span className="ms-2 flex items-center gap-2 text-3xs">
-          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500/80" /> gain</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-400/80" /> loss</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-600/80" /> gain</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-red/80" /> loss</span>
         </span>
       </h4>
       <svg
@@ -544,21 +544,21 @@ function ElevationChart({ splits }: { splits: Split[] }) {
         onMouseMove={e => handleMouseMove(e, pad.left, chartW)}
         onMouseLeave={handleMouseLeave}
       >
-        <line x1={pad.left} x2={width - pad.right} y1={midY} y2={midY} stroke="#475569" strokeWidth="1" />
+        <line x1={pad.left} x2={width - pad.right} y1={midY} y2={midY} stroke="#BBBBBB" strokeWidth="1" />
         {[0.25, 0.5, 0.75, 1].map((frac, i) => {
           const val = Math.round(maxVal * frac);
           const yUp = midY - (frac * halfH);
           const yDown = midY + (frac * halfH);
           return (
             <g key={i}>
-              <line x1={pad.left} x2={width - pad.right} y1={yUp} y2={yUp} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
+              <line x1={pad.left} x2={width - pad.right} y1={yUp} y2={yUp} stroke="#DFDFDF" strokeWidth="0.5" strokeDasharray="4 4" />
               {frac === 0.5 || frac === 1 ? (
                 <>
-                  <text x={pad.left - 8} y={yUp + 4} textAnchor="end" className="fill-green-400/70" fontSize="10">+{val}m</text>
-                  <text x={pad.left - 8} y={yDown + 4} textAnchor="end" className="fill-red-400/70" fontSize="10">-{val}m</text>
+                  <text x={pad.left - 8} y={yUp + 4} textAnchor="end" className="fill-accent-600/70" fontSize="10">+{val}m</text>
+                  <text x={pad.left - 8} y={yDown + 4} textAnchor="end" className="fill-accent-red/70" fontSize="10">-{val}m</text>
                 </>
               ) : null}
-              <line x1={pad.left} x2={width - pad.right} y1={yDown} y2={yDown} stroke="#334155" strokeWidth="0.5" strokeDasharray="4 4" />
+              <line x1={pad.left} x2={width - pad.right} y1={yDown} y2={yDown} stroke="#DFDFDF" strokeWidth="0.5" strokeDasharray="4 4" />
             </g>
           );
         })}
@@ -575,24 +575,24 @@ function ElevationChart({ splits }: { splits: Split[] }) {
               )}
               {lossH > 0 && (
                 <rect x={x - barW / 2} y={midY} width={barW} height={lossH} rx="2"
-                  fill={isHover ? '#f87171' : '#f87171'} opacity={isHover ? 0.9 : 0.5} className="transition-opacity" />
+                  fill={isHover ? '#D74E4E' : '#D74E4E'} opacity={isHover ? 0.9 : 0.5} className="transition-opacity" />
               )}
             </g>
           );
         })}
         {hoverIdx !== null && (
           <g>
-            <rect x={toX(hoverIdx) - 50} y={pad.top} width="100" height="22" rx="4" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+            <rect x={toX(hoverIdx) - 50} y={pad.top} width="100" height="22" rx="4" fill="#1D1E26" stroke="#BBBBBB" strokeWidth="1" />
             <text x={toX(hoverIdx)} y={pad.top + 15} textAnchor="middle" className="fill-white" fontSize="11" fontWeight="700">
               +{Math.round(gains[hoverIdx])}m / -{Math.round(losses[hoverIdx])}m
             </text>
           </g>
         )}
-        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#475569" strokeWidth="1" />
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#BBBBBB" strokeWidth="1" />
         {splits.map((_, i) => {
           const km = i + 1;
           if (km % xInterval !== 0 && km !== splits.length) return null;
-          return <text key={i} x={toX(i)} y={height - 12} textAnchor="middle" className="fill-slate-400" fontSize="11" fontWeight="500">{km}</text>;
+          return <text key={i} x={toX(i)} y={height - 12} textAnchor="middle" className="fill-ink-400" fontSize="11" fontWeight="500">{km}</text>;
         })}
       </svg>
     </div>
@@ -610,11 +610,11 @@ function SplitsTable({ splits }: { splits: Split[] }) {
 
   return (
     <div>
-      <h4 className="text-3xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
         <Timer className="h-3 w-3" /> Splits
       </h4>
       <div className="space-y-1">
-        <div className="grid grid-cols-12 gap-2 text-3xs font-semibold uppercase text-slate-500 px-3 pb-1">
+        <div className="grid grid-cols-12 gap-2 text-3xs font-semibold uppercase text-ink-400 px-3 pb-1">
           <span className="col-span-1">KM</span>
           <span className="col-span-4">Pace</span>
           <span className="col-span-3">Time</span>
@@ -628,25 +628,25 @@ function SplitsTable({ splits }: { splits: Split[] }) {
           return (
             <div key={i} className={cn(
               'grid grid-cols-12 gap-2 items-center px-3 py-2 rounded-lg text-sm',
-              isFastest ? 'bg-green-500/10 border border-green-500/20' :
-              isSlowest ? 'bg-red-500/5 border border-red-500/10' : 'bg-slate-900/30'
+              isFastest ? 'bg-accent-600/10 border border-accent-600/20' :
+              isSlowest ? 'bg-accent-red/5 border border-accent-red/10' : 'bg-page/30'
             )}>
-              <span className="col-span-1 text-xs font-bold text-slate-400">{i + 1}</span>
+              <span className="col-span-1 text-xs font-bold text-ink-400">{i + 1}</span>
               <div className="col-span-4 flex items-center gap-2">
-                <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div className="w-16 h-1.5 bg-page rounded-full overflow-hidden">
                   <div
-                    className={cn('h-full rounded-full', isFastest ? 'bg-green-400' : isSlowest ? 'bg-red-400' : 'bg-primary-600')}
+                    className={cn('h-full rounded-full', isFastest ? 'bg-accent-600' : isSlowest ? 'bg-accent-red' : 'bg-brand-600')}
                     style={{ width: `${Math.max(20, pacePos * 100)}%` }}
                   />
                 </div>
-                <span className={cn('font-bold tabular-nums', isFastest ? 'text-green-400' : isSlowest ? 'text-red-400' : 'text-white')}>
+                <span className={cn('font-bold tabular-nums', isFastest ? 'text-accent-600' : isSlowest ? 'text-accent-red' : 'text-ink-700')}>
                   {formatPace(split.averagePace)}
                 </span>
               </div>
-              <span className="col-span-3 text-slate-300 tabular-nums">{formatDuration(split.duration)}</span>
-              <span className="col-span-2 text-slate-400 tabular-nums">{split.averageHR || '—'}</span>
-              <span className="col-span-2 text-slate-400 tabular-nums">
-                {split.elevationGain != null ? <><span className="text-green-400">+{Math.round(split.elevationGain)}</span>{split.elevationLoss ? <span className="text-red-400 ms-1">-{Math.round(split.elevationLoss)}</span> : null}</> : '—'}
+              <span className="col-span-3 text-ink-500 tabular-nums">{formatDuration(split.duration)}</span>
+              <span className="col-span-2 text-ink-400 tabular-nums">{split.averageHR || '—'}</span>
+              <span className="col-span-2 text-ink-400 tabular-nums">
+                {split.elevationGain != null ? <><span className="text-accent-600">+{Math.round(split.elevationGain)}</span>{split.elevationLoss ? <span className="text-accent-red ms-1">-{Math.round(split.elevationLoss)}</span> : null}</> : '—'}
               </span>
             </div>
           );
@@ -744,20 +744,20 @@ function ActivityCard({
 
   return (
     <>
-    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden">
+    <div className="bg-card/50 rounded-card border border-page/30 overflow-hidden">
       {/* Collapsed card */}
-      <div className="p-4 sm:p-5 cursor-pointer hover:bg-slate-800/70 transition-colors" onClick={handleExpand}>
+      <div className="p-4 sm:p-5 cursor-pointer hover:bg-page/70 transition-colors" onClick={handleExpand}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-primary-600/15 flex items-center justify-center">
-              <Route className="h-4 w-4 text-primary-600" />
+            <div className="w-9 h-9 rounded-full bg-brand-600/15 flex items-center justify-center">
+              <Route className="h-4 w-4 text-brand-600" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white">{activity.athlete_name || 'Unknown'}</span>
-                <span className="text-xs text-slate-500">{dateStr} · {timeStr}</span>
+                <span className="text-sm font-bold text-ink-700">{activity.athlete_name || 'Unknown'}</span>
+                <span className="text-xs text-ink-400">{dateStr} · {timeStr}</span>
               </div>
-              <p className="text-xs text-slate-500">{timeLabel}{activity.location_name ? ` · ${activity.location_name}` : ''}</p>
+              <p className="text-xs text-ink-400">{timeLabel}{activity.location_name ? ` · ${activity.location_name}` : ''}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -767,7 +767,7 @@ function ActivityCard({
                   event.stopPropagation();
                   setShowShare(true);
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-600/50 bg-slate-700/30 px-2.5 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-slate-700/60 hover:text-white"
+                className="flex items-center gap-1.5 rounded-lg border border-ink-300/50 bg-page/30 px-2.5 py-1.5 text-xs font-semibold text-ink-500 transition-colors hover:bg-page/60 hover:text-ink-900"
                 aria-label="שיתוף בפיד"
                 title="שיתוף בפיד"
               >
@@ -780,7 +780,7 @@ function ActivityCard({
                 event.stopPropagation();
                 router.push(`/dashboard/run-chat/${activity.id}`);
               }}
-              className="flex items-center gap-1.5 rounded-lg border border-primary-500/30 bg-primary-500/10 px-2.5 py-1.5 text-xs font-semibold text-primary-300 transition-colors hover:bg-primary-500/20 hover:text-primary-200"
+              className="flex items-center gap-1.5 rounded-lg border border-brand-600/30 bg-brand-600/10 px-2.5 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-600/20 hover:text-brand-700"
               aria-label={runChatLabel}
               title={runChatLabel}
             >
@@ -790,28 +790,28 @@ function ActivityCard({
             <span className={cn('text-3xs font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
               {runType.label}
             </span>
-            {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+            {expanded ? <ChevronUp className="h-4 w-4 text-ink-400" /> : <ChevronDown className="h-4 w-4 text-ink-400" />}
           </div>
         </div>
 
-        <p className="text-base font-semibold text-white mb-3">{dayLabel}</p>
+        <p className="text-base font-semibold text-ink-700 mb-3">{dayLabel}</p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div>
-            <p className="text-3xs text-slate-500 font-medium">Distance</p>
-            <p className="text-lg font-black text-white tabular-nums">{distKm}<span className="text-xs text-slate-400 ms-0.5">km</span></p>
+            <p className="text-3xs text-ink-400 font-medium">Distance</p>
+            <p className="text-lg font-black text-ink-700 tabular-nums">{distKm}<span className="text-xs text-ink-400 ms-0.5">km</span></p>
           </div>
           <div>
-            <p className="text-3xs text-slate-500 font-medium">Pace</p>
-            <p className="text-lg font-black text-white tabular-nums">{paceStr || '—'}<span className="text-xs text-slate-400 ms-0.5">/km</span></p>
+            <p className="text-3xs text-ink-400 font-medium">Pace</p>
+            <p className="text-lg font-black text-ink-700 tabular-nums">{paceStr || '—'}<span className="text-xs text-ink-400 ms-0.5">/km</span></p>
           </div>
           <div>
-            <p className="text-3xs text-slate-500 font-medium">Time</p>
-            <p className="text-lg font-black text-white tabular-nums">{durationStr}</p>
+            <p className="text-3xs text-ink-400 font-medium">Time</p>
+            <p className="text-lg font-black text-ink-700 tabular-nums">{durationStr}</p>
           </div>
           {activity.average_hr && (
             <div className="hidden lg:block">
-              <p className="text-3xs text-slate-500 font-medium">Avg HR</p>
+              <p className="text-3xs text-ink-400 font-medium">Avg HR</p>
               <p className={cn("text-lg font-black tabular-nums flex items-center gap-1", hrZone?.color)}>
                 <Heart className="h-3.5 w-3.5" />{activity.average_hr}
               </p>
@@ -819,9 +819,9 @@ function ActivityCard({
           )}
           {activity.elevation_gain && activity.elevation_gain > 0 ? (
             <div className="hidden lg:block">
-              <p className="text-3xs text-slate-500 font-medium">Elevation</p>
-              <p className="text-lg font-black text-white tabular-nums flex items-center gap-1">
-                <Mountain className="h-3.5 w-3.5 text-green-400" />{Math.round(activity.elevation_gain)}<span className="text-xs text-slate-400">m</span>
+              <p className="text-3xs text-ink-400 font-medium">Elevation</p>
+              <p className="text-lg font-black text-ink-700 tabular-nums flex items-center gap-1">
+                <Mountain className="h-3.5 w-3.5 text-accent-600" />{Math.round(activity.elevation_gain)}<span className="text-xs text-ink-400">m</span>
               </p>
             </div>
           ) : null}
@@ -831,55 +831,55 @@ function ActivityCard({
 
       {/* Expanded detail */}
       {expanded && (
-        <div className="border-t border-slate-700/50 px-4 sm:px-5 py-5 space-y-5">
+        <div className="border-t border-page/50 px-4 sm:px-5 py-5 space-y-5">
           {loadingDetails && !details && (
             <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-5 w-5 text-slate-400 animate-spin" />
-              <span className="text-sm text-slate-400 ms-2">Loading activity details...</span>
+              <RefreshCw className="h-5 w-5 text-ink-400 animate-spin" />
+              <span className="text-sm text-ink-400 ms-2">Loading activity details...</span>
             </div>
           )}
 
           {/* Map — stored route if available, else live-fetched */}
           {routePoints.length > 2 ? (
-            <div className="rounded-xl overflow-hidden border border-slate-700/30">
+            <div className="rounded-xl overflow-hidden border border-page/30">
               <RouteMap points={routePoints} height={300} splits={splits} />
             </div>
           ) : (!loadingDetails && (knownNoRoute || details)) ? (
-            <div className="rounded-2xl border border-slate-700/30 bg-slate-800/40 py-6 text-center">
-              <MapPin className="h-5 w-5 text-slate-600 mx-auto mb-1" />
-              <p className="text-xs text-slate-500">No route recorded (indoor/treadmill run)</p>
+            <div className="rounded-card border border-page/30 bg-card/40 py-6 text-center">
+              <MapPin className="h-5 w-5 text-ink-400 mx-auto mb-1" />
+              <p className="text-xs text-ink-400">No route recorded (indoor/treadmill run)</p>
             </div>
           ) : null}
 
           {/* Key Stats Banner */}
-          <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-xl p-5 border border-slate-700/30">
+          <div className="bg-gradient-to-br from-card/60 to-page/60 rounded-xl p-5 border border-page/30">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               <div>
-                <p className="text-xs text-slate-400 mb-1">Distance</p>
-                <p className="text-3xl font-black text-white tabular-nums">{distKm}<span className="text-sm text-slate-400 ms-1">km</span></p>
+                <p className="text-xs text-ink-400 mb-1">Distance</p>
+                <p className="text-3xl font-black text-ink-700 tabular-nums">{distKm}<span className="text-sm text-ink-400 ms-1">km</span></p>
               </div>
               <div>
-                <p className="text-xs text-slate-400 mb-1">Pace</p>
-                <p className="text-3xl font-black text-white tabular-nums">{paceStr || '—'}<span className="text-sm text-slate-400 ms-1">/km</span></p>
+                <p className="text-xs text-ink-400 mb-1">Pace</p>
+                <p className="text-3xl font-black text-ink-700 tabular-nums">{paceStr || '—'}<span className="text-sm text-ink-400 ms-1">/km</span></p>
               </div>
               <div>
-                <p className="text-xs text-slate-400 mb-1">Time</p>
-                <p className="text-3xl font-black text-white tabular-nums">{durationStr}</p>
+                <p className="text-xs text-ink-400 mb-1">Time</p>
+                <p className="text-3xl font-black text-ink-700 tabular-nums">{durationStr}</p>
                 {movingStr && movingStr !== durationStr && (
-                  <p className="text-3xs text-slate-500 mt-0.5">{movingStr} moving</p>
+                  <p className="text-3xs text-ink-400 mt-0.5">{movingStr} moving</p>
                 )}
               </div>
               {activity.average_hr && (
                 <div className="hidden lg:block">
-                  <p className="text-xs text-slate-400 mb-1">Avg HR</p>
+                  <p className="text-xs text-ink-400 mb-1">Avg HR</p>
                   <p className={cn("text-3xl font-black tabular-nums", hrZone?.color)}>{activity.average_hr}</p>
-                  {hrZone && <p className="text-3xs text-slate-500 mt-0.5">Zone {hrZone.zone} · {hrZone.label}</p>}
+                  {hrZone && <p className="text-3xs text-ink-400 mt-0.5">Zone {hrZone.zone} · {hrZone.label}</p>}
                 </div>
               )}
               {activity.elevation_gain ? (
                 <div className="hidden lg:block">
-                  <p className="text-xs text-slate-400 mb-1">Elevation</p>
-                  <p className="text-3xl font-black text-white tabular-nums">{Math.round(activity.elevation_gain)}<span className="text-sm text-slate-400 ms-1">m</span></p>
+                  <p className="text-xs text-ink-400 mb-1">Elevation</p>
+                  <p className="text-3xl font-black text-ink-700 tabular-nums">{Math.round(activity.elevation_gain)}<span className="text-sm text-ink-400 ms-1">m</span></p>
                 </div>
               ) : null}
             </div>
@@ -888,96 +888,96 @@ function ActivityCard({
           {/* Performance Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {(activity.calories || details?.summary?.calories) && (
-              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+              <div className="bg-page/50 rounded-xl p-4 border border-page/20">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Flame className="h-3.5 w-3.5 text-orange-400" />
-                  <p className="text-3xs font-bold uppercase text-slate-400">Calories</p>
+                  <Flame className="h-3.5 w-3.5 text-band-3" />
+                  <p className="text-3xs font-bold uppercase text-ink-400">Calories</p>
                 </div>
-                <p className="text-2xl font-black text-white tabular-nums">{activity.calories || details?.summary?.calories}</p>
-                <p className="text-3xs text-slate-500 mt-0.5">kcal</p>
+                <p className="text-2xl font-black text-ink-700 tabular-nums">{activity.calories || details?.summary?.calories}</p>
+                <p className="text-3xs text-ink-400 mt-0.5">kcal</p>
               </div>
             )}
             {(activity.avg_cadence || details?.summary?.averageRunCadence) && (
-              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+              <div className="bg-page/50 rounded-xl p-4 border border-page/20">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Footprints className="h-3.5 w-3.5 text-cyan-400" />
-                  <p className="text-3xs font-bold uppercase text-slate-400">Cadence</p>
+                  <Footprints className="h-3.5 w-3.5 text-band-2" />
+                  <p className="text-3xs font-bold uppercase text-ink-400">Cadence</p>
                 </div>
-                <p className="text-2xl font-black text-white tabular-nums">{Math.round(activity.avg_cadence || details?.summary?.averageRunCadence)}</p>
-                <p className="text-3xs text-slate-500 mt-0.5">steps/min</p>
+                <p className="text-2xl font-black text-ink-700 tabular-nums">{Math.round(activity.avg_cadence || details?.summary?.averageRunCadence)}</p>
+                <p className="text-3xs text-ink-400 mt-0.5">steps/min</p>
               </div>
             )}
             {(activity.avg_stride_length || details?.summary?.strideLength) && (
-              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+              <div className="bg-page/50 rounded-xl p-4 border border-page/20">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <TrendingUp className="h-3.5 w-3.5 text-purple-400" />
-                  <p className="text-3xs font-bold uppercase text-slate-400">Stride</p>
+                  <TrendingUp className="h-3.5 w-3.5 text-purple-600" />
+                  <p className="text-3xs font-bold uppercase text-ink-400">Stride</p>
                 </div>
-                <p className="text-2xl font-black text-white tabular-nums">
+                <p className="text-2xl font-black text-ink-700 tabular-nums">
                   {activity.avg_stride_length
                     ? (activity.avg_stride_length > 10 ? (activity.avg_stride_length / 100).toFixed(2) : activity.avg_stride_length.toFixed(2))
                     : details?.summary?.strideLength?.toFixed(2)}
                 </p>
-                <p className="text-3xs text-slate-500 mt-0.5">meters</p>
+                <p className="text-3xs text-ink-400 mt-0.5">meters</p>
               </div>
             )}
             {(activity.vo2max || details?.summary?.vO2MaxValue) && (
-              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+              <div className="bg-page/50 rounded-xl p-4 border border-page/20">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Zap className="h-3.5 w-3.5 text-yellow-400" />
-                  <p className="text-3xs font-bold uppercase text-slate-400">VO2 Max</p>
+                  <Zap className="h-3.5 w-3.5 text-band-3" />
+                  <p className="text-3xs font-bold uppercase text-ink-400">VO2 Max</p>
                 </div>
-                <p className="text-2xl font-black text-white tabular-nums">{activity.vo2max || details?.summary?.vO2MaxValue}</p>
-                <p className="text-3xs text-slate-500 mt-0.5">ml/kg/min</p>
+                <p className="text-2xl font-black text-ink-700 tabular-nums">{activity.vo2max || details?.summary?.vO2MaxValue}</p>
+                <p className="text-3xs text-ink-400 mt-0.5">ml/kg/min</p>
               </div>
             )}
             {activity.max_hr && (
-              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+              <div className="bg-page/50 rounded-xl p-4 border border-page/20">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Heart className="h-3.5 w-3.5 text-red-400" />
-                  <p className="text-3xs font-bold uppercase text-slate-400">Max HR</p>
+                  <Heart className="h-3.5 w-3.5 text-accent-red" />
+                  <p className="text-3xs font-bold uppercase text-ink-400">Max HR</p>
                 </div>
-                <p className="text-2xl font-black text-white tabular-nums">{activity.max_hr}</p>
-                <p className="text-3xs text-slate-500 mt-0.5">bpm</p>
+                <p className="text-2xl font-black text-ink-700 tabular-nums">{activity.max_hr}</p>
+                <p className="text-3xs text-ink-400 mt-0.5">bpm</p>
               </div>
             )}
             {details?.summary?.trainingEffect && (
-              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+              <div className="bg-page/50 rounded-xl p-4 border border-page/20">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Activity className="h-3.5 w-3.5 text-blue-400" />
-                  <p className="text-3xs font-bold uppercase text-slate-400">Training Effect</p>
+                  <Activity className="h-3.5 w-3.5 text-band-2" />
+                  <p className="text-3xs font-bold uppercase text-ink-400">Training Effect</p>
                 </div>
                 <div className="flex items-baseline gap-3">
                   <div>
-                    <p className="text-xl font-black text-blue-400 tabular-nums">{details.summary.trainingEffect.toFixed(1)}</p>
-                    <p className="text-3xs text-slate-500">Aerobic</p>
+                    <p className="text-xl font-black text-band-2 tabular-nums">{details.summary.trainingEffect.toFixed(1)}</p>
+                    <p className="text-3xs text-ink-400">Aerobic</p>
                   </div>
                   {details.summary.anaerobicTrainingEffect && (
                     <div>
-                      <p className="text-xl font-black text-orange-400 tabular-nums">{details.summary.anaerobicTrainingEffect.toFixed(1)}</p>
-                      <p className="text-3xs text-slate-500">Anaerobic</p>
+                      <p className="text-xl font-black text-band-3 tabular-nums">{details.summary.anaerobicTrainingEffect.toFixed(1)}</p>
+                      <p className="text-3xs text-ink-400">Anaerobic</p>
                     </div>
                   )}
                 </div>
               </div>
             )}
             {(details?.summary?.perceivedRpe != null || details?.summary?.perceivedFeel != null) && (
-              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/20">
+              <div className="bg-page/50 rounded-xl p-4 border border-page/20">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Gauge className="h-3.5 w-3.5 text-primary-400" />
-                  <p className="text-3xs font-bold uppercase text-slate-400">Self Evaluation</p>
+                  <Gauge className="h-3.5 w-3.5 text-brand-600" />
+                  <p className="text-3xs font-bold uppercase text-ink-400">Self Evaluation</p>
                 </div>
                 <div className="flex items-baseline gap-3">
                   {details.summary.perceivedRpe != null && (
                     <div>
-                      <p className="text-xl font-black text-primary-400 tabular-nums">{details.summary.perceivedRpe.toFixed(0)}<span className="text-xs text-slate-500">/10</span></p>
-                      <p className="text-3xs text-slate-500">Effort</p>
+                      <p className="text-xl font-black text-brand-600 tabular-nums">{details.summary.perceivedRpe.toFixed(0)}<span className="text-xs text-ink-400">/10</span></p>
+                      <p className="text-3xs text-ink-400">Effort</p>
                     </div>
                   )}
                   {details.summary.perceivedFeel != null && (
                     <div>
                       <p className="text-xl leading-none">{['😣','😕','😐','🙂','😄'][Math.round(details.summary.perceivedFeel)] ?? '—'}</p>
-                      <p className="text-3xs text-slate-500 mt-1">Feel</p>
+                      <p className="text-3xs text-ink-400 mt-1">Feel</p>
                     </div>
                   )}
                 </div>
@@ -988,15 +988,15 @@ function ActivityCard({
           {/* Charts - Full Width Stacked */}
           {splits.length >= 2 && (
             <div className="space-y-4">
-              <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/20">
+              <div className="bg-page/40 rounded-xl p-4 border border-page/20">
                 <PaceChart splits={splits} planned={planned || undefined} />
               </div>
               {splits.some(s => s.averageHR) && (
-                <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/20">
+                <div className="bg-page/40 rounded-xl p-4 border border-page/20">
                   <HRChart splits={splits} maxHR={activity.max_hr || 190} />
                 </div>
               )}
-              <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-700/20">
+              <div className="bg-page/40 rounded-xl p-4 border border-page/20">
                 <ElevationChart splits={splits} />
               </div>
             </div>
@@ -1033,9 +1033,9 @@ export function ActivityFeed({
 }: ActivityFeedProps) {
   if (activities.length === 0 && !syncing) {
     return (
-      <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-8 text-center">
-        <Activity className="h-8 w-8 text-slate-600 mx-auto mb-3" />
-        <p className="text-sm text-slate-400">No activities this week.</p>
+      <div className="bg-card/30 rounded-card border border-page/20 p-8 text-center">
+        <Activity className="h-8 w-8 text-ink-400 mx-auto mb-3" />
+        <p className="text-sm text-ink-400">No activities this week.</p>
       </div>
     );
   }

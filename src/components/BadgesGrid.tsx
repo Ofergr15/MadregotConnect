@@ -76,7 +76,7 @@ export function BadgesGrid({ athleteId }: { athleteId: string }) {
               )}
             >
               {!b.earned && (
-                <Lock className="absolute top-2 end-2 h-3 w-3 text-slate-500" aria-label={t('locked')} />
+                <Lock className="absolute top-2 end-2 h-3 w-3 text-ink-400" aria-label={t('locked')} />
               )}
               {b.iconUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -89,13 +89,13 @@ export function BadgesGrid({ athleteId }: { athleteId: string }) {
                 <span className={cn('text-3xl leading-none', !b.earned && 'grayscale')}>{b.icon}</span>
               )}
               <span
-                className={cn('text-2xs font-semibold leading-tight line-clamp-2', b.earned ? 'text-white' : 'text-slate-400')}
+                className={cn('text-2xs font-semibold leading-tight line-clamp-2', b.earned ? 'text-ink-700' : 'text-ink-400')}
                 dir="auto"
               >
                 {name}
               </span>
               {b.earned && b.awardedAt && (
-                <span className="text-3xs text-slate-500">
+                <span className="text-3xs text-ink-400">
                   {t('earnedOn')} {fmtDate(b.awardedAt)}
                 </span>
               )}

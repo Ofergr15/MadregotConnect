@@ -49,60 +49,60 @@ export function PersonalRecords({ athleteId }: { athleteId: string }) {
     iso ? new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
 
   return (
-    <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+    <div className="rounded-card bg-card/80 border border-page/50 p-5">
       <div className="flex items-center gap-2 mb-4">
-        <Zap className="h-4 w-4 text-primary-400" />
-        <h2 className="text-sm font-semibold text-white uppercase tracking-wider">שיאים אישיים</h2>
+        <Zap className="h-4 w-4 text-brand-600" />
+        <h2 className="text-sm font-semibold text-ink-700 uppercase tracking-wider">שיאים אישיים</h2>
       </div>
       <div className="space-y-2">
         {achieved.map((b) => (
-          <div key={b.key} className="flex items-center gap-3 bg-slate-900/50 rounded-xl p-3">
-            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-primary-300 bg-primary-600/20 rounded-lg py-2">
+          <div key={b.key} className="flex items-center gap-3 bg-page/50 rounded-xl p-3">
+            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-brand-600 bg-brand-600/20 rounded-lg py-2">
               {b.key === 'hm' ? 'HM' : b.key === 'fm' ? 'FM' : b.label}
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-white">{b.label}</div>
+              <div className="text-sm font-semibold text-ink-700">{b.label}</div>
               {b.date && (
-                <div className="text-xs text-slate-400 truncate" dir="auto">
+                <div className="text-xs text-ink-400 truncate" dir="auto">
                   {fmtDate(b.date)}{b.activityName ? ` · ${b.activityName}` : ''}
                 </div>
               )}
             </div>
-            <div className="text-lg font-black text-white tabular-nums shrink-0">{formatTime(b.seconds!)}</div>
+            <div className="text-lg font-black text-ink-700 tabular-nums shrink-0">{formatTime(b.seconds!)}</div>
           </div>
         ))}
         {longest && (
-          <div className="flex items-center gap-3 bg-slate-900/50 rounded-xl p-3">
-            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-emerald-300 bg-emerald-600/20 rounded-lg py-2">
+          <div className="flex items-center gap-3 bg-page/50 rounded-xl p-3">
+            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-accent-600 bg-accent-600/20 rounded-lg py-2">
               MAX
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-white">הריצה הארוכה ביותר</div>
+              <div className="text-sm font-semibold text-ink-700">הריצה הארוכה ביותר</div>
               {longest.date && (
-                <div className="text-xs text-slate-400 truncate" dir="auto">
+                <div className="text-xs text-ink-400 truncate" dir="auto">
                   {fmtDate(longest.date)}{longest.activityName ? ` · ${longest.activityName}` : ''}
                 </div>
               )}
             </div>
-            <div className="text-lg font-black text-white tabular-nums shrink-0">{longest.km} ק״מ</div>
+            <div className="text-lg font-black text-ink-700 tabular-nums shrink-0">{longest.km} ק״מ</div>
           </div>
         )}
         {bestMonth && (
-          <div className="flex items-center gap-3 bg-slate-900/50 rounded-xl p-3">
-            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-amber-300 bg-amber-600/20 rounded-lg py-2">
+          <div className="flex items-center gap-3 bg-page/50 rounded-xl p-3">
+            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-band-3 bg-band-3/20 rounded-lg py-2">
               נפח
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-white">החודש הכי נפחי</div>
-              <div className="text-xs text-slate-400 truncate">
+              <div className="text-sm font-semibold text-ink-700">החודש הכי נפחי</div>
+              <div className="text-xs text-ink-400 truncate">
                 {HE_MONTHS[bestMonth.month]} {bestMonth.year}
               </div>
             </div>
-            <div className="text-lg font-black text-white tabular-nums shrink-0">{bestMonth.km} ק״מ</div>
+            <div className="text-lg font-black text-ink-700 tabular-nums shrink-0">{bestMonth.km} ק״מ</div>
           </div>
         )}
       </div>
-      <p className="mt-3 text-2xs text-slate-500">מחושב אוטומטית מהריצות שלך (גרמין / סטרבה)</p>
+      <p className="mt-3 text-2xs text-ink-400">מחושב אוטומטית מהריצות שלך (גרמין / סטרבה)</p>
     </div>
   );
 }

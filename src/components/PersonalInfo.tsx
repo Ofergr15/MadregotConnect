@@ -204,7 +204,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       </InsetSection>
 
       {saved && (
-        <p className="flex items-center gap-1.5 text-green-400 px-1 -mt-2 mb-2">
+        <p className="flex items-center gap-1.5 text-accent-600 px-1 -mt-2 mb-2">
           <CheckCircle2 className="h-3.5 w-3.5" />
           <span className="text-xs font-medium">{t('saved')}</span>
         </p>
@@ -218,9 +218,9 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           value={name}
           onChange={e => { setName(e.target.value); setNameError(false); }}
           placeholder={t('fullNamePlaceholder')}
-          className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50 mb-2"
+          className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50 mb-2"
         />
-        {nameError && <p className="text-xs text-red-400 mb-2">{t('nameRequired')}</p>}
+        {nameError && <p className="text-xs text-accent-red mb-2">{t('nameRequired')}</p>}
         <Button
           className="w-full mt-2"
           disabled={saving}
@@ -240,7 +240,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           type="date"
           value={birthDate}
           onChange={e => setBirthDate(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50 [color-scheme:dark] mb-4"
+          className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50 [color-scheme:dark] mb-4"
         />
         <Button className="w-full" disabled={saving} onClick={() => { persist(snapshot({})); setEditField(null); }}>
           {t('saveChanges')}
@@ -254,8 +254,8 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           value={gender}
           onChange={(g) => { persist(snapshot({ gender: g })); setEditField(null); }}
           options={[
-            { value: 'male', label: t('genderMale'), activeBg: 'bg-blue-600' },
-            { value: 'female', label: t('genderFemale'), activeBg: 'bg-rose-500' },
+            { value: 'male', label: t('genderMale'), activeBg: 'bg-band-2' },
+            { value: 'female', label: t('genderFemale'), activeBg: 'bg-accent-red' },
           ]}
         />
       </Sheet>
@@ -273,7 +273,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
                   key={size}
                   label={size}
                   onClick={() => { setShoeSize(size); persist(snapshot({ shoeSize: size })); setEditField(null); }}
-                  trailing={isSelected ? <CheckCircle2 className="h-5 w-5 text-primary-500" /> : undefined}
+                  trailing={isSelected ? <CheckCircle2 className="h-5 w-5 text-brand-600" /> : undefined}
                 />
               );
             })}
@@ -298,7 +298,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           onChange={e => setPhone(e.target.value)}
           placeholder={t('phonePlaceholder')}
           dir="ltr"
-          className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 text-end focus:outline-none focus:border-primary-600/50 mb-4"
+          className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 text-end focus:outline-none focus:border-brand-600/50 mb-4"
         />
         <Button className="w-full" disabled={saving} onClick={() => { persist(snapshot({})); setEditField(null); }}>
           {t('saveChanges')}

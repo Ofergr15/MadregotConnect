@@ -74,8 +74,8 @@ function AuthorRow({ item }: { item: FeedItem }) {
     <>
       <FeedAvatar name={item.author.name} url={item.author.avatarUrl} />
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-white leading-tight truncate">{item.author.name}</p>
-        <p className="text-xs text-slate-500 leading-tight">
+        <p className="text-sm font-semibold text-ink-700 leading-tight truncate">{item.author.name}</p>
+        <p className="text-xs text-ink-400 leading-tight">
           {item.author.groupName ? `${item.author.groupName} · ` : ''}
           <WhenLabel item={item} />
         </p>
@@ -120,8 +120,8 @@ function LikerStack({ likers }: { likers: FeedLiker[] }) {
           name={l.name}
           url={l.avatarUrl}
           maxChars={1}
-          className={cn('w-5 h-5 bg-primary-600/30 ring-2 ring-slate-800', i > 0 && '-ms-1.5')}
-          textClassName="text-[8px] text-primary-300"
+          className={cn('w-5 h-5 bg-brand-600/10 ring-2 ring-page', i > 0 && '-ms-1.5')}
+          textClassName="text-[8px] text-brand-600"
         />
       ))}
     </div>
@@ -184,19 +184,19 @@ function ActionRow({
             className="group relative flex items-center gap-1.5 max-w-full text-start"
           >
             <LikerStack likers={likers} />
-            <span className="text-xs text-slate-500 group-hover:text-slate-300 transition-colors truncate">
+            <span className="text-xs text-ink-400 group-hover:text-ink-500 transition-colors truncate">
               {likeSummary(likers, likeCount, t)}
             </span>
 
             {likers.length > 0 && (
-              <span className="hidden md:block absolute bottom-full start-0 mb-1.5 px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50 text-start">
+              <span className="hidden md:block absolute bottom-full start-0 mb-1.5 px-2.5 py-1.5 bg-page border border-ink-300 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50 text-start">
                 {likers.map(l => (
-                  <span key={l.athleteId} className="block text-xs text-slate-200 leading-relaxed">
+                  <span key={l.athleteId} className="block text-xs text-ink-700 leading-relaxed">
                     {l.name}
                   </span>
                 ))}
                 {likeCount > likers.length && (
-                  <span className="block text-[10px] text-slate-500 leading-relaxed">
+                  <span className="block text-[10px] text-ink-400 leading-relaxed">
                     {t('andMore', { count: likeCount - likers.length })}
                   </span>
                 )}
@@ -213,15 +213,15 @@ function ActionRow({
           aria-pressed={liked}
           className={cn(
             'flex items-center px-3 py-1.5 rounded-full transition-all active:scale-90',
-            liked ? 'text-rose-400 bg-rose-500/10' : 'text-slate-400 hover:text-slate-300 hover:bg-slate-700/50',
+            liked ? 'text-accent-red bg-accent-red/10' : 'text-ink-400 hover:text-ink-500 hover:bg-page',
           )}
         >
-          <Heart className={cn('h-4 w-4', liked && 'fill-rose-400')} />
+          <Heart className={cn('h-4 w-4', liked && 'fill-accent-red')} />
         </button>
 
         <button
           onClick={onCommentPress}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 transition-all active:scale-90"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-ink-400 hover:text-ink-500 hover:bg-page transition-all active:scale-90"
         >
           <MessageCircle className="h-4 w-4" />
           {commentCount > 0 && <span className="tabular-nums text-xs">{commentCount}</span>}
@@ -231,7 +231,7 @@ function ActionRow({
           <button
             onClick={() => setShareOpen(true)}
             aria-label={t('shareToStory')}
-            className="flex items-center px-3 py-1.5 rounded-full text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 transition-all active:scale-90"
+            className="flex items-center px-3 py-1.5 rounded-full text-ink-400 hover:text-ink-500 hover:bg-page transition-all active:scale-90"
           >
             <Share2 className="h-4 w-4" />
           </button>
@@ -240,7 +240,7 @@ function ActionRow({
         {canOpenRunChat && (
           <button
             onClick={() => router.push(`/dashboard/run-chat/${item.activity!.id}`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-400 hover:text-primary-400 hover:bg-primary-500/10 transition-all active:scale-90"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-ink-400 hover:text-brand-600 hover:bg-brand-600/10 transition-all active:scale-90"
           >
             {/* Distinct from the comment button's icon just above — same
                 glyph for two different actions in one row read as a visual
@@ -253,7 +253,7 @@ function ActionRow({
         {onDelete && (
           <button
             onClick={onDelete}
-            className="ms-auto p-2 rounded-full text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
+            className="ms-auto p-2 rounded-full text-ink-300 hover:text-accent-red hover:bg-accent-red/10 transition-all"
             aria-label={t('deletePost')}
           >
             <Trash2 className="h-4 w-4" />
@@ -298,51 +298,51 @@ function ActivityCard({
   const showElevation = (act.elevationGain ?? 0) > 5;
 
   return (
-    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden">
+    <div className="bg-card rounded-card border border-page overflow-hidden">
       <div className="p-4">
         <div className="flex items-start gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <AuthorRow item={item} />
           </div>
-          <div className="w-7 h-7 rounded-full bg-primary-600/15 flex items-center justify-center shrink-0 mt-1">
-            <Route className="h-3.5 w-3.5 text-primary-400" />
+          <div className="w-7 h-7 rounded-full bg-brand-600/10 flex items-center justify-center shrink-0 mt-1">
+            <Route className="h-3.5 w-3.5 text-brand-600" />
           </div>
         </div>
 
         {act.activityName && (
-          <p className="text-sm text-white font-semibold mb-3">{act.activityName}</p>
+          <p className="text-sm text-ink-700 font-semibold mb-3">{act.activityName}</p>
         )}
 
         <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{t('statDistance')}</p>
-            <p className="text-base font-black text-white tabular-nums">
-              {distKm}<span className="text-[10px] text-slate-400 ms-0.5">{t('km')}</span>
+          <div className="bg-page rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statDistance')}</p>
+            <p className="text-base font-black text-ink-700 tabular-nums">
+              {distKm}<span className="text-[10px] text-ink-400 ms-0.5">{t('km')}</span>
             </p>
           </div>
-          <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{t('statPace')}</p>
-            <p className="text-base font-black text-white tabular-nums">
-              {paceStr || '—'}<span className="text-[10px] text-slate-400 ms-0.5">{t('perKm')}</span>
+          <div className="bg-page rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statPace')}</p>
+            <p className="text-base font-black text-ink-700 tabular-nums">
+              {paceStr || '—'}<span className="text-[10px] text-ink-400 ms-0.5">{t('perKm')}</span>
             </p>
           </div>
-          <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{t('statTime')}</p>
-            <p className="text-base font-black text-white tabular-nums">{durationStr}</p>
+          <div className="bg-page rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statTime')}</p>
+            <p className="text-base font-black text-ink-700 tabular-nums">{durationStr}</p>
           </div>
         </div>
 
         {(act.averageHr || showElevation || act.locationName) && (
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-slate-400">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-ink-400">
             {act.averageHr && (
               <span className="flex items-center gap-1">
-                <Heart className="h-3 w-3 text-rose-400" />
+                <Heart className="h-3 w-3 text-accent-red" />
                 {act.averageHr} bpm
               </span>
             )}
             {showElevation && (
               <span className="flex items-center gap-1">
-                <Mountain className="h-3 w-3 text-green-400" />
+                <Mountain className="h-3 w-3 text-accent-600" />
                 +{Math.round(act.elevationGain ?? 0)}m
               </span>
             )}
@@ -362,7 +362,7 @@ function ActivityCard({
         )}
 
         {item.body && (
-          <p className="text-sm text-slate-300 mb-2 leading-relaxed"><FeedBodyText body={item.body} /></p>
+          <p className="text-sm text-ink-500 mb-2 leading-relaxed"><FeedBodyText body={item.body} /></p>
         )}
 
         <ActionRow
@@ -402,21 +402,21 @@ function AchievementCard({
   const badgeName = locale === 'he' ? achievement.badgeNameHe : achievement.badgeNameEn;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/15 via-slate-800/90 to-slate-800 p-4">
-      <div className="absolute top-0 end-0 w-28 h-28 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
+    <div className="relative overflow-hidden rounded-2xl border border-band-3 bg-gradient-to-br from-band-3/15 via-card/90 to-card p-4">
+      <div className="absolute top-0 end-0 w-28 h-28 bg-band-3/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
 
       <div className="relative">
         <div className="flex items-start gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <AuthorRow item={item} />
           </div>
-          <div className="w-7 h-7 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0 mt-1">
-            <Award className="h-3.5 w-3.5 text-amber-400" />
+          <div className="w-7 h-7 rounded-full bg-band-3/10 flex items-center justify-center shrink-0 mt-1">
+            <Award className="h-3.5 w-3.5 text-band-3" />
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-3xl shrink-0 shadow-lg shadow-amber-500/10 overflow-hidden">
+          <div className="w-14 h-14 rounded-2xl bg-band-3/10 border border-band-3 flex items-center justify-center text-3xl shrink-0 shadow-lg shadow-band-3/10 overflow-hidden">
             {isImageUrl(achievement.badgeIcon) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={achievement.badgeIcon} alt={badgeName} className="h-9 w-9 object-contain" />
@@ -425,13 +425,13 @@ function AchievementCard({
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-2xs font-bold uppercase tracking-wider text-amber-400">{t('newBadgeEarned')}</p>
-            <p className="text-lg font-black text-white truncate" dir="auto">{badgeName}</p>
+            <p className="text-2xs font-bold uppercase tracking-wider text-band-3">{t('newBadgeEarned')}</p>
+            <p className="text-lg font-black text-ink-700 truncate" dir="auto">{badgeName}</p>
           </div>
         </div>
 
         {item.body && (
-          <p className="mt-3 text-sm text-slate-300 whitespace-pre-line leading-relaxed"><FeedBodyText body={item.body} /></p>
+          <p className="mt-3 text-sm text-ink-500 whitespace-pre-line leading-relaxed"><FeedBodyText body={item.body} /></p>
         )}
 
         {/* Achievements are never activities — no run-chat CTA */}
@@ -460,12 +460,12 @@ function PostCard({
   onDelete?: () => void;
 }) {
   return (
-    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden">
+    <div className="bg-card rounded-card border border-page overflow-hidden">
       <div className="p-4">
         <AuthorRow item={item} />
 
         {item.body && (
-          <p className="mt-3 text-sm text-slate-100 whitespace-pre-line leading-relaxed"><FeedBodyText body={item.body} /></p>
+          <p className="mt-3 text-sm text-ink-700 whitespace-pre-line leading-relaxed"><FeedBodyText body={item.body} /></p>
         )}
 
         {item.media.length > 0 && (
@@ -481,7 +481,7 @@ function PostCard({
               <div
                 key={m.path}
                 className={cn(
-                  'overflow-hidden rounded-xl bg-slate-900',
+                  'overflow-hidden rounded-xl bg-page',
                   item.media.length === 3 && i === 0 && 'col-span-2',
                 )}
               >

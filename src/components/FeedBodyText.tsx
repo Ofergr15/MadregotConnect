@@ -17,7 +17,7 @@ export function FeedBodyText({ body }: { body: string }) {
           <Link
             key={i}
             href={`/dashboard/teammate/${seg.athleteId}`}
-            className="font-semibold text-primary-400 hover:underline"
+            className="font-semibold text-brand-600 hover:underline"
             dir="auto"
           >
             @{seg.name}

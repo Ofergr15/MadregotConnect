@@ -89,7 +89,7 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
       trailingAction={
         <button
           onClick={handleClose}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          className="p-1.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
           aria-label={t('close')}
         >
           <X className="h-5 w-5" />
@@ -98,7 +98,7 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
       className="h-[80vh]"
       bodyClassName="flex-1 min-h-0 p-0 flex flex-col"
       footer={
-        <div className="flex-none flex items-end gap-2 px-4 pt-2 pb-3 border-t border-slate-700/60">
+        <div className="flex-none flex items-end gap-2 px-4 pt-2 pb-3 border-t border-page">
           <MentionTextarea
             value={draft}
             onChange={setDraft}
@@ -108,9 +108,9 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
             rows={1}
             autoGrow
             className={cn(
-              'flex-1 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5',
-              'text-sm text-white placeholder:text-slate-500',
-              'resize-none focus:outline-none focus:border-primary-500 transition-colors',
+              'flex-1 bg-page border border-page rounded-xl px-3 py-2.5',
+              'text-sm text-ink-700 placeholder:text-ink-400',
+              'resize-none focus:outline-none focus:border-brand-600 transition-colors',
               'min-h-[40px]',
             )}
           />
@@ -121,12 +121,12 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
             className={cn(
               'shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all',
               draft.trim() && !sending
-                ? 'bg-primary-600 text-white active:scale-90'
-                : 'bg-slate-700 text-slate-500',
+                ? 'bg-brand-600 text-white active:scale-90'
+                : 'bg-page text-ink-400',
             )}
           >
             {sending
-              ? <div className="h-4 w-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" />
+              ? <div className="h-4 w-4 rounded-full border-2 border-ink-300 border-t-transparent animate-spin" />
               : <Send className="h-4 w-4" />}
           </button>
         </div>
@@ -135,32 +135,32 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
       <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
         {loading && (
           <div className="flex justify-center py-8">
-            <div className="h-5 w-5 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
+            <div className="h-5 w-5 rounded-full border-2 border-brand-600 border-t-transparent animate-spin" />
           </div>
         )}
         {!loading && comments.length === 0 && (
-          <p className="text-center text-sm text-slate-500 py-8">{t('firstToComment')}</p>
+          <p className="text-center text-sm text-ink-400 py-8">{t('firstToComment')}</p>
         )}
         {comments.map(c => (
           <div key={c.id} className="flex gap-3">
             <FeedAvatar
               name={c.author.name}
               url={c.author.avatarUrl}
-              className="w-8 h-8 bg-slate-700"
-              textClassName="text-slate-300"
+              className="w-8 h-8 bg-page"
+              textClassName="text-ink-500"
             />
             <div className="flex-1 min-w-0">
-              <div className="bg-slate-700/50 rounded-2xl rounded-ss-sm px-3 py-2">
-                <p className="text-xs font-semibold text-primary-300 mb-0.5">{c.author.name}</p>
-                <p className="text-sm text-slate-200 leading-snug whitespace-pre-line"><FeedBodyText body={c.body} /></p>
+              <div className="bg-page rounded-2xl rounded-ss-sm px-3 py-2">
+                <p className="text-xs font-semibold text-brand-600 mb-0.5">{c.author.name}</p>
+                <p className="text-sm text-ink-700 leading-snug whitespace-pre-line"><FeedBodyText body={c.body} /></p>
               </div>
-              <p className="text-[10px] text-slate-600 mt-1 ms-1">{format.relativeTime(new Date(c.createdAt))}</p>
+              <p className="text-[10px] text-ink-300 mt-1 ms-1">{format.relativeTime(new Date(c.createdAt))}</p>
             </div>
             {c.canDelete && (
               <button
                 onClick={() => handleDelete(c.id)}
                 aria-label="Delete comment"
-                className="shrink-0 self-start mt-1.5 p-1.5 rounded-full text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                className="shrink-0 self-start mt-1.5 p-1.5 rounded-full text-ink-300 hover:text-accent-red hover:bg-accent-red/10 transition-all"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

@@ -265,17 +265,17 @@ export default function FeedPage() {
       {focusActivityId && (focusItem || focusError) && (
         <div className="mb-4">
           <div className="flex items-center justify-between px-1 mb-2">
-            <span className="text-xs font-medium text-slate-500">{t('focusedTitle')}</span>
+            <span className="text-xs font-medium text-ink-400">{t('focusedTitle')}</span>
             <button
               onClick={clearFocus}
-              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 min-h-[32px] px-1"
+              className="flex items-center gap-1 text-xs text-ink-400 hover:text-ink-500 min-h-[32px] px-1"
             >
               {t('focusedShowAll')}
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
           {focusItem ? (
-            <div className="rounded-2xl ring-2 ring-primary-500/50">
+            <div className="rounded-2xl ring-2 ring-brand-600">
               <FeedCard
                 item={focusItem}
                 commentCount={focusItem.commentCount}
@@ -286,8 +286,8 @@ export default function FeedPage() {
               />
             </div>
           ) : (
-            <div className="bg-slate-800/50 border border-slate-700/30 rounded-2xl px-4 py-3 text-center">
-              <p className="text-sm text-slate-400">{t('focusedMissing')}</p>
+            <div className="bg-card border border-page rounded-2xl px-4 py-3 text-center">
+              <p className="text-sm text-ink-400">{t('focusedMissing')}</p>
             </div>
           )}
         </div>
@@ -306,22 +306,22 @@ export default function FeedPage() {
       )}
 
       <div
-        className="mb-4 bg-slate-800/50 rounded-2xl border border-slate-700/30 p-3 flex items-center gap-3 cursor-pointer hover:bg-slate-800/70 transition-colors active:scale-[0.98]"
+        className="mb-4 bg-card rounded-2xl border border-page p-3 flex items-center gap-3 cursor-pointer hover:bg-page/40 transition-colors active:scale-[0.98]"
         onClick={() => setComposerOpen(true)}
       >
         <FeedAvatar
           name={myName}
           url={null}
-          className="w-9 h-9 bg-primary-600/20"
-          textClassName="text-primary-400"
+          className="w-9 h-9 bg-brand-600/10"
+          textClassName="text-brand-600"
         />
-        <span className="flex-1 text-sm text-slate-500">{t('composerPlaceholder')}</span>
-        <PenSquare className="h-4 w-4 text-slate-600" />
+        <span className="flex-1 text-sm text-ink-400">{t('composerPlaceholder')}</span>
+        <PenSquare className="h-4 w-4 text-ink-300" />
       </div>
 
       {deleteError && (
-        <div className="mb-3 bg-red-900/20 border border-red-700/30 rounded-2xl px-4 py-3 text-center">
-          <p className="text-sm text-red-400">{deleteError}</p>
+        <div className="mb-3 bg-accent-red/20 border border-accent-red/30 rounded-2xl px-4 py-3 text-center">
+          <p className="text-sm text-accent-red">{deleteError}</p>
         </div>
       )}
 
@@ -380,7 +380,7 @@ export default function FeedPage() {
       )}
 
       {!hasMore && items.length > 0 && (
-        <p className="text-center text-xs text-slate-600 py-6">{t('allLoaded')} ✓</p>
+        <p className="text-center text-xs text-ink-300 py-6">{t('allLoaded')} ✓</p>
       )}
 
       {commentItem && (

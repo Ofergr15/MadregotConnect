@@ -86,14 +86,14 @@ export function ChallengesGrid({ athleteId }: { athleteId: string }) {
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-white truncate" dir="auto">{name}</span>
-                  {c.completed && <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />}
+                  <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{name}</span>
+                  {c.completed && <CheckCircle2 className="h-4 w-4 text-accent-600 shrink-0" />}
                 </div>
                 {description && (
-                  <p className="text-2xs text-slate-500 mt-0.5 line-clamp-2" dir="auto">{description}</p>
+                  <p className="text-2xs text-ink-400 mt-0.5 line-clamp-2" dir="auto">{description}</p>
                 )}
                 {c.scope === 'group' && (
-                  <span className="inline-flex items-center gap-1 text-3xs text-indigo-400 mt-1">
+                  <span className="inline-flex items-center gap-1 text-3xs text-indigo-600 mt-1">
                     <Users className="h-3 w-3" />
                     {t('challengeGroupTag')}
                   </span>
@@ -102,17 +102,17 @@ export function ChallengesGrid({ athleteId }: { athleteId: string }) {
             </div>
 
             <div className="mt-3">
-              <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-page/50 rounded-full overflow-hidden">
                 <div
-                  className={cn('h-full rounded-full transition-all', c.completed ? 'bg-emerald-400' : 'bg-primary-600')}
+                  className={cn('h-full rounded-full transition-all', c.completed ? 'bg-accent-600' : 'bg-brand-600')}
                   style={{ width: `${pct}%` }}
                 />
               </div>
               <div className="flex items-center justify-between mt-1.5">
-                <span className="text-xs font-semibold text-slate-300 tabular-nums">
+                <span className="text-xs font-semibold text-ink-500 tabular-nums">
                   {fmtValue(c.current, c.metric)} / {fmtValue(c.targetValue, c.metric)} {metricUnit(c.metric)}
                 </span>
-                <span className="text-2xs text-slate-500">
+                <span className="text-2xs text-ink-400">
                   {c.completed
                     ? t('challengeCompleted')
                     : remaining === 0

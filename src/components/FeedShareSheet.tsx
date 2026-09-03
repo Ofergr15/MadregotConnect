@@ -99,7 +99,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
       trailingAction={
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          className="p-1.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
           aria-label={t('close')}
         >
           <X className="h-5 w-5" />
@@ -108,15 +108,15 @@ export function FeedShareSheet({ item, onClose }: Props) {
       className="max-h-[92vh]"
       bodyClassName="flex-1 min-h-0 p-0"
       footer={
-        <div className="flex-none px-5 pt-2 pb-4 border-t border-slate-700/60">
+        <div className="flex-none px-5 pt-2 pb-4 border-t border-page">
           <button
             onClick={handleShare}
             disabled={rendering || busy || !previewUrl}
             className={cn(
               'w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all active:scale-[0.98]',
               rendering || busy || !previewUrl
-                ? 'bg-slate-700 text-slate-500'
-                : 'bg-primary-600 text-white',
+                ? 'bg-page text-ink-400'
+                : 'bg-brand-600 text-white',
             )}
           >
             {busy
@@ -136,8 +136,8 @@ export function FeedShareSheet({ item, onClose }: Props) {
                 className={cn(
                   'flex-1 py-2 rounded-xl text-sm font-semibold transition-colors',
                   template === key
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-slate-900/60 text-slate-400 hover:text-slate-200',
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-page text-ink-400 hover:text-ink-700',
                 )}
               >
                 {ts(TEMPLATE_LABELS[key])}
@@ -156,8 +156,8 @@ export function FeedShareSheet({ item, onClose }: Props) {
                 className={cn(
                   'flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors border',
                   style === o.key
-                    ? 'border-primary-500 text-primary-300 bg-primary-600/10'
-                    : 'border-slate-700 text-slate-500 hover:text-slate-300',
+                    ? 'border-brand-600 text-brand-600 bg-brand-600/10'
+                    : 'border-page text-ink-400 hover:text-ink-500',
                 )}
               >
                 {o.label}
@@ -168,15 +168,15 @@ export function FeedShareSheet({ item, onClose }: Props) {
           {/* 9:16 preview. The checkerboard makes alpha visible for the sticker
               variant — on the sheet's dark panel it would look like a black card. */}
           <div
-            className="relative mx-auto rounded-xl overflow-hidden border border-slate-700"
+            className="relative mx-auto rounded-xl overflow-hidden border border-page"
             style={{
               aspectRatio: '9 / 16',
               maxHeight: '46vh',
               width: 'auto',
-              backgroundColor: '#334155',
+              backgroundColor: '#DFDFDF',
               backgroundImage:
                 style === 'transparent'
-                  ? 'linear-gradient(45deg,#475569 25%,transparent 25%),linear-gradient(-45deg,#475569 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#475569 75%),linear-gradient(-45deg,transparent 75%,#475569 75%)'
+                  ? 'linear-gradient(45deg,#BBBBBB 25%,transparent 25%),linear-gradient(-45deg,#BBBBBB 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#BBBBBB 75%),linear-gradient(-45deg,transparent 75%,#BBBBBB 75%)'
                   : undefined,
               backgroundSize: '20px 20px',
               backgroundPosition: '0 0,0 10px,10px -10px,-10px 0px',
@@ -187,8 +187,8 @@ export function FeedShareSheet({ item, onClose }: Props) {
               <img src={previewUrl} alt={ts('preview')} className="w-full h-full object-contain" />
             )}
             {rendering && (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50">
-                <Loader2 className="h-6 w-6 text-primary-400 animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center bg-page">
+                <Loader2 className="h-6 w-6 text-brand-600 animate-spin" />
               </div>
             )}
           </div>
@@ -208,7 +208,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
               />
               <button
                 onClick={() => fileRef.current?.click()}
-                className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900/60 text-slate-300 text-sm font-medium hover:bg-slate-900 transition-colors"
+                className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-page text-ink-500 text-sm font-medium hover:bg-ink-300/40 transition-colors"
               >
                 <ImagePlus className="h-4 w-4" />
                 {photo ? ts('changePhoto') : ts('addPhoto')}
@@ -217,13 +217,13 @@ export function FeedShareSheet({ item, onClose }: Props) {
           )}
 
           {style === 'transparent' && (
-            <p className="mt-4 text-xs text-slate-500 leading-relaxed text-center">
+            <p className="mt-4 text-xs text-ink-400 leading-relaxed text-center">
               {ts('stickerHint')}
             </p>
           )}
 
           {notice && <p className="mt-3 text-xs text-accent-400 text-center">{notice}</p>}
-          {error && <p className="mt-3 text-xs text-red-400 text-center">{error}</p>}
+          {error && <p className="mt-3 text-xs text-accent-red text-center">{error}</p>}
       </div>
     </Sheet>
   );

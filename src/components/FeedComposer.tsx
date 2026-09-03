@@ -71,7 +71,7 @@ export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
       leadingAction={
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          className="p-1.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
           aria-label={t('close')}
         >
           <X className="h-5 w-5" />
@@ -84,8 +84,8 @@ export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
           className={cn(
             'px-4 py-1.5 rounded-full text-sm font-bold transition-all',
             canPost
-              ? 'bg-primary-600 text-white active:scale-95'
-              : 'bg-slate-700 text-slate-500',
+              ? 'bg-brand-600 text-white active:scale-95'
+              : 'bg-page text-ink-400',
           )}
         >
           {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : t('publish')}
@@ -94,7 +94,7 @@ export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
       className="max-h-[90vh]"
       bodyClassName="flex-1 min-h-0 p-0"
       footer={
-        <div className="flex-none flex items-center gap-3 px-4 pt-2 pb-3 border-t border-slate-700/60">
+        <div className="flex-none flex items-center gap-3 px-4 pt-2 pb-3 border-t border-page">
           <input
             ref={fileRef}
             type="file"
@@ -109,13 +109,13 @@ export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
             className={cn(
               'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all',
               media.length < MAX_IMAGES && !uploading
-                ? 'text-primary-400 bg-primary-600/10 hover:bg-primary-600/20'
-                : 'text-slate-600',
+                ? 'text-brand-600 bg-brand-600/10 hover:bg-brand-600/20'
+                : 'text-ink-300',
             )}
           >
             <ImagePlus className="h-5 w-5" />
             <span>{t('image')}</span>
-            {media.length > 0 && <span className="text-xs text-slate-500">{media.length}/{MAX_IMAGES}</span>}
+            {media.length > 0 && <span className="text-xs text-ink-400">{media.length}/{MAX_IMAGES}</span>}
           </button>
         </div>
       }
@@ -127,7 +127,7 @@ export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
             onChange={setBody}
             viewerId={myAthleteId}
             placeholder={t('composerPlaceholder')}
-            className="w-full bg-transparent text-white placeholder:text-slate-500 text-base leading-relaxed resize-none focus:outline-none"
+            className="w-full bg-transparent text-ink-700 placeholder:text-ink-400 text-base leading-relaxed resize-none focus:outline-none"
             style={{ minHeight: '120px' }}
           />
 
@@ -145,7 +145,7 @@ export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
                 <div
                   key={m.path}
                   className={cn(
-                    'relative overflow-hidden rounded-xl bg-slate-900',
+                    'relative overflow-hidden rounded-xl bg-page',
                     media.length === 3 && i === 0 && 'col-span-2',
                   )}
                 >
@@ -161,7 +161,7 @@ export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
                   />
                   <button
                     onClick={() => removeMedia(m.path)}
-                    className="absolute top-2 end-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80"
+                    className="absolute top-2 end-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-ink-700 hover:bg-black/80"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -171,14 +171,14 @@ export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
           )}
 
           {uploading && (
-            <div className="flex items-center gap-2 mt-3 text-sm text-slate-400">
+            <div className="flex items-center gap-2 mt-3 text-sm text-ink-400">
               <Loader2 className="h-4 w-4 animate-spin" />
               {t('uploadingImage')}
             </div>
           )}
 
           {error && (
-            <p className="mt-3 text-sm text-red-400">{error}</p>
+            <p className="mt-3 text-sm text-accent-red">{error}</p>
           )}
       </div>
     </Sheet>

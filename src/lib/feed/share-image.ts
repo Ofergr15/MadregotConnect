@@ -20,7 +20,7 @@ export const STORY_W = 1080;
 export const STORY_H = 1920;
 
 const MARGIN = 80;
-const BRAND = '#4338ff';
+const BRAND = '#1525FF';
 const LOGO_SRC = '/images/logo-white.png';
 
 /** Layout variants, mirroring the way Strava offers several story styles. */

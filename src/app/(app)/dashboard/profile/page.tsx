@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Mail, Target, Activity, WifiOff, Copy, Check, Share2, Camera, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
+import { mutate as globalMutate } from 'swr';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
 import { ChallengesGrid } from '@/components/ChallengesGrid';
@@ -17,6 +18,9 @@ import { PersonalInfo } from '@/components/PersonalInfo';
 import { ShoeManager } from '@/components/ShoeManager';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
+import { ProfileOverview } from '@/components/profile/ProfileOverview';
+import { SetupChecklist } from '@/components/onboarding/SetupChecklist';
+import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
 import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
 import { shareTextForDay } from '@/lib/workout-share';
 import { fetchActivities } from '@/lib/activities-client';
@@ -81,11 +85,15 @@ const WEEKS: WeekProgram[] = [
 // row list); a value = a detail screen open. Mirrors the mechanism in
 // dashboard/settings/page.tsx (SettingsTab / activeTab) so both "app-native
 // settings-style" screens share one navigation pattern.
-type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'challenges' | 'leaderboards' | 'discover' | 'share' | 'notifications' | 'personalInfo';
+//
+// `setup` is the odd one out: it's already built on the designer's light system,
+// so it renders in its own block rather than inside the dark wrapper the other
+// detail screens still need.
+type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'challenges' | 'leaderboards' | 'discover' | 'share' | 'notifications' | 'personalInfo' | 'setup';
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mt-20"></div>}>
+    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mt-20"></div>}>
       <ProfileContent />
     </Suspense>
   );
@@ -93,12 +101,10 @@ export default function ProfilePage() {
 
 function ProfileContent() {
   const t = useTranslations('profile');
-  const tHeader = useTranslations('header');
   const tCommon = useTranslations('common');
-  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const PROFILE_TAB_KEYS: ProfileTab[] = ['group', 'datasource', 'statistics', 'badges', 'challenges', 'leaderboards', 'discover', 'share', 'notifications', 'personalInfo'];
+  const PROFILE_TAB_KEYS: ProfileTab[] = ['group', 'datasource', 'statistics', 'badges', 'challenges', 'leaderboards', 'discover', 'share', 'notifications', 'personalInfo', 'setup'];
   // null = landing (iOS-style list); a value = a detail screen open. Reads
   // ?tab= on mount and keeps the URL in sync on every change — without this,
   // refreshing while inside any detail screen (e.g. Notification Prefs)
@@ -115,7 +121,6 @@ function ProfileContent() {
   const [athleteName, setAthleteName] = useState('');
   const [athleteEmail, setAthleteEmail] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [memberSince, setMemberSince] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [currentGroupId, setCurrentGroupId] = useState('');
@@ -211,7 +216,6 @@ function ProfileContent() {
         .then(data => {
           if (data?.athlete) {
             setAvatarUrl(data.athlete.avatarUrl || null);
-            setMemberSince(data.athlete.memberSince || null);
           }
         })
         .catch(() => {});
@@ -316,9 +320,9 @@ function ProfileContent() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <User className="h-12 w-12 text-slate-500 mx-auto mb-4" />
+          <User className="h-12 w-12 text-ink-400 mx-auto mb-4" />
           <h2 className="text-lg font-semibold mb-2">{t('noProfileFound')}</h2>
-          <p className="text-slate-400 text-sm">
+          <p className="text-ink-400 text-sm">
             {t('joinViaInvite')}
           </p>
         </div>
@@ -349,7 +353,14 @@ function ProfileContent() {
         body: form,
       });
       const data = await res.json();
-      if (res.ok && data.avatarUrl) setAvatarUrl(data.avatarUrl);
+      if (res.ok && data.avatarUrl) {
+        setAvatarUrl(data.avatarUrl);
+        // Flips the setup checklist's "add a photo" task straight away — this is
+        // the only setup task you can complete without leaving the screen, so
+        // it's the only one that needs a nudge rather than the checklist's own
+        // revalidate-on-open.
+        globalMutate(ONBOARDING_KEY);
+      }
     } catch { /* ignore — keep existing photo */ }
     finally {
       setUploadingPhoto(false);
@@ -396,24 +407,24 @@ function ProfileContent() {
         <div className="text-center py-2">
           {syncModalStatus === 'syncing' ? (
             <>
-              <div className="bg-primary-600/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
+              <div className="bg-brand-600/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Loader2 className="h-8 w-8 text-brand-600 animate-spin" />
               </div>
-              <p className="text-sm text-slate-400">{t('fetchingActivities')}</p>
+              <p className="text-sm text-ink-400">{t('fetchingActivities')}</p>
             </>
           ) : (
             <>
-              <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="h-8 w-8 text-green-400" />
+              <div className="bg-accent-600/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="h-8 w-8 text-accent-600" />
               </div>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-ink-400">
                 {syncModalCount > 0
                   ? t('syncedActivities', { count: syncModalCount })
                   : t('connectedSuccessfully')}
               </p>
               <button
                 onClick={() => setShowSyncModal(false)}
-                className="mt-5 w-full min-h-[48px] rounded-xl font-bold text-base bg-primary-600 hover:bg-primary-700 text-white transition-colors active:scale-[0.98]"
+                className="mt-5 w-full min-h-[48px] rounded-xl font-bold text-base bg-brand-600 hover:bg-brand-700 text-white transition-colors active:scale-[0.98]"
               >
                 {t('letsGo')}
               </button>
@@ -431,14 +442,14 @@ function ProfileContent() {
           <span className="flex items-center gap-2">
             {t('following')}
             {followingCount > 0 && (
-              <span className="text-sm font-medium text-slate-400 tabular-nums">{followingCount}</span>
+              <span className="text-sm font-medium text-ink-400 tabular-nums">{followingCount}</span>
             )}
           </span>
         }
         trailingAction={
           <button
             onClick={() => setShowFollowingSheet(false)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+            className="p-1.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
             aria-label={tCommon('close')}
           >
             <X className="h-5 w-5" />
@@ -448,7 +459,7 @@ function ProfileContent() {
         bodyClassName="px-4 py-2"
       >
         {followingList.length === 0 ? (
-          <p className="text-center text-sm text-slate-500 py-8">{t('noFollowingYet')}</p>
+          <p className="text-center text-sm text-ink-400 py-8">{t('noFollowingYet')}</p>
         ) : (
           followingList.map(a => (
             <div key={a.id} className="flex items-center gap-3 py-2">
@@ -458,12 +469,12 @@ function ProfileContent() {
                 className="flex items-center gap-3 flex-1 min-w-0"
               >
                 <FeedAvatar name={a.name} url={a.avatarUrl} />
-                <span className="text-sm text-slate-200 truncate" dir="auto">{a.name}</span>
+                <span className="text-sm text-ink-700 truncate" dir="auto">{a.name}</span>
               </Link>
               <button
                 onClick={() => handleUnfollow(a.id)}
                 disabled={unfollowingId === a.id}
-                className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-50"
+                className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg border border-ink-300 text-ink-500 hover:text-ink-900 hover:border-ink-300 transition-colors disabled:opacity-50"
               >
                 {unfollowingId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('unfollow')}
               </button>
@@ -472,85 +483,30 @@ function ProfileContent() {
         )}
       </Sheet>
 
-      {/* ═══ HEADER — back-nav on a detail screen only (the Hero below already
-          anchors the landing, like the reference Settings screen's h1) ═══ */}
-      {activeTab !== null && (
-        <BackNav label={t('title')} onBack={() => setActiveTab(null)} />
-      )}
+      {/* ═══ LANDING — the designer's frame (ProfileOverview: greeting, weekly
+          km, updates, race, next workout + RSVP, week strip) over the
+          iOS-Settings inset list of rows that drill into detail screens. ═══ */}
+      {/* Outside both blocks below: the setup checklist's "add a photo" row opens
+          this same picker, so it has to exist while the landing is unmounted. */}
+      <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
 
-      {/* ═══ LANDING — hero (most-important info at a glance) + iOS-Settings
-          inset list of rows that drill into detail screens ═══ */}
       {activeTab === null && (
         <>
-          {/* Profile Hero */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
-            <div className="absolute top-0 end-0 w-32 h-32 bg-primary-600/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-            <div className="relative flex items-center gap-4">
-              <button
-                type="button"
-                onClick={() => photoInputRef.current?.click()}
-                className="relative w-16 h-16 rounded-full shrink-0 shadow-lg shadow-primary-600/20"
-                aria-label={t('changePhoto')}
-              >
-                <span className="block w-full h-full rounded-full overflow-hidden">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt={athleteName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-600 to-primary-700 text-xl font-bold text-white">{initials}</span>
-                  )}
-                </span>
-                {/* Always-on corner badge — a hover-only overlay is invisible on touch */}
-                <span className="absolute bottom-0 end-0 w-6 h-6 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center">
-                  {uploadingPhoto ? <Loader2 className="h-3 w-3 text-white animate-spin" /> : <Camera className="h-3 w-3 text-white" />}
-                </span>
-              </button>
-              <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-              <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-bold text-white truncate">{athleteName}</h1>
-                {/* Strava/Garmin-only accounts get a synthetic placeholder address
-                    (e.g. strava_123@strava.madregot.local) — never a real email,
-                    so it's hidden rather than shown. */}
-                {athleteEmail && !athleteEmail.endsWith('.madregot.local') && (
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                    <span className="text-sm text-slate-400 truncate">{athleteEmail}</span>
-                  </div>
-                )}
-                {memberSince && (
-                  <p className="text-xs text-slate-500 mt-1">
-                    {t('memberSince')} {new Date(memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
-                  </p>
-                )}
-                {currentGroup && (
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <Target className="h-3.5 w-3.5 text-primary-600 shrink-0" />
-                    <span className="text-sm font-medium text-primary-600">{currentGroup.marathonGoal || currentGroup.name}</span>
-                  </div>
-                )}
-              </div>
-            </div>
+          <ProfileOverview
+            athleteId={athleteId}
+            athleteName={athleteName}
+            avatarUrl={avatarUrl}
+            initials={initials}
+            uploadingPhoto={uploadingPhoto}
+            onPhotoClick={() => photoInputRef.current?.click()}
+            onOpenSetup={() => setActiveTab('setup')}
+          />
 
-            <div className="mt-4 flex items-center gap-2">
-              {hasGarmin && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
-                  <Watch className="h-3.5 w-3.5 text-green-400" />
-                  <span className="text-xs font-medium text-green-400">{tHeader('garminConnected')}</span>
-                </div>
-              )}
-              {hasStrava && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20">
-                  <Activity className="h-3.5 w-3.5 text-orange-400" />
-                  <span className="text-xs font-medium text-orange-400">{t('connected')}</span>
-                </div>
-              )}
-              {!hasGarmin && !hasStrava && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-                  <WifiOff className="h-3.5 w-3.5 text-amber-400" />
-                  <span className="text-xs font-medium text-amber-400">{t('noConnection')}</span>
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Email, join date, pace-group goal and the Garmin/Strava chips are
+              no longer on the landing — the frame's header is greeting + name +
+              avatar only. None of it was lost: email/join date live in Personal
+              info, the goal in Pace group, and the connection state is the
+              Activity data source row's own trailing value below. */}
 
           {/* Everything else lives one tap away, iOS-Settings style. InsetRow
               already renders its own RTL-safe chevron whenever href/onClick is
@@ -563,7 +519,7 @@ function ProfileContent() {
           <InsetSection>
             <InsetRow
               icon={Dumbbell}
-              iconBg="bg-primary-600"
+              iconBg="bg-brand-600"
               label={t('thisWeeksProgram')}
               value={currentWeek.weekLabel}
               href="/dashboard/program"
@@ -573,31 +529,31 @@ function ProfileContent() {
           <InsetSection header={t('myNumbers')}>
             <InsetRow
               icon={BarChart3}
-              iconBg="bg-amber-500"
+              iconBg="bg-band-3"
               label={t('statistics')}
               onClick={() => setActiveTab('statistics')}
             />
             <InsetRow
               icon={Award}
-              iconBg="bg-yellow-500"
+              iconBg="bg-band-3"
               label={t('badges')}
               onClick={() => setActiveTab('badges')}
             />
             <InsetRow
               icon={Trophy}
-              iconBg="bg-orange-500"
+              iconBg="bg-band-3"
               label={t('challenges')}
               onClick={() => setActiveTab('challenges')}
             />
             <InsetRow
               icon={Medal}
-              iconBg="bg-yellow-600"
+              iconBg="bg-band-3"
               label={t('leaderboards')}
               onClick={() => setActiveTab('leaderboards')}
             />
             <InsetRow
               icon={Route}
-              iconBg="bg-cyan-500"
+              iconBg="bg-band-2"
               label={t('myActivities')}
               href="/dashboard/activities"
             />
@@ -612,7 +568,7 @@ function ProfileContent() {
             />
             <InsetRow
               icon={Users}
-              iconBg="bg-blue-500"
+              iconBg="bg-band-2"
               label={t('paceGroup')}
               value={currentGroup?.name}
               onClick={() => setActiveTab('group')}
@@ -626,13 +582,13 @@ function ProfileContent() {
             />
             <InsetRow
               icon={Search}
-              iconBg="bg-sky-500"
+              iconBg="bg-band-2"
               label={t('discoverMembers')}
               onClick={() => setActiveTab('discover')}
             />
             <InsetRow
               icon={Activity}
-              iconBg="bg-green-500"
+              iconBg="bg-accent-600"
               label={t('activityDataSource')}
               value={dataSourceLabel}
               onClick={() => setActiveTab('datasource')}
@@ -647,7 +603,7 @@ function ProfileContent() {
             )}
             <InsetRow
               icon={BellRing}
-              iconBg="bg-rose-500"
+              iconBg="bg-accent-red"
               label={t('notificationPrefs')}
               onClick={() => setActiveTab('notifications')}
             />
@@ -657,18 +613,41 @@ function ProfileContent() {
         </>
       )}
 
+      {/* ═══ DETAIL: Setup checklist — already on the light system, so it sits
+          outside the dark wrapper below and needs no back-nav of its own here
+          (SetupChecklist renders a light one). ═══ */}
+      {activeTab === 'setup' && (
+        <SetupChecklist
+          onBack={() => setActiveTab(null)}
+          onNavigate={(tab) => setActiveTab(tab)}
+          onPickPhoto={() => photoInputRef.current?.click()}
+        />
+      )}
+
+      {/* ═══ DETAIL SCREENS — still on the original dark palette; only the
+          landing above has been rebuilt on the designer's light system. This
+          panel paints the main area dark for them, bleeding past main's own
+          px-4/pt-5 so there's no light gutter, because (app)/layout.tsx now
+          lists /dashboard/profile as a light route and a `text-ink-700` heading
+          would otherwise be invisible on #DFDFDF. The back-nav lives inside it
+          for the same reason. Delete the wrapper once these screens have
+          frames of their own. ═══ */}
+      {activeTab !== null && activeTab !== 'setup' && (
+        <div className="-mx-4 -mt-5 min-h-[100dvh] bg-page px-4 pt-5 space-y-5">
+          <BackNav label={t('title')} onBack={() => setActiveTab(null)} />
+
       {/* ═══ DETAIL: Pace Group Selection ═══ */}
       {activeTab === 'group' && (
-        <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+        <div className="rounded-card bg-card/80 border border-page/50 p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
-                <Users className="h-4.5 w-4.5 text-primary-600" />
+              <div className="w-9 h-9 rounded-lg bg-brand-600/15 flex items-center justify-center">
+                <Users className="h-4.5 w-4.5 text-brand-600" />
               </div>
-              <h2 className="font-semibold text-white">{t('paceGroup')}</h2>
+              <h2 className="font-semibold text-ink-700">{t('paceGroup')}</h2>
             </div>
             {saved && (
-              <div className="flex items-center gap-1.5 text-green-400">
+              <div className="flex items-center gap-1.5 text-accent-600">
                 <CheckCircle2 className="h-4 w-4" />
                 <span className="text-xs font-medium">{t('saved')}</span>
               </div>
@@ -685,25 +664,25 @@ function ProfileContent() {
                 <InsetRow
                   key={g.id}
                   icon={Users}
-                  iconBg={isSelected ? 'bg-primary-600' : 'bg-slate-600'}
+                  iconBg={isSelected ? 'bg-brand-600' : 'bg-ink-300'}
                   label={g.name}
                   value={g.marathonGoal}
                   onClick={() => setSelectedGroupId(g.id)}
-                  trailing={isSelected ? <CheckCircle2 className="h-5 w-5 text-primary-500" /> : undefined}
+                  trailing={isSelected ? <CheckCircle2 className="h-5 w-5 text-brand-600" /> : undefined}
                 />
               );
             })}
           </InsetSection>
 
           {hasActivities && (
-            <p className="text-xs text-slate-500 mt-3 text-center">{t('groupLocked')}</p>
+            <p className="text-xs text-ink-400 mt-3 text-center">{t('groupLocked')}</p>
           )}
 
           {hasChanges && !hasActivities && (
             <button
               onClick={saveGroup}
               disabled={saving}
-              className="mt-4 w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="mt-4 w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {saving ? (
                 <>
@@ -723,47 +702,47 @@ function ProfileContent() {
 
       {/* ═══ DETAIL: Data Source - Connect Strava/Garmin ═══ */}
       {activeTab === 'datasource' && (
-        <div ref={garminSectionRef} className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+        <div ref={garminSectionRef} className="rounded-card bg-card/80 border border-page/50 p-5">
           <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
-              <Activity className="h-4.5 w-4.5 text-primary-600" />
+            <div className="w-9 h-9 rounded-lg bg-brand-600/15 flex items-center justify-center">
+              <Activity className="h-4.5 w-4.5 text-brand-600" />
             </div>
-            <h2 className="font-semibold text-white">{t('activityDataSource')}</h2>
+            <h2 className="font-semibold text-ink-700">{t('activityDataSource')}</h2>
           </div>
 
           <div className="space-y-3">
             {/* Garmin status */}
             <div className={cn(
               'rounded-xl border overflow-hidden',
-              hasGarmin ? 'border-green-500/30 bg-green-500/5' : 'border-slate-700/50 bg-slate-900/30'
+              hasGarmin ? 'border-accent-600/30 bg-accent-600/5' : 'border-page/50 bg-page/30'
             )}>
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <Watch className={cn('h-5 w-5', hasGarmin ? 'text-green-400' : 'text-slate-500')} />
+                  <Watch className={cn('h-5 w-5', hasGarmin ? 'text-accent-600' : 'text-ink-400')} />
                   <div>
-                    <p className={cn('text-sm font-medium', hasGarmin ? 'text-white' : 'text-slate-400')}>{t('garminConnect')}</p>
-                    <p className="text-2xs text-slate-500">{hasGarmin ? t('connected') : t('notConnected')}</p>
+                    <p className={cn('text-sm font-medium', hasGarmin ? 'text-ink-700' : 'text-ink-400')}>{t('garminConnect')}</p>
+                    <p className="text-2xs text-ink-400">{hasGarmin ? t('connected') : t('notConnected')}</p>
                   </div>
                 </div>
                 {hasGarmin ? (
-                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">{t('connected')}</span>
+                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-600">{t('connected')}</span>
                 ) : (
                   <button
                     onClick={() => setConnectingGarmin(!connectingGarmin)}
-                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-primary-600/10 text-primary-600 hover:bg-primary-600/20 transition-colors"
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-brand-600/10 text-brand-600 hover:bg-brand-600/20 transition-colors"
                   >
                     {t('connect')}
                   </button>
                 )}
               </div>
               {connectingGarmin && !hasGarmin && (
-                <div className="px-4 pb-4 space-y-3 border-t border-slate-700/30 pt-3">
+                <div className="px-4 pb-4 space-y-3 border-t border-page/30 pt-3">
                   <input
                     type="email"
                     placeholder={t('garminEmail')}
                     value={garminEmail}
                     onChange={e => setGarminEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+                    className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
                   />
                   {!mfaRequired && (
                     <input
@@ -771,24 +750,24 @@ function ProfileContent() {
                       placeholder={t('garminPassword')}
                       value={garminPassword}
                       onChange={e => setGarminPassword(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+                      className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
                     />
                   )}
                   {mfaRequired && (
                     <div className="space-y-2">
-                      <p className="text-xs text-amber-400">{t('verificationCodeSent')}</p>
+                      <p className="text-xs text-band-3">{t('verificationCodeSent')}</p>
                       <input
                         type="text"
                         placeholder={t('sixDigitCode')}
                         value={mfaCode}
                         onChange={e => setMfaCode(e.target.value)}
                         maxLength={6}
-                        className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-amber-500/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-center text-lg tracking-widest"
+                        className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-band-3/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-band-3 text-center text-lg tracking-widest"
                       />
                     </div>
                   )}
                   {garminError && (
-                    <p className="text-xs text-red-400">{garminError}</p>
+                    <p className="text-xs text-accent-red">{garminError}</p>
                   )}
                   <button
                     onClick={async () => {
@@ -864,7 +843,7 @@ function ProfileContent() {
                       }
                     }}
                     disabled={garminLoading || (mfaRequired ? !mfaCode : (!garminEmail || !garminPassword))}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                    className="w-full bg-accent-600 hover:opacity-90 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                   >
                     {garminLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -881,17 +860,17 @@ function ProfileContent() {
             {(stravaEnabled || hasStrava) && (
               <div className={cn(
                 'flex items-center justify-between px-4 py-3 rounded-xl border',
-                hasStrava ? 'border-orange-500/30 bg-orange-500/5' : 'border-slate-700/50 bg-slate-900/30'
+                hasStrava ? 'border-band-3/30 bg-band-3/5' : 'border-page/50 bg-page/30'
               )}>
                 <div className="flex items-center gap-3">
-                  <Activity className={cn('h-5 w-5', hasStrava ? 'text-orange-400' : 'text-slate-500')} />
+                  <Activity className={cn('h-5 w-5', hasStrava ? 'text-band-3' : 'text-ink-400')} />
                   <div>
-                    <p className={cn('text-sm font-medium', hasStrava ? 'text-white' : 'text-slate-400')}>{t('strava')}</p>
-                    <p className="text-2xs text-slate-500">{hasStrava ? t('connected') : t('notConnected')}</p>
+                    <p className={cn('text-sm font-medium', hasStrava ? 'text-ink-700' : 'text-ink-400')}>{t('strava')}</p>
+                    <p className="text-2xs text-ink-400">{hasStrava ? t('connected') : t('notConnected')}</p>
                   </div>
                 </div>
                 {hasStrava ? (
-                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400">{t('connected')}</span>
+                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-band-3/15 text-band-3">{t('connected')}</span>
                 ) : (
                   <button
                     onClick={async () => {
@@ -929,7 +908,7 @@ function ProfileContent() {
                 });
                 setDataSource(newSource);
               }}
-              className="mt-4 w-full border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+              className="mt-4 w-full border border-ink-300 hover:border-ink-300 text-ink-500 hover:text-ink-900 font-medium px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
             >
               <Activity className="h-4 w-4" />
               {dataSource === 'strava' ? t('switchToGarmin') : t('switchToStrava')}
@@ -937,7 +916,7 @@ function ProfileContent() {
           )}
 
           {!hasGarmin && !hasStrava && (
-            <div className="mt-4 flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+            <div className="mt-4 flex items-center gap-2 text-sm text-band-3 bg-band-3/10 border border-band-3/20 rounded-xl px-4 py-3">
               <WifiOff className="h-4 w-4 shrink-0" />
               <span>{t('noDataSource')}</span>
             </div>
@@ -948,7 +927,7 @@ function ProfileContent() {
               via the connect flow + cron, this is just the first kick).
               Fires whichever connected source(s) apply. */}
           {!hasSynced && (hasStrava || (hasGarmin && !hasActivities)) && (
-            <div className="mt-4 pt-4 border-t border-slate-700/30">
+            <div className="mt-4 pt-4 border-t border-page/30">
               <button
                 onClick={async () => {
                   setSyncing(true);
@@ -987,7 +966,7 @@ function ProfileContent() {
                   }
                 }}
                 disabled={syncing}
-                className="w-full border border-slate-600 hover:border-primary-600/50 hover:bg-primary-600/5 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full border border-ink-300 hover:border-brand-600/50 hover:bg-brand-600/5 text-ink-500 hover:text-ink-900 font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {syncing ? (
                   <>
@@ -1002,7 +981,7 @@ function ProfileContent() {
                 )}
               </button>
               {syncResult && (
-                <p className={cn('text-xs mt-2 text-center', syncResult.includes(t('syncFailed')) ? 'text-red-400' : 'text-green-400')}>
+                <p className={cn('text-xs mt-2 text-center', syncResult.includes(t('syncFailed')) ? 'text-accent-red' : 'text-accent-600')}>
                   {syncResult}
                 </p>
               )}
@@ -1038,16 +1017,16 @@ function ProfileContent() {
 
       {/* ═══ DETAIL: Share a workout — shareable text for WhatsApp / social ═══ */}
       {activeTab === 'share' && planWorkouts && workoutDays.length > 0 && (
-        <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+        <div className="rounded-card bg-card/80 border border-page/50 p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-primary-600/15 flex items-center justify-center">
-                <Share2 className="h-4.5 w-4.5 text-primary-600" />
+              <div className="w-9 h-9 rounded-lg bg-brand-600/15 flex items-center justify-center">
+                <Share2 className="h-4.5 w-4.5 text-brand-600" />
               </div>
               <div>
-                <h2 className="font-semibold text-white">Share a workout</h2>
+                <h2 className="font-semibold text-ink-700">Share a workout</h2>
                 {!planIsCurrent && planWeekStart && (
-                  <p className="text-xs text-slate-500">Latest plan · week of {planWeekStart}</p>
+                  <p className="text-xs text-ink-400">Latest plan · week of {planWeekStart}</p>
                 )}
               </div>
             </div>
@@ -1064,12 +1043,12 @@ function ProfileContent() {
 
           {shareText ? (
             <>
-              <pre className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4 text-sm text-slate-200 whitespace-pre-wrap font-mono leading-relaxed max-h-72 overflow-y-auto">
+              <pre className="bg-page/60 border border-page/50 rounded-xl p-4 text-sm text-ink-700 whitespace-pre-wrap font-mono leading-relaxed max-h-72 overflow-y-auto">
 {shareText}
               </pre>
               <button
                 onClick={copyShareText}
-                className="mt-3 w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="mt-3 w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 {copied ? (
                   <>
@@ -1083,12 +1062,12 @@ function ProfileContent() {
                   </>
                 )}
               </button>
-              <p className="text-2xs text-slate-500 mt-2 text-center">
+              <p className="text-2xs text-ink-400 mt-2 text-center">
                 Paces shown as ❶ (❷) ((❸)) for the three groups.
               </p>
             </>
           ) : (
-            <p className="text-sm text-slate-400 text-center py-4">Rest day — no workout to share.</p>
+            <p className="text-sm text-ink-400 text-center py-4">Rest day — no workout to share.</p>
           )}
         </div>
       )}
@@ -1106,8 +1085,10 @@ function ProfileContent() {
       {activeTab === 'personalInfo' && (
         <PersonalInfo athleteId={athleteId} />
       )}
+        </div>
+      )}
 
-      <p className="text-center text-xs text-slate-500 mt-6 mb-2">מדרגות · גרסה {APP_VERSION}</p>
+      <p className="text-center text-xs text-ink-400 mt-6 mb-2">מדרגות · גרסה {APP_VERSION}</p>
     </div>
   );
 }

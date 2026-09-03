@@ -14,14 +14,26 @@ import { buildLikeIndex } from '@/lib/feed/likes';
 
 export const dynamic = 'force-dynamic';
 
+/** The feed item types a caller may ask for via `?types=`. Whitelisted rather
+ *  than passed through, so the param can't be used to probe for other values. */
+const FILTERABLE_TYPES = ['activity', 'post', 'achievement', 'announcement', 'new_plan'];
+
 /**
- * GET /api/feed?cursor=<occurredAt>,<id>&limit=20
+ * GET /api/feed?cursor=<occurredAt>,<id>&limit=20&types=announcement,post
  *
  * The club feed: runs and member posts interleaved, newest first.
  *
  * Keyset (not offset) pagination on (occurred_at DESC, id DESC) — matching
  * idx_feed_items_occurred. Offset pagination would skip or duplicate items whenever a
  * new run syncs mid-scroll, which on an active club feed is constantly.
+ *
+ * `types` is an optional comma-separated filter. It exists for the Profile
+ * screen's עידכונים deck, which needs the latest *announcements* only — reading
+ * the first page of the whole feed and filtering client-side would silently show
+ * nothing whenever the newest 20 items happen to be runs, which on an active
+ * club is most of the time. Unknown values are dropped; a `types` that names
+ * nothing valid is treated as absent rather than as "match none", so a typo
+ * degrades to the full feed instead of an unexplained empty screen.
  */
 export async function GET(request: Request) {
   const auth = await requireSession(request);
@@ -30,6 +42,11 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = clampFeedLimit(searchParams.get('limit'));
+
+    const types = (searchParams.get('types') || '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => FILTERABLE_TYPES.includes(t));
 
     let parsedCursor;
     try {
@@ -47,6 +64,8 @@ export async function GET(request: Request) {
       .order('occurred_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(limit + 1); // one extra row tells us whether more pages exist
+
+    if (types.length > 0) query = query.in('type', types);
 
     // Cursor is "<iso timestamp>,<uuid>": strictly-after in the composite sort order.
     if (parsedCursor) {
