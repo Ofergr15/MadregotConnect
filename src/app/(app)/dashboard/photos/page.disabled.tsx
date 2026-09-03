@@ -69,13 +69,13 @@ export default function PhotosPage() {
       .finally(() => setRoleLoaded(true));
   }, [userEmail]);
 
-  // Get the athleteId from the DB too (localStorage id may be Supabase auth UUID, not our athletes.id)
-  useEffect(() => {
-    if (!userEmail) return;
-    const supabase = getSupabase();
-    supabase.from('athletes').select('id').ilike('email', userEmail).maybeSingle()
-      .then(({ data }) => { if (data?.id) setAthleteId(data.id); });
-  }, [userEmail]);
+  // This page is parked (see the nav entry in Header.tsx). It used to re-resolve
+  // athleteId here by reading `athletes` straight out of PostgREST, because the
+  // localStorage id can be the Supabase auth UUID rather than our athletes.id.
+  // The browser client is auth-only now — no table access from the client at all
+  // — so whoever revives this page has to answer that question server-side, the
+  // way /api/auth/me already does for the role two effects up. Until then
+  // athleteId is whatever the session and localStorage gave us above.
 
   if (!roleLoaded) {
     return (

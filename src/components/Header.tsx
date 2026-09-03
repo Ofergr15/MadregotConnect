@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
-import { useApi } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { clearIdentityKeys } from '@/lib/auth/identity-keys';
 import { isSuperUser } from '@/lib/constants';
@@ -57,9 +57,9 @@ export function Header() {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [groupName, setGroupName] = useState<string | null>(null);
-  const [groupColor, setGroupColor] = useState<string>('#159AFF');
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [showGroupPicker, setShowGroupPicker] = useState(false);
+  const [groupSaveFailed, setGroupSaveFailed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [isSuper, setIsSuper] = useState(false);
 
@@ -83,6 +83,16 @@ export function Header() {
     athleteId ? '/api/groups' : null,
   );
   const availableGroups = Array.isArray(groupsData) ? groupsData : (groupsData?.groups || []);
+
+  // The badge next to the logo. This used to be its own query — the browser read
+  // `groups.name` straight out of PostgREST by id — while the list right above
+  // already contained that row. So the pill cost a second round trip to say
+  // something the group picker beside it had loaded anyway, and it was the only
+  // reason the client needed table access at all.
+  const myGroup = availableGroups.find(g => g.id === groupId);
+  const resolvedGroup = myGroup ? resolveGroup(myGroup.name) : null;
+  const groupName = resolvedGroup?.displayName || null;
+  const groupColor = resolvedGroup?.hex || '#159AFF';
 
   // The bell needs a COUNT to render, not the history. It used to pull the whole
   // 50-row inbox — actor joins, aggregation and the batched row-action lookups —
@@ -132,18 +142,8 @@ export function Header() {
       }
     });
 
-    const groupId = localStorage.getItem('athlete_group_id');
-    if (groupId && storedAthleteId) {
-      const supabaseClient = getSupabase();
-      supabaseClient.from('groups').select('name').eq('id', groupId).single()
-        .then(({ data: g }) => {
-          if (g?.name) {
-            const rg = resolveGroup(g.name);
-            setGroupName(rg.displayName);
-            setGroupColor(rg.hex);
-          }
-        });
-    }
+    // Just the id — the name and colour are resolved from the group list above.
+    if (storedAthleteId) setGroupId(localStorage.getItem('athlete_group_id'));
 
   }, []);
 
@@ -188,6 +188,38 @@ export function Header() {
     }
     return items.length > 0 ? items : [allNavItems.find(i => i.tab === 'dashboard')!, profileNavItem];
   })();
+
+  // Moving yourself between pace groups. The write used to go straight to
+  // PostgREST from the browser under the anon key; it now goes through the route
+  // that owns this change, which verifies the caller may act for this athlete
+  // and re-syncs the club follows the new group implies — something the direct
+  // update never did. localStorage is only rewritten once the server has agreed,
+  // so a failed save can no longer leave the badge advertising a group the
+  // athlete isn't actually in (the old version wrote it first and reloaded
+  // regardless of the result).
+  const changeGroup = async (newGroupId: string) => {
+    const email = localStorage.getItem('athlete_email') || userEmail;
+    setGroupSaveFailed(false);
+    try {
+      const res = await fetch('/api/athletes/update-group', {
+        method: 'POST',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ email, groupId: newGroupId }),
+      });
+      if (!res.ok) {
+        setGroupSaveFailed(true);
+        return;
+      }
+    } catch {
+      setGroupSaveFailed(true);
+      return;
+    }
+    localStorage.setItem('athlete_group_id', newGroupId);
+    setShowGroupPicker(false);
+    // Full reload rather than setGroupId: the group decides which paces every
+    // workout on every screen is rendered with, so the whole shell has to refetch.
+    window.location.reload();
+  };
 
   const handleLogout = async () => {
     const supabase = getSupabase();
@@ -291,16 +323,7 @@ export function Header() {
                       return (
                         <button
                           key={g.id}
-                          onClick={async () => {
-                            localStorage.setItem('athlete_group_id', g.id);
-                            const supabaseClient = getSupabase();
-                            const athleteId = localStorage.getItem('athlete_id');
-                            if (athleteId) {
-                              await supabaseClient.from('athletes').update({ group_id: g.id }).eq('id', athleteId);
-                            }
-                            setShowGroupPicker(false);
-                            window.location.reload();
-                          }}
+                          onClick={() => changeGroup(g.id)}
                           className="w-full min-h-[44px] text-start px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-page/50 transition-colors flex items-center gap-2.5"
                         >
                           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
@@ -308,6 +331,9 @@ export function Header() {
                         </button>
                       );
                     })}
+                    {groupSaveFailed && (
+                      <p className="px-4 pt-2 text-xs text-accent-red">{th('groupSaveFailed')}</p>
+                    )}
                   </div>
                 </Sheet>
               </div>

@@ -76,7 +76,8 @@
     "viewAsActive": "Active — saving is disabled. Tap to exit",
     "viewAll": "View all",
     "notifications": "Notifications",
-    "selectGroup": "Select Group"
+    "selectGroup": "Select Group",
+    "groupSaveFailed": "Couldn't change your group. Check your connection and try again."
   },
   "adminLogin": {
     "footnote": "This is a separate admin session. Your regular Google account is unaffected.",

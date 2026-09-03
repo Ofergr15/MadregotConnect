@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import type { User } from '@supabase/supabase-js';
+// auth-js rather than supabase-js: type-only either way, but the browser client
+// is auth-only now (see src/lib/supabase/client.ts) and this is the package the
+// session it hands us actually comes from.
+import type { User } from '@supabase/auth-js';
 import { withPostHog, withLoadedPostHog } from '@/lib/analytics/posthog';
 import { getSupabase } from '@/lib/supabase/client';
 

@@ -76,7 +76,8 @@
     "viewAsActive": "פעיל — שמירה מושבתת. הקש ליציאה",
     "viewAll": "צפייה בהכל",
     "notifications": "התראות",
-    "selectGroup": "בחר קבוצה"
+    "selectGroup": "בחר קבוצה",
+    "groupSaveFailed": "לא הצלחנו להחליף קבוצה. בדוק את החיבור ונסה שוב."
   },
   "adminLogin": {
     "footnote": "זו התחברות מנהל נפרדת. חשבון ה-Google הרגיל שלך לא מושפע.",
