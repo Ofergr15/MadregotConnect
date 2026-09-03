@@ -9,7 +9,13 @@ import type { Channel as StreamChannel } from 'stream-chat';
 import { createHash } from 'crypto';
 import { CLIPBOARD_VERSION, renderGarminClipboardPng } from './garmin-clipboard';
 import { LAPS_CLIPBOARD_VERSION } from './strava-laps-clipboard';
+import { enrichActivityRowFromStrava } from '@/lib/strava/enrich';
 import { ensureLapsArtifact } from './run-artifacts';
+import {
+  isUnresolvedPlan,
+  UNMATCHED_PLAN_TEXT,
+  UNMATCHED_PLAN_TITLE,
+} from './activity-workout';
 import {
   TEST_ACTIVITY_ID,
   TEST_PLANNED_TEXT,
@@ -22,11 +28,21 @@ import { activitySummary, type RunActivity } from './run-analysis';
 import {
   downsampleRoute,
   RUN_ATTACHMENT_VERSION,
-  type RoutePoint,
   type StravaRunAttachment,
 } from './attachments';
 
 const BUCKET = 'run-chat';
+const SEED_LOCK_KEY = '__madregotChatSeedLock';
+
+function seedInflight(): Map<string, Promise<RunChatRow>> {
+  const globalWithLock = globalThis as typeof globalThis & {
+    [SEED_LOCK_KEY]?: Map<string, Promise<RunChatRow>>;
+  };
+  if (!globalWithLock[SEED_LOCK_KEY]) {
+    globalWithLock[SEED_LOCK_KEY] = new Map();
+  }
+  return globalWithLock[SEED_LOCK_KEY];
+}
 
 function clipboardRevision(workout: PlannedWorkout): string {
   return createHash('sha256').update(JSON.stringify(workout)).digest('hex').slice(0, 12);
@@ -73,10 +89,10 @@ function resolvePlan(
   }
   if (!fromWeekly) {
     return {
-      plannedText: 'לא נמצאה תוכנית אימון שפורסמה ותואמת לריצה הזו.',
+      plannedText: UNMATCHED_PLAN_TEXT,
       plannedWorkout: {
-        title: 'אין תוכנית תואמת',
-        prompt: 'No published workout part is matched to this activity.',
+        title: UNMATCHED_PLAN_TITLE,
+        prompt: UNMATCHED_PLAN_TEXT,
         segments: [],
       },
     };
@@ -146,6 +162,22 @@ function imageAttachment(imageUrl: string, title: string) {
   };
 }
 
+function planAttachments(
+  plannedText: string,
+  plannedWorkout: PlannedWorkout,
+  imageUrl: string,
+): Array<Record<string, unknown>> {
+  return [
+    {
+      type: 'workout',
+      title: plannedWorkout.title || 'תוכנית אימון',
+      text: plannedText,
+      workout: plannedWorkout,
+    },
+    imageAttachment(imageUrl, plannedWorkout.title || 'תוכנית אימון'),
+  ];
+}
+
 async function ensurePlanSeedMessage(
   channel: StreamChannel,
   plannedText: string,
@@ -154,43 +186,65 @@ async function ensurePlanSeedMessage(
   preferredMessageId?: string,
 ) {
   const { messages } = await channel.query({ messages: { limit: 40 } });
-  const seed = messages.find(
-    (message) =>
-      message.user?.id === AI_USER_ID &&
-      (message.id === preferredMessageId ||
-        (message as unknown as Record<string, unknown>).run_chat_seed === 'plan' ||
-        (message.text || '').includes('תוכנית האימון')),
-  );
+  const seed = messages.find((message) => {
+    if (message.user?.id !== AI_USER_ID) return false;
+    if (preferredMessageId && message.id === preferredMessageId) return true;
+    const custom = message as unknown as Record<string, unknown>;
+    if (custom.run_chat_seed === 'plan') return true;
+    return (message.text || '').startsWith('📋 תוכנית האימון להיום');
+  });
   const text = `📋 תוכנית האימון להיום:\n${plannedText}`;
-  const attachments = [imageAttachment(imageUrl, plannedWorkout.title || 'תוכנית אימון')];
+  const attachments = planAttachments(plannedText, plannedWorkout, imageUrl);
+
+  const publishPlan = async (nextAttachments: Array<Record<string, unknown>>) => {
+    if (!seed) {
+      await channel.sendMessage({
+        text,
+        user_id: AI_USER_ID,
+        attachments: nextAttachments,
+        run_chat_seed: 'plan',
+      } as Record<string, unknown>);
+      return;
+    }
+    const client = channel.getClient();
+    await client.updateMessage(
+      {
+        id: seed.id!,
+        text,
+        attachments: nextAttachments,
+        run_chat_seed: 'plan',
+      } as unknown as Parameters<typeof client.updateMessage>[0],
+      AI_USER_ID,
+    );
+  };
 
   if (!seed) {
-    await channel.sendMessage({
-      text,
-      user_id: AI_USER_ID,
-      attachments,
-      run_chat_seed: 'plan',
-    } as Record<string, unknown>);
+    try {
+      await publishPlan(attachments);
+    } catch (error) {
+      console.warn('ensurePlanSeedMessage: retrying without structured workout', error);
+      await publishPlan([imageAttachment(imageUrl, plannedWorkout.title || 'תוכנית אימון')]);
+    }
     return;
   }
 
-  const hasCurrent = (seed.attachments || []).some(
+  const attachmentsOnSeed = seed.attachments || [];
+  const hasCurrentImage = attachmentsOnSeed.some(
     (a: { type?: string; image_url?: string; asset_url?: string }) =>
       a.type === 'image' &&
       `${a.image_url || ''}${a.asset_url || ''}`.includes(imageUrl),
   );
-  if (hasCurrent && seed.text === text) return;
-
-  const client = channel.getClient();
-  await client.updateMessage(
-    {
-      id: seed.id!,
-      text,
-      attachments,
-      run_chat_seed: 'plan',
-    } as unknown as Parameters<typeof client.updateMessage>[0],
-    AI_USER_ID,
+  const hasWorkout = attachmentsOnSeed.some(
+    (a: { type?: string }) => a.type === 'workout',
   );
+  if (hasCurrentImage && hasWorkout && seed.text === text) return;
+
+  try {
+    await publishPlan(attachments);
+  } catch (error) {
+    console.warn('ensurePlanSeedMessage: retrying without structured workout', error);
+    await publishPlan([imageAttachment(imageUrl, plannedWorkout.title || 'תוכנית אימון')]);
+  }
 }
 
 export async function applyEditedChatPlan(opts: {
@@ -202,9 +256,14 @@ export async function applyEditedChatPlan(opts: {
   messageId?: string;
 }): Promise<RunChatRow> {
   const { supabase, channel, plannedText, messageId } = opts;
-  const plannedWorkout = { ...opts.plannedWorkout, source: 'prompt_edit' as const };
+  // Keep a structured provenance (e.g. reverse-engineered from laps) when the
+  // caller set one; plain prompt edits are marked as such.
+  const plannedWorkout: PlannedWorkout = {
+    ...opts.plannedWorkout,
+    source: opts.plannedWorkout.source ?? 'prompt_edit',
+  };
   const imageUrl = await ensureClipboardImage(supabase, opts.chat, plannedWorkout);
-  const { data: updated, error } = await supabase
+  let { data: updated, error } = await supabase
     .from('run_chats')
     .update({
       planned_text: plannedText,
@@ -214,10 +273,146 @@ export async function applyEditedChatPlan(opts: {
     .eq('id', opts.chat.id)
     .select('*')
     .single();
+
+  // Keep prompt editing functional while migration 050 is pending or the
+  // PostgREST schema cache has not refreshed yet.
+  if (
+    error?.code === 'PGRST204' &&
+    error.message?.includes('clipboard_image_url')
+  ) {
+    const fallback = await supabase
+      .from('run_chats')
+      .update({
+        planned_text: plannedText,
+        planned_workout: plannedWorkout,
+      })
+      .eq('id', opts.chat.id)
+      .select('*')
+      .single();
+    updated = fallback.data;
+    error = fallback.error;
+  }
   if (error) throw error;
 
   await ensurePlanSeedMessage(channel, plannedText, plannedWorkout, imageUrl, messageId);
   return updated as RunChatRow;
+}
+
+type SeedActivity = RunActivity & {
+  strava_gpx_url?: string | null;
+  gps_points?: unknown;
+};
+
+const ACTUALS_SELECTS = [
+  'id, athlete_id, activity_name, start_time, distance, duration, moving_duration, average_pace, average_hr, max_hr, elevation_gain, avg_cadence, strava_activity_id, laps, strava_gpx_url, gps_points',
+  'id, athlete_id, activity_name, start_time, distance, duration, average_pace, average_hr, elevation_gain, strava_activity_id, laps',
+];
+
+async function queryActivity(
+  supabase: SupabaseClient,
+  activityId: string,
+): Promise<SeedActivity | null> {
+  let lastError: { message?: string } | null = null;
+  for (const columns of ACTUALS_SELECTS) {
+    const { data, error } = await supabase
+      .from('athlete_activities')
+      .select(columns)
+      .eq('id', activityId)
+      .maybeSingle();
+    if (data && typeof data === 'object' && 'id' in data) {
+      return data as SeedActivity;
+    }
+    lastError = error;
+  }
+  if (lastError) {
+    console.error('ensureActualsSeedMessage: activity query failed', lastError.message);
+  }
+  return null;
+}
+
+async function loadSeedActivity(
+  supabase: SupabaseClient,
+  activityId: string,
+): Promise<SeedActivity | null> {
+  const activity = await queryActivity(supabase, activityId);
+  if (!activity) return null;
+
+  // `laps === null` means the Strava sync never enriched this run (the hourly
+  // sync only reaches the newest runs, and the dashboard-triggered sync only
+  // fires from /dashboard). Fetch laps + route now so the card is not one
+  // big block; enrichment stores `[]` when Strava has nothing, so this runs
+  // at most once per activity.
+  if (activity.laps == null && activity.strava_activity_id) {
+    try {
+      const enriched = await enrichActivityRowFromStrava(supabase, {
+        id: activity.id,
+        athlete_id: (activity as { athlete_id?: string | null }).athlete_id ?? null,
+        strava_activity_id: activity.strava_activity_id,
+        activity_name: activity.activity_name,
+        start_time: activity.start_time,
+      });
+      if (enriched) return (await queryActivity(supabase, activityId)) ?? activity;
+    } catch (error) {
+      console.warn('loadSeedActivity: on-demand Strava enrichment failed', error);
+    }
+  }
+  return activity;
+}
+
+function isActualsSeedMessage(message: {
+  user?: { id?: string } | null;
+  user_id?: string;
+  text?: string | null;
+  run_chat_seed?: unknown;
+}) {
+  const uid = message.user?.id || message.user_id;
+  if (uid !== AI_USER_ID) return false;
+  if (message.run_chat_seed === 'actuals') return true;
+  return (message.text || '').includes('מה רצנו בפועל');
+}
+
+async function publishActualsMessage(
+  channel: StreamChannel,
+  existingId: string | undefined,
+  text: string,
+  attachments: Array<Record<string, unknown>>,
+) {
+  const send = async (nextAttachments: Array<Record<string, unknown>>) => {
+    if (!existingId) {
+      await channel.sendMessage({
+        text,
+        user_id: AI_USER_ID,
+        attachments: nextAttachments,
+        run_chat_seed: 'actuals',
+      } as Record<string, unknown>);
+      return;
+    }
+    const client = channel.getClient();
+    await client.updateMessage(
+      {
+        id: existingId,
+        text,
+        attachments: nextAttachments,
+        run_chat_seed: 'actuals',
+      } as unknown as Parameters<typeof client.updateMessage>[0],
+      AI_USER_ID,
+    );
+  };
+
+  try {
+    await send(attachments);
+  } catch (error) {
+    const slim = attachments
+      .filter((attachment) => attachment.type === 'strava_run')
+      .map((attachment) => {
+        const copy = { ...attachment };
+        delete copy.route_points;
+        return copy;
+      });
+    if (!slim.length) throw error;
+    console.warn('ensureActualsSeedMessage: retrying without extra attachments', error);
+    await send(slim);
+  }
 }
 
 async function ensureActualsSeedMessage(
@@ -225,68 +420,61 @@ async function ensureActualsSeedMessage(
   channel: StreamChannel,
   chat: RunChatRow,
 ) {
-  const { data: activity } = await supabase
-    .from('athlete_activities')
-    .select(
-      'id, activity_name, start_time, distance, duration, moving_duration, average_pace, average_hr, max_hr, elevation_gain, avg_cadence, strava_activity_id, laps, strava_gpx_url, gps_points',
-    )
-    .eq('id', chat.activity_id)
-    .maybeSingle();
-
-  if (!activity?.strava_activity_id) return;
+  const activity = await loadSeedActivity(supabase, chat.activity_id);
+  if (!activity) return;
 
   const { messages } = await channel.query({ messages: { limit: 40 } });
-  const existing = messages.find(
-    (m) => m.user?.id === AI_USER_ID && (m.text || '').includes('מה רצנו בפועל'),
-  );
+  const existing = messages.find(isActualsSeedMessage);
   if (existing) {
     const existingAttachments = (existing.attachments || []) as unknown as Array<
       Record<string, unknown>
     >;
+    const lapCount = Array.isArray(activity.laps) ? activity.laps.length : 0;
     const current = existingAttachments.find(
       (attachment) =>
         attachment.type === 'strava_run' &&
         attachment.version === RUN_ATTACHMENT_VERSION &&
         (!activity.strava_gpx_url || attachment.gpx_url === activity.strava_gpx_url) &&
-        (!(activity.laps || []).length ||
+        // Laps can land after the card was posted (Strava enrichment runs on
+        // the next sync) — a stale lap count means the card must be rebuilt.
+        Number((attachment.run as Record<string, unknown> | undefined)?.lap_count || 0) === lapCount &&
+        (!lapCount ||
           String(attachment.laps_image_url || '').includes(`laps-${LAPS_CLIPBOARD_VERSION}`)),
     );
-    if (current) return;
+    const hasDuplicateImage = existingAttachments.some(
+      (attachment) => attachment.type === 'image',
+    );
+    if (current && !hasDuplicateImage) return;
   }
 
-  const laps = (activity.laps || []) as StravaLap[];
-  const lapsUrl = await ensureLapsArtifact(supabase, {
-    ...activity,
-    laps,
-  });
+  let lapsUrl: string | null = null;
+  try {
+    lapsUrl = await ensureLapsArtifact(supabase, {
+      ...activity,
+      laps: (activity.laps || []) as StravaLap[],
+    });
+  } catch (error) {
+    console.warn('ensureActualsSeedMessage: laps image skipped', error);
+  }
 
-  const stravaUrl = getStravaActivityUrl(activity.strava_activity_id);
+  const stravaUrl = activity.strava_activity_id
+    ? getStravaActivityUrl(activity.strava_activity_id)
+    : null;
   const text = '🏃 מה רצנו בפועל';
   const attachment: StravaRunAttachment = {
     type: 'strava_run',
     version: RUN_ATTACHMENT_VERSION,
-    run: activitySummary(activity as RunActivity),
+    run: activitySummary(activity),
     strava_url: stravaUrl,
     chat_url: `/dashboard/run-chat/${activity.id}`,
-    gpx_url: activity.strava_gpx_url,
+    gpx_url: activity.strava_gpx_url ?? null,
     laps_image_url: lapsUrl,
-    route_points: downsampleRoute(activity.gps_points as RoutePoint[] | null),
   };
-  const attachments = [attachment as unknown as Record<string, unknown>];
-
-  if (!existing) {
-    await channel.sendMessage({
-      text,
-      user_id: AI_USER_ID,
-      attachments,
-    } as Record<string, unknown>);
-    return;
-  }
-
-  await channel.getClient().updateMessage(
-    { id: existing.id!, text, attachments },
-    AI_USER_ID,
-  );
+  // The run card renders the laps image itself; a separate image attachment
+  // would show the same PNG twice.
+  await publishActualsMessage(channel, existing?.id, text, [
+    attachment as unknown as Record<string, unknown>,
+  ]);
 }
 
 async function ensureHistoricalRunAttachments(
@@ -302,62 +490,74 @@ async function ensureHistoricalRunAttachments(
       if (attachment.type !== 'strava_run') continue;
       const run = attachment.run as Record<string, unknown> | undefined;
       const id = typeof run?.id === 'string' ? run.id : null;
-      const needsLaps =
-        Number(run?.lap_count || 0) > 0 &&
-        !String(attachment.laps_image_url || '').includes(`laps-${LAPS_CLIPBOARD_VERSION}`);
-      if (id && id !== currentActivityId && (!attachment.route_points || needsLaps)) {
-        activityIds.add(id);
-      }
+      if (id && id !== currentActivityId) activityIds.add(id);
     }
   }
   if (!activityIds.size) return;
 
   const { data: rows } = await supabase
     .from('athlete_activities')
-    .select('id, activity_name, distance, duration, laps, gps_points')
+    .select('id, activity_name, distance, duration, average_pace, average_hr, laps, gps_points')
     .in('id', [...activityIds]);
   const rowsById = new Map((rows || []).map((row) => [row.id, row]));
-  const lapsUrls = new Map<string, string | null>();
+  const rowLapCount = (row: { laps: unknown }) => (Array.isArray(row.laps) ? row.laps.length : 0);
 
-  for (const [id, row] of rowsById) {
+  const needsLapsArtifact = (attachment: Record<string, unknown>, row: { laps: unknown }) => {
+    const run = attachment.run as Record<string, unknown> | undefined;
+    const storedCount = Number(run?.lap_count || 0);
+    const actualCount = rowLapCount(row);
+    if (storedCount !== actualCount) return true;
+    return actualCount > 0 &&
+      !String(attachment.laps_image_url || '').includes(`laps-${LAPS_CLIPBOARD_VERSION}`);
+  };
+
+  const lapsUrls = new Map<string, string | null>();
+  const lapsArtifactFor = async (id: string, row: NonNullable<ReturnType<typeof rowsById.get>>) => {
+    if (lapsUrls.has(id)) return lapsUrls.get(id) ?? null;
+    let url: string | null = null;
     try {
-      lapsUrls.set(id, await ensureLapsArtifact(supabase, {
+      url = await ensureLapsArtifact(supabase, {
         ...row,
         laps: (row.laps || []) as StravaLap[],
-      }));
+      });
     } catch (error) {
       console.warn('Could not backfill historical laps artifact', id, error);
-      lapsUrls.set(id, null);
     }
-  }
+    lapsUrls.set(id, url);
+    return url;
+  };
 
   for (const message of messages) {
     let changed = false;
-    const attachments = ((message.attachments || []) as unknown as Array<Record<string, unknown>>)
-      .map((attachment) => {
-        if (attachment.type !== 'strava_run') return attachment;
-        const run = attachment.run as Record<string, unknown> | undefined;
-        const id = typeof run?.id === 'string' ? run.id : null;
-        const row = id ? rowsById.get(id) : null;
-        if (!id || !row) return attachment;
+    const attachments: Array<Record<string, unknown>> = [];
+    for (const attachment of (message.attachments || []) as unknown as Array<Record<string, unknown>>) {
+      if (attachment.type !== 'strava_run') {
+        attachments.push(attachment);
+        continue;
+      }
+      const run = attachment.run as Record<string, unknown> | undefined;
+      const id = typeof run?.id === 'string' ? run.id : null;
+      const row = id ? rowsById.get(id) : null;
+      if (!id || !row) {
+        attachments.push(attachment);
+        continue;
+      }
 
-        const routePoints = attachment.route_points ||
-          downsampleRoute(row.gps_points as RoutePoint[] | null, 16);
-        const hasCurrentLapsArtifact = String(attachment.laps_image_url || '')
-          .includes(`laps-${LAPS_CLIPBOARD_VERSION}`);
-        const lapsImageUrl = hasCurrentLapsArtifact
-          ? attachment.laps_image_url
-          : lapsUrls.get(id) || null;
-        if (routePoints === attachment.route_points && lapsImageUrl === attachment.laps_image_url) {
-          return attachment;
-        }
-        changed = true;
-        return {
-          ...attachment,
-          route_points: routePoints,
-          laps_image_url: lapsImageUrl,
-        };
+      const routePoints = attachment.route_points || downsampleRoute(row.gps_points, 16);
+      const refreshLaps = needsLapsArtifact(attachment, row);
+      const lapsImageUrl = refreshLaps ? await lapsArtifactFor(id, row) : attachment.laps_image_url;
+      if (routePoints === attachment.route_points && !refreshLaps) {
+        attachments.push(attachment);
+        continue;
+      }
+      changed = true;
+      attachments.push({
+        ...attachment,
+        route_points: routePoints,
+        laps_image_url: lapsImageUrl,
+        run: { ...(run || {}), lap_count: rowLapCount(row) },
       });
+    }
 
     if (changed && message.id) {
       try {
@@ -376,7 +576,7 @@ async function ensureHistoricalRunAttachments(
  * Ensure plan + actuals seed messages exist.
  * Safe to call on every open — generation/upload only happens once per version.
  */
-export async function ensureChatSeeded(opts: {
+async function seedChatUnlocked(opts: {
   supabase: SupabaseClient;
   channel: StreamChannel;
   chat: RunChatRow;
@@ -396,11 +596,12 @@ export async function ensureChatSeeded(opts: {
   const wasPromptEdited = existingWorkout?.source === 'prompt_edit';
 
   const needsPlan =
-    !chat.planned_text ||
-    !chat.planned_workout ||
-    (!wasPromptEdited &&
-      Boolean(structuredWorkout) &&
-      JSON.stringify(chat.planned_workout) !== JSON.stringify(plannedWorkout));
+    !wasPromptEdited &&
+    (isUnresolvedPlan(existingWorkout, chat.planned_text) ||
+      !chat.planned_text ||
+      !chat.planned_workout ||
+      (Boolean(structuredWorkout) &&
+        JSON.stringify(chat.planned_workout) !== JSON.stringify(plannedWorkout)));
 
   if (needsPlan) {
     const { data: updated, error } = await supabase
@@ -426,8 +627,39 @@ export async function ensureChatSeeded(opts: {
   chat = { ...chat, clipboard_image_url: imageUrl };
 
   await ensurePlanSeedMessage(channel, chat.planned_text || plannedText, workout, imageUrl);
-  await ensureActualsSeedMessage(supabase, channel, chat);
-  await ensureHistoricalRunAttachments(supabase, channel, chat.activity_id);
+  try {
+    await ensureActualsSeedMessage(supabase, channel, chat);
+  } catch (error) {
+    console.error('ensureActualsSeedMessage failed:', error);
+  }
+  try {
+    await ensureHistoricalRunAttachments(supabase, channel, chat.activity_id);
+  } catch (error) {
+    console.warn('ensureHistoricalRunAttachments failed:', error);
+  }
 
   return chat;
+}
+
+/**
+ * Ensure plan + actuals seed messages exist.
+ * Safe to call on every open — generation/upload only happens once per version.
+ */
+export async function ensureChatSeeded(opts: {
+  supabase: SupabaseClient;
+  channel: StreamChannel;
+  chat: RunChatRow;
+  weeklyPlanText: string | null;
+  structuredWorkout?: PlannedWorkout | null;
+  publishedImageUrl?: string | null;
+}): Promise<RunChatRow> {
+  const inflight = seedInflight();
+  const existing = inflight.get(opts.chat.id);
+  if (existing) return existing;
+
+  const pending = seedChatUnlocked(opts).finally(() => {
+    inflight.delete(opts.chat.id);
+  });
+  inflight.set(opts.chat.id, pending);
+  return pending;
 }

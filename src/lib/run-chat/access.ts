@@ -26,3 +26,15 @@ export function canAccessChat(
   if (user.athleteId && user.athleteId === chat.coach_id) return true;
   return false;
 }
+
+/**
+ * Who may rebuild the plan card with a prompt: staff, or the runner whose
+ * activity this chat belongs to (their own plan, verified server-side).
+ */
+export function canEditChatPlan(
+  user: Pick<SessionUser, 'isStaff' | 'athleteId'>,
+  chat: Pick<RunChat, 'athlete_id'>,
+): boolean {
+  if (user.isStaff) return true;
+  return Boolean(user.athleteId && user.athleteId === chat.athlete_id);
+}

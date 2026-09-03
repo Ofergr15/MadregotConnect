@@ -5,6 +5,8 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // resvg loads a platform-specific native binding at runtime.
+  serverExternalPackages: ['@resvg/resvg-js'],
   // Next 16 blocks cross-origin dev chunks by default. Allow the stable ngrok
   // tunnel used to exercise the local app from physical mobile devices.
   allowedDevOrigins: ['unstout-lustily-noma.ngrok-free.dev', 'madregot.tal.bo'],

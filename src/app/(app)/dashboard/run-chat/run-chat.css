@@ -15,7 +15,7 @@
    * goes cyclic on shrink-wrapped bubbles and Hebrew collapses to 1ch.
    */
   --str-chat__message-max-width: min(640px, 72vw);
-  --str-chat__message-with-attachment-max-width: min(640px, 72vw);
+  --str-chat__message-with-attachment-max-width: min(400px, 72vw);
   --str-chat__message-composer-max-width: var(--run-chat-column-width);
 }
 
@@ -119,19 +119,19 @@
 
 /* Tool trace, run attachments, and answer are one Stream message. */
 .run-chat-shell .str-chat__message-inner:has(.run-chat-strava-card) {
-  width: min(28rem, 100%) !important;
-  max-width: 28rem !important;
+  width: min(400px, 72vw) !important;
+  max-width: 400px !important;
   justify-self: end;
 }
 
 .run-chat-shell .str-chat__message-bubble:has(.run-chat-strava-card) {
-  width: 100% !important;
-  max-width: 100% !important;
-  padding: 0.5rem !important;
-  border: 1px solid rgb(147 197 253 / 0.18) !important;
-  border-radius: 20px 20px 0 20px;
-  background: #142f63 !important;
-  box-shadow: 0 8px 24px rgb(2 6 23 / 0.16) !important;
+  width: min(400px, 72vw) !important;
+  max-width: min(400px, 72vw) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 1rem;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .run-chat-shell .str-chat__message-bubble:has(.run-chat-strava-card) .run-chat-attachments {

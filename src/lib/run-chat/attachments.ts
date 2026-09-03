@@ -47,12 +47,21 @@ export type ToolTraceAttachment = {
   steps: ToolTraceStep[];
 };
 
-export function downsampleRoute(points: RoutePoint[] | null | undefined, max = 120): RoutePoint[] {
-  if (!points?.length || points.length <= max) return points || [];
+function isRoutePoint(point: unknown): point is RoutePoint {
+  if (!point || typeof point !== 'object') return false;
+  const candidate = point as { lat?: unknown; lng?: unknown };
+  return Number.isFinite(candidate.lat) && Number.isFinite(candidate.lng);
+}
+
+export function downsampleRoute(points: unknown, max = 120): RoutePoint[] {
+  if (!Array.isArray(points) || !points.length) return [];
+  const cleaned = points.filter(isRoutePoint);
+  if (!cleaned.length) return [];
+  if (cleaned.length <= max) return cleaned;
   const sampled: RoutePoint[] = [];
-  const step = (points.length - 1) / (max - 1);
+  const step = (cleaned.length - 1) / (max - 1);
   for (let index = 0; index < max; index += 1) {
-    sampled.push(points[Math.round(index * step)]);
+    sampled.push(cleaned[Math.round(index * step)]);
   }
   return sampled;
 }

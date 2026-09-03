@@ -3,17 +3,21 @@
  * Visual target: examples/clipboard_images/*.jpeg
  */
 
-import { readFileSync } from 'fs';
-import sharp from 'sharp';
+import { existsSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { Resvg } from '@resvg/resvg-js';
 import {
   type PlannedWorkout,
   type WorkoutSegment,
   expandWorkoutSteps,
   flattenClipboardSteps,
 } from './mock-workout';
+import { intensityLayout } from './clipboard-layout';
+import { DEJAVU_SANS_BASE64 } from './dejavu-sans.generated';
 
 /** Bump when the renderer changes so stored images regenerate. */
-export const CLIPBOARD_VERSION = 'v6';
+export const CLIPBOARD_VERSION = 'v10';
 
 /** Horizontal inset for steps nested under a Repeat block (Garmin "tab"). */
 const REPEAT_INDENT_PX = 28;
@@ -38,21 +42,22 @@ const KIND_COLOR: Record<string, string> = {
   repeat: GREY,
 };
 
-let _fontCss: string | null = null;
+let _fontPaths: string[] | null = null;
 
-function fontFaceCss(): string {
-  if (_fontCss) return _fontCss;
-  const faces: string[] = [];
-  try {
-    const hebrew = readFileSync('/System/Library/Fonts/SFHebrew.ttf');
-    faces.push(`@font-face{font-family:'ClipboardHe';src:url(data:font/truetype;base64,${hebrew.toString('base64')}) format('truetype');}`);
-  } catch { /* non-mac CI */ }
-  try {
-    const latin = readFileSync('/System/Library/Fonts/Supplemental/Arial.ttf');
-    faces.push(`@font-face{font-family:'ClipboardEn';src:url(data:font/truetype;base64,${latin.toString('base64')}) format('truetype');}`);
-  } catch { /* fallback */ }
-  _fontCss = faces.join('');
-  return _fontCss;
+function writeBundledFont(filename: string, base64: string): string {
+  const path = join(tmpdir(), filename);
+  if (!existsSync(path)) {
+    writeFileSync(path, Buffer.from(base64, 'base64'));
+  }
+  return path;
+}
+
+function fontPaths(): string[] {
+  if (_fontPaths) return _fontPaths;
+  _fontPaths = [
+    writeBundledFont('madregot-dejavu-sans.ttf', DEJAVU_SANS_BASE64),
+  ];
+  return _fontPaths;
 }
 
 function escapeXml(s: string): string {
@@ -63,54 +68,25 @@ function escapeXml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function hasHebrew(s: string): boolean {
-  return /[\u0590-\u05FF]/.test(s);
-}
-
-function fontFor(s: string): string {
-  return hasHebrew(s) ? 'ClipboardHe, ClipboardEn, Arial, sans-serif' : 'ClipboardEn, ClipboardHe, Arial, sans-serif';
-}
-
-/** Steps that appear in the intensity strip (exclude the Repeat footer row). */
-function sparklineSteps(steps: WorkoutSegment[]): WorkoutSegment[] {
-  return steps.filter((s) => s.kind !== 'repeat');
+function fontFor(_s: string): string {
+  return 'DejaVu Sans';
 }
 
 function sparklineBars(steps: WorkoutSegment[], totalW: number): string {
-  const items = sparklineSteps(steps);
-  const weights: number[] = items.map((s) => {
-    if (s.kind === 'warmup' || s.kind === 'cooldown') {
-      // Lap-button warmup is shorter than a distance warmup
-      if (/lap button/i.test(s.detail)) return 18;
-      return Math.max(28, Math.round((s.distanceM ?? 1000) / 50));
-    }
-    if (s.kind === 'interval') return Math.max(8, Math.round((s.distanceM ?? 400) / 80));
-    if (s.kind === 'rest' || s.kind === 'recovery') return 5;
-    return 12;
-  });
-  const sum = weights.reduce((a, b) => a + b, 0) || 1;
-  const gap = 2;
   const maxH = 44;
-  let x = 0;
-  const parts: string[] = [];
-
-  for (let i = 0; i < items.length; i++) {
-    const s = items[i];
-    const w = Math.max(3, (weights[i] / sum) * (totalW - gap * (items.length - 1)));
-    const color = KIND_COLOR[s.kind] ?? GREY;
-    // Garmin: intervals are tallest; rest is a short stub; warmups mid-height
-    const h =
-      s.kind === 'interval' ? maxH :
-      s.kind === 'warmup' || s.kind === 'cooldown' ? 26 :
-      s.kind === 'rest' || s.kind === 'recovery' ? 12 :
-      20;
-    const y = maxH - h;
-    parts.push(
-      `<rect x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${h}" rx="2.5" fill="${color}"/>`,
-    );
-    x += w + gap;
-  }
-  return parts.join('\n');
+  return intensityLayout(steps, totalW)
+    .map(({ step, x, width }) => {
+      const color = KIND_COLOR[step.kind] ?? GREY;
+      // Garmin: intervals are tallest; rest is a short stub; warmups mid-height
+      const h =
+        step.kind === 'interval' ? maxH :
+        step.kind === 'warmup' || step.kind === 'cooldown' ? 26 :
+        step.kind === 'rest' || step.kind === 'recovery' ? 12 :
+        20;
+      const y = maxH - h;
+      return `<rect x="${x.toFixed(1)}" y="${y}" width="${width.toFixed(1)}" height="${h}" rx="2.5" fill="${color}"/>`;
+    })
+    .join('\n');
 }
 
 function repeatIcon(cx: number, cy: number): string {
@@ -170,11 +146,6 @@ export async function renderGarminClipboardPng(workout: PlannedWorkout): Promise
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <defs>
-    <style type="text/css"><![CDATA[
-      ${fontFaceCss()}
-    ]]></style>
-  </defs>
   <rect width="100%" height="100%" rx="16" fill="${BG}"/>
 
   <!-- Title (Garmin: bold, near-black, generous top padding) -->
@@ -193,5 +164,15 @@ export async function renderGarminClipboardPng(workout: PlannedWorkout): Promise
   </g>
 </svg>`;
 
-  return sharp(Buffer.from(svg)).png({ quality: 100 }).toBuffer();
+  const renderer = new Resvg(svg, {
+    font: {
+      fontFiles: fontPaths(),
+      loadSystemFonts: false,
+      defaultFontFamily: 'DejaVu Sans',
+      sansSerifFamily: 'DejaVu Sans',
+    },
+    languages: ['he'],
+    textRendering: 1,
+  });
+  return renderer.render().asPng();
 }

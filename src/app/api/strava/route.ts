@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolveStravaRedirectUri } from '@/lib/strava/client';
 
 /**
  * GET /api/strava?mode=login
@@ -12,9 +13,7 @@ export async function GET(request: Request) {
   const athleteId = searchParams.get('athleteId');
 
   const clientId = process.env.STRAVA_CLIENT_ID;
-  const redirectUri =
-    process.env.STRAVA_REDIRECT_URI ||
-    `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/strava/callback`;
+  const redirectUri = resolveStravaRedirectUri(request);
 
   if (!clientId) {
     return NextResponse.json({ error: 'Strava not configured' }, { status: 500 });

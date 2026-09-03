@@ -5,6 +5,14 @@ import { matchActivityParts, type MatchableActivity } from './activity-matcher';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
+export function isMissingMatchesTable(error: unknown): boolean {
+  const candidate = error as { code?: string; message?: string } | null;
+  return (
+    candidate?.code === 'PGRST205' ||
+    /activity_plan_matches/i.test(candidate?.message || '')
+  );
+}
+
 function isGrouped(value: unknown): value is GroupedWeeklyPlans {
   const object = value as Partial<GroupedWeeklyPlans> | null;
   return Boolean(object?.group1?.workouts && object?.group2?.workouts && object?.group3?.workouts);
@@ -39,6 +47,75 @@ export async function groupNumberForAthlete(
     .maybeSingle();
   const index = resolveGroup(group?.name).index;
   return index >= 0 ? index + 1 : 2;
+}
+
+export type ComputedActivityMatch = {
+  weeklyPlanId: string;
+  workoutKey: string;
+  groupNumber: number;
+  score: number;
+  workout: ParsedWorkout;
+};
+
+/**
+ * Same-week pairing without writing activity_plan_matches. Used when that
+ * table has not been applied yet, and as the source for persist.
+ */
+export async function findComputedActivityMatch(
+  supabase: SupabaseServer,
+  activityId: string,
+  athleteId: string,
+): Promise<ComputedActivityMatch | null> {
+  const { data: planRows, error: planError } = await supabase
+    .from('weekly_plans')
+    .select('id, week_start_date, athlete_id, parsed_workouts, created_at')
+    .in('status', ['pushed', 'partial'])
+    .or(`athlete_id.eq.${athleteId},athlete_id.is.null`)
+    .order('created_at', { ascending: false });
+  if (planError) throw planError;
+
+  const plansByWeek = new Map<string, (typeof planRows)[number]>();
+  for (const plan of planRows || []) {
+    const current = plansByWeek.get(plan.week_start_date);
+    if (!current || (!current.athlete_id && plan.athlete_id === athleteId)) {
+      plansByWeek.set(plan.week_start_date, plan);
+    }
+  }
+  if (plansByWeek.size === 0) return null;
+
+  const { data: activities, error: activityError } = await supabase
+    .from('athlete_activities')
+    .select('id, start_time, distance, activity_name')
+    .eq('athlete_id', athleteId)
+    .order('start_time', { ascending: true });
+  if (activityError) throw activityError;
+
+  const groupNumber = await groupNumberForAthlete(supabase, athleteId);
+
+  for (const plan of plansByWeek.values()) {
+    const groupPlan = workoutPlanForGroup(plan.parsed_workouts, groupNumber);
+    if (!groupPlan) continue;
+    const weekEnd = dateForPlanDay(plan.week_start_date, 6);
+    const weekActivities = (activities || []).filter((activity) => {
+      const date = activityLocalDateStr(activity.start_time);
+      return date >= plan.week_start_date && date <= weekEnd;
+    }) as MatchableActivity[];
+    const matches = matchActivityParts(weekActivities, groupPlan.workouts);
+    const hit = matches.find((match) => match.activityId === activityId);
+    if (!hit) continue;
+    const workout = groupPlan.workouts.find(
+      (candidate: ParsedWorkout) => candidate.workoutKey === hit.workoutKey,
+    );
+    if (!workout) continue;
+    return {
+      weeklyPlanId: plan.id,
+      workoutKey: hit.workoutKey,
+      groupNumber,
+      score: hit.score,
+      workout,
+    };
+  }
+  return null;
 }
 
 /**
@@ -93,16 +170,19 @@ export async function matchAthleteActivities(
       .eq('athlete_id', athleteId)
       .eq('weekly_plan_id', plan.id)
       .eq('match_method', 'manual');
-    if (manualError) throw manualError;
+    if (manualError) {
+      if (!isMissingMatchesTable(manualError)) throw manualError;
+    }
 
     const manualActivityIds = new Set((manualMatches || []).map((match) => match.activity_id));
     const manualWorkoutKeys = new Set((manualMatches || []).map((match) => match.workout_key));
-    await supabase
+    const { error: deleteError } = await supabase
       .from('activity_plan_matches')
       .delete()
       .eq('athlete_id', athleteId)
       .eq('weekly_plan_id', plan.id)
       .eq('match_method', 'auto');
+    if (deleteError && !isMissingMatchesTable(deleteError)) throw deleteError;
 
     const availableActivities = weekActivities.filter(
       (activity) => !manualActivityIds.has(activity.id),
@@ -126,7 +206,13 @@ export async function matchAthleteActivities(
         evidence: match.evidence,
       })),
     );
-    if (insertError) throw insertError;
+    if (insertError) {
+      if (isMissingMatchesTable(insertError)) {
+        matched += matches.length;
+        continue;
+      }
+      throw insertError;
+    }
     matched += matches.length;
   }
 

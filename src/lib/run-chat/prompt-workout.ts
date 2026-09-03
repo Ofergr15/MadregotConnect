@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { z } from 'zod';
 import type { PlannedWorkout, WorkoutSegment } from './mock-workout';
 
@@ -92,6 +93,53 @@ function recoveryDurationFromPrompt(plannedText: string): number | undefined {
   return minutes ? Number(minutes[1].replace(',', '.')) * 60 : undefined;
 }
 
+const RECOVERY_WORDS = /(לאט|קל(?:ה|ות)?|מנוחה|הליכה|ג['׳]?וג|jog|easy|slow|recovery|rest|walk)/i;
+
+/**
+ * Distance-based recovery: "1000 לאט", "1 ק"מ קל", "200 הליכה", "200m jog".
+ * Bare numbers under 50 are kilometres (coach shorthand), otherwise metres.
+ */
+function recoveryDistanceFromPrompt(plannedText: string): number | undefined {
+  const match = plannedText.match(
+    new RegExp(
+      `(\\d+(?:[.,]\\d+)?)\\s*(ק["״']?מ|km|מ(?:טר)?|m)?\\s*(?:של\\s+)?${RECOVERY_WORDS.source}`,
+      'i',
+    ),
+  );
+  if (!match) return undefined;
+  const value = Number(match[1].replace(',', '.'));
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  const unit = (match[2] || '').toLowerCase();
+  const isKm = /ק|km/.test(unit) || (!unit && value < 50);
+  return isKm ? value * 1000 : value;
+}
+
+type PromptRecovery = { durationSec?: number; distanceM?: number };
+
+function recoveryFromPrompt(plannedText: string): PromptRecovery | undefined {
+  const durationSec = recoveryDurationFromPrompt(plannedText);
+  if (durationSec) return { durationSec };
+  const distanceM = recoveryDistanceFromPrompt(plannedText);
+  return distanceM ? { distanceM } : undefined;
+}
+
+function recoveryDetail(recovery: PromptRecovery, note: string) {
+  if (recovery.durationSec) return `${Math.round(recovery.durationSec / 60)} min, ${note}`;
+  return `${formatDistance(recovery.distanceM || 0)}, ${note}`;
+}
+
+function recoveryStep(recovery: PromptRecovery): WorkoutSegment {
+  const note = recovery.durationSec ? 'הליכה' : 'קל';
+  return {
+    kind: 'recovery',
+    label: LABELS.recovery,
+    detail: recoveryDetail(recovery, note),
+    durationSec: recovery.durationSec,
+    distanceM: recovery.distanceM,
+    note,
+  };
+}
+
 function warmupDistanceFromPrompt(plannedText: string): number | undefined {
   const warmup = plannedText.match(
     /(\d+(?:[.,]\d+)?)\s*(?:(?:ק["״']?מ|km)\s*)?חימום/i,
@@ -114,20 +162,22 @@ function repetitionFromPrompt(
 
 function updateNestedRecovery(
   segment: WorkoutSegment,
-  durationSec: number,
+  recovery: PromptRecovery,
 ): WorkoutSegment {
   if (segment.kind === 'recovery' || segment.kind === 'rest') {
+    const note = segment.note || (recovery.durationSec ? 'הליכה' : 'קל');
     return {
       ...segment,
-      durationSec,
-      detail: `${Math.round(durationSec / 60)} min, הליכה`,
-      note: segment.note || 'הליכה',
+      durationSec: recovery.durationSec,
+      distanceM: recovery.distanceM,
+      detail: recoveryDetail(recovery, note),
+      note,
     };
   }
   return segment.steps
     ? {
         ...segment,
-        steps: segment.steps.map((step) => updateNestedRecovery(step, durationSec)),
+        steps: segment.steps.map((step) => updateNestedRecovery(step, recovery)),
       }
     : segment;
 }
@@ -207,7 +257,7 @@ function applyPromptGuardrails(
   plannedText: string,
 ): WorkoutSegment[] {
   const warmupDistanceM = warmupDistanceFromPrompt(plannedText);
-  const recoveryDurationSec = recoveryDurationFromPrompt(plannedText);
+  const recovery = recoveryFromPrompt(plannedText);
   const repetition = repetitionFromPrompt(plannedText);
   const mentionsCooldown = /שחרור|cool[\s-]?down/i.test(plannedText);
 
@@ -223,14 +273,12 @@ function applyPromptGuardrails(
         };
       }
       const paceGuarded = removeInferredPace(segment, plannedText, repetition);
-      return recoveryDurationSec
-        ? updateNestedRecovery(paceGuarded, recoveryDurationSec)
-        : paceGuarded;
+      return recovery ? updateNestedRecovery(paceGuarded, recovery) : paceGuarded;
     });
 
   guarded = groupRepeatedSegments(guarded, repetition);
 
-  if (recoveryDurationSec) {
+  if (recovery) {
     guarded = guarded.map((segment) => {
       if (segment.kind !== 'repeat' || segment.steps?.some(
         (step) => step.kind === 'recovery' || step.kind === 'rest',
@@ -239,16 +287,7 @@ function applyPromptGuardrails(
       }
       return {
         ...segment,
-        steps: [
-          ...(segment.steps || []),
-          {
-            kind: 'recovery',
-            label: LABELS.recovery,
-            detail: `${Math.round(recoveryDurationSec / 60)} min, הליכה`,
-            durationSec: recoveryDurationSec,
-            note: 'הליכה',
-          },
-        ],
+        steps: [...(segment.steps || []), recoveryStep(recovery)],
       };
     });
   }
@@ -283,7 +322,7 @@ export function parsePromptWorkoutJson(
 export function fallbackPromptWorkout(plannedText: string): PlannedWorkout {
   const warmupDistanceM = warmupDistanceFromPrompt(plannedText);
   const repetition = repetitionFromPrompt(plannedText);
-  const recoveryDurationSec = recoveryDurationFromPrompt(plannedText);
+  const recovery = recoveryFromPrompt(plannedText);
   const segments: WorkoutSegment[] = [];
 
   if (warmupDistanceM) {
@@ -296,24 +335,19 @@ export function fallbackPromptWorkout(plannedText: string): PlannedWorkout {
   }
 
   if (repetition) {
+    const marathonPace = /קצב\s+מרתון/i.test(plannedText);
     const steps: WorkoutSegment[] = [
       {
         kind: 'interval',
         label: LABELS.interval,
-        detail: `${formatDistance(repetition.distanceM)}, קצב מרתון`,
+        detail: [formatDistance(repetition.distanceM), marathonPace ? 'קצב מרתון' : null]
+          .filter(Boolean)
+          .join(', '),
         distanceM: repetition.distanceM,
-        note: /קצב\s+מרתון/i.test(plannedText) ? 'קצב מרתון' : undefined,
+        note: marathonPace ? 'קצב מרתון' : undefined,
       },
     ];
-    if (recoveryDurationSec) {
-      steps.push({
-        kind: 'recovery',
-        label: LABELS.recovery,
-        detail: `${Math.round(recoveryDurationSec / 60)} min, הליכה`,
-        durationSec: recoveryDurationSec,
-        note: 'הליכה',
-      });
-    }
+    if (recovery) steps.push(recoveryStep(recovery));
     segments.push({
       kind: 'repeat',
       label: LABELS.repeat,
@@ -350,30 +384,43 @@ export function fallbackPromptWorkout(plannedText: string): PlannedWorkout {
   };
 }
 
-export async function parsePromptWorkout(plannedText: string): Promise<PlannedWorkout> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return fallbackPromptWorkout(plannedText);
-
-  try {
-    const response = await new Anthropic({ apiKey }).messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1400,
-      system: `Extract a runnable workout into JSON. Return ONLY valid JSON with a title and segments.
+const PROMPT_PARSE_SYSTEM = `Extract a runnable workout into JSON. Return ONLY valid JSON with a title and segments.
 Preserve every explicit distance, duration, repetition, recovery, and pace.
 A repeated work step and its between-repetition recovery MUST be represented as one repeat segment:
 {"kind":"repeat","reps":5,"steps":[{"kind":"interval",...},{"kind":"recovery",...}]}.
 Never put reps on the interval itself. In Hebrew coach shorthand, "2 חימום" means a 2 km warmup unless a time unit is explicit.
-Do not invent a cooldown or any other step that the coach did not request.`,
-      messages: [
-        {
-          role: 'user',
-          content:
-            'Return {"title": string, "segments": [{"kind":"warmup"|"interval"|"recovery"|"cooldown"|"easy"|"rest"|"repeat","label"?:string,"detail"?:string,"reps"?:number,"distanceM"?:number,"durationSec"?:number,"targetPaceSec"?:number,"targetHrPct"?:number,"note"?:string,"steps"?:segment[]}]}. targetPaceSec is seconds per km. Workout: ' +
-            plannedText,
-        },
-      ],
-    });
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+Do not invent a cooldown or any other step that the coach did not request.`;
+
+const PROMPT_PARSE_USER =
+  'Return {"title": string, "segments": [{"kind":"warmup"|"interval"|"recovery"|"cooldown"|"easy"|"rest"|"repeat","label"?:string,"detail"?:string,"reps"?:number,"distanceM"?:number,"durationSec"?:number,"targetPaceSec"?:number,"targetHrPct"?:number,"note"?:string,"steps"?:segment[]}]}. targetPaceSec is seconds per km. Workout: ';
+
+export async function parsePromptWorkout(plannedText: string): Promise<PlannedWorkout> {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (!openaiKey && !anthropicKey) return fallbackPromptWorkout(plannedText);
+
+  try {
+    let text = '';
+    if (openaiKey) {
+      const model = process.env.OPENAI_MODEL || 'gpt-5.6-sol';
+      const response = await new OpenAI({ apiKey: openaiKey }).chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: PROMPT_PARSE_SYSTEM },
+          { role: 'user', content: PROMPT_PARSE_USER + plannedText },
+        ],
+        ...(model.startsWith('gpt-5.') ? { reasoning_effort: 'none' as const } : {}),
+      });
+      text = response.choices[0]?.message?.content || '';
+    } else {
+      const response = await new Anthropic({ apiKey: anthropicKey }).messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1400,
+        system: PROMPT_PARSE_SYSTEM,
+        messages: [{ role: 'user', content: PROMPT_PARSE_USER + plannedText }],
+      });
+      text = response.content[0].type === 'text' ? response.content[0].text : '';
+    }
     return parsePromptWorkoutJson(text, plannedText);
   } catch (error) {
     console.warn('Prompt workout parsing fell back to deterministic plan:', error);
