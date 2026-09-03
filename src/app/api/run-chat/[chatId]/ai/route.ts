@@ -6,9 +6,9 @@
  * as the aicoach bot user.
  */
 import { NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
-import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
+import { completeCoachTurn, type CoachTool } from '@/lib/run-chat/ai-complete';
+import { claimAiTurn, releaseAiTurn } from '@/lib/run-chat/ai-lock';
 import { requireSession, authError } from '@/lib/auth-session';
 import { createServerClient } from '@/lib/supabase/server';
 import { canAccessChat } from '@/lib/run-chat/access';
@@ -42,9 +42,6 @@ import {
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-/** Same family as the plan parser — known-good on this project key. */
-const AI_MODEL = 'claude-haiku-4-5-20251001';
-
 const AI_SYSTEM_PROMPT = `You are an AI running coach in a chat between a runner and their human coach.
 You have tools for the planned workout, detailed activity and lap analysis, route data, run comparison, similar workouts, and full run-history search.
 The planned workout is the exact published group-specific workout part matched to this activity. Its source metadata and structured field are authoritative; the clipboard image is only a visual attachment.
@@ -54,6 +51,19 @@ When comparing runs, a negative pace delta means the current run was faster.
 Be specific, data-driven, and encouraging. Answer in the same language as the latest user message (Hebrew or English).
 Keep replies concise — 2-4 sentences unless a detailed breakdown is requested.
 When referencing lap data, include the actual numbers.`;
+
+function hasInProgressCoachTurn(
+  messages: Array<{
+    user_id?: string;
+    user?: { id?: string } | null;
+    text?: string | null;
+  }>,
+): boolean {
+  return messages.some((message) => {
+    const uid = message.user_id || message.user?.id;
+    return uid === AI_USER_ID && (message.text || '').includes('מנתח את נתוני הריצה');
+  });
+}
 
 type ClaudeMsg = { role: 'user' | 'assistant'; content: string };
 
@@ -134,6 +144,7 @@ export async function POST(
   if (!auth.ok) return authError(auth);
   const { user } = auth;
   const { chatId } = await params;
+  let claimed = false;
 
   try {
     const supabase = createServerClient();
@@ -147,6 +158,19 @@ export async function POST(
     if (!chat) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (!canAccessChat(user, chat)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+    let messageId: string | undefined;
+    try {
+      const body = (await request.json()) as { messageId?: unknown };
+      if (typeof body?.messageId === 'string' && body.messageId) messageId = body.messageId;
+    } catch {
+      /* mention id is optional */
+    }
+
+    if (!claimAiTurn(chat.id, messageId)) {
+      return NextResponse.json({ ok: true, deduped: true });
+    }
+    claimed = true;
+
     const stream = getStreamServerClient();
     await ensureAiUser(stream);
 
@@ -155,6 +179,9 @@ export async function POST(
     await channel.watch();
 
     const { messages: streamMessages } = await channel.query({ messages: { limit: 40 } });
+    if (hasInProgressCoachTurn(streamMessages)) {
+      return NextResponse.json({ ok: true, deduped: true });
+    }
     const messages = buildClaudeMessages(streamMessages, chat.athlete_id);
     const traceSteps: ToolTraceStep[] = [];
     const relatedRuns = new Map<string, RunSummaryPayload>();
@@ -199,17 +226,25 @@ export async function POST(
         args,
       };
       traceSteps.push(step);
+      const startedAt = Date.now();
+      console.log(`[run-chat ai] chat=${chatId} tool=${name} request`, JSON.stringify(args));
       await publishTrace();
       try {
         const result = await run();
         collectRunSummaries(result, relatedRuns);
         step.status = 'complete';
         step.result = displayToolResult(result);
+        const text = typeof result === 'string' ? result : JSON.stringify(result);
+        console.log(
+          `[run-chat ai] chat=${chatId} tool=${name} response ${Date.now() - startedAt}ms ${text.length}ch`,
+          text.length > 2000 ? `${text.slice(0, 2000)}…` : text,
+        );
         await publishTrace();
         return result;
       } catch (error) {
         step.status = 'error';
         step.result = error instanceof Error ? error.message : String(error);
+        console.error(`[run-chat ai] chat=${chatId} tool=${name} failed`, error);
         await publishTrace();
         throw error;
       }
@@ -227,7 +262,7 @@ export async function POST(
       return data as RunActivity | null;
     };
 
-    const getCurrentDate = betaZodTool({
+    const getCurrentDate: CoachTool = {
       name: 'get_current_date',
       description: 'Get the current date and day of week for date-relative run questions.',
       inputSchema: z.object({}),
@@ -239,9 +274,9 @@ export async function POST(
           day_of_week: now.toLocaleDateString('en-US', { weekday: 'long' }),
         });
       }),
-    });
+    };
 
-    const getActivityDetails = betaZodTool({
+    const getActivityDetails: CoachTool = {
       name: 'get_activity_details',
       description:
         'Get the complete summary for the run attached to this chat: distance, duration, pace, heart rate, elevation, effort and lap count.',
@@ -250,9 +285,9 @@ export async function POST(
         const activity = await loadCurrentActivity();
         return activity ? JSON.stringify(activitySummary(activity)) : 'No activity data found.';
       }),
-    });
+    };
 
-    const analyzeActivityLaps = betaZodTool({
+    const analyzeActivityLaps: CoachTool = {
       name: 'analyze_activity_laps',
       description:
         'Analyze every actual Strava lap for this run, including pace spread and heart-rate drift. Use for split/lap/pacing questions.',
@@ -263,9 +298,9 @@ export async function POST(
         if (!activity.laps?.length) return 'No lap data is stored for this activity.';
         return JSON.stringify(lapAnalysis(activity));
       }),
-    });
+    };
 
-    const getPlannedWorkout = betaZodTool({
+    const getPlannedWorkout: CoachTool = {
       name: 'get_planned_workout',
       description:
         'Get the exact published, group-specific workout part matched to this run, including structured steps and match provenance.',
@@ -275,9 +310,9 @@ export async function POST(
         if (chat.planned_text) return chat.planned_text;
         return 'No planned workout on record for this run.';
       }),
-    });
+    };
 
-    const analyzeActivityWorkout = betaZodTool({
+    const analyzeActivityWorkout: CoachTool = {
       name: 'analyze_activity_workout',
       description:
         'Analyze how this run executed the planned workout. Returns the plan plus normalized laps; align/merge auto-laps to the planned interval structure.',
@@ -296,9 +331,9 @@ export async function POST(
           ],
         });
       }),
-    });
+    };
 
-    const getActivityGpx = betaZodTool({
+    const getActivityGpx: CoachTool = {
       name: 'get_activity_gpx',
       description:
         'Fetch the GPX (or route summary) for the actual run — use for route/terrain questions.',
@@ -337,9 +372,9 @@ export async function POST(
           elevation_gain: act.elevation_gain,
         });
       }),
-    });
+    };
 
-    const getRecentRuns = betaZodTool({
+    const getRecentRuns: CoachTool = {
       name: 'get_recent_runs',
       description: 'Get recent runs for this athlete to identify short-term trends.',
       inputSchema: z.object({
@@ -355,9 +390,9 @@ export async function POST(
             .limit(count || 5);
           return JSON.stringify((runs || []).map((run) => activitySummary(run as RunActivity)));
         }),
-    });
+    };
 
-    const searchRunHistory = betaZodTool({
+    const searchRunHistory: CoachTool = {
       name: 'search_run_history',
       description:
         'Search the athlete stored Strava history, excluding the run attached to this chat, by date, distance, or day of week. Use for questions about previous runs, Friday runs, long runs, or date ranges.',
@@ -396,9 +431,9 @@ export async function POST(
             ),
           });
         }),
-    });
+    };
 
-    const compareRunTool = betaZodTool({
+    const compareRunTool: CoachTool = {
       name: 'compare_runs',
       description:
         'Compare this chat run with another stored run selected by Strava activity ID or local activity date.',
@@ -432,9 +467,9 @@ export async function POST(
           if (!other) return 'No comparison run matched.';
           return JSON.stringify(compareRuns(current, other as RunActivity));
         }),
-    });
+    };
 
-    const findSimilarWorkouts = betaZodTool({
+    const findSimilarWorkouts: CoachTool = {
       name: 'find_similar_workouts',
       description:
         'Find stored runs most similar to this run using distance, lap count and pace. Use for historical context and progression.',
@@ -454,6 +489,14 @@ export async function POST(
             .limit(100);
           if (error) return `Similar-run search failed: ${error.message}`;
           const matches = (data || [])
+            .filter(
+              (candidate) =>
+                candidate.id !== current.id &&
+                !(
+                  current.strava_activity_id &&
+                  candidate.strava_activity_id === current.strava_activity_id
+                ),
+            )
             .map((candidate) => ({
               score: similarRunScore(current, candidate as RunActivity),
               run: activitySummary(candidate as RunActivity),
@@ -462,7 +505,7 @@ export async function POST(
             .slice(0, limit || 5);
           return JSON.stringify(matches);
         }),
-    });
+    };
 
     try {
       await channel.sendEvent({ type: 'typing.start', user_id: AI_USER_ID } as never);
@@ -470,17 +513,9 @@ export async function POST(
       /* typing is best-effort */
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not configured');
-    }
-    // Pass apiKey explicitly — Next only inlines process.env.* that are
-    // statically referenced; the SDK's readEnv() otherwise sees nothing.
-    const anthropic = new Anthropic({ apiKey });
-    const finalMsg = await anthropic.beta.messages.toolRunner({
-      model: AI_MODEL,
-      max_tokens: 2048,
+    const replyText = await completeCoachTurn({
       system: AI_SYSTEM_PROMPT,
+      messages,
       tools: [
         getCurrentDate,
         getActivityDetails,
@@ -493,15 +528,7 @@ export async function POST(
         compareRunTool,
         findSimilarWorkouts,
       ],
-      messages,
-      max_iterations: 5,
     });
-
-    const replyText = finalMsg.content
-      .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-      .trim();
 
     const relatedIds = [...relatedRuns.keys()]
       .filter((id) => id !== chat.activity_id)
@@ -593,5 +620,7 @@ export async function POST(
     }
 
     return NextResponse.json({ error: String(err) }, { status: 500 });
+  } finally {
+    if (claimed) releaseAiTurn(chatId);
   }
 }

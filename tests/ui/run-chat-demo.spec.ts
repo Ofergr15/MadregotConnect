@@ -6,12 +6,12 @@ const DEMO_URL = `/dashboard/run-chat/${ACTIVITY_ID}/demo`;
 async function signInAndOpenDemo(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Test Runner', exact: true }).click();
-  await page.waitForURL('**/dashboard');
+  await page.waitForURL(/\/(dashboard|feed)(\?|$)/);
   await page.goto(DEMO_URL);
 
   await expect(page.getByTestId('run-chat-live-demo')).toBeVisible();
-  await expect(page.getByTestId('runner-chat-pane')).toContainText('Runner view');
-  await expect(page.getByTestId('coach-chat-pane')).toContainText('Coach view');
+  await expect(page.getByTestId('runner-chat-pane')).toContainText(/Runner view|תצוגת רץ/);
+  await expect(page.getByTestId('coach-chat-pane')).toContainText(/Coach view|תצוגת מאמן/);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -166,7 +166,7 @@ test('the first plan message opens prompt-based rebuilding', async ({ page }) =>
 
   await page.goto('/');
   await page.getByRole('button', { name: 'Test Coach', exact: true }).click();
-  await page.waitForURL('**/dashboard');
+  await page.waitForURL(/\/(dashboard|feed)(\?|$)/);
   await page.goto(`/dashboard/run-chat/${ACTIVITY_ID}`);
   const planMessage = page.locator('.run-chat-msg').filter({ hasText: 'תוכנית האימון' }).first();
   await expect(planMessage).toBeVisible();
@@ -212,4 +212,30 @@ test('the first plan message opens prompt-based rebuilding', async ({ page }) =>
   expect(submittedPlan).toMatchObject({ plannedText: '10km easy' });
   const payload = submittedPlan as unknown as Record<string, unknown>;
   expect(typeof payload.messageId).toBe('string');
+});
+
+test('the actual-run card shows laps as a table with collapsible repeat sets', async ({ page }) => {
+  await page.goto(`/dashboard/run-chat/${ACTIVITY_ID}`);
+  const runCard = page.locator('.run-chat-strava-card').first();
+  await expect(runCard).toBeVisible();
+
+  // The seeded test activity is warmup → N×(1000 + 400) → cooldown, so the
+  // grouper must fold the interval laps into one repeat row; expanding it
+  // reveals the 2·N individual laps.
+  const repeatRow = runCard.getByTestId('laps-repeat-row');
+  await expect(repeatRow).toBeVisible();
+  await expect(repeatRow).toContainText(/\d+×/);
+  await expect(repeatRow).toHaveAttribute('aria-expanded', 'false');
+  const reps = Number((await repeatRow.innerText()).match(/(\d+)×/)![1]);
+  expect(reps).toBeGreaterThanOrEqual(3);
+
+  const rowsBefore = await runCard.locator('tbody tr').count();
+  await repeatRow.click();
+  await expect(repeatRow).toHaveAttribute('aria-expanded', 'true');
+  const rowsAfter = await runCard.locator('tbody tr').count();
+  expect(rowsAfter - rowsBefore).toBe(reps * 2);
+
+  await repeatRow.click();
+  await expect(repeatRow).toHaveAttribute('aria-expanded', 'false');
+  expect(await runCard.locator('tbody tr').count()).toBe(rowsBefore);
 });

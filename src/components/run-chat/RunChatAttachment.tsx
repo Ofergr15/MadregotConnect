@@ -20,10 +20,23 @@ export function RunChatAttachment(props: AttachmentProps) {
   const custom = attachments.filter((attachment) =>
     ['workout', 'strava_run', 'tool_trace'].includes(String(attachment.type)),
   );
-  const native = props.attachments.filter((attachment) =>
-    !('type' in attachment) ||
-    !['workout', 'strava_run', 'tool_trace'].includes(String(attachment.type)),
+  // Run cards render their own laps image; drop native copies of the same URL.
+  const cardImageUrls = new Set(
+    custom
+      .filter((attachment) => attachment.type === 'strava_run')
+      .map((attachment) => String(attachment.laps_image_url || ''))
+      .filter(Boolean),
   );
+  const native = props.attachments.filter((attachment) => {
+    if (!('type' in attachment)) return true;
+    if (['workout', 'strava_run', 'tool_trace'].includes(String(attachment.type))) return false;
+    const url = String(
+      (attachment as { image_url?: string; asset_url?: string }).image_url ||
+        (attachment as { asset_url?: string }).asset_url ||
+        '',
+    );
+    return !(attachment.type === 'image' && url && cardImageUrls.has(url));
+  });
 
   return (
     <div className="run-chat-attachments my-1 space-y-2">

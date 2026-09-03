@@ -8,7 +8,7 @@ async function signInAndOpenChat(page: Page) {
   await page.goto('/');
   await page.getByTestId('dev-toolbar-toggle').click();
   await page.getByRole('button', { name: 'Test Runner', exact: true }).click();
-  await page.waitForURL('**/dashboard');
+  await page.waitForURL(/\/(dashboard|feed)(\?|$)/);
   await page.goto(`/dashboard/run-chat/${ACTIVITY_ID}`);
   await expect(page.locator('.run-chat-page')).toBeVisible();
   await expect(page.locator('.str-chat__message-list')).toBeVisible();

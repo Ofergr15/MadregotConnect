@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import {
   Chat,
@@ -10,6 +10,7 @@ import {
   Thread,
   Window,
   WithComponents,
+  useChannelStateContext,
 } from 'stream-chat-react';
 import type { Channel as StreamChannel, StreamChat } from 'stream-chat';
 import {
@@ -19,10 +20,13 @@ import {
   useConnectedStreamClient,
 } from '@/lib/stream/client';
 import { messageMentionsAi } from '@/lib/run-chat/ai-mention';
+import { claimAiTurn, releaseAiTurn } from '@/lib/run-chat/ai-lock';
+import { orderSeedMessagesFirst } from '@/lib/run-chat/seed-order';
 import { AI_USER_ID } from '@/lib/stream/constants';
 import { AiMentionButton } from './AiMentionButton';
 import { CoachMentionButton, type MentionableCoach } from './CoachMentionButton';
 import { PlanEditPromptProvider, RunChatMessageActions } from './PlanEditPrompt';
+import { RunChatSessionProvider } from './RunChatSession';
 import { RunChatAttachment } from './RunChatAttachment';
 import { RunChatAvatar } from './RunChatAvatar';
 import { RunChatContentEditable } from './RunChatContentEditable';
@@ -58,6 +62,21 @@ const MESSAGE_ACTIONS = [
   'pin',
 ];
 
+/** Program card first, actual-run card second, then the conversation. */
+function SeededMessageList() {
+  const { messages } = useChannelStateContext();
+  const ordered = useMemo(() => orderSeedMessagesFirst(messages || []), [messages]);
+  return (
+    <MessageList
+      messages={ordered}
+      messageActions={MESSAGE_ACTIONS}
+      formatDate={formatMessageTime}
+      showAvatar={false}
+      noGroupByUser
+    />
+  );
+}
+
 interface ChatPanelProps {
   channel: StreamChannel;
   chat: RunChat;
@@ -84,23 +103,22 @@ function ChatPanel({
   canEditPlan = false,
 }: ChatPanelProps) {
   const [aiLoading, setAiLoading] = useState(false);
-  const aiInFlight = useRef(false);
-  const seenAiTriggers = useRef(new Set<string>());
   const matchedWorkout = (chat.planned_workout as {
     structured?: { name?: string; partIndex?: number; partCount?: number };
   } | null)?.structured;
 
   const triggerAi = useCallback(
     async (messageId?: string) => {
-      if (aiInFlight.current) return;
-      if (messageId && seenAiTriggers.current.has(messageId)) return;
-      if (messageId) seenAiTriggers.current.add(messageId);
-      aiInFlight.current = true;
+      if (!claimAiTurn(chat.id, messageId)) return;
       setAiLoading(true);
       try {
         const response = await fetch(`/api/run-chat/${chat.id}/ai`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${supabaseToken}` },
+          headers: {
+            Authorization: `Bearer ${supabaseToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ messageId }),
         });
         if (!response.ok) {
           console.error('AI coach request failed', messageId, await response.text());
@@ -108,7 +126,7 @@ function ChatPanel({
       } catch (error) {
         console.error('AI coach request error', error);
       } finally {
-        aiInFlight.current = false;
+        releaseAiTurn(chat.id);
         setAiLoading(false);
       }
     },
@@ -121,6 +139,8 @@ function ChatPanel({
       const message = event.message;
       if (!message || message.user?.id === AI_USER_ID) return;
       if (!messageMentionsAi(message)) return;
+      // Stream often emits the local echo and the server confirm as two
+      // message.new events. The lock is per chat, so the second is a no-op.
       void triggerAi(message.id);
     });
     return () => handler.unsubscribe();
@@ -143,6 +163,9 @@ function ChatPanel({
             <p className="truncate text-sm font-semibold text-white">
               {activity.activity_name || 'ריצה'}
             </p>
+            <span className="inline-flex shrink-0 items-center rounded-full border border-violet-400/30 bg-violet-400/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-300">
+              Beta
+            </span>
             {viewerLabel && (
               <span
                 className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300"
@@ -174,53 +197,50 @@ function ChatPanel({
       </div>
 
       <div className="run-chat-shell flex min-h-0 flex-1 flex-col">
-        <PlanEditPromptProvider
-          chatId={chat.id}
-          supabaseToken={supabaseToken}
-          canEditPlan={canEditPlan}
-        >
-          <Chat client={client} i18nInstance={i18n} theme="str-chat__theme-dark">
-            <WithComponents
-              overrides={{
-                MessageUI: RunChatMessageUI,
-                MessageActions: RunChatMessageActions,
-                Attachment: RunChatAttachment,
-                Avatar: RunChatAvatar,
-                TextareaComposer: RunChatContentEditable,
-              }}
-            >
-              <Channel channel={channel}>
-                <Window>
-                  <MessageList
-                    messageActions={MESSAGE_ACTIONS}
-                    formatDate={formatMessageTime}
-                    showAvatar={false}
-                    noGroupByUser
-                  />
-                  <div className="run-chat-composer-shell flex justify-center px-3 py-2">
-                    <div className="run-chat-composer-row flex w-full items-center gap-2">
-                      <div className="min-w-0 flex-1">
-                        <MessageComposer />
-                      </div>
-                      <div className="run-chat-mention-rail flex shrink-0 items-center gap-2">
-                        {coach && <CoachMentionButton channel={channel} coach={coach} />}
-                        <AiMentionButton channel={channel} />
+        <RunChatSessionProvider chatId={chat.id} supabaseToken={supabaseToken}>
+          <PlanEditPromptProvider
+            chatId={chat.id}
+            supabaseToken={supabaseToken}
+            canEditPlan={canEditPlan}
+          >
+            <Chat client={client} i18nInstance={i18n} theme="str-chat__theme-dark">
+              <WithComponents
+                overrides={{
+                  MessageUI: RunChatMessageUI,
+                  MessageActions: RunChatMessageActions,
+                  Attachment: RunChatAttachment,
+                  Avatar: RunChatAvatar,
+                  TextareaComposer: RunChatContentEditable,
+                }}
+              >
+                <Channel channel={channel}>
+                  <Window>
+                    <SeededMessageList />
+                    <div className="run-chat-composer-shell flex justify-center px-3 py-2">
+                      <div className="run-chat-composer-row flex w-full items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <MessageComposer />
+                        </div>
+                        <div className="run-chat-mention-rail flex shrink-0 items-center gap-2">
+                          {coach && <CoachMentionButton channel={channel} coach={coach} />}
+                          <AiMentionButton channel={channel} />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Window>
-                <Thread
-                  messageActions={MESSAGE_ACTIONS}
-                  additionalMessageListProps={{
-                    formatDate: formatMessageTime,
-                    showAvatar: false,
-                    noGroupByUser: true,
-                  }}
-                />
-              </Channel>
-            </WithComponents>
-          </Chat>
-        </PlanEditPromptProvider>
+                  </Window>
+                  <Thread
+                    messageActions={MESSAGE_ACTIONS}
+                    additionalMessageListProps={{
+                      formatDate: formatMessageTime,
+                      showAvatar: false,
+                      noGroupByUser: true,
+                    }}
+                  />
+                </Channel>
+              </WithComponents>
+            </Chat>
+          </PlanEditPromptProvider>
+        </RunChatSessionProvider>
       </div>
     </div>
   );
@@ -301,7 +321,7 @@ export function ConnectedRunChat({
       onBack={onBack}
       viewerLabel={viewerLabel}
       enableAiTrigger={enableAiTrigger}
-      canEditPlan={Boolean(tokenData.isStaff)}
+      canEditPlan={Boolean(tokenData.isStaff) || tokenData.userId === chat.athlete_id}
     />
   );
 }

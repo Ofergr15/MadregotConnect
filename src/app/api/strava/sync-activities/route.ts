@@ -7,16 +7,14 @@
  */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { decrypt, encrypt } from '@/lib/encryption';
+import { decrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
+import { StravaClient, type StravaTokens } from '@/lib/strava/client';
 import {
-  StravaClient,
-  refreshStravaToken,
-  tokenNeedsRefresh,
-  streamsToGpx,
-  streamsToGpsPoints,
-  type StravaTokens,
-} from '@/lib/strava/client';
+  enrichStravaActivity,
+  getValidStravaToken,
+  isMissingColumnError,
+} from '@/lib/strava/enrich';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
@@ -28,91 +26,6 @@ import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
-
-const BUCKET = 'run-chat';
-
-async function ensureBucket(supabase: ReturnType<typeof createServerClient>) {
-  const { data } = await supabase.storage.getBucket(BUCKET);
-  if (!data) {
-    await supabase.storage.createBucket(BUCKET, { public: true, fileSizeLimit: 20_000_000 });
-  }
-}
-
-async function getValidToken(
-  auth: StravaTokens,
-  athleteId: string,
-  supabase: ReturnType<typeof createServerClient>,
-): Promise<string | null> {
-  if (!tokenNeedsRefresh(auth.expires_at)) return auth.access_token;
-
-  const refreshed = await refreshStravaToken(auth.refresh_token);
-  if (!refreshed) return null;
-
-  const next: StravaTokens = {
-    ...refreshed,
-    athlete_id: auth.athlete_id || refreshed.athlete_id,
-  };
-  await supabase.from('athletes').update({ strava_auth: encrypt(next) }).eq('id', athleteId);
-  return next.access_token;
-}
-
-async function enrichActivity(
-  supabase: ReturnType<typeof createServerClient>,
-  client: StravaClient,
-  athleteId: string,
-  stravaActivityId: number,
-  activityName: string,
-  startTimeLocal: string,
-  rowId: string | null,
-) {
-  try {
-    const laps = await client.getActivityLaps(stravaActivityId);
-    const streams = await client.getActivityStreams(stravaActivityId);
-    const gps_points = streamsToGpsPoints(streams);
-    const gpx = streamsToGpx(streams, {
-      name: activityName,
-      startTimeIso: new Date(startTimeLocal).toISOString(),
-      activityId: stravaActivityId,
-    });
-
-    await ensureBucket(supabase);
-    const gpxPath = `${athleteId}/${stravaActivityId}.gpx`;
-    await supabase.storage
-      .from(BUCKET)
-      .upload(gpxPath, Buffer.from(gpx, 'utf8'), {
-        contentType: 'application/gpx+xml',
-        upsert: true,
-      });
-    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(gpxPath);
-    const strava_gpx_url = urlData.publicUrl;
-
-    const patch: Record<string, unknown> = {
-      laps: laps?.length ? laps : null,
-      gps_points: gps_points.length ? gps_points : null,
-      strava_gpx_url,
-      // Keep streams compact — drop latlng (already in gps_points) if huge
-      strava_streams: {
-        time: streams.time?.data?.length ?? 0,
-        heartrate: streams.heartrate?.data?.length ?? 0,
-        altitude: streams.altitude?.data?.length ?? 0,
-        has_latlng: !!streams.latlng?.data?.length,
-      },
-      has_polyline: gps_points.length > 0,
-    };
-
-    if (rowId) {
-      await supabase.from('athlete_activities').update(patch).eq('id', rowId);
-    } else {
-      await supabase
-        .from('athlete_activities')
-        .update(patch)
-        .eq('strava_activity_id', stravaActivityId)
-        .eq('athlete_id', athleteId);
-    }
-  } catch (err) {
-    console.warn(`enrichActivity ${stravaActivityId} failed:`, err);
-  }
-}
 
 export async function POST(request: Request) {
   try {
@@ -170,7 +83,7 @@ export async function POST(request: Request) {
       if (!athlete.strava_auth) continue;
       try {
         const auth = decrypt(athlete.strava_auth as string) as StravaTokens;
-        const token = await getValidToken(auth, athlete.id, supabase);
+        const token = await getValidStravaToken(supabase, athlete.id, auth);
         if (!token) {
           results.push({
             athleteId: athlete.id,
@@ -187,17 +100,32 @@ export async function POST(request: Request) {
         const activities = await client.getAllActivities({ after, maxPages: 5, perPage: 100 });
         const runActivities = activities.filter(isRun);
 
-        const { data: existing } = await supabase
+        type ExistingRow = { id: string; strava_activity_id: number | null; laps: unknown; strava_gpx_url?: string | null };
+        let hasGpxColumn = true;
+        let { data: existing, error: existingError } = await supabase
           .from('athlete_activities')
-          .select('id, strava_activity_id, start_time, strava_gpx_url')
-          .eq('athlete_id', athlete.id);
+          .select('id, strava_activity_id, start_time, laps, strava_gpx_url')
+          .eq('athlete_id', athlete.id)
+          .returns<ExistingRow[]>();
+        if (existingError && isMissingColumnError(existingError)) {
+          // Pre-migration-051 database. Without this fallback the lookup came
+          // back empty, every run looked new, and enrichment never ran.
+          hasGpxColumn = false;
+          ({ data: existing, error: existingError } = await supabase
+            .from('athlete_activities')
+            .select('id, strava_activity_id, start_time, laps')
+            .eq('athlete_id', athlete.id)
+            .returns<ExistingRow[]>());
+        }
+        if (existingError) throw existingError;
 
-        const existingByStrava = new Map<number, { id: string; strava_gpx_url?: string | null }>();
+        const existingByStrava = new Map<number, { id: string; needsEnrich: boolean }>();
         for (const e of existing || []) {
           if (e.strava_activity_id) {
             existingByStrava.set(e.strava_activity_id, {
               id: e.id,
-              strava_gpx_url: e.strava_gpx_url,
+              // null laps = never enriched (enrich stores [] when Strava has none)
+              needsEnrich: e.laps == null || (hasGpxColumn && !e.strava_gpx_url),
             });
           }
         }
@@ -219,17 +147,15 @@ export async function POST(request: Request) {
         for (const a of runActivities) {
           const known = existingByStrava.get(a.id);
           if (known) {
-            if (!known.strava_gpx_url && shouldEnrich(a.start_date_local)) {
+            if (known.needsEnrich && shouldEnrich(a.start_date_local)) {
               enrichCount++;
-              await enrichActivity(
-                supabase,
-                client,
-                athlete.id,
-                a.id,
-                a.name,
-                a.start_date_local,
-                known.id,
-              );
+              await enrichStravaActivity(supabase, client, {
+                athleteId: athlete.id,
+                stravaActivityId: a.id,
+                activityName: a.name,
+                startTimeLocal: a.start_date_local,
+                rowId: known.id,
+              });
             }
             continue;
           }
@@ -324,15 +250,13 @@ export async function POST(request: Request) {
 
           if (shouldEnrich(a.start_date_local)) {
             enrichCount++;
-            await enrichActivity(
-              supabase,
-              client,
-              athlete.id,
-              a.id,
-              a.name,
-              a.start_date_local,
-              inserted?.id ?? null,
-            );
+            await enrichStravaActivity(supabase, client, {
+              athleteId: athlete.id,
+              stravaActivityId: a.id,
+              activityName: a.name,
+              startTimeLocal: a.start_date_local,
+              rowId: inserted?.id ?? null,
+            });
           }
           synced++;
           // garmin_activity_id (the field the feedback push links to) holds

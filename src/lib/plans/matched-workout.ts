@@ -5,7 +5,11 @@ import {
   parsedWorkoutToClipboard,
   workoutToClipboardText,
 } from '@/lib/plans/clipboard';
-import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
+import {
+  findComputedActivityMatch,
+  isMissingMatchesTable,
+  matchAthleteActivities,
+} from '@/lib/plans/match-athlete-activities';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -78,6 +82,35 @@ async function lookup(
   };
 }
 
+function toMatchedWorkout(
+  computed: Awaited<ReturnType<typeof findComputedActivityMatch>>,
+): MatchedWorkout | null {
+  if (!computed) return null;
+  const plannedText = computed.workout.clipboardText || workoutToClipboardText(computed.workout);
+  const clipboard = parsedWorkoutToClipboard({ ...computed.workout, clipboardText: plannedText });
+  return {
+    weeklyPlanId: computed.weeklyPlanId,
+    workoutKey: computed.workoutKey,
+    groupNumber: computed.groupNumber,
+    matchMethod: 'auto',
+    score: computed.score,
+    workout: computed.workout,
+    plannedText,
+    plannedWorkout: {
+      ...clipboard,
+      source: {
+        weeklyPlanId: computed.weeklyPlanId,
+        workoutKey: computed.workoutKey,
+        groupNumber: computed.groupNumber,
+        matchMethod: 'auto',
+        matchScore: computed.score,
+      },
+      structured: computed.workout,
+    } as PlannedWorkout,
+    clipboardImageUrl: computed.workout.clipboardImageUrl || null,
+  };
+}
+
 export async function ensureMatchedWorkout(
   supabase: SupabaseServer,
   activityId: string,
@@ -87,10 +120,18 @@ export async function ensureMatchedWorkout(
     const existing = await lookup(supabase, activityId);
     if (existing) return existing;
     await matchAthleteActivities(supabase, athleteId);
-    return await lookup(supabase, activityId);
+    const persisted = await lookup(supabase, activityId);
+    if (persisted) return persisted;
+    return toMatchedWorkout(await findComputedActivityMatch(supabase, activityId, athleteId));
   } catch (error) {
-    // Keep chat available while migration 043 is being rolled out.
-    console.warn(`Matched workout lookup for ${activityId} skipped:`, error);
-    return null;
+    if (!isMissingMatchesTable(error)) {
+      console.warn(`Matched workout lookup for ${activityId} skipped:`, error);
+    }
+    try {
+      return toMatchedWorkout(await findComputedActivityMatch(supabase, activityId, athleteId));
+    } catch (computeError) {
+      console.warn(`Matched workout compute for ${activityId} skipped:`, computeError);
+      return null;
+    }
   }
 }

@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
-import { stravaAuthEmail } from '@/lib/strava/client';
+import { resolveAppOrigin, stravaAuthEmail } from '@/lib/strava/client';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
 
 export const dynamic = 'force-dynamic';
@@ -63,9 +63,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state');
-  // Behind a Cloudflare tunnel, request.url carries the internal localhost URL.
-  // NEXT_PUBLIC_APP_URL is the public-facing origin the client's browser can reach.
-  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || new URL(request.url).origin;
+  // Localhost stays local even if .env still points at production.
+  // Behind a Cloudflare tunnel (non-localhost host), prefer NEXT_PUBLIC_APP_URL.
+  const origin = resolveAppOrigin(request);
   const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
     ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
     : 'missing';

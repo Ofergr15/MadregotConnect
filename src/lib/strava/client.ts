@@ -44,6 +44,19 @@ export interface StravaActivity {
   map?: { summary_polyline?: string | null };
   start_latlng?: [number, number] | null;
   end_latlng?: [number, number] | null;
+  /** Detailed activity only: Strava's auto per-km splits. */
+  splits_metric?: StravaSplit[];
+}
+
+export interface StravaSplit {
+  split: number;
+  distance: number;
+  moving_time: number;
+  elapsed_time: number;
+  average_speed: number;
+  average_heartrate?: number;
+  elevation_difference?: number;
+  pace_zone?: number;
 }
 
 export interface StravaLap {
@@ -69,6 +82,32 @@ export type StravaStreams = {
   velocity_smooth?: { data: number[] };
   cadence?: { data: number[] };
 };
+
+/**
+ * Origin used for post-OAuth browser redirects.
+ * A copied production .env still has NEXT_PUBLIC_APP_URL=https://madregot.tal.bo;
+ * when the request itself is localhost, stay local so login does not bounce to prod.
+ */
+export function resolveAppOrigin(request: Request): string {
+  const requestUrl = new URL(request.url);
+  if (requestUrl.hostname === 'localhost' || requestUrl.hostname === '127.0.0.1') {
+    return requestUrl.origin;
+  }
+  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || requestUrl.origin;
+}
+
+/** redirect_uri sent to Strava. Localhost always uses this host, not the prod callback. */
+export function resolveStravaRedirectUri(request: Request): string {
+  const origin = resolveAppOrigin(request);
+  const hostname = new URL(origin).hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `${origin}/api/strava/callback`;
+  }
+  return (
+    process.env.STRAVA_REDIRECT_URI ||
+    `${origin}/api/strava/callback`
+  );
+}
 
 export async function refreshStravaToken(refreshToken: string): Promise<StravaTokens | null> {
   const clientId = process.env.STRAVA_CLIENT_ID;
@@ -202,6 +241,40 @@ export async function fetchStravaLaps(
   }
 }
 
+/**
+ * Turn Strava's auto per-km splits into the lap shape the rest of the app
+ * consumes. Used when the watch recorded no manual/auto laps, so the actuals
+ * card still shows the same per-km breakdown Strava does. Empty/invalid
+ * splits are dropped; a single split is not worth a laps row.
+ */
+export function splitsToLaps(splits: StravaSplit[] | null | undefined): StravaLap[] {
+  if (!Array.isArray(splits)) return [];
+  const laps = splits
+    .filter((s) => s && Number.isFinite(s.distance) && s.distance > 0 && Number.isFinite(s.moving_time) && s.moving_time > 0)
+    .map((s, index) => {
+      const movingTime = s.moving_time;
+      const averageSpeed = Number.isFinite(s.average_speed) && s.average_speed > 0
+        ? s.average_speed
+        : s.distance / movingTime;
+      return {
+        name: `Split ${index + 1}`,
+        lap_index: index + 1,
+        split: s.split ?? index + 1,
+        distance: s.distance,
+        moving_time: movingTime,
+        elapsed_time: Number.isFinite(s.elapsed_time) ? s.elapsed_time : movingTime,
+        average_speed: averageSpeed,
+        ...(Number.isFinite(s.average_heartrate) ? { average_heartrate: s.average_heartrate } : {}),
+      } satisfies StravaLap;
+    });
+  return laps.length > 1 ? laps : [];
+}
+
+/** A laps payload that carries per-segment information worth rendering. */
+export function hasUsefulLaps(laps: StravaLap[] | null | undefined): boolean {
+  return Array.isArray(laps) && laps.length > 1;
+}
+
 export function getStravaActivityUrl(activityId: number): string {
   return `https://www.strava.com/activities/${activityId}`;
 }
@@ -212,10 +285,10 @@ export function stravaAuthEmail(stravaAthleteId: number): string {
 
 export function formatPace(metersPerSecond: number): string {
   if (!metersPerSecond) return '—';
-  const minutesPerKm = 1000 / (metersPerSecond * 60);
-  const minutes = Math.floor(minutesPerKm);
-  const seconds = Math.round((minutesPerKm - minutes) * 60);
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  // Round the total first; rounding the remainder alone can yield "3:60".
+  const secondsPerKm = Math.round(1000 / metersPerSecond);
+  const minutes = Math.floor(secondsPerKm / 60);
+  return `${minutes}:${(secondsPerKm % 60).toString().padStart(2, '0')}`;
 }
 
 export function formatDistance(meters: number): string {
