@@ -55,20 +55,34 @@ interface Section {
   items: Item[];
 }
 
-// Inline RSVP yes/no on a training_before row — loads the athlete's current
+// Inline RSVP yes/no on a training_before row — shows the athlete's current
 // answer (if any) so the row reflects reality even after a reload, then
 // toggles optimistically on tap, same posture as KudosButton above.
-function RsvpInlineButtons({ weekStart, day, athleteId }: { weekStart: string; day: number; athleteId: string }) {
-  const [attending, setAttending] = useState<boolean | null>(null);
+function RsvpInlineButtons({
+  weekStart,
+  day,
+  athleteId,
+  initialAttending,
+}: { weekStart: string; day: number; athleteId: string; initialAttending?: boolean | null }) {
+  const [attending, setAttending] = useState<boolean | null>(initialAttending ?? null);
   const [busy, setBusy] = useState(false);
 
+  // The inbox response carries the answer (see withRowActions in the inbox
+  // route), so normally this costs nothing. The fetch is the fallback for when
+  // it didn't come through — a response cached before that existed, or the
+  // batched lookup having failed — because a week's reminders used to fire one
+  // of these requests each, and every one of them re-verified the session.
   useEffect(() => {
+    if (initialAttending !== undefined) {
+      setAttending(initialAttending);
+      return;
+    }
     apiHeaders()
       .then(h => fetch(`/api/attendance?weekStart=${weekStart}&day=${day}&athleteId=${athleteId}`, { headers: h }))
       .then(r => (r.ok ? r.json() : null))
       .then(data => { if (data?.rsvp) setAttending(data.rsvp.attending); })
       .catch(() => {});
-  }, [weekStart, day, athleteId]);
+  }, [weekStart, day, athleteId, initialAttending]);
 
   const submit = async (e: React.MouseEvent, next: boolean) => {
     e.stopPropagation();
@@ -113,23 +127,37 @@ function RsvpInlineButtons({ weekStart, day, athleteId }: { weekStart: string; d
   );
 }
 
-// Inline "give kudos" action on a kudos_activity row. Fetches the athlete's
-// real prior state on mount — previously this always started assuming
-// not-yet-given, which meant kudos already given via the OS push notification's
-// own action button (src/app/sw.ts) looked un-given here; a first tap was a
-// harmless no-op re-confirming it, but a second tap (e.g. an accidental
-// double-tap, or tapping again because the first tap visibly did nothing new)
-// sent a real DELETE and silently removed a genuine prior reaction.
-function KudosButton({ activityId, athleteId }: { activityId: string; athleteId: string }) {
-  const [given, setGiven] = useState(false);
+// Inline "give kudos" action on a kudos_activity row. Needs the athlete's real
+// prior state: it once always started assuming not-yet-given, which meant kudos
+// already given via the OS push notification's own action button (src/app/sw.ts)
+// looked un-given here; a first tap was a harmless no-op re-confirming it, but a
+// second tap (e.g. an accidental double-tap, or tapping again because the first
+// tap visibly did nothing new) sent a real DELETE and silently removed a genuine
+// prior reaction.
+//
+// That state now arrives with the inbox row (see withRowActions in the inbox
+// route) instead of a fetch per button — the fan-out that made this page slow,
+// since a normal window is 40+ kudos rows. The fetch stays as the fallback for
+// a response that didn't carry it, because being right here matters more than
+// being fast.
+function KudosButton({
+  activityId,
+  athleteId,
+  initialGiven,
+}: { activityId: string; athleteId: string; initialGiven?: boolean }) {
+  const [given, setGiven] = useState(!!initialGiven);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (initialGiven !== undefined) {
+      setGiven(initialGiven);
+      return;
+    }
     fetch(`/api/activities/${activityId}/kudos?athleteId=${encodeURIComponent(athleteId)}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setGiven(!!data.givenByMe); })
       .catch(() => {});
-  }, [activityId, athleteId]);
+  }, [activityId, athleteId, initialGiven]);
 
   const toggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -273,12 +301,17 @@ export default function NotificationsInboxPage() {
                         kudosId && athleteId ? (
                           <div className="flex flex-col items-end gap-1.5">
                             <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
-                            <KudosButton activityId={kudosId} athleteId={athleteId} />
+                            <KudosButton activityId={kudosId} athleteId={athleteId} initialGiven={it.kudosGiven} />
                           </div>
                         ) : rsvp && athleteId ? (
                           <div className="flex flex-col items-end gap-1.5">
                             <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
-                            <RsvpInlineButtons weekStart={rsvp.weekStart} day={rsvp.day} athleteId={athleteId} />
+                            <RsvpInlineButtons
+                              weekStart={rsvp.weekStart}
+                              day={rsvp.day}
+                              athleteId={athleteId}
+                              initialAttending={it.rsvpAttending}
+                            />
                           </div>
                         ) : undefined
                       }

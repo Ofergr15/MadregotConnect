@@ -1,10 +1,70 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { UUID_RE, shapeInboxItem, aggregate } from '@/lib/notifications/inbox';
+import {
+  UUID_RE,
+  shapeInboxItem,
+  aggregate,
+  rowActionTargets,
+  applyRowActions,
+  rsvpKey,
+  type RawItem,
+} from '@/lib/notifications/inbox';
 import { localeFromPrefs } from '@/lib/notifications/locale';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Resolve the interactive rows' own state — kudos already given, RSVP already
+ * answered — in two queries for the whole page instead of one request per row
+ * from the browser (see the row-actions section of lib/notifications/inbox.ts
+ * for what that used to cost).
+ *
+ * Failures are swallowed on purpose: a lookup that didn't land leaves those
+ * fields absent, and the row falls back to loading itself. Slow beats wrong,
+ * and beats a 500 on a page whose actual content is already in hand.
+ */
+async function withRowActions(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteId: string,
+  items: RawItem[],
+): Promise<RawItem[]> {
+  const { activityIds, weekStarts } = rowActionTargets(items);
+  if (activityIds.length === 0 && weekStarts.length === 0) return items;
+
+  const [kudos, rsvps] = await Promise.all([
+    activityIds.length
+      ? supabase
+          .from('activity_kudos')
+          .select('activity_id')
+          .eq('athlete_id', athleteId)
+          .in('activity_id', activityIds)
+          .returns<{ activity_id: string }[]>()
+      : null,
+    weekStarts.length
+      ? supabase
+          .from('workout_attendance')
+          .select('week_start_date, day_of_week, attending')
+          .eq('athlete_id', athleteId)
+          .in('week_start_date', weekStarts)
+          .returns<{ week_start_date: string; day_of_week: number; attending: boolean }[]>()
+      : null,
+  ]);
+
+  let kudosGiven: Set<string> | null = null;
+  if (kudos && !kudos.error) {
+    kudosGiven = new Set((kudos.data || []).map((r) => r.activity_id));
+  }
+
+  let rsvpByKey: Map<string, boolean> | null = null;
+  if (rsvps && !rsvps.error) {
+    rsvpByKey = new Map(
+      (rsvps.data || []).map((r) => [rsvpKey(r.week_start_date, Number(r.day_of_week)), !!r.attending]),
+    );
+  }
+
+  return applyRowActions(items, { kudosGiven, rsvpByKey });
+}
 
 // GET /api/notifications/inbox?athleteId=… → { items[], unread }
 // The athlete's notification history: sent notifications targeting them (all /
@@ -78,7 +138,10 @@ export async function GET(request: Request) {
       .map((r: any) => shapeInboxItem(r, since));
     // Merged bursts are composed here rather than at send time, so they need
     // the athlete's notification language too.
-    const items = aggregate(rawItems, localeFromPrefs(a.notification_prefs));
+    const aggregated = aggregate(rawItems, localeFromPrefs(a.notification_prefs));
+    // After aggregate(), so a merged burst is asked about once rather than per
+    // row it swallowed.
+    const items = await withRowActions(supabase, athleteId, aggregated);
 
     return NextResponse.json({ items, unread: items.filter((i) => i.unread).length });
   } catch (err: unknown) {

@@ -1,4 +1,5 @@
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
+import { kudosActivityId, rsvpTarget } from '@/lib/notifications/history';
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -8,6 +9,9 @@ const SOMEONE: Record<NotificationLocale, string> = { he: 'מישהו', en: 'Som
 export interface RawItem {
   id: string; kind: string; title: string; body: string; url: string; sentAt: string; unread: boolean;
   actorName: string | null; actorAvatarUrl: string | null;
+  /** Prefetched row state — see applyRowActions. `undefined` = not prefetched. */
+  kudosGiven?: boolean;
+  rsvpAttending?: boolean | null;
 }
 
 interface InboxRow {
@@ -100,4 +104,71 @@ export function aggregate(
     i = j;
   }
   return result;
+}
+
+// ─── Row actions, resolved in bulk ──────────────────────────────────────────
+// Two of the inbox's row types are interactive, and each used to load its own
+// state on mount: every `kudos_activity` row fetched /api/activities/{id}/kudos
+// and every `training_before` row fetched /api/attendance. Nothing merges them
+// (aggregate() only collapses adjacent like/follow runs), so a normal 50-row
+// window meant ~45 extra round trips on top of this response — each a separate
+// serverless invocation, and each attendance one paying a session verification.
+// The page now gets all of it from the single request it was already waiting on.
+
+/** Composite key for one RSVP-able practice: a week plus a day within it. */
+export function rsvpKey(weekStart: string, day: number): string {
+  return `${weekStart}:${day}`;
+}
+
+/**
+ * What the interactive rows in this window need looked up: activity ids for
+ * kudos, and the week_start_dates covering the RSVP rows. Deduped, since a
+ * burst of reminders about the same week is one query either way.
+ *
+ * Weeks rather than exact week+day pairs because PostgREST has no tuple `IN`:
+ * fetching the whole week (at most 7 rows per week) and matching the day in JS
+ * beats one query per row.
+ */
+export function rowActionTargets(items: RawItem[]): { activityIds: string[]; weekStarts: string[] } {
+  const activityIds = new Set<string>();
+  const weekStarts = new Set<string>();
+  for (const it of items) {
+    const activityId = kudosActivityId(it);
+    if (activityId) activityIds.add(activityId);
+    const rsvp = rsvpTarget(it);
+    if (rsvp) weekStarts.add(rsvp.weekStart);
+  }
+  return { activityIds: [...activityIds], weekStarts: [...weekStarts] };
+}
+
+/**
+ * Attach each interactive row's own state to it.
+ *
+ * A null/omitted lookup means "that query didn't happen or failed" and leaves
+ * the field `undefined` rather than guessing — the row then falls back to
+ * fetching for itself, which matters for kudos: a button that wrongly starts
+ * un-given turns a second tap into a DELETE of a real prior reaction.
+ *
+ * A missing entry in a lookup that DID happen is a genuine answer: no kudos
+ * given (false), or no RSVP yet (null).
+ */
+export function applyRowActions(
+  items: RawItem[],
+  lookups: { kudosGiven?: Set<string> | null; rsvpByKey?: Map<string, boolean> | null },
+): RawItem[] {
+  const { kudosGiven, rsvpByKey } = lookups;
+  return items.map((it) => {
+    if (kudosGiven) {
+      const activityId = kudosActivityId(it);
+      if (activityId) return { ...it, kudosGiven: kudosGiven.has(activityId) };
+    }
+    if (rsvpByKey) {
+      const rsvp = rsvpTarget(it);
+      if (rsvp) {
+        const answer = rsvpByKey.get(rsvpKey(rsvp.weekStart, rsvp.day));
+        return { ...it, rsvpAttending: answer === undefined ? null : answer };
+      }
+    }
+    return it;
+  });
 }

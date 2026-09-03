@@ -8,6 +8,11 @@ export interface HistoryItem {
   unread: boolean;
   actorName?: string | null;
   actorAvatarUrl?: string | null;
+  /** This athlete's own state on an interactive row, resolved server-side in
+   *  bulk (see applyRowActions) so the row needs no request of its own.
+   *  `undefined` = not prefetched, and the row loads it itself. */
+  kudosGiven?: boolean;
+  rsvpAttending?: boolean | null;
 }
 
 // Real native notification-history UIs are a static chronological list —
