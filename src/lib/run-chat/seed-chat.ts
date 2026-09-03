@@ -263,7 +263,7 @@ export async function applyEditedChatPlan(opts: {
     source: opts.plannedWorkout.source ?? 'prompt_edit',
   };
   const imageUrl = await ensureClipboardImage(supabase, opts.chat, plannedWorkout);
-  const { data: updated, error } = await supabase
+  let { data: updated, error } = await supabase
     .from('run_chats')
     .update({
       planned_text: plannedText,
@@ -273,6 +273,25 @@ export async function applyEditedChatPlan(opts: {
     .eq('id', opts.chat.id)
     .select('*')
     .single();
+
+  // Keep prompt editing functional while migration 050 is pending or the
+  // PostgREST schema cache has not refreshed yet.
+  if (
+    error?.code === 'PGRST204' &&
+    error.message?.includes('clipboard_image_url')
+  ) {
+    const fallback = await supabase
+      .from('run_chats')
+      .update({
+        planned_text: plannedText,
+        planned_workout: plannedWorkout,
+      })
+      .eq('id', opts.chat.id)
+      .select('*')
+      .single();
+    updated = fallback.data;
+    error = fallback.error;
+  }
   if (error) throw error;
 
   await ensurePlanSeedMessage(channel, plannedText, plannedWorkout, imageUrl, messageId);
