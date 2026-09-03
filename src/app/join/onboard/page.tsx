@@ -15,7 +15,7 @@ function Input({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElemen
   return (
     <input
       className={cn(
-        'w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-2xl px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500',
+        'w-full min-h-[44px] bg-page border border-ink-300 rounded-2xl px-4 py-3 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600',
         className
       )}
       {...rest}
@@ -34,7 +34,7 @@ interface Group {
 export default function OnboardPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-page flex items-center justify-center">
         <LoadingBlock />
       </div>
     }>
@@ -218,29 +218,29 @@ function OnboardContent() {
 
   if (step === 'done') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 sm:p-8 w-full max-w-md">
+      <div className="min-h-screen bg-page flex items-center justify-center p-4">
+        <div className="bg-card rounded-card border border-page p-6 sm:p-8 w-full max-w-md">
           <div className="flex flex-col items-center justify-center mb-6">
             <div className="flex items-center gap-3 mb-2">
               <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain invert" />
-              <span className="text-lg font-bold text-white uppercase tracking-tight">Madregot After 2KM</span>
+              <span className="text-lg font-bold text-ink-700 uppercase tracking-tight">Madregot After 2KM</span>
             </div>
           </div>
 
-          <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="h-8 w-8 text-green-400" />
+          <div className="bg-accent-600/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="h-8 w-8 text-accent-600" />
           </div>
 
-          <h1 className="text-2xl font-bold text-white text-center">
+          <h1 className="text-2xl font-bold text-ink-700 text-center">
             {skippedGarmin ? t('registrationComplete') : t('garminConnected')}
           </h1>
-          <p className="text-slate-400 mt-3 text-center">
+          <p className="text-ink-400 mt-3 text-center">
             {skippedGarmin
               ? t('canConnectLater')
               : t('garminLinked')}
           </p>
 
-          <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+          <div className="mt-6 bg-band-3/10 border border-band-3/20 rounded-xl">
             <EmptyState
               icon={Shield}
               title={t('waitingApproval')}
@@ -251,11 +251,11 @@ function OnboardContent() {
 
           {!skippedGarmin && (
             <div className="mt-6 space-y-3">
-              <div className="bg-slate-700/30 rounded-lg p-4 flex items-start gap-3">
-                <Watch className="h-5 w-5 text-primary-400 mt-0.5" />
+              <div className="bg-page/30 rounded-lg p-4 flex items-start gap-3">
+                <Watch className="h-5 w-5 text-brand-600 mt-0.5" />
                 <div>
-                  <h3 className="text-sm font-medium text-white">{t('inTheMeantime')}</h3>
-                  <p className="text-xs text-slate-400 mt-1">{t('syncGarminTip')}</p>
+                  <h3 className="text-sm font-medium text-ink-700">{t('inTheMeantime')}</h3>
+                  <p className="text-xs text-ink-400 mt-1">{t('syncGarminTip')}</p>
                 </div>
               </div>
             </div>
@@ -268,7 +268,7 @@ function OnboardContent() {
                 await supabase.auth.signOut();
                 window.location.href = '/';
               }}
-              className="block w-full bg-slate-700 hover:bg-slate-600 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center"
+              className="block w-full bg-page hover:bg-ink-300/40 text-ink-700 font-medium px-4 py-3 rounded-lg transition-colors text-center"
             >
               {t('backHome')}
             </button>
@@ -280,34 +280,34 @@ function OnboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 sm:p-8 w-full max-w-md">
+    <div className="min-h-screen bg-page flex items-center justify-center p-4">
+      <div className="bg-card rounded-card border border-page p-6 sm:p-8 w-full max-w-md">
         <div className="flex flex-col items-center justify-center mb-6">
           <div className="flex items-center gap-3 mb-2">
             <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 object-contain brightness-0 invert" />
             <div className="flex flex-col leading-tight">
-              <span className="text-lg font-bold text-white tracking-tight">Madregot</span>
-              <span className="text-xs font-medium tracking-wide text-slate-400">After 2KM Running Club</span>
+              <span className="text-lg font-bold text-ink-700 tracking-tight">Madregot</span>
+              <span className="text-xs font-medium tracking-wide text-ink-400">After 2KM Running Club</span>
             </div>
           </div>
         </div>
 
         <div className="text-center mb-6">
-          <h1 className="text-xl font-bold text-white">{t('completeSetup')}</h1>
-          <p className="text-slate-400 mt-2 text-sm">
+          <h1 className="text-xl font-bold text-ink-700">{t('completeSetup')}</h1>
+          <p className="text-ink-400 mt-2 text-sm">
             {t('chooseGroup')}
           </p>
         </div>
 
         <div className="flex items-center justify-center gap-2 mb-6">
-          <div className={`h-2 w-8 rounded-full ${step === 'info' || step === 'garmin' || step === 'mfa' || step === 'connecting' ? 'bg-primary-500' : 'bg-slate-600'}`} />
-          <div className={`h-2 w-8 rounded-full ${step === 'garmin' || step === 'mfa' || step === 'connecting' ? 'bg-primary-500' : 'bg-slate-600'}`} />
+          <div className={`h-2 w-8 rounded-full ${step === 'info' || step === 'garmin' || step === 'mfa' || step === 'connecting' ? 'bg-brand-600' : 'bg-ink-300'}`} />
+          <div className={`h-2 w-8 rounded-full ${step === 'garmin' || step === 'mfa' || step === 'connecting' ? 'bg-brand-600' : 'bg-ink-300'}`} />
         </div>
 
         {step === 'info' && (
           <form onSubmit={handleInfoSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">{t('yourName')}</label>
+              <label className="block text-sm font-medium text-ink-500 mb-1">{t('yourName')}</label>
               <Input
                 type="text"
                 value={name}
@@ -317,14 +317,14 @@ function OnboardContent() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">{t('emailLabel')}</label>
+              <label className="block text-sm font-medium text-ink-500 mb-1">{t('emailLabel')}</label>
               <Input
                 type="email"
                 value={email}
                 readOnly
-                className="bg-slate-700/50 text-slate-300 cursor-not-allowed focus:ring-0"
+                className="bg-page/50 text-ink-500 cursor-not-allowed focus:ring-0"
               />
-              <p className="text-xs text-slate-500 mt-1">{t('fromGoogle')}</p>
+              <p className="text-xs text-ink-400 mt-1">{t('fromGoogle')}</p>
             </div>
             {groups.length > 0 && (
               <div>
@@ -337,22 +337,22 @@ function OnboardContent() {
                         label={g.name}
                         sublabel={g.marathonGoal ? `${t('marathonGoal')} ${g.marathonGoal}` : undefined}
                         onClick={() => setSelectedGroup(isSelected ? '' : g.id)}
-                        trailing={isSelected ? <Check className="h-4 w-4 text-primary-400 shrink-0" /> : undefined}
+                        trailing={isSelected ? <Check className="h-4 w-4 text-brand-600 shrink-0" /> : undefined}
                       />
                     );
                   })}
                 </InsetSection>
-                <p className="text-xs text-slate-500 -mt-3 mb-1">{t('groupAssignedLater')}</p>
+                <p className="text-xs text-ink-400 -mt-3 mb-1">{t('groupAssignedLater')}</p>
               </div>
             )}
             {error && step === 'info' && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
                 {error}
               </div>
             )}
             <button
               type="submit"
-              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors"
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-3 rounded-lg transition-colors"
             >
               {t('continue')}
             </button>
@@ -363,7 +363,7 @@ function OnboardContent() {
                 await supabase.auth.signOut();
                 window.location.href = '/';
               }}
-              className="block w-full text-center text-sm text-slate-500 hover:text-slate-300 transition-colors mt-3"
+              className="block w-full text-center text-sm text-ink-400 hover:text-ink-500 transition-colors mt-3"
             >
               {t('backToHome')}
             </button>
@@ -372,15 +372,15 @@ function OnboardContent() {
 
         {(step === 'garmin' || step === 'connecting') && (
           <form onSubmit={handleGarminSubmit} className="space-y-4">
-            <div className="bg-slate-700/50 rounded-lg p-3 flex items-start gap-2">
-              <Shield className="h-4 w-4 text-primary-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-slate-400">
-                <span className="text-white font-medium">{t('oneTimeSetup')}</span> {t('garminHelper')}
+            <div className="bg-page/50 rounded-lg p-3 flex items-start gap-2">
+              <Shield className="h-4 w-4 text-brand-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-ink-400">
+                <span className="text-ink-700 font-medium">{t('oneTimeSetup')}</span> {t('garminHelper')}
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminEmail')}</label>
+              <label className="block text-sm font-medium text-ink-500 mb-1">{t('garminEmail')}</label>
               <Input
                 type="email"
                 value={garminEmail}
@@ -391,7 +391,7 @@ function OnboardContent() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminPassword')}</label>
+              <label className="block text-sm font-medium text-ink-500 mb-1">{t('garminPassword')}</label>
               <div className="relative">
                 <Input
                   type={showPassword ? 'text' : 'password'}
@@ -404,7 +404,7 @@ function OnboardContent() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute end-1.5 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                  className="absolute end-1.5 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-ink-400 hover:text-ink-900 transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -412,7 +412,7 @@ function OnboardContent() {
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
                 {error}
               </div>
             )}
@@ -420,7 +420,7 @@ function OnboardContent() {
             <button
               type="submit"
               disabled={step === 'connecting'}
-              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {step === 'connecting' ? (
                 <><Loader2 className="h-4 w-4 animate-spin" />{t('connectingGarmin')}</>
@@ -432,7 +432,7 @@ function OnboardContent() {
             <button
               type="button"
               onClick={() => setStep('info')}
-              className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
+              className="w-full text-ink-400 hover:text-ink-900 text-sm py-2 transition-colors"
             >
               {tc('back')}
             </button>
@@ -470,7 +470,7 @@ function OnboardContent() {
                 }
               }}
               disabled={step === 'connecting'}
-              className="w-full border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors"
+              className="w-full border border-ink-300 hover:border-ink-300 text-ink-500 hover:text-ink-900 font-medium text-sm px-4 py-2.5 rounded-lg transition-colors"
             >
               {t('connectLater')}
             </button>
@@ -480,15 +480,15 @@ function OnboardContent() {
         {/* MFA verification step */}
         {step === 'mfa' && (
           <form onSubmit={handleMfaSubmit} className="space-y-4">
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
-              <Shield className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-slate-300">
-                <span className="text-amber-400 font-medium">{t('verificationRequired')}</span> {t('mfaHelper')}
+            <div className="bg-band-3/10 border border-band-3/30 rounded-lg p-3 flex items-start gap-2">
+              <Shield className="h-4 w-4 text-band-3 mt-0.5 shrink-0" />
+              <p className="text-xs text-ink-500">
+                <span className="text-band-3 font-medium">{t('verificationRequired')}</span> {t('mfaHelper')}
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">
+              <label className="block text-sm font-medium text-ink-500 mb-1">
                 {t('verificationCode')}
               </label>
               <Input
@@ -497,14 +497,14 @@ function OnboardContent() {
                 onChange={(e) => setMfaCode(e.target.value)}
                 placeholder={t('enterCode')}
                 maxLength={6}
-                className="border-amber-500/50 focus:ring-amber-500 text-center text-xl tracking-widest"
+                className="border-band-3/50 focus:ring-band-3 text-center text-xl tracking-widest"
                 required
                 autoFocus
               />
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
                 {error}
               </div>
             )}
@@ -512,7 +512,7 @@ function OnboardContent() {
             <button
               type="submit"
               disabled={!mfaCode || mfaCode.length < 6}
-              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {t('verifyConnect')}
             </button>
@@ -520,7 +520,7 @@ function OnboardContent() {
             <button
               type="button"
               onClick={() => { setStep('garmin'); setMfaRequired(false); setMfaCode(''); }}
-              className="w-full text-slate-400 hover:text-white text-sm py-2 transition-colors"
+              className="w-full text-ink-400 hover:text-ink-900 text-sm py-2 transition-colors"
             >
               {t('backToLogin')}
             </button>

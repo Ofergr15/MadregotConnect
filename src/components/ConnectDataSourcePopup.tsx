@@ -86,35 +86,35 @@ export function ConnectDataSourcePopup() {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
-      <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-sm relative">
+      <div className="bg-card rounded-card border border-page p-6 w-full max-w-sm relative">
         <button
           onClick={handleRemindLater}
-          className="absolute top-4 end-4 text-slate-400 hover:text-white"
+          className="absolute top-4 end-4 text-ink-400 hover:text-ink-900"
           aria-label={t('close')}
         >
           <X className="h-5 w-5" />
         </button>
 
         <div className="flex flex-col items-center text-center">
-          <div className="bg-primary-500/20 w-14 h-14 rounded-full flex items-center justify-center mb-4">
-            <Activity className="h-7 w-7 text-primary-400" />
+          <div className="bg-brand-600/20 w-14 h-14 rounded-full flex items-center justify-center mb-4">
+            <Activity className="h-7 w-7 text-brand-600" />
           </div>
 
-          <h2 className="text-lg font-bold text-white">{t('title')}</h2>
-          <p className="text-sm text-slate-400 mt-2">
+          <h2 className="text-lg font-bold text-ink-700">{t('title')}</h2>
+          <p className="text-sm text-ink-400 mt-2">
             {t('description')}
           </p>
 
           <button
             onClick={handleConnect}
-            className="w-full mt-5 bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-3 rounded-lg transition-colors"
+            className="w-full mt-5 bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-3 rounded-lg transition-colors"
           >
             {t('connectNow')}
           </button>
 
           <button
             onClick={handleLogManually}
-            className="w-full mt-2 text-primary-400 hover:text-primary-300 text-sm py-1.5 transition-colors"
+            className="w-full mt-2 text-brand-600 hover:text-brand-700 text-sm py-1.5 transition-colors"
           >
             {t('logManually')}
           </button>
@@ -122,13 +122,13 @@ export function ConnectDataSourcePopup() {
           <div className="flex gap-3 mt-3 w-full">
             <button
               onClick={handleRemindLater}
-              className="flex-1 text-slate-400 hover:text-white text-sm py-2 transition-colors"
+              className="flex-1 text-ink-400 hover:text-ink-900 text-sm py-2 transition-colors"
             >
               {t('remindLater')}
             </button>
             <button
               onClick={handleDismissForever}
-              className="flex-1 text-slate-400 hover:text-slate-300 text-sm py-2 transition-colors"
+              className="flex-1 text-ink-400 hover:text-ink-500 text-sm py-2 transition-colors"
             >
               {t('dontShowAgain')}
             </button>
