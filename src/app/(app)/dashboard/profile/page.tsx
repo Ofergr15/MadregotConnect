@@ -91,6 +91,12 @@ const WEEKS: WeekProgram[] = [
 // detail screens still need.
 type ProfileTab = 'group' | 'datasource' | 'statistics' | 'badges' | 'challenges' | 'leaderboards' | 'discover' | 'share' | 'notifications' | 'personalInfo' | 'setup';
 
+const PROFILE_TAB_KEYS: ProfileTab[] = ['group', 'datasource', 'statistics', 'badges', 'challenges', 'leaderboards', 'discover', 'share', 'notifications', 'personalInfo', 'setup'];
+
+function tabFromParam(tab: string | null): ProfileTab | null {
+  return PROFILE_TAB_KEYS.includes(tab as ProfileTab) ? (tab as ProfileTab) : null;
+}
+
 export default function ProfilePage() {
   return (
     <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mt-20"></div>}>
@@ -104,15 +110,13 @@ function ProfileContent() {
   const tCommon = useTranslations('common');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const PROFILE_TAB_KEYS: ProfileTab[] = ['group', 'datasource', 'statistics', 'badges', 'challenges', 'leaderboards', 'discover', 'share', 'notifications', 'personalInfo', 'setup'];
   // null = landing (iOS-style list); a value = a detail screen open. Reads
   // ?tab= on mount and keeps the URL in sync on every change — without this,
   // refreshing while inside any detail screen (e.g. Notification Prefs)
   // silently dropped back to the landing list instead of staying put.
-  const [activeTab, setActiveTabState] = useState<ProfileTab | null>(() => {
-    const tab = searchParams.get('tab');
-    return PROFILE_TAB_KEYS.includes(tab as ProfileTab) ? (tab as ProfileTab) : null;
-  });
+  const [activeTab, setActiveTabState] = useState<ProfileTab | null>(() =>
+    tabFromParam(searchParams.get('tab')),
+  );
   const setActiveTab = useCallback((tab: ProfileTab | null) => {
     setActiveTabState(tab);
     router.replace(tab ? `/dashboard/profile?tab=${tab}` : '/dashboard/profile');
@@ -179,6 +183,16 @@ function ProfileContent() {
       })
       .catch(() => {});
   }, []);
+
+  // ?tab= is a deep-link target, not just a bookmark: the first-run tour ends by
+  // pushing ?tab=setup. The initial state above only reads the param on mount, so
+  // arriving at a new tab while this screen is already mounted changed the URL
+  // and nothing else. Guarded on equality so setActiveTab's own router.replace
+  // can't bounce back through here.
+  useEffect(() => {
+    const next = tabFromParam(searchParams.get('tab'));
+    setActiveTabState((current) => (current === next ? current : next));
+  }, [searchParams]);
 
   useEffect(() => {
     if (searchParams.get('connectGarmin') === '1') {

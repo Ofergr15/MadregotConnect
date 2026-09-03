@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Activity, ClipboardList, Newspaper, User } from 'lucide-react';
 import { useOnboarding, markOnboarding } from '@/lib/onboarding/use-onboarding';
+import { TOUR_HOME, canStartTour, tourExitTarget } from '@/lib/onboarding/first-run-order';
+import { useInstallStep } from './InstallStepProvider';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The first-run guided tour. Runs once, ever (onboarding_tour_seen_at), for
@@ -23,9 +25,6 @@ import { useOnboarding, markOnboarding } from '@/lib/onboarding/use-onboarding';
 // it into a portal (which would show stale data) and no mutating its styles
 // (which would leak if the tour unmounted mid-step).
 // ═════════════════════════════════════════════════════════════════════════════
-
-/** Where the tour runs. Anywhere else and step 1 would have nothing to point at. */
-const TOUR_HOME = '/dashboard/profile';
 
 interface TourStep {
   /** Matches a `data-tour` attribute in the DOM. */
@@ -71,6 +70,7 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   const router = useRouter();
   const pathname = usePathname();
   const { data, mutate } = useOnboarding();
+  const { answered: installAnswered } = useInstallStep();
 
   const [phase, setPhase] = useState<Phase>('idle');
   /** The steps whose anchors actually exist, snapshotted once. */
@@ -78,12 +78,15 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   const [index, setIndex] = useState(0);
   const [box, setBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
-  // Arm on the first read that says this person hasn't seen it. `phase` guards
-  // re-arming: once dismissed, a later revalidate must not bring it back.
+  // Arm on the first read that says this person hasn't seen it — and not before
+  // the install step has been answered ("add to the home screen, THEN start
+  // setting things up"; see first-run-order.ts). `phase` guards re-arming: once
+  // dismissed, a later revalidate must not bring it back.
   useEffect(() => {
-    if (phase !== 'idle' || !data || !data.applicable || data.tourSeen) return;
+    if (phase !== 'idle') return;
+    if (!canStartTour(data, installAnswered)) return;
     setPhase('welcome');
-  }, [data, phase]);
+  }, [data, phase, installAnswered]);
 
   useEffect(() => {
     onActiveChange?.(phase === 'welcome' || phase === 'preparing' || phase === 'steps');
@@ -123,14 +126,17 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   }, [phase, finish]);
 
   const advance = useCallback(() => {
-    setIndex((i) => {
-      if (i + 1 >= steps.length) {
-        finish();
-        return i;
-      }
-      return i + 1;
-    });
-  }, [steps.length, finish]);
+    if (index + 1 < steps.length) {
+      setIndex(index + 1);
+      return;
+    }
+    // Ending on the setup card used to leave the athlete facing a card they
+    // still had to find and tap themselves; now the last press opens the
+    // checklist itself (see tourExitTarget).
+    const target = tourExitTarget(steps, index);
+    if (target) router.push(target);
+    finish();
+  }, [index, steps, finish, router]);
 
   const step = phase === 'steps' ? steps[index] : null;
 

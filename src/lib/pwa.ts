@@ -26,6 +26,18 @@ export function isIosDevice(): boolean {
   return isIos;
 }
 
+/**
+ * iOS Safari specifically — the only browser where "add to home screen" is a
+ * manual Share-sheet chore we have to spell out, since it has no
+ * `beforeinstallprompt` and no way to report that the icon was added. Chrome
+ * and Firefox ON iOS are excluded: they can't install anything at all, so
+ * showing them Safari's steps would be instructions for the wrong app.
+ */
+export function isIosSafari(): boolean {
+  const ua = window.navigator.userAgent;
+  return isIosDevice() && /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+}
+
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');

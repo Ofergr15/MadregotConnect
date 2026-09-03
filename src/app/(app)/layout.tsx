@@ -10,6 +10,7 @@ import { PullToRefresh } from '@/components/PullToRefresh';
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { PageTransition } from '@/components/PageTransition';
 import { FirstRunTour } from '@/components/onboarding/FirstRunTour';
+import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider';
 import { Spinner } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
@@ -102,30 +103,36 @@ export default function AppLayout({
   }
 
   return (
-    <div
-      // min-h-[100dvh] is what makes the page grey cover the viewport, so a
-      // short screen doesn't end in a band of raw background.
-      className={cn('flex flex-col', isRunChat ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]')}
-    >
-      <PullToRefresh />
-      <div className={isRunChat ? 'hidden md:contents' : 'contents'}>
-        <Header />
-      </div>
-      {popupsAllowed && <InstallPrompt />}
-      {popupsAllowed && <PushOptIn />}
-      {popupsAllowed && <ConnectDataSourcePopup />}
-      {!isRunChat && <FirstRunTour onActiveChange={setTourActive} />}
-      <main
-        className={cn(
-          'w-full',
-          isRunChat
-            ? 'h-full min-h-0 overflow-hidden p-0 md:mx-auto md:h-auto md:max-w-7xl md:flex-1 md:px-6 md:pt-5 md:pb-8 lg:px-8'
-            : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-[calc(72px+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 lg:px-8',
-        )}
+    // Wraps the whole shell so InstallPrompt, PushOptIn and FirstRunTour read
+    // ONE answer to "has this device answered the add-to-home-screen step?".
+    // That is what puts the three in order — install, then the tour, then the
+    // setup checklist — instead of three components each deciding on a timer.
+    <InstallStepProvider>
+      <div
+        // min-h-[100dvh] is what makes the page grey cover the viewport, so a
+        // short screen doesn't end in a band of raw background.
+        className={cn('flex flex-col', isRunChat ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]')}
       >
-        {isRunChat ? children : <PageTransition>{children}</PageTransition>}
-      </main>
-      {!isRunChat && <BottomTabBar />}
-    </div>
+        <PullToRefresh />
+        <div className={isRunChat ? 'hidden md:contents' : 'contents'}>
+          <Header />
+        </div>
+        {popupsAllowed && <InstallPrompt />}
+        {popupsAllowed && <PushOptIn />}
+        {popupsAllowed && <ConnectDataSourcePopup />}
+        {!isRunChat && <FirstRunTour onActiveChange={setTourActive} />}
+        <main
+          className={cn(
+            'w-full',
+            isRunChat
+              ? 'h-full min-h-0 overflow-hidden p-0 md:mx-auto md:h-auto md:max-w-7xl md:flex-1 md:px-6 md:pt-5 md:pb-8 lg:px-8'
+              : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-[calc(72px+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 lg:px-8',
+          )}
+        >
+          {isRunChat ? children : <PageTransition>{children}</PageTransition>}
+        </main>
+        {!isRunChat && <BottomTabBar />}
+      </div>
+    </InstallStepProvider>
   );
 }

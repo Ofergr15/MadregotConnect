@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bell, X } from 'lucide-react';
 import { isStandalone, isIosDevice, subscribeToPush, ensurePushSubscription } from '@/lib/pwa';
+import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
 import { logClient } from '@/lib/client-log';
 
 const DISMISS_KEY = 'push_optin_dismissed';
@@ -35,6 +36,7 @@ export function requestPushOptInPrompt() {
 
 export function PushOptIn({ title, description }: { title?: string; description?: string } = {}) {
   const t = useTranslations('push');
+  const { answered: installAnswered } = useInstallStep();
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -108,7 +110,11 @@ export function PushOptIn({ title, description }: { title?: string; description?
     }
   };
 
-  if (!show) return null;
+  // Never ask for push before the install step has been answered. On iOS a
+  // subscription created from a Safari tab is tagged as page-origin push
+  // permanently — so asking first would quietly cost this device native-looking
+  // notifications for good, which is the whole reason install comes first.
+  if (!show || !installAnswered) return null;
 
   return (
     // z-50 so it sits ABOVE the bottom tab bar (which is fixed bottom-0 z-40),

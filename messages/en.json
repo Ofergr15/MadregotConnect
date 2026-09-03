@@ -1359,8 +1359,9 @@
     "uploadAtLeastOnePdf": "Please upload at least one PDF"
   },
   "install": {
-    "title": "Install Madregot",
-    "description": "Quick access to your training plan, notifications, and updates — right from your home screen.",
+    "title": "First — add it to your home screen",
+    "description": "That way it opens like an app, and notifications arrive like an app's. Thirty seconds, once.",
+    "understood": "Got it, adding now",
     "installButton": "Install",
     "iosStepsTitle": "Install on iPhone",
     "iosStep1": "Tap the Share button at the bottom of the browser",
