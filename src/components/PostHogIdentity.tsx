@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import posthog from 'posthog-js';
 import type { User } from '@supabase/supabase-js';
+import { withPostHog, withLoadedPostHog } from '@/lib/analytics/posthog';
 import { getSupabase } from '@/lib/supabase/client';
 
 function localIdentity() {
@@ -40,7 +40,7 @@ export function PostHogIdentity() {
 
       if (!distinctId) {
         if (identifiedId.current) {
-          posthog.reset();
+          withLoadedPostHog(posthog => posthog.reset());
           identifiedId.current = null;
         }
         return;
@@ -48,12 +48,12 @@ export function PostHogIdentity() {
 
       const name = local.name || user?.user_metadata?.full_name;
       const email = local.email || user?.email;
-      posthog.identify(distinctId, {
+      withPostHog(posthog => posthog.identify(distinctId, {
         ...(name ? { name } : {}),
         ...(email ? { email } : {}),
         ...(local.athleteId ? { athlete_id: local.athleteId } : {}),
         ...(local.accountType ? { account_type: local.accountType } : {}),
-      });
+      }));
       identifiedId.current = distinctId;
     };
 
@@ -61,7 +61,7 @@ export function PostHogIdentity() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        posthog.reset();
+        withLoadedPostHog(posthog => posthog.reset());
         identifiedId.current = null;
         return;
       }

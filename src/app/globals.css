@@ -374,19 +374,6 @@
   }
 }
 
-.recharts-wrapper,
-.recharts-wrapper *,
-.recharts-wrapper svg,
-.recharts-wrapper svg:focus,
-.recharts-wrapper svg:focus-visible,
-.recharts-surface,
-.recharts-surface:focus,
-.recharts-surface:focus-visible {
-  outline: none !important;
-  -webkit-tap-highlight-color: transparent !important;
-  box-shadow: none !important;
-}
-
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: rgba(100, 116, 139, 0.3) transparent;

@@ -98,7 +98,8 @@ higher-touch coaching model:
   (`workout_deliveries.workout_date` ≈ `athlete_activities.start_time::date`).
 - **Dormant asset**: `ActivityFeed.tsx` `PaceChart` already accepts a `planned` prop
   (green dashed planned-pace overlay) that is never passed — ready for adherence viz.
-- **Charting**: `recharts` v3 installed, used in `dashboard/page.tsx`.
+- **Charting**: hand-rolled SVG/bar patterns only. `recharts` was installed but never
+  imported and has been removed; re-add it if a real chart is wanted.
 - **Cron/email**: one cron (`vercel.json` → `cron/sync`, 03:00 UTC); `src/lib/email.ts`
   (nodemailer/Gmail) is transactional-only. `resend` installed but unused.
 
@@ -156,8 +157,8 @@ higher-touch coaching model:
 
 ### Phase 5 — Academy coach dashboard + weekly report (in-app)
 - Academy dashboard: per-athlete cards/table showing sessions done vs planned, adherence
-  badges per workout, weekly volume vs plan. Use `recharts` (already in the project) and the
-  hand-rolled bar patterns in `dashboard/page.tsx`.
+  badges per workout, weekly volume vs plan. Follow the hand-rolled bar patterns in
+  `dashboard/page.tsx` (there is no charting library in the project).
 - Wire the dormant `PaceChart` `planned` prop in `src/components/ActivityFeed.tsx` to overlay
   planned pace on each academy activity.
 - Weekly report = a summarized view of the above per week (drill-down by athlete).
