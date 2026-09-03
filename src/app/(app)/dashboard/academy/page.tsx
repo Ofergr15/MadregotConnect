@@ -38,6 +38,12 @@ import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 // for them, and staff-only data never loads for them at all: the manager payload
 // (/api/academy/members, which carries every member's email and approval state)
 // is fetched only in the staff branch.
+//
+// The coach lens is now a real one rather than the manager's screen with fewer
+// tabs. Training here is 1:1 — every trainee has one dedicated coach — so the
+// payload arrives already scoped to the coach's own trainees, and only the
+// manager gets the coach roster, the load-by-coach filter and the ability to
+// change who coaches whom.
 
 interface Athlete {
   id: string;
@@ -52,15 +58,17 @@ interface Athlete {
 
 type Tab = 'overview' | 'members' | 'registrations' | 'plans' | 'compliance' | 'stats' | 'results' | 'settings';
 
+// Same three group hues as lib/utils' groupColorMap (green / sky blue / orange).
 const groupColors: Record<string, { bg: string; text: string; border: string }> = {
-  'Group 1': { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/20' },
-  'Group 2': { bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/20' },
-  'Group 3': { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/20' },
+  'Group 1': { bg: 'bg-accent-600/15', text: 'text-accent-600', border: 'border-accent-600/20' },
+  'Group 2': { bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/20' },
+  'Group 3': { bg: 'bg-band-3/15', text: 'text-band-3', border: 'border-band-3/20' },
 };
 
 function getGroupStyle(name: string | null) {
   if (!name) return null;
-  return groupColors[name] || { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/20' };
+  // A squad we don't recognise gets neutral ink, not a fourth hue.
+  return groupColors[name] || { bg: 'bg-ink-300/20', text: 'text-ink-500', border: 'border-ink-300/40' };
 }
 
 function initialsOf(name: string) {
@@ -84,7 +92,7 @@ function ScrollableSegmentedControl<T extends string>({
   className?: string;
 }) {
   return (
-    <div className={cn('flex gap-0.5 overflow-x-auto scrollbar-hide rounded-xl bg-slate-800 p-1 border border-slate-700', className)}>
+    <div className={cn('flex gap-0.5 overflow-x-auto scrollbar-hide rounded-xl bg-card p-1 border border-page', className)}>
       {options.map((opt) => {
         const Icon = opt.icon;
         const active = opt.value === value;
@@ -94,7 +102,7 @@ function ScrollableSegmentedControl<T extends string>({
             onClick={() => { if (!active) { try { navigator.vibrate?.(6); } catch { /* no-op */ } onChange(opt.value); } }}
             className={cn(
               'shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors min-h-[44px]',
-              active ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              active ? 'bg-brand-600 text-white shadow-sm' : 'text-ink-400 hover:text-ink-900'
             )}
           >
             {Icon && <Icon className="h-4 w-4" />}
@@ -104,7 +112,7 @@ function ScrollableSegmentedControl<T extends string>({
             {!!opt.badge && (
               <span className={cn(
                 'ms-0.5 min-w-[18px] px-1 rounded-full text-3xs font-bold tabular-nums',
-                active ? 'bg-white/20 text-white' : 'bg-amber-500/20 text-amber-300',
+                active ? 'bg-page text-ink-700' : 'bg-band-3/20 text-band-3',
               )}>
                 {opt.badge}
               </span>
@@ -141,9 +149,11 @@ export default function AcademyPage() {
   );
   const role = previewRole || (isSuperUser(email) ? 'admin' : meData?.role) || null;
   const isManager = role === 'admin';
-  // Plain `coach` is included: /api/academy/members' requireStaff gate serves
-  // them, so refusing them the screen would only mean a blank page over data
-  // they're already allowed to fetch. Coach Tools still doesn't link it for them.
+  // Plain `coach` is included because the route serves them, and since migration
+  // 077 it serves them a *scoped* payload: any staff caller who isn't the manager
+  // sees only the trainees dedicated to them. A club coach with no academy
+  // trainees therefore gets an empty academy rather than everyone's, which is the
+  // correct answer — the tab still isn't linked for them from Coach Tools.
   const isStaff = isManager || role === 'academy_coach' || role === 'coach';
   // `email === null` means we haven't even looked yet — distinct from "looked
   // and found nobody", which is a real anonymous visitor.
@@ -152,7 +162,12 @@ export default function AcademyPage() {
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [view, setView] = useState<Tab>('overview');
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
-  const [selected, setSelected] = useState<AcademyMember | null>(null);
+  // The open drill-in is held by id, not as a copy of the member. Editing a
+  // trainee's coach or their standing hour revalidates the payload, and a
+  // snapshot taken when the sheet opened would keep showing what was true
+  // before the edit. It also closes itself when the member leaves the payload —
+  // which is exactly what should happen on "remove from academy".
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
@@ -173,6 +188,16 @@ export default function AcademyPage() {
   const { data: members, isLoading: membersLoading, mutate: refreshMembers } = useApi<AcademyMembersResponse>(
     isStaff ? `/api/academy/members?weekStart=${weekStart}` : null,
   );
+
+  const selected = useMemo(
+    () => members?.members.find((m) => m.athleteId === selectedId) ?? null,
+    [members, selectedId],
+  );
+  const selectMember = useCallback((member: AcademyMember) => setSelectedId(member.athleteId), []);
+  // SWR's mutate resolves with the refreshed payload; the sheet only needs to
+  // know the refresh finished, and passing the data through would invite a
+  // second copy of it living in the child.
+  const reloadMembers = useCallback(async () => { await refreshMembers(); }, [refreshMembers]);
 
   // The club-wide roster is only needed to *add* someone, so it loads when the
   // add sheet is first opened rather than blocking the page's first paint.
@@ -202,7 +227,8 @@ export default function AcademyPage() {
       // One revalidation refreshes the overview tiles, the group rollup and the
       // directory together — they're all views of this key.
       await refreshMembers();
-      if (!isAcademy) setSelected(null);
+      // Removing them from the academy drops them from the payload, which closes
+      // the sheet on its own now that `selected` is derived from it.
     } catch (err) {
       console.error('Failed to update academy status:', err);
       setAthletes(prev => prev && prev.map(a => (a.id === athleteId ? { ...a, isAcademy: !isAcademy } : a)));
@@ -218,8 +244,17 @@ export default function AcademyPage() {
       .filter(a => !q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q));
   }, [athletes, search]);
 
+  // The band and the pace override travel with each trainee: the planner shifts
+  // every pace by them before saving and pushing, so it has to resolve them the
+  // same way the directory displays them rather than refetch and possibly disagree.
   const planComposerAthletes = useMemo(
-    () => (members?.members || []).map(m => ({ id: m.athleteId, name: m.name, hasGarmin: m.hasGarmin })),
+    () => (members?.members || []).map(m => ({
+      id: m.athleteId,
+      name: m.name,
+      hasGarmin: m.hasGarmin,
+      band: m.band,
+      paceOffsetSec: m.paceOffsetSec,
+    })),
     [members],
   );
 
@@ -236,12 +271,12 @@ export default function AcademyPage() {
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
-          <div className="bg-primary-600/20 w-12 h-12 rounded-2xl flex items-center justify-center ring-1 ring-primary-500/20">
-            <GraduationCap className="h-6 w-6 text-primary-300" />
+          <div className="bg-brand-600/20 w-12 h-12 rounded-2xl flex items-center justify-center ring-1 ring-brand-600/20">
+            <GraduationCap className="h-6 w-6 text-brand-600" />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-white">{t('title')}</h1>
-            <p className="text-sm text-slate-400">{t('mySubtitle')}</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
+            <p className="text-sm text-ink-400">{t('mySubtitle')}</p>
           </div>
         </div>
         {/* Passed raw, not `|| null`: `null` means "haven't read storage yet"
@@ -270,13 +305,19 @@ export default function AcademyPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <div className="bg-primary-600/20 w-12 h-12 rounded-2xl flex items-center justify-center ring-1 ring-primary-500/20">
-            <GraduationCap className="h-6 w-6 text-primary-300" />
+          <div className="bg-brand-600/20 w-12 h-12 rounded-2xl flex items-center justify-center ring-1 ring-brand-600/20">
+            <GraduationCap className="h-6 w-6 text-brand-600" />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-white">{t('title')}</h1>
-            <p className="text-sm text-slate-400">
-              {members ? t('membersCount', { count: members.team.members }) : t('subtitle')}
+            <h1 className="text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
+            <p className="text-sm text-ink-400">
+              {/* A coach's payload is their own caseload, so calling it the
+                  academy's member count would overstate what they're looking at. */}
+              {!members
+                ? t('subtitle')
+                : members.scope === 'coach'
+                  ? t('myTraineesCount', { count: members.team.members })
+                  : t('membersCount', { count: members.team.members })}
             </p>
           </div>
         </div>
@@ -295,14 +336,15 @@ export default function AcademyPage() {
           isLoading={membersLoading}
           weekStart={weekStart}
           onWeekChange={setWeekStart}
-          onSelectMember={setSelected}
+          onSelectMember={selectMember}
           onGoTab={setView}
+          onChanged={reloadMembers}
         />
       ) : view === 'members' ? (
         <AcademyMembers
           data={members}
           isLoading={membersLoading}
-          onSelectMember={setSelected}
+          onSelectMember={selectMember}
           onAdd={openAdd}
         />
       ) : view === 'registrations' ? (
@@ -324,9 +366,16 @@ export default function AcademyPage() {
       <MemberSheet
         member={selected}
         weekStart={weekStart}
-        onOpenChange={(o) => { if (!o) setSelected(null); }}
+        onOpenChange={(o) => { if (!o) setSelectedId(null); }}
         onRemove={(id) => setAcademy(id, false)}
         removing={!!selected && saving === selected.athleteId}
+        // Who coaches whom, and which דבוקה they're in, are the manager's calls; a
+        // coach still owns their own trainees' paces, which CoachPairing lets them
+        // edit either way.
+        coaches={members?.coaches}
+        bands={members?.bands}
+        canAssign={isManager}
+        onChanged={reloadMembers}
       />
 
       {/* Add Sheet */}
@@ -338,13 +387,13 @@ export default function AcademyPage() {
       >
         <div className="px-2 pb-3">
           <div className="relative">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400" />
             <input
               autoFocus
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={t('searchAthletes')}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl ps-9 pe-3 min-h-[44px] text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
+              className="w-full bg-page border border-page rounded-xl ps-9 pe-3 min-h-[44px] text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600"
             />
           </div>
         </div>
@@ -352,7 +401,7 @@ export default function AcademyPage() {
           {athletes === null ? (
             <div className="flex justify-center py-8"><Spinner size={20} /></div>
           ) : addableAthletes.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-8">
+            <p className="text-sm text-ink-400 text-center py-8">
               {search ? t('noMatchingAthletes') : t('allAlreadyInAcademy')}
             </p>
           ) : (
@@ -363,14 +412,14 @@ export default function AcademyPage() {
                   key={a.id}
                   onClick={() => setAcademy(a.id, true)}
                   disabled={saving === a.id}
-                  className="w-full flex items-center gap-3 p-3 min-h-[44px] rounded-xl hover:bg-slate-700/50 active:scale-[0.98] transition-all text-start disabled:opacity-50"
+                  className="w-full flex items-center gap-3 p-3 min-h-[44px] rounded-xl hover:bg-page/50 active:scale-[0.98] transition-all text-start disabled:opacity-50"
                 >
-                  <div className="bg-slate-700 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                  <div className="bg-page w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-ink-500 shrink-0">
                     {initialsOf(a.name)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-white text-sm truncate">{a.name}</div>
-                    <div className="text-xs text-slate-400 truncate">{a.email}</div>
+                    <div className="font-medium text-ink-700 text-sm truncate">{a.name}</div>
+                    <div className="text-xs text-ink-400 truncate">{a.email}</div>
                   </div>
                   {a.groupName && gs && (
                     <span className={cn('text-3xs font-bold px-2 py-0.5 rounded-md border', gs.bg, gs.text, gs.border)}>
@@ -380,7 +429,7 @@ export default function AcademyPage() {
                   {saving === a.id ? (
                     <Spinner size={16} className="shrink-0" />
                   ) : (
-                    <Plus className="h-4 w-4 text-primary-400 shrink-0" />
+                    <Plus className="h-4 w-4 text-brand-600 shrink-0" />
                   )}
                 </button>
               );

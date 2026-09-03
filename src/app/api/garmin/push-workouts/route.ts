@@ -3,7 +3,7 @@ import { GarminClient } from '@/lib/garmin/client';
 import { convertToGarminWorkout } from '@/lib/garmin/converter';
 import { createServerClient } from '@/lib/supabase/server';
 import { ParsedWorkout } from '@/lib/ai/types';
-import { PaceProfile } from '@/lib/garmin/types';
+import { StoredPaceProfile } from '@/lib/garmin/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { notifyAthlete } from '@/lib/push';
 import { planPushedCopy } from '@/lib/notifications/copy';
@@ -27,7 +27,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
 
-    const { planId, workouts, athleteIds, weekStartDate } = await req.json();
+    // `paceAlerts` is a caller-side VETO, never a grant — see where it's applied
+    // below. The academy planner sends false for a trainee whose paces it could
+    // not resolve, so an unresolved pace stays information instead of becoming a
+    // pace-zone alarm on their watch.
+    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed } = await req.json();
 
     if (!workouts || !athleteIds || !weekStartDate) {
       return NextResponse.json(
@@ -88,11 +92,21 @@ export async function POST(req: NextRequest) {
         }
 
         const garmin = new GarminClient(athlete.garmin_auth as any);
-        const paceProfile = ((athlete as any).groups?.pace_profile || {}) as PaceProfile;
+        // StoredPaceProfile, not PaceProfile: what comes back here is the club
+        // group's `{ marathonGoal, offsetSeconds }`, and calling it a zone table
+        // is what used to make the converter throw on a zone-only pace step.
+        const paceProfile = ((athlete as any).groups?.pace_profile || {}) as StoredPaceProfile;
         const isAcademy = !!(athlete as any).is_academy;
 
+        // Three conditions, all required, and the request can only ever remove
+        // one: the athlete is in the academy, the coach hasn't turned alerts off
+        // academy-wide, and the caller didn't say the paces in this payload are
+        // unresolved. `!== false` rather than a truthy test so every existing
+        // caller — none of which sends the field — behaves exactly as before.
+        const paceTarget = isAcademy && paceAlerts && paceAlertsAllowed !== false;
+
         for (const workout of workouts as ParsedWorkout[]) {
-          const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget: isAcademy && paceAlerts });
+          const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget });
 
           // Calculate the actual date for this workout
           const startDate = new Date(weekStartDate);
