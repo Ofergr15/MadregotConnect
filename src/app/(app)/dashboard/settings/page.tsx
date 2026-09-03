@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
@@ -305,6 +305,12 @@ export default function SettingsPage() {
   const [notifPrefsAthleteId, setNotifPrefsAthleteId] = useState('');
   useEffect(() => { setNotifPrefsAthleteId(localStorage.getItem('athlete_id') || ''); }, []);
   const [users, setUsers] = useState<User[]>([]);
+  // These three start true meaning "not fetched yet" — the fetches are lazy now
+  // (see the activeTab effect below), so the flag has to already be set when the
+  // screen that reads it first renders, or it flashes an empty roster / "no
+  // feedback yet" for a frame before its request has even started. Each is only
+  // ever read inside its own detail screen, so one staying true forever because
+  // that screen was never opened costs nothing.
   const [loading, setLoading] = useState(true);
   // Whether the signed-in account is allowed to approve registrations / grant
   // admin. Computed client-side (identity lives in localStorage); the server
@@ -325,7 +331,7 @@ export default function SettingsPage() {
   const [mobilePermissionsLoading, setMobilePermissionsLoading] = useState(true);
   const [savingMobilePermissions, setSavingMobilePermissions] = useState(false);
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState(true);
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
   const [filterCategory, setFilterCategory] = useState<FeedbackCategory | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<FeedbackStatus | 'all'>('all');
@@ -346,23 +352,50 @@ export default function SettingsPage() {
     setCanGrantAdminHere(canGrantAdmin(me));
   }, []);
 
+  // Group names, to label the group sub-sections in User Manager.
+  const fetchGroupNames = async () => {
+    try {
+      const res = await fetch('/api/groups');
+      if (!res.ok) return;
+      const d = await res.json();
+      if (!d?.groups) return;
+      const map: Record<string, string> = {};
+      d.groups.forEach((g: any) => { map[g.id] = g.name; });
+      setGroupsById(map);
+    } catch {}
+  };
+
+  // Which datasets have already been requested, so re-opening a detail screen
+  // (or bouncing back to the landing and in again) doesn't refetch. The mutation
+  // handlers below call their fetcher directly and deliberately bypass this.
+  const requested = useRef(new Set<string>());
+  const loadOnce = (key: string, load: () => void) => {
+    if (requested.current.has(key)) return;
+    requested.current.add(key);
+    load();
+  };
+
+  // Load per detail screen, not on mount. This page is a landing list of rows
+  // that drill into detail screens, and it used to open five requests before
+  // rendering any of it — the whole roster, both permission matrices and every
+  // feedback item — for a screen showing three rows, none of which use any of
+  // it. Worse, the render was gated on `if (loading)`, so the landing sat behind
+  // a full-page spinner waiting for /api/admin/users to deliver data it never
+  // displayed. Landing is now zero requests, and each screen pays only for
+  // itself. `activeTab` is already set from ?tab= on the first render, so a
+  // deep link straight into a screen still fetches immediately.
   useEffect(() => {
-    fetchUsers();
-    fetchPermissions();
-    fetchMobilePermissions();
-    fetchFeedback();
-    // Group names, to label the group sub-sections in User Manager.
-    fetch('/api/groups')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.groups) {
-          const map: Record<string, string> = {};
-          d.groups.forEach((g: any) => { map[g.id] = g.name; });
-          setGroupsById(map);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (activeTab === 'users') {
+      loadOnce('users', fetchUsers);
+      loadOnce('groups', fetchGroupNames);
+    } else if (activeTab === 'tabs') {
+      loadOnce('permissions', fetchPermissions);
+      loadOnce('mobilePermissions', fetchMobilePermissions);
+    } else if (activeTab === 'feedback') {
+      loadOnce('feedback', fetchFeedback);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const toggleSection = (key: string) =>
     setCollapsedSections(prev => {
@@ -717,10 +750,6 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
-    return <LoadingBlock className="min-h-[60vh]" size={32} />;
-  }
-
   const pendingUsers = users.filter(u => u.approved === false);
   const allActiveUsers = users.filter(u => u.approved !== false);
   // Apply the User Manager filter bar (name / role / group / garmin).
@@ -832,8 +861,10 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* User Manager Tab */}
-      {activeTab === 'users' && (
+      {/* User Manager Tab — the roster spinner belongs HERE, not around the whole
+          page: the landing and every other detail screen render without it. */}
+      {activeTab === 'users' && loading && <LoadingBlock className="min-h-[60vh]" size={32} />}
+      {activeTab === 'users' && !loading && (
         <div className="space-y-4">
           {/* Pending Approval Section (collapsible) */}
           {pendingUsers.length > 0 && (() => {
