@@ -27,43 +27,43 @@ export function WatchAlertsCard() {
   };
 
   return (
-    <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
+    <section className="bg-card/30 rounded-card border border-page/20 p-4 sm:p-5">
       <div className="flex items-start gap-3">
-        <div className="bg-primary-500/20 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-          <Volume2 className="h-5 w-5 text-primary-400" />
+        <div className="bg-brand-600/20 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+          <Volume2 className="h-5 w-5 text-brand-600" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-bold text-white">Alerts & voice on your watch</h3>
-            <button onClick={dismiss} className="text-slate-500 hover:text-white shrink-0" aria-label="Dismiss">
+            <h3 className="text-sm font-bold text-ink-700">Alerts & voice on your watch</h3>
+            <button onClick={dismiss} className="text-ink-400 hover:text-ink-900 shrink-0" aria-label="Dismiss">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Your watch <span className="text-slate-200 font-medium">beeps and vibrates</span> at every
+          <p className="text-xs text-ink-400 mt-1">
+            Your watch <span className="text-ink-700 font-medium">beeps and vibrates</span> at every
             step of the workout — including rest intervals — and shows your target pace on screen.
           </p>
 
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300 mt-2"
+            className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 mt-2"
           >
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             Want spoken cues too?
           </button>
 
           {expanded && (
-            <div className="mt-2 space-y-2 text-xs text-slate-400">
+            <div className="mt-2 space-y-2 text-xs text-ink-400">
               <p className="flex items-start gap-2">
-                <Vibrate className="h-3.5 w-3.5 text-slate-500 mt-0.5 shrink-0" />
+                <Vibrate className="h-3.5 w-3.5 text-ink-400 mt-0.5 shrink-0" />
                 <span>
                   Step beeps &amp; vibration work automatically — no setup needed.
                 </span>
               </p>
               <p className="flex items-start gap-2">
-                <Volume2 className="h-3.5 w-3.5 text-slate-500 mt-0.5 shrink-0" />
+                <Volume2 className="h-3.5 w-3.5 text-ink-400 mt-0.5 shrink-0" />
                 <span>
-                  For spoken pace &amp; lap announcements, enable <span className="text-slate-200 font-medium">Audio Prompts</span> on
+                  For spoken pace &amp; lap announcements, enable <span className="text-ink-700 font-medium">Audio Prompts</span> on
                   your Garmin (Settings → System → Audio Prompts) and connect Bluetooth headphones or your phone.
                 </span>
               </p>

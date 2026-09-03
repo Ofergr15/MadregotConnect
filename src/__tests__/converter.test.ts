@@ -1,12 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { convertToGarminWorkout, ConvertOptions } from '../lib/garmin/converter';
-import { getDefaultPaceProfile, paceToMetersPerSecond } from '../lib/garmin/pace';
+import { getDefaultPaceProfile, getPaceForZone, paceToMetersPerSecond } from '../lib/garmin/pace';
 import { ParsedWorkout, WorkoutStep } from '../lib/ai/types';
+import { StoredPaceProfile } from '../lib/garmin/types';
 
 const paceProfile = getDefaultPaceProfile();
 
+// The shape every `groups.pace_profile` row in production actually has: a goal
+// and a sec/km offset, no zone paces. The zone table above is a test fixture and
+// nothing else, which is exactly why the zone path could throw in production for
+// years while these tests stayed green.
+const LIVE_PROFILE: StoredPaceProfile = { marathonGoal: 'SUB 2:30', offsetSeconds: 0 };
+
 // Wrap a single step in a ParsedWorkout and return the first converted Garmin step.
-function convertSingle(step: Partial<WorkoutStep>, opts?: ConvertOptions) {
+function convertSingle(step: Partial<WorkoutStep>, opts?: ConvertOptions, profile: StoredPaceProfile = paceProfile) {
   const full: WorkoutStep = {
     order: 1,
     type: 'interval',
@@ -20,7 +27,7 @@ function convertSingle(step: Partial<WorkoutStep>, opts?: ConvertOptions) {
     dayOfWeek: 0,
     steps: [full],
   } as unknown as ParsedWorkout;
-  return convertToGarminWorkout(workout, paceProfile, opts).workoutSegments[0].workoutSteps[0];
+  return convertToGarminWorkout(workout, profile, opts).workoutSegments[0].workoutSteps[0];
 }
 
 describe('convertToGarminWorkout — pace as info, not an alerting target', () => {
@@ -157,5 +164,77 @@ describe('convertToGarminWorkout — academy pace-zone target (paceTarget:true)'
     const child = s.workoutSteps![0];
     expect(child.targetType.workoutTargetTypeKey).toBe('pace.zone');
     expect(child.targetValueOne).toBeCloseTo(paceToMetersPerSecond(200));
+  });
+});
+
+// ── The production pace_profile shape ────────────────────────────────────────
+//
+// Every group in the live database stores `{ marathonGoal, offsetSeconds }` —
+// there is no zone table anywhere — and push-workouts hands that object straight
+// to the converter. A zone-only pace step therefore used to throw a TypeError
+// (`Cannot read properties of undefined (reading 'min')`) inside
+// convertToGarminWorkout, which the per-athlete try/catch in push-workouts turned
+// into a failed delivery for that athlete's entire week. One such step exists in
+// real plan data (the 2026-05-31 Saturday easy run), so this was reachable, not
+// theoretical.
+describe('convertToGarminWorkout — a pace_profile with no zone paces (production shape)', () => {
+  it('getPaceForZone returns null instead of undefined', () => {
+    expect(getPaceForZone('easy', LIVE_PROFILE)).toBeNull();
+    expect(getPaceForZone('interval', LIVE_PROFILE)).toBeNull();
+    expect(getPaceForZone('easy', {})).toBeNull();
+    expect(getPaceForZone('easy', null)).toBeNull();
+  });
+
+  it('still resolves a real zone table, and still falls back to easy for an unknown zone', () => {
+    expect(getPaceForZone('interval', paceProfile)).toEqual({ min: 240, max: 260 });
+    expect(getPaceForZone('nonsense', paceProfile)).toEqual(paceProfile.easy);
+  });
+
+  it('converts a zone-only pace step without throwing', () => {
+    expect(() => convertSingle(
+      { targetType: 'pace', targetPaceMinPerKm: undefined, targetZone: 'easy', notes: undefined },
+      undefined,
+      LIVE_PROFILE,
+    )).not.toThrow();
+  });
+
+  it('omits the pace label rather than inventing one', () => {
+    const s = convertSingle(
+      { targetType: 'pace', targetPaceMinPerKm: undefined, targetZone: 'easy', notes: undefined },
+      undefined,
+      LIVE_PROFILE,
+    );
+    expect(s.description).toBeUndefined();
+  });
+
+  it('keeps the coach notes when there is no pace to add to them', () => {
+    const s = convertSingle(
+      { targetType: 'pace', targetPaceMinPerKm: undefined, targetZone: 'easy', notes: 'ריצה קלה' },
+      undefined,
+      LIVE_PROFILE,
+    );
+    expect(s.description).toBe('ריצה קלה');
+  });
+
+  it('leaves the step on no.target under paceTarget:true instead of alerting on an invented range', () => {
+    const s = convertSingle(
+      { targetType: 'pace', targetPaceMinPerKm: undefined, targetZone: 'easy' },
+      { paceTarget: true },
+      LIVE_PROFILE,
+    );
+    expect(s.targetType.workoutTargetTypeKey).toBe('no.target');
+    expect(s.targetValueOne).toBeUndefined();
+    expect(s.targetValueTwo).toBeUndefined();
+  });
+
+  it('a numeric pace is unaffected — it never needed the profile', () => {
+    const s = convertSingle(
+      { targetType: 'pace', targetPaceMinPerKm: 200, notes: '3:20' },
+      { paceTarget: true },
+      LIVE_PROFILE,
+    );
+    expect(s.targetType.workoutTargetTypeKey).toBe('pace.zone');
+    expect(s.targetValueOne).toBeCloseTo(paceToMetersPerSecond(200));
+    expect(s.description).toBe('3:20');
   });
 });

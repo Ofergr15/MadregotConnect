@@ -1,5 +1,5 @@
 import { ParsedWorkout, WorkoutStep } from '../ai/types';
-import { GarminWorkout, GarminWorkoutStep, PaceProfile } from './types';
+import { GarminWorkout, GarminWorkoutStep, StoredPaceProfile } from './types';
 import { formatPace, getPaceForZone, paceToMetersPerSecond } from './pace';
 
 export interface ConvertOptions {
@@ -28,7 +28,7 @@ const END_CONDITION_MAP: Record<string, { conditionTypeId: number; conditionType
 
 function convertStep(
   step: WorkoutStep,
-  paceProfile: PaceProfile,
+  paceProfile: StoredPaceProfile,
   stepOrder: number,
   opts: ConvertOptions = {}
 ): GarminWorkoutStep {
@@ -89,9 +89,16 @@ function convertStep(
       }
     } else if (step.targetZone) {
       const paceRange = getPaceForZone(step.targetZone, paceProfile);
-      garminStep.targetType = { workoutTargetTypeId: 6, workoutTargetTypeKey: 'pace.zone' };
-      garminStep.targetValueOne = paceToMetersPerSecond(paceRange.min);
-      garminStep.targetValueTwo = paceToMetersPerSecond(paceRange.max);
+      // No paces for this zone → leave the step on the no.target it was built
+      // with. A pace zone here would have to be invented, and this branch's
+      // whole purpose is to make the watch beep when the runner leaves the
+      // range: an invented range means beeping at a runner for missing a pace
+      // nobody set. Silence is the correct answer.
+      if (paceRange) {
+        garminStep.targetType = { workoutTargetTypeId: 6, workoutTargetTypeKey: 'pace.zone' };
+        garminStep.targetValueOne = paceToMetersPerSecond(paceRange.min);
+        garminStep.targetValueTwo = paceToMetersPerSecond(paceRange.max);
+      }
     }
   }
 
@@ -102,7 +109,7 @@ function convertStep(
 // "3:15-3:20". Used only as a fallback when the notes don't already carry a pace.
 function buildPaceLabel(
   step: WorkoutStep,
-  paceProfile: PaceProfile
+  paceProfile: StoredPaceProfile
 ): string | undefined {
   if (step.targetType !== 'pace') return undefined;
 
@@ -114,7 +121,9 @@ function buildPaceLabel(
 
   if (step.targetZone) {
     const range = getPaceForZone(step.targetZone, paceProfile);
-    return `${formatPace(range.min)}-${formatPace(range.max)}`;
+    // Undefined, not a placeholder: the label is what the watch prints on screen
+    // mid-run, and a zone name with no paces behind it has nothing to print.
+    if (range) return `${formatPace(range.min)}-${formatPace(range.max)}`;
   }
 
   return undefined;
@@ -127,7 +136,7 @@ function buildPaceLabel(
 // regex-fallback or zone-only steps whose notes were stripped of the pace.
 function buildStepDescription(
   step: WorkoutStep,
-  paceProfile: PaceProfile
+  paceProfile: StoredPaceProfile
 ): string | undefined {
   const notes = step.notes?.trim();
   const label = buildPaceLabel(step, paceProfile);
@@ -140,7 +149,7 @@ function buildStepDescription(
 
 export function convertToGarminWorkout(
   workout: ParsedWorkout,
-  paceProfile: PaceProfile,
+  paceProfile: StoredPaceProfile,
   opts: ConvertOptions = {}
 ): GarminWorkout {
   let stepOrder = 0;

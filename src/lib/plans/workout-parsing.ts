@@ -187,7 +187,9 @@ export function computeWorkoutDistance(workout: ParsedWorkout): { min: number; m
 // "long_run" is always purple everywhere rather than two palettes drifting.
 export const WORKOUT_TYPE_COLORS: Record<string, string> = {
   intervals: '#ef4444', long_run: '#a855f7', tempo: '#f97316',
-  fartlek: '#ec4899', progressive: '#14b8a6', easy: '#6366f1', rest: '#1e293b',
+  // `rest` is the absence of a workout, so it's the page grey the light system
+  // uses for an empty tile — not an ink value, which would read as a hard day.
+  fartlek: '#ec4899', progressive: '#14b8a6', easy: '#159AFF', rest: '#BBBBBB',
 };
 
 export const WORKOUT_TYPE_LABELS: Record<string, string> = {

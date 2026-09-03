@@ -1,4 +1,4 @@
-import { PaceProfile } from './types';
+import { PaceProfile, StoredPaceProfile } from './types';
 
 export function paceToMetersPerSecond(secondsPerKm: number): number {
   return 1000 / secondsPerKm;
@@ -76,10 +76,40 @@ export function getDefaultPaceProfile(): PaceProfile {
   };
 }
 
+function isPaceRange(value: unknown): value is GroupPace {
+  return !!value
+    && typeof value === 'object'
+    && typeof (value as GroupPace).min === 'number'
+    && typeof (value as GroupPace).max === 'number';
+}
+
+/**
+ * The pace range for a zone, or **null when the profile has none**.
+ *
+ * Null is the whole point. Every `pace_profile` row in production is an
+ * `OffsetPaceProfile` (`{ marathonGoal, offsetSeconds }`) with no zone paces in
+ * it, so this used to return `undefined` and its callers dereferenced `.min` —
+ * a TypeError that failed an athlete's entire Garmin push and recorded it as a
+ * cryptic delivery failure. It went unnoticed because the only caller that
+ * supplies a real zone table is the test suite (`getDefaultPaceProfile()`).
+ *
+ * It returns null rather than falling back to a default table on purpose: these
+ * numbers become a pace-zone alert on somebody's watch, and a club whose slowest
+ * group is a sub-2:45 marathon has no use for a stock 5:30–6:30 "easy". A
+ * missing pace must stay missing — the same rule `effectiveOffsetSec` follows in
+ * `@/lib/academy/bands`, where null means "nobody has said what this athlete
+ * runs" and the caller refuses rather than guesses.
+ */
 export function getPaceForZone(
   zone: string,
-  paceProfile: PaceProfile
-): { min: number; max: number } {
-  const key = zone as keyof PaceProfile;
-  return paceProfile[key] || paceProfile.easy;
+  paceProfile: StoredPaceProfile | null | undefined
+): GroupPace | null {
+  if (!paceProfile || typeof paceProfile !== 'object') return null;
+  const table = paceProfile as Record<string, unknown>;
+  const hit = table[zone];
+  if (isPaceRange(hit)) return hit;
+  // An unknown zone name on a genuine zone table still falls back to easy —
+  // that predates this change, and mislabelling one zone is a different problem
+  // from having no paces at all.
+  return isPaceRange(table.easy) ? table.easy : null;
 }
