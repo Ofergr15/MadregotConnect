@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { preload } from 'react-dom';
 import { Inter, Heebo } from 'next/font/google';
 import { SerwistProvider } from '@serwist/turbopack/react';
 import { NextIntlClientProvider } from 'next-intl';
@@ -71,6 +72,12 @@ export default async function RootLayout({
   const locale = await getLocale();
   const messages = await getMessages();
   const dir = locale === 'he' ? 'rtl' : 'ltr';
+
+  // AppSplash paints on the very first frame and needs logo.png twice over — an
+  // <img> and a CSS mask — so don't leave the browser to discover it from the
+  // stylesheet. React's own API rather than a rendered <link rel="preload">:
+  // that emitted the tag into <head> twice.
+  preload('/images/logo.png', { as: 'image' });
 
   return (
     <html lang={locale} dir={dir}>

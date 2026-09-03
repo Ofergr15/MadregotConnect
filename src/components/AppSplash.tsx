@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 
-// App-open loading splash: the logo grows from tiny to full size with one smooth
-// rotation, holds briefly, then the whole layer fades out to reveal the app.
+// App-open loading splash: brand blue floods the logo's staircase bottom-to-top
+// (the badge is used as a mask), the mark snaps to solid ink when the fill tops
+// out, then the whole layer fades out to reveal the app.
+//
 // Shows once per browser session (cold open / PWA launch), never on client-side
 // route transitions.
 //
@@ -11,11 +13,29 @@ import { useEffect, useState } from 'react';
 // a dark navy field, which now means every cold launch would flash dark and then
 // snap to a light app.
 //
-// Timing: entrance 1900ms + hold 250ms -> start fade; fade 550ms -> unmount.
-const ENTRANCE_MS = 1900;
-const HOLD_MS = 250;
-const FADE_MS = 550;
+// Was: the badge grew from 10% to full while spinning a complete 360deg over
+// 1900ms. That spun the circular lockup's wordmark (MADREGOT / Running Club)
+// upside-down halfway through every single launch, and ran 2700ms end to end.
+// The mark now doesn't move at all, so it's readable from the first frame.
+//
+// Timing: entrance 1530ms + hold 170ms -> start fade; fade 420ms -> unmount.
+// The 1530ms is not arbitrary — it's when the fill + ink-snap finish. The
+// matching per-element delays live in globals.css (.app-fill-*); the two have
+// to move together or the layer starts fading mid-fill.
+const ENTRANCE_MS = 1530;
+const HOLD_MS = 170;
+const FADE_MS = 420;
 const SESSION_KEY = 'app_splash_shown';
+
+// Whether this JS runtime has already kicked the animation off. Module scope, so
+// it survives a remount but not a page load — which is exactly the distinction
+// the sessionStorage check below can't make on its own.
+//
+// Without it, React StrictMode's dev-only mount/unmount/remount means pass 1
+// writes SESSION_KEY and pass 2 reads it back and skips, so the splash never
+// plays in `next dev` at all — only in a production build. That made the thing
+// impossible to iterate on locally.
+let startedInThisRuntime = false;
 
 export function AppSplash() {
   // Renders visible on the very first paint (server + client identical, so no
@@ -23,11 +43,13 @@ export function AppSplash() {
   const [phase, setPhase] = useState<'in' | 'out' | 'done'>('in');
 
   useEffect(() => {
-    // Already shown this session (e.g. locale reload / re-mount) -> skip instantly.
-    if (sessionStorage.getItem(SESSION_KEY)) {
+    // Already shown this session (e.g. locale reload) -> skip instantly. Our own
+    // key from a moment ago doesn't count, hence the runtime flag.
+    if (!startedInThisRuntime && sessionStorage.getItem(SESSION_KEY)) {
       setPhase('done');
       return;
     }
+    startedInThisRuntime = true;
     sessionStorage.setItem(SESSION_KEY, '1');
 
     const toOut = setTimeout(() => setPhase('out'), ENTRANCE_MS + HOLD_MS);
@@ -53,19 +75,39 @@ export function AppSplash() {
       style={{ background: 'radial-gradient(120% 90% at 50% 42%, #FFFFFF 0%, #DFDFDF 60%, #D2D2D2 100%)' }}
     >
       <div className="relative flex items-center justify-center">
+        {/* Blooms only once the fill tops out, so the "arrived" beat is the glow
+            and the ink snap together rather than an ambient halo throughout. */}
         <div
-          className="absolute w-[280px] h-[280px] rounded-full"
+          className="app-fill-halo absolute h-[230px] w-[230px] rounded-full"
           style={{ background: 'radial-gradient(circle, rgba(21,37,255,.16) 0%, rgba(21,37,255,0) 70%)', filter: 'blur(8px)' }}
         />
-        {/* The dark mark, flattened to solid black by `brightness-0` — same
-            treatment the Header gives it on the page grey. */}
-        <img
-          src="/images/logo.png"
-          alt=""
-          width={150}
-          height={150}
-          className="relative h-[150px] w-[150px] object-contain brightness-0 animate-app-open-icon"
-        />
+        <div className="relative h-[150px] w-[150px]">
+          {/* The unfilled mark: the real logo flattened to black by
+              `brightness-0` (the treatment the Header gives it on the page
+              grey) and dropped to a hairline presence, so the lockup is
+              readable before any ink arrives. */}
+          <img
+            src="/images/logo.png"
+            alt=""
+            width={150}
+            height={150}
+            className="absolute inset-0 h-full w-full object-contain opacity-[0.14] brightness-0"
+          />
+          {/* Everything inside here is clipped to the logo's silhouette. */}
+          <div className="app-fill-mask absolute inset-0 overflow-hidden">
+            <div className="app-fill-fluid absolute inset-x-0 bottom-0" />
+            {/* The finished state: solid ink, faded in over the topped-out
+                fill, matching how the mark appears everywhere else. */}
+            <div className="app-fill-settle absolute inset-0" />
+          </div>
+        </div>
+      </div>
+      {/* Paces the fill so it reads as a level being reached rather than an
+          animation of unknown length. Honest about what it is: both this and the
+          fill run on the timer above, not on real load progress. Block child, so
+          it fills from the inline start in both LTR and RTL. */}
+      <div className="app-fill-level mt-[22px] h-[3px] w-[112px] overflow-hidden rounded-pill bg-ink-900/10">
+        <i className="block h-full rounded-pill bg-brand-600" />
       </div>
     </div>
   );

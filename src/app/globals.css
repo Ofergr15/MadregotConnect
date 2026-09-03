@@ -247,30 +247,98 @@
   .mg-cstep{animation:none;opacity:1;transform:none}
 }
 
-/* App-open splash: the logo on the page grey, grows from tiny to full with one
-   smooth spin (single deceleration, no overshoot -> no stutter), then the
-   whole layer fades out and eases slightly larger to reveal the app. */
-@keyframes appOpenIcon {
-  0%   { transform: scale(0.10) rotate(0deg);   opacity: 0; }
-  15%  { opacity: 1; }
-  100% { transform: scale(1) rotate(360deg);    opacity: 1; }
+/* App-open splash — "ink fill". The badge is a MASK, and brand blue floods the
+   staircase bottom-to-top; when it tops out, the mark snaps to solid ink and
+   the layer fades to reveal the app.
+
+   Replaces the previous "grow from 10% + one full 360deg spin over 1900ms":
+   spinning the whole circular lockup turned the MADREGOT / Running Club
+   wordmark upside-down halfway through every launch, and the mark not moving
+   at all here means it's legible from the first frame.
+
+   Same `mask-image: logo.png` technique as .mg-sweep above — a mask only reads
+   the alpha channel, and logo.png is greyscale+alpha, so the silhouette is all
+   we get. The <img> ghost behind the mask is the same file at low opacity, so
+   the two are automatically in register.
+
+   TIMELINE — these delays/durations mirror the constants in AppSplash.tsx.
+   Change them in both places or the layer will fade mid-fill:
+     120ms  fill starts
+     1270ms fill tops out (120 + 1150)
+     1530ms ink snap done (1270 + 260)  == ENTRANCE_MS
+     +170ms hold, +420ms fade out       == 2120ms total (was 2700ms) */
+@keyframes appFillRise {
+  from { height: 0; }
+  to   { height: 100%; }
+}
+@keyframes appFillSettle {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes appFillHalo {
+  0%   { opacity: 0;   transform: scale(0.80); }
+  45%  { opacity: 1;   transform: scale(1.06); }
+  100% { opacity: 0.75; transform: scale(1); }
+}
+@keyframes appFillLevel {
+  from { width: 0; }
+  to   { width: 100%; }
 }
 @keyframes appOpenReveal {
   0%   { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(1.12); }
 }
-.animate-app-open-icon {
-  animation: appOpenIcon 1900ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  transform-origin: center;
-  backface-visibility: hidden;
-  will-change: transform, opacity;
+.app-fill-mask {
+  -webkit-mask-image: url("/images/logo.png"); mask-image: url("/images/logo.png");
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+/* Animating `height` rather than a transform: the fluid has to have a flat top
+   edge that stays flat, and scaleY would squash the meniscus with it. It's one
+   small composited box on a static layer, so the layout cost is irrelevant. */
+.app-fill-fluid {
+  height: 0;
+  background: linear-gradient(180deg, #1525FF 0%, #0F1CCC 100%);
+  animation: appFillRise 1150ms cubic-bezier(0.32, 0.72, 0.3, 1) 120ms both;
+  will-change: height;
+}
+/* Meniscus — a pale band riding the top edge, so the fill reads as a liquid
+   level rather than a growing rectangle. */
+.app-fill-fluid::before {
+  content: '';
+  position: absolute; left: 0; right: 0; top: 0; height: 7px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
+}
+.app-fill-settle {
+  background: #1D1E26;
+  opacity: 0;
+  animation: appFillSettle 260ms ease-out 1270ms both;
+}
+.app-fill-halo {
+  opacity: 0;
+  animation: appFillHalo 620ms ease-out 1150ms both;
+}
+.app-fill-level > i {
+  width: 0;
+  animation: appFillLevel 1270ms cubic-bezier(0.32, 0.72, 0.3, 1) 120ms both;
 }
 .app-splash-out {
-  animation: appOpenReveal 550ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: appOpenReveal 420ms cubic-bezier(0.4, 0, 1, 1) forwards;
   pointer-events: none;
 }
+/* Reduced motion: drop the rise and the halo's breath — the mark simply fades
+   in already-inked. The level bar is kept (it fills linearly, no easing): a
+   bar growing in place isn't the kind of large-area motion this query is about,
+   and it's the only thing left saying "still working". */
 @media (prefers-reduced-motion: reduce) {
-  .animate-app-open-icon { animation: fadeIn 400ms ease-out both; }
+  .app-fill-fluid { animation: none; height: 0; }
+  /* Re-uses appFillSettle (pure opacity) rather than fadeIn — fadeIn carries a
+     translateY, which inside the mask would slide the ink across the
+     silhouette. */
+  .app-fill-settle { animation: appFillSettle 400ms ease-out 120ms both; }
+  .app-fill-halo { animation: none; opacity: 0.6; transform: scale(1); }
+  .app-fill-level > i { animation-timing-function: linear; }
   .app-splash-out { animation: appOpenReveal 300ms linear forwards; }
 }
 
