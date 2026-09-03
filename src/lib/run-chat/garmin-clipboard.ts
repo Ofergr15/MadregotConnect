@@ -3,7 +3,10 @@
  * Visual target: examples/clipboard_images/*.jpeg
  */
 
-import sharp from 'sharp';
+import { existsSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { Resvg } from '@resvg/resvg-js';
 import {
   type PlannedWorkout,
   type WorkoutSegment,
@@ -11,10 +14,10 @@ import {
   flattenClipboardSteps,
 } from './mock-workout';
 import { intensityLayout } from './clipboard-layout';
-import { NOTO_SANS_HEBREW_BASE64 } from './noto-sans-hebrew.generated';
+import { DEJAVU_SANS_BASE64 } from './dejavu-sans.generated';
 
 /** Bump when the renderer changes so stored images regenerate. */
-export const CLIPBOARD_VERSION = 'v9';
+export const CLIPBOARD_VERSION = 'v10';
 
 /** Horizontal inset for steps nested under a Repeat block (Garmin "tab"). */
 const REPEAT_INDENT_PX = 28;
@@ -39,10 +42,22 @@ const KIND_COLOR: Record<string, string> = {
   repeat: GREY,
 };
 
-function fontFaceCss(): string {
-  // Keep the bytes inside the JS bundle. Vercel relocates traced files and its
-  // serverless runtime has no system fontconfig to fall back to.
-  return `@font-face{font-family:'Clipboard';src:url(data:font/truetype;base64,${NOTO_SANS_HEBREW_BASE64}) format('truetype');}`;
+let _fontPaths: string[] | null = null;
+
+function writeBundledFont(filename: string, base64: string): string {
+  const path = join(tmpdir(), filename);
+  if (!existsSync(path)) {
+    writeFileSync(path, Buffer.from(base64, 'base64'));
+  }
+  return path;
+}
+
+function fontPaths(): string[] {
+  if (_fontPaths) return _fontPaths;
+  _fontPaths = [
+    writeBundledFont('madregot-dejavu-sans.ttf', DEJAVU_SANS_BASE64),
+  ];
+  return _fontPaths;
 }
 
 function escapeXml(s: string): string {
@@ -54,7 +69,7 @@ function escapeXml(s: string): string {
 }
 
 function fontFor(_s: string): string {
-  return 'Clipboard, Arial, sans-serif';
+  return 'DejaVu Sans';
 }
 
 function sparklineBars(steps: WorkoutSegment[], totalW: number): string {
@@ -131,11 +146,6 @@ export async function renderGarminClipboardPng(workout: PlannedWorkout): Promise
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <defs>
-    <style type="text/css"><![CDATA[
-      ${fontFaceCss()}
-    ]]></style>
-  </defs>
   <rect width="100%" height="100%" rx="16" fill="${BG}"/>
 
   <!-- Title (Garmin: bold, near-black, generous top padding) -->
@@ -154,5 +164,15 @@ export async function renderGarminClipboardPng(workout: PlannedWorkout): Promise
   </g>
 </svg>`;
 
-  return sharp(Buffer.from(svg)).png({ quality: 100 }).toBuffer();
+  const renderer = new Resvg(svg, {
+    font: {
+      fontFiles: fontPaths(),
+      loadSystemFonts: false,
+      defaultFontFamily: 'DejaVu Sans',
+      sansSerifFamily: 'DejaVu Sans',
+    },
+    languages: ['he'],
+    textRendering: 1,
+  });
+  return renderer.render().asPng();
 }
