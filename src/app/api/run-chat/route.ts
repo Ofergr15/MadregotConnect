@@ -20,6 +20,8 @@ import {
   humanCoachAvatarUrl,
 } from '@/lib/stream/server';
 import { canAccessChat } from '@/lib/run-chat/access';
+import { isUnresolvedPlan } from '@/lib/run-chat/activity-workout';
+import type { PlannedWorkout } from '@/lib/run-chat/mock-workout';
 import { ensureChatSeeded } from '@/lib/run-chat/seed-chat';
 import { ensureMatchedWorkout } from '@/lib/plans/matched-workout';
 
@@ -139,7 +141,12 @@ export async function POST(request: Request) {
       user.athleteId &&
       (user.athleteId === existingChat.athlete_id || user.athleteId === existingChat.coach_id);
 
-    if (existingChat?.stream_channel_id && isExistingMember) {
+    const storedPlanUnresolved = isUnresolvedPlan(
+      existingChat?.planned_workout as PlannedWorkout | null,
+      existingChat?.planned_text,
+    );
+
+    if (existingChat?.stream_channel_id && isExistingMember && !storedPlanUnresolved) {
       const fastStream = getStreamServerClient();
       const fastChannel = fastStream.channel(CHANNEL_TYPE, channelId(activityId));
       let openerMembershipReady = false;
@@ -165,7 +172,9 @@ export async function POST(request: Request) {
         // Backfills and artifact-version checks are useful, but they should not
         // hold every refresh behind several sequential Stream API round trips.
         // Run them once per server process after the response is sent.
-        if (!maintainedChats.has(existingChat.id)) {
+        // `laps === null` means Strava enrichment has not happened yet; keep
+        // maintaining on every open until the seeder fetches laps on demand.
+        if (!maintainedChats.has(existingChat.id) || activity.laps == null) {
           maintainedChats.add(existingChat.id);
           after(async () => {
             try {

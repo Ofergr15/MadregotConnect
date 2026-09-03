@@ -140,15 +140,19 @@ export function compareRuns(current: RunActivity, comparison: RunActivity) {
   };
 }
 
+/** Pace gap (sec/km) at which two runs are considered completely different. */
+const PACE_GAP_FULL = 90;
+
+/**
+ * 0–100 similarity. Distance and pace always count; lap structure only when
+ * both runs have laps. Most stored runs are not lap-enriched, so scoring lap
+ * data as "0 when missing" used to rank any enriched run above every
+ * unenriched one regardless of distance.
+ */
 export function similarRunScore(current: RunActivity, candidate: RunActivity) {
-  const distanceRatio =
-    Math.min(current.distance, candidate.distance) / Math.max(current.distance, candidate.distance, 1);
-  const currentLaps = current.laps?.length || 0;
-  const candidateLaps = candidate.laps?.length || 0;
-  const lapScore =
-    currentLaps && candidateLaps
-      ? Math.max(0, 1 - Math.abs(currentLaps - candidateLaps) / Math.max(currentLaps, candidateLaps))
-      : 0;
+  const maxDistance = Math.max(current.distance, candidate.distance, 1);
+  const distanceScore = 1 - Math.min(1, Math.abs(current.distance - candidate.distance) / maxDistance);
+
   const currentPace =
     current.average_pace || paceSeconds(current.distance, current.moving_duration || current.duration);
   const candidatePace =
@@ -156,8 +160,15 @@ export function similarRunScore(current: RunActivity, candidate: RunActivity) {
     paceSeconds(candidate.distance, candidate.moving_duration || candidate.duration);
   const paceScore =
     currentPace && candidatePace
-      ? Math.min(currentPace, candidatePace) / Math.max(currentPace, candidatePace)
-      : 0;
+      ? 1 - Math.min(1, Math.abs(currentPace - candidatePace) / PACE_GAP_FULL)
+      : distanceScore;
 
-  return Math.round((distanceRatio * 0.5 + lapScore * 0.3 + paceScore * 0.2) * 100);
+  const currentLaps = current.laps?.length || 0;
+  const candidateLaps = candidate.laps?.length || 0;
+  if (currentLaps && candidateLaps) {
+    const lapScore =
+      1 - Math.abs(currentLaps - candidateLaps) / Math.max(currentLaps, candidateLaps);
+    return Math.round((distanceScore * 0.45 + paceScore * 0.35 + lapScore * 0.2) * 100);
+  }
+  return Math.round((distanceScore * 0.55 + paceScore * 0.45) * 100);
 }

@@ -11,9 +11,10 @@ import {
   expandWorkoutSteps,
   flattenClipboardSteps,
 } from './mock-workout';
+import { intensityLayout } from './clipboard-layout';
 
 /** Bump when the renderer changes so stored images regenerate. */
-export const CLIPBOARD_VERSION = 'v6';
+export const CLIPBOARD_VERSION = 'v7';
 
 /** Horizontal inset for steps nested under a Repeat block (Garmin "tab"). */
 const REPEAT_INDENT_PX = 28;
@@ -71,46 +72,21 @@ function fontFor(s: string): string {
   return hasHebrew(s) ? 'ClipboardHe, ClipboardEn, Arial, sans-serif' : 'ClipboardEn, ClipboardHe, Arial, sans-serif';
 }
 
-/** Steps that appear in the intensity strip (exclude the Repeat footer row). */
-function sparklineSteps(steps: WorkoutSegment[]): WorkoutSegment[] {
-  return steps.filter((s) => s.kind !== 'repeat');
-}
-
 function sparklineBars(steps: WorkoutSegment[], totalW: number): string {
-  const items = sparklineSteps(steps);
-  const weights: number[] = items.map((s) => {
-    if (s.kind === 'warmup' || s.kind === 'cooldown') {
-      // Lap-button warmup is shorter than a distance warmup
-      if (/lap button/i.test(s.detail)) return 18;
-      return Math.max(28, Math.round((s.distanceM ?? 1000) / 50));
-    }
-    if (s.kind === 'interval') return Math.max(8, Math.round((s.distanceM ?? 400) / 80));
-    if (s.kind === 'rest' || s.kind === 'recovery') return 5;
-    return 12;
-  });
-  const sum = weights.reduce((a, b) => a + b, 0) || 1;
-  const gap = 2;
   const maxH = 44;
-  let x = 0;
-  const parts: string[] = [];
-
-  for (let i = 0; i < items.length; i++) {
-    const s = items[i];
-    const w = Math.max(3, (weights[i] / sum) * (totalW - gap * (items.length - 1)));
-    const color = KIND_COLOR[s.kind] ?? GREY;
-    // Garmin: intervals are tallest; rest is a short stub; warmups mid-height
-    const h =
-      s.kind === 'interval' ? maxH :
-      s.kind === 'warmup' || s.kind === 'cooldown' ? 26 :
-      s.kind === 'rest' || s.kind === 'recovery' ? 12 :
-      20;
-    const y = maxH - h;
-    parts.push(
-      `<rect x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${h}" rx="2.5" fill="${color}"/>`,
-    );
-    x += w + gap;
-  }
-  return parts.join('\n');
+  return intensityLayout(steps, totalW)
+    .map(({ step, x, width }) => {
+      const color = KIND_COLOR[step.kind] ?? GREY;
+      // Garmin: intervals are tallest; rest is a short stub; warmups mid-height
+      const h =
+        step.kind === 'interval' ? maxH :
+        step.kind === 'warmup' || step.kind === 'cooldown' ? 26 :
+        step.kind === 'rest' || step.kind === 'recovery' ? 12 :
+        20;
+      const y = maxH - h;
+      return `<rect x="${x.toFixed(1)}" y="${y}" width="${width.toFixed(1)}" height="${h}" rx="2.5" fill="${color}"/>`;
+    })
+    .join('\n');
 }
 
 function repeatIcon(cx: number, cy: number): string {

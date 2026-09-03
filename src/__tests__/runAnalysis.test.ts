@@ -83,4 +83,15 @@ describe('run analysis tools', () => {
     const different = activity({ id: 'different', distance: 15000, average_pace: 360, laps: [] });
     expect(similarRunScore(current, similar)).toBeGreaterThan(similarRunScore(current, different));
   });
+
+  it('does not rank a lap-enriched run above an unenriched run of the same distance', () => {
+    // Most stored runs have no laps; a 10k with laps must not beat a 10k without.
+    const current = activity({ distance: 9894, average_pace: 328 });
+    const unenrichedTenK = activity({ id: 'plain-10k', distance: 10050, average_pace: 330, laps: null });
+    const enrichedFifteenK = activity({ id: 'laps-15k', distance: 15010, average_pace: 285 });
+    expect(similarRunScore(current, unenrichedTenK)).toBeGreaterThan(
+      similarRunScore(current, enrichedFifteenK),
+    );
+    expect(similarRunScore(current, unenrichedTenK)).toBeGreaterThanOrEqual(90);
+  });
 });
