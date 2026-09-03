@@ -13,7 +13,7 @@ function Input({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElemen
   return (
     <input
       className={cn(
-        'w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-2xl px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500',
+        'w-full min-h-[44px] bg-page border border-ink-300 rounded-2xl px-4 py-3 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600',
         className
       )}
       {...rest}
@@ -100,14 +100,14 @@ export default function AcademyJoinPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-page flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-6 sm:p-8">
         <div className="text-center mb-6">
-          <div className="bg-primary-600/20 w-14 h-14 rounded-2xl flex items-center justify-center ring-1 ring-primary-500/20 mx-auto mb-3">
-            <GraduationCap className="h-7 w-7 text-primary-300" />
+          <div className="bg-brand-600/20 w-14 h-14 rounded-2xl flex items-center justify-center ring-1 ring-brand-600/20 mx-auto mb-3">
+            <GraduationCap className="h-7 w-7 text-brand-600" />
           </div>
-          <h1 className="text-xl font-bold text-white">{t('title')}</h1>
-          <p className="text-slate-400 mt-2 text-sm">
+          <h1 className="text-xl font-bold text-ink-700">{t('title')}</h1>
+          <p className="text-ink-400 mt-2 text-sm">
             {t('description')}
           </p>
         </div>
@@ -115,26 +115,26 @@ export default function AcademyJoinPage() {
         {step === 'connecting' && (
           <div className="text-center py-8">
             <LoadingBlock size={32} className="py-0 mb-3" />
-            <p className="text-slate-400 text-sm">{to('connectingGarmin')}</p>
+            <p className="text-ink-400 text-sm">{to('connectingGarmin')}</p>
           </div>
         )}
 
         {step === 'garmin' && (
           <form onSubmit={submitGarmin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminEmailLabel')}</label>
+              <label className="block text-sm font-medium text-ink-500 mb-1">{t('garminEmailLabel')}</label>
               <Input type="email" value={garminEmail} onChange={e => setGarminEmail(e.target.value)} required
                 placeholder="your@email.com" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">{t('garminPasswordLabel')}</label>
+              <label className="block text-sm font-medium text-ink-500 mb-1">{t('garminPasswordLabel')}</label>
               <Input type="password" value={garminPassword} onChange={e => setGarminPassword(e.target.value)} required />
             </div>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-accent-red">{error}</p>}
             <Button type="submit" variant="primary" size="lg" className="w-full">
               <Watch className="h-5 w-5" /> {t('connectButton')}
             </Button>
-            <p className="text-xs text-slate-500 text-center">
+            <p className="text-xs text-ink-400 text-center">
               {t('privacyNote')}
             </p>
           </form>
@@ -142,21 +142,21 @@ export default function AcademyJoinPage() {
 
         {step === 'mfa' && (
           <form onSubmit={submitMfa} className="space-y-4">
-            <p className="text-sm text-slate-300">{t('mfaPrompt')}</p>
+            <p className="text-sm text-ink-500">{t('mfaPrompt')}</p>
             <Input type="text" inputMode="numeric" value={mfaCode} onChange={e => setMfaCode(e.target.value)} required
               placeholder="123456" className="text-center tracking-widest" />
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-accent-red">{error}</p>}
             <Button type="submit" variant="primary" size="lg" className="w-full">{t('verifyButton')}</Button>
           </form>
         )}
 
         {step === 'done' && (
           <div className="text-center py-6">
-            <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="h-8 w-8 text-green-400" />
+            <div className="bg-accent-600/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="h-8 w-8 text-accent-600" />
             </div>
-            <h2 className="text-xl font-bold text-white">{t('connectedTitle')}</h2>
-            <p className="text-slate-400 text-sm mt-2">
+            <h2 className="text-xl font-bold text-ink-700">{t('connectedTitle')}</h2>
+            <p className="text-ink-400 text-sm mt-2">
               {t('connectedDesc')}
             </p>
             <Button variant="primary" className="mt-6" onClick={() => router.push('/dashboard')}>

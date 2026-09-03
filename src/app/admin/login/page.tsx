@@ -10,13 +10,13 @@ import { getSupabase } from '@/lib/supabase/client';
 
 // Local input primitive (kept local to this screen rather than promoted to
 // the shared ui/index.tsx) — rounded-2xl, min-h-[44px], one consistent focus
-// ring, replacing the copy-pasted `bg-slate-700 border ... rounded-lg` string
+// ring, replacing the copy-pasted `bg-page border ... rounded-lg` string
 // duplicated across the auth/onboarding screens.
 function Input({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       className={cn(
-        'w-full min-h-[44px] bg-slate-700 border border-slate-600 rounded-2xl px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500',
+        'w-full min-h-[44px] bg-page border border-ink-300 rounded-2xl px-4 py-3 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600',
         className
       )}
       {...rest}
@@ -85,16 +85,16 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-page flex items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-3 mb-6">
-          <Shield className="h-6 w-6 text-primary-400" />
-          <h1 className="text-xl font-bold text-white">{th('adminLogin')}</h1>
+          <Shield className="h-6 w-6 text-brand-600" />
+          <h1 className="text-xl font-bold text-ink-700">{th('adminLogin')}</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">{ta('email')}</label>
+            <label className="block text-sm font-medium text-ink-500 mb-1">{ta('email')}</label>
             <Input
               type="email"
               value={email}
@@ -104,7 +104,7 @@ export default function AdminLoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">{th('password')}</label>
+            <label className="block text-sm font-medium text-ink-500 mb-1">{th('password')}</label>
             <Input
               type="password"
               value={password}
@@ -115,7 +115,7 @@ export default function AdminLoginPage() {
           </div>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+            <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
               {error}
             </div>
           )}
@@ -126,7 +126,7 @@ export default function AdminLoginPage() {
           </Button>
         </form>
 
-        <p className="text-xs text-slate-500 text-center mt-4">
+        <p className="text-xs text-ink-400 text-center mt-4">
           {t('footnote')}
         </p>
       </Card>

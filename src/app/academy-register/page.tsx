@@ -107,11 +107,11 @@ export default function AcademyRegisterPage() {
 
   if (!REGISTRATION_OPEN) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4" dir="rtl">
+      <div className="min-h-screen bg-page flex items-center justify-center p-4" dir="rtl">
         <Card className="w-full max-w-md p-6 sm:p-8 text-center">
-          <GraduationCap className="h-12 w-12 text-primary-600 mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-white">ההרשמה סגורה כרגע</h2>
-          <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+          <GraduationCap className="h-12 w-12 text-brand-600 mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-ink-700">ההרשמה סגורה כרגע</h2>
+          <p className="text-ink-400 text-sm mt-2 leading-relaxed">
             ההרשמה לאקדמיית הריצה של מדרגות סגורה כעת. עקבו אחרינו לפתיחת המחזור הבא.
           </p>
         </Card>
@@ -121,11 +121,11 @@ export default function AcademyRegisterPage() {
 
   if (done) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4" dir="rtl">
+      <div className="min-h-screen bg-page flex items-center justify-center p-4" dir="rtl">
         <Card className="w-full max-w-md p-6 sm:p-8 text-center">
-          <CheckCircle2 className="h-12 w-12 text-emerald-400 mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-white">ההרשמה התקבלה!</h2>
-          <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+          <CheckCircle2 className="h-12 w-12 text-accent-600 mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-ink-700">ההרשמה התקבלה!</h2>
+          <p className="text-ink-400 text-sm mt-2 leading-relaxed">
             תודה שפנית לאקדמיית הריצה של מדרגות. המאמן יעבור על הפרטים שלך ולאחר אישור
             תקבל/י מייל עם קישור לחיבור השעון והצטרפות לפלטפורמה.
           </p>
@@ -135,28 +135,28 @@ export default function AcademyRegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 py-8 px-4" dir="rtl">
+    <div className="min-h-screen bg-page py-8 px-4" dir="rtl">
       <div className="max-w-lg mx-auto">
         <div className="text-center mb-6">
-          <div className="bg-primary-600/20 w-14 h-14 rounded-2xl flex items-center justify-center ring-1 ring-primary-500/20 mx-auto mb-3">
-            <GraduationCap className="h-7 w-7 text-primary-300" />
+          <div className="bg-brand-600/20 w-14 h-14 rounded-2xl flex items-center justify-center ring-1 ring-brand-600/20 mx-auto mb-3">
+            <GraduationCap className="h-7 w-7 text-brand-600" />
           </div>
-          <h1 className="text-xl font-bold text-white">שאלון הצטרפות · Madregot Academy</h1>
-          <p className="text-slate-400 mt-2 text-sm">מלא/י את הפרטים כדי שנבנה לך פרופיל מתאמן</p>
+          <h1 className="text-xl font-bold text-ink-700">שאלון הצטרפות · Madregot Academy</h1>
+          <p className="text-ink-400 mt-2 text-sm">מלא/י את הפרטים כדי שנבנה לך פרופיל מתאמן</p>
         </div>
 
         <form onSubmit={submit} className="space-y-3">
           {FIELDS.map(f => (
             <Card key={f.key} variant="plain">
-              <label className="block text-sm font-medium text-slate-200 mb-2">
-                {f.label} {f.required && <span className="text-red-400">*</span>}
+              <label className="block text-sm font-medium text-ink-700 mb-2">
+                {f.label} {f.required && <span className="text-accent-red">*</span>}
               </label>
 
               {(f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') && (
                 <input
                   type={f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
                   onChange={e => set(f.key, e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
                 />
               )}
 
@@ -164,17 +164,17 @@ export default function AcademyRegisterPage() {
                 <textarea
                   value={values[f.key] || ''} rows={3} placeholder="התשובה שלך"
                   onChange={e => set(f.key, e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y"
+                  className="w-full bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600 resize-y"
                 />
               )}
 
               {f.type === 'radio' && (
                 <div className="space-y-1.5">
                   {f.options.map(opt => (
-                    <label key={opt} className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-700/40">
+                    <label key={opt} className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-page/40">
                       <input type="radio" name={f.key} checked={values[f.key] === opt} onChange={() => set(f.key, opt)}
-                        className="accent-primary-500 w-4 h-4" />
-                      <span className="text-sm text-slate-300">{opt}</span>
+                        className="accent-brand-600 w-4 h-4" />
+                      <span className="text-sm text-ink-500">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -183,10 +183,10 @@ export default function AcademyRegisterPage() {
               {f.type === 'checkboxes' && (
                 <div className="space-y-1.5">
                   {f.options.map(opt => (
-                    <label key={opt} className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-slate-700/40">
+                    <label key={opt} className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-page/40">
                       <input type="checkbox" checked={(values[f.key] || []).includes(opt)} onChange={() => toggle(f.key, opt)}
-                        className="accent-primary-500 w-4 h-4" />
-                      <span className="text-sm text-slate-300">{opt}</span>
+                        className="accent-brand-600 w-4 h-4" />
+                      <span className="text-sm text-ink-500">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -194,7 +194,7 @@ export default function AcademyRegisterPage() {
             </Card>
           ))}
 
-          {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+          {error && <p className="text-sm text-accent-red text-center">{error}</p>}
 
           <Button type="submit" size="lg" disabled={submitting} className="w-full">
             {submitting && <LoadingBlock size={20} className="py-0" />}

@@ -27,18 +27,18 @@ export default function GarminCallbackPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-page flex items-center justify-center p-4">
       <div className="text-center">
         {status === 'error' ? (
           <>
-            <p className="text-red-400 font-medium">No ticket received from Garmin</p>
-            <p className="text-slate-400 text-sm mt-2">Please try again</p>
+            <p className="text-accent-red font-medium">No ticket received from Garmin</p>
+            <p className="text-ink-400 text-sm mt-2">Please try again</p>
           </>
         ) : (
           <>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-4"></div>
-            <p className="text-white font-medium">Connecting to Garmin...</p>
-            <p className="text-slate-400 text-sm mt-2">This window will close automatically</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mb-4"></div>
+            <p className="text-ink-700 font-medium">Connecting to Garmin...</p>
+            <p className="text-ink-400 text-sm mt-2">This window will close automatically</p>
           </>
         )}
       </div>
