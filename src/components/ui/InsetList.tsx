@@ -9,14 +9,19 @@ import { cn } from '@/lib/utils';
 // toggle, and an optional uppercase section header. RTL-safe: the chevron points
 // inline-end (ChevronLeft, which visually points to the row's trailing edge in
 // RTL). Purely presentational — logic stays in the caller.
+//
+// It used to carry a dark/light `variant` (plus an InsetTheme context to set it
+// once per screen) while the app ran two palettes side by side. Every screen is
+// on the designer's light system now, so there's one look: a white 25px card on
+// the page grey, page-grey hairlines, ink text.
 
 export function InsetSection({ header, children, className }: { header?: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn('mb-5', className)}>
       {header && (
-        <p className="px-4 mb-1.5 text-2xs font-bold uppercase tracking-wider text-slate-500">{header}</p>
+        <p className="px-4 mb-1.5 text-2xs font-bold uppercase tracking-wider text-ink-400">{header}</p>
       )}
-      <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 overflow-hidden divide-y divide-slate-700/50">
+      <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
         {children}
       </div>
     </div>
@@ -25,7 +30,7 @@ export function InsetSection({ header, children, className }: { header?: string;
 
 interface RowProps {
   icon?: React.ComponentType<{ className?: string }>;
-  iconBg?: string;      // tailwind bg for the glyph tile, e.g. 'bg-primary-600'
+  iconBg?: string;      // tailwind bg for the glyph tile, e.g. 'bg-brand-600'
   avatarUrl?: string;   // a person's photo instead of an icon tile (e.g. who liked/followed/replied) — takes precedence over icon when set
   label: string;
   sublabel?: string;
@@ -40,7 +45,8 @@ interface RowProps {
 
 // One row. If href/onClick given → navigable (chevron). If `trailing` given
 // (e.g. a toggle) → no chevron. Otherwise a static info row.
-export function InsetRow({ icon: Icon, iconBg = 'bg-slate-600', avatarUrl, label, sublabel, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
+export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label, sublabel, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
+  const press = 'active:bg-page/60';
   const interactive = !!href || !!onClick;
   const inner = (
     <div className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
@@ -53,20 +59,20 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-slate-600', avatarUrl, label
         </span>
       )}
       <span className="flex-1 min-w-0">
-        <span className={cn('block text-[15px] font-medium truncate', danger ? 'text-red-400' : 'text-white')} dir="auto">{label}</span>
-        {sublabel && <span className="block text-xs text-slate-400 truncate" dir="auto">{sublabel}</span>}
+        <span className={cn('block text-[15px] font-medium truncate', danger ? 'text-accent-red' : 'text-ink-700')} dir="auto">{label}</span>
+        {sublabel && <span className="block text-xs truncate text-ink-400" dir="auto">{sublabel}</span>}
       </span>
       {value && (
         <span className={cn(
           'text-[15px] shrink-0 tabular-nums',
-          valueMuted ? 'text-slate-500 italic' : valueSuccess ? 'text-green-400 font-medium' : 'text-slate-400',
+          valueMuted ? 'italic text-ink-300' : valueSuccess ? 'font-medium text-accent-600' : 'text-ink-400',
         )}>{value}</span>
       )}
-      {trailing ? trailing : interactive && <ChevronLeft className="h-4 w-4 text-slate-500 shrink-0" />}
+      {trailing ? trailing : interactive && <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />}
     </div>
   );
 
-  if (href) return <Link href={href} onClick={onClick} className="block active:bg-slate-700/40 transition-colors">{inner}</Link>;
+  if (href) return <Link href={href} onClick={onClick} className={cn('block transition-colors', press)}>{inner}</Link>;
   if (onClick) {
     // A real <button> here is invalid HTML whenever `trailing` also contains
     // its own interactive control (e.g. a KudosButton/RSVP toggle) — buttons
@@ -80,7 +86,7 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-slate-600', avatarUrl, label
         tabIndex={0}
         onClick={onClick}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
-        className="w-full text-start active:bg-slate-700/40 transition-colors cursor-pointer"
+        className={cn('w-full text-start transition-colors cursor-pointer', press)}
       >
         {inner}
       </div>

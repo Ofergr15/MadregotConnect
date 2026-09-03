@@ -37,13 +37,13 @@ function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-[200] rounded-md border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-100 shadow-xl',
+          'z-[200] rounded-md border border-page bg-page px-2.5 py-1.5 text-xs text-ink-700 shadow-xl',
           className,
         )}
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="fill-slate-950" />
+        <TooltipPrimitive.Arrow className="fill-ink-900" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   );

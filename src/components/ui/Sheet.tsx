@@ -37,24 +37,25 @@ export function Sheet({
         <Drawer.Overlay className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm" />
         <Drawer.Content
           className={cn(
-            'fixed bottom-0 inset-x-0 z-[310] flex flex-col rounded-t-2xl border-t border-slate-700 bg-slate-800 outline-none',
+            'fixed bottom-0 inset-x-0 z-[310] flex flex-col outline-none',
+            'rounded-t-card border-t border-page bg-card',
             'max-h-[92vh] pb-[env(safe-area-inset-bottom)]',
             className
           )}
         >
-          <div className="mx-auto mt-2.5 mb-1 h-1.5 w-10 rounded-full bg-slate-600" />
+          <div className="mx-auto mt-2.5 mb-1 h-1.5 w-10 rounded-full bg-ink-300" />
           {(leadingAction || trailingAction) ? (
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-slate-700/60 px-4 pb-3 pt-1">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-page px-4 pb-3 pt-1">
               <div className="justify-self-start">{leadingAction}</div>
               {title && (
-                <Drawer.Title className="text-base font-bold text-white text-center">
+                <Drawer.Title className="text-base font-bold text-center text-ink-900">
                   {title}
                 </Drawer.Title>
               )}
               <div className="justify-self-end">{trailingAction}</div>
             </div>
           ) : title ? (
-            <Drawer.Title className="px-5 pt-2 pb-1 text-base font-bold text-white text-center">
+            <Drawer.Title className="px-5 pt-2 pb-1 text-base font-bold text-center text-ink-900">
               {title}
             </Drawer.Title>
           ) : null}

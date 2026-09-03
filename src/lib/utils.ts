@@ -209,40 +209,46 @@ export function activityDayRelation(
 
 export type GroupLevel = 'fast' | 'medium' | 'slow';
 
+// The light system's three group hues: green / sky blue / orange. Group 2 is the
+// one that moved — it was yellow, which on the designer's palette has no
+// equivalent that survives on a white card (the closest, band 3, is already
+// group 3's orange, and two squads must never share a colour). Kept at three
+// unmistakably different hues rather than one ramp, because these are identity
+// colours (which squad?), not a severity scale.
 const groupColorMap = {
   fast: {
-    bg: 'bg-green-500/20',
-    text: 'text-green-400',
-    border: 'border-green-500/30',
-    dot: 'bg-green-400',
-    badge: 'bg-green-500/20 text-green-400 border-green-500/30',
-    card: 'border-green-500/40 bg-green-500/10 hover:bg-green-500/20',
+    bg: 'bg-accent-600/20',
+    text: 'text-accent-600',
+    border: 'border-accent-600/30',
+    dot: 'bg-accent-600',
+    badge: 'bg-accent-600/20 text-accent-600 border-accent-600/30',
+    card: 'border-accent-600/40 bg-accent-600/10 hover:bg-accent-600/20',
   },
   medium: {
-    bg: 'bg-yellow-500/20',
-    text: 'text-yellow-400',
-    border: 'border-yellow-500/30',
-    dot: 'bg-yellow-400',
-    badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    card: 'border-yellow-500/40 bg-yellow-500/10 hover:bg-yellow-500/20',
+    bg: 'bg-band-2/20',
+    text: 'text-band-2',
+    border: 'border-band-2/30',
+    dot: 'bg-band-2',
+    badge: 'bg-band-2/20 text-band-2 border-band-2/30',
+    card: 'border-band-2/40 bg-band-2/10 hover:bg-band-2/20',
   },
   slow: {
-    bg: 'bg-orange-500/20',
-    text: 'text-orange-400',
-    border: 'border-orange-500/30',
-    dot: 'bg-orange-400',
-    badge: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-    card: 'border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/20',
+    bg: 'bg-band-3/20',
+    text: 'text-band-3',
+    border: 'border-band-3/30',
+    dot: 'bg-band-3',
+    badge: 'bg-band-3/20 text-band-3 border-band-3/30',
+    card: 'border-band-3/40 bg-band-3/10 hover:bg-band-3/20',
   },
 } as const;
 
 const defaultGroupColor = {
-  bg: 'bg-slate-500/20',
-  text: 'text-slate-400',
-  border: 'border-slate-500/30',
-  dot: 'bg-slate-400',
-  badge: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
-  card: 'border-slate-500/40 bg-slate-500/10 hover:bg-slate-500/20',
+  bg: 'bg-ink-300/20',
+  text: 'text-ink-500',
+  border: 'border-ink-300/40',
+  dot: 'bg-ink-300',
+  badge: 'bg-ink-300/20 text-ink-500 border-ink-300/40',
+  card: 'border-ink-300/50 bg-ink-300/10 hover:bg-ink-300/20',
 };
 
 export function getGroupColors(level?: GroupLevel | null) {
@@ -251,11 +257,14 @@ export function getGroupColors(level?: GroupLevel | null) {
 }
 
 // ── Single source of truth for group identity, name → color/label ────────────
-// Group 1 = green (fast), 2 = yellow (medium), 3 = orange (slow). Any place that
-// needs a group's display name or color MUST use this — do not re-derive inline
-// (that's how two color schemes drifted apart).
+// Group 1 = green (fast), 2 = sky blue (medium), 3 = orange (slow). Any place
+// that needs a group's display name or color MUST use this — do not re-derive
+// inline (that's how two color schemes drifted apart).
 
-export const GROUP_HEX = ['#22c55e', '#eab308', '#f97316'] as const; // 1,2,3
+// The hex twins of groupColorMap above (accent-600 / band-2 / band-3), for dots
+// and chart series that take an inline color rather than a class. These two lists
+// have to move together.
+export const GROUP_HEX = ['#16a34a', '#159AFF', '#FF5315'] as const; // 1,2,3
 const GROUP_LEVELS: GroupLevel[] = ['fast', 'medium', 'slow'];
 
 export interface ResolvedGroup {
@@ -279,7 +288,7 @@ export function resolveGroup(name?: string | null): ResolvedGroup {
     index,
     displayName: index >= 0 ? `Group ${index + 1}` : (name || ''),
     level,
-    hex: index >= 0 ? GROUP_HEX[index] : '#6366f1',
+    hex: index >= 0 ? GROUP_HEX[index] : '#159AFF',
     colors: index >= 0 ? getGroupColors(level) : defaultGroupColor,
   };
 }

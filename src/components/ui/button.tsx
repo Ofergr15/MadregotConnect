@@ -4,16 +4,16 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-primary-600 text-white hover:bg-primary-500',
-        destructive: 'bg-red-600 text-white hover:bg-red-500',
-        outline: 'border border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white',
-        secondary: 'bg-slate-700 text-white hover:bg-slate-600',
-        ghost: 'text-slate-400 hover:bg-slate-800/70 hover:text-white',
-        link: 'text-primary-300 underline-offset-4 hover:underline',
+        default: 'bg-brand-600 text-white hover:bg-brand-700',
+        destructive: 'bg-accent-red text-white hover:opacity-90',
+        outline: 'border border-page bg-transparent text-ink-500 hover:bg-page hover:text-ink-900',
+        secondary: 'bg-page text-ink-700 hover:bg-ink-300/40',
+        ghost: 'text-ink-400 hover:bg-page/70 hover:text-ink-900',
+        link: 'text-brand-600 underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-10 px-4 py-2',

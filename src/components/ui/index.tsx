@@ -4,7 +4,7 @@
 // states, and skeletons. The app had a design system in globals.css that got
 // abandoned (three card recipes, three spinner styles, near-dead .btn/.input);
 // these consolidate them so every screen is cut from the same cloth. All brand
-// color comes from the `primary` token (now the real #4338ff), never hardcoded.
+// color comes from the `primary` token (now the real #1525FF), never hardcoded.
 
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -28,8 +28,8 @@ export function Spinner({ size = 24, className }: { size?: number; className?: s
         height: size,
         borderWidth: Math.max(2, Math.round(size / 12)),
         borderStyle: 'solid',
-        borderColor: 'rgba(67,56,255,0.25)',
-        borderTopColor: '#4338ff',
+        borderColor: 'rgba(21,37,255,0.22)',
+        borderTopColor: '#1525FF',
       }}
     />
   );
@@ -45,8 +45,10 @@ export function LoadingBlock({ className, size = 28 }: { className?: string; siz
 }
 
 // ── Card ─────────────────────────────────────────────────────────────────────
-// variant: 'solid' (default) | 'muted' | 'plain'. Radius 2xl, consistent border
-// and padding — replaces the xl/2xl + /30 /50 opacity drift.
+// variant: 'solid' (default) | 'muted' | 'plain'. The designer's card is a plain
+// white 25px surface with no border at all — the page grey behind it is what
+// separates it — so all three variants collapse to one shape; `muted` keeps a
+// hint of recession via opacity.
 export function Card({
   variant = 'solid',
   className,
@@ -57,14 +59,9 @@ export function Card({
   className?: string;
   children: React.ReactNode;
 } & React.HTMLAttributes<HTMLDivElement>) {
-  const base = 'rounded-2xl border';
-  const variants = {
-    solid: 'bg-slate-800/60 border-slate-700/60',
-    muted: 'bg-slate-800/30 border-slate-700/30',
-    plain: 'bg-slate-800 border-slate-700',
-  };
+  const variants = { solid: 'bg-card', muted: 'bg-card/70', plain: 'bg-card' };
   return (
-    <div className={cn(base, variants[variant], 'p-4 sm:p-5', className)} {...rest}>
+    <div className={cn('rounded-card', variants[variant], 'p-4 sm:p-5', className)} {...rest}>
       {children}
     </div>
   );
@@ -84,13 +81,14 @@ export function Button({
   variant?: ButtonVariant;
   size?: ButtonSize;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const base =
-    'inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-colors active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none';
+  // The frames' buttons are 50px pills at weight 700.
+  const base = 'inline-flex items-center justify-center gap-2 rounded-pill font-bold transition-colors active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none';
   const variants: Record<ButtonVariant, string> = {
-    primary: 'bg-primary-600 hover:bg-primary-700 text-white',
-    secondary: 'bg-slate-700 hover:bg-slate-600 text-white',
-    ghost: 'text-slate-300 hover:text-white hover:bg-slate-800',
-    danger: 'bg-red-600 hover:bg-red-500 text-white',
+    primary: 'bg-brand-600 hover:bg-brand-700 text-white',
+    // The frames' secondary is an outline pill, not a grey fill.
+    secondary: 'bg-card border border-brand-600 text-brand-600 hover:bg-brand-600/5',
+    ghost: 'text-ink-500 hover:text-ink-900 hover:bg-card',
+    danger: 'bg-accent-red hover:opacity-90 text-white',
   };
   const sizes: Record<ButtonSize, string> = {
     sm: 'text-xs px-3 py-2 min-h-[36px]',
@@ -123,12 +121,12 @@ export function EmptyState({
   return (
     <div className={cn('flex flex-col items-center justify-center text-center py-12 px-6', className)}>
       {Icon && (
-        <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center mb-4">
-          <Icon className="h-6 w-6 text-slate-400" />
+        <div className="w-14 h-14 flex items-center justify-center mb-4 rounded-card bg-card">
+          <Icon className="h-6 w-6 text-ink-400" />
         </div>
       )}
-      <p className="text-base font-bold text-white">{title}</p>
-      {description && <p className="mt-1.5 text-sm text-slate-400 max-w-[280px]">{description}</p>}
+      <p className="text-base font-bold text-ink-700">{title}</p>
+      {description && <p className="mt-1.5 text-sm max-w-[280px] text-ink-400">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
@@ -136,7 +134,7 @@ export function EmptyState({
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('animate-pulse rounded-lg bg-slate-700/40', className)} />;
+  return <div className={cn('animate-pulse rounded-lg bg-ink-300/50', className)} />;
 }
 
 // A card-shaped skeleton for list/stat loading.
@@ -154,7 +152,7 @@ export function SkeletonCard({ className }: { className?: string }) {
 // roster / feedback / inbox / volume rows). RTL-agnostic.
 export function SkeletonRow({ className }: { className?: string }) {
   return (
-    <div className={cn('flex items-center gap-3 rounded-xl border border-slate-700/50 bg-slate-800/50 p-3.5', className)}>
+    <div className={cn('flex items-center gap-3 p-3.5 rounded-card bg-card', className)}>
       <Skeleton className="h-9 w-9 rounded-full shrink-0" />
       <div className="flex-1 space-y-2">
         <Skeleton className="h-3.5 w-1/2" />
@@ -184,7 +182,7 @@ export function Switch({
   disabled,
   loading,
   size = 'md',
-  activeColor = 'bg-primary-600',
+  activeColor = 'bg-brand-600',
   ariaLabel,
   className,
 }: {
@@ -224,7 +222,7 @@ export function Switch({
       className={cn(
         'relative rounded-full transition-colors shrink-0 disabled:opacity-50 transform-gpu',
         track,
-        checked ? activeColor : 'bg-slate-600',
+        checked ? activeColor : 'bg-ink-300',
         className,
       )}
     >
@@ -268,20 +266,22 @@ export function ConfirmSheet({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={title}>
-      {description && <p className="text-sm text-slate-400 text-center px-2 pb-4">{description}</p>}
+      {description && <p className="text-sm text-center px-2 pb-4 text-ink-400">{description}</p>}
       <div className="space-y-2">
         <button
           onClick={() => { onOpenChange(false); onConfirm(); }}
           className={cn(
-            'w-full min-h-[48px] rounded-xl font-bold text-base transition-colors active:scale-[0.98]',
-            danger ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-primary-600 hover:bg-primary-700 text-white'
+            'w-full min-h-[48px] rounded-pill font-bold text-base text-white transition-colors active:scale-[0.98]',
+            danger ? 'bg-accent-red hover:opacity-90' : 'bg-brand-600 hover:bg-brand-700',
           )}
         >
           {confirmLabel}
         </button>
         <button
           onClick={() => onOpenChange(false)}
-          className="w-full min-h-[48px] rounded-xl font-semibold text-base bg-slate-700 hover:bg-slate-600 text-white transition-colors active:scale-[0.98]"
+          className={cn(
+            'w-full min-h-[48px] rounded-pill bg-page text-ink-700 font-semibold text-base transition-colors hover:bg-page/70 active:scale-[0.98]',
+          )}
         >
           {cancelLabel}
         </button>
@@ -307,15 +307,15 @@ export function BigStat({
 }) {
   return (
     <div className={cn('flex flex-col items-center text-center', className)}>
-      <span className={cn('text-3xl font-black tabular-nums text-primary-400 leading-none', valueClassName)}>{value}</span>
-      <span className="mt-1.5 text-xs font-medium text-slate-400">{label}</span>
+      <span className={cn('text-3xl font-black tabular-nums leading-none text-brand-600', valueClassName)}>{value}</span>
+      <span className="mt-1.5 text-xs font-medium text-ink-400">{label}</span>
     </div>
   );
 }
 
 // ── SegmentedControl ──────────────────────────────────────────────────────────
 // iOS-style segmented control: a track with equal segments and a highlighted
-// selected pill. Replaces the ad-hoc `flex bg-slate-800 rounded-xl p-1` toggles.
+// selected pill. Replaces the ad-hoc `flex bg-… rounded-xl p-1` toggles.
 // RTL-safe (uses flex order, no absolute thumb math). Generic over the value.
 export function SegmentedControl<T extends string>({
   value,
@@ -332,7 +332,7 @@ export function SegmentedControl<T extends string>({
   className?: string;
 }) {
   return (
-    <div className={cn('flex gap-0.5 rounded-xl bg-slate-800 p-1 border border-slate-700', className)}>
+    <div className={cn('flex gap-0.5 p-1 rounded-pill bg-card', className)}>
       {options.map((opt) => {
         const Icon = opt.icon;
         const active = value !== null && opt.value === value;
@@ -341,8 +341,10 @@ export function SegmentedControl<T extends string>({
             key={opt.value}
             onClick={() => { if (!active) { try { navigator.vibrate?.(6); } catch { /* no-op */ } onChange(opt.value); } }}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-semibold transition-colors min-h-[40px]',
-              active ? cn(opt.activeBg || 'bg-primary-600', 'text-white shadow-sm') : 'text-slate-400 hover:text-white'
+              'flex-1 flex items-center justify-center gap-1.5 rounded-pill px-2 py-2 text-sm font-bold transition-colors min-h-[40px]',
+              active
+                ? cn(opt.activeBg || 'bg-brand-600', 'text-white shadow-sm')
+                : 'text-ink-400 hover:text-ink-700',
             )}
           >
             {Icon && <Icon className="h-4 w-4" />}
