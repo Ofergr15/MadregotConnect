@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
-import { apiHeaders } from '@/lib/api';
+import { useApi } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
@@ -77,35 +77,37 @@ export function BottomTabBar() {
   const pathname = usePathname();
   const t = useTranslations('nav');
   const [isAthlete, setIsAthlete] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [isAcademyMember, setIsAcademyMember] = useState(false);
   const [isSuper, setIsSuper] = useState(false);
-  const [permissions, setPermissions] = useState<TabPermission[]>([]);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [hasEmail, setHasEmail] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+
+  // Both of these are also what the Header needs, and both used to be fetched
+  // here independently — so every page view spent two extra round trips (each
+  // paying a server-side session verification) re-answering questions the Header
+  // had already asked. Going through useApi means SWR keys them and the two
+  // components share one result.
+  const { data: permsData, isLoading: permsLoading } = useApi<{ permissions?: TabPermission[] }>(
+    '/api/admin/tab-permissions',
+  );
+  const permissions = permsData?.permissions || [];
+  const permissionsLoaded = !permsLoading;
+
+  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean }>(hasEmail ? '/api/auth/me' : null);
+  const userRole = meData?.role || null;
+  const isAcademyMember = !!meData?.isAcademy;
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
-    let email = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
+    const email = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
     if (athleteId) setIsAthlete(true);
 
-    fetch('/api/admin/tab-permissions')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => { if (data?.permissions) setPermissions(data.permissions); setPermissionsLoaded(true); })
-      .catch(() => setPermissionsLoaded(true));
-
-    // The email still decides super-user status locally, but the ROLE now comes
-    // from the session — /api/auth/me stopped answering for whatever address it
-    // was handed. apiHeaders() is async, hence the inner IIFE.
+    // The email still decides super-user status locally; the ROLE comes from the
+    // session via /api/auth/me above, which stopped answering for whatever
+    // address it was handed.
     const resolveEmail = (e: string) => {
       if (!e) return;
       setIsSuper(isSuperUser(e));
-      (async () => {
-        const res = await fetch('/api/auth/me', { headers: await apiHeaders() }).catch(() => null);
-        const data = res?.ok ? await res.json().catch(() => null) : null;
-        if (data?.role) setUserRole(data.role);
-        if (data?.isAcademy) setIsAcademyMember(true);
-      })();
+      setHasEmail(true);
     };
     if (email) resolveEmail(email);
     else {

@@ -1,5 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
+import {
+  entryExpiry,
+  isTokenExpired,
+  resolveCached,
+  tokenKey,
+} from '@/lib/auth/session-cache';
+
+export { invalidateToken, clearSessionCache } from '@/lib/auth/session-cache';
 
 /** Verified-identity helpers for the social feed routes. */
 
@@ -30,15 +38,37 @@ function bearerToken(request: Request): string {
  * Resolve the caller from their Supabase JWT. Succeeds for any authenticated user,
  * including staff accounts that have no `athletes` row (legacy `coaches` records).
  * Use for reads.
+ *
+ * Memoised per instance (see lib/auth/session-cache.ts) because this runs on
+ * every authenticated request and costs two sequential remote round trips —
+ * which a page firing 16 requests used to pay 16 times over for one session.
+ * A verified result is reused for at most DEFAULT_TTL_MS, and never past the
+ * token's own expiry, so a role change or deactivation takes effect within that
+ * window rather than immediately; `invalidateToken` is there for the routes
+ * that knowingly change what it says.
  */
 export async function requireSession(request: Request): Promise<AuthResult> {
   const token = bearerToken(request);
   if (!token) return { ok: false, status: 401, error: 'Missing bearer token' };
 
+  // A token that says it has already expired can't be rescued by verifying it,
+  // so fail here instead of spending a round trip to be told the same thing.
+  if (isTokenExpired(token)) return { ok: false, status: 401, error: 'Invalid or expired session' };
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return { ok: false, status: 500, error: 'Supabase not configured' };
 
+  return resolveCached(
+    tokenKey(token),
+    entryExpiry(token),
+    () => resolveSession(token, url, anonKey),
+    (result) => result.ok,
+  );
+}
+
+/** The uncached resolution: verify the JWT, then find the membership row. */
+async function resolveSession(token: string, url: string, anonKey: string): Promise<AuthResult> {
   let email = '';
   try {
     const { data, error } = await createClient(url, anonKey).auth.getUser(token);

@@ -6,12 +6,12 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
-import { apiHeaders } from '@/lib/api';
+import { useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { clearIdentityKeys } from '@/lib/auth/identity-keys';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, stopViewAs, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
-import { InsetSection, InsetRow, Sheet } from '@/components/ui';
+import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 const allNavItems = [
@@ -53,29 +53,69 @@ export function Header() {
   const th = useTranslations('header');
   const tc = useTranslations('common');
   const [isAthlete, setIsAthlete] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [athleteId, setAthleteId] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [permissions, setPermissions] = useState<TabPermission[]>([]);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [groupName, setGroupName] = useState<string | null>(null);
   const [groupColor, setGroupColor] = useState<string>('#159AFF');
   const [showGroupPicker, setShowGroupPicker] = useState(false);
-  const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [pendingResults, setPendingResults] = useState<Array<{ id: string; athlete_name: string; test_name: string; time_seconds: number }>>([]);
-  const [inbox, setInbox] = useState<Array<{ id: string; title: string; body: string; url: string; sentAt: string; unread: boolean; actorAvatarUrl?: string | null }>>([]);
   const [isSuper, setIsSuper] = useState(false);
 
+  // Everything the shell needs on mount goes through useApi (SWR) rather than a
+  // raw fetch, because the BottomTabBar needs the same two answers and both used
+  // to ask independently — /api/admin/tab-permissions and /api/auth/me were
+  // fetched TWICE on every single page view, and each of those requests pays a
+  // full session verification server-side. SWR keys them, so the pair now
+  // resolves once and both components read the same result.
+  const { data: permsData, isLoading: permsLoading } = useApi<{ permissions?: TabPermission[] }>(
+    '/api/admin/tab-permissions',
+  );
+  const permissions = permsData?.permissions || [];
+  const permissionsLoaded = !permsLoading;
+
+  const { data: meData } = useApi<{ role?: string }>(userEmail ? '/api/auth/me' : null);
+  const userRole = meData?.role || null;
+
+  // Also shared — NotificationCenter and the profile page ask for it too.
+  const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>>(
+    athleteId ? '/api/groups' : null,
+  );
+  const availableGroups = Array.isArray(groupsData) ? groupsData : (groupsData?.groups || []);
+
+  // The bell needs a COUNT to render, not the history. It used to pull the whole
+  // 50-row inbox — actor joins, aggregation and the batched row-action lookups —
+  // on every page view, to derive one number and then show at most 6 rows behind
+  // a tap. The number now comes from the endpoint that only counts, and the rows
+  // load when the sheet actually opens.
+  const { data: unreadData } = useApi<{ count?: number }>(
+    athleteId ? `/api/notifications/unread?athleteId=${encodeURIComponent(athleteId)}` : null,
+  );
+  const unreadInbox = unreadData?.count || 0;
+
+  const { data: inboxData, isLoading: inboxLoading } = useApi<{ items?: Array<{ id: string; title: string; body: string; url: string; sentAt: string; unread: boolean; actorAvatarUrl?: string | null }> }>(
+    athleteId && showNotifications ? `/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}` : null,
+  );
+  const inbox = inboxData?.items || [];
+
+  // Staff (admin/coach/academy_coach) get the pending benchmark-approval queue
+  // surfaced in the header bell.
+  const isStaffRole = !!userRole && ['admin', 'coach', 'academy_coach'].includes(userRole);
+  const { data: benchData } = useApi<{ results?: Array<{ id: string; athlete_name: string; test_name: string; time_seconds: number }> }>(
+    isStaffRole ? '/api/academy/benchmarks?status=pending' : null,
+  );
+  const pendingResults = benchData?.results || [];
+
   useEffect(() => {
-    const athleteId = localStorage.getItem('athlete_id');
+    const storedAthleteId = localStorage.getItem('athlete_id');
     const name = localStorage.getItem('athlete_name');
     const email = localStorage.getItem('athlete_email');
     const coachEmail = localStorage.getItem('coach_email');
 
-    if (athleteId) {
+    if (storedAthleteId) {
       setIsAthlete(true);
+      setAthleteId(storedAthleteId);
       setUserName(name || '');
       setUserEmail(email || '');
     } else if (coachEmail) {
@@ -92,16 +132,8 @@ export function Header() {
       }
     });
 
-    fetch('/api/admin/tab-permissions')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data?.permissions) setPermissions(data.permissions);
-        setPermissionsLoaded(true);
-      })
-      .catch(() => setPermissionsLoaded(true));
-
     const groupId = localStorage.getItem('athlete_group_id');
-    if (groupId && athleteId) {
+    if (groupId && storedAthleteId) {
       const supabaseClient = getSupabase();
       supabaseClient.from('groups').select('name').eq('id', groupId).single()
         .then(({ data: g }) => {
@@ -113,45 +145,15 @@ export function Header() {
         });
     }
 
-    if (athleteId) {
-      fetch('/api/groups').then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) setAvailableGroups(data.groups || data || []); })
-        .catch(() => {});
-      // Athlete notification history for the bell inbox (unread count + preview).
-      // apiHeaders() is async (it reads the session for the bearer token), hence
-      // the IIFE rather than a bare fetch().then chain.
-      (async () => {
-        const res = await fetch(`/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}`, {
-          headers: await apiHeaders(),
-        }).catch(() => null);
-        const data = res?.ok ? await res.json().catch(() => null) : null;
-        if (Array.isArray(data?.items)) setInbox(data.items);
-      })();
-    }
   }, []);
 
+  // The role itself comes from the session (see the useApi above) — sending an
+  // address was once enough to be handed that address's role. Only super-user
+  // status is still decided locally off the email.
   useEffect(() => {
     if (!userEmail) return;
     setIsSuper(isSuperUser(userEmail));
-    // The route reads the role off the session now, not off userEmail — sending
-    // an address was enough to be handed that address's role. apiHeaders() is
-    // async (it reads the session for the bearer token), hence the IIFE.
-    (async () => {
-      const res = await fetch('/api/auth/me', { headers: await apiHeaders() }).catch(() => null);
-      const data = res?.ok ? await res.json().catch(() => null) : null;
-      if (data?.role) setUserRole(data.role);
-    })();
   }, [userEmail]);
-
-  // Staff (admin/coach/academy_coach) get the pending benchmark-approval queue
-  // surfaced in the header bell.
-  useEffect(() => {
-    if (!userRole || !['admin', 'coach', 'academy_coach'].includes(userRole)) return;
-    fetch('/api/academy/benchmarks?status=pending')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (data?.results) setPendingResults(data.results); })
-      .catch(() => {});
-  }, [userRole]);
 
   // Super-user "view as" override: while a role scenario is active, render the
   // nav as if we had that role (the maintenance scenario is handled by the gate,
@@ -344,9 +346,12 @@ export function Header() {
             )}
 
             {(() => {
-              const unreadInbox = inbox.filter(i => i.unread).length;
               const badge = pendingResults.length + unreadInbox;
-              const empty = pendingResults.length === 0 && inbox.length === 0;
+              // The history is fetched when the sheet opens, so distinguish
+              // "still arriving" from "genuinely nothing" — otherwise every open
+              // flashes "nothing new" before the rows land.
+              const loadingInbox = inboxLoading && inbox.length === 0;
+              const empty = !loadingInbox && pendingResults.length === 0 && inbox.length === 0;
               return (
             <div>
               <button
@@ -362,7 +367,9 @@ export function Header() {
                 )}
               </button>
               <Sheet open={showNotifications} onOpenChange={setShowNotifications} title={th('notifications')}>
-                {empty ? (
+                {loadingInbox ? (
+                  <div className="flex justify-center py-6"><Spinner size={20} /></div>
+                ) : empty ? (
                   <p className="text-xs text-ink-400 text-center py-6">{th('nothingNew')}</p>
                 ) : (
                   <div className="space-y-1 pb-2">
