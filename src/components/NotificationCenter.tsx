@@ -27,7 +27,7 @@ const TEMPLATES = [
   { key: 'event', icon: CalendarDays, label: 'אירוע', titleHe: 'אירוע חדש 📅', bodyHe: 'אירוע חדש נוסף ליומן המדרגות — היכנסו לפרטים', titleEn: 'New event 📅', bodyEn: 'A new event was added to the Madregot calendar — check it out' },
   { key: 'announce', icon: Megaphone, label: 'הודעה', titleHe: 'הודעה מהצוות 📣', bodyHe: 'יש לנו הודעה חשובה לכל חברי המדרגות', titleEn: 'Team announcement 📣', bodyEn: 'An important announcement for all Madregot members' },
   { key: 'academy', icon: GraduationCap, label: 'אקדמיה', titleHe: 'אקדמיה 🎓', bodyHe: 'עדכון חדש באקדמיית המדרגות — היכנסו לצפייה', titleEn: 'Academy 🎓', bodyEn: 'A new update in the Madregot Academy — check it out' },
-  { key: 'perk', icon: Gift, label: 'הטבה', titleHe: 'הטבה חדשה! 🎁', bodyHe: 'הטבה חדשה מספונסר המדרגות נוספה — היכנסו לצפייה', titleEn: 'New perk! 🎁', bodyEn: 'A new sponsor perk was added — check it out' },
+  { key: 'perk', icon: Gift, label: 'שותפות', titleHe: 'שותפות חדשה! 🎁', bodyHe: 'שותפות חדשה עם ספונסר של המדרגות נוספה — היכנסו לצפייה', titleEn: 'New partnership! 🎁', bodyEn: 'A new sponsor partnership was added — check it out' },
   { key: 'photos', icon: Camera, label: 'תמונות', titleHe: 'תמונות חדשות עלו! 📸', bodyHe: 'תמונות מהריצה האחרונה זמינות לצפייה', titleEn: 'New photos! 📸', bodyEn: 'Photos from the last run are available to view' },
 ];
 

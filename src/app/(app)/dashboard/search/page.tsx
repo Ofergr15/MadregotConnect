@@ -33,7 +33,7 @@ const SECTION_KEYWORDS: Record<string, string[]> = {
   profile: ['me', 'account', 'פרופיל שלי'],
   'coach-tools': ['coach', 'admin tools', 'מאמן'],
   store: ['shop', 'merch', 'shirts', 'חנות'],
-  benefits: ['discounts', 'perks', 'sponsors', 'coupon', 'הנחות', 'ספונסרים'],
+  benefits: ['discounts', 'perks', 'partnerships', 'sponsors', 'coupon', 'הנחות', 'ספונסרים', 'שותפויות', 'הטבות'],
 };
 
 // Same icon mapping as the Calendar page (kept local — that mapping lives in

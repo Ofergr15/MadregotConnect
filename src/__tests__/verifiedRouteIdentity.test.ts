@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
+import { SUPER_USER_EMAIL } from '@/lib/constants';
 
 /**
  * These routes used to take the caller's identity from `x-user-email` — a header
@@ -168,7 +169,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
     selected = { is_academy: true };
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', isAcademy: true });
+    expect(await res.json()).toEqual({ role: 'coach', isAcademy: true, isSuper: false });
 
     const update = ops.find((o) => o.op === 'update');
     expect(update?.table).toBe('athletes');
@@ -180,7 +181,7 @@ describe('GET /api/auth/me', () => {
   it('serves a legacy coaches-only account, which has no athletes row to read', async () => {
     requireSession.mockResolvedValue(session({ athleteId: null, role: 'coach', isStaff: true }));
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach' });
+    expect(await res.json()).toEqual({ role: 'coach', isSuper: false });
     // Nothing to select or stamp — and stamping by a null id would touch rows.
     expect(ops).toHaveLength(0);
   });
@@ -190,7 +191,19 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session());
     selected = null;
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'runner', isAcademy: false });
+    expect(await res.json()).toEqual({ role: 'runner', isAcademy: false, isSuper: false });
+  });
+
+  // The view-as control was deciding "is this the super user" client-side, off
+  // whatever address localStorage held — a Strava athlete's synthetic
+  // …@strava.madregot.local answers no, and the switcher vanishes. This is the
+  // authoritative answer, so it has to come from the JWT's own email and from
+  // nothing the caller can write.
+  it('flags the super user from the session email', async () => {
+    requireSession.mockResolvedValue(session({ email: SUPER_USER_EMAIL }));
+    selected = { is_academy: false };
+    const res = await me(new Request('https://example.test/api/auth/me'));
+    expect(await res.json()).toMatchObject({ isSuper: true });
   });
 });
 

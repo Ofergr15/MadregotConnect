@@ -155,7 +155,7 @@ function KudosButton({ activityId, athleteId }: { activityId: string; athleteId:
         given ? 'bg-brand-600 text-white' : 'bg-page/60 text-ink-500 hover:bg-ink-300/40',
       )}
     >
-      <ThumbsUp className="h-3.5 w-3.5" /> {given ? 'ניתן' : 'קודוס'}
+      <ThumbsUp className="h-3.5 w-3.5" /> {given ? 'ניתן' : 'כיף'}
     </button>
   );
 }

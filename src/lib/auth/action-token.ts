@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 // Server-signed authorization for ONE specific action by ONE specific athlete,
 // carried inside a push payload.
 //
-// The problem: the OS-level action buttons on a notification (✅ מגיע/ה, 👍 קודוס)
+// The problem: the OS-level action buttons on a notification (✅ מגיע/ה, 👍 כיף)
 // are handled in the service worker, which has no page and no localStorage — so
 // it cannot reach the Supabase session and cannot send a bearer token. Those
 // handlers therefore posted a bare `athleteId` and nothing else. Once the API

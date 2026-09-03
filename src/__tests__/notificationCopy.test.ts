@@ -33,7 +33,7 @@ describe('Hebrew output is byte-identical to the pre-refactor call sites', () =>
 
   it('kudos (api/activities/[id]/kudos)', () => {
     expect(kudosCopy('he', { name: 'דנה' })).toEqual({
-      title: 'דנה נתן/ה לך קודוס על הריצה! 👍',
+      title: 'דנה נתן/ה לך כיף על הריצה! 👍',
       body: 'לחצו לצפייה',
     });
   });
@@ -191,7 +191,7 @@ describe('Hebrew output is byte-identical to the pre-refactor call sites', () =>
 
   it('new perk (api/admin/perks)', () => {
     expect(newPerkCopy('he', { sponsor: 'Nike', title: '20% הנחה' })).toEqual({
-      title: '🎁 הטבה חדשה!',
+      title: '🎁 שותפות חדשה!',
       body: 'Nike: 20% הנחה',
     });
   });

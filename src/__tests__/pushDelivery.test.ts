@@ -392,7 +392,7 @@ describe('teammate-activity copy — the same event read two different ways', ()
     expect(delivered.find((d) => d.athleteId === 'f_he')).toMatchObject({
       title: '🏃 פעילות חדשה',
       body: 'Itai Spiegel סיים ריצה • 8.3 ק"מ',
-      action: '👍 קודוס',
+      action: '👍 כיף',
     });
   });
 

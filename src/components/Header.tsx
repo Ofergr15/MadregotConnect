@@ -9,8 +9,7 @@ import { cn, resolveGroup } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { clearIdentityKeys } from '@/lib/auth/identity-keys';
-import { isSuperUser } from '@/lib/constants';
-import { getViewMode, stopViewAs, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { InsetSection, InsetRow, Sheet } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
@@ -66,7 +65,13 @@ export function Header() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [pendingResults, setPendingResults] = useState<Array<{ id: string; athlete_name: string; test_name: string; time_seconds: number }>>([]);
   const [inbox, setInbox] = useState<Array<{ id: string; title: string; body: string; url: string; sentAt: string; unread: boolean; actorAvatarUrl?: string | null }>>([]);
-  const [isSuper, setIsSuper] = useState(false);
+  // Two independent answers to "is this the super user?", either of which is
+  // enough: the local one (useIsSuperUser, available immediately) and the one
+  // /api/auth/me derives from the verified session below. Neither alone was
+  // reliable — see the hook's comment.
+  const localSuper = useIsSuperUser();
+  const [serverSuper, setServerSuper] = useState(false);
+  const isSuper = localSuper || serverSuper;
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
@@ -132,7 +137,6 @@ export function Header() {
 
   useEffect(() => {
     if (!userEmail) return;
-    setIsSuper(isSuperUser(userEmail));
     // The route reads the role off the session now, not off userEmail — sending
     // an address was enough to be handed that address's role. apiHeaders() is
     // async (it reads the session for the bearer token), hence the IIFE.
@@ -140,6 +144,7 @@ export function Header() {
       const res = await fetch('/api/auth/me', { headers: await apiHeaders() }).catch(() => null);
       const data = res?.ok ? await res.json().catch(() => null) : null;
       if (data?.role) setUserRole(data.role);
+      if (data?.isSuper) setServerSuper(true);
     })();
   }, [userEmail]);
 

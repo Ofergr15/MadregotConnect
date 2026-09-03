@@ -7,13 +7,20 @@ import { useTranslations } from 'next-intl';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, Menu, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift,
+  BarChart3, Menu, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift, LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { apiHeaders } from '@/lib/api';
-import { isSuperUser } from '@/lib/constants';
-import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import {
+  getViewMode,
+  startViewAs,
+  stopViewAs,
+  useIsSuperUser,
+  MAINTENANCE_MODE,
+  STAFF_ROLES,
+  VIEW_AS_SCENARIOS,
+} from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
 
 // iOS-native redesign, phase 1: a bottom tab bar (the #1 "this is a real app"
@@ -79,7 +86,11 @@ export function BottomTabBar() {
   const [isAthlete, setIsAthlete] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isAcademyMember, setIsAcademyMember] = useState(false);
-  const [isSuper, setIsSuper] = useState(false);
+  // Either signal is enough — see useIsSuperUser and the Header, which resolves
+  // it the same way.
+  const localSuper = useIsSuperUser();
+  const [serverSuper, setServerSuper] = useState(false);
+  const isSuper = localSuper || serverSuper;
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -94,17 +105,16 @@ export function BottomTabBar() {
       .then(data => { if (data?.permissions) setPermissions(data.permissions); setPermissionsLoaded(true); })
       .catch(() => setPermissionsLoaded(true));
 
-    // The email still decides super-user status locally, but the ROLE now comes
-    // from the session — /api/auth/me stopped answering for whatever address it
-    // was handed. apiHeaders() is async, hence the inner IIFE.
+    // The ROLE comes from the session — /api/auth/me stopped answering for
+    // whatever address it was handed. apiHeaders() is async, hence the inner IIFE.
     const resolveEmail = (e: string) => {
       if (!e) return;
-      setIsSuper(isSuperUser(e));
       (async () => {
         const res = await fetch('/api/auth/me', { headers: await apiHeaders() }).catch(() => null);
         const data = res?.ok ? await res.json().catch(() => null) : null;
         if (data?.role) setUserRole(data.role);
         if (data?.isAcademy) setIsAcademyMember(true);
+        if (data?.isSuper) setServerSuper(true);
       })();
     };
     if (email) resolveEmail(email);
@@ -298,6 +308,33 @@ export function BottomTabBar() {
               </div>
             </div>
           )}
+
+          {/* Super-user "view as", one tap from the tab bar. It has lived behind
+              the Header's avatar menu (mobile) and a small eye icon (desktop),
+              which on a phone is three taps and easy to lose track of — and
+              switching role is the most-used admin action there is. The roles
+              themselves are the buttons here, so there's no sheet-on-sheet hop
+              through the chooser; ImpersonationBar still owns that chooser for
+              the maintenance screen and for the desktop entry point. */}
+          {(isSuper || viewMode) && (
+            <div>
+              <p className={cn('px-1 mb-2 text-2xs font-bold uppercase tracking-wider', 'text-ink-400')}>תצוגה כמשתמש</p>
+              <div className="grid grid-cols-3 gap-3">
+                {VIEW_AS_SCENARIOS.filter(sc => sc.mode !== MAINTENANCE_MODE).map(sc => (
+                  <MoreCard
+                    key={sc.mode}
+                    icon={sc.icon}
+                    label={sc.label}
+                    active={viewMode === sc.mode}
+                    onClick={() => startViewAs(sc.mode)}
+                  />
+                ))}
+                {viewMode && (
+                  <MoreCard icon={LogOut} label="חזרה לתצוגה שלי" active={false} onClick={() => stopViewAs()} />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </Sheet>
     </>
@@ -309,13 +346,13 @@ export function BottomTabBar() {
 // its label wrapping below, centered. 3 per row fits our longer labels
 // ("Workout Feedback", "Team Volume") more comfortably than the reference
 // apps' 2-line circular buttons while still reading as "a grid of actions".
-function MoreCard({ icon: Icon, label, href, active, onClick }: { icon: any; label: string; href: string; active: boolean; onClick: () => void }) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className="flex flex-col items-center gap-2 rounded-card bg-page p-3 text-center active:scale-[0.96] transition-transform"
-    >
+//
+// `href` is optional: the view-as cards below act on the page rather than
+// navigating, so they render as a button with the identical look.
+function MoreCard({ icon: Icon, label, href, active, onClick }: { icon: any; label: string; href?: string; active: boolean; onClick: () => void }) {
+  const className = 'flex flex-col items-center gap-2 rounded-card bg-page p-3 text-center active:scale-[0.96] transition-transform';
+  const inner = (
+    <>
       <span className={cn(
         'w-11 h-11 rounded-full flex items-center justify-center shrink-0',
         active ? 'bg-brand-600' : 'bg-card',
@@ -323,6 +360,8 @@ function MoreCard({ icon: Icon, label, href, active, onClick }: { icon: any; lab
         <Icon className={cn('h-5 w-5', active ? 'text-white' : 'text-brand-600')} />
       </span>
       <span className="text-2xs font-semibold leading-tight text-ink-700" dir="auto">{label}</span>
-    </Link>
+    </>
   );
+  if (!href) return <button type="button" onClick={onClick} className={className}>{inner}</button>;
+  return <Link href={href} onClick={onClick} className={className}>{inner}</Link>;
 }
