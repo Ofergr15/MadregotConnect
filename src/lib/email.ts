@@ -1,5 +1,11 @@
 import { Resend } from 'resend';
 
+// Colours here are literal hex because email clients don't run Tailwind, but they
+// are the design system's tokens, not free choices: brand-600 #1525FF for
+// buttons/links, ink-900 #1D1E26 headings, ink-700 #2D2E38 body, ink-500 #656565
+// labels, page #DFDFDF hairlines, and the severity trio accent-600 #16a34a /
+// band-3 #FF5315 / accent-red #D74E4E. Keep them in step with tailwind.config.ts
+// — these emails are the club's only other branded surface.
 const FROM = process.env.RESEND_FROM_EMAIL || 'Madregot <onboarding@resend.dev>';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'madregot.club@gmail.com';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://madregot-connect.vercel.app';
@@ -25,15 +31,15 @@ export async function notifyAdminNewUser(user: { name: string; email: string; on
     subject: `🏃 New user waiting for approval: ${user.name}`,
     html: `
       <div style="font-family: sans-serif; max-width: 500px;">
-        <h2 style="color: #1e293b;">New User Registration</h2>
+        <h2 style="color: #1D1E26;">New User Registration</h2>
         <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="padding: 8px 0; color: #64748b;">Name</td><td style="padding: 8px 0; font-weight: 600;">${user.name}</td></tr>
-          <tr><td style="padding: 8px 0; color: #64748b;">Email</td><td style="padding: 8px 0;">${user.email}</td></tr>
-          <tr><td style="padding: 8px 0; color: #64748b;">Auth</td><td style="padding: 8px 0; font-weight: 600;">${authStatus}</td></tr>
-          <tr><td style="padding: 8px 0; color: #64748b;">Status</td><td style="padding: 8px 0;">${user.onboardingStatus}</td></tr>
+          <tr><td style="padding: 8px 0; color: #656565;">Name</td><td style="padding: 8px 0; font-weight: 600;">${user.name}</td></tr>
+          <tr><td style="padding: 8px 0; color: #656565;">Email</td><td style="padding: 8px 0;">${user.email}</td></tr>
+          <tr><td style="padding: 8px 0; color: #656565;">Auth</td><td style="padding: 8px 0; font-weight: 600;">${authStatus}</td></tr>
+          <tr><td style="padding: 8px 0; color: #656565;">Status</td><td style="padding: 8px 0;">${user.onboardingStatus}</td></tr>
         </table>
         <p style="margin-top: 20px;">
-          <a href="${APP_URL}/dashboard/settings" style="background: #4338ff; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="${APP_URL}/dashboard/settings" style="background: #1525FF; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Review & Approve →
           </a>
         </p>
@@ -50,12 +56,12 @@ export async function notifyUserApproved(user: { name: string; email: string }) 
     subject: `✅ Welcome to Madregot! You're approved`,
     html: `
       <div style="font-family: sans-serif; max-width: 500px;">
-        <h2 style="color: #1e293b;">Welcome, ${user.name}! 🎉</h2>
-        <p style="color: #475569; line-height: 1.6;">
+        <h2 style="color: #1D1E26;">Welcome, ${user.name}! 🎉</h2>
+        <p style="color: #2D2E38; line-height: 1.6;">
           Your account has been approved. You can now access the full Madregot training platform.
         </p>
         <p style="margin-top: 20px;">
-          <a href="${APP_URL}/dashboard" style="background: #4338ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="${APP_URL}/dashboard" style="background: #1525FF; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Open Madregot →
           </a>
         </p>
@@ -75,7 +81,7 @@ export async function notifyAdminUserApproved(admin: { email: string }, user: { 
     subject: `✅ User approved: ${user.name}`,
     html: `
       <div style="font-family: sans-serif; max-width: 500px;">
-        <p style="color: #475569;">${user.name} (${user.email}) has been approved and notified.</p>
+        <p style="color: #2D2E38;">${user.name} (${user.email}) has been approved and notified.</p>
       </div>
     `,
   });
@@ -89,14 +95,14 @@ export async function notifyAdminNewAcademyRegistration(user: { name: string; em
     subject: `🎓 New academy registration: ${user.name}`,
     html: `
       <div style="font-family: sans-serif; max-width: 500px;">
-        <h2 style="color: #1e293b;">New Academy Registration</h2>
+        <h2 style="color: #1D1E26;">New Academy Registration</h2>
         <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="padding: 8px 0; color: #64748b;">Name</td><td style="padding: 8px 0; font-weight: 600;">${user.name}</td></tr>
-          <tr><td style="padding: 8px 0; color: #64748b;">Email</td><td style="padding: 8px 0;">${user.email}</td></tr>
-          <tr><td style="padding: 8px 0; color: #64748b;">Phone</td><td style="padding: 8px 0;">${user.phone || '—'}</td></tr>
+          <tr><td style="padding: 8px 0; color: #656565;">Name</td><td style="padding: 8px 0; font-weight: 600;">${user.name}</td></tr>
+          <tr><td style="padding: 8px 0; color: #656565;">Email</td><td style="padding: 8px 0;">${user.email}</td></tr>
+          <tr><td style="padding: 8px 0; color: #656565;">Phone</td><td style="padding: 8px 0;">${user.phone || '—'}</td></tr>
         </table>
         <p style="margin-top: 20px;">
-          <a href="${APP_URL}/dashboard/settings" style="background: #4338ff; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="${APP_URL}/dashboard/settings" style="background: #1525FF; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Review &amp; Approve →
           </a>
         </p>
@@ -114,13 +120,13 @@ export async function notifyAcademyApproved(user: { name: string; email: string;
     subject: `✅ You're in the Madregot Academy — connect your watch`,
     html: `
       <div style="font-family: sans-serif; max-width: 500px;">
-        <h2 style="color: #1e293b;">Welcome to the Academy, ${user.name}! 🎉</h2>
-        <p style="color: #475569; line-height: 1.6;">
+        <h2 style="color: #1D1E26;">Welcome to the Academy, ${user.name}! 🎉</h2>
+        <p style="color: #2D2E38; line-height: 1.6;">
           Your registration was approved. One last step: connect your Garmin watch so
           your coach can send you workouts and track your progress.
         </p>
         <p style="margin-top: 20px;">
-          <a href="${link}" style="background: #4338ff; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="${link}" style="background: #1525FF; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Connect Garmin →
           </a>
         </p>
@@ -145,9 +151,9 @@ function pct(n: number): string {
 }
 
 function rateColor(rate: number): string {
-  if (rate >= 0.8) return '#10b981';
-  if (rate >= 0.5) return '#f59e0b';
-  return '#ef4444';
+  if (rate >= 0.8) return '#16a34a';
+  if (rate >= 0.5) return '#FF5315';
+  return '#D74E4E';
 }
 
 export async function sendAcademyWeeklyReport(params: {
@@ -171,10 +177,10 @@ export async function sendAcademyWeeklyReport(params: {
     .sort((a, b) => a.completionRate - b.completionRate)
     .map(r => `
       <tr>
-        <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">${r.name}</td>
-        <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #475569;">${r.completedCount}/${r.plannedCount}</td>
-        <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 700; color: ${rateColor(r.completionRate)};">${pct(r.completionRate)}</td>
-        <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #64748b;">${pct(r.avgScore)}</td>
+        <td style="padding: 10px 8px; border-bottom: 1px solid #DFDFDF; font-weight: 600; color: #1D1E26;">${r.name}</td>
+        <td style="padding: 10px 8px; border-bottom: 1px solid #DFDFDF; text-align: center; color: #2D2E38;">${r.completedCount}/${r.plannedCount}</td>
+        <td style="padding: 10px 8px; border-bottom: 1px solid #DFDFDF; text-align: center; font-weight: 700; color: ${rateColor(r.completionRate)};">${pct(r.completionRate)}</td>
+        <td style="padding: 10px 8px; border-bottom: 1px solid #DFDFDF; text-align: center; color: #656565;">${pct(r.avgScore)}</td>
       </tr>`)
     .join('');
 
@@ -184,11 +190,11 @@ export async function sendAcademyWeeklyReport(params: {
     subject: `🎓 Academy weekly report — ${fmt(weekStart)}–${fmt(weekEnd)}`,
     html: `
       <div style="font-family: sans-serif; max-width: 640px;">
-        <h2 style="color: #1e293b; margin-bottom: 4px;">Academy Weekly Report</h2>
-        <p style="color: #64748b; margin-top: 0;">${fmt(weekStart)} – ${fmt(weekEnd)}</p>
+        <h2 style="color: #1D1E26; margin-bottom: 4px;">Academy Weekly Report</h2>
+        <p style="color: #656565; margin-top: 0;">${fmt(weekStart)} – ${fmt(weekEnd)}</p>
         <div style="background: #f1f5f9; border-radius: 12px; padding: 16px; margin: 16px 0;">
           <span style="font-size: 28px; font-weight: 800; color: ${rateColor(overall)};">${pct(overall)}</span>
-          <span style="color: #475569;"> overall sessions completed (${totalDone}/${totalPlanned}) across ${rows.length} athlete${rows.length !== 1 ? 's' : ''}</span>
+          <span style="color: #2D2E38;"> overall sessions completed (${totalDone}/${totalPlanned}) across ${rows.length} athlete${rows.length !== 1 ? 's' : ''}</span>
         </div>
         <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
           <thead>
@@ -202,7 +208,7 @@ export async function sendAcademyWeeklyReport(params: {
           <tbody>${tableRows}</tbody>
         </table>
         <p style="margin-top: 20px;">
-          <a href="${APP_URL}/dashboard/academy" style="background: #4338ff; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="${APP_URL}/dashboard/academy" style="background: #1525FF; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Open Academy →
           </a>
         </p>

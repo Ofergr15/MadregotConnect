@@ -35,7 +35,7 @@ const RPE_HEX = [
 ];
 
 export function rpeHex(v: number | null | undefined): string {
-  if (v == null) return '#475569';
+  if (v == null) return '#BBBBBB';
   const i = Math.min(Math.max(Math.round(v), 1), 10) - 1;
   return RPE_HEX[i];
 }
