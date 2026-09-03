@@ -27,6 +27,15 @@ import type { StravaLap } from '@/lib/strava/client';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === 'object') {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return 'Could not update workout plan';
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ chatId: string }> },
@@ -95,6 +104,6 @@ export async function POST(
     return NextResponse.json({ chat: updated });
   } catch (err: unknown) {
     console.error('POST /api/run-chat/[chatId]/plan error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
   }
 }

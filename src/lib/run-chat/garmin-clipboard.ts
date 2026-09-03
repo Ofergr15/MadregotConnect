@@ -4,6 +4,7 @@
  */
 
 import { readFileSync } from 'fs';
+import { join } from 'path';
 import sharp from 'sharp';
 import {
   type PlannedWorkout,
@@ -14,7 +15,7 @@ import {
 import { intensityLayout } from './clipboard-layout';
 
 /** Bump when the renderer changes so stored images regenerate. */
-export const CLIPBOARD_VERSION = 'v7';
+export const CLIPBOARD_VERSION = 'v8';
 
 /** Horizontal inset for steps nested under a Repeat block (Garmin "tab"). */
 const REPEAT_INDENT_PX = 28;
@@ -43,16 +44,21 @@ let _fontCss: string | null = null;
 
 function fontFaceCss(): string {
   if (_fontCss) return _fontCss;
-  const faces: string[] = [];
+  let font: Buffer | null = null;
   try {
-    const hebrew = readFileSync('/System/Library/Fonts/SFHebrew.ttf');
-    faces.push(`@font-face{font-family:'ClipboardHe';src:url(data:font/truetype;base64,${hebrew.toString('base64')}) format('truetype');}`);
-  } catch { /* non-mac CI */ }
-  try {
-    const latin = readFileSync('/System/Library/Fonts/Supplemental/Arial.ttf');
-    faces.push(`@font-face{font-family:'ClipboardEn';src:url(data:font/truetype;base64,${latin.toString('base64')}) format('truetype');}`);
-  } catch { /* fallback */ }
-  _fontCss = faces.join('');
+    // Bundled OFL font: Vercel's serverless runtime has no system fontconfig.
+    font = readFileSync(join(process.cwd(), 'src/assets/fonts/NotoSansHebrew-Regular.ttf'));
+  } catch {
+    // Local fallback for an incomplete checkout.
+    try {
+      font = readFileSync('/System/Library/Fonts/SFHebrew.ttf');
+    } catch {
+      font = null;
+    }
+  }
+  _fontCss = font
+    ? `@font-face{font-family:'Clipboard';src:url(data:font/truetype;base64,${font.toString('base64')}) format('truetype');}`
+    : '';
   return _fontCss;
 }
 
@@ -64,12 +70,8 @@ function escapeXml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function hasHebrew(s: string): boolean {
-  return /[\u0590-\u05FF]/.test(s);
-}
-
-function fontFor(s: string): string {
-  return hasHebrew(s) ? 'ClipboardHe, ClipboardEn, Arial, sans-serif' : 'ClipboardEn, ClipboardHe, Arial, sans-serif';
+function fontFor(_s: string): string {
+  return 'Clipboard, Arial, sans-serif';
 }
 
 function sparklineBars(steps: WorkoutSegment[], totalW: number): string {

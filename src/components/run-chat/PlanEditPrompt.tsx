@@ -25,6 +25,15 @@ type OpenPlanEditor = (messageId: string, currentPlan: string) => void;
 
 const PlanEditContext = createContext<OpenPlanEditor | null>(null);
 
+function apiErrorMessage(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (value && typeof value === 'object') {
+    const message = (value as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
+
 function isPlanSeedMessage(message: {
   user?: { id?: string } | null;
   text?: string;
@@ -140,10 +149,10 @@ export function PlanEditPromptProvider({
       },
       body: JSON.stringify(payload),
     });
-    const body = await response.json();
+    const body = (await response.json()) as { error?: unknown; [key: string]: unknown };
     if (!response.ok) {
       if (body.error === 'no_laps') throw new Error(t('extractPlanNoLaps'));
-      throw new Error(body.error || t('editPlanFailed'));
+      throw new Error(apiErrorMessage(body.error, t('editPlanFailed')));
     }
     return body;
   };
