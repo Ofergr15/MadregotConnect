@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
 
-interface ThreadMessage {
+export interface ThreadMessage {
   id: string;
   body: string;
   createdAt: string;
@@ -25,10 +25,18 @@ interface ThreadMessage {
 // `viewerEmail` is only a "do we know who's looking yet" signal for skipping the
 // fetch — the server takes the viewer's identity from the session, never from
 // the request, so passing a different address here changes nothing.
-export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string; viewerEmail: string }) {
+//
+// `seed` is for a screen that already has the thread. The coach's triage list
+// renders one of these per feedback card, so left to fetch for itself this was
+// one request per row on a page that routinely shows a hundred; that list now
+// returns `messages` with each item and passes them straight in. Omit it and the
+// component fetches its own thread, which is what the athlete's single-feedback
+// page (one thread, one request) still does.
+export function FeedbackThread({ feedbackId, viewerEmail, seed }: { feedbackId: string; viewerEmail: string; seed?: ThreadMessage[] }) {
   const t = useTranslations('feedbackThread');
-  const [messages, setMessages] = useState<ThreadMessage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const seeded = seed !== undefined;
+  const [messages, setMessages] = useState<ThreadMessage[]>(seed || []);
+  const [loading, setLoading] = useState(!seeded);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -45,7 +53,11 @@ export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string
       .finally(() => setLoading(false));
   }, [feedbackId, viewerEmail]);
 
-  useEffect(() => { load(); }, [load]);
+  // Seeded threads are already loaded, and re-reading them would put back the
+  // request this prop exists to remove. Later revalidations of the seed are
+  // deliberately ignored: messages the athlete sent from here are appended
+  // locally, and taking a fresh list would drop them.
+  useEffect(() => { if (!seeded) load(); }, [seeded, load]);
 
   useEffect(() => {
     if (!loading) listRef.current?.scrollTo({ top: listRef.current.scrollHeight });

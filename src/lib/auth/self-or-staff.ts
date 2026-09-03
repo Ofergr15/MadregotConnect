@@ -115,12 +115,26 @@ export async function requireMember(request: Request): Promise<Response | null> 
  * Several routes hand-rolled this exact three-liner; new ones should use this.
  */
 export async function requireStaff(request: Request): Promise<Response | null> {
+  const { denied } = await requireStaffCaller(request);
+  return denied;
+}
+
+/**
+ * `requireStaff` for a route that also needs to know *which* staff member is
+ * asking — whose messages in a club-wide list are their own, whose read-marker
+ * to stamp. Same gate, and the caller comes free: `resolveVerifiedCaller`
+ * already loaded it, so reaching for a second `athletes` lookup by email (as
+ * this route's per-thread endpoint does) is a wasted round trip.
+ */
+export async function requireStaffCaller(
+  request: Request,
+): Promise<{ denied: Response | null; caller: VerifiedCaller }> {
   const { denied, caller } = await resolveVerifiedCaller(request);
-  if (denied) return denied;
+  if (denied) return { denied, caller };
   if (!caller.isSuperUser && !caller.isStaff) {
-    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    return { denied: NextResponse.json({ error: 'Staff access required' }, { status: 403 }), caller };
   }
-  return null;
+  return { denied: null, caller };
 }
 
 /**

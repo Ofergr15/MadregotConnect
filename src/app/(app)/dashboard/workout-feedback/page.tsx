@@ -6,7 +6,7 @@ import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
 import { resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonList, SegmentedControl, Card, EmptyState } from '@/components/ui';
-import { FeedbackThread } from '@/components/FeedbackThread';
+import { FeedbackThread, type ThreadMessage } from '@/components/FeedbackThread';
 
 interface FeedbackItem {
   id: string;
@@ -28,6 +28,8 @@ interface FeedbackItem {
   coachReply: string | null;
   coachReplyAt: string | null;
   createdAt: string;
+  // The reply thread, sent with the list so each card doesn't fetch its own.
+  messages: ThreadMessage[];
 }
 
 interface MissingEntry {
@@ -232,7 +234,7 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
         </div>
       )}
 
-      <FeedbackThread feedbackId={it.id} viewerEmail={viewerEmail} />
+      <FeedbackThread feedbackId={it.id} viewerEmail={viewerEmail} seed={it.messages || []} />
     </Card>
   );
 }
