@@ -3,8 +3,6 @@
  * Visual target: examples/clipboard_images/*.jpeg
  */
 
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import sharp from 'sharp';
 import {
   type PlannedWorkout,
@@ -13,9 +11,10 @@ import {
   flattenClipboardSteps,
 } from './mock-workout';
 import { intensityLayout } from './clipboard-layout';
+import { NOTO_SANS_HEBREW_BASE64 } from './noto-sans-hebrew.generated';
 
 /** Bump when the renderer changes so stored images regenerate. */
-export const CLIPBOARD_VERSION = 'v8';
+export const CLIPBOARD_VERSION = 'v9';
 
 /** Horizontal inset for steps nested under a Repeat block (Garmin "tab"). */
 const REPEAT_INDENT_PX = 28;
@@ -40,26 +39,10 @@ const KIND_COLOR: Record<string, string> = {
   repeat: GREY,
 };
 
-let _fontCss: string | null = null;
-
 function fontFaceCss(): string {
-  if (_fontCss) return _fontCss;
-  let font: Buffer | null = null;
-  try {
-    // Bundled OFL font: Vercel's serverless runtime has no system fontconfig.
-    font = readFileSync(join(process.cwd(), 'src/assets/fonts/NotoSansHebrew-Regular.ttf'));
-  } catch {
-    // Local fallback for an incomplete checkout.
-    try {
-      font = readFileSync('/System/Library/Fonts/SFHebrew.ttf');
-    } catch {
-      font = null;
-    }
-  }
-  _fontCss = font
-    ? `@font-face{font-family:'Clipboard';src:url(data:font/truetype;base64,${font.toString('base64')}) format('truetype');}`
-    : '';
-  return _fontCss;
+  // Keep the bytes inside the JS bundle. Vercel relocates traced files and its
+  // serverless runtime has no system fontconfig to fall back to.
+  return `@font-face{font-family:'Clipboard';src:url(data:font/truetype;base64,${NOTO_SANS_HEBREW_BASE64}) format('truetype');}`;
 }
 
 function escapeXml(s: string): string {
