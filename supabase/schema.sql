@@ -39,7 +39,10 @@ CREATE TABLE athletes (
   coach_id UUID NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
   group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
-  email TEXT NOT NULL,
+  -- UNIQUE: prod has always enforced this, but this file didn't say so. The
+  -- sign-in route upserts new athletes with `onConflict: 'email'`, which needs a
+  -- unique index to resolve against — see migration 079.
+  email TEXT NOT NULL UNIQUE,
   garmin_auth JSONB,
   status athlete_status DEFAULT 'invited',
   invite_token TEXT UNIQUE,

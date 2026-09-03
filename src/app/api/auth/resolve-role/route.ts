@@ -1,6 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 
+// Every athlete field any branch below needs, so the table is read once.
+const ATHLETE_COLUMNS =
+  'id, name, email, group_id, status, garmin_auth, strava_auth, approved, role, created_at';
+
+interface AthleteRow {
+  id: string;
+  name: string | null;
+  email: string;
+  group_id: string | null;
+  status: string | null;
+  garmin_auth: unknown;
+  strava_auth: unknown;
+  approved: boolean | null;
+  role: string | null;
+  created_at: string;
+}
+
+/**
+ * The athlete fields this route may hand back. Never spread a raw row into a
+ * response: it carries garmin_auth and strava_auth, which are OAuth credentials.
+ */
+function publicProfile(row: AthleteRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    group_id: row.group_id,
+    status: row.status,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { email, name, avatarUrl } = await req.json();
@@ -14,60 +45,66 @@ export async function POST(req: NextRequest) {
 
     // Backfill the Google profile photo for any athlete row that doesn't have one
     // yet (a manual upload always wins because it's set explicitly elsewhere).
-    if (avatarUrl) {
-      await supabase
-        .from('athletes')
-        .update({ avatar_url: avatarUrl })
-        .eq('email', lowerEmail)
-        .is('avatar_url', null);
-    }
-
-    // Check if user is a coach (must also exist in athletes with coach/admin role)
-    const { data: coach } = await supabase
-      .from('coaches')
-      .select('id, email, name')
-      .eq('email', lowerEmail)
-      .single();
-
-    if (coach) {
-      const { data: coachAthlete } = await supabase
-        .from('athletes')
-        .select('id, role')
-        .eq('email', lowerEmail)
-        .in('role', ['coach', 'admin'])
-        .maybeSingle();
-
-      if (coachAthlete) {
-        // Include the athletes row — run-chat / Stream identify staff by athletes.id.
-        const { data: fullAthlete } = await supabase
+    // Nothing read below depends on it and it isn't in the response, so it rides
+    // along with the reads instead of adding a round trip in front of them.
+    const backfill = avatarUrl
+      ? supabase
           .from('athletes')
-          .select('id, name, email, group_id')
-          .eq('id', coachAthlete.id)
-          .maybeSingle();
+          .update({ avatar_url: avatarUrl })
+          .eq('email', lowerEmail)
+          .is('avatar_url', null)
+      : null;
+
+    // One read serves every branch. This route used to query athletes for the same
+    // email up to four times in sequence — coach/admin, then active, then invited,
+    // then any status, plus a re-read of a row it had already found — and it runs on
+    // the critical path of every sign-in, so each round trip was time the athlete
+    // spent on a loading screen. The filtering is pure logic; do it here.
+    const [coachRes, athleteRes] = await Promise.all([
+      supabase.from('coaches').select('id, email, name').eq('email', lowerEmail).maybeSingle(),
+      supabase
+        .from('athletes')
+        .select(ATHLETE_COLUMNS)
+        .eq('email', lowerEmail)
+        .order('created_at', { ascending: false }),
+      backfill,
+    ]);
+
+    const coach = coachRes.data;
+    // Newest first, so every `find` below picks the most recent matching row.
+    // Duplicates must never throw here: the old code used maybeSingle(), which
+    // errors on more than one row, and a stray duplicate then read as "no athlete"
+    // and wrongly forced a returning user back through registration.
+    const rows = (athleteRes.data || []) as unknown as AthleteRow[];
+
+    // A coach is staff only if they also hold a coach/admin athletes row —
+    // run-chat / Stream identify staff by athletes.id.
+    if (coach) {
+      const coachAthlete = rows.find(r => r.role === 'coach' || r.role === 'admin');
+      if (coachAthlete) {
         return NextResponse.json({
           role: coachAthlete.role || 'coach',
           coach,
-          athlete: fullAthlete || { id: coachAthlete.id, name: coach.name, email: lowerEmail, group_id: null },
+          athlete: {
+            id: coachAthlete.id,
+            name: coachAthlete.name || coach.name,
+            email: coachAthlete.email || lowerEmail,
+            group_id: coachAthlete.group_id,
+          },
         });
       }
       // Coach record exists but no matching athlete — treat as new user (was deleted)
     }
 
-    // Check if user is an athlete. Use maybeSingle (not single) so a stray
-    // duplicate row can't throw and wrongly force re-registration; if there are
-    // multiple, prefer the most complete one (has Garmin, else most recent).
-    const { data: activeRows } = await supabase
-      .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth, strava_auth, approved, role, created_at')
-      .eq('email', lowerEmail)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
-    // Prefer Strava-connected rows (primary source), then Garmin legacy.
-    const athlete = (activeRows || []).sort(
-      (a: any, b: any) =>
-        (b.strava_auth ? 2 : 0) + (b.garmin_auth ? 1 : 0) -
-        ((a.strava_auth ? 2 : 0) + (a.garmin_auth ? 1 : 0)),
-    )[0];
+    // Prefer Strava-connected rows (primary source), then Garmin legacy. Sort is
+    // stable and the fetch is newest-first, so ties keep the most recent row.
+    const athlete = rows
+      .filter(r => r.status === 'active')
+      .sort(
+        (a, b) =>
+          (b.strava_auth ? 2 : 0) + (b.garmin_auth ? 1 : 0) -
+          ((a.strava_auth ? 2 : 0) + (a.garmin_auth ? 1 : 0)),
+      )[0];
 
     if (athlete) {
       if (athlete.approved === false) {
@@ -79,36 +116,26 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           pendingApproval: true,
           missingGarmin: false,
-          athlete: { id: athlete.id, name: athlete.name, email: athlete.email, group_id: athlete.group_id },
+          athlete: {
+            id: athlete.id,
+            name: athlete.name,
+            email: athlete.email,
+            group_id: athlete.group_id,
+          },
         });
       }
-      const hasGarmin = !!athlete.garmin_auth;
-      const hasStrava = !!athlete.strava_auth;
       // Honor the athlete's actual role (coach / academy_coach / academy_user / …),
       // not a hardcoded 'runner', so elevated roles resolve correctly on login.
       return NextResponse.json({
         role: athlete.role || 'runner',
-        athlete: {
-          ...athlete,
-          garmin_auth: undefined,
-          strava_auth: undefined,
-          approved: undefined,
-          role: undefined,
-        },
-        hasGarmin,
-        hasStrava,
+        athlete: { ...publicProfile(athlete), created_at: athlete.created_at },
+        hasGarmin: !!athlete.garmin_auth,
+        hasStrava: !!athlete.strava_auth,
       });
     }
 
-    // Check invited athletes (need onboarding)
-    const { data: invitedAthlete } = await supabase
-      .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth, approved')
-      .eq('email', lowerEmail)
-      .eq('status', 'invited')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Invited athletes (may need onboarding).
+    const invitedAthlete = rows.find(r => r.status === 'invited');
 
     if (invitedAthlete) {
       const hasGarmin = !!invitedAthlete.garmin_auth;
@@ -118,19 +145,24 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           pendingApproval: true,
           missingGarmin: !hasGarmin,
-          athlete: { id: invitedAthlete.id, name: invitedAthlete.name, email: invitedAthlete.email, group_id: invitedAthlete.group_id },
+          athlete: {
+            id: invitedAthlete.id,
+            name: invitedAthlete.name,
+            email: invitedAthlete.email,
+            group_id: invitedAthlete.group_id,
+          },
         });
       }
       // Approved invited user → straight to the dashboard (no forced onboarding).
-      return NextResponse.json({ role: 'runner', athlete: { ...invitedAthlete, garmin_auth: undefined, approved: undefined }, hasGarmin });
+      return NextResponse.json({
+        role: 'runner',
+        athlete: publicProfile(invitedAthlete),
+        hasGarmin,
+      });
     }
 
-    // Check if athlete exists with any status (could be missing garmin/group)
-    const { data: anyAthlete } = await supabase
-      .from('athletes')
-      .select('id, name, email, group_id, status, garmin_auth, approved, role')
-      .eq('email', lowerEmail)
-      .maybeSingle();
+    // An athlete row with some other status (could be missing garmin/group).
+    const anyAthlete = rows[0];
 
     if (anyAthlete) {
       const hasGarmin = !!anyAthlete.garmin_auth;
@@ -141,7 +173,12 @@ export async function POST(req: NextRequest) {
       if (anyAthlete.approved === false) {
         return NextResponse.json({
           pendingApproval: true,
-          athlete: { id: anyAthlete.id, name: anyAthlete.name, email: anyAthlete.email, group_id: anyAthlete.group_id },
+          athlete: {
+            id: anyAthlete.id,
+            name: anyAthlete.name,
+            email: anyAthlete.email,
+            group_id: anyAthlete.group_id,
+          },
         });
       }
       if (anyAthlete.status !== 'active') {
@@ -149,20 +186,21 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({
         role: anyAthlete.role || 'runner',
-        athlete: { ...anyAthlete, garmin_auth: undefined, approved: undefined, role: undefined },
+        athlete: publicProfile(anyAthlete),
         hasGarmin,
       });
     }
 
-    // Completely new user — create record and track onboarding
-    // Get a default coach for the foreign key constraint
+    // Completely new user — create record and track onboarding. Sequential on
+    // purpose: the insert needs a coach for the foreign key. This is the
+    // once-per-lifetime path, not the one every sign-in pays for.
     const { data: defaultCoach } = await supabase
       .from('coaches')
       .select('id')
       .limit(1)
       .maybeSingle();
 
-    const { data: newAthlete } = await supabase
+    await supabase
       .from('athletes')
       .upsert({
         email: lowerEmail,
@@ -174,9 +212,7 @@ export async function POST(req: NextRequest) {
         approved: false,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
         ...(defaultCoach ? { coach_id: defaultCoach.id } : {}),
-      }, { onConflict: 'email', ignoreDuplicates: true })
-      .select('id')
-      .single();
+      }, { onConflict: 'email', ignoreDuplicates: true });
 
     // Email notification moved to /api/athletes/connect — fires only after
     // Garmin auth completes or user presses "I'll connect later"
@@ -190,7 +226,7 @@ export async function POST(req: NextRequest) {
       missingGarmin: true,
       pendingApproval: true,
     });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
       { error: 'Failed to resolve role' },
       { status: 500 }

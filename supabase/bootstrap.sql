@@ -53,7 +53,9 @@ CREATE TABLE IF NOT EXISTS athletes (
   coach_id UUID NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
   group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
-  email TEXT NOT NULL,
+  -- UNIQUE: matches prod, and the sign-in route's `onConflict: 'email'` upsert
+  -- needs it. Migration 079 adds it to databases created before this line.
+  email TEXT NOT NULL UNIQUE,
   garmin_auth JSONB,
   status athlete_status DEFAULT 'invited',
   invite_token TEXT UNIQUE,
