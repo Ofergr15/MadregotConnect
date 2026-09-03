@@ -9,6 +9,7 @@ import { getDisplayWeekStart } from '@/lib/plans/workout-parsing';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
 import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
 import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
+import { AttendanceConfirmCard } from '@/components/AttendanceConfirmCard';
 
 interface WeekPlanDay {
   day: string;
@@ -54,10 +55,10 @@ type ExerciseCategory = 'legs' | 'core' | 'upper' | 'prehab';
 // that pattern risks the color being purged from the production build. A
 // literal lookup keeps every class visible to the scanner.
 const CATEGORY_ACTIVE_CLASS: Record<string, string> = {
-  orange: 'bg-orange-500 text-white',
-  blue: 'bg-blue-500 text-white',
+  orange: 'bg-band-3 text-white',
+  blue: 'bg-band-2 text-white',
   purple: 'bg-purple-500 text-white',
-  green: 'bg-green-500 text-white',
+  green: 'bg-accent-600 text-white',
 };
 
 interface WorkoutVideo {
@@ -250,34 +251,34 @@ export default function ProgramPage() {
 
   const getTagColor = (tag: string): string => {
     const tagColors: Record<string, string> = {
-      'Legs': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      'Glutes': 'bg-pink-500/20 text-pink-400 border-pink-500/30',
-      'Core': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-      'Upper': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-      'Prehab': 'bg-green-500/20 text-green-400 border-green-500/30',
-      'Compound': 'bg-red-500/20 text-red-400 border-red-500/30',
-      'Unilateral': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-      'Strength': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-      'Bodyweight': 'bg-teal-500/20 text-teal-400 border-teal-500/30',
-      'Isolation': 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
-      'Balance': 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
-      'Stability': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-      'Mobility': 'bg-lime-500/20 text-lime-400 border-lime-500/30',
-      'Functional': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-      'Advanced': 'bg-rose-500/20 text-rose-400 border-rose-500/30',
-      'Calves': 'bg-sky-500/20 text-sky-400 border-sky-500/30',
-      'Hamstrings': 'bg-violet-500/20 text-violet-400 border-violet-500/30',
-      'Shoulders': 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30',
-      'Grip': 'bg-stone-500/20 text-stone-300 border-stone-500/30',
-      'Lower Leg': 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30',
+      'Legs': 'bg-band-2/20 text-band-2 border-band-2/30',
+      'Glutes': 'bg-pink-500/20 text-pink-600 border-pink-500/30',
+      'Core': 'bg-band-3/20 text-band-3 border-band-3/30',
+      'Upper': 'bg-purple-500/20 text-purple-600 border-purple-500/30',
+      'Prehab': 'bg-accent-600/20 text-accent-600 border-accent-600/30',
+      'Compound': 'bg-accent-red/20 text-accent-red border-accent-red/30',
+      'Unilateral': 'bg-band-3/20 text-band-3 border-band-3/30',
+      'Strength': 'bg-ink-300/20 text-ink-500 border-ink-300/30',
+      'Bodyweight': 'bg-teal-500/20 text-teal-600 border-teal-500/30',
+      'Isolation': 'bg-indigo-500/20 text-indigo-600 border-indigo-500/30',
+      'Balance': 'bg-band-2/20 text-band-2 border-band-2/30',
+      'Stability': 'bg-accent-600/20 text-accent-600 border-accent-600/30',
+      'Mobility': 'bg-lime-500/20 text-lime-600 border-lime-500/30',
+      'Functional': 'bg-band-3/20 text-band-3 border-band-3/30',
+      'Advanced': 'bg-accent-red/20 text-accent-red border-accent-red/30',
+      'Calves': 'bg-band-2/20 text-band-2 border-band-2/30',
+      'Hamstrings': 'bg-violet-500/20 text-violet-600 border-violet-500/30',
+      'Shoulders': 'bg-fuchsia-500/20 text-fuchsia-600 border-fuchsia-500/30',
+      'Grip': 'bg-ink-300/20 text-ink-500 border-ink-300/30',
+      'Lower Leg': 'bg-ink-300/20 text-ink-500 border-ink-300/30',
     };
-    return tagColors[tag] || 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+    return tagColors[tag] || 'bg-ink-300/20 text-ink-500 border-ink-300/30';
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
       </div>
     );
   }
@@ -288,7 +289,7 @@ export default function ProgramPage() {
       <div className={cn(activeView === 'workout' ? 'hidden sm:block' : '', 'flex items-center justify-between')}>
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">{t('weeklyProgram')}</h1>
-          <p className="text-slate-400 mt-1 text-sm">{t('subtitle')}</p>
+          <p className="text-ink-400 mt-1 text-sm">{t('subtitle')}</p>
         </div>
         {isAdmin && activeView !== 'workout' && (
           <Button onClick={() => setShowUploadForm(true)}>
@@ -298,8 +299,17 @@ export default function ProgramPage() {
         )}
       </div>
 
+      {/* Confirm attendance for the next team workout. This used to be its own
+          אישור slot in the bottom bar, pointing at /dashboard — the page the
+          Dashboard tab already opens. It lives here now, at the top of the
+          training view, next to the week it's asking about.
+          Renders nothing outside the day-before/day-of window, and nothing for a
+          coach; deliberately not shown in the nutrition or gym views, which have
+          nothing to do with turning up on Tuesday. */}
+      {activeView === 'training' && <AttendanceConfirmCard />}
+
       {/* View Toggle — full width, sticky on mobile */}
-      <div className={cn('flex flex-col gap-3', activeView === 'workout' && 'sticky top-0 z-30 bg-slate-900 -mx-4 px-4 pt-2 pb-3 sm:static sm:mx-0 sm:px-0 sm:pt-0 sm:pb-0 sm:bg-transparent')}>
+      <div className={cn('flex flex-col gap-3', activeView === 'workout' && 'sticky top-0 z-30 bg-page -mx-4 px-4 pt-2 pb-3 sm:static sm:mx-0 sm:px-0 sm:pt-0 sm:pb-0 sm:bg-transparent')}>
         <SegmentedControl
           value={activeView}
           onChange={setActiveView}
@@ -318,23 +328,23 @@ export default function ProgramPage() {
         {activeView !== 'workout' && currentWeek && (
           <button
             onClick={() => setWeekPickerOpen(true)}
-            className="flex items-center gap-3 bg-slate-800/60 border border-slate-700/60 rounded-2xl px-4 py-3.5 min-h-[44px] hover:border-slate-600 active:scale-[0.98] transition-all w-full sm:w-auto sm:min-w-[240px]"
+            className="flex items-center gap-3 bg-card/60 border border-page/60 rounded-card px-4 py-3.5 min-h-[44px] hover:border-ink-300 active:scale-[0.98] transition-all w-full sm:w-auto sm:min-w-[240px]"
           >
             <div className="flex-1 text-start">
-              <div className="font-semibold text-white">{currentWeek.week_number > 0 ? t('weekLabel', { n: currentWeek.week_number }) : t('trainingWeek')}</div>
-              <div dir="ltr" className="text-xs text-slate-400 text-end">{currentWeek.date_range}</div>
+              <div className="font-semibold text-ink-700">{currentWeek.week_number > 0 ? t('weekLabel', { n: currentWeek.week_number }) : t('trainingWeek')}</div>
+              <div dir="ltr" className="text-xs text-ink-400 text-end">{currentWeek.date_range}</div>
             </div>
             {isCurrentWeek && (
-              <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
+              <span className="bg-accent-600/20 text-accent-600 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
                 {t('current')}
               </span>
             )}
             {isRecentlyPublished(weekPlan?.publishedAt) && (
-              <span className="bg-primary-500/20 text-primary-400 text-xs px-2 py-0.5 rounded-full font-bold shrink-0 animate-pulse">
+              <span className="bg-brand-600/20 text-brand-600 text-xs px-2 py-0.5 rounded-full font-bold shrink-0 animate-pulse">
                 {t('newPlan')}
               </span>
             )}
-            <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+            <ChevronDown className="h-4 w-4 text-ink-400 shrink-0" />
           </button>
         )}
       </div>
@@ -350,16 +360,16 @@ export default function ProgramPage() {
               className={cn(
                 'w-full text-start px-4 py-3.5 min-h-[44px] rounded-xl flex items-center justify-between gap-3 transition-colors active:scale-[0.98]',
                 i === selectedWeek
-                  ? 'bg-primary-600/20 border border-primary-500/40'
-                  : 'border border-transparent hover:bg-slate-700/50'
+                  ? 'bg-brand-600/20 border border-brand-600/40'
+                  : 'border border-transparent hover:bg-page/50'
               )}
             >
               <div>
-                <div className="font-semibold text-white text-sm">{week.week_number > 0 ? t('weekLabel', { n: week.week_number }) : t('trainingWeek')}</div>
-                <div dir="ltr" className="text-xs text-slate-400 text-end">{week.date_range}</div>
+                <div className="font-semibold text-ink-700 text-sm">{week.week_number > 0 ? t('weekLabel', { n: week.week_number }) : t('trainingWeek')}</div>
+                <div dir="ltr" className="text-xs text-ink-400 text-end">{week.date_range}</div>
               </div>
               {week.week_start_date === thisWeekStart && (
-                <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
+                <span className="bg-accent-600/20 text-accent-600 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
                   {t('current')}
                 </span>
               )}
@@ -401,8 +411,8 @@ export default function ProgramPage() {
         <div className="space-y-3 sm:space-y-5">
           {/* Video Player — only show after selecting an exercise */}
           {currentExercise && (
-          <div className="bg-slate-800 rounded-xl sm:rounded-xl border border-slate-700 overflow-hidden -mx-4 sm:mx-0 rounded-none sm:rounded-xl border-x-0 sm:border-x">
-            <div className="w-full aspect-video bg-slate-900 relative">
+          <div className="bg-card rounded-xl sm:rounded-xl border border-page overflow-hidden -mx-4 sm:mx-0 rounded-none sm:rounded-xl border-x-0 sm:border-x">
+            <div className="w-full aspect-video bg-page relative">
               {currentExercise.youtube ? (
                 <iframe
                   key={selectedVideoIndex}
@@ -438,7 +448,7 @@ export default function ProgramPage() {
             <div className="px-4 py-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-base sm:text-lg font-bold text-white truncate">{currentExercise.name}</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-ink-700 truncate">{currentExercise.name}</h3>
                 </div>
                 <div className="flex items-center gap-1 shrink-0 ms-2">
                   <button
@@ -447,13 +457,13 @@ export default function ProgramPage() {
                     className={cn(
                       'p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-all',
                       currentFilteredIndex === 0
-                        ? 'text-slate-600 cursor-not-allowed'
-                        : 'bg-slate-700 text-white active:scale-90'
+                        ? 'text-ink-400 cursor-not-allowed'
+                        : 'bg-page text-ink-700 active:scale-90'
                     )}
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </button>
-                  <span className="text-xs text-slate-400 font-bold min-w-[36px] text-center">
+                  <span className="text-xs text-ink-400 font-bold min-w-[36px] text-center">
                     {currentFilteredIndex + 1}/{filteredExercises.length}
                   </span>
                   <button
@@ -462,17 +472,17 @@ export default function ProgramPage() {
                     className={cn(
                       'p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-all',
                       currentFilteredIndex === filteredExercises.length - 1
-                        ? 'text-slate-600 cursor-not-allowed'
-                        : 'bg-slate-700 text-white active:scale-90'
+                        ? 'text-ink-400 cursor-not-allowed'
+                        : 'bg-page text-ink-700 active:scale-90'
                     )}
                   >
                     <ChevronRight className="h-5 w-5" />
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-slate-400 mt-1 line-clamp-2">{currentExercise.desc}</p>
+              <p className="text-xs text-ink-400 mt-1 line-clamp-2">{currentExercise.desc}</p>
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 font-bold">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-band-3/20 text-band-3 border border-band-3/30 font-bold">
                   {currentExercise.sets}
                 </span>
                 {currentExercise.tags.map((tag) => (
@@ -507,7 +517,7 @@ export default function ProgramPage() {
                   'px-3 min-h-[44px] inline-flex items-center justify-center rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0',
                   categoryFilter === key
                     ? CATEGORY_ACTIVE_CLASS[color]
-                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    : 'bg-card text-ink-400 border border-page'
                 )}
               >
                 {label} ({count})
@@ -531,11 +541,11 @@ export default function ProgramPage() {
                   className={cn(
                     'w-full rounded-xl border transition-all text-start overflow-hidden flex sm:flex-col active:scale-[0.98]',
                     isSelected
-                      ? 'border-orange-500 bg-orange-500/10'
-                      : 'border-slate-700 bg-slate-800/50'
+                      ? 'border-band-3 bg-band-3/10'
+                      : 'border-page bg-card/50'
                   )}
                 >
-                  <div className="relative w-28 sm:w-full aspect-square sm:aspect-[16/9] bg-slate-900 overflow-hidden shrink-0">
+                  <div className="relative w-28 sm:w-full aspect-square sm:aspect-[16/9] bg-page overflow-hidden shrink-0">
                     <img
                       src={`https://drive.google.com/thumbnail?id=${video.id}&sz=w400`}
                       alt={video.name}
@@ -544,7 +554,7 @@ export default function ProgramPage() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                     {isSelected && (
-                      <div className="absolute top-1.5 end-1.5 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                      <div className="absolute top-1.5 end-1.5 bg-band-3 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         Live
                       </div>
@@ -552,7 +562,7 @@ export default function ProgramPage() {
                     {!isSelected && (
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 flex items-center justify-center">
-                          <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white ms-0.5" />
+                          <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-ink-700 ms-0.5" />
                         </div>
                       </div>
                     )}
@@ -564,11 +574,11 @@ export default function ProgramPage() {
                   <div className="p-3 flex-1 min-w-0 flex flex-col justify-center">
                     <h4 className={cn(
                       'font-bold text-sm leading-tight',
-                      isSelected ? 'text-orange-400' : 'text-white'
+                      isSelected ? 'text-band-3' : 'text-ink-700'
                     )}>
                       {video.name}
                     </h4>
-                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-snug">
+                    <p className="text-[11px] text-ink-400 mt-1 line-clamp-2 leading-snug">
                       {video.desc}
                     </p>
                     <div className="flex gap-1 mt-1.5">
@@ -592,15 +602,15 @@ export default function ProgramPage() {
         </div>
       ) : activeView === 'training' && weekPlanLoading ? (
         <div className="flex items-center justify-center h-40">
-          <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
         </div>
       ) : activeView === 'training' && weekPlan?.hasPlan ? (
         <WeekClimb weekPlan={weekPlan} onSelectSession={setSelectedSession} t={t} />
       ) : currentWeek && getPdfUrl(currentWeek, activeView) ? (
-        <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-700/60">
+        <div className="bg-card/60 rounded-card border border-page/60 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-page/60">
             <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-400" />
+              <FileText className="h-4 w-4 text-ink-400" />
               <span className="text-sm font-medium">
                 {activeView === 'training' ? t('trainingProgram') : t('nutritionPlan')} — <span dir="ltr">{currentWeek.date_range}</span>
               </span>
@@ -609,7 +619,7 @@ export default function ProgramPage() {
               href={getPdfUrl(currentWeek, activeView)!}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs text-primary-400 hover:text-primary-300 transition-colors"
+              className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 transition-colors"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               {t('openInNewTab')}
@@ -709,7 +719,7 @@ function WeekClimb({
   return (
     <div className="space-y-3">
       <Card>
-        <p className="text-2xs font-bold uppercase tracking-wider text-primary-400/80 mb-3">
+        <p className="text-2xs font-bold uppercase tracking-wider text-brand-600/80 mb-3">
           {t('weekClimbTitle')}
         </p>
         <div className="grid grid-cols-3 gap-2">
@@ -724,7 +734,7 @@ function WeekClimb({
           const session = weekPlan.keySessions.find((s) => s.dayOfWeek === d.dayOfWeek);
           const hasWorkout = d.max > 0;
           const isToday = d.dayOfWeek === todayDow;
-          const stepColor = WORKOUT_TYPE_COLORS[d.type] || '#6366f1';
+          const stepColor = WORKOUT_TYPE_COLORS[d.type] || '#159AFF';
           const stepHeight = hasWorkout
             ? Math.round(STEP_MIN + (d.max / weekMax) * (STEP_MAX - STEP_MIN))
             : STEP_MIN;
@@ -736,32 +746,32 @@ function WeekClimb({
               disabled={!session}
               className={cn(
                 'w-full flex items-center gap-3.5 px-4 py-3.5 min-h-[56px] text-start transition-colors',
-                session && 'active:bg-slate-700/40',
-                isToday && 'bg-primary-500/[0.07]'
+                session && 'active:bg-page/40',
+                isToday && 'bg-brand-600/[0.07]'
               )}
             >
               {/* Step indicator: a rail with a bar rising from the bottom,
                   height proportional to that day's real distance. */}
               <span className="relative w-6 shrink-0 self-stretch flex items-end justify-center py-1">
-                <span className="absolute top-0 bottom-0 start-1/2 w-px -translate-x-1/2 bg-slate-700/50" />
+                <span className="absolute top-0 bottom-0 start-1/2 w-px -translate-x-1/2 bg-page/50" />
                 <span
                   className="relative w-2 rounded-full"
-                  style={{ height: stepHeight, background: hasWorkout ? stepColor : '#334155' }}
+                  style={{ height: stepHeight, background: hasWorkout ? stepColor : '#DFDFDF' }}
                 />
               </span>
 
               <span className="flex-1 min-w-0">
                 <span className="flex items-center gap-1.5">
-                  <span className={cn('text-[15px] font-semibold', isToday ? 'text-primary-400' : 'text-white')}>
+                  <span className={cn('text-[15px] font-semibold', isToday ? 'text-brand-600' : 'text-ink-700')}>
                     {d.day}
                   </span>
                   {isToday && (
-                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-primary-500/20 text-primary-400 shrink-0">
+                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-brand-600/20 text-brand-600 shrink-0">
                       {t('todayBadge')}
                     </span>
                   )}
                 </span>
-                <span className="block text-xs text-slate-400 truncate mt-0.5">
+                <span className="block text-xs text-ink-400 truncate mt-0.5">
                   {hasWorkout
                     ? `${WORKOUT_TYPE_LABELS[d.type] || d.type}${session?.highlight ? ' · ' + session.highlight : ''}`
                     : t('restDay')}
@@ -769,12 +779,12 @@ function WeekClimb({
               </span>
 
               {hasWorkout && (
-                <span dir="ltr" className="text-[15px] font-bold text-white tabular-nums shrink-0">
+                <span dir="ltr" className="text-[15px] font-bold text-ink-700 tabular-nums shrink-0">
                   {d.min !== d.max ? `${d.min}–${d.max}` : d.max}
-                  <span className="text-xs text-slate-400 font-normal"> km</span>
+                  <span className="text-xs text-ink-400 font-normal"> km</span>
                 </span>
               )}
-              {session && <ChevronLeft className="h-4 w-4 text-slate-500 shrink-0" />}
+              {session && <ChevronLeft className="h-4 w-4 text-ink-400 shrink-0" />}
             </button>
           );
         })}
@@ -800,13 +810,13 @@ function PlanStatusRow({
   return (
     <InsetRow
       icon={icon}
-      iconBg={present ? 'bg-green-600' : 'bg-red-600'}
+      iconBg={present ? 'bg-accent-600' : 'bg-accent-red'}
       label={label}
       sublabel={present ? t('planUploaded') : t('planMissing')}
       trailing={!present && isAdmin ? (
         <button
           onClick={onUpload}
-          className="min-h-[44px] px-2 text-xs font-bold text-primary-400 hover:text-primary-300 transition-colors shrink-0"
+          className="min-h-[44px] px-2 text-xs font-bold text-brand-600 hover:text-brand-700 transition-colors shrink-0"
         >
           {t('uploadArrow')}
         </button>
@@ -910,7 +920,7 @@ function UploadForm({
                   onChange={e => setWeekNumber(Number(e.target.value))}
                   min={1}
                   required
-                  className="w-16 min-h-[44px] bg-transparent text-end text-[15px] font-medium text-white focus:outline-none"
+                  className="w-16 min-h-[44px] bg-transparent text-end text-[15px] font-medium text-ink-700 focus:outline-none"
                 />
               }
             />
@@ -929,7 +939,7 @@ function UploadForm({
                   value={weekStartDate}
                   onChange={e => handleStartDateChange(e.target.value)}
                   required
-                  className="min-h-[44px] bg-transparent text-[15px] font-medium text-white focus:outline-none [color-scheme:dark]"
+                  className="min-h-[44px] bg-transparent text-[15px] font-medium text-ink-700 focus:outline-none [color-scheme:dark]"
                 />
               }
             />
@@ -938,7 +948,7 @@ function UploadForm({
               label={t('trainingProgram')}
               sublabel={trainingFile ? trainingFile.name : t('noFileSelected')}
               trailing={
-                <label className="shrink-0 min-h-[44px] px-2 flex items-center text-xs font-bold text-primary-400 hover:text-primary-300 transition-colors cursor-pointer">
+                <label className="shrink-0 min-h-[44px] px-2 flex items-center text-xs font-bold text-brand-600 hover:text-brand-700 transition-colors cursor-pointer">
                   {t('choosePdf')}
                   <input
                     type="file"
@@ -954,7 +964,7 @@ function UploadForm({
               label={t('nutritionPlan')}
               sublabel={nutritionFile ? nutritionFile.name : t('noFileSelected')}
               trailing={
-                <label className="shrink-0 min-h-[44px] px-2 flex items-center text-xs font-bold text-primary-400 hover:text-primary-300 transition-colors cursor-pointer">
+                <label className="shrink-0 min-h-[44px] px-2 flex items-center text-xs font-bold text-brand-600 hover:text-brand-700 transition-colors cursor-pointer">
                   {t('choosePdf')}
                   <input
                     type="file"
@@ -968,7 +978,7 @@ function UploadForm({
           </InsetSection>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+            <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
               {error}
             </div>
           )}

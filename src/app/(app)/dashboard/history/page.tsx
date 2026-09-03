@@ -25,9 +25,9 @@ interface PlanHistory {
 }
 
 const statusConfig = {
-  draft: { icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-400/10', labelKey: 'draft' as const },
-  pushed: { icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-400/10', labelKey: 'pushed' as const },
-  partial: { icon: AlertCircle, color: 'text-orange-400', bg: 'bg-orange-400/10', labelKey: 'partial' as const },
+  draft: { icon: Clock, color: 'text-band-3', bg: 'bg-band-3/10', labelKey: 'draft' as const },
+  pushed: { icon: CheckCircle2, color: 'text-accent-600', bg: 'bg-accent-600/10', labelKey: 'pushed' as const },
+  partial: { icon: AlertCircle, color: 'text-band-3', bg: 'bg-band-3/10', labelKey: 'partial' as const },
 };
 
 export default function HistoryPage() {
@@ -117,7 +117,7 @@ export default function HistoryPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <p className="text-slate-400 mt-1">{t('subtitle')}</p>
+          <p className="text-ink-400 mt-1">{t('subtitle')}</p>
         </div>
         <SkeletonList count={4} />
       </div>
@@ -129,7 +129,7 @@ export default function HistoryPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <p className="text-slate-400 mt-1">{t('subtitle')}</p>
+          <p className="text-ink-400 mt-1">{t('subtitle')}</p>
         </div>
         <EmptyState
           icon={AlertCircle}
@@ -145,11 +145,11 @@ export default function HistoryPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{t('title')}</h1>
-        <p className="text-slate-400 mt-1">{t('subtitle')}</p>
+        <p className="text-ink-400 mt-1">{t('subtitle')}</p>
       </div>
 
       {repushError && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm">
+        <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-4 text-accent-red text-sm">
           {repushError}
         </div>
       )}
@@ -162,14 +162,14 @@ export default function HistoryPage() {
             const isExpanded = expandedPlanId === plan.id;
 
             return (
-              <Card key={plan.id} className="hover:border-slate-600 transition-colors">
+              <Card key={plan.id} className="hover:border-ink-300 transition-colors">
                 <div
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => handleTogglePlan(plan.id)}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="bg-slate-700 p-2 rounded-lg">
-                      <Calendar className="h-5 w-5 text-primary-400" />
+                    <div className="bg-page p-2 rounded-lg">
+                      <Calendar className="h-5 w-5 text-brand-600" />
                     </div>
                     <div>
                       <p className="font-medium">
@@ -179,7 +179,7 @@ export default function HistoryPage() {
                           year: 'numeric'
                         })}
                       </p>
-                      <p className="text-sm text-slate-400">
+                      <p className="text-sm text-ink-400">
                         {plan.workout_count} {t('workouts')} · {plan.delivery_stats.total > 0
                           ? `${plan.delivery_stats.total} ${t('deliveries')}`
                           : t('notDelivered')}
@@ -188,10 +188,10 @@ export default function HistoryPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     {plan.delivery_stats.total > 0 && (
-                      <span className="text-sm text-slate-400">
+                      <span className="text-sm text-ink-400">
                         {plan.delivery_stats.success}/{plan.delivery_stats.total} {t('delivered')}
                         {plan.delivery_stats.failed > 0 && (
-                          <span className="text-red-400"> · {plan.delivery_stats.failed} {t('failed')}</span>
+                          <span className="text-accent-red"> · {plan.delivery_stats.failed} {t('failed')}</span>
                         )}
                       </span>
                     )}

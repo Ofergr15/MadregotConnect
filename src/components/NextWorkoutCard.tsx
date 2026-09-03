@@ -65,15 +65,15 @@ export function NextWorkoutCard({
 
   return (
     <>
-      <div className="bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-700/30 space-y-4">
+      <div className="bg-card/50 rounded-card p-4 sm:p-5 border border-page/30 space-y-4">
         {/* Next relevant workout — today's if not done yet, else tomorrow's */}
         <div>
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">
               {isToday ? td('today') : td('tomorrow')}
             </p>
             <div className="flex items-center gap-1.5">
-              {done && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />}
+              {done && <CheckCircle2 className="h-3.5 w-3.5 text-accent-600" />}
               <span
                 className="text-3xs font-bold px-2 py-0.5 rounded-full"
                 style={{ background: `${typeColor}20`, color: typeColor }}
@@ -82,16 +82,16 @@ export function NextWorkoutCard({
               </span>
             </div>
           </div>
-          <p className="text-2xl font-black text-white mt-1 tabular-nums">
+          <p className="text-2xl font-black text-ink-700 mt-1 tabular-nums">
             {distanceLabel}
-            <span className="text-sm font-medium text-slate-500 ms-1">{tc('km')}</span>
+            <span className="text-sm font-medium text-ink-400 ms-1">{tc('km')}</span>
             {!!doneKm && doneKm > 0 && (
-              <span className="text-xs font-semibold text-emerald-400 ms-2">
+              <span className="text-xs font-semibold text-accent-600 ms-2">
                 {Math.round(doneKm * 10) / 10} {t('doneSuffix')}
               </span>
             )}
           </p>
-          {sessionName && <p className="text-2xs text-slate-500 mt-0.5">{sessionName}</p>}
+          {sessionName && <p className="text-2xs text-ink-400 mt-0.5">{sessionName}</p>}
         </div>
 
         {/* Inline action: add to calendar */}
@@ -100,7 +100,7 @@ export function NextWorkoutCard({
             href={calendarHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-slate-700/50 hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-ink-500 hover:text-ink-900 bg-page/50 hover:bg-ink-300/40 transition-colors"
           >
             <CalendarPlus className="h-3.5 w-3.5" /> {t('addToCalendar')}
           </a>
@@ -114,18 +114,18 @@ export function NextWorkoutCard({
       {hasRsvpTarget && !rsvpAnswered ? (
         <button
           onClick={scrollToRsvp}
-          className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 transition-colors"
         >
           {t('ctaConfirm')} <ArrowRight className="h-4 w-4" />
         </button>
       ) : (
         <Link
           href="/dashboard/program"
-          className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 transition-colors"
         >
           {t('ctaViewPlan')}
           {isNewPlan && (
-            <span className="bg-white/20 text-white text-3xs font-bold px-2 py-0.5 rounded-full">
+            <span className="bg-page text-ink-700 text-3xs font-bold px-2 py-0.5 rounded-full">
               {t('newPlanBadge')}
             </span>
           )}

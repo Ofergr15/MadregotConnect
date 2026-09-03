@@ -36,15 +36,18 @@ interface Group {
   marathonGoal?: string;
 }
 
+// Same three group hues as lib/utils' groupColorMap (green / sky blue / orange).
 const groupColors: Record<string, { bg: string; text: string; border: string }> = {
-  'Group 1': { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/20' },
-  'Group 2': { bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/20' },
-  'Group 3': { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/20' },
+  'Group 1': { bg: 'bg-accent-600/15', text: 'text-accent-600', border: 'border-accent-600/20' },
+  'Group 2': { bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/20' },
+  'Group 3': { bg: 'bg-band-3/15', text: 'text-band-3', border: 'border-band-3/20' },
 };
 
 function getGroupStyle(name: string | null) {
   if (!name) return null;
-  return groupColors[name] || { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/20' };
+  // A squad we don't recognise gets neutral ink, not a fourth hue — the three
+  // above are the only group colours the app means anything by.
+  return groupColors[name] || { bg: 'bg-ink-300/20', text: 'text-ink-500', border: 'border-ink-300/40' };
 }
 
 export default function AthletesPage() {
@@ -233,25 +236,25 @@ ${inviteLink}`;
     switch (status) {
       case 'active':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-600/20 text-accent-600 border border-accent-600/30">
             <Wifi className="h-3 w-3" /> {t('active')}
           </span>
         );
       case 'invited':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-band-3/20 text-band-3 border border-band-3/30">
             <Clock className="h-3 w-3" /> {t('invited')}
           </span>
         );
       case 'paused':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-band-3/20 text-band-3 border border-band-3/30">
             <PauseCircle className="h-3 w-3" /> {t('paused')}
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-red/20 text-accent-red border border-accent-red/30">
             <WifiOff className="h-3 w-3" /> {t('disconnected')}
           </span>
         );
@@ -275,7 +278,7 @@ ${inviteLink}`;
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <p className="text-slate-400 mt-1">{t('subtitle')}</p>
+          <p className="text-ink-400 mt-1">{t('subtitle')}</p>
         </div>
         <Button variant="primary" onClick={() => { setShowInvite(true); setInviteLink(null); }}>
           <UserPlus className="h-4 w-4" />
@@ -324,14 +327,14 @@ ${inviteLink}`;
               value={inviteName}
               onChange={(e) => setInviteName(e.target.value)}
               placeholder={t('athleteName')}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="bg-page border border-page rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-brand-600"
             />
             <input
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               placeholder={t('emailAddress')}
               type="email"
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="bg-page border border-page rounded-lg px-4 py-2.5 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-brand-600"
             />
             {/* Group picker — tapping opens a Sheet of InsetRow options,
                 same "pick one from a list" pattern as everywhere else in the
@@ -339,12 +342,12 @@ ${inviteLink}`;
             <button
               type="button"
               onClick={() => setGroupPickerOpen(true)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 min-h-[44px] flex items-center justify-between gap-2 text-start hover:border-slate-600 transition-colors"
+              className="bg-page border border-page rounded-lg px-4 py-2.5 min-h-[44px] flex items-center justify-between gap-2 text-start hover:border-ink-300 transition-colors"
             >
-              <span className={cn('truncate', inviteGroup ? 'text-white' : 'text-slate-500')}>
+              <span className={cn('truncate', inviteGroup ? 'text-ink-700' : 'text-ink-400')}>
                 {inviteGroup ? groups.find((g) => g.id === inviteGroup)?.name : t('noGroup')}
               </span>
-              <ChevronDown className="h-4 w-4 text-slate-500 shrink-0" />
+              <ChevronDown className="h-4 w-4 text-ink-400 shrink-0" />
             </button>
           </div>
           <Button variant="primary" className="w-full" onClick={createInvite} disabled={submitting || !inviteName.trim() || !inviteEmail.trim()}>
@@ -352,14 +355,14 @@ ${inviteLink}`;
             {submitting ? t('generating') : t('generateInviteLink')}
           </Button>
           {inviteLink && (
-            <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
-              <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+            <div className="bg-page/50 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2 text-accent-600 text-sm font-medium">
                 <CheckCircle2 className="h-4 w-4" />
                 {t('invitationCreated')}
               </div>
               <div className="flex items-center gap-2">
-                <input value={inviteLink} readOnly className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm" />
-                <Button variant="secondary" onClick={copyLink} className={copied ? 'bg-green-600 hover:bg-green-600' : undefined}>
+                <input value={inviteLink} readOnly className="flex-1 bg-page border border-ink-300 rounded-lg px-4 py-2 text-sm" />
+                <Button variant="secondary" onClick={copyLink} className={copied ? 'bg-accent-600 hover:opacity-90' : undefined}>
                   {copied ? <><Check className="h-4 w-4" />{tc('copied')}</> : <><Copy className="h-4 w-4" />{tc('copy')}</>}
                 </Button>
                 <Button variant="secondary" onClick={shareViaWhatsApp} className="bg-[#25D366] hover:bg-[#20BA59]" title="Share via WhatsApp">
@@ -377,7 +380,7 @@ ${inviteLink}`;
         <InsetSection>
           <InsetRow
             label={t('noGroup')}
-            trailing={!inviteGroup ? <Check className="h-4 w-4 text-primary-400" /> : undefined}
+            trailing={!inviteGroup ? <Check className="h-4 w-4 text-brand-600" /> : undefined}
             onClick={() => { setInviteGroup(''); setGroupPickerOpen(false); }}
           />
           {groups.map((g) => (
@@ -385,7 +388,7 @@ ${inviteLink}`;
               key={g.id}
               icon={UsersIcon}
               label={g.name}
-              trailing={inviteGroup === g.id ? <Check className="h-4 w-4 text-primary-400" /> : undefined}
+              trailing={inviteGroup === g.id ? <Check className="h-4 w-4 text-brand-600" /> : undefined}
               onClick={() => { setInviteGroup(g.id); setGroupPickerOpen(false); }}
             />
           ))}
@@ -397,7 +400,7 @@ ${inviteLink}`;
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="font-semibold">{t('publicInviteLink')}</h3>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-ink-400 mt-1">
               {t('publicInviteDesc')}
             </p>
           </div>
@@ -409,10 +412,10 @@ ${inviteLink}`;
           )}
         </div>
         {publicLink && (
-          <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
+          <div className="bg-page/50 rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2">
-              <input value={publicLink} readOnly className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm" />
-              <Button variant="secondary" onClick={copyPublicLink} className={publicLinkCopied ? 'bg-green-600 hover:bg-green-600' : undefined}>
+              <input value={publicLink} readOnly className="flex-1 bg-page border border-ink-300 rounded-lg px-4 py-2 text-sm" />
+              <Button variant="secondary" onClick={copyPublicLink} className={publicLinkCopied ? 'bg-accent-600 hover:opacity-90' : undefined}>
                 {publicLinkCopied ? <><Check className="h-4 w-4" />{tc('copied')}</> : <><Copy className="h-4 w-4" />{tc('copy')}</>}
               </Button>
               <Button variant="secondary" onClick={sharePublicLinkWhatsApp} className="bg-[#25D366] hover:bg-[#20BA59]">
@@ -420,7 +423,7 @@ ${inviteLink}`;
                 {t('whatsApp')}
               </Button>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-400">
               {t('publicLinkNote')}
             </p>
           </div>
@@ -440,15 +443,15 @@ ${inviteLink}`;
               <button
                 key={athlete.id}
                 onClick={() => setActiveMenu(athlete.id)}
-                className="w-full text-start active:bg-slate-700/40 transition-colors"
+                className="w-full text-start active:bg-page/40 transition-colors"
               >
                 <div className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
-                  <span className="shrink-0 w-9 h-9 rounded-full bg-primary-500/20 flex items-center justify-center">
-                    <span className="text-primary-400 font-semibold text-xs">{initials}</span>
+                  <span className="shrink-0 w-9 h-9 rounded-full bg-brand-600/20 flex items-center justify-center">
+                    <span className="text-brand-600 font-semibold text-xs">{initials}</span>
                   </span>
                   <span className="flex-1 min-w-0">
-                    <span className="block text-[15px] font-medium text-white truncate" dir="auto">{athlete.name}</span>
-                    <span className="block text-xs text-slate-400 truncate">{athlete.email}</span>
+                    <span className="block text-[15px] font-medium text-ink-700 truncate" dir="auto">{athlete.name}</span>
+                    <span className="block text-xs text-ink-400 truncate">{athlete.email}</span>
                     {(athlete.groupName || athlete.hasGarmin || athlete.hasStrava) && (
                       <span className="flex flex-wrap items-center gap-1 mt-1">
                         {athlete.groupName && (
@@ -456,8 +459,8 @@ ${inviteLink}`;
                             {athlete.groupName}
                           </span>
                         )}
-                        {athlete.hasGarmin && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">Garmin</span>}
-                        {athlete.hasStrava && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400">Strava</span>}
+                        {athlete.hasGarmin && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-600">Garmin</span>}
+                        {athlete.hasStrava && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-band-3/15 text-band-3">Strava</span>}
                       </span>
                     )}
                   </span>
@@ -490,28 +493,28 @@ ${inviteLink}`;
             <InsetSection>
               <InsetRow
                 icon={ArrowRightLeft}
-                iconBg="bg-primary-600"
+                iconBg="bg-brand-600"
                 label={t('moveToGroup')}
                 onClick={() => { setMoveModal({ athleteId: athlete.id, athleteName: athlete.name }); setActiveMenu(null); }}
               />
               {athlete.status === 'active' ? (
                 <InsetRow
                   icon={PauseCircle}
-                  iconBg="bg-orange-500"
+                  iconBg="bg-band-3"
                   label={t('pause')}
                   onClick={() => updateAthleteStatus(athlete.id, 'paused')}
                 />
               ) : athlete.status === 'paused' ? (
                 <InsetRow
                   icon={PlayCircle}
-                  iconBg="bg-green-500"
+                  iconBg="bg-accent-600"
                   label={t('reactivate')}
                   onClick={() => updateAthleteStatus(athlete.id, 'active')}
                 />
               ) : null}
               <InsetRow
                 icon={Wifi}
-                iconBg="bg-orange-500"
+                iconBg="bg-band-3"
                 label={athlete.stravaEnabled ? t('disableStrava') : t('enableStrava')}
                 onClick={async () => {
                   const newEnabled = !athlete.stravaEnabled;
@@ -527,7 +530,7 @@ ${inviteLink}`;
               {athlete.hasStrava && (
                 <InsetRow
                   icon={ArrowRightLeft}
-                  iconBg="bg-orange-500"
+                  iconBg="bg-band-3"
                   label={athlete.dataSource === 'strava' ? t('switchToGarmin') : t('switchToStrava')}
                   onClick={() => { toggleDataSource(athlete.id, athlete.dataSource === 'strava' ? 'garmin' : 'strava'); setActiveMenu(null); }}
                 />
@@ -535,7 +538,7 @@ ${inviteLink}`;
               {!isProtectedEmail(athlete.email) && (
                 <InsetRow
                   icon={Trash2}
-                  iconBg="bg-red-500"
+                  iconBg="bg-accent-red"
                   label={tc('delete')}
                   danger
                   onClick={() => { setConfirmDelete({ id: athlete.id, name: athlete.name }); setActiveMenu(null); }}
@@ -567,9 +570,9 @@ ${inviteLink}`;
                 })
                 .map(g => {
                   const levelIconBg: Record<'fast' | 'medium' | 'slow', string> = {
-                    fast: 'bg-green-500',
-                    medium: 'bg-yellow-500',
-                    slow: 'bg-orange-500',
+                    fast: 'bg-accent-600',
+                    medium: 'bg-band-3',
+                    slow: 'bg-band-3',
                   };
                   const level = g.level || 'medium';
                   const isSelected = selectedGroupId === g.id;
@@ -580,7 +583,7 @@ ${inviteLink}`;
                       iconBg={levelIconBg[level]}
                       label={g.name}
                       value={g.marathonGoal}
-                      trailing={isSelected ? <Check className="h-4 w-4 text-primary-400" /> : undefined}
+                      trailing={isSelected ? <Check className="h-4 w-4 text-brand-600" /> : undefined}
                       onClick={() => setSelectedGroupId(g.id)}
                     />
                   );

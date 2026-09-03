@@ -116,33 +116,33 @@ export function ManualActivitySheet({
       title={t('logManualActivity')}
     >
       <div className="space-y-4 pb-2">
-        <p className="text-sm text-slate-400">{t('manualEntryHint')}</p>
+        <p className="text-sm text-ink-400">{t('manualEntryHint')}</p>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('date')}</label>
+            <label className="block text-xs font-medium text-ink-400 mb-1.5">{t('date')}</label>
             <input
               type="date"
               value={date}
               max={todayLocalDate()}
               onChange={e => setDate(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-primary-600/50"
+              className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-page/50 text-sm text-ink-700 focus:outline-none focus:border-brand-600/50"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('time')}</label>
+            <label className="block text-xs font-medium text-ink-400 mb-1.5">{t('time')}</label>
             <input
               type="time"
               value={time}
               onChange={e => setTime(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-primary-600/50"
+              className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-page/50 text-sm text-ink-700 focus:outline-none focus:border-brand-600/50"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('distanceKm')}</label>
+            <label className="block text-xs font-medium text-ink-400 mb-1.5">{t('distanceKm')}</label>
             <input
               type="number"
               inputMode="decimal"
@@ -151,12 +151,12 @@ export function ManualActivitySheet({
               placeholder="10.0"
               value={distanceKm}
               onChange={e => setDistanceKm(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+              className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              {t('durationLabel')} <span className="text-slate-600">({t('durationHint')})</span>
+            <label className="block text-xs font-medium text-ink-400 mb-1.5">
+              {t('durationLabel')} <span className="text-ink-400">({t('durationHint')})</span>
             </label>
             <input
               type="text"
@@ -164,13 +164,13 @@ export function ManualActivitySheet({
               placeholder="45:00"
               value={durationText}
               onChange={e => setDurationText(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+              className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('activityTypeLabel')}</label>
+          <label className="block text-xs font-medium text-ink-400 mb-1.5">{t('activityTypeLabel')}</label>
           <div className="flex flex-wrap gap-2">
             {ACTIVITY_TYPES.map(type => (
               <button
@@ -179,8 +179,8 @@ export function ManualActivitySheet({
                 onClick={() => setActivityType(type)}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                   activityType === type
-                    ? 'border-primary-600 bg-primary-600/10 text-white'
-                    : 'border-slate-700 text-slate-400 hover:text-slate-200'
+                    ? 'border-brand-600 bg-brand-600/10 text-white'
+                    : 'border-page text-ink-400 hover:text-ink-700'
                 }`}
               >
                 {t(`activityType_${type}`)}
@@ -190,23 +190,23 @@ export function ManualActivitySheet({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('activityName')}</label>
+          <label className="block text-xs font-medium text-ink-400 mb-1.5">{t('activityName')}</label>
           <input
             type="text"
             placeholder={t('activityNamePlaceholder')}
             value={activityName}
             onChange={e => setActivityName(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+            className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
           />
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-accent-red">{error}</p>}
 
         <div className="flex gap-3 pt-1">
           <button
             type="button"
             onClick={() => { reset(); onOpenChange(false); }}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-colors"
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-ink-400 hover:text-ink-900 transition-colors"
           >
             {tc('cancel')}
           </button>
@@ -214,7 +214,7 @@ export function ManualActivitySheet({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {saving ? t('savingActivity') : t('saveActivity')}

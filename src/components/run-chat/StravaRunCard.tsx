@@ -69,7 +69,7 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
         className="run-chat-strava-collapsible my-1 w-[28rem] max-w-full"
       >
         <Card
-          className="run-chat-strava-card w-full overflow-hidden border-blue-300/15 bg-[#193b76] text-start text-slate-100 shadow-none"
+          className="run-chat-strava-card w-full overflow-hidden border-band-2/15 bg-[#193b76] text-start text-ink-700 shadow-none"
         >
           <CardHeader
             dir="ltr"
@@ -77,11 +77,11 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
           >
             <CardTitle className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
               <span className="truncate">{run.name || t('run')}</span>
-              <span className="text-blue-300/40">|</span>
-              <span className="shrink-0 text-xs font-semibold tabular-nums text-blue-100/70">
+              <span className="text-band-2/40">|</span>
+              <span className="shrink-0 text-xs font-semibold tabular-nums text-band-2/70">
                 {startTime}
               </span>
-              <span className="text-blue-300/40">|</span>
+              <span className="text-band-2/40">|</span>
               {attachment.strava_url ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -90,7 +90,7 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
                       target="_blank"
                       rel="noreferrer"
                       aria-label="Strava"
-                      className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+                      className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-band-3"
                     >
                       <StravaLogo />
                     </a>
@@ -106,7 +106,7 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
               {attachment.gpx_url && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button asChild variant="ghost" size="icon-sm" className="text-blue-200/70 hover:bg-white/10 hover:text-white">
+                    <Button asChild variant="ghost" size="icon-sm" className="text-band-2/70 hover:bg-page hover:text-ink-900">
                       <a href={attachment.gpx_url} download="activity.gpx" aria-label="GPX">
                         <Download className="h-3.5 w-3.5" />
                       </a>
@@ -122,7 +122,7 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="text-blue-200/70 hover:bg-white/10 hover:text-white"
+                    className="text-band-2/70 hover:bg-page hover:text-ink-900"
                     onClick={(event) => {
                       event.stopPropagation();
                       setExpanded((value) => !value);
@@ -142,29 +142,29 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
             </div>
           </CardHeader>
 
-          <CardContent className="border-t border-blue-300/15 px-3 py-2">
+          <CardContent className="border-t border-band-2/15 px-3 py-2">
             <div dir="ltr" className="flex items-baseline gap-2 text-sm tabular-nums">
               <strong>{run.distance_km.toFixed(2)} {t('km')}</strong>
-              <span className="text-blue-300/40">|</span>
+              <span className="text-band-2/40">|</span>
               <strong>{run.pace?.replace('/km', '') || '—'} {t('perKm')}</strong>
-              <span className="text-blue-300/40">|</span>
+              <span className="text-band-2/40">|</span>
               <strong>{durationText(run.duration_s)}</strong>
             </div>
 
             <CollapsibleContent className="space-y-3 pt-3">
-              <p className="text-[11px] text-blue-100/60">{date}</p>
+              <p className="text-[11px] text-band-2/60">{date}</p>
 
               {(run.average_hr || run.elevation_gain_m || run.lap_count > 0) && (
-                <div className="flex flex-wrap gap-3 text-xs text-blue-100/70">
+                <div className="flex flex-wrap gap-3 text-xs text-band-2/70">
                   {run.average_hr && (
                     <span className="flex items-center gap-1">
-                      <Heart className="h-3.5 w-3.5 text-rose-400" />
+                      <Heart className="h-3.5 w-3.5 text-accent-red" />
                       {run.average_hr} bpm
                     </span>
                   )}
                   {run.elevation_gain_m != null && (
                     <span className="flex items-center gap-1">
-                      <Mountain className="h-3.5 w-3.5 text-emerald-400" />
+                      <Mountain className="h-3.5 w-3.5 text-accent-600" />
                       +{run.elevation_gain_m}m
                     </span>
                   )}

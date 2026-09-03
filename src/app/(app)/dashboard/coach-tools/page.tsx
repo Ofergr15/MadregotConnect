@@ -64,43 +64,43 @@ export default function CoachToolsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-3xl font-extrabold text-white tracking-tight" dir="rtl">{t('title')}</h1>
-        <p className="text-slate-400 mt-1 text-sm" dir="rtl">{t('subtitle')}</p>
+        <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
+        <p className="text-ink-400 mt-1 text-sm" dir="rtl">{t('subtitle')}</p>
       </div>
 
       <InsetSection header={t('planning')}>
-        <InsetRow icon={Calendar} iconBg="bg-primary-600" label={tn('planner')} href="/dashboard/plan/new" />
-        <InsetRow icon={Clock} iconBg="bg-amber-500" label={tn('history')} href="/dashboard/history" />
+        <InsetRow icon={Calendar} iconBg="bg-brand-600" label={tn('planner')} href="/dashboard/plan/new" />
+        <InsetRow icon={Clock} iconBg="bg-band-3" label={tn('history')} href="/dashboard/history" />
       </InsetSection>
 
       <InsetSection header={t('rosterAndGroups')}>
-        <InsetRow icon={Layers} iconBg="bg-emerald-500" label={tn('groups')} href="/dashboard/groups" />
+        <InsetRow icon={Layers} iconBg="bg-accent-600" label={tn('groups')} href="/dashboard/groups" />
         {roleLoading ? (
           <AcademyRowSkeleton />
         ) : showAcademy ? (
-          <InsetRow icon={GraduationCap} iconBg="bg-cyan-500" label={tn('academy')} href="/dashboard/academy" />
+          <InsetRow icon={GraduationCap} iconBg="bg-band-2" label={tn('academy')} href="/dashboard/academy" />
         ) : null}
       </InsetSection>
 
       <InsetSection header={t('insights')}>
         <InsetRow icon={BarChart3} iconBg="bg-violet-500" label={tn('teamVolume')} href="/dashboard/team-volume" />
-        <InsetRow icon={CalendarDays} iconBg="bg-rose-500" label={tn('calendar')} href="/dashboard/calendar" />
+        <InsetRow icon={CalendarDays} iconBg="bg-accent-red" label={tn('calendar')} href="/dashboard/calendar" />
       </InsetSection>
 
       <InsetSection header={ts('management')}>
         <InsetRow icon={Users} iconBg="bg-indigo-500" label={ts('userManager')} href="/dashboard/settings?tab=users" />
-        <InsetRow icon={Layout} iconBg="bg-amber-500" label={ts('tabManager')} href="/dashboard/settings?tab=tabs" />
+        <InsetRow icon={Layout} iconBg="bg-band-3" label={ts('tabManager')} href="/dashboard/settings?tab=tabs" />
         <InsetRow icon={MessageSquare} iconBg="bg-teal-500" label={ts('feedback')} href="/dashboard/settings?tab=feedback" />
-        <InsetRow icon={Bell} iconBg="bg-rose-500" label={ts('notificationCenter')} href="/dashboard/settings?tab=notifications" />
-        <InsetRow icon={Bell} iconBg="bg-blue-500" label={ts('workoutReminders')} href="/dashboard/settings?tab=reminders" />
+        <InsetRow icon={Bell} iconBg="bg-accent-red" label={ts('notificationCenter')} href="/dashboard/settings?tab=notifications" />
+        <InsetRow icon={Bell} iconBg="bg-band-2" label={ts('workoutReminders')} href="/dashboard/settings?tab=reminders" />
         <InsetRow icon={Award} iconBg="bg-fuchsia-500" label={ts('badgeManager')} href="/dashboard/settings?tab=badges" />
-        <InsetRow icon={Trophy} iconBg="bg-orange-500" label={ts('challengeManager')} href="/dashboard/settings?tab=challenges" />
-        <InsetRow icon={ShoppingBag} iconBg="bg-cyan-600" label={ts('storeManager')} href="/dashboard/settings?tab=store" />
+        <InsetRow icon={Trophy} iconBg="bg-band-3" label={ts('challengeManager')} href="/dashboard/settings?tab=challenges" />
+        <InsetRow icon={ShoppingBag} iconBg="bg-band-2" label={ts('storeManager')} href="/dashboard/settings?tab=store" />
         <InsetRow icon={Gift} iconBg="bg-pink-600" label={ts('perksManager')} href="/dashboard/settings?tab=perks" />
       </InsetSection>
 
       <InsetSection>
-        <InsetRow icon={Settings} iconBg="bg-slate-600" label={tn('settings')} href="/dashboard/settings" />
+        <InsetRow icon={Settings} iconBg="bg-ink-300" label={tn('settings')} href="/dashboard/settings" />
       </InsetSection>
     </div>
   );

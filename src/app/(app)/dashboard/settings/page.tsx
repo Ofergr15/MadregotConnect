@@ -51,13 +51,13 @@ function getRoleLabel(role: Role, t: TFunc): string {
 }
 
 const roleConfig = {
-  admin: { label: 'Admin', bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30', dot: 'bg-purple-400' },
-  coach: { label: 'Coach', bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30', dot: 'bg-blue-400' },
-  academy_coach: { label: 'Academy Coach', bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30', dot: 'bg-cyan-400' },
-  runner: { label: 'Runner', bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30', dot: 'bg-green-400' },
-  core_runner: { label: 'Core Runner', bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30', dot: 'bg-emerald-400' },
-  academy_user: { label: 'Academy', bg: 'bg-primary-500/15', text: 'text-primary-400', border: 'border-primary-500/30', dot: 'bg-primary-400' },
-  viewer: { label: 'Viewer', bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30', dot: 'bg-slate-400' },
+  admin: { label: 'Admin', bg: 'bg-purple-500/15', text: 'text-purple-600', border: 'border-purple-500/30', dot: 'bg-purple-400' },
+  coach: { label: 'Coach', bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/30', dot: 'bg-band-2' },
+  academy_coach: { label: 'Academy Coach', bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/30', dot: 'bg-band-2' },
+  runner: { label: 'Runner', bg: 'bg-accent-600/15', text: 'text-accent-600', border: 'border-accent-600/30', dot: 'bg-accent-600' },
+  core_runner: { label: 'Core Runner', bg: 'bg-accent-600/15', text: 'text-accent-600', border: 'border-accent-600/30', dot: 'bg-accent-600' },
+  academy_user: { label: 'Academy', bg: 'bg-brand-600/15', text: 'text-brand-600', border: 'border-brand-600/30', dot: 'bg-brand-600' },
+  viewer: { label: 'Viewer', bg: 'bg-ink-300/15', text: 'text-ink-400', border: 'border-ink-300/30', dot: 'bg-ink-300' },
 };
 
 function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: Role; onChange: (role: Role) => void; disabled: boolean; canGrantAdmin: boolean; t: TFunc }) {
@@ -83,7 +83,7 @@ function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: 
       {/* Native-style bottom sheet role picker — replaces the hand-rolled
           absolutely-positioned floating menu (no iOS equivalent for that). */}
       <Sheet open={open} onOpenChange={setOpen} title={t('changeRole')}>
-        <div className="rounded-2xl bg-slate-900/40 overflow-hidden divide-y divide-slate-700/50">
+        <div className="rounded-2xl bg-page/40 overflow-hidden divide-y divide-page/50">
           {allRoles
             // Only the club admin account may assign the Admin role; hide it for
             // everyone else. The server (PUT /api/admin/users) enforces this too.
@@ -95,7 +95,7 @@ function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: 
                   key={role}
                   label={getRoleLabel(role, t)}
                   onClick={() => { onChange(role); setOpen(false); }}
-                  trailing={isSelected ? <CheckCircle2 className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+                  trailing={isSelected ? <CheckCircle2 className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
                 />
               );
             })}
@@ -121,19 +121,19 @@ function FilterPickerButton<T extends string>({ value, onChange, options, title,
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 h-9 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white hover:border-slate-500 transition-colors"
+        className="flex items-center gap-1.5 px-3 h-9 rounded-lg bg-page border border-page text-sm text-ink-700 hover:border-ink-300 transition-colors"
       >
         <span className="truncate max-w-[110px]">{current?.label ?? label}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+        <ChevronDown className="h-3.5 w-3.5 text-ink-400 shrink-0" />
       </button>
       <Sheet open={open} onOpenChange={setOpen} title={title}>
-        <div className="rounded-2xl bg-slate-900/40 overflow-hidden divide-y divide-slate-700/50">
+        <div className="rounded-2xl bg-page/40 overflow-hidden divide-y divide-page/50">
           {options.map(opt => (
             <InsetRow
               key={opt.value}
               label={opt.label}
               onClick={() => { onChange(opt.value); setOpen(false); }}
-              trailing={opt.value === value ? <CheckCircle2 className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+              trailing={opt.value === value ? <CheckCircle2 className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
             />
           ))}
         </div>
@@ -219,12 +219,12 @@ type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders'
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
   { key: 'users' as SettingsTab, label: 'User Manager', icon: Users, iconBg: 'bg-indigo-500' },
-  { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout, iconBg: 'bg-amber-500' },
+  { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout, iconBg: 'bg-band-3' },
   { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare, iconBg: 'bg-teal-500' },
-  { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell, iconBg: 'bg-rose-500' },
+  { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell, iconBg: 'bg-accent-red' },
   { key: 'badges' as SettingsTab, label: 'Badge Manager', icon: Award, iconBg: 'bg-fuchsia-500' },
-  { key: 'challenges' as SettingsTab, label: 'Challenge Manager', icon: Trophy, iconBg: 'bg-orange-500' },
-  { key: 'store' as SettingsTab, label: 'Store Manager', icon: ShoppingBag, iconBg: 'bg-cyan-600' },
+  { key: 'challenges' as SettingsTab, label: 'Challenge Manager', icon: Trophy, iconBg: 'bg-band-3' },
+  { key: 'store' as SettingsTab, label: 'Store Manager', icon: ShoppingBag, iconBg: 'bg-band-2' },
   { key: 'perks' as SettingsTab, label: 'Perks Manager', icon: Gift, iconBg: 'bg-pink-600' },
 ];
 
@@ -248,23 +248,23 @@ interface FeedbackItem {
 }
 
 const categoryConfig = {
-  feature_request: { label: 'Feature Request', icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
-  bug_report: { label: 'Bug Report', icon: Bug, color: 'text-red-400', bg: 'bg-red-500/15', border: 'border-red-500/30' },
-  training_feedback: { label: 'Training Feedback', icon: Dumbbell, color: 'text-blue-400', bg: 'bg-blue-500/15', border: 'border-blue-500/30' },
-  general: { label: 'General', icon: MessageCircle, color: 'text-teal-400', bg: 'bg-teal-500/15', border: 'border-teal-500/30' },
+  feature_request: { label: 'Feature Request', icon: Lightbulb, color: 'text-purple-600', bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
+  bug_report: { label: 'Bug Report', icon: Bug, color: 'text-accent-red', bg: 'bg-accent-red/15', border: 'border-accent-red/30' },
+  training_feedback: { label: 'Training Feedback', icon: Dumbbell, color: 'text-band-2', bg: 'bg-band-2/15', border: 'border-band-2/30' },
+  general: { label: 'General', icon: MessageCircle, color: 'text-teal-600', bg: 'bg-teal-500/15', border: 'border-teal-500/30' },
 };
 
 const priorityConfig = {
-  low: { label: 'Low', bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30' },
-  medium: { label: 'Medium', bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30' },
-  high: { label: 'High', bg: 'bg-red-500/15', text: 'text-red-400', border: 'border-red-500/30' },
+  low: { label: 'Low', bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/30' },
+  medium: { label: 'Medium', bg: 'bg-band-3/15', text: 'text-band-3', border: 'border-band-3/30' },
+  high: { label: 'High', bg: 'bg-accent-red/15', text: 'text-accent-red', border: 'border-accent-red/30' },
 };
 
 function getOnboardingStep(status: string | undefined, approved: boolean | undefined): { step: number; label: string; color: string } {
-  if (approved === true) return { step: 3, label: 'Active', color: 'text-green-400' };
-  if (status === 'garmin_authed') return { step: 2, label: 'Awaiting approval', color: 'text-amber-400' };
-  if (status === 'google_authed') return { step: 1, label: 'Needs Garmin', color: 'text-orange-400' };
-  return { step: 0, label: 'Pending', color: 'text-slate-400' };
+  if (approved === true) return { step: 3, label: 'Active', color: 'text-accent-600' };
+  if (status === 'garmin_authed') return { step: 2, label: 'Awaiting approval', color: 'text-band-3' };
+  if (status === 'google_authed') return { step: 1, label: 'Needs Garmin', color: 'text-band-3' };
+  return { step: 0, label: 'Pending', color: 'text-ink-400' };
 }
 
 export default function SettingsPage() {
@@ -375,12 +375,12 @@ export default function SettingsPage() {
   const renderUserRow = (user: User) => {
     const isAdmin = user.role === 'admin';
     let lastSeenLabel = t('never');
-    let lastSeenColor = 'text-slate-500';
+    let lastSeenColor = 'text-ink-400';
     if (user.lastSeenAt) {
       const hoursAgo = (Date.now() - new Date(user.lastSeenAt).getTime()) / 3600000;
-      if (hoursAgo < 1) { lastSeenLabel = t('online'); lastSeenColor = 'text-green-400'; }
-      else if (hoursAgo < 24) { lastSeenLabel = t('hoursAgo', { hours: Math.floor(hoursAgo) }); lastSeenColor = 'text-green-400'; }
-      else { lastSeenLabel = t('daysAgo', { days: Math.floor(hoursAgo / 24) }); lastSeenColor = hoursAgo < 72 ? 'text-slate-400' : 'text-slate-500'; }
+      if (hoursAgo < 1) { lastSeenLabel = t('online'); lastSeenColor = 'text-accent-600'; }
+      else if (hoursAgo < 24) { lastSeenLabel = t('hoursAgo', { hours: Math.floor(hoursAgo) }); lastSeenColor = 'text-accent-600'; }
+      else { lastSeenLabel = t('daysAgo', { days: Math.floor(hoursAgo / 24) }); lastSeenColor = hoursAgo < 72 ? 'text-ink-400' : 'text-ink-400'; }
     }
     return (
       <div
@@ -389,47 +389,47 @@ export default function SettingsPage() {
           'flex items-center gap-3 p-3.5 rounded-xl transition-all',
           isAdmin
             ? 'bg-purple-500/5 border border-purple-500/20'
-            : 'bg-slate-900/40 border border-transparent hover:border-slate-700/50 hover:bg-slate-800/60'
+            : 'bg-page/40 border border-transparent hover:border-page/50 hover:bg-page/60'
         )}
       >
-        <div className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0', isAdmin ? 'bg-purple-500/20' : 'bg-slate-700/50')}>
+        <div className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0', isAdmin ? 'bg-purple-500/20' : 'bg-page/50')}>
           {isAdmin ? (
-            <Shield className="w-4.5 h-4.5 text-purple-400" />
+            <Shield className="w-4.5 h-4.5 text-purple-600" />
           ) : (
-            <span className="text-xs font-bold text-slate-300">{user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</span>
+            <span className="text-xs font-bold text-ink-500">{user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</span>
           )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-white truncate">{user.name}</p>
-            {isAdmin && <span className="text-3xs font-bold text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded">{t('admin').toUpperCase()}</span>}
+            <p className="text-sm font-semibold text-ink-700 truncate">{user.name}</p>
+            {isAdmin && <span className="text-3xs font-bold text-purple-600 bg-purple-500/15 px-1.5 py-0.5 rounded">{t('admin').toUpperCase()}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-slate-500 truncate">{user.email}</span>
+            <span className="text-xs text-ink-400 truncate">{user.email}</span>
             <span className={cn('text-3xs font-medium', lastSeenColor)}>{lastSeenLabel}</span>
             {user.onboardingStatus === 'garmin_authed' && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/20 flex items-center gap-1">
+              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-600 border border-accent-600/20 flex items-center gap-1">
                 <Watch className="w-2.5 h-2.5" />{t('garmin')}
               </span>
             )}
             {user.onboardingStatus === 'google_authed' && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">{t('googleOnly')}</span>
+              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-band-3/15 text-band-3 border border-band-3/20">{t('googleOnly')}</span>
             )}
             {user.approved === false && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">{t('pending')}</span>
+              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-red/15 text-accent-red border border-accent-red/20">{t('pending')}</span>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {savedUsers.has(user.id) && <CheckCircle2 className="w-4 h-4 text-green-400" />}
-          {updatingUsers.has(user.id) && <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />}
+          {savedUsers.has(user.id) && <CheckCircle2 className="w-4 h-4 text-accent-600" />}
+          {updatingUsers.has(user.id) && <Loader2 className="w-4 h-4 text-ink-400 animate-spin" />}
           {!isAdmin && (
             <>
               <RoleDropdown value={user.role} onChange={(role) => handleRoleSelect(user, role)} disabled={updatingUsers.has(user.id)} canGrantAdmin={canGrantAdminHere} t={t} />
               <button
                 onClick={() => setPendingDelete(user)}
                 disabled={updatingUsers.has(user.id)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
                 title={t('deleteUser')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -768,7 +768,7 @@ export default function SettingsPage() {
       {/* ═══ HEADER — large title on the landing; back-nav on a detail screen ═══ */}
       {activeTab === null ? (
         <div className="mb-5">
-          <h1 className="text-3xl font-extrabold text-white tracking-tight" dir="rtl">{t('title')}</h1>
+          <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
         </div>
       ) : (
         <BackNav label={t('title')} onBack={() => setActiveTab(null)} className="mb-4" />
@@ -785,14 +785,14 @@ export default function SettingsPage() {
               iconBg="bg-violet-500"
               label={t('personalInfo')}
               onClick={() => setActiveTab('personalInfo')}
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+              trailing={<ChevronRight className="h-4 w-4 text-ink-400 shrink-0 rotate-180" />}
             />
             <InsetRow
               icon={BellRing}
-              iconBg="bg-rose-500"
+              iconBg="bg-accent-red"
               label={t('notificationPrefs')}
               onClick={() => setActiveTab('notifprefs')}
-              trailing={<ChevronRight className="h-4 w-4 text-slate-500 shrink-0 rotate-180" />}
+              trailing={<ChevronRight className="h-4 w-4 text-ink-400 shrink-0 rotate-180" />}
             />
           </InsetSection>
 
@@ -813,20 +813,20 @@ export default function SettingsPage() {
       {/* Notification preferences detail (per-user category toggles) */}
       {activeTab === 'notifprefs' && notifPrefsAthleteId && <NotificationPrefs athleteId={notifPrefsAthleteId} />}
       {activeTab === 'notifprefs' && !notifPrefsAthleteId && (
-        <p className="text-sm text-slate-500 text-center py-10" dir="auto">{t('notifPrefsSignIn')}</p>
+        <p className="text-sm text-ink-400 text-center py-10" dir="auto">{t('notifPrefsSignIn')}</p>
       )}
 
       {/* Personal info detail (birth date / gender / shoe size) */}
       {activeTab === 'personalInfo' && notifPrefsAthleteId && <PersonalInfo athleteId={notifPrefsAthleteId} />}
       {activeTab === 'personalInfo' && !notifPrefsAthleteId && (
-        <p className="text-sm text-slate-500 text-center py-10" dir="auto">{t('personalInfoSignIn')}</p>
+        <p className="text-sm text-ink-400 text-center py-10" dir="auto">{t('personalInfoSignIn')}</p>
       )}
 
       {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
-          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-          <p className="text-red-400 text-sm">{error}</p>
-          <button onClick={() => setError(null)} className="ms-auto min-h-[44px] min-w-[44px] flex items-center justify-center text-red-400 hover:text-red-300 -my-2 -me-2">
+        <div className="mb-6 p-4 bg-accent-red/10 border border-accent-red/20 rounded-xl flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-accent-red shrink-0" />
+          <p className="text-accent-red text-sm">{error}</p>
+          <button onClick={() => setError(null)} className="ms-auto min-h-[44px] min-w-[44px] flex items-center justify-center text-accent-red hover:text-accent-red -my-2 -me-2">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -839,40 +839,40 @@ export default function SettingsPage() {
           {pendingUsers.length > 0 && (() => {
             const pendOpen = !collapsedSections.has('pending');
             return (
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+            <div className="rounded-2xl border border-band-3/20 bg-band-3/5 p-4">
               <button
                 onClick={() => toggleSection('pending')}
                 className="w-full flex items-center gap-2 mb-3"
               >
-                {pendOpen ? <ChevronDown className="w-4 h-4 text-amber-400" /> : <ChevronRight className="w-4 h-4 text-amber-400" />}
-                <Clock className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-semibold text-amber-400">{t('pendingApproval')} ({pendingUsers.length})</h3>
+                {pendOpen ? <ChevronDown className="w-4 h-4 text-band-3" /> : <ChevronRight className="w-4 h-4 text-band-3" />}
+                <Clock className="w-4 h-4 text-band-3" />
+                <h3 className="text-sm font-semibold text-band-3">{t('pendingApproval')} ({pendingUsers.length})</h3>
               </button>
               {pendOpen && (
               <div className="space-y-2">
                 {pendingUsers.map(user => {
                   const onboarding = getOnboardingStep(user.onboardingStatus, user.approved);
                   return (
-                    <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/80 border border-slate-700/50">
-                      <div className="w-9 h-9 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-amber-400">
+                    <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl bg-card/80 border border-page/50">
+                      <div className="w-9 h-9 rounded-full bg-band-3/15 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-band-3">
                           {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{user.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        <p className="text-sm font-medium text-ink-700 truncate">{user.name}</p>
+                        <p className="text-xs text-ink-400 truncate">{user.email}</p>
                       </div>
 
                       {/* Status chips */}
                       <div className="hidden sm:flex items-center gap-1.5">
                         <span className={cn(
                           'text-3xs font-semibold px-2 py-0.5 rounded-full',
-                          onboarding.step >= 1 ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500'
+                          onboarding.step >= 1 ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400'
                         )}>{t('google')}</span>
                         <span className={cn(
                           'text-3xs font-semibold px-2 py-0.5 rounded-full',
-                          onboarding.step >= 2 ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500'
+                          onboarding.step >= 2 ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400'
                         )}>{t('garmin')}</span>
                       </div>
 
@@ -880,7 +880,7 @@ export default function SettingsPage() {
                         <button
                           onClick={() => handleApprove(user)}
                           disabled={updatingUsers.has(user.id)}
-                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-green-600 hover:bg-green-500 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-accent-600 hover:opacity-90 rounded-lg transition-colors disabled:opacity-50 shrink-0"
                         >
                           {updatingUsers.has(user.id) ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -890,14 +890,14 @@ export default function SettingsPage() {
                           {t('approve')}
                         </button>
                       ) : (
-                        <span className="text-3xs font-medium text-slate-500 shrink-0 px-2 py-1 rounded bg-slate-700/40">
+                        <span className="text-3xs font-medium text-ink-400 shrink-0 px-2 py-1 rounded bg-page/40">
                           {t('awaitingApproval')}
                         </span>
                       )}
                       <button
                         onClick={() => setPendingDelete(user)}
                         disabled={updatingUsers.has(user.id)}
-                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50 shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -911,23 +911,23 @@ export default function SettingsPage() {
           })()}
 
           {/* Active Users — collapsible section per role, split by group inside */}
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-700/50 flex items-center gap-2">
-              <Users className="w-4 h-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-white">
+          <div className="rounded-card border border-page/50 bg-card/50 overflow-hidden">
+            <div className="px-5 py-4 border-b border-page/50 flex items-center gap-2">
+              <Users className="w-4 h-4 text-ink-400" />
+              <h2 className="text-sm font-semibold text-ink-700">
                 {t('members')} ({uFiltersActive ? `${activeUsers.length} of ${allActiveUsers.length}` : activeUsers.length})
               </h2>
             </div>
 
             {/* Filter bar: name / role / group / garmin */}
-            <div className="px-4 py-3 border-b border-slate-700/50 flex flex-wrap items-center gap-2">
+            <div className="px-4 py-3 border-b border-page/50 flex flex-wrap items-center gap-2">
               <div className="relative flex-1 min-w-[160px]">
-                <Filter className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                <Filter className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-400" />
                 <input
                   value={uSearch}
                   onChange={e => setUSearch(e.target.value)}
                   placeholder={t('searchNameOrEmail')}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg ps-9 pe-3 h-9 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
+                  className="w-full bg-page border border-page rounded-lg ps-9 pe-3 h-9 text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600"
                 />
               </div>
               <FilterPickerButton<'all' | Role>
@@ -965,7 +965,7 @@ export default function SettingsPage() {
               {uFiltersActive && (
                 <button
                   onClick={() => { setUSearch(''); setURole('all'); setUGroup('all'); setUGarmin('all'); }}
-                  className="flex items-center gap-1 px-2.5 h-9 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 text-xs font-semibold"
+                  className="flex items-center gap-1 px-2.5 h-9 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page text-xs font-semibold"
                 >
                   <X className="h-3.5 w-3.5" /> {t('clear')}
                 </button>
@@ -979,7 +979,7 @@ export default function SettingsPage() {
                 className="px-6 py-12"
               />
             ) : (
-              <div className="divide-y divide-slate-700/40">
+              <div className="divide-y divide-page/40">
                 {allRoles
                   .map(role => ({ role, members: activeUsers.filter(u => u.role === role) }))
                   .filter(s => s.members.length > 0)
@@ -997,19 +997,19 @@ export default function SettingsPage() {
                         if (list.length) buckets.push({ key: idx, label: `Group ${idx + 1}`, hex: resolveGroup(`group ${idx + 1}`).hex, list });
                       });
                       const none = members.filter(u => !u.groupId || resolveGroup(groupsById[u.groupId]).index < 0);
-                      if (none.length) buckets.push({ key: 99, label: 'No group', hex: '#64748b', list: none });
+                      if (none.length) buckets.push({ key: 99, label: 'No group', hex: '#969696', list: none });
                     }
                     return (
                       <div key={role}>
                         {/* Role header */}
                         <button
                           onClick={() => toggleSection(roleKey)}
-                          className="w-full flex items-center gap-2.5 px-5 py-3 hover:bg-slate-800/60 transition-colors"
+                          className="w-full flex items-center gap-2.5 px-5 py-3 hover:bg-page/60 transition-colors"
                         >
-                          {roleOpen ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
-                          <span className={cn('w-2 h-2 rounded-full', rc?.dot || 'bg-slate-400')} />
-                          <span className="text-sm font-semibold text-white">{rc?.label || role}</span>
-                          <span className="text-xs text-slate-500">({members.length})</span>
+                          {roleOpen ? <ChevronDown className="w-4 h-4 text-ink-400" /> : <ChevronRight className="w-4 h-4 text-ink-400" />}
+                          <span className={cn('w-2 h-2 rounded-full', rc?.dot || 'bg-ink-300')} />
+                          <span className="text-sm font-semibold text-ink-700">{rc?.label || role}</span>
+                          <span className="text-xs text-ink-400">({members.length})</span>
                         </button>
 
                         {roleOpen && (
@@ -1019,15 +1019,15 @@ export default function SettingsPage() {
                                 const gKey = `${roleKey}:g${b.key}`;
                                 const gOpen = uFiltersActive || !collapsedSections.has(gKey);
                                 return (
-                                  <div key={b.key} className="rounded-xl bg-slate-900/30">
+                                  <div key={b.key} className="rounded-xl bg-page/30">
                                     <button
                                       onClick={() => toggleSection(gKey)}
-                                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-800/40 transition-colors rounded-xl"
+                                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-page/40 transition-colors rounded-xl"
                                     >
-                                      {gOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
+                                      {gOpen ? <ChevronDown className="w-3.5 h-3.5 text-ink-400" /> : <ChevronRight className="w-3.5 h-3.5 text-ink-400" />}
                                       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: b.hex }} />
-                                      <span className="text-xs font-semibold text-slate-300">{b.label}</span>
-                                      <span className="text-2xs text-slate-500">({b.list.length})</span>
+                                      <span className="text-xs font-semibold text-ink-500">{b.label}</span>
+                                      <span className="text-2xs text-ink-400">({b.list.length})</span>
                                     </button>
                                     {gOpen && <div className="px-2 pb-2 space-y-2">{b.list.map(renderUserRow)}</div>}
                                   </div>
@@ -1052,18 +1052,18 @@ export default function SettingsPage() {
         <>
           {selectedFeedback && (
             <Sheet open onOpenChange={(o) => { if (!o) { setSelectedFeedback(null); setConfirmDeleteOpen(false); } }}>
-              <div className="pb-4 mb-1 border-b border-slate-700/50 flex items-center">
+              <div className="pb-4 mb-1 border-b border-page/50 flex items-center">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-primary-600/15 flex items-center justify-center">
-                    <span className="text-sm font-bold text-primary-600">
+                  <div className="w-11 h-11 rounded-full bg-brand-600/15 flex items-center justify-center">
+                    <span className="text-sm font-bold text-brand-600">
                       {selectedFeedback.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                     </span>
                   </div>
                   <div>
-                    <p className="text-base font-bold text-white">{selectedFeedback.athlete_name}</p>
+                    <p className="text-base font-bold text-ink-700">{selectedFeedback.athlete_name}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      {selectedFeedback.athlete_email && <span className="text-xs text-slate-400">{selectedFeedback.athlete_email}</span>}
-                      {selectedFeedback.group_name && <span className="text-xs text-slate-500">· {selectedFeedback.group_name}</span>}
+                      {selectedFeedback.athlete_email && <span className="text-xs text-ink-400">{selectedFeedback.athlete_email}</span>}
+                      {selectedFeedback.group_name && <span className="text-xs text-ink-400">· {selectedFeedback.group_name}</span>}
                     </div>
                   </div>
                 </div>
@@ -1080,18 +1080,18 @@ export default function SettingsPage() {
                         </span>
                       );
                     })()}
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-ink-400">
                       {new Date(selectedFeedback.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-base text-white leading-relaxed whitespace-pre-wrap mb-4">{selectedFeedback.message}</p>
+                  <p className="text-base text-ink-700 leading-relaxed whitespace-pre-wrap mb-4">{selectedFeedback.message}</p>
                   {selectedFeedback.image_url && (
-                    <img src={selectedFeedback.image_url} alt="Attached" className="max-h-48 rounded-lg border border-slate-700/50 mb-5" />
+                    <img src={selectedFeedback.image_url} alt="Attached" className="max-h-48 rounded-lg border border-page/50 mb-5" />
                   )}
 
-                  <div className="border-t border-slate-700/50 pt-4 space-y-4">
+                  <div className="border-t border-page/50 pt-4 space-y-4">
                     <div className={cn(updatingFeedback === selectedFeedback.id && 'opacity-50 pointer-events-none')}>
-                      <label className="text-xs font-semibold text-slate-400 mb-2 block">{t('status')}</label>
+                      <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('status')}</label>
                       <SegmentedControl<FeedbackStatus>
                         value={selectedFeedback.status || 'new'}
                         onChange={(status) => updateFeedbackStatus(selectedFeedback.id, status, selectedFeedback.priority || 'medium')}
@@ -1099,7 +1099,7 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div className={cn(updatingFeedback === selectedFeedback.id && 'opacity-50 pointer-events-none')}>
-                      <label className="text-xs font-semibold text-slate-400 mb-2 block">{t('priority')}</label>
+                      <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('priority')}</label>
                       <SegmentedControl<FeedbackPriority>
                         value={selectedFeedback.priority || 'medium'}
                         onChange={(priority) => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status || 'new', priority)}
@@ -1107,40 +1107,40 @@ export default function SettingsPage() {
                       />
                     </div>
                     {updatingFeedback === selectedFeedback.id && (
-                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <div className="flex items-center gap-2 text-xs text-ink-400">
                         <Loader2 className="w-3 h-3 animate-spin" />
                         {t('updating')}
                       </div>
                     )}
 
-                    <div className="pt-3 border-t border-slate-700/50">
-                      <label className="text-xs font-semibold text-slate-400 mb-2 block">{t('adminNotes')}</label>
+                    <div className="pt-3 border-t border-page/50">
+                      <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('adminNotes')}</label>
                       <div className="flex gap-2">
                         <input
                           type="text"
                           value={adminNotes}
                           onChange={e => setAdminNotes(e.target.value)}
                           placeholder={t('addTagOrNote')}
-                          className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary-600/50"
+                          className="flex-1 bg-page/50 border border-page/50 rounded-lg px-3 py-2 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-1 focus:ring-brand-600/50"
                         />
                         <button
                           onClick={() => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status || 'new', selectedFeedback.priority || 'medium', adminNotes)}
                           disabled={updatingFeedback === selectedFeedback.id}
-                          className="px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-colors disabled:opacity-50"
+                          className="px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-colors disabled:opacity-50"
                         >
                           {tc('save')}
                         </button>
                       </div>
                       {selectedFeedback.admin_notes && adminNotes !== selectedFeedback.admin_notes && (
-                        <p className="text-3xs text-slate-500 mt-1.5">{t('currentNote', { note: selectedFeedback.admin_notes })}</p>
+                        <p className="text-3xs text-ink-400 mt-1.5">{t('currentNote', { note: selectedFeedback.admin_notes })}</p>
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-slate-700/50 flex justify-end">
+                    <div className="pt-3 border-t border-page/50 flex justify-end">
                       <button
                         onClick={() => setConfirmDeleteOpen(true)}
                         disabled={updatingFeedback === selectedFeedback.id}
-                        className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-all disabled:opacity-50"
+                        className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-accent-red hover:bg-accent-red/10 border border-accent-red/20 hover:border-accent-red/40 transition-all disabled:opacity-50"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         {tc('delete')}
@@ -1214,7 +1214,7 @@ export default function SettingsPage() {
                         <button
                           key={item.id}
                           onClick={() => { setSelectedFeedback(item); setAdminNotes(item.admin_notes || ''); }}
-                          className="w-full text-start px-4 py-3 active:bg-slate-700/40 transition-colors"
+                          className="w-full text-start px-4 py-3 active:bg-page/40 transition-colors"
                         >
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <span className={cn('flex items-center gap-1 text-3xs font-semibold px-1.5 py-0.5 rounded border', catCfg.bg, catCfg.border, catCfg.color)}>
@@ -1224,13 +1224,13 @@ export default function SettingsPage() {
                               {getPriorityLabel(item.priority || 'medium')}
                             </span>
                           </div>
-                          <p className="text-sm text-white leading-relaxed line-clamp-2 mb-1.5">{item.message}</p>
+                          <p className="text-sm text-ink-700 leading-relaxed line-clamp-2 mb-1.5">{item.message}</p>
                           <div className="flex items-center justify-between">
-                            <span className="text-3xs text-slate-500 font-medium">{item.athlete_name.split(' ')[0]}</span>
-                            <span className="text-3xs text-slate-400">{timeAgo}</span>
+                            <span className="text-3xs text-ink-400 font-medium">{item.athlete_name.split(' ')[0]}</span>
+                            <span className="text-3xs text-ink-400">{timeAgo}</span>
                           </div>
                           {item.admin_notes && (
-                            <p className="text-3xs text-slate-500 italic mt-1 border-t border-slate-700/30 pt-1">{item.admin_notes}</p>
+                            <p className="text-3xs text-ink-400 italic mt-1 border-t border-page/30 pt-1">{item.admin_notes}</p>
                           )}
                         </button>
                       );
@@ -1245,20 +1245,20 @@ export default function SettingsPage() {
 
       {/* Tab Manager Tab */}
       {activeTab === 'tabs' && (
-        <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50">
-          <div className="px-5 py-4 border-b border-slate-700/50">
+        <div className="rounded-card border border-page/50 bg-card/50">
+          <div className="px-5 py-4 border-b border-page/50">
             <div className="flex items-center gap-2">
-              <Layout className="w-4 h-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-white">{t('tabPermissions')}</h2>
+              <Layout className="w-4 h-4 text-ink-400" />
+              <h2 className="text-sm font-semibold text-ink-700">{t('tabPermissions')}</h2>
             </div>
-            <p className="text-xs text-slate-500 mt-1">{t('tabPermissionsDesc')}</p>
-            <div className="flex items-center gap-4 mt-3 text-3xs font-semibold text-slate-400">
+            <p className="text-xs text-ink-400 mt-1">{t('tabPermissionsDesc')}</p>
+            <div className="flex items-center gap-4 mt-3 text-3xs font-semibold text-ink-400">
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded bg-primary-600 flex items-center justify-center"><Layout className="w-2 h-2 text-white" /></div>
+                <div className="w-3 h-3 rounded bg-brand-600 flex items-center justify-center"><Layout className="w-2 h-2 text-ink-700" /></div>
                 {t('web')}
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded bg-green-500 flex items-center justify-center"><Smartphone className="w-2 h-2 text-white" /></div>
+                <div className="w-3 h-3 rounded bg-accent-600 flex items-center justify-center"><Smartphone className="w-2 h-2 text-ink-700" /></div>
                 {t('mobile')}
               </div>
             </div>
@@ -1294,7 +1294,7 @@ export default function SettingsPage() {
                                   onClick={() => togglePermission(role, tabKey, webEnabled)}
                                   className={cn(
                                     'min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center transition-all',
-                                    webEnabled ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-500 hover:bg-slate-600'
+                                    webEnabled ? 'bg-brand-600 text-white' : 'bg-page text-ink-400 hover:bg-ink-300/40'
                                   )}
                                   aria-label={t('web')}
                                   title={t('web')}
@@ -1307,7 +1307,7 @@ export default function SettingsPage() {
                                   onClick={() => toggleMobilePermission(role, tabKey, mobileEnabled)}
                                   className={cn(
                                     'min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center transition-all',
-                                    mobileEnabled ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-500 hover:bg-slate-600'
+                                    mobileEnabled ? 'bg-accent-600 text-white' : 'bg-page text-ink-400 hover:bg-ink-300/40'
                                   )}
                                   aria-label={t('mobile')}
                                   title={t('mobile')}
@@ -1325,12 +1325,12 @@ export default function SettingsPage() {
               })}
 
               {(hasPermissionChanges || hasMobilePermissionChanges) && (
-                <div className="flex items-center justify-between p-4 bg-slate-900 border border-primary-600/30 rounded-xl">
-                  <p className="text-sm text-slate-300">{t('unsavedChanges')}</p>
+                <div className="flex items-center justify-between p-4 bg-page border border-brand-600/30 rounded-xl">
+                  <p className="text-sm text-ink-500">{t('unsavedChanges')}</p>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => { discardPermissionChanges(); discardMobilePermissionChanges(); }}
-                      className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+                      className="px-4 py-2 text-sm text-ink-500 hover:text-ink-900 rounded-lg border border-ink-300 hover:bg-page transition-colors"
                     >
                       {t('discard')}
                     </button>
@@ -1340,7 +1340,7 @@ export default function SettingsPage() {
                         if (hasMobilePermissionChanges) await saveMobilePermissions();
                       }}
                       disabled={savingPermissions || savingMobilePermissions}
-                      className="px-4 py-2 text-sm text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors font-medium flex items-center gap-2"
+                      className="px-4 py-2 text-sm text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors font-medium flex items-center gap-2"
                     >
                       {(savingPermissions || savingMobilePermissions) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       {tc('save')}

@@ -293,27 +293,27 @@ export default function ActivitiesPage() {
 
       {/* HEADER BAR — softened toward an iOS large-title nav bar rather than a
           dense web toolbar (subtle hairline, no hard full-weight border). */}
-      <div className="border-b border-slate-800/50 bg-slate-900/50 px-4 sm:px-6 py-4">
+      <div className="border-b border-page/50 bg-page/50 px-4 sm:px-6 py-4">
         {/* flex-wrap: title + week-nav + Log Activity/Sync don't all fit on
             one row at real phone widths (~390px) — without wrap, the actions
             group renders off-screen entirely, not just visually cramped. */}
         <div className="flex flex-wrap items-center justify-between gap-y-2 max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
-            <Activity className="h-5 w-5 text-primary-400" />
-            <h1 className="text-lg font-semibold text-white">{t('title')}</h1>
+            <Activity className="h-5 w-5 text-brand-600" />
+            <h1 className="text-lg font-semibold text-ink-700">{t('title')}</h1>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3">
             <button
               onClick={() => setWeekOffset(o => o - 1)}
-              className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all"
+              className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
 
             <div className="text-center min-w-[140px] sm:min-w-[180px]">
-              <p className="text-sm font-medium text-white">{weekLabel}</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-sm font-medium text-ink-700">{weekLabel}</p>
+              <p className="text-xs text-ink-400">
                 {weekOffset === 0 ? t('thisWeek') : weekOffset === -1 ? t('lastWeek') : ''}
               </p>
             </div>
@@ -322,7 +322,7 @@ export default function ActivitiesPage() {
               onClick={() => setWeekOffset(o => Math.min(o + 1, 0))}
               className={cn(
                 "flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg transition-all",
-                weekOffset >= 0 ? "text-slate-700 cursor-not-allowed" : "text-slate-400 hover:text-white hover:bg-slate-700 active:scale-[0.92]"
+                weekOffset >= 0 ? "text-ink-900 cursor-not-allowed" : "text-ink-400 hover:text-ink-900 hover:bg-page active:scale-[0.92]"
               )}
               disabled={weekOffset >= 0}
             >
@@ -332,7 +332,7 @@ export default function ActivitiesPage() {
             {weekOffset !== 0 && (
               <button
                 onClick={() => setWeekOffset(0)}
-                className="text-xs text-primary-400 hover:text-primary-300 active:scale-95 transition-transform ms-1 min-h-[44px] px-1"
+                className="text-xs text-brand-600 hover:text-brand-700 active:scale-95 transition-transform ms-1 min-h-[44px] px-1"
               >
                 {t('current')}
               </button>
@@ -343,7 +343,7 @@ export default function ActivitiesPage() {
             {athleteId && (
               <button
                 onClick={() => setShowManualEntry(true)}
-                className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-sm font-semibold text-slate-300 border border-slate-700 hover:border-slate-500 hover:text-white active:scale-[0.97] transition-all"
+                className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-sm font-semibold text-ink-500 border border-page hover:border-ink-300 hover:text-ink-900 active:scale-[0.97] transition-all"
               >
                 <Plus className="h-4 w-4" />
                 {t('logActivity')}
@@ -352,7 +352,7 @@ export default function ActivitiesPage() {
             <button
               onClick={syncAndFetch}
               disabled={syncing}
-              className="flex items-center gap-2 px-4 min-h-[44px] rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.97] transition-all disabled:opacity-50"
+              className="flex items-center gap-2 px-4 min-h-[44px] rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 active:scale-[0.97] transition-all disabled:opacity-50"
             >
               <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
               {syncing ? t('syncing') : t('sync')}
@@ -367,48 +367,48 @@ export default function ActivitiesPage() {
         {/* Hero Stats — one shared BigStat for the number+label pattern,
             matching StatisticsScreen instead of four hand-rolled copies. */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="relative overflow-hidden bg-gradient-to-br from-primary-600/15 to-primary-600/5 rounded-2xl p-5 border border-primary-600/20">
-            <div className="absolute -top-4 -right-4 w-20 h-20 bg-primary-600/10 rounded-full blur-2xl" />
-            <Route className="h-5 w-5 text-primary-600 mb-3" />
+          <div className="relative overflow-hidden bg-gradient-to-br from-brand-600/15 to-brand-600/5 rounded-2xl p-5 border border-brand-600/20">
+            <div className="absolute -top-4 -right-4 w-20 h-20 bg-brand-600/10 rounded-full blur-2xl" />
+            <Route className="h-5 w-5 text-brand-600 mb-3" />
             <BigStat
               className="items-start text-start"
-              valueClassName="text-2xl sm:text-4xl text-white"
+              valueClassName="text-2xl sm:text-4xl text-ink-700"
               value={weekData.totalKm > 0 ? weekData.totalKm.toFixed(1) : '—'}
               label={`${t('km')} · ${weekData.totalRuns} ${weekData.totalRuns !== 1 ? t('runs') : t('run')}`}
             />
           </div>
-          <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
-            <Timer className="h-5 w-5 text-cyan-400 mb-3" />
+          <div className="relative overflow-hidden bg-card/50 rounded-card p-5 border border-page/30">
+            <Timer className="h-5 w-5 text-band-2 mb-3" />
             <BigStat
               className="items-start text-start"
-              valueClassName="text-2xl sm:text-4xl text-white"
+              valueClassName="text-2xl sm:text-4xl text-ink-700"
               value={weekData.totalDuration > 0 ? formatDuration(weekData.totalDuration) : '\u2014'}
               label={t('totalTime')}
             />
           </div>
-          <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
-            <TrendingUp className="h-5 w-5 text-emerald-400 mb-3" />
+          <div className="relative overflow-hidden bg-card/50 rounded-card p-5 border border-page/30">
+            <TrendingUp className="h-5 w-5 text-accent-600 mb-3" />
             <BigStat
               className="items-start text-start"
-              valueClassName="text-2xl sm:text-4xl text-white"
+              valueClassName="text-2xl sm:text-4xl text-ink-700"
               value={(
                 <>
                   {weekData.avgPace ? formatPace(weekData.avgPace) : '\u2014'}
-                  <span className="text-lg font-medium text-slate-500 ms-0.5">{t('perKm')}</span>
+                  <span className="text-lg font-medium text-ink-400 ms-0.5">{t('perKm')}</span>
                 </>
               )}
               label={t('avgPace')}
             />
           </div>
-          <div className="relative overflow-hidden bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
-            <Heart className="h-5 w-5 text-red-400 mb-3" />
+          <div className="relative overflow-hidden bg-card/50 rounded-card p-5 border border-page/30">
+            <Heart className="h-5 w-5 text-accent-red mb-3" />
             <BigStat
               className="items-start text-start"
-              valueClassName="text-2xl sm:text-4xl text-white"
+              valueClassName="text-2xl sm:text-4xl text-ink-700"
               value={(
                 <>
                   {weekData.avgHR || '\u2014'}
-                  <span className="text-lg font-medium text-slate-500 ms-0.5">{t('bpm')}</span>
+                  <span className="text-lg font-medium text-ink-400 ms-0.5">{t('bpm')}</span>
                 </>
               )}
               label={t('avgHeartRate')}
@@ -417,15 +417,15 @@ export default function ActivitiesPage() {
         </div>
 
         {/* Daily Volume Chart */}
-        <div className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-5">
+        <div className="bg-card/30 rounded-card border border-page/20 p-5">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-bold text-white">{t('dailyVolume')}</h3>
-            <div className="flex items-center gap-4 text-xs text-slate-400">
+            <h3 className="text-sm font-bold text-ink-700">{t('dailyVolume')}</h3>
+            <div className="flex items-center gap-4 text-xs text-ink-400">
               {weekData.totalCalories > 0 && (
-                <span className="flex items-center gap-1.5"><Flame className="h-3.5 w-3.5 text-orange-400" />{weekData.totalCalories.toLocaleString()} {t('cal')}</span>
+                <span className="flex items-center gap-1.5"><Flame className="h-3.5 w-3.5 text-band-3" />{weekData.totalCalories.toLocaleString()} {t('cal')}</span>
               )}
               {weekData.totalElevation > 0 && (
-                <span className="flex items-center gap-1.5"><Mountain className="h-3.5 w-3.5 text-green-400" />{Math.round(weekData.totalElevation)}m</span>
+                <span className="flex items-center gap-1.5"><Mountain className="h-3.5 w-3.5 text-accent-600" />{Math.round(weekData.totalElevation)}m</span>
               )}
             </div>
           </div>
@@ -445,7 +445,7 @@ export default function ActivitiesPage() {
                   {/* Tooltip — shown on hover (desktop) OR tap (touch, no :hover) */}
                   {d.distance > 0 && (
                     <div className={cn(
-                      'absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-opacity whitespace-nowrap z-10 shadow-xl',
+                      'absolute -top-10 left-1/2 -translate-x-1/2 bg-page border border-ink-300 text-ink-700 text-xs font-bold px-3 py-1.5 rounded-xl transition-opacity whitespace-nowrap z-10 shadow-xl',
                       tapped ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     )}>
                       {d.distance.toFixed(1)} {t('km')}{hasMultiple ? ` · ${d.perActivity.length} ${t('runs')}` : ''}
@@ -462,7 +462,10 @@ export default function ActivitiesPage() {
                               key={j}
                               className={cn(
                                 'flex-1 rounded-t-lg transition-all duration-200',
-                                j === 0 ? 'bg-primary-600 group-hover:bg-[#5b54ff] group-hover:shadow-lg group-hover:shadow-primary-600/20' : 'bg-amber-400 group-hover:bg-amber-300',
+                                // The second segment's hover lightens the orange
+                                // (band 3 has no lighter step of its own, so it
+                                // lightens against the white card instead).
+                                j === 0 ? 'bg-brand-600 group-hover:bg-[#5b54ff] group-hover:shadow-lg group-hover:shadow-brand-600/20' : 'bg-band-3 group-hover:bg-band-3/80',
                               )}
                               style={{ height: `${Math.max(segH, 25)}%` }}
                             />
@@ -473,8 +476,8 @@ export default function ActivitiesPage() {
                       <div
                         className={cn(
                           'w-full max-w-[24px] sm:max-w-[36px] rounded-t-xl transition-all duration-200',
-                          d.distance > 0 ? 'bg-primary-600/80 group-hover:bg-primary-600 group-hover:shadow-lg group-hover:shadow-primary-600/20' : 'bg-slate-700/30',
-                          isToday && d.distance > 0 && 'ring-2 ring-primary-600/50 bg-primary-600'
+                          d.distance > 0 ? 'bg-brand-600/80 group-hover:bg-brand-700 group-hover:shadow-lg group-hover:shadow-brand-600/20' : 'bg-page/30',
+                          isToday && d.distance > 0 && 'ring-2 ring-brand-600/50 bg-brand-600'
                         )}
                         style={{ height: `${Math.max(barH, d.distance > 0 ? 10 : 3)}%` }}
                       />
@@ -484,13 +487,13 @@ export default function ActivitiesPage() {
                   <div className="mt-3 text-center">
                     <p className={cn(
                       'text-xs font-bold',
-                      isToday ? 'text-primary-600' : d.distance > 0 ? 'text-white' : 'text-slate-600'
+                      isToday ? 'text-brand-600' : d.distance > 0 ? 'text-ink-700' : 'text-ink-400'
                     )}>
                       {t(d.dayKey)}
                     </p>
                     <p className={cn(
                       'text-2xs tabular-nums mt-0.5 font-medium',
-                      d.distance > 0 ? 'text-slate-400' : 'text-slate-700'
+                      d.distance > 0 ? 'text-ink-400' : 'text-ink-900'
                     )}>
                       {d.distance > 0 ? d.distance.toFixed(1) : '\u2014'}
                     </p>

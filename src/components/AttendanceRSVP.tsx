@@ -14,7 +14,7 @@ export interface AttendanceStatus { answered: boolean; attending: boolean | null
 // NEXT team-workout day. The dashboard picks the target (weekStart + day); when
 // omitted we default to today, so existing call sites keep working. Athlete
 // answers: coming? + which דבוקה.
-export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: dayProp, dayBefore, workoutHour, hideIfAnswered, onStatusChange }: { workoutLabel?: string; weekStart?: string; day?: number; dayBefore?: boolean; workoutHour?: number; hideIfAnswered?: boolean; onStatusChange?: (status: AttendanceStatus) => void }) {
+export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: dayProp, dayBefore, workoutHour, hideIfAnswered, variant = 'card', onStatusChange }: { workoutLabel?: string; weekStart?: string; day?: number; dayBefore?: boolean; workoutHour?: number; hideIfAnswered?: boolean; variant?: 'card' | 'inline'; onStatusChange?: (status: AttendanceStatus) => void }) {
   const t = useTranslations('attendance');
   const [athleteId, setAthleteId] = useState('');
   const weekStart = weekStartProp ?? getPlanWeekStart(new Date());
@@ -119,24 +119,86 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
   // Workout-day mode: nothing to nudge if they've already RSVP'd.
   if (hideIfAnswered && alreadyAnswered && !saved) return null;
 
+  // ── `inline` — the designer's frames put the RSVP INSIDE the "next workout"
+  // card as two bare pills: no wrapper, no title, no glow, because the parent
+  // card already supplies all three. Everything above this line is shared with
+  // the dark `card` variant, so the two surfaces can't drift apart on the
+  // optimistic rollback, the service-worker refetch or the answered/unanswered
+  // rules. The group picker isn't in the frame — the designer only drew the
+  // pre-tap state — but it stays, restyled, because it's the only place the
+  // דבוקה is captured.
+  if (variant === 'inline') {
+    // `מגיע` stays filled while UNANSWERED too: it's the primary action in the
+    // frame. What distinguishes "we're asking" from "you answered yes" is the
+    // confirmation line below, not the fill — without it the two states would
+    // be pixel-identical and nobody would ever tap.
+    const pill = 'flex-1 min-h-[44px] rounded-pill text-sm flex items-center justify-center transition';
+    const idle = 'bg-card text-ink-700 border border-ink-300 font-light';
+    return (
+      <div className="space-y-2">
+        <div className="flex gap-2.5">
+          <button
+            onClick={() => submit(true)}
+            className={cn(pill, attending === false ? idle : 'bg-brand-600 text-white font-bold')}
+            dir="rtl"
+          >
+            {t('coming')}
+          </button>
+          <button
+            onClick={() => submit(false)}
+            className={cn(pill, attending === false ? 'bg-ink-500 text-ink-700 font-bold' : idle)}
+            dir="rtl"
+          >
+            {t('notComing')}
+          </button>
+        </div>
+        {attending === true && (
+          <p className="flex items-center gap-1.5 text-2xs font-bold text-brand-600" dir="rtl">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            {dayBefore ? t('confirmedTomorrow') : t('confirmed')}
+          </p>
+        )}
+        {error && <p className="text-2xs text-accent-red" dir="rtl">{error}</p>}
+        {attending === true && (
+          <div className="pt-1">
+            <p className="mb-1.5 text-2xs font-light text-ink-400" dir="rtl">{t('whichGroup')}</p>
+            <div className="flex flex-wrap gap-2">
+              {GROUP_PRESETS.map(g => (
+                <button
+                  key={g}
+                  onClick={() => { setGroup(g); setCustomGroup(''); submitGroup(g, ''); }}
+                  className={cn('min-h-[32px] rounded-pill px-3 text-2xs transition',
+                    group === g ? 'bg-brand-600 text-white font-bold' : 'bg-card text-ink-700 border border-ink-300 font-light')}
+                  dir="rtl"
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-primary-500/25 p-4"
+    <div className="relative overflow-hidden rounded-2xl border border-brand-600/25 p-4"
       style={{ background: 'linear-gradient(150deg, rgba(67,56,255,.22), rgba(30,41,59,.6) 72%)' }}
     >
       {/* soft brand glow — marks this as the focused "today" hero */}
       <div className="pointer-events-none absolute -top-8 start-[-20px] w-40 h-40 rounded-full blur-2xl"
         style={{ background: 'radial-gradient(circle, rgba(67,56,255,.4), transparent 70%)' }} aria-hidden="true" />
       <div className="relative flex items-center gap-2 mb-1">
-        <Users className="h-4 w-4 text-primary-400" />
-        <h3 className="text-sm font-bold text-white" dir="rtl">{dayBefore ? t('titleTomorrow') : t('title')}</h3>
+        <Users className="h-4 w-4 text-brand-600" />
+        <h3 className="text-sm font-bold text-ink-700" dir="rtl">{dayBefore ? t('titleTomorrow') : t('title')}</h3>
       </div>
-      {workoutLabel && <p className="relative text-[15px] font-semibold text-white mb-3" dir="rtl">{workoutLabel}</p>}
+      {workoutLabel && <p className="relative text-[15px] font-semibold text-ink-700 mb-3" dir="rtl">{workoutLabel}</p>}
 
       <div className="relative flex gap-2">
         <button
           onClick={() => submit(true)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition',
-            attending === true ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
+            attending === true ? 'bg-brand-600 text-white' : 'bg-page/50 text-ink-500 hover:bg-ink-300/40')}
           dir="rtl"
         >
           <CheckCircle2 className="h-4 w-4" /> {t('coming')}
@@ -144,13 +206,13 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
         <button
           onClick={() => submit(false)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition',
-            attending === false ? 'bg-slate-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
+            attending === false ? 'bg-ink-300 text-ink-700' : 'bg-page/50 text-ink-500 hover:bg-ink-300/40')}
           dir="rtl"
         >
           <XCircle className="h-4 w-4" /> {t('notComing')}
         </button>
       </div>
-      {error && <p className="relative text-xs text-red-400 mt-2" dir="rtl">{error}</p>}
+      {error && <p className="relative text-xs text-accent-red mt-2" dir="rtl">{error}</p>}
 
       {attending === true && (
         <div className="relative mt-3 space-y-3">
@@ -158,26 +220,26 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
               old feedback was a tiny CheckCircle2 in the header that faded after
               2s (via `saved`); that only confirmed "the save worked", not "what
               you're now committed to". This stays up as long as attending===true. */}
-          <div className="rounded-xl border border-green-500/40 bg-green-500/10 p-3 flex items-center gap-2.5" dir="rtl">
-            <CheckCircle2 className="h-5 w-5 text-green-400 shrink-0" />
+          <div className="rounded-xl border border-accent-600/40 bg-accent-600/10 p-3 flex items-center gap-2.5" dir="rtl">
+            <CheckCircle2 className="h-5 w-5 text-accent-600 shrink-0" />
             <div>
-              <p className="text-sm font-bold text-green-300">{dayBefore ? t('confirmedTomorrow') : t('confirmed')}</p>
+              <p className="text-sm font-bold text-accent-600">{dayBefore ? t('confirmedTomorrow') : t('confirmed')}</p>
               {(workoutLabel || workoutHour != null) && (
-                <p className="text-xs text-green-200/80 mt-0.5">
+                <p className="text-xs text-accent-600/80 mt-0.5">
                   {[workoutLabel, workoutHour != null ? `${String(workoutHour).padStart(2, '0')}:00` : null].filter(Boolean).join(' · ')}
                 </p>
               )}
             </div>
           </div>
 
-          <p className="text-xs font-semibold text-slate-400 mb-2" dir="rtl">{t('whichGroup')}</p>
+          <p className="text-xs font-semibold text-ink-400 mb-2" dir="rtl">{t('whichGroup')}</p>
           <div className="flex flex-wrap gap-2">
             {GROUP_PRESETS.map(g => (
               <button
                 key={g}
                 onClick={() => { setGroup(g); setCustomGroup(''); submitGroup(g, ''); }}
                 className={cn('px-3 py-2 rounded-full text-xs font-bold transition',
-                  group === g ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700')}
+                  group === g ? 'bg-brand-600 text-white' : 'bg-page/50 text-ink-500 hover:bg-ink-300/40')}
                 dir="rtl"
               >
                 {g}
@@ -193,8 +255,8 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
             placeholder={t('otherGroup')}
             dir="rtl"
-            className={cn('mt-2 w-full bg-slate-900/50 border rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600',
-              customGroup.trim() ? 'border-primary-500' : 'border-slate-700')}
+            className={cn('mt-2 w-full bg-page/50 border rounded-lg px-3 py-2 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600',
+              customGroup.trim() ? 'border-brand-600' : 'border-page')}
           />
         </div>
       )}

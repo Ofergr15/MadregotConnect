@@ -129,17 +129,17 @@ export default function SearchPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold text-white tracking-tight" dir="rtl">{t('title')}</h1>
+        <h1 className="text-2xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
       </div>
 
       <div className="relative">
-        <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+        <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400" />
         <input
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('placeholder')}
-          className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl ps-10 pe-3 h-12 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-600/50"
+          className="w-full bg-page/50 border border-page/50 rounded-xl ps-10 pe-3 h-12 text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600/50"
         />
       </div>
 
@@ -157,7 +157,7 @@ export default function SearchPage() {
 
       {sections.length > 0 && (
         <div>
-          <p className="text-2xs font-bold uppercase tracking-wider text-slate-500 px-1 mb-1.5">{t('sections')}</p>
+          <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('sections')}</p>
           <div className="space-y-2">
             {sections.map((s) => {
               const Icon = s.icon;
@@ -165,12 +165,12 @@ export default function SearchPage() {
                 <Link
                   key={s.tab}
                   href={s.href}
-                  className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700/30 px-3 py-2.5"
+                  className="flex items-center gap-3 bg-card/50 rounded-card border border-page/30 px-3 py-2.5"
                 >
-                  <span className="w-9 h-9 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0">
-                    <Icon className="h-4 w-4 text-slate-300" />
+                  <span className="w-9 h-9 rounded-full bg-page/60 flex items-center justify-center shrink-0">
+                    <Icon className="h-4 w-4 text-ink-500" />
                   </span>
-                  <span className="text-sm font-semibold text-white truncate" dir="auto">{tNav(s.labelKey as any)}</span>
+                  <span className="text-sm font-semibold text-ink-700 truncate" dir="auto">{tNav(s.labelKey as any)}</span>
                 </Link>
               );
             })}
@@ -180,16 +180,16 @@ export default function SearchPage() {
 
       {!isLoading && data && data.members.length > 0 && (
         <div>
-          <p className="text-2xs font-bold uppercase tracking-wider text-slate-500 px-1 mb-1.5">{t('members')}</p>
+          <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('members')}</p>
           <div className="space-y-2">
             {data.members.map((m) => (
               <Link
                 key={m.id}
                 href={`/dashboard/teammate/${m.id}`}
-                className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700/30 px-3 py-2.5"
+                className="flex items-center gap-3 bg-card/50 rounded-card border border-page/30 px-3 py-2.5"
               >
                 <FeedAvatar name={m.name} url={m.avatarUrl} className="w-9 h-9 shrink-0" />
-                <span className="text-sm font-semibold text-white truncate" dir="auto">{m.name}</span>
+                <span className="text-sm font-semibold text-ink-700 truncate" dir="auto">{m.name}</span>
               </Link>
             ))}
           </div>
@@ -198,7 +198,7 @@ export default function SearchPage() {
 
       {!isLoading && data && data.events.length > 0 && (
         <div>
-          <p className="text-2xs font-bold uppercase tracking-wider text-slate-500 px-1 mb-1.5">{t('events')}</p>
+          <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('events')}</p>
           <div className="space-y-2">
             {data.events.map((e) => {
               const Icon = KIND_ICON[e.kind] || Users;
@@ -206,14 +206,14 @@ export default function SearchPage() {
                 <Link
                   key={e.id}
                   href={`/dashboard/calendar/${e.id}`}
-                  className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700/30 px-3 py-2.5"
+                  className="flex items-center gap-3 bg-card/50 rounded-card border border-page/30 px-3 py-2.5"
                 >
-                  <span className="w-9 h-9 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0">
-                    <Icon className="h-4 w-4 text-slate-300" />
+                  <span className="w-9 h-9 rounded-full bg-page/60 flex items-center justify-center shrink-0">
+                    <Icon className="h-4 w-4 text-ink-500" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-white truncate" dir="auto">{e.name}</span>
-                    <span className="block text-2xs text-slate-500 truncate">{fmtDate(e.date)} · {e.location}</span>
+                    <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{e.name}</span>
+                    <span className="block text-2xs text-ink-400 truncate">{fmtDate(e.date)} · {e.location}</span>
                   </div>
                 </Link>
               );
@@ -224,25 +224,25 @@ export default function SearchPage() {
 
       {!isLoading && data && data.products.length > 0 && (
         <div>
-          <p className="text-2xs font-bold uppercase tracking-wider text-slate-500 px-1 mb-1.5">{t('products')}</p>
+          <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('products')}</p>
           <div className="space-y-2">
             {data.products.map((p) => (
               <Link
                 key={p.id}
                 href={`/dashboard/store?product=${p.id}`}
-                className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700/30 px-3 py-2.5"
+                className="flex items-center gap-3 bg-card/50 rounded-card border border-page/30 px-3 py-2.5"
               >
-                <span className="w-9 h-9 rounded-lg bg-slate-900/60 flex items-center justify-center overflow-hidden shrink-0">
+                <span className="w-9 h-9 rounded-lg bg-page/60 flex items-center justify-center overflow-hidden shrink-0">
                   {p.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <Package className="h-4 w-4 text-slate-400" />
+                    <Package className="h-4 w-4 text-ink-400" />
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-white truncate" dir="auto">{locale === 'he' ? p.nameHe : p.nameEn}</span>
-                  <span className="block text-2xs text-slate-500">{p.price} ₪</span>
+                  <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{locale === 'he' ? p.nameHe : p.nameEn}</span>
+                  <span className="block text-2xs text-ink-400">{p.price} ₪</span>
                 </div>
               </Link>
             ))}
@@ -252,25 +252,25 @@ export default function SearchPage() {
 
       {!isLoading && data && data.perks.length > 0 && (
         <div>
-          <p className="text-2xs font-bold uppercase tracking-wider text-slate-500 px-1 mb-1.5">{t('perks')}</p>
+          <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('perks')}</p>
           <div className="space-y-2">
             {data.perks.map((p) => (
               <Link
                 key={p.id}
                 href={`/dashboard/benefits?perk=${p.id}`}
-                className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700/30 px-3 py-2.5"
+                className="flex items-center gap-3 bg-card/50 rounded-card border border-page/30 px-3 py-2.5"
               >
-                <span className="w-9 h-9 rounded-lg bg-slate-900/60 flex items-center justify-center overflow-hidden shrink-0">
+                <span className="w-9 h-9 rounded-lg bg-page/60 flex items-center justify-center overflow-hidden shrink-0">
                   {p.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <Gift className="h-4 w-4 text-slate-400" />
+                    <Gift className="h-4 w-4 text-ink-400" />
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-white truncate" dir="auto">{locale === 'he' ? p.titleHe : p.titleEn}</span>
-                  <span className="block text-2xs text-slate-500 truncate" dir="auto">{p.sponsorName}</span>
+                  <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{locale === 'he' ? p.titleHe : p.titleEn}</span>
+                  <span className="block text-2xs text-ink-400 truncate" dir="auto">{p.sponsorName}</span>
                 </div>
               </Link>
             ))}

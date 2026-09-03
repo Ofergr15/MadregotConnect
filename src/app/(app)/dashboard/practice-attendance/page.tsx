@@ -46,10 +46,10 @@ export default function PracticeAttendancePage() {
   return (
     <div className="max-w-4xl mx-auto" dir="rtl">
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Users className="h-6 w-6 text-primary-400" /> נוכחות באימון
+        <h1 className="text-2xl font-bold text-ink-700 flex items-center gap-2">
+          <Users className="h-6 w-6 text-brand-600" /> נוכחות באימון
         </h1>
-        <p className="text-sm text-slate-400 mt-1">מי היה באיזה אימון — לפי חודש ולפי דבוקה</p>
+        <p className="text-sm text-ink-400 mt-1">מי היה באיזה אימון — לפי חודש ולפי דבוקה</p>
       </div>
 
       {/* View switch */}
@@ -121,14 +121,14 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
     <div>
       {/* Month header */}
       <div className="flex items-center justify-between mb-3">
-        <button onClick={() => shiftMonth(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all">
+        <button onClick={() => shiftMonth(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="text-center">
-          <div className="text-lg font-bold text-white">{MONTHS_HE[month]} {year}</div>
-          {!loading && <div className="text-2xs text-slate-500 tabular-nums">{monthTotal} הגעות החודש</div>}
+          <div className="text-lg font-bold text-ink-700">{MONTHS_HE[month]} {year}</div>
+          {!loading && <div className="text-2xs text-ink-400 tabular-nums">{monthTotal} הגעות החודש</div>}
         </div>
-        <button onClick={() => shiftMonth(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all">
+        <button onClick={() => shiftMonth(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -136,7 +136,7 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
       {/* Weekday header (RTL: Sunday on the right) */}
       <div className="grid grid-cols-7 gap-1.5 mb-1.5">
         {DOW_SHORT.map((d, i) => (
-          <div key={i} className={`text-center text-2xs font-bold ${TEAM_DAYS.includes(i) ? 'text-primary-400' : 'text-slate-500'}`}>{d}</div>
+          <div key={i} className={`text-center text-2xs font-bold ${TEAM_DAYS.includes(i) ? 'text-brand-600' : 'text-ink-400'}`}>{d}</div>
         ))}
       </div>
 
@@ -156,17 +156,17 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
               disabled={!clickable}
               onClick={() => clickable && onPickDay(cell.iso)}
               className={`aspect-square rounded-xl flex flex-col items-center justify-center relative transition-colors border ${
-                clickable ? 'hover:border-primary-500/60 cursor-pointer' : 'cursor-default'
-              } ${isToday ? 'border-primary-500' : 'border-transparent'}`}
+                clickable ? 'hover:border-brand-600/60 cursor-pointer' : 'cursor-default'
+              } ${isToday ? 'border-brand-600' : 'border-transparent'}`}
               style={h ? { backgroundColor: h.bg, borderColor: isToday ? undefined : h.ring } : { backgroundColor: isTeamDay ? 'rgba(148,163,184,.07)' : 'transparent' }}
             >
-              <span className={`text-sm font-semibold ${clickable ? 'text-white' : 'text-slate-600'}`}>{cell.dom}</span>
+              <span className={`text-sm font-semibold ${clickable ? 'text-ink-700' : 'text-ink-400'}`}>{cell.dom}</span>
               {hasData ? (
                 <span className="text-2xs font-bold leading-none mt-0.5" style={{ color: '#22c55e' }}>
                   {c!.going}
                 </span>
               ) : isTeamDay ? (
-                <span className="w-1 h-1 rounded-full bg-primary-400/60 mt-1" />
+                <span className="w-1 h-1 rounded-full bg-brand-600/60 mt-1" />
               ) : null}
             </button>
           );
@@ -176,12 +176,12 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
       {loading && <SkeletonCard className="mt-4" />}
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3 mt-4 text-2xs text-slate-500">
+      <div className="flex flex-wrap items-center gap-3 mt-4 text-2xs text-ink-400">
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: 'rgba(34,197,94,.32)' }} /> 15+ מגיעים</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: 'rgba(34,197,94,.20)' }} /> 8+</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: 'rgba(234,179,8,.20)' }} /> 1+</span>
-        <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-primary-400/60" /> יום אימון</span>
-        <span className="text-slate-600">· המספר = כמה הגיעו/מגיעים</span>
+        <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-brand-600/60" /> יום אימון</span>
+        <span className="text-ink-400">· המספר = כמה הגיעו/מגיעים</span>
       </div>
     </div>
   );
@@ -228,25 +228,25 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
     <div>
       {/* Date picker */}
       <div className="flex items-center gap-2 mb-2">
-        <button onClick={() => shiftDay(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all">
+        <button onClick={() => shiftDay(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
           <ChevronRight className="h-4 w-4" />
         </button>
         <div className="relative flex-1">
-          <CalendarDays className="absolute top-1/2 -translate-y-1/2 end-3 h-4 w-4 text-slate-500 pointer-events-none" />
+          <CalendarDays className="absolute top-1/2 -translate-y-1/2 end-3 h-4 w-4 text-ink-400 pointer-events-none" />
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg ps-3 pe-9 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+            className="w-full bg-card border border-page rounded-lg ps-3 pe-9 py-2.5 text-sm text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-600/50"
           />
         </div>
-        <button onClick={() => shiftDay(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all">
+        <button onClick={() => shiftDay(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
           <ChevronLeft className="h-4 w-4" />
         </button>
       </div>
-      <p className="text-xs text-slate-500 mb-4">
+      <p className="text-xs text-ink-400 mb-4">
         יום {DAY_NAMES[dayIdx]}
-        {isTeamDay ? <span className="text-primary-400 font-semibold"> · אימון קבוצתי</span> : <span className="text-slate-600"> · לא יום אימון קבוצתי</span>}
+        {isTeamDay ? <span className="text-brand-600 font-semibold"> · אימון קבוצתי</span> : <span className="text-ink-400"> · לא יום אימון קבוצתי</span>}
       </p>
 
       {loading ? (
@@ -259,10 +259,10 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
             <CountCard active={statusFilter === 'no-response'} onClick={() => setStatusFilter('no-response')} value={noResponse.length} label="לא ענו" tone="slate2" />
             <CountCard active={statusFilter === 'not-going'} onClick={() => setStatusFilter('not-going')} value={notGoing.length} label="לא מגיעים" tone="red" />
           </div>
-          <p className="text-xs text-slate-500 mb-4 tabular-nums">
+          <p className="text-xs text-ink-400 mb-4 tabular-nums">
             {roster.length - noResponse.length} מתוך {roster.length} הגיבו
             {going.length > 0 && (
-              <span className="text-slate-600"> · <BadgeCheck className="inline h-3 w-3 -mt-0.5 text-emerald-500" /> {confirmedCount} מתוך {going.length} מאומתים ע״י ריצה בפועל</span>
+              <span className="text-ink-400"> · <BadgeCheck className="inline h-3 w-3 -mt-0.5 text-accent-600" /> {confirmedCount} מתוך {going.length} מאומתים ע״י ריצה בפועל</span>
             )}
           </p>
 
@@ -272,11 +272,11 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
               {byGroup.map(([group, members]) => {
                 const rg = resolveGroup(group);
                 return (
-                  <div key={group} className="rounded-2xl border border-slate-700 bg-slate-800/60 overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-700/60">
+                  <div key={group} className="rounded-card border border-page bg-card/60 overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2.5 border-b border-page/60">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: rg.hex }} />
-                      <span className="text-sm font-bold text-white">{group}</span>
-                      <span className="ms-auto text-xs font-bold text-green-400 tabular-nums">{members.length}</span>
+                      <span className="text-sm font-bold text-ink-700">{group}</span>
+                      <span className="ms-auto text-xs font-bold text-accent-600 tabular-nums">{members.length}</span>
                     </div>
                     <div className="p-3 flex flex-wrap gap-1.5">
                       {members.map((m) => <PersonChip key={m.athleteId} row={m} />)}
@@ -285,11 +285,11 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
                 );
               })}
               {noResponse.length > 0 && (
-                <div className="rounded-2xl border border-slate-700/60 bg-slate-800/40 overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-700/60">
-                    <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
-                    <span className="text-sm font-bold text-slate-300">לא ענו</span>
-                    <span className="ms-auto text-xs font-bold text-slate-400 tabular-nums">{noResponse.length}</span>
+                <div className="rounded-card border border-page/60 bg-card/40 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-page/60">
+                    <span className="w-2.5 h-2.5 rounded-full bg-ink-300" />
+                    <span className="text-sm font-bold text-ink-500">לא ענו</span>
+                    <span className="ms-auto text-xs font-bold text-ink-400 tabular-nums">{noResponse.length}</span>
                   </div>
                   <div className="p-3 flex flex-wrap gap-1.5">
                     {noResponse.map((m) => <PersonChip key={m.athleteId} row={m} muted />)}
@@ -305,8 +305,8 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
                 <div key={m.athleteId} className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
                   <Avatar row={m} />
                   <span className="flex-1 min-w-0">
-                    <span className="block text-[15px] font-medium text-white truncate" dir="auto">{m.name}</span>
-                    {m.groupLabel && <span className="block text-xs text-slate-400 truncate">{m.groupLabel}</span>}
+                    <span className="block text-[15px] font-medium text-ink-700 truncate" dir="auto">{m.name}</span>
+                    {m.groupLabel && <span className="block text-xs text-ink-400 truncate">{m.groupLabel}</span>}
                   </span>
                   <StatusPill row={m} />
                 </div>
@@ -320,11 +320,11 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
 }
 
 function CountCard({ value, label, tone, active, onClick }: { value: number; label: string; tone: string; active: boolean; onClick: () => void; }) {
-  const toneCls: Record<string, string> = { green: 'text-green-400', red: 'text-red-400', slate: 'text-white', slate2: 'text-slate-300' };
+  const toneCls: Record<string, string> = { green: 'text-accent-600', red: 'text-accent-red', slate: 'text-ink-700', slate2: 'text-ink-500' };
   return (
     <button
       onClick={onClick}
-      className={`rounded-xl border p-3 text-center transition-colors ${active ? 'border-primary-500/60 bg-primary-600/15' : 'border-slate-700 bg-slate-800/60 hover:border-slate-600'}`}
+      className={`rounded-xl border p-3 text-center transition-colors ${active ? 'border-brand-600/60 bg-brand-600/15' : 'border-page bg-card/60 hover:border-ink-300'}`}
     >
       <BigStat value={value} label={label} valueClassName={toneCls[tone]} />
     </button>
@@ -334,16 +334,16 @@ function CountCard({ value, label, tone, active, onClick }: { value: number; lab
 function Avatar({ row }: { row: RosterRow }) {
   return row.avatarUrl
     ? <img src={row.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-    : <span className="w-8 h-8 rounded-full bg-primary-600/25 flex items-center justify-center text-xs font-bold text-primary-200 shrink-0">{(row.name[0] || '?').toUpperCase()}</span>;
+    : <span className="w-8 h-8 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">{(row.name[0] || '?').toUpperCase()}</span>;
 }
 
 function PersonChip({ row, muted }: { row: RosterRow; muted?: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full ps-1 pe-2.5 py-1 ${muted ? 'bg-slate-900/40' : 'bg-slate-900/60'}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full ps-1 pe-2.5 py-1 ${muted ? 'bg-page/40' : 'bg-page/60'}`}>
       <Avatar row={row} />
-      <span className={`text-xs ${muted ? 'text-slate-400' : 'text-slate-200'}`} dir="auto">{row.name.split(' ')[0]}</span>
+      <span className={`text-xs ${muted ? 'text-ink-400' : 'text-ink-700'}`} dir="auto">{row.name.split(' ')[0]}</span>
       {row.confirmed && (
-        <BadgeCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-label="אומת ע״י ריצה בפועל" />
+        <BadgeCheck className="h-3.5 w-3.5 text-accent-600 shrink-0" aria-label="אומת ע״י ריצה בפועל" />
       )}
     </span>
   );
@@ -352,14 +352,14 @@ function PersonChip({ row, muted }: { row: RosterRow; muted?: boolean }) {
 function StatusPill({ row }: { row: RosterRow }) {
   if (row.attending === true) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-bold text-green-400">
+      <span className="inline-flex items-center gap-1 text-xs font-bold text-accent-600">
         <Check className="h-3.5 w-3.5" /> מגיע
         {row.confirmed && (
-          <BadgeCheck className="h-3.5 w-3.5 text-emerald-400" aria-label="אומת ע״י ריצה בפועל" />
+          <BadgeCheck className="h-3.5 w-3.5 text-accent-600" aria-label="אומת ע״י ריצה בפועל" />
         )}
       </span>
     );
   }
-  if (row.attending === false) return <span className="inline-flex items-center gap-1 text-xs font-bold text-red-400"><X className="h-3.5 w-3.5" /> לא מגיע</span>;
-  return <span className="text-xs font-semibold text-slate-500">לא ענה</span>;
+  if (row.attending === false) return <span className="inline-flex items-center gap-1 text-xs font-bold text-accent-red"><X className="h-3.5 w-3.5" /> לא מגיע</span>;
+  return <span className="text-xs font-semibold text-ink-400">לא ענה</span>;
 }

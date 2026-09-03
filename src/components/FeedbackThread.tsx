@@ -80,7 +80,7 @@ export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string
   if (loading) return null;
 
   return (
-    <div className="mt-3 pt-3 border-t border-slate-700/40">
+    <div className="mt-3 pt-3 border-t border-page/40">
       {messages.length > 0 && (
         <div ref={listRef} className="space-y-2 max-h-64 overflow-y-auto mb-2">
           {messages.map((m) => (
@@ -88,11 +88,11 @@ export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string
               <div
                 className={cn(
                   'max-w-[80%] rounded-2xl px-3 py-2 text-sm',
-                  m.isMine ? 'bg-primary-600 text-white' : 'bg-slate-700/60 text-slate-100',
+                  m.isMine ? 'bg-brand-600 text-white' : 'bg-page/60 text-ink-700',
                 )}
               >
                 {!m.isMine && m.senderName && (
-                  <p className="text-2xs font-bold text-primary-300 mb-0.5" dir="auto">{m.senderName}</p>
+                  <p className="text-2xs font-bold text-brand-600 mb-0.5" dir="auto">{m.senderName}</p>
                 )}
                 <p dir="auto" className="whitespace-pre-wrap break-words">{m.body}</p>
               </div>
@@ -101,13 +101,13 @@ export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string
         </div>
       )}
       {messages.length === 0 && (
-        <p className="flex items-center gap-1.5 text-2xs text-slate-500 mb-2">
+        <p className="flex items-center gap-1.5 text-2xs text-ink-400 mb-2">
           <MessageCircle className="h-3 w-3" />
           {t('empty')}
         </p>
       )}
 
-      {error && <p className="text-2xs text-red-400 mb-1.5">{error}</p>}
+      {error && <p className="text-2xs text-accent-red mb-1.5">{error}</p>}
 
       <div className="flex items-end gap-2">
         <textarea
@@ -116,7 +116,7 @@ export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string
           onKeyDown={handleKeyDown}
           placeholder={t('placeholder')}
           rows={1}
-          className="flex-1 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder:text-slate-500 resize-none focus:outline-none focus:border-primary-500 min-h-[38px]"
+          className="flex-1 bg-page/60 border border-page rounded-xl px-3 py-2 text-sm text-ink-700 placeholder:text-ink-400 resize-none focus:outline-none focus:border-brand-600 min-h-[38px]"
         />
         <button
           onClick={handleSend}
@@ -124,7 +124,7 @@ export function FeedbackThread({ feedbackId, viewerEmail }: { feedbackId: string
           aria-label={t('send')}
           className={cn(
             'shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all',
-            draft.trim() && !sending ? 'bg-primary-600 text-white active:scale-90' : 'bg-slate-700 text-slate-500',
+            draft.trim() && !sending ? 'bg-brand-600 text-white active:scale-90' : 'bg-page text-ink-400',
           )}
         >
           <Send className="h-4 w-4" />

@@ -71,12 +71,12 @@ export function MemberDiscovery({ viewerId }: { viewerId: string }) {
   return (
     <div className="space-y-3">
       <div className="relative">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('discoverSearchPlaceholder')}
-          className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl ps-10 pe-3 h-11 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-600/50"
+          className="w-full bg-page/50 border border-page/50 rounded-xl ps-10 pe-3 h-11 text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600/50"
         />
       </div>
 
@@ -87,13 +87,13 @@ export function MemberDiscovery({ viewerId }: { viewerId: string }) {
           {athletes.map((a) => (
             <div
               key={a.id}
-              className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700/30 px-3 py-2.5"
+              className="flex items-center gap-3 bg-card/50 rounded-card border border-page/30 px-3 py-2.5"
             >
               <Link href={`/dashboard/teammate/${a.id}`} className="flex items-center gap-3 flex-1 min-w-0">
                 <FeedAvatar name={a.name} url={a.avatarUrl} className="w-10 h-10 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white truncate" dir="auto">{a.name}</p>
-                  {a.groupName && <p className="text-2xs text-slate-500 truncate">{a.groupName}</p>}
+                  <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{a.name}</p>
+                  {a.groupName && <p className="text-2xs text-ink-400 truncate">{a.groupName}</p>}
                 </div>
               </Link>
               <Button

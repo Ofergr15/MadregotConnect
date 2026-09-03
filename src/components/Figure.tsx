@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 
-// A safe image wrapper: the box is always a brand-indigo gradient, so during
+// A safe image wrapper: the box is always a solid brand-blue plate, so during
 // load (or if the image fails) it's never blank and never shows a broken
-// glyph. Fixed aspect ratio => zero layout shift. On failure, a faint logo
-// watermark stands in for the photo.
+// glyph. Fixed aspect ratio => zero layout shift. On failure, a faint white logo
+// watermark stands in for the photo — which is why the plate has to stay a
+// saturated colour and not become a light card.
 export function Figure({
   src,
   alt,
@@ -25,7 +26,7 @@ export function Figure({
 
   return (
     <div
-      className={`relative overflow-hidden ${ratio} bg-gradient-to-br from-primary-600 to-primary-700 ${className}`}
+      className={`relative overflow-hidden ${ratio} bg-brand-600 ${className}`}
     >
       {!failed && (
         <img

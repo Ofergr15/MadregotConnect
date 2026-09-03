@@ -56,11 +56,16 @@ export function RouteMinimap({
       role="img"
       aria-label="Route preview"
     >
-      <rect width={width} height={height} rx="12" fill="#0b1830" />
+      {/* Light system: the map plate is the page grey, so the thumbnail reads as
+          part of the white card it sits on rather than the one dark rectangle on
+          the screen. Route = band 3 (which is within a hair of the Strava orange
+          it used to be), start/end = the accent green and red, ringed in white
+          instead of navy so they still separate from the plate. */}
+      <rect width={width} height={height} rx="12" fill="#DFDFDF" />
       <path
         d={path}
         fill="none"
-        stroke="#fc4c02"
+        stroke="#FF5315"
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -69,16 +74,16 @@ export function RouteMinimap({
         cx={projected[0].x.toFixed(1)}
         cy={projected[0].y.toFixed(1)}
         r="4"
-        fill="#22c55e"
-        stroke="#0b1830"
+        fill="#16a34a"
+        stroke="#FFFFFF"
         strokeWidth="1.5"
       />
       <circle
         cx={projected[projected.length - 1].x.toFixed(1)}
         cy={projected[projected.length - 1].y.toFixed(1)}
         r="4"
-        fill="#ef4444"
-        stroke="#0b1830"
+        fill="#D74E4E"
+        stroke="#FFFFFF"
         strokeWidth="1.5"
       />
     </svg>

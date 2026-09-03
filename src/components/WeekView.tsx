@@ -102,25 +102,25 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
       {workout && (
         <>
           <div className="px-1 pb-2">
-            <p className="text-xs font-bold text-primary-400 uppercase tracking-wider">{dayName}</p>
-            <h3 className="text-lg font-bold text-white mt-1">{workout.name}</h3>
+            <p className="text-xs font-bold text-brand-600 uppercase tracking-wider">{dayName}</p>
+            <h3 className="text-lg font-bold text-ink-700 mt-1">{workout.name}</h3>
             {workout.description && (
-              <p className="text-sm text-slate-400 mt-0.5">{workout.description}</p>
+              <p className="text-sm text-ink-400 mt-0.5">{workout.description}</p>
             )}
             <div className="flex items-center gap-4 mt-2">
               {totalDist > 0 && (
-                <span className="flex items-center gap-1 text-sm text-slate-300 font-medium">
-                  <Route className="h-3.5 w-3.5 text-slate-500" />
+                <span className="flex items-center gap-1 text-sm text-ink-500 font-medium">
+                  <Route className="h-3.5 w-3.5 text-ink-400" />
                   {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)} km` : `${totalDist}m`}
                 </span>
               )}
               {totalTime > 0 && (
-                <span className="flex items-center gap-1 text-sm text-slate-300 font-medium">
-                  <Timer className="h-3.5 w-3.5 text-slate-500" />
+                <span className="flex items-center gap-1 text-sm text-ink-500 font-medium">
+                  <Timer className="h-3.5 w-3.5 text-ink-400" />
                   {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
                 </span>
               )}
-              <span className="text-xs text-slate-400">{tp('stepsCount', { count: workout.steps.length })}</span>
+              <span className="text-xs text-ink-400">{tp('stepsCount', { count: workout.steps.length })}</span>
             </div>
           </div>
 
@@ -128,10 +128,10 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
             {workout.steps.map((step, i) => {
               if (step.repeatCount && step.repeatSteps) {
                 return (
-                  <div key={i} className="rounded-lg border border-primary-500/20 bg-primary-500/5 px-3 py-2.5">
+                  <div key={i} className="rounded-lg border border-brand-600/20 bg-brand-600/5 px-3 py-2.5">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-bold text-white">{step.repeatCount}x</span>
-                      {step.notes && <span className="text-xs text-slate-400">{step.notes}</span>}
+                      <span className="text-sm font-bold text-ink-700">{step.repeatCount}x</span>
+                      {step.notes && <span className="text-xs text-ink-400">{step.notes}</span>}
                     </div>
                     <div className="space-y-1">
                       {step.repeatSteps.map((sub, j) => {
@@ -140,10 +140,10 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
                         const isRest = sub.type === 'rest' || sub.type === 'recovery';
                         return (
                           <div key={j} className="flex items-center gap-2 text-sm">
-                            <div className="w-1 h-4 rounded-full shrink-0" style={{ background: stepTypeColors[sub.type] || '#64748b' }} />
-                            <span className={cn("font-medium shrink-0", isRest ? "text-slate-400" : "text-white")}>{dur}</span>
-                            {sub.notes && <span className="text-slate-400 truncate flex-1 text-xs">{sub.notes}</span>}
-                            {pace && <span className="text-xs text-slate-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
+                            <div className="w-1 h-4 rounded-full shrink-0" style={{ background: stepTypeColors[sub.type] || '#969696' }} />
+                            <span className={cn("font-medium shrink-0", isRest ? "text-ink-400" : "text-ink-700")}>{dur}</span>
+                            {sub.notes && <span className="text-ink-400 truncate flex-1 text-xs">{sub.notes}</span>}
+                            {pace && <span className="text-xs text-ink-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
                           </div>
                         );
                       })}
@@ -156,11 +156,11 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
               const pace = fmtStepPace(step);
               const label = step.notes || stepTypeLabel(step.type, t);
               return (
-                <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-slate-800/40 text-sm">
-                  <div className="w-1 h-5 rounded-full shrink-0" style={{ background: stepTypeColors[step.type] || '#64748b' }} />
-                  <span className="font-medium text-white shrink-0">{dur}</span>
-                  <span className="text-slate-400 truncate flex-1 text-xs">{label}</span>
-                  {pace && <span className="text-xs text-slate-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
+                <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-card/40 text-sm">
+                  <div className="w-1 h-5 rounded-full shrink-0" style={{ background: stepTypeColors[step.type] || '#969696' }} />
+                  <span className="font-medium text-ink-700 shrink-0">{dur}</span>
+                  <span className="text-ink-400 truncate flex-1 text-xs">{label}</span>
+                  {pace && <span className="text-xs text-ink-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
                 </div>
               );
             })}
@@ -215,25 +215,25 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
       <div className="mb-4 flex items-center gap-6 text-sm">
         {totalDist > 0 && (
           <div className="flex items-center gap-1.5">
-            <Route className="h-3.5 w-3.5 text-primary-400" />
-            <span className="font-bold text-white tabular-nums">
+            <Route className="h-3.5 w-3.5 text-brand-600" />
+            <span className="font-bold text-ink-700 tabular-nums">
               {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)}` : totalDist}
-              <span className="text-[10px] text-slate-400 ms-0.5">{totalDist >= 1000 ? t('km') : 'm'}</span>
+              <span className="text-[10px] text-ink-400 ms-0.5">{totalDist >= 1000 ? t('km') : 'm'}</span>
             </span>
           </div>
         )}
         {totalTime > 0 && (
           <div className="flex items-center gap-1.5">
-            <Timer className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="font-bold text-white tabular-nums">
+            <Timer className="h-3.5 w-3.5 text-accent-600" />
+            <span className="font-bold text-ink-700 tabular-nums">
               {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
             </span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <Zap className="h-3.5 w-3.5 text-amber-400" />
-          <span className="font-bold text-white tabular-nums">
-            {trainingDays}<span className="text-[10px] text-slate-400 ms-0.5">{t('days')}</span>
+          <Zap className="h-3.5 w-3.5 text-band-3" />
+          <span className="font-bold text-ink-700 tabular-nums">
+            {trainingDays}<span className="text-[10px] text-ink-400 ms-0.5">{t('days')}</span>
           </span>
         </div>
       </div>
@@ -258,12 +258,12 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                   disconnected card. */}
               <div className={cn(
                 'flex items-center justify-between gap-2 px-3 py-2 rounded-t-xl border border-b-0 shrink-0',
-                isToday ? 'bg-primary-500/10 border-primary-500/30' : 'bg-slate-800/60 border-slate-700/40'
+                isToday ? 'bg-brand-600/10 border-brand-600/30' : 'bg-card/60 border-page/40'
               )}>
                 <div className="flex items-center gap-2 min-w-0">
                   <h4 className={cn(
                     'text-sm font-bold shrink-0',
-                    isToday ? 'text-primary-400' : 'text-white'
+                    isToday ? 'text-brand-600' : 'text-ink-700'
                   )}>
                     <span className="lg:hidden">{dayNamesShort[dayIndex]}</span>
                     <span className="hidden lg:inline">{day}</span>
@@ -271,7 +271,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                   {hasMultiple && (
                     <button
                       onClick={() => setExpandedDay(isExpanded ? null : dayIndex)}
-                      className="flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black shrink-0"
+                      className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-red text-white text-[10px] font-black shrink-0"
                     >
                       {dayWorkouts.length}
                     </button>
@@ -283,7 +283,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     <button
                       onClick={() => setEditingIdx(workouts.indexOf(dayWorkouts[0]))}
                       title={tp('editDayTooltip', { day })}
-                      className="flex items-center justify-center w-7 h-7 rounded-lg text-primary-400 hover:bg-primary-500/15 transition-colors touch-target"
+                      className="flex items-center justify-center w-7 h-7 rounded-lg text-brand-600 hover:bg-brand-600/15 transition-colors touch-target"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
@@ -296,7 +296,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     <button
                       onClick={() => setNewWorkoutDay(dayIndex)}
                       title={tp('addWorkoutTooltip', { day })}
-                      className="flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white transition-colors touch-target"
+                      className="flex items-center justify-center w-7 h-7 rounded-lg text-ink-400 hover:bg-page hover:text-ink-900 transition-colors touch-target"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -316,7 +316,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     >
                       <WorkoutPreview
                         workout={dayWorkouts[0]}
-                        className={cn('rounded-t-none border-t-0 hover:ring-1 hover:ring-primary-500/50', isToday && 'border-primary-500/30')}
+                        className={cn('rounded-t-none border-t-0 hover:ring-1 hover:ring-brand-600/50', isToday && 'border-brand-600/30')}
                       />
                     </div>
 
@@ -329,7 +329,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                             key={globalIdx}
                             onClick={() => { if (editable) setEditingIdx(globalIdx); }}
                             onDoubleClick={() => handleCardDoubleTap(globalIdx)}
-                            className="cursor-pointer hover:ring-1 hover:ring-primary-500/50 rounded-lg transition-all"
+                            className="cursor-pointer hover:ring-1 hover:ring-brand-600/50 rounded-lg transition-all"
                           >
                             <WorkoutPreview workout={workout} compact />
                           </div>
@@ -338,7 +338,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     ) : (
                       <button
                         onClick={() => setExpandedDay(dayIndex)}
-                        className="text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg py-2 px-3 text-center hover:bg-red-500/15 transition-colors min-h-[36px]"
+                        className="text-xs font-bold text-accent-red bg-accent-red/10 border border-accent-red/20 rounded-lg py-2 px-3 text-center hover:bg-accent-red/15 transition-colors min-h-[36px]"
                       >
                         {tp('moreCount', { count: dayWorkouts.length - 1 })}
                       </button>
@@ -349,11 +349,11 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     onClick={() => { if (canEdit) setNewWorkoutDay(dayIndex); }}
                     className={cn(
                       'flex-1 min-h-[64px] lg:min-h-[100px] border border-t-0 border-dashed rounded-b-xl flex items-center justify-center',
-                      isToday ? 'border-primary-500/30' : 'border-slate-700/40',
-                      canEdit && 'cursor-pointer hover:border-primary-500/40 hover:bg-primary-500/5 transition-colors'
+                      isToday ? 'border-brand-600/30' : 'border-page/40',
+                      canEdit && 'cursor-pointer hover:border-brand-600/40 hover:bg-brand-600/5 transition-colors'
                     )}
                   >
-                    <p className="text-xs text-slate-600">{tp('restDay')}</p>
+                    <p className="text-xs text-ink-400">{tp('restDay')}</p>
                   </div>
                 )}
               </div>

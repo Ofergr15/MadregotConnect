@@ -56,40 +56,40 @@ export function AttendanceRoster({ weekStart: weekStartProp, day: dayProp }: { w
   }
 
   return (
-    <div className="rounded-2xl bg-slate-800/60 border border-slate-700/50 p-4">
+    <div className="rounded-card bg-card/60 border border-page/50 p-4">
       <div className="flex items-center gap-2 mb-3">
-        <Users className="h-4 w-4 text-primary-600" />
-        <h3 className="text-sm font-bold text-white" dir="rtl">{t('title')}</h3>
+        <Users className="h-4 w-4 text-brand-600" />
+        <h3 className="text-sm font-bold text-ink-700" dir="rtl">{t('title')}</h3>
         {!loading && (
-          <span className="ms-auto text-xs font-bold text-green-400 tabular-nums">
+          <span className="ms-auto text-xs font-bold text-accent-600 tabular-nums">
             {going.length} {t('goingCount')}
           </span>
         )}
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 text-slate-500 animate-spin" /></div>
+        <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 text-ink-400 animate-spin" /></div>
       ) : rows.length === 0 ? (
-        <p className="text-xs text-slate-500 py-2 text-center" dir="rtl">{t('noRsvp')}</p>
+        <p className="text-xs text-ink-400 py-2 text-center" dir="rtl">{t('noRsvp')}</p>
       ) : (
         <div className="space-y-3">
           {Object.entries(byGroup).map(([group, members]) => (
             <div key={group}>
-              <p className="text-2xs font-bold text-slate-400 mb-1.5" dir="rtl">{group} · {members.length}</p>
+              <p className="text-2xs font-bold text-ink-400 mb-1.5" dir="rtl">{group} · {members.length}</p>
               <div className="flex flex-wrap gap-1.5">
                 {members.map(m => (
-                  <span key={m.athleteId} className="inline-flex items-center gap-1.5 bg-slate-900/50 rounded-full ps-1 pe-2.5 py-1">
+                  <span key={m.athleteId} className="inline-flex items-center gap-1.5 bg-page/50 rounded-full ps-1 pe-2.5 py-1">
                     {m.avatarUrl
                       ? <img src={m.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
-                      : <span className="w-5 h-5 rounded-full bg-primary-600/30 flex items-center justify-center text-3xs font-bold text-white">{(m.name[0] || '?').toUpperCase()}</span>}
-                    <span className="text-xs text-slate-200" dir="auto">{m.name.split(' ')[0]}</span>
+                      : <span className="w-5 h-5 rounded-full bg-brand-600/30 flex items-center justify-center text-3xs font-bold text-white">{(m.name[0] || '?').toUpperCase()}</span>}
+                    <span className="text-xs text-ink-700" dir="auto">{m.name.split(' ')[0]}</span>
                   </span>
                 ))}
               </div>
             </div>
           ))}
           {notGoing.length > 0 && (
-            <p className="text-2xs text-slate-500 pt-1" dir="rtl">
+            <p className="text-2xs text-ink-400 pt-1" dir="rtl">
               {notGoing.length} {t('notComing')}
             </p>
           )}

@@ -63,15 +63,15 @@ export default function PracticePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Dumbbell className="h-6 w-6 text-primary-400" />
+            <Dumbbell className="h-6 w-6 text-brand-600" />
             {t('title')}
           </h1>
-          <p className="text-slate-400 mt-1">{t('subtitle')}</p>
+          <p className="text-ink-400 mt-1">{t('subtitle')}</p>
         </div>
         {canEdit && (
           <button
             onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:text-white transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-card text-ink-500 border border-page hover:text-ink-900 transition-colors shrink-0"
           >
             <Pencil className="h-4 w-4" /> {t('editVideos')}
           </button>
@@ -91,14 +91,14 @@ export default function PracticePage() {
           <div
             key={video.id}
             onClick={() => setSelectedVideo(video)}
-            className="bg-slate-800/50 rounded-2xl border border-slate-700/30 overflow-hidden hover:border-slate-600 hover:shadow-lg active:scale-[0.98] transition-all group cursor-pointer"
+            className="bg-card/50 rounded-card border border-page/30 overflow-hidden hover:border-ink-300 hover:shadow-lg active:scale-[0.98] transition-all group cursor-pointer"
           >
             {/* Thumbnail / Play area */}
-            <div className="relative overflow-hidden bg-slate-900 aspect-video flex items-center justify-center">
+            <div className="relative overflow-hidden bg-page aspect-video flex items-center justify-center">
               {isPlaceholder(video.driveId) ? (
                 <>
-                  <div className="absolute inset-0 bg-gradient-to-br from-slate-800/60 to-slate-900/90" />
-                  <span className="relative text-2xs font-bold px-2.5 py-1 rounded-full bg-slate-700/70 text-slate-300 uppercase tracking-wider">
+                  <div className="absolute inset-0 bg-gradient-to-br from-card/60 to-page/90" />
+                  <span className="relative text-2xs font-bold px-2.5 py-1 rounded-full bg-page/70 text-ink-500 uppercase tracking-wider">
                     {t('videoComingSoon')}
                   </span>
                 </>
@@ -110,26 +110,26 @@ export default function PracticePage() {
                     className="absolute inset-0 w-full h-full object-cover opacity-70"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary-900/40 to-slate-900/80" />
-                  <div className="relative w-14 h-14 bg-primary-600/80 rounded-full flex items-center justify-center group-hover:scale-110 group-hover:bg-primary-600 transition-all shadow-lg">
-                    <Play className="h-6 w-6 text-white ms-0.5" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-brand-600/40 to-page/80" />
+                  <div className="relative w-14 h-14 bg-brand-600/80 rounded-full flex items-center justify-center group-hover:scale-110 group-hover:bg-brand-700 transition-all shadow-lg">
+                    <Play className="h-6 w-6 text-ink-700 ms-0.5" />
                   </div>
                 </>
               )}
               <span className="absolute bottom-2 start-2 text-xs font-bold px-2 py-1 rounded bg-black/60 text-white">
                 {video.duration}
               </span>
-              <span className="absolute top-2 end-2 text-xs font-medium px-2 py-1 rounded bg-primary-600/80 text-white">
+              <span className="absolute top-2 end-2 text-xs font-medium px-2 py-1 rounded bg-brand-600/80 text-white">
                 {video.category}
               </span>
             </div>
 
             {/* Content */}
             <div className="p-4">
-              <h3 className="text-sm font-bold text-white group-hover:text-primary-300 transition-colors line-clamp-2">
+              <h3 className="text-sm font-bold text-ink-700 group-hover:text-brand-700 transition-colors line-clamp-2">
                 {video.title}
               </h3>
-              <p className="text-xs text-slate-400 mt-2 line-clamp-2">
+              <p className="text-xs text-ink-400 mt-2 line-clamp-2">
                 {video.description}
               </p>
             </div>
@@ -148,7 +148,7 @@ export default function PracticePage() {
           <>
             <div className="aspect-video bg-black">
               {isPlaceholder(selectedVideo.driveId) ? (
-                <div className="w-full h-full flex items-center justify-center text-slate-500">
+                <div className="w-full h-full flex items-center justify-center text-ink-400">
                   <div className="text-center">
                     <Dumbbell className="h-12 w-12 mx-auto mb-3 opacity-50" />
                     <p className="text-sm">{t('videoComingSoon')}</p>
@@ -164,7 +164,7 @@ export default function PracticePage() {
               )}
             </div>
             <div className="p-4">
-              <p className="text-sm text-slate-300">{selectedVideo.description}</p>
+              <p className="text-sm text-ink-500">{selectedVideo.description}</p>
             </div>
           </>
         )}
@@ -209,22 +209,22 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Pencil className="h-5 w-5 text-primary-400" /> {t('editVideos')}
+          <Pencil className="h-5 w-5 text-brand-600" /> {t('editVideos')}
         </h1>
         <Button variant="ghost" size="md" onClick={() => onDone(null)}>
           <X className="h-5 w-5" />
         </Button>
       </div>
-      <p className="text-sm text-slate-400">{t('editVideosHint')}</p>
+      <p className="text-sm text-ink-400">{t('editVideosHint')}</p>
 
       <div className="space-y-3">
         {rows.map((r, i) => (
-          <div key={i} className="rounded-xl border border-slate-700 bg-slate-800/50 p-3 space-y-2">
+          <div key={i} className="rounded-xl border border-page bg-card/50 p-3 space-y-2">
             <div className="flex items-center gap-2">
               <input
                 value={r.title} onChange={e => setRow(i, { title: e.target.value })}
                 placeholder={t('videoTitle')}
-                className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500"
+                className="flex-1 bg-page/50 border border-page rounded-lg px-3 py-2 text-sm text-ink-700 placeholder-ink-400"
               />
               <Button variant="danger" size="md" onClick={() => remove(i)} className="shrink-0">
                 <Trash2 className="h-4 w-4" />
@@ -234,7 +234,7 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
               value={r.driveId} onChange={e => setRow(i, { driveId: e.target.value.trim() })}
               placeholder={t('driveIdPlaceholder')}
               dir="ltr"
-              className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 font-mono"
+              className="w-full bg-page/50 border border-page rounded-lg px-3 py-2 text-sm text-ink-700 placeholder-ink-400 font-mono"
             />
             <SegmentedControl
               value={editableCategories.includes(r.category) ? r.category : 'Strength'}
@@ -245,14 +245,14 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
               <input
                 value={r.duration} onChange={e => setRow(i, { duration: e.target.value })}
                 placeholder={t('duration')}
-                className="w-24 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500"
+                className="w-24 bg-page/50 border border-page rounded-lg px-3 py-2 text-sm text-ink-700 placeholder-ink-400"
               />
-              {!isPlaceholder(r.driveId) && <span className="flex items-center text-xs text-emerald-400 gap-1"><Check className="h-3.5 w-3.5" /> Drive</span>}
+              {!isPlaceholder(r.driveId) && <span className="flex items-center text-xs text-accent-600 gap-1"><Check className="h-3.5 w-3.5" /> Drive</span>}
             </div>
             <textarea
               value={r.description} onChange={e => setRow(i, { description: e.target.value })}
               placeholder={t('videoDescription')} rows={2}
-              className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500"
+              className="w-full bg-page/50 border border-page rounded-lg px-3 py-2 text-sm text-ink-700 placeholder-ink-400"
             />
           </div>
         ))}
@@ -262,7 +262,7 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
         <Plus className="h-4 w-4" /> {t('addVideo')}
       </Button>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-accent-red">{error}</p>}
 
       <div className="flex gap-2 pt-2">
         <Button variant="primary" size="lg" onClick={save} disabled={saving} className="flex-1">

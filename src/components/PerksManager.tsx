@@ -169,7 +169,7 @@ export function PerksManager() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white">{t('existingPerks')}</h2>
+        <h2 className="text-sm font-semibold text-ink-700">{t('existingPerks')}</h2>
         <Button size="sm" onClick={openNew}>
           <Plus className="h-4 w-4" />
           {t('newPerk')}
@@ -189,11 +189,11 @@ export function PerksManager() {
               trailing={
                 <div className="flex items-center gap-2.5 shrink-0">
                   {p.tier === 'core_runner' && (
-                    <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-600">
                       {t('tierCoreRunner')}
                     </span>
                   )}
-                  <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500')}>
+                  <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400')}>
                     {p.active ? t('active') : t('inactive')}
                   </span>
                 </div>
@@ -206,16 +206,16 @@ export function PerksManager() {
       <Sheet open={!!actionsTarget} onOpenChange={(o) => !o && setActionsTarget(null)} title={actionsTarget?.titleHe || ''}>
         {actionsTarget && (
           <InsetSection>
-            <InsetRow icon={Pencil} iconBg="bg-primary-600/15" label={t('edit')} onClick={() => openEdit(actionsTarget)} />
+            <InsetRow icon={Pencil} iconBg="bg-brand-600/15" label={t('edit')} onClick={() => openEdit(actionsTarget)} />
             <InsetRow
               icon={actionsTarget.active ? EyeOff : Eye}
-              iconBg="bg-slate-700/50"
+              iconBg="bg-page/50"
               label={actionsTarget.active ? t('deactivate') : t('activate')}
               onClick={() => { toggleActive(actionsTarget); setActionsTarget(null); }}
             />
             <InsetRow
               icon={Trash2}
-              iconBg="bg-red-500/15"
+              iconBg="bg-accent-red/15"
               label={t('delete')}
               danger
               onClick={() => { setDeleteTarget(actionsTarget.id); setActionsTarget(null); }}
@@ -226,48 +226,48 @@ export function PerksManager() {
 
       <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editPerk') : t('newPerk')}>
         <div className="space-y-4 pb-2">
-          {error && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{error}</div>}
+          {error && <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{error}</div>}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('sponsorName')}</label>
-            <input value={sponsorName} onChange={(e) => setSponsorName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-primary-600/50" />
+            <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('sponsorName')}</label>
+            <input value={sponsorName} onChange={(e) => setSponsorName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 focus:outline-none focus:border-brand-600/50" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('titleHebrew')}</label>
-              <input value={titleHe} onChange={(e) => setTitleHe(e.target.value)} dir="rtl" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-primary-600/50" />
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('titleHebrew')}</label>
+              <input value={titleHe} onChange={(e) => setTitleHe(e.target.value)} dir="rtl" className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 focus:outline-none focus:border-brand-600/50" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('titleEnglish')}</label>
-              <input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-primary-600/50" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('descriptionHebrew')}</label>
-              <input value={descriptionHe} onChange={(e) => setDescriptionHe(e.target.value)} dir="rtl" placeholder={t('optional')} className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('descriptionEnglish')}</label>
-              <input value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} dir="ltr" placeholder={t('optional')} className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('titleEnglish')}</label>
+              <input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 focus:outline-none focus:border-brand-600/50" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('discountCodeOptional')}</label>
-              <input value={discountCode} onChange={(e) => setDiscountCode(e.target.value)} dir="ltr" placeholder="MADREGOT15" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('descriptionHebrew')}</label>
+              <input value={descriptionHe} onChange={(e) => setDescriptionHe(e.target.value)} dir="rtl" placeholder={t('optional')} className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('redeemUrlOptional')}</label>
-              <input value={redeemUrl} onChange={(e) => setRedeemUrl(e.target.value)} dir="ltr" placeholder="https://..." className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('descriptionEnglish')}</label>
+              <input value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} dir="ltr" placeholder={t('optional')} className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('discountCodeOptional')}</label>
+              <input value={discountCode} onChange={(e) => setDiscountCode(e.target.value)} dir="ltr" placeholder="MADREGOT15" className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('redeemUrlOptional')}</label>
+              <input value={redeemUrl} onChange={(e) => setRedeemUrl(e.target.value)} dir="ltr" placeholder="https://..." className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('visibleTo')}</label>
+            <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('visibleTo')}</label>
             <SegmentedControl<'all' | 'core_runner'>
               value={tier}
               onChange={setTier}
@@ -279,16 +279,16 @@ export function PerksManager() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('perkImage')}</label>
+            <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('perkImage')}</label>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleImagePick(e.target.files?.[0] || null)} />
             <div className="flex items-center gap-3">
-              <button type="button" onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-primary-400 bg-primary-600/10 hover:bg-primary-600/20 transition-all">
+              <button type="button" onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-brand-600 bg-brand-600/10 hover:bg-brand-600/20 transition-all">
                 <ImagePlus className="h-4 w-4" />
                 {imagePreview ? t('changeImage') : t('uploadImage')}
               </button>
               {imagePreview && (
                 <div className="relative w-14 h-14 shrink-0">
-                  <div className="w-14 h-14 rounded-lg overflow-hidden border border-slate-700/50">
+                  <div className="w-14 h-14 rounded-lg overflow-hidden border border-page/50">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={imagePreview} alt="" className="w-full h-full object-cover" />
                   </div>

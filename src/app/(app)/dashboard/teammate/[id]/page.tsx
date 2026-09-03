@@ -137,22 +137,22 @@ export default function TeammateProfilePage() {
       {/* Hero — same gradient-card recipe as dashboard/profile/page.tsx,
           minus the owner-only bits (email, data-source badges, photo upload —
           none of those are safe/relevant on a peer's profile). */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600/15 via-slate-800/90 to-slate-800 border border-slate-700/50 p-6">
-        <div className="absolute top-0 end-0 w-32 h-32 bg-primary-600/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600/15 via-card/90 to-card border border-page/50 p-6">
+        <div className="absolute top-0 end-0 w-32 h-32 bg-brand-600/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
         <div className="relative flex items-center gap-4">
           <FeedAvatar name={profile.name} url={profile.avatarUrl} className="w-16 h-16" textClassName="text-xl" />
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-white truncate">{profile.name}</h1>
+            <h1 className="text-xl font-bold text-ink-700 truncate">{profile.name}</h1>
             {profile.memberSince && (
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-ink-400 mt-1">
                 {tProfile('memberSince')}{' '}
                 {new Date(profile.memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
               </p>
             )}
             {profile.groupName && (
               <div className="flex items-center gap-1.5 mt-1.5">
-                <Users className="h-3.5 w-3.5 text-primary-600 shrink-0" />
-                <span className="text-sm font-medium text-primary-600">{profile.groupName}</span>
+                <Users className="h-3.5 w-3.5 text-brand-600 shrink-0" />
+                <span className="text-sm font-medium text-brand-600">{profile.groupName}</span>
               </div>
             )}
           </div>
@@ -169,7 +169,7 @@ export default function TeammateProfilePage() {
           ) : (
             <>
               <BigStat value={connections?.followerCount ?? 0} label={t('followers')} />
-              <div className="w-px h-10 bg-slate-700/50" />
+              <div className="w-px h-10 bg-page/50" />
               <BigStat value={connections?.followingCount ?? 0} label={t('following')} />
             </>
           )}

@@ -64,21 +64,21 @@ export default function RunChatPage() {
 
   return (
     <div
-      className="run-chat-page flex h-[calc(100dvh-10.5rem)] min-h-[32rem] flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-white shadow-2xl md:h-[calc(100dvh-8.5rem)]"
+      className="run-chat-page flex h-[calc(100dvh-10.5rem)] min-h-[32rem] flex-col overflow-hidden rounded-2xl border border-page bg-page text-ink-700 shadow-2xl md:h-[calc(100dvh-8.5rem)]"
       dir="rtl"
       lang="he"
       data-pull-to-refresh-ignore
     >
       {error ? (
         <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-          <p className="text-sm text-red-400">{error}</p>
-          <button onClick={onBack} className="text-sm text-primary-400 underline">
+          <p className="text-sm text-accent-red">{error}</p>
+          <button onClick={onBack} className="text-sm text-brand-600 underline">
             חזור
           </button>
         </div>
       ) : !chat || !activity || !supabaseToken || !tokenData ? (
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-primary-400" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
         </div>
       ) : (
         <ConnectedRunChat

@@ -22,7 +22,7 @@ interface Perk {
 
 export default function BenefitsPage() {
   return (
-    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mt-20"></div>}>
+    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mt-20"></div>}>
       <BenefitsPageContent />
     </Suspense>
   );
@@ -63,8 +63,8 @@ function BenefitsPageContent() {
 
   return (
     <div className="space-y-4 pb-24">
-      <h1 className="text-2xl font-extrabold text-white tracking-tight" dir="rtl">{t('title')}</h1>
-      <p className="text-sm text-slate-400" dir="rtl">{t('subtitle')}</p>
+      <h1 className="text-2xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
+      <p className="text-sm text-ink-400" dir="rtl">{t('subtitle')}</p>
 
       {isLoading && !data ? (
         <div className="grid grid-cols-2 gap-3">
@@ -82,14 +82,14 @@ function BenefitsPageContent() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.imageUrl} alt={title(p)} className="max-w-full max-h-full object-contain" />
                   ) : (
-                    <Gift className="h-9 w-9 text-slate-300" />
+                    <Gift className="h-9 w-9 text-ink-500" />
                   )}
                 </div>
                 <div className="p-2.5 flex-1 flex flex-col">
-                  <p className="text-sm font-semibold text-white truncate" dir="auto">{title(p)}</p>
-                  <p className="text-xs text-slate-500 truncate mt-0.5" dir="auto">{p.sponsorName}</p>
+                  <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{title(p)}</p>
+                  <p className="text-xs text-ink-400 truncate mt-0.5" dir="auto">{p.sponsorName}</p>
                   {p.tier === 'core_runner' && (
-                    <span className="inline-block self-start mt-1.5 text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                    <span className="inline-block self-start mt-1.5 text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-600">
                       {t('coreRunnerBadge')}
                     </span>
                   )}
@@ -108,29 +108,29 @@ function BenefitsPageContent() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={perk.imageUrl} alt={title(perk)} className="max-w-full max-h-full object-contain" />
               ) : (
-                <Gift className="h-10 w-10 text-slate-300" />
+                <Gift className="h-10 w-10 text-ink-500" />
               )}
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-primary-400" dir="auto">{perk.sponsorName}</p>
+              <p className="text-sm font-semibold text-brand-600" dir="auto">{perk.sponsorName}</p>
               {perk.tier === 'core_runner' && (
-                <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-600">
                   {t('coreRunnerBadge')}
                 </span>
               )}
             </div>
-            {description(perk) && <p className="text-sm text-slate-300" dir="auto">{description(perk)}</p>}
+            {description(perk) && <p className="text-sm text-ink-500" dir="auto">{description(perk)}</p>}
 
             {perk.discountCode && (
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('discountCode')}</label>
+                <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('discountCode')}</label>
                 <button
                   onClick={copyCode}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm font-bold tabular-nums text-white"
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm font-bold tabular-nums text-ink-700"
                   dir="ltr"
                 >
                   {perk.discountCode}
-                  {copied ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4 text-slate-400" />}
+                  {copied ? <CheckCircle2 className="h-4 w-4 text-accent-600" /> : <Copy className="h-4 w-4 text-ink-400" />}
                 </button>
               </div>
             )}

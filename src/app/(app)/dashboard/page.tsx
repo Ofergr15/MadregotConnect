@@ -17,10 +17,10 @@ import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_LABELS as typeLabels } from '@/lib/plans/workout-parsing';
 import { Spinner, Card, BigStat, EmptyState, Button } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
-
-const RACE_DATE = new Date('2026-12-06T09:00:00');
-const TRAINING_BLOCK_START = new Date('2026-08-09T00:00:00');
-const TOTAL_WEEKS = 17;
+// The goal race lived here as three consts until the designer's Profile frame
+// put the same countdown on a second screen — see src/lib/goal-race.ts. The
+// h/m/s tick below stays local: only this strip counts down by the second.
+import { GOAL_RACE } from '@/lib/goal-race';
 
 interface DashboardStats {
   athleteCount: number;
@@ -183,7 +183,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const tick = () => {
-      const diff = RACE_DATE.getTime() - Date.now();
+      const diff = GOAL_RACE.date.getTime() - Date.now();
       if (diff <= 0) return;
       setCountdown({
         d: Math.floor(diff / 86400000),
@@ -191,8 +191,8 @@ export default function DashboardPage() {
         m: Math.floor((diff % 3600000) / 60000),
         s: Math.floor((diff % 60000) / 1000),
       });
-      const w = Math.floor((Date.now() - TRAINING_BLOCK_START.getTime()) / 604800000);
-      setWeek(Math.max(0, Math.min(w + 1, TOTAL_WEEKS)));
+      const w = Math.floor((Date.now() - GOAL_RACE.blockStart.getTime()) / 604800000);
+      setWeek(Math.max(0, Math.min(w + 1, GOAL_RACE.totalWeeks)));
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -386,7 +386,7 @@ export default function DashboardPage() {
   const firstName = (athleteName || '').split(' ')[0];
   // Locale-aware race date (was a hardcoded "Dec 6, 2026" — reads as a Hebrew
   // month name once translated instead of forcing English into an RTL page).
-  const raceDateLabel = RACE_DATE.toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
+  const raceDateLabel = GOAL_RACE.date.toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
 
   const heroWorkout = (() => {
     const todayW = weekly?.dailyDistances?.find(d => d.dayOfWeek === todayDow && d.max > 0);
@@ -412,8 +412,8 @@ export default function DashboardPage() {
       {/* ═══ LARGE TITLE (native home header) ═══ */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-slate-400">{greeting}{firstName ? ` ${firstName}` : ''} 👋</p>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight mt-0.5">מדרגות</h1>
+          <p className="text-sm text-ink-400">{greeting}{firstName ? ` ${firstName}` : ''} 👋</p>
+          <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight mt-0.5">מדרגות</h1>
         </div>
       </div>
 
@@ -426,19 +426,19 @@ export default function DashboardPage() {
       )}
 
       {/* ═══ RACE COUNTDOWN — compact native strip, kept minimal on purpose ═══ */}
-      <section className="rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4 flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-primary-600/15 flex items-center justify-center shrink-0">
-          <MapPin className="h-5 w-5 text-primary-400" />
+      <section className="rounded-card bg-card/60 border border-page/60 p-4 flex items-center gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-brand-600/15 flex items-center justify-center shrink-0">
+          <MapPin className="h-5 w-5 text-brand-600" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-white truncate">{t('valenciaMarathon')}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {raceDateLabel} · {week > 0 ? t('weekOfTotal', { week, total: TOTAL_WEEKS }) : t('preSeason')}
+          <p className="text-sm font-bold text-ink-700 truncate">{t(GOAL_RACE.nameKey)}</p>
+          <p className="text-xs text-ink-400 mt-0.5">
+            {raceDateLabel} · {week > 0 ? t('weekOfTotal', { week, total: GOAL_RACE.totalWeeks }) : t('preSeason')}
           </p>
         </div>
         <div className="text-end shrink-0">
-          <div className="text-2xl font-black text-white leading-none tabular-nums">{countdown.d}</div>
-          <div className="text-2xs text-slate-500 mt-1">{tc('days')}</div>
+          <div className="text-2xl font-black text-ink-700 leading-none tabular-nums">{countdown.d}</div>
+          <div className="text-2xs text-ink-400 mt-1">{tc('days')}</div>
         </div>
       </section>
 
@@ -456,13 +456,13 @@ export default function DashboardPage() {
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <Card variant="muted">
             <BigStat
-              value={hasData ? <>{Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)}<span className="text-sm font-medium text-slate-500"> {tc('km')}</span></> : '—'}
+              value={hasData ? <>{Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)}<span className="text-sm font-medium text-ink-400"> {tc('km')}</span></> : '—'}
               label={t('weeklyVolume')}
             />
             {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
               <div className="flex items-center justify-center gap-1 mt-2">
-                {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-green-400" /> : <TrendingDown className="h-3.5 w-3.5 text-amber-400" />}
-                <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-green-400' : 'text-amber-400')}>
+                {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-accent-600" /> : <TrendingDown className="h-3.5 w-3.5 text-band-3" />}
+                <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-accent-600' : 'text-band-3')}>
                   {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
                 </span>
               </div>
@@ -470,21 +470,21 @@ export default function DashboardPage() {
           </Card>
           <Card variant="muted">
             <BigStat value={stats?.athleteCount || 0} label="Athletes" />
-            <p className="text-sm text-slate-500 mt-1 text-center">{stats?.groupCount || 0} groups</p>
+            <p className="text-sm text-ink-400 mt-1 text-center">{stats?.groupCount || 0} groups</p>
           </Card>
           <Card variant="muted">
             <BigStat
-              value={<>{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-slate-500">%</span></>}
+              value={<>{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-ink-400">%</span></>}
               label={t('delivery')}
             />
-            <p className="text-sm text-slate-500 mt-1 text-center">{t('successRate')}</p>
+            <p className="text-sm text-ink-400 mt-1 text-center">{t('successRate')}</p>
           </Card>
           <Card variant="muted">
             <BigStat
-              value={<>{weekly?.trainingDays || 0}<span className="text-sm font-medium text-slate-500">/7</span></>}
+              value={<>{weekly?.trainingDays || 0}<span className="text-sm font-medium text-ink-400">/7</span></>}
               label={t('trainingDays')}
             />
-            <p className="text-sm text-slate-500 mt-1 text-center">{t('thisWeek')}</p>
+            <p className="text-sm text-ink-400 mt-1 text-center">{t('thisWeek')}</p>
           </Card>
         </section>
       )}
@@ -494,7 +494,7 @@ export default function DashboardPage() {
           isToday={heroWorkout.showingToday}
           workout={heroWorkout.nextWorkout}
           typeLabel={typeLabels[heroWorkout.nextWorkout.type] || heroWorkout.nextWorkout.type}
-          typeColor={typeColors[heroWorkout.nextWorkout.type] || '#6366f1'}
+          typeColor={typeColors[heroWorkout.nextWorkout.type] || '#159AFF'}
           done={heroWorkout.showingToday && heroWorkout.todayDone}
           doneKm={heroWorkout.showingToday ? heroWorkout.todayKm : undefined}
           date={heroWorkout.nextDate}
@@ -539,17 +539,17 @@ export default function DashboardPage() {
           {!!summary?.weekStreak && (
             <Card variant="muted">
               <div className="flex items-center justify-center gap-2">
-                <Flame className="h-6 w-6 text-orange-400" />
+                <Flame className="h-6 w-6 text-band-3" />
                 <BigStat value={summary.weekStreak} label={summary.weekStreak === 1 ? tm('weekStreakOne') : tm('weekStreak')} />
               </div>
             </Card>
           )}
           <Card variant="muted">
             <BigStat
-              value={<>{weeklyRuns}<span className="text-sm font-medium text-slate-500">/ {hasData ? weekly!.trainingDays : 7}</span></>}
+              value={<>{weeklyRuns}<span className="text-sm font-medium text-ink-400">/ {hasData ? weekly!.trainingDays : 7}</span></>}
               label={t('trainingDays')}
             />
-            <p className="text-sm text-slate-500 mt-1 text-center">{t('completed')}</p>
+            <p className="text-sm text-ink-400 mt-1 text-center">{t('completed')}</p>
           </Card>
           <StatTiles athleteId={athleteId} />
         </>

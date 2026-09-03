@@ -199,7 +199,7 @@ export function StoreManager() {
       {tab === 'products' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-white">{t('existingProducts')}</h2>
+            <h2 className="text-sm font-semibold text-ink-700">{t('existingProducts')}</h2>
             <Button size="sm" onClick={openNew}>
               <Plus className="h-4 w-4" />
               {t('newProduct')}
@@ -220,15 +220,15 @@ export function StoreManager() {
                   onClick={() => openEdit(p)}
                   trailing={
                     <div className="flex items-center gap-2.5 shrink-0">
-                      <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500')}>
+                      <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400')}>
                         {p.active ? t('active') : t('inactive')}
                       </span>
-                      <div className="w-9 h-9 rounded-lg bg-slate-900/60 border border-slate-700/50 flex items-center justify-center overflow-hidden">
+                      <div className="w-9 h-9 rounded-lg bg-page/60 border border-page/50 flex items-center justify-center overflow-hidden">
                         {p.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <Package className="h-4 w-4 text-slate-500" />
+                          <Package className="h-4 w-4 text-ink-400" />
                         )}
                       </div>
                     </div>
@@ -242,7 +242,7 @@ export function StoreManager() {
 
       {tab === 'orders' && (
         <div>
-          <h2 className="text-sm font-semibold text-white mb-4">{t('allOrders')}</h2>
+          <h2 className="text-sm font-semibold text-ink-700 mb-4">{t('allOrders')}</h2>
           {ordersLoading ? (
             <LoadingBlock />
           ) : orders.length === 0 ? (
@@ -250,30 +250,30 @@ export function StoreManager() {
           ) : (
             <div className="space-y-2.5">
               {orders.map((o) => (
-                <div key={o.id} className="rounded-2xl bg-slate-800/50 border border-slate-700/40 p-3">
+                <div key={o.id} className="rounded-card bg-card/50 border border-page/40 p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-bold text-white" dir="auto">{o.athleteName || '—'}</span>
-                    <span className="text-xs text-slate-500">{fmtDate(o.createdAt)}</span>
+                    <span className="text-sm font-bold text-ink-700" dir="auto">{o.athleteName || '—'}</span>
+                    <span className="text-xs text-ink-400">{fmtDate(o.createdAt)}</span>
                   </div>
                   <div className="space-y-0.5 mb-1.5">
                     {o.items.map((it, i) => {
                       const variant = [it.size, it.color].filter(Boolean).join(' · ');
                       return (
-                        <p key={i} className="text-xs text-slate-400" dir="auto">
+                        <p key={i} className="text-xs text-ink-400" dir="auto">
                           {it.quantity}× {it.nameHe}{variant ? ` (${variant})` : ''}
                         </p>
                       );
                     })}
                   </div>
-                  {o.contactPhone && <p className="text-xs text-slate-400 mb-1">📞 {o.contactPhone}</p>}
-                  {o.notes && <p className="text-xs text-slate-500 mb-1.5" dir="auto">{o.notes}</p>}
+                  {o.contactPhone && <p className="text-xs text-ink-400 mb-1">📞 {o.contactPhone}</p>}
+                  {o.notes && <p className="text-xs text-ink-400 mb-1.5" dir="auto">{o.notes}</p>}
                   <div className="flex items-center justify-between mt-2">
-                    <span className="text-sm font-bold text-primary-400">{o.total} ₪</span>
+                    <span className="text-sm font-bold text-brand-600">{o.total} ₪</span>
                     <select
                       value={o.status}
                       disabled={updatingOrder === o.id}
                       onChange={(e) => updateOrderStatus(o, e.target.value)}
-                      className="bg-slate-900/60 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-primary-500"
+                      className="bg-page/60 border border-page rounded-lg px-2 py-1 text-xs text-ink-700 focus:outline-none focus:border-brand-600"
                     >
                       {STATUSES.map((s) => (
                         <option key={s} value={s}>{t(`status_${s}` as any)}</option>
@@ -289,65 +289,65 @@ export function StoreManager() {
 
       <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editProduct') : t('newProduct')}>
         <div className="space-y-4 pb-2">
-          {error && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{error}</div>}
+          {error && <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{error}</div>}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('nameHebrew')}</label>
-              <input value={nameHe} onChange={(e) => setNameHe(e.target.value)} dir="rtl" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-primary-600/50" />
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('nameHebrew')}</label>
+              <input value={nameHe} onChange={(e) => setNameHe(e.target.value)} dir="rtl" className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 focus:outline-none focus:border-brand-600/50" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('nameEnglish')}</label>
-              <input value={nameEn} onChange={(e) => setNameEn(e.target.value)} dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-primary-600/50" />
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('nameEnglish')}</label>
+              <input value={nameEn} onChange={(e) => setNameEn(e.target.value)} dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 focus:outline-none focus:border-brand-600/50" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('descriptionHebrew')}</label>
-              <input value={descriptionHe} onChange={(e) => setDescriptionHe(e.target.value)} dir="rtl" placeholder={t('optional')} className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('descriptionHebrew')}</label>
+              <input value={descriptionHe} onChange={(e) => setDescriptionHe(e.target.value)} dir="rtl" placeholder={t('optional')} className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('descriptionEnglish')}</label>
-              <input value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} dir="ltr" placeholder={t('optional')} className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('price')} (₪)</label>
-              <input type="number" min={0} step="any" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="120" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('stockOptional')}</label>
-              <input type="number" min={0} value={stock} onChange={(e) => setStock(e.target.value)} placeholder={t('unlimited')} className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('descriptionEnglish')}</label>
+              <input value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} dir="ltr" placeholder={t('optional')} className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('sizesOptional')}</label>
-              <input value={sizesInput} onChange={(e) => setSizesInput(e.target.value)} placeholder="S, M, L, XL" dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
-              <p className="text-2xs text-slate-500 mt-1">{t('sizesHint')}</p>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('price')} (₪)</label>
+              <input type="number" min={0} step="any" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="120" className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('colorsOptional')}</label>
-              <input value={colorsInput} onChange={(e) => setColorsInput(e.target.value)} placeholder="Black, White, Red" dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50" />
-              <p className="text-2xs text-slate-500 mt-1">{t('colorsHint')}</p>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('stockOptional')}</label>
+              <input type="number" min={0} value={stock} onChange={(e) => setStock(e.target.value)} placeholder={t('unlimited')} className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('sizesOptional')}</label>
+              <input value={sizesInput} onChange={(e) => setSizesInput(e.target.value)} placeholder="S, M, L, XL" dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
+              <p className="text-2xs text-ink-400 mt-1">{t('sizesHint')}</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('colorsOptional')}</label>
+              <input value={colorsInput} onChange={(e) => setColorsInput(e.target.value)} placeholder="Black, White, Red" dir="ltr" className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50" />
+              <p className="text-2xs text-ink-400 mt-1">{t('colorsHint')}</p>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('productImage')}</label>
+            <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('productImage')}</label>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleImagePick(e.target.files?.[0] || null)} />
             <div className="flex items-center gap-3">
-              <button type="button" onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-primary-400 bg-primary-600/10 hover:bg-primary-600/20 transition-all">
+              <button type="button" onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-brand-600 bg-brand-600/10 hover:bg-brand-600/20 transition-all">
                 <ImagePlus className="h-4 w-4" />
                 {imagePreview ? t('changeImage') : t('uploadImage')}
               </button>
               {imagePreview && (
                 <div className="relative w-14 h-14 shrink-0">
-                  <div className="w-14 h-14 rounded-lg overflow-hidden border border-slate-700/50">
+                  <div className="w-14 h-14 rounded-lg overflow-hidden border border-page/50">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={imagePreview} alt="" className="w-full h-full object-cover" />
                   </div>
@@ -360,8 +360,8 @@ export function StoreManager() {
           </div>
 
           {editingId && (
-            <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50">
-              <span className="text-sm font-medium text-white">{activeState ? t('active') : t('inactive')}</span>
+            <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-page/50 border border-page/50">
+              <span className="text-sm font-medium text-ink-700">{activeState ? t('active') : t('inactive')}</span>
               <Switch checked={activeState} onChange={(v) => setActiveState(v)} size="sm" />
             </div>
           )}

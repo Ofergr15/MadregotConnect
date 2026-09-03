@@ -40,7 +40,7 @@ export function StatisticsScreen({ athleteId, athleteName }: { athleteId: string
       {!data ? (
         <SkeletonCard className="h-24" />
       ) : (
-        <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+        <div className="rounded-card bg-card/80 border border-page/50 p-5">
           <div className="grid grid-cols-3 gap-2">
             <BigStat value={data.totalKm.toLocaleString()} label="ק״מ סה״כ" />
             <BigStat value={data.totalHours} label="שעות ריצה" />
@@ -51,27 +51,27 @@ export function StatisticsScreen({ athleteId, athleteName }: { athleteId: string
 
       {/* Consistency: current + longest streak, active-weeks ratio */}
       {data && (data.weekStreak > 0 || data.longestStreak > 0 || ratio) && (
-        <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+        <div className="rounded-card bg-card/80 border border-page/50 p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Flame className="h-4 w-4 text-orange-400" />
-            <h2 className="text-sm font-semibold text-white uppercase tracking-wider">עקביות</h2>
+            <Flame className="h-4 w-4 text-band-3" />
+            <h2 className="text-sm font-semibold text-ink-700 uppercase tracking-wider">עקביות</h2>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-900/50 rounded-xl p-3">
-              <BigStat value={data.weekStreak} label="רצף נוכחי (שבועות)" valueClassName="text-2xl text-white" />
+            <div className="bg-page/50 rounded-xl p-3">
+              <BigStat value={data.weekStreak} label="רצף נוכחי (שבועות)" valueClassName="text-2xl text-ink-700" />
             </div>
-            <div className="bg-slate-900/50 rounded-xl p-3">
-              <BigStat value={data.longestStreak} label="הרצף הארוך ביותר" valueClassName="text-2xl text-white" />
+            <div className="bg-page/50 rounded-xl p-3">
+              <BigStat value={data.longestStreak} label="הרצף הארוך ביותר" valueClassName="text-2xl text-ink-700" />
             </div>
           </div>
           {ratio && (
-            <div className="mt-3 bg-slate-900/50 rounded-xl p-3">
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+            <div className="mt-3 bg-page/50 rounded-xl p-3">
+              <div className="flex items-center justify-between text-xs text-ink-400 mb-1.5">
                 <span>שבועות פעילים (שנה אחרונה)</span>
-                <span className="font-bold text-white tabular-nums">{ratio.active}/{ratio.total}</span>
+                <span className="font-bold text-ink-700 tabular-nums">{ratio.active}/{ratio.total}</span>
               </div>
-              <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
-                <div className="h-full bg-primary-500 rounded-full" style={{ width: `${ratioPct}%` }} />
+              <div className="h-2 rounded-full bg-page overflow-hidden">
+                <div className="h-full bg-brand-600 rounded-full" style={{ width: `${ratioPct}%` }} />
               </div>
             </div>
           )}

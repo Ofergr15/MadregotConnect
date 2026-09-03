@@ -76,28 +76,28 @@ export default function RunChatDemoPage() {
 
   return (
     <div className="flex min-h-[calc(100dvh-8.5rem)] flex-col gap-3" dir="rtl" lang="he">
-      <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-white">
+      <div className="flex items-center gap-3 rounded-xl border border-page bg-page px-4 py-2.5 text-ink-700">
         <button
-          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+          className="rounded-lg p-1.5 text-ink-400 hover:bg-page hover:text-ink-900"
           aria-label="חזור"
           onClick={() => router.push(`/dashboard/run-chat/${activityId}`)}
         >
           <ArrowRight className="h-5 w-5" />
         </button>
-        <Radio className="h-4 w-4 text-emerald-400" />
+        <Radio className="h-4 w-4 text-accent-600" />
         <div>
           <h1 className="text-sm font-semibold">{t('liveDemo')}</h1>
-          <p className="text-[11px] text-slate-400">Runner ↔ Coach ↔ AI Coach</p>
+          <p className="text-[11px] text-ink-400">Runner ↔ Coach ↔ AI Coach</p>
         </div>
       </div>
 
       {error ? (
-        <div className="grid flex-1 place-items-center rounded-2xl border border-red-400/20 bg-slate-900 p-8">
-          <p className="text-sm text-red-400">{error}</p>
+        <div className="grid flex-1 place-items-center rounded-2xl border border-accent-red/20 bg-page p-8">
+          <p className="text-sm text-accent-red">{error}</p>
         </div>
       ) : !supabaseToken || !chat || !activity || !participants ? (
-        <div className="grid flex-1 place-items-center rounded-2xl border border-slate-800 bg-slate-900">
-          <Loader2 className="h-6 w-6 animate-spin text-primary-400" />
+        <div className="grid flex-1 place-items-center rounded-2xl border border-page bg-page">
+          <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
         </div>
       ) : (
         <div
@@ -105,7 +105,7 @@ export default function RunChatDemoPage() {
           data-testid="run-chat-live-demo"
         >
           <section
-            className="h-[70dvh] min-h-[36rem] overflow-hidden rounded-2xl border border-blue-400/25 bg-slate-900 shadow-xl lg:h-[calc(100dvh-12.5rem)]"
+            className="h-[70dvh] min-h-[36rem] overflow-hidden rounded-2xl border border-band-2/25 bg-page shadow-xl lg:h-[calc(100dvh-12.5rem)]"
             data-testid="runner-chat-pane"
           >
             <ConnectedRunChat
@@ -120,7 +120,7 @@ export default function RunChatDemoPage() {
             />
           </section>
           <section
-            className="h-[70dvh] min-h-[36rem] overflow-hidden rounded-2xl border border-amber-400/25 bg-slate-900 shadow-xl lg:h-[calc(100dvh-12.5rem)]"
+            className="h-[70dvh] min-h-[36rem] overflow-hidden rounded-2xl border border-band-3/25 bg-page shadow-xl lg:h-[calc(100dvh-12.5rem)]"
             data-testid="coach-chat-pane"
           >
             <ConnectedRunChat

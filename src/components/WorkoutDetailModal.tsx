@@ -41,7 +41,7 @@ function getStepLabel(step: any): string {
 function getStepColor(step: any): string {
   if (step.type === 'warmup' || step.type === 'cooldown') return '#f59e0b';
   if (step.type === 'interval' || step.type === 'active') return '#ef4444';
-  return '#64748b';
+  return '#969696';
 }
 
 function summarizeSteps(steps: any[]): any[] {
@@ -133,7 +133,7 @@ function GroupPaces({ step, viewGroup }: { step: any; viewGroup: number }) {
             key={g}
             className={cn(
               'text-xs',
-              mine ? 'text-primary-600 font-bold' : 'text-slate-500'
+              mine ? 'text-brand-600 font-bold' : 'text-ink-400'
             )}
           >
             {text}
@@ -162,15 +162,15 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
         {/* Header */}
         <div className="pb-3 flex items-start justify-between shrink-0">
           <div>
-            <p className="text-xs font-bold text-primary-600 uppercase tracking-wider">{session.day}</p>
+            <p className="text-xs font-bold text-brand-600 uppercase tracking-wider">{session.day}</p>
             <div className="flex items-center gap-3 mt-1">
-              <span className="text-sm font-bold text-white">{session.totalKm} km</span>
+              <span className="text-sm font-bold text-ink-700">{session.totalKm} km</span>
               {session.highlight && (
-                <code className="text-xs font-bold text-primary-600 bg-primary-600/10 px-2 py-0.5 rounded">{session.highlight}</code>
+                <code className="text-xs font-bold text-brand-600 bg-brand-600/10 px-2 py-0.5 rounded">{session.highlight}</code>
               )}
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-page text-ink-400 hover:text-ink-900 transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -178,14 +178,14 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
         {/* Group selector — pick which group's pace is highlighted (display only) */}
         {hasGroupPaces && (
           <div className="pb-3 shrink-0">
-            <div className="flex items-center gap-1 bg-slate-800/60 border border-slate-700/50 rounded-lg p-1 w-fit">
+            <div className="flex items-center gap-1 bg-card/60 border border-page/50 rounded-lg p-1 w-fit">
               {[0, 1, 2].map(g => (
                 <button
                   key={g}
                   onClick={() => onPickGroup(g)}
                   className={cn(
                     'px-3 h-7 rounded-md text-xs font-semibold transition-colors',
-                    g === viewGroup ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+                    g === viewGroup ? 'bg-brand-600 text-white' : 'text-ink-400 hover:text-ink-900'
                   )}
                 >
                   Group {g + 1}
@@ -202,10 +202,10 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
               const step0 = block.steps[0];
               const durLabel = formatStepDuration(step0);
               return (
-                <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-slate-800/40">
-                  <div className="w-1 h-5 rounded-full bg-amber-500 flex-shrink-0" />
-                  <span className="text-sm text-white font-medium">{block.phase === 'warmup' ? 'Warmup' : 'Cooldown'}</span>
-                  {durLabel && <span className="text-sm text-slate-400">{durLabel}</span>}
+                <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-card/40">
+                  <div className="w-1 h-5 rounded-full bg-band-3 flex-shrink-0" />
+                  <span className="text-sm text-ink-700 font-medium">{block.phase === 'warmup' ? 'Warmup' : 'Cooldown'}</span>
+                  {durLabel && <span className="text-sm text-ink-400">{durLabel}</span>}
                   <span className="ms-auto"><GroupPaces step={step0} viewGroup={viewGroup} /></span>
                 </div>
               );
@@ -220,19 +220,19 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
               });
 
               return (
-                <div key={i} className="rounded-lg border border-primary-600/20 bg-primary-600/5 px-3 py-2.5">
+                <div key={i} className="rounded-lg border border-brand-600/20 bg-brand-600/5 px-3 py-2.5">
                   <div className="flex items-center gap-2 mb-2">
-                    <Repeat className="h-3.5 w-3.5 text-primary-600" />
-                    <span className="text-sm font-bold text-white">{block.count}x</span>
+                    <Repeat className="h-3.5 w-3.5 text-brand-600" />
+                    <span className="text-sm font-bold text-ink-700">{block.count}x</span>
                   </div>
                   <div className="space-y-1">
                     {summary.map((s: any, j: number) => (
                       <div key={j} dir="ltr" className="flex items-center gap-2 text-sm">
                         <div className="w-1 h-4 rounded-full flex-shrink-0" style={{ background: getStepColor(s.step) }} />
-                        <span className={cn("font-medium flex-shrink-0", s.isRest ? "text-slate-500" : "text-white")}>
+                        <span className={cn("font-medium flex-shrink-0", s.isRest ? "text-ink-400" : "text-ink-700")}>
                           {s.dur}
                         </span>
-                        <span className="text-slate-400 truncate flex-1 text-end" dir="rtl">{s.label}</span>
+                        <span className="text-ink-400 truncate flex-1 text-end" dir="rtl">{s.label}</span>
                         <span className="flex-shrink-0"><GroupPaces step={s.step} viewGroup={viewGroup} /></span>
                       </div>
                     ))}
@@ -245,8 +245,8 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
               const s = block.step;
               const dur = formatStepDuration(s) || 'Open';
               return (
-                <div key={i} className="flex items-center gap-2 py-1.5 px-3 text-sm text-slate-500">
-                  <div className="w-1 h-4 rounded-full bg-slate-600" />
+                <div key={i} className="flex items-center gap-2 py-1.5 px-3 text-sm text-ink-400">
+                  <div className="w-1 h-4 rounded-full bg-ink-300" />
                   <span>{s.notes || 'Recovery'}</span>
                   <span className="ms-auto">{dur}</span>
                 </div>
@@ -257,17 +257,17 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
             const dur = formatStepDuration(s) || 'Open';
             const label = getStepLabel(s);
             return (
-              <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-slate-800/40 text-sm">
+              <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-card/40 text-sm">
                 <div className="w-1 h-5 rounded-full flex-shrink-0" style={{ background: getStepColor(s) }} />
-                <span className="font-medium text-white">{label}</span>
-                <span className="text-slate-400">{dur}</span>
+                <span className="font-medium text-ink-700">{label}</span>
+                <span className="text-ink-400">{dur}</span>
                 <span className="ms-auto"><GroupPaces step={s} viewGroup={viewGroup} /></span>
               </div>
             );
           })}
 
           {(!session.steps || session.steps.length === 0) && (
-            <p className="text-sm text-slate-500 text-center py-8">No step details available</p>
+            <p className="text-sm text-ink-400 text-center py-8">No step details available</p>
           )}
         </div>
     </Sheet>

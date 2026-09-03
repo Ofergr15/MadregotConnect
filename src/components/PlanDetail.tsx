@@ -45,9 +45,9 @@ function workoutsByDay(parsedWorkouts: Record<string, any>): Record<string, any>
 }
 
 const statusConfig = {
-  pending: { icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-400/10', label: 'Pending' },
-  success: { icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-400/10', label: 'Success' },
-  failed: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-400/10', label: 'Failed' },
+  pending: { icon: Clock, color: 'text-band-3', bg: 'bg-band-3/10', label: 'Pending' },
+  success: { icon: CheckCircle2, color: 'text-accent-600', bg: 'bg-accent-600/10', label: 'Success' },
+  failed: { icon: XCircle, color: 'text-accent-red', bg: 'bg-accent-red/10', label: 'Failed' },
 };
 
 export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDate, onRepush }: PlanDetailProps) {
@@ -130,10 +130,10 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
   }, {} as Record<string, { athlete_name: string; deliveries: DeliveryDetail[] }>);
 
   return (
-    <div className="border-t border-slate-700 mt-4 pt-4">
+    <div className="border-t border-page mt-4 pt-4">
       <button
         onClick={handleToggle}
-        className="w-full flex items-center justify-between text-start hover:text-primary-400 transition-colors"
+        className="w-full flex items-center justify-between text-start hover:text-brand-700 transition-colors"
       >
         <span className="text-sm font-medium">View Details</span>
         {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -143,22 +143,22 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
         <div className="mt-4 space-y-6">
           {/* Original Input */}
           <div>
-            <h3 className="text-sm font-medium text-slate-300 mb-2">Original Input</h3>
-            <div className="bg-slate-800 rounded-lg p-4 text-sm text-slate-300 whitespace-pre-wrap font-mono">
+            <h3 className="text-sm font-medium text-ink-500 mb-2">Original Input</h3>
+            <div className="bg-card rounded-lg p-4 text-sm text-ink-500 whitespace-pre-wrap font-mono">
               {originalInput || 'No input recorded'}
             </div>
           </div>
 
           {/* Workout Summary - 7 Day Cards */}
           <div>
-            <h3 className="text-sm font-medium text-slate-300 mb-2">Workout Summary</h3>
+            <h3 className="text-sm font-medium text-ink-500 mb-2">Workout Summary</h3>
             <div className="grid grid-cols-7 gap-2">
               {workoutSummary.map((item, index) => (
                 <div
                   key={index}
                   className={cn(
                     'rounded-lg p-3 text-center',
-                    item.isEmpty ? 'bg-slate-800/50 text-slate-600' : 'bg-slate-800 text-slate-300'
+                    item.isEmpty ? 'bg-card/50 text-ink-400' : 'bg-card text-ink-500'
                   )}
                 >
                   <div className="text-xs font-medium mb-1">{item.day.slice(0, 3)}</div>
@@ -171,7 +171,7 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
           {/* Delivery Status */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-300">Delivery Status</h3>
+              <h3 className="text-sm font-medium text-ink-500">Delivery Status</h3>
               {hasFailures && (
                 <button
                   onClick={handleRepush}
@@ -179,8 +179,8 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
                   className={cn(
                     'flex items-center gap-2 px-3 py-1 rounded-md text-xs font-medium transition-colors',
                     selectedFailedAthletes.size > 0
-                      ? 'bg-primary-600 hover:bg-primary-700 text-white'
-                      : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                      ? 'bg-brand-600 hover:bg-brand-700 text-white'
+                      : 'bg-page text-ink-400 cursor-not-allowed'
                   )}
                 >
                   <RefreshCw className="h-3 w-3" />
@@ -190,29 +190,29 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
             </div>
 
             {loading ? (
-              <div className="bg-slate-800 rounded-lg p-8 text-center">
-                <Clock className="h-8 w-8 text-slate-600 mx-auto mb-2 animate-pulse" />
-                <p className="text-sm text-slate-400">Loading delivery details...</p>
+              <div className="bg-card rounded-lg p-8 text-center">
+                <Clock className="h-8 w-8 text-ink-400 mx-auto mb-2 animate-pulse" />
+                <p className="text-sm text-ink-400">Loading delivery details...</p>
               </div>
             ) : deliveries.length === 0 ? (
-              <div className="bg-slate-800 rounded-lg p-8 text-center">
-                <AlertCircle className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-sm text-slate-400">No deliveries recorded for this plan</p>
+              <div className="bg-card rounded-lg p-8 text-center">
+                <AlertCircle className="h-8 w-8 text-ink-400 mx-auto mb-2" />
+                <p className="text-sm text-ink-400">No deliveries recorded for this plan</p>
               </div>
             ) : (
-              <div className="bg-slate-800 rounded-lg overflow-hidden">
+              <div className="bg-card rounded-lg overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-slate-700/50">
+                  <thead className="bg-page/50">
                     <tr>
-                      {hasFailures && <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Select</th>}
-                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Athlete</th>
-                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Date</th>
-                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Status</th>
-                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Garmin ID</th>
-                      <th className="px-4 py-2 text-start text-xs font-medium text-slate-400">Error</th>
+                      {hasFailures && <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Select</th>}
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Athlete</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Date</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Status</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Garmin ID</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Error</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700">
+                  <tbody className="divide-y divide-page">
                     {Object.entries(deliveriesByAthlete).map(([athleteId, { athlete_name, deliveries: athleteDeliveries }]) => (
                       athleteDeliveries.map((delivery, index) => {
                         const config = statusConfig[delivery.status];
@@ -220,7 +220,7 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
                         const isFailed = delivery.status === 'failed';
 
                         return (
-                          <tr key={delivery.id} className="hover:bg-slate-700/30">
+                          <tr key={delivery.id} className="hover:bg-page/30">
                             {hasFailures && (
                               <td className="px-4 py-3">
                                 {isFailed && (
@@ -228,13 +228,13 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
                                     type="checkbox"
                                     checked={selectedFailedAthletes.has(delivery.athlete_id)}
                                     onChange={() => handleSelectFailed(delivery.athlete_id)}
-                                    className="rounded border-slate-600 bg-slate-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-slate-900"
+                                    className="rounded border-ink-300 bg-page text-brand-600 focus:ring-brand-600 focus:ring-offset-card"
                                   />
                                 )}
                               </td>
                             )}
                             <td className="px-4 py-3 text-sm">{athlete_name}</td>
-                            <td className="px-4 py-3 text-sm text-slate-400">
+                            <td className="px-4 py-3 text-sm text-ink-400">
                               {new Date(delivery.workout_date).toLocaleDateString('en-US', {
                                 month: 'short',
                                 day: 'numeric',
@@ -246,10 +246,10 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
                                 {config.label}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-400 font-mono">
+                            <td className="px-4 py-3 text-sm text-ink-400 font-mono">
                               {delivery.garmin_workout_id || '-'}
                             </td>
-                            <td className="px-4 py-3 text-sm text-red-400">
+                            <td className="px-4 py-3 text-sm text-accent-red">
                               {delivery.error_message || '-'}
                             </td>
                           </tr>

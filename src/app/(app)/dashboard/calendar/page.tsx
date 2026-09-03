@@ -55,13 +55,13 @@ const todayIso = () => iso(new Date());
 // don't collide with the green/amber/red already used for attendance status.
 // Labels come from next-intl (`kinds.*`), not a hardcoded table.
 const KIND_COLOR: Record<EventKind, string> = {
-  race: 'bg-primary-400',
-  camp: 'bg-green-400',
-  lecture: 'bg-amber-400',
+  race: 'bg-brand-600',
+  camp: 'bg-accent-600',
+  lecture: 'bg-band-3',
   social: 'bg-pink-400',
-  photo_shoot: 'bg-cyan-400',
-  sponsor: 'bg-orange-400',
-  workout: 'bg-slate-400',
+  photo_shoot: 'bg-band-2',
+  sponsor: 'bg-band-3',
+  workout: 'bg-ink-300',
 };
 const KIND_ICON: Record<EventKind, React.ComponentType<{ className?: string }>> = {
   race: Trophy,
@@ -180,10 +180,10 @@ export default function CalendarPage() {
     <div className="max-w-4xl mx-auto pb-6">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <CalendarDays className="h-6 w-6 text-primary-400" /> {t('title')}
+          <h1 className="text-2xl font-bold text-ink-700 flex items-center gap-2">
+            <CalendarDays className="h-6 w-6 text-brand-600" /> {t('title')}
           </h1>
-          <p className="text-sm text-slate-400 mt-1">{t('subtitle')}</p>
+          <p className="text-sm text-ink-400 mt-1">{t('subtitle')}</p>
         </div>
         {isStaff && (
           <Button size="sm" onClick={() => setShowAddForm(true)} className="shrink-0">
@@ -211,15 +211,15 @@ export default function CalendarPage() {
         <button
           onClick={() => shiftMonth(1)}
           aria-label={t('nextMonth')}
-          className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all"
+          className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <div className="text-lg font-bold text-white">{monthLabel}</div>
+        <div className="text-lg font-bold text-ink-700">{monthLabel}</div>
         <button
           onClick={() => shiftMonth(-1)}
           aria-label={t('prevMonth')}
-          className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-[0.92] transition-all"
+          className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -228,7 +228,7 @@ export default function CalendarPage() {
       {/* Weekday header (locale-aware: RTL puts Sunday on the right, LTR on the left) */}
       <div className="grid grid-cols-7 gap-1.5 mb-1.5">
         {dowShort.map((d, i) => (
-          <div key={i} className="text-center text-[11px] font-bold text-slate-500">{d}</div>
+          <div key={i} className="text-center text-[11px] font-bold text-ink-400">{d}</div>
         ))}
       </div>
 
@@ -246,10 +246,10 @@ export default function CalendarPage() {
               onClick={() => setSelectedDate(cell.iso)}
               className={cn(
                 'aspect-square rounded-xl flex flex-col items-center justify-center gap-1 border transition-colors active:scale-[0.95]',
-                isSelected ? 'bg-primary-600/15 border-primary-500' : isToday ? 'border-primary-500/60' : 'border-transparent hover:border-slate-600',
+                isSelected ? 'bg-brand-600/15 border-brand-600' : isToday ? 'border-brand-600/60' : 'border-transparent hover:border-ink-300',
               )}
             >
-              <span className={cn('text-sm font-semibold', isSelected || isToday ? 'text-white' : dayEvents.length ? 'text-slate-200' : 'text-slate-500')}>
+              <span className={cn('text-sm font-semibold', isSelected || isToday ? 'text-ink-700' : dayEvents.length ? 'text-ink-700' : 'text-ink-400')}>
                 {cell.dom}
               </span>
               {kinds.length > 0 && (
@@ -257,7 +257,7 @@ export default function CalendarPage() {
                   {kinds.slice(0, 3).map((k) => (
                     <span key={k} className={cn('w-1.5 h-1.5 rounded-full', KIND_COLOR[k])} />
                   ))}
-                  {kinds.length > 3 && <span className="text-[9px] text-slate-400 leading-none">+{kinds.length - 3}</span>}
+                  {kinds.length > 3 && <span className="text-[9px] text-ink-400 leading-none">+{kinds.length - 3}</span>}
                 </span>
               )}
             </button>
@@ -268,7 +268,7 @@ export default function CalendarPage() {
       {loading && <SkeletonCard className="mt-4" />}
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3 mt-4 text-[11px] text-slate-500">
+      <div className="flex flex-wrap items-center gap-3 mt-4 text-[11px] text-ink-400">
         {EVENT_KINDS.map((k) => (
           <span key={k} className="flex items-center gap-1.5">
             <span className={cn('w-2 h-2 rounded-full', KIND_COLOR[k])} /> {t(`kinds.${k}`)}
@@ -278,7 +278,7 @@ export default function CalendarPage() {
 
       {/* Selected day */}
       <div className="mt-6">
-        <h2 className="text-sm font-bold text-white mb-3">{dateLabel}</h2>
+        <h2 className="text-sm font-bold text-ink-700 mb-3">{dateLabel}</h2>
         {selectedEvents.length === 0 ? (
           <EmptyState icon={CalendarDays} title={t('noEventsThisDay')} className="py-8" />
         ) : (
@@ -406,28 +406,28 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
   }
 
   return (
-    <div className="flex flex-col lg:flex-row -mx-4 sm:mx-0 rounded-none sm:rounded-2xl overflow-hidden border-y sm:border border-slate-700/60">
+    <div className="flex flex-col lg:flex-row -mx-4 sm:mx-0 rounded-none sm:rounded-2xl overflow-hidden border-y sm:border border-page/60">
       <div className="lg:flex-1 h-[220px] sm:h-[320px] lg:h-[480px] relative" style={{ zIndex: 0 }}>
         <div ref={mapRef} className="absolute inset-0" style={{ zIndex: 0 }} />
         {goalRace && (
-          <div className="absolute top-3 start-3 z-10 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-xl p-3.5 max-w-[260px]">
-            <p className="text-3xs font-bold text-amber-400 uppercase tracking-wider mb-1">{t('nextRace')}</p>
-            <p className="text-sm font-bold text-white truncate">{goalRace.name}</p>
+          <div className="absolute top-3 start-3 z-10 bg-page/90 backdrop-blur border border-page rounded-xl p-3.5 max-w-[260px]">
+            <p className="text-3xs font-bold text-band-3 uppercase tracking-wider mb-1">{t('nextRace')}</p>
+            <p className="text-sm font-bold text-ink-700 truncate">{goalRace.name}</p>
             <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-xl font-black text-white tabular-nums">{daysUntil(goalRace.date)}</span>
-              <span className="text-xs text-slate-400">{tc('days')}</span>
+              <span className="text-xl font-black text-ink-700 tabular-nums">{daysUntil(goalRace.date)}</span>
+              <span className="text-xs text-ink-400">{tc('days')}</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Race list — same grouped-card chrome (rounded-2xl bg-slate-800/80
-          border-slate-700/50, divide-y dividers) as InsetSection/InsetRow, kept
+      {/* Race list — same grouped-card chrome (rounded-2xl bg-card/80
+          border-page/50, divide-y dividers) as InsetSection/InsetRow, kept
           as a local list rather than the shared primitive because each row's
           tap-to-expand reveal (distances + links) has no InsetRow equivalent. */}
-      <div className="lg:w-[360px] border-t lg:border-t-0 lg:border-s border-slate-700/60 overflow-y-auto max-h-[70vh]">
+      <div className="lg:w-[360px] border-t lg:border-t-0 lg:border-s border-page/60 overflow-y-auto max-h-[70vh]">
         <div className="p-3">
-          <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 overflow-hidden divide-y divide-slate-700/50">
+          <div className="rounded-card bg-card/80 border border-page/50 overflow-hidden divide-y divide-page/50">
           {sorted.map((race) => {
             const isExpanded = expandedRace === race.id;
             const isSelected = selectedRace === race.id;
@@ -435,7 +435,7 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
             const dateObj = new Date(race.date + 'T00:00:00');
             const dateLabel = dateObj.toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
             return (
-              <div key={race.id} className={cn('transition-colors', isSelected && 'bg-primary-600/5')}>
+              <div key={race.id} className={cn('transition-colors', isSelected && 'bg-brand-600/5')}>
                 <button
                   type="button"
                   onClick={() => { setSelectedRace(race.id); setExpandedRace(isExpanded ? null : race.id); }}
@@ -445,35 +445,35 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                        <span className="text-3xs text-slate-500">{dateLabel}</span>
+                        <span className="text-3xs text-ink-400">{dateLabel}</span>
                       </div>
-                      <p className="text-sm font-bold text-white truncate" dir="auto">{race.name}</p>
+                      <p className="text-sm font-bold text-ink-700 truncate" dir="auto">{race.name}</p>
                       <div className="flex items-center gap-1.5 mt-1">
-                        <MapPin className="h-3 w-3 text-slate-500 shrink-0" />
-                        <span className="text-xs text-slate-400 truncate" dir="auto">{race.location}</span>
+                        <MapPin className="h-3 w-3 text-ink-400 shrink-0" />
+                        <span className="text-xs text-ink-400 truncate" dir="auto">{race.location}</span>
                       </div>
                     </div>
                     <div className="text-end shrink-0">
-                      <p className="text-lg font-black text-white tabular-nums leading-none">{daysUntil(race.date)}</p>
-                      <p className="text-3xs text-slate-500 mt-0.5">{tc('days')}</p>
+                      <p className="text-lg font-black text-ink-700 tabular-nums leading-none">{daysUntil(race.date)}</p>
+                      <p className="text-3xs text-ink-400 mt-0.5">{tc('days')}</p>
                     </div>
                   </div>
 
                   {isExpanded && (
-                    <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-2">
+                    <div className="mt-3 pt-3 border-t border-page/40 space-y-2">
                       {race.distances && race.distances.length > 0 && (
                         <div className="flex items-center gap-2">
-                          <Route className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                          <Route className="h-3.5 w-3.5 text-ink-400 shrink-0" />
                           <div className="flex flex-wrap gap-1">
                             {race.distances.map((d, i) => (
-                              <span key={i} className="text-3xs font-medium text-white bg-slate-700/60 px-2 py-0.5 rounded">{d}</span>
+                              <span key={i} className="text-3xs font-medium text-ink-700 bg-page/60 px-2 py-0.5 rounded">{d}</span>
                             ))}
                           </div>
                         </div>
                       )}
                       <Link
                         href={`/dashboard/calendar/${race.id}`}
-                        className="inline-block text-xs text-primary-400 hover:text-primary-300 font-medium"
+                        className="inline-block text-xs text-brand-600 hover:text-brand-700 font-medium"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {t('fullDetails')}
@@ -484,7 +484,7 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="block text-xs text-primary-400 hover:text-primary-300 font-medium"
+                          className="block text-xs text-brand-600 hover:text-brand-700 font-medium"
                         >
                           {t('raceWebsite')}
                         </a>
@@ -500,9 +500,12 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
       </div>
 
       <style jsx global>{`
+        /* Stays a dark tooltip on purpose — it floats over a colourful map tile,
+           where a white bubble would disappear into the roads. Retuned from navy
+           to the light system's ink ramp (ink-900 on ink-700). */
         .race-tooltip {
-          background: #1e293b !important;
-          border: 1px solid #334155 !important;
+          background: #1D1E26 !important;
+          border: 1px solid #2D2E38 !important;
           border-radius: 8px !important;
           color: white !important;
           font-size: 12px !important;
@@ -510,7 +513,7 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
           padding: 4px 10px !important;
           box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
         }
-        .race-tooltip::before { border-top-color: #334155 !important; }
+        .race-tooltip::before { border-top-color: #2D2E38 !important; }
       `}</style>
     </div>
   );
@@ -593,7 +596,7 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
                   onChange={(e) => setName(e.target.value)}
                   placeholder={t('addEvent.namePlaceholder')}
                   dir="auto"
-                  className="w-36 sm:w-48 bg-transparent text-sm text-white placeholder-slate-500 text-end focus:outline-none"
+                  className="w-36 sm:w-48 bg-transparent text-sm text-ink-700 placeholder-ink-400 text-end focus:outline-none"
                 />
               }
             />
@@ -604,7 +607,7 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="bg-transparent text-sm text-white focus:outline-none"
+                  className="bg-transparent text-sm text-ink-700 focus:outline-none"
                 />
               }
             />
@@ -617,7 +620,7 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
                   value={capacity}
                   onChange={(e) => setCapacity(e.target.value)}
                   placeholder={t('addEvent.capacityPlaceholder')}
-                  className="w-24 bg-transparent text-sm text-white placeholder-slate-500 text-end focus:outline-none"
+                  className="w-24 bg-transparent text-sm text-ink-700 placeholder-ink-400 text-end focus:outline-none"
                 />
               }
             />
@@ -629,24 +632,24 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder={t('addEvent.locationPlaceholder')}
                   dir="auto"
-                  className="w-36 sm:w-48 bg-transparent text-sm text-white placeholder-slate-500 text-end focus:outline-none"
+                  className="w-36 sm:w-48 bg-transparent text-sm text-ink-700 placeholder-ink-400 text-end focus:outline-none"
                 />
               }
             />
             <div className="px-4 py-3">
-              <label className="block text-xs font-bold text-slate-400 mb-1.5">{t('addEvent.description')}</label>
+              <label className="block text-xs font-bold text-ink-400 mb-1.5">{t('addEvent.description')}</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 placeholder={t('addEvent.descriptionPlaceholder')}
                 dir="auto"
-                className="w-full bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none resize-none"
+                className="w-full bg-transparent text-sm text-ink-700 placeholder-ink-400 focus:outline-none resize-none"
               />
             </div>
           </InsetSection>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-accent-red">{error}</p>}
 
           <Button type="button" onClick={handleSubmit} disabled={submitting} className="w-full">
             {submitting ? t('addEvent.saving') : t('addEvent.create')}
@@ -665,7 +668,7 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
               iconBg={KIND_COLOR[k]}
               label={t(`kinds.${k}`)}
               onClick={() => { setKind(k); setKindPickerOpen(false); }}
-              trailing={kind === k ? <Check className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+              trailing={kind === k ? <Check className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
             />
           ))}
         </InsetSection>

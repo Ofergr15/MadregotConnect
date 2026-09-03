@@ -80,10 +80,10 @@ export default function WorkoutFeedbackPage() {
   return (
     <div className="max-w-4xl mx-auto" dir="rtl">
       <div className="mb-5">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <MessageSquare className="h-6 w-6 text-primary-400" /> משוב אימונים
+        <h1 className="text-2xl font-bold text-ink-700 flex items-center gap-2">
+          <MessageSquare className="h-6 w-6 text-brand-600" /> משוב אימונים
         </h1>
-        <p className="text-sm text-slate-400 mt-1">איך הרגישו הרצים אחרי האימונים</p>
+        <p className="text-sm text-ink-400 mt-1">איך הרגישו הרצים אחרי האימונים</p>
       </div>
 
       {/* Range selector */}
@@ -144,17 +144,17 @@ function MissingCard({ m }: { m: MissingEntry }) {
       <div className="flex items-center gap-3">
         {m.avatarUrl
           ? <img src={m.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-          : <span className="w-9 h-9 rounded-full bg-primary-600/25 flex items-center justify-center text-xs font-bold text-primary-200 shrink-0">{(m.name[0] || '?').toUpperCase()}</span>}
+          : <span className="w-9 h-9 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">{(m.name[0] || '?').toUpperCase()}</span>}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white truncate" dir="auto">{m.name}</span>
+            <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{m.name}</span>
             {rg && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: rg.hex, backgroundColor: `${rg.hex}20` }}>{m.squad}</span>}
           </div>
-          <div className="text-xs text-slate-400 truncate">
+          <div className="text-xs text-ink-400 truncate">
             {m.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}
           </div>
         </div>
-        <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-slate-700/50 text-slate-400 shrink-0">
+        <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-page/50 text-ink-400 shrink-0">
           <Bell className="h-3 w-3" /> ללא תגובה
         </span>
       </div>
@@ -174,17 +174,17 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
     : '';
 
   return (
-    <Card variant="solid" className={it.pain ? 'border-amber-500/40' : undefined}>
+    <Card variant="solid" className={it.pain ? 'border-band-3/40' : undefined}>
       <div className="flex items-center gap-3">
         {it.avatarUrl
           ? <img src={it.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-          : <span className="w-9 h-9 rounded-full bg-primary-600/25 flex items-center justify-center text-xs font-bold text-primary-200 shrink-0">{(it.name[0] || '?').toUpperCase()}</span>}
+          : <span className="w-9 h-9 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">{(it.name[0] || '?').toUpperCase()}</span>}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white truncate" dir="auto">{it.name}</span>
+            <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{it.name}</span>
             {rg && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: rg.hex, backgroundColor: `${rg.hex}20` }}>{it.squad}</span>}
           </div>
-          <div className="text-xs text-slate-400 truncate">
+          <div className="text-xs text-ink-400 truncate">
             {it.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}
           </div>
         </div>
@@ -200,11 +200,11 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
       {/* RPE bar */}
       {it.difficulty != null && (
         <div className="mt-3 flex items-center gap-2">
-          <span className="text-2xs font-semibold text-slate-400 w-16 shrink-0">קושי {it.difficulty}/10</span>
-          <div className="flex-1 h-2 rounded-full bg-slate-700 overflow-hidden">
+          <span className="text-2xs font-semibold text-ink-400 w-16 shrink-0">קושי {it.difficulty}/10</span>
+          <div className="flex-1 h-2 rounded-full bg-page overflow-hidden">
             <div className="h-full rounded-full" style={{ width: `${it.difficulty * 10}%`, backgroundColor: rpeHex(it.difficulty) }} />
           </div>
-          <span className="text-2xs text-slate-500 w-16 text-start shrink-0">{rpeLabel(it.difficulty)}</span>
+          <span className="text-2xs text-ink-400 w-16 text-start shrink-0">{rpeLabel(it.difficulty)}</span>
         </div>
       )}
 
@@ -212,12 +212,12 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
       {(it.pain || it.wantsFeedback) && (
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           {it.pain && (
-            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-band-3/20 text-band-3 border border-band-3/40">
               <AlertTriangle className="h-3 w-3" /> כאב{it.painDetail ? `: ${it.painDetail}` : ''}
             </span>
           )}
           {it.wantsFeedback && (
-            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30">
+            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-band-2/15 text-band-2 border border-band-2/30">
               <Bell className="h-3 w-3" /> ביקש/ה משוב
             </span>
           )}
@@ -226,8 +226,8 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
 
       {/* Comment */}
       {it.comment && (
-        <div className="mt-2.5 flex items-start gap-2 text-sm text-slate-300 bg-slate-900/40 rounded-lg px-3 py-2">
-          <MessageCircle className="h-3.5 w-3.5 text-slate-500 mt-0.5 shrink-0" />
+        <div className="mt-2.5 flex items-start gap-2 text-sm text-ink-500 bg-page/40 rounded-lg px-3 py-2">
+          <MessageCircle className="h-3.5 w-3.5 text-ink-400 mt-0.5 shrink-0" />
           <span dir="auto">{it.comment}</span>
         </div>
       )}

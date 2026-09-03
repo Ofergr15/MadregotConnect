@@ -110,16 +110,16 @@ export function MentionTextarea({
         style={style}
       />
       {query !== null && suggestions.length > 0 && (
-        <div className="absolute z-20 start-0 end-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute z-20 start-0 end-0 top-full mt-1 bg-card border border-page rounded-xl shadow-lg overflow-hidden">
           {suggestions.map((a) => (
             <button
               key={a.id}
               type="button"
               onClick={() => pickAthlete(a)}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-700 text-start"
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-page text-start"
             >
               <FeedAvatar name={a.name} url={a.avatarUrl} className="w-7 h-7 shrink-0" />
-              <span className="text-sm text-white truncate" dir="auto">{a.name}</span>
+              <span className="text-sm text-ink-700 truncate" dir="auto">{a.name}</span>
             </button>
           ))}
         </div>

@@ -127,12 +127,12 @@ function ChatPanel({
   }, [channel, enableAiTrigger, triggerAi]);
 
   return (
-    <div className="run-chat-panel flex h-full flex-col bg-slate-900 text-white" dir="rtl" lang="he">
-      <div className="run-chat-header flex flex-none items-center gap-3 border-b border-slate-700/60 bg-slate-900 px-4 py-3">
+    <div className="run-chat-panel flex h-full flex-col bg-page text-ink-700" dir="rtl" lang="he">
+      <div className="run-chat-header flex flex-none items-center gap-3 border-b border-page/60 bg-page px-4 py-3">
         {onBack && (
           <button
             onClick={onBack}
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
+            className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-page hover:text-ink-900"
             aria-label="חזור"
           >
             <ArrowRight className="h-5 w-5" />
@@ -140,20 +140,20 @@ function ChatPanel({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold text-white">
+            <p className="truncate text-sm font-semibold text-ink-700">
               {activity.activity_name || 'ריצה'}
             </p>
             {viewerLabel && (
               <span
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-600/20 bg-accent-600/10 px-2 py-0.5 text-[10px] font-medium text-accent-600"
                 data-testid="demo-viewer-label"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span className="h-1.5 w-1.5 rounded-full bg-accent-600" />
                 {viewerLabel}
               </span>
             )}
           </div>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-ink-400">
             {new Date(activity.start_time).toLocaleDateString('he-IL', {
               weekday: 'short',
               day: 'numeric',
@@ -170,7 +170,7 @@ function ChatPanel({
               : ''}
           </p>
         </div>
-        {aiLoading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary-400" />}
+        {aiLoading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-brand-600" />}
       </div>
 
       <div className="run-chat-shell flex min-h-0 flex-1 flex-col">
@@ -272,9 +272,9 @@ export function ConnectedRunChat({
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-accent-red">{error}</p>
         {onBack && (
-          <button onClick={onBack} className="text-sm text-primary-400 underline">
+          <button onClick={onBack} className="text-sm text-brand-600 underline">
             חזור
           </button>
         )}
@@ -285,7 +285,7 @@ export function ConnectedRunChat({
   if (!client || !channel) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
       </div>
     );
   }

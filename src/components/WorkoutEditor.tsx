@@ -15,7 +15,7 @@ const durationTypes = ['distance', 'time', 'open'] as const;
 const stepColors: Record<string, string> = {
   warmup: 'border-s-yellow-400',
   interval: 'border-s-red-400',
-  rest: 'border-s-slate-400',
+  rest: 'border-s-ink-300',
   recovery: 'border-s-green-400',
   cooldown: 'border-s-blue-400',
   active: 'border-s-purple-400',
@@ -180,12 +180,12 @@ function PaceInput({
 
   return (
     <div className="flex flex-col">
-      {label && <span className="text-[9px] text-slate-500 mb-0.5">{label}</span>}
+      {label && <span className="text-[9px] text-ink-400 mb-0.5">{label}</span>}
       <div className="flex items-stretch">
         <button
           type="button"
           onClick={() => bump(-1)}
-          className="px-1.5 rounded-s bg-slate-600 hover:bg-slate-500 text-white text-sm flex items-center"
+          className="px-1.5 rounded-s bg-ink-300 hover:bg-page text-ink-700 text-sm flex items-center"
           title={t('faster')}
         >
           <Minus className="h-3 w-3" />
@@ -199,12 +199,12 @@ function PaceInput({
           onBlur={() => { setFocused(false); commit(); }}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           placeholder={placeholder}
-          className="bg-slate-700 border-y border-slate-600 px-2 py-1.5 text-xs text-white w-full text-center min-w-0"
+          className="bg-page border-y border-ink-300 px-2 py-1.5 text-xs text-ink-700 w-full text-center min-w-0"
         />
         <button
           type="button"
           onClick={() => bump(1)}
-          className="px-1.5 rounded-e bg-slate-600 hover:bg-slate-500 text-white text-sm flex items-center"
+          className="px-1.5 rounded-e bg-ink-300 hover:bg-page text-ink-700 text-sm flex items-center"
           title={t('slower')}
         >
           <Plus className="h-3 w-3" />
@@ -237,7 +237,7 @@ function NumberStepper({
       <button
         type="button"
         onClick={() => set((value || 0) - step)}
-        className="px-2 rounded-s bg-slate-600 hover:bg-slate-500 text-white flex items-center"
+        className="px-2 rounded-s bg-ink-300 hover:bg-page text-ink-700 flex items-center"
       >
         <Minus className="h-3 w-3" />
       </button>
@@ -246,14 +246,14 @@ function NumberStepper({
           type="number"
           value={value || ''}
           onChange={(e) => set(parseInt(e.target.value) || 0)}
-          className="w-full bg-slate-700 border-y border-slate-600 px-2 py-1.5 text-xs text-white text-center"
+          className="w-full bg-page border-y border-ink-300 px-2 py-1.5 text-xs text-ink-700 text-center"
         />
-        {suffix && <span className="absolute end-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none">{suffix}</span>}
+        {suffix && <span className="absolute end-2 top-1/2 -translate-y-1/2 text-[10px] text-ink-400 pointer-events-none">{suffix}</span>}
       </div>
       <button
         type="button"
         onClick={() => set((value || 0) + step)}
-        className="px-2 rounded-e bg-slate-600 hover:bg-slate-500 text-white flex items-center"
+        className="px-2 rounded-e bg-ink-300 hover:bg-page text-ink-700 flex items-center"
       >
         <Plus className="h-3 w-3" />
       </button>
@@ -285,12 +285,12 @@ function SubStepEditor({
   // shown as ONE field, matching how the coach writes "3:25" (not "3:25-3:25").
   const isRange = hasPace && !!step.targetPaceMaxPerKm && step.targetPaceMaxPerKm !== step.targetPaceMinPerKm;
   return (
-    <div className="bg-slate-800/50 rounded-md p-2 space-y-2">
+    <div className="bg-card/50 rounded-md p-2 space-y-2">
       <div className="flex items-center gap-2">
         <select
           value={step.type}
           onChange={(e) => onChange({ ...step, type: e.target.value as any })}
-          className="bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white min-h-[32px]"
+          className="bg-page border border-ink-300 rounded px-1.5 py-1 text-[11px] text-ink-700 min-h-[32px]"
         >
           {stepTypes.map((s) => (
             <option key={s} value={s}>{stepLabel(s, t)}</option>
@@ -299,7 +299,7 @@ function SubStepEditor({
         <select
           value={step.durationType}
           onChange={(e) => onChange({ ...step, durationType: e.target.value as any })}
-          className="bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white min-h-[32px]"
+          className="bg-page border border-ink-300 rounded px-1.5 py-1 text-[11px] text-ink-700 min-h-[32px]"
         >
           {durationTypes.map((d) => (
             <option key={d} value={d}>{durationTypeLabel(d, t)}</option>
@@ -315,7 +315,7 @@ function SubStepEditor({
             />
           </div>
         )}
-        <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto" aria-label={tc('delete')}>
+        <button onClick={onDelete} className="p-1 rounded hover:bg-page text-accent-red ms-auto" aria-label={tc('delete')}>
           <Trash2 className="h-3 w-3" />
         </button>
       </div>
@@ -350,7 +350,7 @@ function SubStepEditor({
               <button
                 type="button"
                 onClick={() => onChange({ ...step, targetPaceMaxPerKm: undefined })}
-                className="text-[10px] text-slate-500 hover:text-slate-300 mb-1 shrink-0"
+                className="text-[10px] text-ink-400 hover:text-ink-500 mb-1 shrink-0"
               >
                 {t('single')}
               </button>
@@ -359,7 +359,7 @@ function SubStepEditor({
               <button
                 type="button"
                 onClick={() => onChange({ ...step, targetPaceMaxPerKm: (step.targetPaceMinPerKm || 210) + 10 })}
-                className="text-[10px] text-slate-500 hover:text-primary-400 mb-1 shrink-0"
+                className="text-[10px] text-ink-400 hover:text-brand-700 mb-1 shrink-0"
               >
                 {t('addRange')}
               </button>
@@ -368,7 +368,7 @@ function SubStepEditor({
               type="button"
               onClick={() => onChange({ ...step, targetType: 'no_target', targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined })}
               title={t('noPace')}
-              className="text-[10px] text-slate-500 hover:text-red-400 mb-1 shrink-0"
+              className="text-[10px] text-ink-400 hover:text-accent-red mb-1 shrink-0"
             >
               {t('noPace')}
             </button>
@@ -377,7 +377,7 @@ function SubStepEditor({
           <button
             type="button"
             onClick={() => onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: 210 })}
-            className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary-400 mb-1 shrink-0"
+            className="flex items-center gap-1 text-[10px] text-ink-400 hover:text-brand-700 mb-1 shrink-0"
           >
             <Plus className="h-3 w-3" /> {t('addPace')}
           </button>
@@ -387,7 +387,7 @@ function SubStepEditor({
           value={step.notes || ''}
           onChange={(e) => onChange({ ...step, notes: e.target.value || undefined })}
           placeholder={t('notesPlaceholderShort')}
-          className="flex-1 min-w-0 bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-white"
+          className="flex-1 min-w-0 bg-page border border-ink-300 rounded px-1.5 py-1 text-[11px] text-ink-700"
         />
       </div>
     </div>
@@ -424,50 +424,50 @@ function StepRow({
   const isRepeat = step.repeatCount !== undefined && !!step.repeatSteps && step.repeatSteps.length > 0;
 
   return (
-    <div className={cn('border-s-3 rounded-md', stepColors[step.type] || 'border-s-slate-400')}>
+    <div className={cn('border-s-3 rounded-md', stepColors[step.type] || 'border-s-ink-300')}>
       <div
-        className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-slate-700/30 transition-colors"
+        className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-page/30 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        <span className="text-[10px] text-slate-500 w-4 text-end">{index + 1}</span>
+        <span className="text-[10px] text-ink-400 w-4 text-end">{index + 1}</span>
         <span className={cn(
           'text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide',
-          step.type === 'interval' ? 'bg-red-500/20 text-red-400' :
-          step.type === 'warmup' ? 'bg-yellow-500/20 text-yellow-400' :
-          step.type === 'cooldown' ? 'bg-blue-500/20 text-blue-400' :
-          step.type === 'rest' ? 'bg-slate-500/20 text-slate-400' :
-          step.type === 'recovery' ? 'bg-green-500/20 text-green-400' :
-          'bg-purple-500/20 text-purple-400'
+          step.type === 'interval' ? 'bg-accent-red/20 text-accent-red' :
+          step.type === 'warmup' ? 'bg-band-3/20 text-band-3' :
+          step.type === 'cooldown' ? 'bg-band-2/20 text-band-2' :
+          step.type === 'rest' ? 'bg-ink-300/20 text-ink-400' :
+          step.type === 'recovery' ? 'bg-accent-600/20 text-accent-600' :
+          'bg-purple-500/20 text-purple-600'
         )}>
           {stepLabel(step.type, t)}
         </span>
-        <span className="text-sm text-white font-medium">{formatDuration(step, t('lap'))}</span>
+        <span className="text-sm text-ink-700 font-medium">{formatDuration(step, t('lap'))}</span>
         {formatBracketPaceTarget(step, t) && (
-          <span dir="ltr" className="text-[11px] text-primary-400 ms-auto me-1 tabular-nums">@{formatBracketPaceTarget(step, t)}</span>
+          <span dir="ltr" className="text-[11px] text-brand-600 ms-auto me-1 tabular-nums">@{formatBracketPaceTarget(step, t)}</span>
         )}
         {step.repeatCount && (
-          <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-bold">
+          <span className="text-[10px] bg-band-3/20 text-band-3 px-1.5 py-0.5 rounded font-bold">
             {step.repeatCount}x
           </span>
         )}
         {step.notes && (
-          <span className="text-[10px] text-slate-500 truncate max-w-[120px]">{step.notes}</span>
+          <span className="text-[10px] text-ink-400 truncate max-w-[120px]">{step.notes}</span>
         )}
-        {expanded ? <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-500 shrink-0" />}
+        {expanded ? <ChevronDown className="h-3.5 w-3.5 text-ink-400 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-ink-400 shrink-0" />}
       </div>
 
       {expanded && (
-        <div className="px-3 pb-3 space-y-3 border-t border-slate-700/50 pt-3 ms-4">
+        <div className="px-3 pb-3 space-y-3 border-t border-page/50 pt-3 ms-4">
           {/* A repeat block's own type/duration/pace are redundant with its
               sub-steps — hide them and show only REPEAT + the sub-steps. */}
           {!isRepeat && (
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('type')}</label>
+              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('type')}</label>
               <select
                 value={step.type}
                 onChange={(e) => onChange({ ...step, type: e.target.value as any })}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white min-h-[36px]"
+                className="w-full bg-page border border-ink-300 rounded px-2 py-1.5 text-xs text-ink-700 min-h-[36px]"
               >
                 {stepTypes.map((s) => (
                   <option key={s} value={s}>{stepLabel(s, t)}</option>
@@ -475,7 +475,7 @@ function StepRow({
               </select>
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('duration')}</label>
+              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('duration')}</label>
               <SegmentedControl<typeof durationTypes[number]>
                 value={step.durationType}
                 onChange={(v) => onChange({ ...step, durationType: v })}
@@ -487,7 +487,7 @@ function StepRow({
 
           {!isRepeat && step.durationType !== 'open' && (
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">
+              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">
                 {step.durationType === 'distance' ? t('meters') : t('seconds')}
               </label>
               <NumberStepper
@@ -501,10 +501,10 @@ function StepRow({
 
           {!isRepeat && (
           <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('target')}</label>
+            <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('target')}</label>
             <div className="grid grid-cols-3 gap-2 items-end">
               <div className="flex flex-col">
-                <span className="text-[9px] text-slate-500 mb-0.5">{t('type')}</span>
+                <span className="text-[9px] text-ink-400 mb-0.5">{t('type')}</span>
                 <select
                   value={step.targetZone || (step.targetPaceMinPerKm ? 'custom' : 'no_target')}
                   onChange={(e) => {
@@ -517,7 +517,7 @@ function StepRow({
                       onChange({ ...step, targetType: 'pace', targetZone: zone, targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined });
                     }
                   }}
-                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white min-h-[36px]"
+                  className="bg-page border border-ink-300 rounded px-2 py-1.5 text-xs text-ink-700 min-h-[36px]"
                 >
                   {targetZones.map((z) => (
                     <option key={z} value={z}>{zoneLabel(z, t)}</option>
@@ -548,7 +548,7 @@ function StepRow({
                       <button
                         type="button"
                         onClick={() => onChange({ ...step, targetPaceMaxPerKm: (step.targetPaceMinPerKm || 210) + 10 })}
-                        className="text-[10px] text-slate-500 hover:text-primary-400 self-end mb-2"
+                        className="text-[10px] text-ink-400 hover:text-brand-700 self-end mb-2"
                       >
                         {t('addRange')}
                       </button>
@@ -562,7 +562,7 @@ function StepRow({
 
           {step.repeatCount !== undefined && (
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('repeat')}</label>
+              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('repeat')}</label>
               <div className="w-28">
                 <NumberStepper
                   value={step.repeatCount || 1}
@@ -578,10 +578,10 @@ function StepRow({
           {/* Sub-steps inside a repeat block (e.g. the interval + its rest) */}
           {step.repeatSteps && step.repeatSteps.length > 0 && (
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">
+              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">
                 {t('repeatedSteps', { count: step.repeatCount || 1 })}
               </label>
-              <div className="space-y-2 ms-2 border-s-2 border-orange-500/30 ps-2">
+              <div className="space-y-2 ms-2 border-s-2 border-band-3/30 ps-2">
                 {step.repeatSteps.map((sub, subIdx) => (
                   <SubStepEditor
                     key={subIdx}
@@ -608,7 +608,7 @@ function StepRow({
                     };
                     onChange({ ...step, repeatSteps: [...(step.repeatSteps || []), newSub] });
                   }}
-                  className="flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300"
+                  className="flex items-center gap-1 text-[11px] text-brand-600 hover:text-brand-700"
                 >
                   <Plus className="h-3 w-3" /> {t('addSubStep')}
                 </button>
@@ -617,21 +617,21 @@ function StepRow({
           )}
 
           <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wide mb-1 block">{t('notes')}</label>
+            <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('notes')}</label>
             <input
               type="text"
               value={step.notes || ''}
               onChange={(e) => onChange({ ...step, notes: e.target.value || undefined })}
               placeholder={t('notesPlaceholder')}
-              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white"
+              className="w-full bg-page border border-ink-300 rounded px-2 py-1.5 text-xs text-ink-700"
             />
           </div>
 
           <div className="flex items-center gap-1 pt-1">
-            <button onClick={onMoveUp} disabled={index === 0} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30" aria-label={t('moveUp')}><ArrowUp className="h-3.5 w-3.5" /></button>
-            <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-slate-700 text-slate-400 disabled:opacity-30" aria-label={t('moveDown')}><ArrowDown className="h-3.5 w-3.5" /></button>
-            <button onClick={onDuplicate} className="p-1 rounded hover:bg-slate-700 text-slate-400" aria-label={t('duplicate')}><Copy className="h-3.5 w-3.5" /></button>
-            <button onClick={onDelete} className="p-1 rounded hover:bg-slate-700 text-red-400 ms-auto" aria-label={tc('delete')}><Trash2 className="h-3.5 w-3.5" /></button>
+            <button onClick={onMoveUp} disabled={index === 0} className="p-1 rounded hover:bg-page text-ink-400 disabled:opacity-30" aria-label={t('moveUp')}><ArrowUp className="h-3.5 w-3.5" /></button>
+            <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-page text-ink-400 disabled:opacity-30" aria-label={t('moveDown')}><ArrowDown className="h-3.5 w-3.5" /></button>
+            <button onClick={onDuplicate} className="p-1 rounded hover:bg-page text-ink-400" aria-label={t('duplicate')}><Copy className="h-3.5 w-3.5" /></button>
+            <button onClick={onDelete} className="p-1 rounded hover:bg-page text-accent-red ms-auto" aria-label={tc('delete')}><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
         </div>
       )}
@@ -795,8 +795,8 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
         className="max-h-[92vh]"
         bodyClassName="px-0"
         footer={
-          <div className="px-4 py-3 border-t border-slate-700 shrink-0 flex items-center justify-between gap-3">
-            <span className="text-xs text-slate-500">
+          <div className="px-4 py-3 border-t border-page shrink-0 flex items-center justify-between gap-3">
+            <span className="text-xs text-ink-400">
               {dirty ? (changes.length === 1 ? t('unsavedChange') : t('unsavedChanges', { count: changes.length })) : t('noChanges')}
             </span>
             <div className="flex items-center gap-2">
@@ -812,12 +812,12 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
           <input
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            className="bg-transparent text-sm text-white focus:outline-none w-full font-medium"
+            className="bg-transparent text-sm text-ink-700 focus:outline-none w-full font-medium"
             placeholder={t('workoutNamePlaceholder')}
           />
         </div>
 
-        <div className="divide-y divide-slate-800">
+        <div className="divide-y divide-page">
           {draft.steps.map((step, i) => (
             <StepRow
               key={i}
@@ -834,7 +834,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
           <div className="px-4 py-3">
             <button
               onClick={addStep}
-              className="flex items-center gap-2 text-sm text-primary-400 hover:text-primary-300"
+              className="flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700"
             >
               <Plus className="h-4 w-4" /> {t('addStep')}
             </button>
@@ -848,12 +848,12 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
         onOpenChange={setConfirmingSave}
         title={
           <span className="flex items-center justify-center gap-2">
-            <AlertCircle className="h-4 w-4 text-primary-400" /> {t('confirmChangesTitle')}
+            <AlertCircle className="h-4 w-4 text-brand-600" /> {t('confirmChangesTitle')}
           </span>
         }
         className="max-h-[85vh]"
         footer={
-          <div className="px-4 py-3 border-t border-slate-700 shrink-0 flex items-center justify-end gap-2">
+          <div className="px-4 py-3 border-t border-page shrink-0 flex items-center justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setConfirmingSave(false)}>{t('keepEditing')}</Button>
             <Button size="sm" onClick={confirmSave}>
               <Save className="h-4 w-4" /> {t('saveChanges')}
@@ -861,30 +861,30 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
           </div>
         }
       >
-        <p className="text-sm text-slate-400 mb-3">
+        <p className="text-sm text-ink-400 mb-3">
           {t('confirmChangesDesc', { day: dayName })}
         </p>
         <div className="space-y-2.5">
           {changes.map((c, i) => (
-            <div key={i} className="bg-slate-800/60 rounded-lg px-3 py-2.5">
+            <div key={i} className="bg-card/60 rounded-lg px-3 py-2.5">
               <div className="flex items-center gap-2 mb-1.5">
                 <span className={cn(
                   'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
-                  c.kind === 'added' ? 'bg-green-500/20 text-green-400' :
-                  c.kind === 'removed' ? 'bg-red-500/20 text-red-400' :
-                  'bg-primary-500/20 text-primary-400'
+                  c.kind === 'added' ? 'bg-accent-600/20 text-accent-600' :
+                  c.kind === 'removed' ? 'bg-accent-red/20 text-accent-red' :
+                  'bg-brand-600/20 text-brand-600'
                 )}>
                   {c.kind === 'added' ? t('kindAdded') : c.kind === 'removed' ? t('kindRemoved') : t('kindModified')}
                 </span>
-                <span className="text-xs font-semibold text-white">{c.title}</span>
+                <span className="text-xs font-semibold text-ink-700">{c.title}</span>
               </div>
               <div className="space-y-1">
                 {c.fields.map((f, j) => (
                   <div key={j} className="flex items-center gap-2 text-xs flex-wrap">
-                    {f.label && <span className="text-slate-400 min-w-[70px]">{f.label}</span>}
-                    {f.from !== undefined && <span className="text-red-300/80 line-through">{f.from}</span>}
-                    {f.from !== undefined && f.to !== undefined && <span className="text-slate-400">→</span>}
-                    {f.to !== undefined && <span className="text-green-300">{f.to}</span>}
+                    {f.label && <span className="text-ink-400 min-w-[70px]">{f.label}</span>}
+                    {f.from !== undefined && <span className="text-accent-red/80 line-through">{f.from}</span>}
+                    {f.from !== undefined && f.to !== undefined && <span className="text-ink-400">→</span>}
+                    {f.to !== undefined && <span className="text-accent-600">{f.to}</span>}
                   </div>
                 ))}
               </div>

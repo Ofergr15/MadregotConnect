@@ -156,26 +156,26 @@ export function PlanEditPromptProvider({
       {messageId && typeof document !== 'undefined'
         ? createPortal(
             <div
-              className="fixed inset-0 z-[10000] grid place-items-center bg-slate-950/75 p-4"
+              className="fixed inset-0 z-[10000] grid place-items-center bg-page/75 p-4"
               role="presentation"
               onMouseDown={(event) => {
                 if (event.currentTarget === event.target) close();
               }}
             >
               <form
-                className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-5 text-start shadow-2xl"
+                className="w-full max-w-lg rounded-2xl border border-page bg-page p-5 text-start shadow-2xl"
                 data-testid="edit-plan-dialog"
                 dir="rtl"
                 onSubmit={submit}
               >
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-semibold text-white">{t('editPlanTitle')}</h2>
-                    <p className="mt-1 text-sm text-slate-400">{t('editPlanDescription')}</p>
+                    <h2 className="text-lg font-semibold text-ink-700">{t('editPlanTitle')}</h2>
+                    <p className="mt-1 text-sm text-ink-400">{t('editPlanDescription')}</p>
                   </div>
                   <button
                     type="button"
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                    className="rounded-lg p-1.5 text-ink-400 hover:bg-page hover:text-ink-900"
                     aria-label={t('close')}
                     onClick={close}
                   >
@@ -184,13 +184,13 @@ export function PlanEditPromptProvider({
                 </div>
                 <textarea
                   autoFocus
-                  className="min-h-28 w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400"
+                  className="min-h-28 w-full resize-y rounded-xl border border-page bg-page px-3 py-2.5 text-sm text-ink-700 outline-none focus:border-band-2"
                   data-testid="edit-plan-prompt"
                   value={prompt}
                   placeholder={t('editPlanPlaceholder')}
                   onChange={(event) => setPrompt(event.target.value)}
                 />
-                {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+                {error && <p className="mt-2 text-sm text-accent-red">{error}</p>}
                 <div className="mt-4 flex justify-end gap-2">
                   <Button type="button" variant="ghost" disabled={submitting} onClick={close}>
                     {t('cancel')}

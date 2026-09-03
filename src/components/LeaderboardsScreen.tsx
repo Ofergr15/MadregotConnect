@@ -30,9 +30,9 @@ interface LeaderboardData {
 type Metric = 'distance' | 'monthly' | 'streak' | 'runs' | 'events';
 
 // Position-based squad colors — same mapping as the staff Groups page's own
-// local getGroupColors (index 0/1/2 → green/yellow/orange), duplicated rather
+// local getGroupColors (index 0/1/2 → green/sky blue/orange), duplicated rather
 // than imported since that one lives inline in groups/page.tsx, not lib/utils.
-const DOT_COLORS = ['bg-green-400', 'bg-yellow-400', 'bg-orange-400'];
+const DOT_COLORS = ['bg-accent-600', 'bg-band-2', 'bg-band-3'];
 
 /**
  * Athlete-facing Leaderboards screen (roadmap #12) — the staff Groups page
@@ -125,42 +125,42 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
       </div>
 
       {myRank > 0 && (
-        <p className="text-xs text-slate-400 px-1">{t('leaderboardMyRank', { rank: myRank })}</p>
+        <p className="text-xs text-ink-400 px-1">{t('leaderboardMyRank', { rank: myRank })}</p>
       )}
 
       {entries.length === 0 ? (
         <EmptyState icon={Medal} title={t('leaderboardEmpty')} className="py-8" />
       ) : (
         <Card variant="solid" className="!p-0 overflow-hidden">
-          <div className="divide-y divide-slate-700/50">
+          <div className="divide-y divide-page/50">
             {entries.map((entry, idx) => {
               const dotColor = entry.groupId && groupIndexOf.has(entry.groupId)
                 ? DOT_COLORS[groupIndexOf.get(entry.groupId)! % DOT_COLORS.length]
-                : 'bg-slate-500';
+                : 'bg-ink-300';
               const isMe = entry.id === athleteId;
               return (
                 <div
                   key={entry.id}
-                  className={cn('flex items-center justify-between px-4 py-3', isMe && 'bg-primary-600/10')}
+                  className={cn('flex items-center justify-between px-4 py-3', isMe && 'bg-brand-600/10')}
                 >
                   <div className="flex items-center gap-3">
                     <span className={cn(
                       'w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
-                      idx === 0 ? 'bg-yellow-500/20 text-yellow-400'
-                        : idx === 1 ? 'bg-slate-400/20 text-slate-300'
-                        : idx === 2 ? 'bg-orange-500/20 text-orange-400'
-                        : 'bg-slate-700 text-slate-400',
+                      idx === 0 ? 'bg-band-3/20 text-band-3'
+                        : idx === 1 ? 'bg-ink-300/20 text-ink-500'
+                        : idx === 2 ? 'bg-band-3/20 text-band-3'
+                        : 'bg-page text-ink-400',
                     )}>
                       {idx + 1}
                     </span>
                     <div className="flex items-center gap-2">
                       <span className={cn('w-2 h-2 rounded-full shrink-0', dotColor)} />
-                      <span className={cn('font-medium text-sm', isMe ? 'text-primary-400' : 'text-white')} dir="auto">
+                      <span className={cn('font-medium text-sm', isMe ? 'text-brand-600' : 'text-ink-700')} dir="auto">
                         {entry.name}
                       </span>
                     </div>
                   </div>
-                  <span className="font-bold font-mono text-sm text-white tabular-nums">{valueFor(entry)}</span>
+                  <span className="font-bold font-mono text-sm text-ink-700 tabular-nums">{valueFor(entry)}</span>
                 </div>
               );
             })}

@@ -176,7 +176,7 @@ export function ChallengeManager() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white">{t('existingChallenges')}</h2>
+        <h2 className="text-sm font-semibold text-ink-700">{t('existingChallenges')}</h2>
         <Button size="sm" onClick={openNew}>
           <Plus className="h-4 w-4" />
           {t('newChallenge')}
@@ -184,7 +184,7 @@ export function ChallengeManager() {
       </div>
 
       {deleteError && (
-        <div className="mb-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{deleteError}</div>
+        <div className="mb-3 p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{deleteError}</div>
       )}
 
       {loading ? (
@@ -200,24 +200,24 @@ export function ChallengeManager() {
               sublabel={`${c.nameEn} · ${metricLabel(c, t)} · ${c.startDate} → ${c.endDate}`}
               trailing={
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', c.active ? 'bg-green-500/15 text-green-400' : 'bg-slate-700 text-slate-500')}>
+                  <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', c.active ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400')}>
                     {c.active ? t('active') : t('inactive')}
                   </span>
                   <button
                     onClick={() => openEdit(c)}
-                    className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-slate-400 hover:text-white hover:bg-slate-700"
+                    className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page"
                     aria-label={t('edit')}
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setDeleteTarget(c)}
-                    className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10"
+                    className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-ink-400 hover:text-accent-red hover:bg-accent-red/10"
                     aria-label={t('delete')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
-                  <div className="w-9 h-9 rounded-full bg-slate-900/60 border border-slate-700/50 flex items-center justify-center overflow-hidden">
+                  <div className="w-9 h-9 rounded-full bg-page/60 border border-page/50 flex items-center justify-center overflow-hidden">
                     {c.iconUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={c.iconUrl} alt="" className="w-full h-full object-cover" />
@@ -235,55 +235,55 @@ export function ChallengeManager() {
       <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editChallenge') : t('newChallenge')}>
         <div className="space-y-4 pb-2">
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{error}</div>
+            <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{error}</div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('nameHebrew')}</label>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('nameHebrew')}</label>
               <input
                 value={nameHe}
                 onChange={(e) => setNameHe(e.target.value)}
                 dir="rtl"
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+                className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('nameEnglish')}</label>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('nameEnglish')}</label>
               <input
                 value={nameEn}
                 onChange={(e) => setNameEn(e.target.value)}
                 dir="ltr"
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+                className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('descriptionHebrew')}</label>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('descriptionHebrew')}</label>
               <input
                 value={descriptionHe}
                 onChange={(e) => setDescriptionHe(e.target.value)}
                 dir="rtl"
                 placeholder={t('optional')}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+                className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('descriptionEnglish')}</label>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('descriptionEnglish')}</label>
               <input
                 value={descriptionEn}
                 onChange={(e) => setDescriptionEn(e.target.value)}
                 dir="ltr"
                 placeholder={t('optional')}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+                className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('metric')}</label>
+            <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('metric')}</label>
             <SegmentedControl<Metric>
               value={metric}
               onChange={setMetric}
@@ -296,7 +296,7 @@ export function ChallengeManager() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+            <label className="block text-xs font-semibold text-ink-400 mb-1.5">
               {t('targetValue')} ({metric === 'distance_km' ? 'km' : metric === 'elevation_m' ? 'm' : t('metricWorkouts')})
             </label>
             <input
@@ -307,12 +307,12 @@ export function ChallengeManager() {
               value={targetValue}
               onChange={(e) => setTargetValue(e.target.value)}
               placeholder="100"
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-600/50"
+              className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('scope')}</label>
+            <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('scope')}</label>
             <SegmentedControl<Scope>
               value={scope}
               onChange={setScope}
@@ -325,28 +325,28 @@ export function ChallengeManager() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('startDate')}</label>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('startDate')}</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-primary-600/50"
+                className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 [color-scheme:dark] focus:outline-none focus:border-brand-600/50"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('endDate')}</label>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('endDate')}</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-primary-600/50"
+                className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 [color-scheme:dark] focus:outline-none focus:border-brand-600/50"
               />
             </div>
           </div>
 
           {editingId && (
-            <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50">
-              <span className="text-sm font-medium text-white">{activeState ? t('active') : t('inactive')}</span>
+            <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-page/50 border border-page/50">
+              <span className="text-sm font-medium text-ink-700">{activeState ? t('active') : t('inactive')}</span>
               <Switch checked={activeState} onChange={(v) => setActiveState(v)} size="sm" />
             </div>
           )}

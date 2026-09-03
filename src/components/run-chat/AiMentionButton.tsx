@@ -47,7 +47,7 @@ export function AiMentionButton({ channel, className }: Props) {
             variant="outline"
             size="icon"
             onClick={() => void handleClick()}
-            className={cn('h-9 w-9 shrink-0 rounded-full border-slate-700 bg-slate-950 p-0 hover:border-primary-500', className)}
+            className={cn('h-9 w-9 shrink-0 rounded-full border-page bg-page p-0 hover:border-brand-600', className)}
             aria-label="שאל את מאמן ה-AI"
           >
             <Avatar className="h-full w-full bg-transparent">

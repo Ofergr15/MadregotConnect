@@ -21,13 +21,16 @@ import type { FeedItem, FeedMedia } from '@/lib/feed/project';
 
 interface PlanMatch { pct: number; actualKm: number; targetKm: number; type: string }
 
-// Green near the target, amber a bit off, red way off in either direction —
-// same 3-tier severity language as the feedback form's difficulty colors.
+// Green near the target, orange a bit off, red way off in either direction —
+// same 3-tier severity language as the feedback form's difficulty colors, now on
+// the light system's severity trio (accent-600 / band-3 / accent-red). The old
+// amber #f59e0b was ~2:1 against a white card, and this is used as the color of
+// the big percentage *text*, not just a bar fill.
 function planMatchColor(pct: number): string {
   const diff = Math.abs(pct - 100);
-  if (diff <= 15) return '#10b981';
-  if (diff <= 35) return '#f59e0b';
-  return '#ef4444';
+  if (diff <= 15) return '#16a34a';
+  if (diff <= 35) return '#FF5315';
+  return '#D74E4E';
 }
 
 const MAX_IMAGES = 4;
@@ -248,7 +251,7 @@ export function ActivitySyncEditor({
       leadingAction={
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          className="p-1.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
           aria-label={tFeed('close')}
         >
           <X className="h-5 w-5" />
@@ -257,7 +260,7 @@ export function ActivitySyncEditor({
       className="max-h-[92vh]"
       bodyClassName="flex-1 min-h-0"
       footer={
-        <div className="flex-none px-4 pt-2 pb-3 border-t border-slate-700/60 space-y-2">
+        <div className="flex-none px-4 pt-2 pb-3 border-t border-page/60 space-y-2">
           <input
             ref={fileRef}
             type="file"
@@ -272,8 +275,8 @@ export function ActivitySyncEditor({
             className={cn(
               'w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-base font-bold transition-all',
               !saving && !uploading
-                ? 'bg-primary-600 text-white active:scale-[0.98]'
-                : 'bg-slate-700 text-slate-500',
+                ? 'bg-brand-600 text-white active:scale-[0.98]'
+                : 'bg-page text-ink-400',
             )}
           >
             {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : t('done')}
@@ -282,7 +285,7 @@ export function ActivitySyncEditor({
             <Link
               href="/dashboard/activities"
               onClick={onClose}
-              className="text-sm font-semibold text-slate-400 hover:text-primary-400 inline-flex items-center gap-0.5 transition-colors"
+              className="text-sm font-semibold text-ink-400 hover:text-brand-700 inline-flex items-center gap-0.5 transition-colors"
             >
               {t('advancedEdit')} <ChevronRight className="h-3.5 w-3.5" />
             </Link>
@@ -291,7 +294,7 @@ export function ActivitySyncEditor({
               disabled={!feedItem}
               className={cn(
                 'inline-flex items-center gap-1.5 text-sm font-semibold transition-colors',
-                feedItem ? 'text-slate-400 hover:text-primary-400' : 'text-slate-600',
+                feedItem ? 'text-ink-400 hover:text-brand-700' : 'text-ink-400',
               )}
             >
               <Share2 className="h-3.5 w-3.5" /> {tFeed('shareToStory')}
@@ -304,16 +307,16 @@ export function ActivitySyncEditor({
         {/* Name / description / tag — grouped into one card, matching the
             native Strava/Garmin "share this run" composer. */}
         <div>
-          <div className="rounded-xl border border-slate-700/60 divide-y divide-slate-700/50 overflow-hidden">
+          <div className="rounded-xl border border-page/60 divide-y divide-page/50 overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-2.5">
               <input
                 value={activityName}
                 onChange={e => setActivityName(e.target.value)}
                 maxLength={MAX_NAME_LENGTH}
                 disabled={!editable}
-                className="flex-1 bg-transparent text-base font-bold text-white placeholder:text-slate-500 focus:outline-none disabled:opacity-60"
+                className="flex-1 bg-transparent text-base font-bold text-ink-700 placeholder:text-ink-400 focus:outline-none disabled:opacity-60"
               />
-              <Pencil className="h-4 w-4 text-slate-500 shrink-0" />
+              <Pencil className="h-4 w-4 text-ink-400 shrink-0" />
             </div>
             <textarea
               value={caption}
@@ -321,22 +324,22 @@ export function ActivitySyncEditor({
               placeholder={t('captionPlaceholder')}
               disabled={!editable}
               rows={2}
-              className="w-full px-3 py-2.5 bg-transparent text-sm text-slate-300 placeholder:text-slate-500 leading-relaxed resize-none focus:outline-none disabled:opacity-60"
+              className="w-full px-3 py-2.5 bg-transparent text-sm text-ink-500 placeholder:text-ink-400 leading-relaxed resize-none focus:outline-none disabled:opacity-60"
             />
             <div className="flex items-center gap-2 px-3 py-2.5">
-              <TagIcon className="h-4 w-4 text-slate-500 shrink-0" />
+              <TagIcon className="h-4 w-4 text-ink-400 shrink-0" />
               <input
                 value={tag}
                 onChange={e => setTag(e.target.value)}
                 placeholder={t('tagPlaceholder')}
                 maxLength={MAX_TAG_LENGTH}
                 disabled={!editable}
-                className="flex-1 bg-transparent text-sm text-slate-300 placeholder:text-slate-500 focus:outline-none disabled:opacity-60"
+                className="flex-1 bg-transparent text-sm text-ink-500 placeholder:text-ink-400 focus:outline-none disabled:opacity-60"
               />
             </div>
           </div>
           {extraCount > 0 && (
-            <span className="inline-block mt-2 text-2xs font-bold px-2 py-0.5 rounded-full bg-primary-600/10 text-primary-400 border border-primary-600/20">
+            <span className="inline-block mt-2 text-2xs font-bold px-2 py-0.5 rounded-full bg-brand-600/10 text-brand-600 border border-brand-600/20">
               {t('moreActivities', { count: extraCount })}
             </span>
           )}
@@ -344,33 +347,33 @@ export function ActivitySyncEditor({
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-2">
-          <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{tFeed('statDistance')}</p>
-            <p className="text-base font-black text-white tabular-nums">
-              {distKm}<span className="text-[10px] text-slate-400 ms-0.5">{tFeed('km')}</span>
+          <div className="bg-page/50 rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{tFeed('statDistance')}</p>
+            <p className="text-base font-black text-ink-700 tabular-nums">
+              {distKm}<span className="text-[10px] text-ink-400 ms-0.5">{tFeed('km')}</span>
             </p>
           </div>
-          <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{tFeed('statPace')}</p>
-            <p className="text-base font-black text-white tabular-nums">
-              {paceStr || '—'}<span className="text-[10px] text-slate-400 ms-0.5">{tFeed('perKm')}</span>
+          <div className="bg-page/50 rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{tFeed('statPace')}</p>
+            <p className="text-base font-black text-ink-700 tabular-nums">
+              {paceStr || '—'}<span className="text-[10px] text-ink-400 ms-0.5">{tFeed('perKm')}</span>
             </p>
           </div>
-          <div className="bg-slate-900/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-slate-500 font-medium mb-0.5">{tFeed('statTime')}</p>
-            <p className="text-base font-black text-white tabular-nums">{durationStr}</p>
+          <div className="bg-page/50 rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{tFeed('statTime')}</p>
+            <p className="text-base font-black text-ink-700 tabular-nums">{durationStr}</p>
           </div>
         </div>
 
         {planMatch && (
-          <div className="bg-slate-900/50 rounded-xl p-3">
+          <div className="bg-page/50 rounded-xl p-3">
             <div className="flex items-baseline justify-between mb-2">
-              <span className="text-2xs font-bold text-slate-500 uppercase tracking-wider">{t('planMatchLabel')}</span>
+              <span className="text-2xs font-bold text-ink-400 uppercase tracking-wider">{t('planMatchLabel')}</span>
               <span className="text-xl font-black tabular-nums" style={{ color: planMatchColor(planMatch.pct) }}>
                 {planMatch.pct}%
               </span>
             </div>
-            <div className="h-2 rounded-full bg-slate-700/60 overflow-hidden">
+            <div className="h-2 rounded-full bg-page/60 overflow-hidden">
               <div
                 className="h-full rounded-full"
                 style={{
@@ -379,7 +382,7 @@ export function ActivitySyncEditor({
                 }}
               />
             </div>
-            <p className="mt-1.5 text-2xs text-slate-400">
+            <p className="mt-1.5 text-2xs text-ink-400">
               {t('planMatchSubtitle', { actual: planMatch.actualKm, target: planMatch.targetKm })}
               {WORKOUT_TYPE_LABELS[planMatch.type] && ` · ${WORKOUT_TYPE_LABELS[planMatch.type]}`}
             </p>
@@ -397,13 +400,13 @@ export function ActivitySyncEditor({
             className={cn(
               'flex flex-col items-center justify-center gap-1.5 rounded-xl border min-h-[90px] transition-all',
               editable && media.length < MAX_IMAGES && !uploading
-                ? 'border-slate-700 bg-slate-900/50 text-primary-400 hover:bg-slate-900'
-                : 'border-slate-800 text-slate-600',
+                ? 'border-page bg-page/50 text-brand-600 hover:bg-ink-300/40'
+                : 'border-page text-ink-400',
             )}
           >
             <ImagePlus className="h-5 w-5" />
             <span className="text-xs font-semibold">{t('addPhoto')}</span>
-            {media.length > 0 && <span className="text-2xs text-slate-500">{media.length}/{MAX_IMAGES}</span>}
+            {media.length > 0 && <span className="text-2xs text-ink-400">{media.length}/{MAX_IMAGES}</span>}
           </button>
         </div>
 
@@ -418,18 +421,18 @@ export function ActivitySyncEditor({
             same way, so this case gets a real message + a way out instead of
             the raw error code. */}
         {loadError === 'NOT_SIGNED_IN' && !loading && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
-            <p className="text-sm text-amber-300">{tFeed('sessionExpiredBody')}</p>
-            <Link href="/" className="mt-2 inline-block text-xs font-semibold text-amber-200 underline">
+          <div className="rounded-xl border border-band-3/30 bg-band-3/10 p-3">
+            <p className="text-sm text-band-3">{tFeed('sessionExpiredBody')}</p>
+            <Link href="/" className="mt-2 inline-block text-xs font-semibold text-band-3 underline">
               {tFeed('signInAgain')}
             </Link>
           </div>
         )}
 
         {loadError && loadError !== 'NOT_SIGNED_IN' && !loading && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
-            <p className="text-sm text-amber-300">{loadError}</p>
-            <button onClick={load} className="mt-2 text-xs font-semibold text-amber-200 underline">
+          <div className="rounded-xl border border-band-3/30 bg-band-3/10 p-3">
+            <p className="text-sm text-band-3">{loadError}</p>
+            <button onClick={load} className="mt-2 text-xs font-semibold text-band-3 underline">
               {t('retry')}
             </button>
           </div>
@@ -452,7 +455,7 @@ export function ActivitySyncEditor({
                   <div
                     key={m.path}
                     className={cn(
-                      'relative overflow-hidden rounded-xl bg-slate-900',
+                      'relative overflow-hidden rounded-xl bg-page',
                       media.length === 3 && i === 0 && 'col-span-2',
                     )}
                   >
@@ -478,7 +481,7 @@ export function ActivitySyncEditor({
             )}
 
             {uploading && (
-              <div className="flex items-center gap-2 text-sm text-slate-400">
+              <div className="flex items-center gap-2 text-sm text-ink-400">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {tFeed('uploadingImage')}
               </div>
@@ -489,13 +492,13 @@ export function ActivitySyncEditor({
                 club-wide by design: everyone mutually follows everyone, so a
                 Followers audience would be indistinguishable from Everyone. */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">{t('audienceTitle')}</p>
-              <div className="flex gap-0.5 rounded-xl bg-slate-800 p-1 border border-slate-700">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-400 mb-2">{t('audienceTitle')}</p>
+              <div className="flex gap-0.5 rounded-xl bg-card p-1 border border-page">
                 <button
                   onClick={() => setVisibility('club')}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors min-h-[40px]',
-                    visibility === 'club' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white',
+                    visibility === 'club' ? 'bg-brand-600 text-white shadow-sm' : 'text-ink-400 hover:text-ink-900',
                   )}
                 >
                   <Globe className="h-3.5 w-3.5" /> {t('audienceEveryone')}
@@ -504,16 +507,16 @@ export function ActivitySyncEditor({
                   disabled
                   aria-disabled
                   title={t('audienceComingSoon')}
-                  className="flex-1 flex flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 cursor-not-allowed min-h-[40px]"
+                  className="flex-1 flex flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-ink-400 cursor-not-allowed min-h-[40px]"
                 >
                   <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {t('audienceFollowers')}</span>
-                  <span className="text-[9px] text-slate-700">{t('audienceComingSoon')}</span>
+                  <span className="text-[9px] text-ink-900">{t('audienceComingSoon')}</span>
                 </button>
                 <button
                   onClick={() => setVisibility('private')}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors min-h-[40px]',
-                    visibility === 'private' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white',
+                    visibility === 'private' ? 'bg-brand-600 text-white shadow-sm' : 'text-ink-400 hover:text-ink-900',
                   )}
                 >
                   <Lock className="h-3.5 w-3.5" /> {t('audienceOnlyYou')}
@@ -523,7 +526,7 @@ export function ActivitySyncEditor({
 
             {/* Hidden Details toggles */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">{t('hiddenDetailsTitle')}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-400 mb-2">{t('hiddenDetailsTitle')}</p>
               <div className="flex flex-wrap gap-2">
                 {HIDDEN_FIELD_DEFS.map(({ key, labelKey, icon: Icon }) => {
                   const active = hidden.has(key);
@@ -535,8 +538,8 @@ export function ActivitySyncEditor({
                       className={cn(
                         'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
                         active
-                          ? 'border-primary-600 text-white bg-primary-600/10'
-                          : 'border-slate-600 text-slate-400 hover:text-slate-200',
+                          ? 'border-brand-600 text-white bg-brand-600/10'
+                          : 'border-ink-300 text-ink-400 hover:text-ink-700',
                       )}
                     >
                       <Icon className="h-3.5 w-3.5" /> {t(labelKey)}
@@ -548,7 +551,7 @@ export function ActivitySyncEditor({
           </>
         )}
 
-        {saveError && <p className="text-sm text-red-400">{saveError}</p>}
+        {saveError && <p className="text-sm text-accent-red">{saveError}</p>}
       </div>
     </Sheet>
     {showShare && feedItem && (

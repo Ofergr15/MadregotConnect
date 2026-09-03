@@ -20,10 +20,10 @@ function coloredIcon(Icon: React.ComponentType<{ className?: string }>, colorCla
 }
 
 const categories = [
-  { value: 'feature_request' as FeedbackCategory, labelKey: 'featureRequest' as const, icon: Lightbulb, color: 'text-purple-400' },
-  { value: 'bug_report' as FeedbackCategory, labelKey: 'bugReport' as const, icon: Bug, color: 'text-red-400' },
-  { value: 'training_feedback' as FeedbackCategory, labelKey: 'trainingFeedback' as const, icon: Dumbbell, color: 'text-blue-400' },
-  { value: 'general' as FeedbackCategory, labelKey: 'general' as const, icon: MessageCircle, color: 'text-teal-400' },
+  { value: 'feature_request' as FeedbackCategory, labelKey: 'featureRequest' as const, icon: Lightbulb, color: 'text-purple-600' },
+  { value: 'bug_report' as FeedbackCategory, labelKey: 'bugReport' as const, icon: Bug, color: 'text-accent-red' },
+  { value: 'training_feedback' as FeedbackCategory, labelKey: 'trainingFeedback' as const, icon: Dumbbell, color: 'text-band-2' },
+  { value: 'general' as FeedbackCategory, labelKey: 'general' as const, icon: MessageCircle, color: 'text-teal-600' },
 ];
 
 export default function ReviewPage() {
@@ -104,18 +104,18 @@ export default function ReviewPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-600/10 border border-primary-600/20 mb-4">
-          <MessageSquare className="h-7 w-7 text-primary-600" />
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-600/10 border border-brand-600/20 mb-4">
+          <MessageSquare className="h-7 w-7 text-brand-600" />
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white">{t('title')}</h1>
-        <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
+        <h1 className="text-2xl sm:text-3xl font-black text-ink-700">{t('title')}</h1>
+        <p className="text-sm text-ink-400 mt-2 max-w-md mx-auto">
           {t('subtitle')}
         </p>
       </div>
 
       <Card variant="muted" className="p-5 sm:p-6">
         <div className="mb-4">
-          <label className="text-xs font-semibold text-slate-400 mb-2.5 block">{t('category')}</label>
+          <label className="text-xs font-semibold text-ink-400 mb-2.5 block">{t('category')}</label>
           <SegmentedControl
             value={category}
             onChange={setCategory}
@@ -132,17 +132,17 @@ export default function ReviewPage() {
           onChange={e => setMessage(e.target.value)}
           placeholder={t('placeholder')}
           rows={6}
-          className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-600/50 focus:border-primary-600/50 transition-all"
+          className="w-full bg-page/50 border border-page/50 rounded-xl px-4 py-3 text-ink-700 placeholder-ink-400 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-600/50 focus:border-brand-600/50 transition-all"
         />
 
         {imagePreview && (
           <div className="relative mt-3 inline-block">
-            <img src={imagePreview} alt="Attached" className="max-h-32 rounded-lg border border-slate-700/50" />
+            <img src={imagePreview} alt="Attached" className="max-h-32 rounded-lg border border-page/50" />
             <button
               onClick={() => setImagePreview(null)}
-              className="absolute -top-2 -end-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-slate-700 hover:bg-red-500 rounded-full transition-colors"
+              className="absolute -top-2 -end-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-page hover:bg-accent-red rounded-full transition-colors"
             >
-              <X className="w-3 h-3 text-white" />
+              <X className="w-3 h-3 text-ink-700" />
             </button>
           </div>
         )}
@@ -153,7 +153,7 @@ export default function ReviewPage() {
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
-          className="mt-4 w-full flex items-center justify-center gap-2 px-5 py-4 min-h-[44px] rounded-xl border border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/60 text-slate-200 hover:text-primary-400 transition-all"
+          className="mt-4 w-full flex items-center justify-center gap-2 px-5 py-4 min-h-[44px] rounded-xl border border-page/50 bg-card/40 hover:bg-page/60 text-ink-700 hover:text-brand-700 transition-all"
         >
           <Camera className="h-5 w-5" />
           <span className="text-sm font-semibold">{imagePreview ? t('changeScreenshot') : t('attachScreenshot')}</span>
@@ -184,9 +184,9 @@ export default function ReviewPage() {
 
         <div className="flex items-center justify-between mt-4">
           <div className="flex items-center gap-3">
-            <p className="text-xs text-slate-500">
-              <span className="text-slate-300 font-medium">{athleteName || t('anonymous')}</span>
-              {groupName && <span className="text-slate-500"> · {groupName}</span>}
+            <p className="text-xs text-ink-400">
+              <span className="text-ink-500 font-medium">{athleteName || t('anonymous')}</span>
+              {groupName && <span className="text-ink-400"> · {groupName}</span>}
             </p>
           </div>
           <Button variant="primary" onClick={handleSubmit} disabled={!message.trim() || sending}>
@@ -195,10 +195,10 @@ export default function ReviewPage() {
           </Button>
         </div>
 
-        {error && <p className="mt-4 text-sm text-red-400 text-center">{t('submitError')}</p>}
+        {error && <p className="mt-4 text-sm text-accent-red text-center">{t('submitError')}</p>}
 
         {sent && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 animate-fade-in">
+          <div className="mt-4 flex items-center gap-2 text-sm text-accent-600 bg-accent-600/10 border border-accent-600/20 rounded-xl px-4 py-3 animate-fade-in">
             <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
             <span>{t('thankYou')}</span>
           </div>
@@ -209,13 +209,13 @@ export default function ReviewPage() {
         <InsetSection>
           <InsetRow
             icon={Camera}
-            iconBg="bg-primary-600"
+            iconBg="bg-brand-600"
             label={t('takePhoto')}
             onClick={() => { setPickerOpen(false); cameraInputRef.current?.click(); }}
           />
           <InsetRow
             icon={Images}
-            iconBg="bg-slate-600"
+            iconBg="bg-ink-300"
             label={t('chooseFromLibrary')}
             onClick={() => { setPickerOpen(false); libraryInputRef.current?.click(); }}
           />

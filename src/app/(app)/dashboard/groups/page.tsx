@@ -42,10 +42,11 @@ interface LeaderboardEntry {
 
 type LeaderboardMetric = 'distance' | 'streak' | 'runs';
 
+// Same three group hues as lib/utils' groupColorMap (green / sky blue / orange).
 const GROUP_COLORS: Record<number, { bg: string; border: string; text: string; badge: string; dot: string }> = {
-  0: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', badge: 'bg-green-500/20', dot: 'bg-green-400' },
-  1: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', text: 'text-yellow-400', badge: 'bg-yellow-500/20', dot: 'bg-yellow-400' },
-  2: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-400', badge: 'bg-orange-500/20', dot: 'bg-orange-400' },
+  0: { bg: 'bg-accent-600/10', border: 'border-accent-600/30', text: 'text-accent-600', badge: 'bg-accent-600/20', dot: 'bg-accent-600' },
+  1: { bg: 'bg-band-2/10', border: 'border-band-2/30', text: 'text-band-2', badge: 'bg-band-2/20', dot: 'bg-band-2' },
+  2: { bg: 'bg-band-3/10', border: 'border-band-3/30', text: 'text-band-3', badge: 'bg-band-3/20', dot: 'bg-band-3' },
 };
 
 function getGroupColors(index: number) {
@@ -139,7 +140,7 @@ export default function GroupsPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">{t('title')}</h1>
-        <p className="text-slate-400 mt-1">
+        <p className="text-ink-400 mt-1">
           {totalAthletes} {t('athletesAcross')} {groups.length} {t('groups')}
         </p>
       </div>
@@ -166,12 +167,12 @@ export default function GroupsPage() {
                   </span>
                 </div>
                 {group.marathonGoal && (
-                  <div className="flex items-center gap-2 text-sm text-slate-300">
-                    <Trophy className="h-4 w-4 text-yellow-400" />
+                  <div className="flex items-center gap-2 text-sm text-ink-500">
+                    <Trophy className="h-4 w-4 text-band-3" />
                     <span className="font-mono">{group.marathonGoal}</span>
                   </div>
                 )}
-                <div className="text-xs text-slate-500 mt-1">
+                <div className="text-xs text-ink-400 mt-1">
                   {t('paceOffset')}: {group.paceOffsetSeconds > 0 ? '+' : ''}{group.paceOffsetSeconds}s/km
                 </div>
               </Card>
@@ -192,7 +193,7 @@ export default function GroupsPage() {
               className={cn(
                 "rounded-xl border overflow-hidden transition-all",
                 colors.border,
-                isExpanded ? 'bg-slate-800/80' : 'bg-slate-800/40'
+                isExpanded ? 'bg-card/80' : 'bg-card/40'
               )}
             >
               {/* Group Header */}
@@ -204,7 +205,7 @@ export default function GroupsPage() {
                   <div className={cn("w-3 h-3 rounded-full", colors.dot)} />
                   <div className="text-left">
                     <h3 className="text-lg font-semibold">{group.name}</h3>
-                    <span className="text-sm text-slate-400">
+                    <span className="text-sm text-ink-400">
                       {group.athleteCount} {t('athletes')}
                       {group.marathonGoal && ` · Goal: ${group.marathonGoal}`}
                     </span>
@@ -213,21 +214,21 @@ export default function GroupsPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); setEditingGroup(group); }}
-                    className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:bg-slate-700 active:scale-[0.92] rounded-lg transition-all"
+                    className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:bg-page active:scale-[0.92] rounded-lg transition-all"
                   >
-                    <Edit3 className="h-4 w-4 text-slate-400" />
+                    <Edit3 className="h-4 w-4 text-ink-400" />
                   </button>
                   {isExpanded ? (
-                    <ChevronUp className="h-5 w-5 text-slate-400" />
+                    <ChevronUp className="h-5 w-5 text-ink-400" />
                   ) : (
-                    <ChevronDown className="h-5 w-5 text-slate-400" />
+                    <ChevronDown className="h-5 w-5 text-ink-400" />
                   )}
                 </div>
               </button>
 
               {/* Expanded Content - Athlete List */}
               {isExpanded && (
-                <div className="px-4 sm:px-5 pb-4 sm:pb-5 border-t border-slate-700/50">
+                <div className="px-4 sm:px-5 pb-4 sm:pb-5 border-t border-page/50">
                   {group.athletes.length > 0 ? (
                     <InsetSection className="mt-4 mb-0">
                       {group.athletes.map((athlete) => (
@@ -242,8 +243,8 @@ export default function GroupsPage() {
                               <span className={cn(
                                 "flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-medium",
                                 athlete.hasGarmin
-                                  ? 'bg-green-500/20 text-green-400'
-                                  : 'bg-slate-600/30 text-slate-500'
+                                  ? 'bg-accent-600/20 text-accent-600'
+                                  : 'bg-ink-300/30 text-ink-400'
                               )}>
                                 <Watch className="h-3 w-3" />
                                 {athlete.hasGarmin ? t('garminConnected') : t('notConnected')}
@@ -251,8 +252,8 @@ export default function GroupsPage() {
                               <span className={cn(
                                 "text-xs px-2 py-0.5 rounded-full",
                                 athlete.status === 'active'
-                                  ? 'bg-green-500/20 text-green-400'
-                                  : 'bg-slate-600/30 text-slate-400'
+                                  ? 'bg-accent-600/20 text-accent-600'
+                                  : 'bg-ink-300/30 text-ink-400'
                               )}>
                                 {athlete.status}
                               </span>
@@ -280,7 +281,7 @@ export default function GroupsPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Medal className="h-5 w-5 text-yellow-400" />
+            <Medal className="h-5 w-5 text-band-3" />
             <h2 className="text-xl font-bold">{t('weeklyLeaderboard')}</h2>
           </div>
           <SegmentedControl
@@ -316,19 +317,19 @@ export default function GroupsPage() {
                   : metric === 'runs' ? leaderboardByRuns
                   : leaderboard;
                 return activeList.length > 0 ? (
-                  <div className="divide-y divide-slate-700/50">
+                  <div className="divide-y divide-page/50">
                     {activeList.map((entry, idx) => {
                       const groupIdx = groups.findIndex(g => g.id === entry.groupId);
-                      const colors = groupIdx >= 0 ? getGroupColors(groupIdx) : { dot: 'bg-slate-500', text: 'text-slate-400' };
+                      const colors = groupIdx >= 0 ? getGroupColors(groupIdx) : { dot: 'bg-ink-300', text: 'text-ink-400' };
                       return (
-                        <div key={entry.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-700/30 transition-colors">
+                        <div key={entry.id} className="flex items-center justify-between px-4 py-3 hover:bg-page/30 transition-colors">
                           <div className="flex items-center gap-3">
                             <span className={cn(
                               "w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold",
-                              idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                              idx === 1 ? 'bg-slate-400/20 text-slate-300' :
-                              idx === 2 ? 'bg-orange-500/20 text-orange-400' :
-                              'bg-slate-700 text-slate-400'
+                              idx === 0 ? 'bg-band-3/20 text-band-3' :
+                              idx === 1 ? 'bg-ink-300/20 text-ink-500' :
+                              idx === 2 ? 'bg-band-3/20 text-band-3' :
+                              'bg-page text-ink-400'
                             )}>
                               {idx + 1}
                             </span>
@@ -339,19 +340,19 @@ export default function GroupsPage() {
                           </div>
                           <div className="flex items-center gap-4 text-sm">
                             {metric === 'streak' ? (
-                              <span className="font-bold font-mono text-white flex items-center gap-1">
-                                <Flame className="h-4 w-4 text-orange-400" />
+                              <span className="font-bold font-mono text-ink-700 flex items-center gap-1">
+                                <Flame className="h-4 w-4 text-band-3" />
                                 {entry.weekStreak} {entry.weekStreak === 1 ? tm('weekStreakOne') : tm('weekStreak')}
                               </span>
                             ) : metric === 'runs' ? (
                               <>
-                                <span className="text-slate-400">{entry.distanceKm} {t('km')}</span>
-                                <span className="font-bold font-mono text-white">{entry.runs} {t('runs')}</span>
+                                <span className="text-ink-400">{entry.distanceKm} {t('km')}</span>
+                                <span className="font-bold font-mono text-ink-700">{entry.runs} {t('runs')}</span>
                               </>
                             ) : (
                               <>
-                                <span className="text-slate-400">{entry.runs} {t('runs')}</span>
-                                <span className="font-bold font-mono text-white">{entry.distanceKm} {t('km')}</span>
+                                <span className="text-ink-400">{entry.runs} {t('runs')}</span>
+                                <span className="font-bold font-mono text-ink-700">{entry.distanceKm} {t('km')}</span>
                               </>
                             )}
                           </div>
@@ -361,9 +362,9 @@ export default function GroupsPage() {
                   </div>
                 ) : (
                   <div className="text-center py-10">
-                    <Trophy className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500">{metric === 'streak' ? t('noStreaks') : t('noActivityData')}</p>
-                    <p className="text-xs text-slate-400 mt-1">{t('leaderboardWillPopulate')}</p>
+                    <Trophy className="h-8 w-8 text-ink-400 mx-auto mb-2" />
+                    <p className="text-sm text-ink-400">{metric === 'streak' ? t('noStreaks') : t('noActivityData')}</p>
+                    <p className="text-xs text-ink-400 mt-1">{t('leaderboardWillPopulate')}</p>
                   </div>
                 );
               })()}
@@ -382,28 +383,28 @@ export default function GroupsPage() {
                       <div className={cn("w-2.5 h-2.5 rounded-full", colors.dot)} />
                       <span className={cn("font-semibold", colors.text)}>{group.name}</span>
                     </div>
-                    <span className="text-sm text-slate-300 font-mono">
+                    <span className="text-sm text-ink-500 font-mono">
                       {Math.round(groupTotal * 10) / 10} {t('kmTotal')}
                     </span>
                   </div>
                   {entries.length > 0 ? (
-                    <div className="divide-y divide-slate-700/30">
+                    <div className="divide-y divide-page/30">
                       {entries.map((entry, entryIdx) => (
-                        <div key={entry.id} className="flex items-center justify-between px-4 py-2.5 bg-slate-800/60">
+                        <div key={entry.id} className="flex items-center justify-between px-4 py-2.5 bg-card/60">
                           <div className="flex items-center gap-3">
-                            <span className="text-xs text-slate-500 w-4">{entryIdx + 1}.</span>
+                            <span className="text-xs text-ink-400 w-4">{entryIdx + 1}.</span>
                             <span className="text-sm">{entry.name}</span>
                           </div>
                           <div className="flex items-center gap-3 text-sm">
-                            <span className="text-slate-500">{entry.runs} {t('runs')}</span>
+                            <span className="text-ink-400">{entry.runs} {t('runs')}</span>
                             <span className="font-mono font-medium">{entry.distanceKm} {t('km')}</span>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="px-4 py-4 bg-slate-800/60 text-center">
-                      <p className="text-xs text-slate-500">{t('noActivities')}</p>
+                    <div className="px-4 py-4 bg-card/60 text-center">
+                      <p className="text-xs text-ink-400">{t('noActivities')}</p>
                     </div>
                   )}
                 </div>
@@ -448,36 +449,36 @@ function EditGroupModal({ group, onSave, onClose }: {
     <Sheet open onOpenChange={(o) => { if (!o) onClose(); }} title={`${t('edit')} ${group.name}`}>
       <form onSubmit={handleSubmit} className="space-y-4 px-1 pb-2">
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">{t('groupName')}</label>
+          <label className="block text-sm font-medium text-ink-500 mb-2">{t('groupName')}</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full min-h-[44px] bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full min-h-[44px] bg-page border border-ink-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-600"
             required
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">{t('marathonGoal')}</label>
+          <label className="block text-sm font-medium text-ink-500 mb-2">{t('marathonGoal')}</label>
           <input
             type="text"
             value={marathonGoal}
             onChange={(e) => setMarathonGoal(e.target.value)}
-            className="w-full min-h-[44px] bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 font-mono text-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full min-h-[44px] bg-page border border-ink-300 rounded-lg px-4 py-3 font-mono text-xl focus:outline-none focus:ring-2 focus:ring-brand-600"
             placeholder="2:30:00"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">{t('paceOffsetLabel')}</label>
+          <label className="block text-sm font-medium text-ink-500 mb-2">{t('paceOffsetLabel')}</label>
           <input
             type="number"
             value={paceOffsetSeconds}
             onChange={(e) => setPaceOffsetSeconds(parseInt(e.target.value) || 0)}
-            className="w-full min-h-[44px] bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-center font-mono text-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full min-h-[44px] bg-page border border-ink-300 rounded-lg px-4 py-3 text-center font-mono text-xl focus:outline-none focus:ring-2 focus:ring-brand-600"
           />
-          <div className="mt-2 text-xs text-slate-500">
+          <div className="mt-2 text-xs text-ink-400">
             {t('paceOffsetPreview', { pace: `${formatPace(240 + paceOffsetSeconds)}/km` })}
           </div>
         </div>

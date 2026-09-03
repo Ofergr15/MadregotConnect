@@ -77,13 +77,13 @@ interface RegistrationsPayload {
 }
 
 const KIND_STYLES: Record<EventKind, { bg: string; text: string }> = {
-  race: { bg: 'bg-purple-500/15', text: 'text-purple-400' },
-  camp: { bg: 'bg-blue-500/15', text: 'text-blue-400' },
-  lecture: { bg: 'bg-amber-500/15', text: 'text-amber-400' },
-  social: { bg: 'bg-pink-500/15', text: 'text-pink-400' },
-  photo_shoot: { bg: 'bg-teal-500/15', text: 'text-teal-400' },
-  sponsor: { bg: 'bg-indigo-500/15', text: 'text-indigo-400' },
-  workout: { bg: 'bg-emerald-500/15', text: 'text-emerald-400' },
+  race: { bg: 'bg-purple-500/15', text: 'text-purple-600' },
+  camp: { bg: 'bg-band-2/15', text: 'text-band-2' },
+  lecture: { bg: 'bg-band-3/15', text: 'text-band-3' },
+  social: { bg: 'bg-pink-500/15', text: 'text-pink-600' },
+  photo_shoot: { bg: 'bg-teal-500/15', text: 'text-teal-600' },
+  sponsor: { bg: 'bg-indigo-500/15', text: 'text-indigo-600' },
+  workout: { bg: 'bg-accent-600/15', text: 'text-accent-600' },
 };
 
 /**
@@ -218,7 +218,7 @@ export default function EventDetailPage() {
       {/* Back */}
       <button
         onClick={() => router.back()}
-        className="inline-flex items-center gap-1.5 min-h-[44px] px-2 -ms-2 text-sm text-slate-400 hover:text-white transition-colors"
+        className="inline-flex items-center gap-1.5 min-h-[44px] px-2 -ms-2 text-sm text-ink-400 hover:text-ink-900 transition-colors"
       >
         <ArrowRight className="h-4 w-4" />
         {tc('back')}
@@ -229,32 +229,32 @@ export default function EventDetailPage() {
         <span className={cn('inline-block text-2xs font-bold px-2 py-0.5 rounded-md mb-2', kindStyle.bg, kindStyle.text)}>
           {t(`kinds.${event.kind}`)}
         </span>
-        <h1 className="text-xl font-black text-white" dir="auto">
+        <h1 className="text-xl font-black text-ink-700" dir="auto">
           {event.name}
         </h1>
 
         <div className="mt-3 space-y-1.5">
-          <div className="flex items-center gap-2 text-sm text-slate-300 flex-wrap">
-            <Calendar className="h-4 w-4 text-slate-500 shrink-0" />
+          <div className="flex items-center gap-2 text-sm text-ink-500 flex-wrap">
+            <Calendar className="h-4 w-4 text-ink-400 shrink-0" />
             <span>
               {dateLabel}
               {endDateLabel ? ` – ${endDateLabel}` : ''}
             </span>
             {timeLabel && (
               <span className="flex items-center gap-1.5 ms-1">
-                <Clock className="h-4 w-4 text-slate-500 shrink-0" />
+                <Clock className="h-4 w-4 text-ink-400 shrink-0" />
                 <span className="tabular-nums">{timeLabel}</span>
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-300">
-            <MapPin className="h-4 w-4 text-slate-500 shrink-0" />
+          <div className="flex items-center gap-2 text-sm text-ink-500">
+            <MapPin className="h-4 w-4 text-ink-400 shrink-0" />
             <span dir="auto">{event.location}</span>
           </div>
         </div>
 
         {event.description && (
-          <p className="mt-4 text-sm text-slate-300 leading-relaxed" dir="auto">
+          <p className="mt-4 text-sm text-ink-500 leading-relaxed" dir="auto">
             {event.description}
           </p>
         )}
@@ -264,7 +264,7 @@ export default function EventDetailPage() {
             href={waze}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-primary-400 hover:text-primary-300 transition-colors"
+            className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
           >
             <Navigation className="h-4 w-4" />
             {t('openInWaze')}
@@ -280,14 +280,14 @@ export default function EventDetailPage() {
       {event.agenda && event.agenda.length > 0 && (
         <Card variant="muted">
           <div className="flex items-center gap-2 mb-3">
-            <ListChecks className="h-4 w-4 text-primary-400" />
-            <h2 className="text-sm font-bold text-white">{t('agendaTitle')}</h2>
+            <ListChecks className="h-4 w-4 text-brand-600" />
+            <h2 className="text-sm font-bold text-ink-700">{t('agendaTitle')}</h2>
           </div>
           <ol className="space-y-2.5">
             {event.agenda.map((item, i) => (
               <li key={i} className="flex items-start gap-3">
-                <span className="text-xs font-bold text-primary-400 tabular-nums shrink-0 w-12">{item.time}</span>
-                <span className="text-sm text-slate-200 flex-1" dir="auto">
+                <span className="text-xs font-bold text-brand-600 tabular-nums shrink-0 w-12">{item.time}</span>
+                <span className="text-sm text-ink-700 flex-1" dir="auto">
                   {item.title}
                 </span>
               </li>
@@ -302,8 +302,8 @@ export default function EventDetailPage() {
       {/* Participants + RSVP */}
       <Card variant="muted">
         <div className="flex items-center gap-2 mb-3">
-          <Users className="h-4 w-4 text-primary-400" />
-          <h2 className="text-sm font-bold text-white">{t('participantsTitle')}</h2>
+          <Users className="h-4 w-4 text-brand-600" />
+          <h2 className="text-sm font-bold text-ink-700">{t('participantsTitle')}</h2>
         </div>
 
         {registrationsLoading ? (
@@ -316,15 +316,15 @@ export default function EventDetailPage() {
           <>
             <div className="flex items-center -space-x-2 rtl:space-x-reverse mb-2">
               {registeredParticipants.slice(0, 8).map((p) => (
-                <div key={p.athleteId} title={p.name} className="ring-2 ring-slate-800 rounded-full">
+                <div key={p.athleteId} title={p.name} className="ring-2 ring-page rounded-full">
                   <FeedAvatar name={p.name} url={p.avatarUrl} className="w-8 h-8" />
                 </div>
               ))}
             </div>
-            <p className="text-xs text-slate-400">
-              <span className="font-bold text-white">{registrations.registeredCount}</span> {t('registeredLabel')}
+            <p className="text-xs text-ink-400">
+              <span className="font-bold text-ink-700">{registrations.registeredCount}</span> {t('registeredLabel')}
               {registrations.waitlistCount > 0 && (
-                <span className="text-amber-400 font-semibold ms-2">
+                <span className="text-band-3 font-semibold ms-2">
                   +{registrations.waitlistCount} {t('waitlistedLabel')}
                 </span>
               )}
@@ -336,16 +336,16 @@ export default function EventDetailPage() {
             goal bar (thin track, rounded, brand-color fill). */}
         {registrations?.capacity != null && (
           <div className="mt-3">
-            <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-page/50 rounded-full overflow-hidden">
               <div
                 className={cn(
                   'h-full rounded-full transition-all',
-                  registrations.registeredCount >= registrations.capacity ? 'bg-amber-400' : 'bg-primary-600',
+                  registrations.registeredCount >= registrations.capacity ? 'bg-band-3' : 'bg-brand-600',
                 )}
                 style={{ width: `${Math.min(100, (registrations.registeredCount / registrations.capacity) * 100)}%` }}
               />
             </div>
-            <p className="mt-1 text-2xs text-slate-500">
+            <p className="mt-1 text-2xs text-ink-400">
               {registrations.registeredCount}/{registrations.capacity} {t('registeredLabel')}
             </p>
           </div>
@@ -354,10 +354,10 @@ export default function EventDetailPage() {
         {/* RSVP action — only rendered for real athlete accounts (coaches with
             no athlete row have nothing to register as). */}
         {athleteId && !registrationsLoading && (
-          <div className="mt-4 pt-3 border-t border-slate-700/40">
+          <div className="mt-4 pt-3 border-t border-page/40">
             {myStatus === 'registered' && (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
-                <span className="flex items-center gap-1.5 text-sm font-bold text-emerald-400">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-accent-600/30 bg-accent-600/10 px-3 py-2.5">
+                <span className="flex items-center gap-1.5 text-sm font-bold text-accent-600">
                   <CheckCircle2 className="h-4 w-4" /> {t('youAreRegistered')}
                 </span>
                 <Button variant="ghost" size="sm" onClick={handleCancel} disabled={actionPending}>
@@ -366,8 +366,8 @@ export default function EventDetailPage() {
               </div>
             )}
             {myStatus === 'waitlisted' && (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-                <span className="flex items-center gap-1.5 text-sm font-bold text-amber-400">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-band-3/30 bg-band-3/10 px-3 py-2.5">
+                <span className="flex items-center gap-1.5 text-sm font-bold text-band-3">
                   <Clock className="h-4 w-4" /> {t('youAreWaitlisted')}
                 </span>
                 <Button variant="ghost" size="sm" onClick={handleCancel} disabled={actionPending}>
@@ -380,7 +380,7 @@ export default function EventDetailPage() {
                 {actionPending ? <Spinner size={16} /> : t('registerCta')}
               </Button>
             )}
-            {actionError && <p className="mt-2 text-xs text-red-400 text-center">{t('actionError')}</p>}
+            {actionError && <p className="mt-2 text-xs text-accent-red text-center">{t('actionError')}</p>}
           </div>
         )}
       </Card>
@@ -408,8 +408,8 @@ function GearChecklist({ items, title }: { items: string[]; title: string }) {
   return (
     <Card variant="muted">
       <div className="flex items-center gap-2 mb-3">
-        <Package className="h-4 w-4 text-primary-400" />
-        <h2 className="text-sm font-bold text-white">{title}</h2>
+        <Package className="h-4 w-4 text-brand-600" />
+        <h2 className="text-sm font-bold text-ink-700">{title}</h2>
       </div>
       <InsetSection className="mb-0">
         {items.map((item, i) => {
@@ -421,9 +421,9 @@ function GearChecklist({ items, title }: { items: string[]; title: string }) {
               onClick={() => toggle(i)}
               trailing={
                 isChecked ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <CheckCircle2 className="h-4 w-4 text-accent-600 shrink-0" />
                 ) : (
-                  <Circle className="h-4 w-4 text-slate-500 shrink-0" />
+                  <Circle className="h-4 w-4 text-ink-400 shrink-0" />
                 )
               }
             />
@@ -452,8 +452,8 @@ function FaqAccordion({ items, title }: { items: FaqItem[]; title: string }) {
   return (
     <Card variant="muted">
       <div className="flex items-center gap-2 mb-3">
-        <HelpCircle className="h-4 w-4 text-primary-400" />
-        <h2 className="text-sm font-bold text-white">{title}</h2>
+        <HelpCircle className="h-4 w-4 text-brand-600" />
+        <h2 className="text-sm font-bold text-ink-700">{title}</h2>
       </div>
       <InsetSection className="mb-0">
         {items.map((item, i) => {
@@ -463,10 +463,10 @@ function FaqAccordion({ items, title }: { items: FaqItem[]; title: string }) {
               <InsetRow
                 label={item.q}
                 onClick={() => toggle(i)}
-                trailing={<ChevronDown className={cn('h-4 w-4 text-slate-400 shrink-0 transition-transform', isOpen && 'rotate-180')} />}
+                trailing={<ChevronDown className={cn('h-4 w-4 text-ink-400 shrink-0 transition-transform', isOpen && 'rotate-180')} />}
               />
               {isOpen && (
-                <div className="px-4 py-3 text-sm text-slate-300 leading-relaxed" dir="auto">
+                <div className="px-4 py-3 text-sm text-ink-500 leading-relaxed" dir="auto">
                   {item.a}
                 </div>
               )}

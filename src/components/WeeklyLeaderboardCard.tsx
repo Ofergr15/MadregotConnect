@@ -99,27 +99,27 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
       {/* LEFT: Weekly Volume */}
       {runnerWeeklyVolumes.length > 1 && (
-        <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
+        <section className="bg-card rounded-card border border-page p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-white tabular-nums">{weeklyKm}</span>
-              <span className="text-xs text-slate-500">{tc('km')} {t('thisWeek')}</span>
+              <span className="text-2xl font-black text-ink-700 tabular-nums">{weeklyKm}</span>
+              <span className="text-xs text-ink-400">{tc('km')} {t('thisWeek')}</span>
             </div>
             <div className="flex items-center gap-2">
               {weekTarget && (
-                <span className="text-xs font-semibold text-slate-300">Goal: {weekTarget.min}–{weekTarget.max} {tc('km')}</span>
+                <span className="text-xs font-semibold text-ink-500">Goal: {weekTarget.min}–{weekTarget.max} {tc('km')}</span>
               )}
               {trend !== 0 && (
-                <span className={cn('text-3xs font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400')}>
+                <span className={cn('text-3xs font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-accent-600/10 text-accent-600' : 'bg-band-3/10 text-band-3')}>
                   {trend > 0 ? '+' : ''}{trend}%
                 </span>
               )}
             </div>
           </div>
           {weekTarget && (
-            <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden mb-4">
+            <div className="w-full h-1.5 bg-page rounded-full overflow-hidden mb-4">
               <div
-                className={cn('h-full rounded-full transition-all', weeklyKm >= weekTarget.min ? 'bg-emerald-400' : 'bg-[#fc5200]')}
+                className={cn('h-full rounded-full transition-all', weeklyKm >= weekTarget.min ? 'bg-accent-600' : 'bg-[#fc5200]')}
                 style={{ width: `${Math.min(100, (weeklyKm / weekTarget.max) * 100)}%` }}
               />
             </div>
@@ -130,12 +130,12 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
               const barH = maxKm > 0 ? Math.max(10, Math.round((w.km / maxKm) * 65)) : 10;
               return (
                 <div key={i} className="flex flex-col items-center justify-end" style={{ height: '100px', width: '28px' }}>
-                  <span className={cn('text-3xs font-bold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-white/70')}>{w.km}</span>
+                  <span className={cn('text-3xs font-bold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-ink-700/70')}>{w.km}</span>
                   <div
-                    className={cn('rounded-full', isLast ? 'bg-[#fc5200]' : 'bg-slate-600')}
+                    className={cn('rounded-full', isLast ? 'bg-[#fc5200]' : 'bg-ink-300')}
                     style={{ height: `${barH}px`, width: '12px' }}
                   />
-                  <span className={cn('text-3xs mt-1', isLast ? 'text-white' : 'text-slate-400')}>{w.week}</span>
+                  <span className={cn('text-3xs mt-1', isLast ? 'text-ink-700' : 'text-ink-400')}>{w.week}</span>
                 </div>
               );
             })}
@@ -145,11 +145,11 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
 
       {/* RIGHT: Leaderboard */}
       {leaderboard.length > 0 && (
-        <section className="bg-slate-800/30 rounded-2xl border border-slate-700/20 p-4 sm:p-5">
+        <section className="bg-card rounded-card border border-page p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-1.5">
-              <Trophy className="h-3.5 w-3.5 text-yellow-400" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 3</span>
+              <Trophy className="h-3.5 w-3.5 text-band-3" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-ink-400">Top 3</span>
             </div>
             {groups.length > 1 && (
               <SegmentedControl
@@ -165,11 +165,11 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
           <div className="flex items-end justify-center gap-5 px-2" style={{ height: '100px' }}>
             {top3.length >= 2 && (
               <div className="flex flex-col items-center" style={{ width: '56px' }}>
-                <span className="text-2xs font-bold text-slate-300 mb-1 tabular-nums">{top3[1].distanceKm}</span>
-                <div className="w-6 rounded-t bg-slate-400/80" style={{ height: '50px' }} />
+                <span className="text-2xs font-bold text-ink-500 mb-1 tabular-nums">{top3[1].distanceKm}</span>
+                <div className="w-6 rounded-t bg-ink-300/80" style={{ height: '50px' }} />
                 <Link
                   href={`/dashboard/teammate/${top3[1].id}`}
-                  className="text-2xs text-slate-300 mt-1.5 font-medium whitespace-nowrap"
+                  className="text-2xs text-ink-500 mt-1.5 font-medium whitespace-nowrap"
                 >
                   {top3[1].name.split(' ')[0]}
                 </Link>
@@ -178,11 +178,11 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
             {top3.length >= 1 && (
               <div className="flex flex-col items-center" style={{ width: '56px' }}>
                 <span className="text-sm mb-0.5">👑</span>
-                <span className="text-xs font-black text-yellow-400 mb-1 tabular-nums">{top3[0].distanceKm}</span>
-                <div className="w-6 rounded-t bg-yellow-500" style={{ height: '70px' }} />
+                <span className="text-xs font-black text-band-3 mb-1 tabular-nums">{top3[0].distanceKm}</span>
+                <div className="w-6 rounded-t bg-band-3" style={{ height: '70px' }} />
                 <Link
                   href={`/dashboard/teammate/${top3[0].id}`}
-                  className="text-2xs text-white font-bold mt-1.5 whitespace-nowrap"
+                  className="text-2xs text-ink-700 font-bold mt-1.5 whitespace-nowrap"
                 >
                   {top3[0].name.split(' ')[0]}
                 </Link>
@@ -190,18 +190,18 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
             )}
             {top3.length >= 3 && (
               <div className="flex flex-col items-center" style={{ width: '56px' }}>
-                <span className="text-2xs font-bold text-amber-500 mb-1 tabular-nums">{top3[2].distanceKm}</span>
-                <div className="w-6 rounded-t bg-amber-600/80" style={{ height: '35px' }} />
+                <span className="text-2xs font-bold text-band-3 mb-1 tabular-nums">{top3[2].distanceKm}</span>
+                <div className="w-6 rounded-t bg-band-3/80" style={{ height: '35px' }} />
                 <Link
                   href={`/dashboard/teammate/${top3[2].id}`}
-                  className="text-2xs text-slate-300 mt-1.5 font-medium whitespace-nowrap"
+                  className="text-2xs text-ink-500 mt-1.5 font-medium whitespace-nowrap"
                 >
                   {top3[2].name.split(' ')[0]}
                 </Link>
               </div>
             )}
           </div>
-          {myRank > 3 && <p className="text-3xs text-slate-500 text-center mt-2">You: #{myRank}</p>}
+          {myRank > 3 && <p className="text-3xs text-ink-400 text-center mt-2">You: #{myRank}</p>}
         </section>
       )}
     </div>

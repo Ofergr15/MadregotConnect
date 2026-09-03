@@ -23,13 +23,13 @@ export function StatTiles({ athleteId }: { athleteId: string }) {
 
   return (
     <div className="grid grid-cols-2 gap-3" dir="rtl">
-      <div className="rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4">
-        <div className="text-3xl font-black text-primary-400 tabular-nums">{s.totalKm.toLocaleString('en-US')}</div>
-        <div className="text-2xs text-slate-400 mt-1">ק״מ סה״כ</div>
+      <div className="rounded-card bg-card/60 border border-page/60 p-4">
+        <div className="text-3xl font-black text-brand-600 tabular-nums">{s.totalKm.toLocaleString('en-US')}</div>
+        <div className="text-2xs text-ink-400 mt-1">ק״מ סה״כ</div>
       </div>
-      <div className="rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4">
-        <div className="text-3xl font-black text-primary-400 tabular-nums">{s.thisMonthRuns}</div>
-        <div className="text-2xs text-slate-400 mt-1">אימונים החודש</div>
+      <div className="rounded-card bg-card/60 border border-page/60 p-4">
+        <div className="text-3xl font-black text-brand-600 tabular-nums">{s.thisMonthRuns}</div>
+        <div className="text-2xs text-ink-400 mt-1">אימונים החודש</div>
       </div>
     </div>
   );

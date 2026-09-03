@@ -14,9 +14,12 @@ const FEEL_FACES = ['😣', '😕', '😐', '🙂', '😄'];
 // the color depends on runtime data, and Tailwind's compiler only includes
 // classes it can see literally in source (same reason WORKOUT_TYPE_COLORS
 // elsewhere in this app uses inline style, not bg-${x} strings).
-const DIFFICULTY_COLOR = (n: number): string => (n <= 3 ? '#10b981' : n <= 6 ? '#4338ff' : n <= 8 ? '#f59e0b' : '#ef4444');
+// The light system's severity trio (accent-600 / band-3 / accent-red) plus the
+// brand blue for "as expected" — the old emerald/amber/red were tuned for a dark
+// card and read as washed-out pastels once these numbers sat on white.
+const DIFFICULTY_COLOR = (n: number): string => (n <= 3 ? '#16a34a' : n <= 6 ? '#1525FF' : n <= 8 ? '#FF5315' : '#D74E4E');
 // One color per FEEL_FACES index (😣 worst → 😄 best) — same palette, inverted.
-const FEEL_COLOR = ['#ef4444', '#f59e0b', '#94a3b8', '#4338ff', '#10b981'];
+const FEEL_COLOR = ['#D74E4E', '#FF5315', '#969696', '#1525FF', '#16a34a'];
 
 // A small "still needs your input" marker — every question the watch can't
 // answer (pain, coach-feedback) plus difficulty/feel when there was no watch
@@ -27,7 +30,7 @@ function RequiredTag({ show }: { show: boolean }) {
   const t = useTranslations('workoutFeedback');
   if (!show) return null;
   return (
-    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded-full">
+    <span className="text-[10px] font-bold text-band-3 bg-band-3/15 px-1.5 py-0.5 rounded-full">
       {t('required')}
     </span>
   );
@@ -123,13 +126,13 @@ function FeedbackForm() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 text-primary-600 animate-spin" /></div>;
+    return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 text-brand-600 animate-spin" /></div>;
   }
   if (done) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <CheckCircle2 className="h-12 w-12 text-green-400" />
-        <p className="text-white font-bold" dir="rtl">{t('thanks')}</p>
+        <CheckCircle2 className="h-12 w-12 text-accent-600" />
+        <p className="text-ink-700 font-bold" dir="rtl">{t('thanks')}</p>
       </div>
     );
   }
@@ -143,16 +146,16 @@ function FeedbackForm() {
 
   return (
     <div className="max-w-md mx-auto px-4 py-6" dir="rtl">
-      <h1 className="text-xl font-black text-white">{t('title')} 🏃</h1>
-      {activityName && <p className="text-sm text-slate-400 mt-1">{activityName}</p>}
+      <h1 className="text-xl font-black text-ink-700">{t('title')} 🏃</h1>
+      {activityName && <p className="text-sm text-ink-400 mt-1">{activityName}</p>}
 
       {/* Thread with the coach — reachable as soon as a feedback row exists
           (the athlete can start it too, not just receive a reply). */}
       {feedbackId && (
-        <div className="mt-4 rounded-xl bg-primary-600/12 border border-primary-600/30 p-3">
+        <div className="mt-4 rounded-xl bg-brand-600/12 border border-brand-600/30 p-3">
           <div className="flex items-center gap-1.5 mb-1">
-            <MessageCircle className="h-4 w-4 text-primary-300" />
-            <span className="text-xs font-bold text-primary-300">{t('coachReply')}</span>
+            <MessageCircle className="h-4 w-4 text-brand-600" />
+            <span className="text-xs font-bold text-brand-600">{t('coachReply')}</span>
           </div>
           <FeedbackThread feedbackId={feedbackId} viewerEmail={athleteEmail} />
         </div>
@@ -162,13 +165,15 @@ function FeedbackForm() {
         <div
           className="flex items-start gap-2 mt-4 rounded-xl border p-3"
           style={{
-            borderColor: `${watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#4338ff'}55`,
-            background: `${watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#4338ff'}18`,
+            borderColor: `${watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#1525FF'}55`,
+            background: `${watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#1525FF'}18`,
           }}
         >
-          <Gauge className="h-4 w-4 mt-0.5 shrink-0" style={{ color: watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#818cf8' }} />
+          <Gauge className="h-4 w-4 mt-0.5 shrink-0" style={{ color: watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#159AFF' }} />
           <div className="text-xs">
-            <p className="text-indigo-100">
+            {/* Was text-indigo-100 — a near-white, which sat on a 10% tint of the
+                effort colour over a white card, i.e. white on white. */}
+            <p className="text-ink-700">
               {t('fromWatch')}: {watchRpe != null && `${t('effort')} ${Math.round(watchRpe)}/10`}
               {watchRpe != null && watchFeel != null && ' · '}
               {watchFeel != null && `${t('feel')} ${FEEL_FACES[Math.round(watchFeel)]}`}
@@ -176,7 +181,7 @@ function FeedbackForm() {
             </p>
             {/* Makes explicit that this pre-fill isn't final — the numbers/face
                 below are real inputs, not a locked read-only summary. */}
-            <p className="flex items-center gap-1 text-slate-400 mt-1">
+            <p className="flex items-center gap-1 text-ink-400 mt-1">
               <Pencil className="h-3 w-3" /> {t('watchEditableHint')}
             </p>
           </div>
@@ -185,7 +190,7 @@ function FeedbackForm() {
 
       {/* Difficulty 1-10 — color intensity mirrors severity (green→blue→amber→red), same palette as the watch banner above, so the selected value's color IS the answer, not just a highlight. */}
       <div className="flex items-center gap-1.5 mt-5 mb-2">
-        <p className="text-sm font-semibold text-slate-200">{t('difficulty')}</p>
+        <p className="text-sm font-semibold text-ink-700">{t('difficulty')}</p>
         <RequiredTag show={difficulty == null} />
       </div>
       <div className="grid grid-cols-5 gap-2">
@@ -204,7 +209,7 @@ function FeedbackForm() {
       {/* Feel 0-4 — selected face gets a colored ring instead of just dimming
           the rest, so it reads as "this is the answer" at a glance. */}
       <div className="flex items-center gap-1.5 mt-5 mb-2">
-        <p className="text-sm font-semibold text-slate-200">{t('howFeel')}</p>
+        <p className="text-sm font-semibold text-ink-700">{t('howFeel')}</p>
         <RequiredTag show={feel == null} />
       </div>
       <div className="flex justify-between">
@@ -222,46 +227,46 @@ function FeedbackForm() {
 
       {/* Pain */}
       <div className="flex items-center gap-1.5 mt-5 mb-2">
-        <p className="text-sm font-semibold text-slate-200">{highEffort ? t('painAfterHard') : t('pain')}</p>
+        <p className="text-sm font-semibold text-ink-700">{highEffort ? t('painAfterHard') : t('pain')}</p>
         <RequiredTag show={pain == null} />
       </div>
       <div className="flex gap-2">
         <button onClick={() => setPain(true)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            pain === true ? 'bg-red-600/80 text-white' : 'bg-slate-700/50 text-slate-300')}>{t('yes')}</button>
+            pain === true ? 'bg-accent-red/80 text-white' : 'bg-page/50 text-ink-500')}>{t('yes')}</button>
         <button onClick={() => setPain(false)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            pain === false ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300')}>{t('no')}</button>
+            pain === false ? 'bg-brand-600 text-white' : 'bg-page/50 text-ink-500')}>{t('no')}</button>
       </div>
       {pain === true && (
         <input value={painDetail} onChange={e => setPainDetail(e.target.value)} placeholder={t('painDetail')}
-          className="w-full mt-2 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600" />
+          className="w-full mt-2 bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600" />
       )}
 
       {/* Want feedback */}
       <div className="flex items-center gap-1.5 mt-5 mb-2">
-        <p className="text-sm font-semibold text-slate-200">{feltPoor ? t('wantHelp') : t('wantFeedback')}</p>
+        <p className="text-sm font-semibold text-ink-700">{feltPoor ? t('wantHelp') : t('wantFeedback')}</p>
         <RequiredTag show={wantsFeedback == null} />
       </div>
       <div className="flex gap-2">
         <button onClick={() => setWantsFeedback(true)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            wantsFeedback === true ? 'bg-primary-600 text-white' : 'bg-slate-700/50 text-slate-300')}>{t('yes')}</button>
+            wantsFeedback === true ? 'bg-brand-600 text-white' : 'bg-page/50 text-ink-500')}>{t('yes')}</button>
         <button onClick={() => setWantsFeedback(false)}
           className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            wantsFeedback === false ? 'bg-slate-600 text-white' : 'bg-slate-700/50 text-slate-300')}>{t('no')}</button>
+            wantsFeedback === false ? 'bg-ink-300 text-ink-700' : 'bg-page/50 text-ink-500')}>{t('no')}</button>
       </div>
 
       {/* Free-text comment */}
-      <p className="text-sm font-semibold text-slate-200 mt-5 mb-2">{t('comment')}</p>
+      <p className="text-sm font-semibold text-ink-700 mt-5 mb-2">{t('comment')}</p>
       <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3}
         placeholder={t('commentPlaceholder')}
-        className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600" />
+        className="w-full bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600" />
 
-      {submitError && <p className="mt-4 text-sm text-red-400 text-center" dir="rtl">{t('submitError')}</p>}
+      {submitError && <p className="mt-4 text-sm text-accent-red text-center" dir="rtl">{t('submitError')}</p>}
 
       <button onClick={submit}
-        className="w-full mt-6 min-h-[52px] rounded-2xl bg-primary-600 hover:bg-primary-700 text-white font-bold flex items-center justify-center gap-2">
+        className="w-full mt-6 min-h-[52px] rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold flex items-center justify-center gap-2">
         {t('submit')}
       </button>
     </div>
@@ -270,7 +275,7 @@ function FeedbackForm() {
 
 export default function WorkoutFeedbackPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="h-8 w-8 text-primary-600 animate-spin" /></div>}>
+    <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="h-8 w-8 text-brand-600 animate-spin" /></div>}>
       <FeedbackForm />
     </Suspense>
   );

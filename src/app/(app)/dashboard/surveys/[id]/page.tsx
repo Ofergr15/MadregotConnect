@@ -85,8 +85,8 @@ export default function SurveyPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8">
       <Card className="max-w-md w-full">
-        <p className="text-xs font-bold text-primary-400 uppercase tracking-wider mb-2">{t('title')}</p>
-        <h1 className="text-lg font-bold text-white mb-5" dir="auto">{question}</h1>
+        <p className="text-xs font-bold text-brand-600 uppercase tracking-wider mb-2">{t('title')}</p>
+        <h1 className="text-lg font-bold text-ink-700 mb-5" dir="auto">{question}</h1>
 
         {closed ? (
           <EmptyState icon={HelpCircle} title={t('closed')} />
@@ -103,12 +103,12 @@ export default function SurveyPage() {
                   className={cn(
                     'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-start min-h-[48px] transition-colors disabled:opacity-60',
                     mine
-                      ? 'bg-primary-600/15 border-primary-500 text-white font-semibold'
-                      : 'bg-slate-800/60 border-slate-700 text-slate-200 hover:border-slate-600',
+                      ? 'bg-brand-600/15 border-brand-600 text-white font-semibold'
+                      : 'bg-card/60 border-page text-ink-700 hover:border-ink-300',
                   )}
                 >
                   <span>{opt}</span>
-                  {mine && <CheckCircle2 className="h-5 w-5 text-primary-400 shrink-0" />}
+                  {mine && <CheckCircle2 className="h-5 w-5 text-brand-600 shrink-0" />}
                 </button>
               );
             })}
@@ -116,13 +116,13 @@ export default function SurveyPage() {
         )}
 
         {submitting && (
-          <div className="flex items-center justify-center gap-2 mt-4 text-sm text-slate-400">
+          <div className="flex items-center justify-center gap-2 mt-4 text-sm text-ink-400">
             <Loader2 className="h-4 w-4 animate-spin" /> {t('submitting')}
           </div>
         )}
-        {error && <p className="text-sm text-red-400 mt-4 text-center">{error}</p>}
+        {error && <p className="text-sm text-accent-red mt-4 text-center">{error}</p>}
         {myResponse !== null && !submitting && !closed && (
-          <p className="text-xs text-slate-500 mt-4 text-center">{t('changeAnswerHint')}</p>
+          <p className="text-xs text-ink-400 mt-4 text-center">{t('changeAnswerHint')}</p>
         )}
       </Card>
     </div>

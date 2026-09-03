@@ -7,7 +7,7 @@ import { useApi } from '@/lib/api';
 interface HeatmapDay { date: string; km: number }
 
 const HE_MONTHS_SHORT = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ'];
-const CELL_COLORS = ['bg-slate-800/60', 'bg-primary-900/60', 'bg-primary-700/70', 'bg-primary-500/85', 'bg-primary-400'];
+const CELL_COLORS = ['bg-card/60', 'bg-brand-600/60', 'bg-brand-600/70', 'bg-brand-600/85', 'bg-brand-600'];
 const WEEKS_BACK = 53;
 
 function isoDay(d: Date): string {
@@ -77,20 +77,20 @@ export function ActivityHeatmap({ athleteId }: { athleteId: string }) {
   if (!data) return null;
 
   return (
-    <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-5">
+    <div className="rounded-card bg-card/80 border border-page/50 p-5">
       <div className="flex items-center justify-between mb-4" dir="rtl">
         <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-primary-400" />
-          <h2 className="text-sm font-semibold text-white uppercase tracking-wider">פעילות בשנה האחרונה</h2>
+          <CalendarDays className="h-4 w-4 text-brand-600" />
+          <h2 className="text-sm font-semibold text-ink-700 uppercase tracking-wider">פעילות בשנה האחרונה</h2>
         </div>
-        <span className="text-xs text-slate-400">{totalKm} ק״מ · {activeDays} ימי פעילות</span>
+        <span className="text-xs text-ink-400">{totalKm} ק״מ · {activeDays} ימי פעילות</span>
       </div>
 
       <div ref={scrollRef} className="overflow-x-auto pb-1" dir="ltr">
         <div className="inline-flex flex-col gap-1 min-w-full">
           <div className="flex gap-[3px] h-3">
             {weeks.map((col, i) => (
-              <div key={i} className="w-[11px] shrink-0 text-[9px] text-slate-500 leading-none whitespace-nowrap">
+              <div key={i} className="w-[11px] shrink-0 text-[9px] text-ink-400 leading-none whitespace-nowrap">
                 {col[0].monthLabel || ''}
               </div>
             ))}
@@ -112,11 +112,11 @@ export function ActivityHeatmap({ athleteId }: { athleteId: string }) {
       </div>
 
       <div className="flex items-center justify-end gap-1.5 mt-3" dir="rtl">
-        <span className="text-2xs text-slate-500">מעט</span>
+        <span className="text-2xs text-ink-400">מעט</span>
         {CELL_COLORS.map((c, i) => (
           <span key={i} className={`w-[10px] h-[10px] rounded-[2px] ${c}`} />
         ))}
-        <span className="text-2xs text-slate-500">הרבה</span>
+        <span className="text-2xs text-ink-400">הרבה</span>
       </div>
     </div>
   );

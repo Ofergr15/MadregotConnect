@@ -130,7 +130,7 @@ function getWeekLabel(dateStr: string, locale: string): string {
 
 function ErrorBanner({ message, className }: { message: string; className?: string }) {
   return (
-    <div className={cn('bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm', className)}>
+    <div className={cn('bg-accent-red/10 border border-accent-red/30 rounded-lg p-4 text-accent-red text-sm', className)}>
       {message}
     </div>
   );
@@ -1059,31 +1059,31 @@ export default function WeeklyPlannerPage() {
   return (
     <div className="min-h-[calc(100vh-6rem)] flex flex-col">
       {/* Week Navigation Header */}
-      <div className="border-b border-slate-700/50 bg-slate-900/50 px-6 py-4">
+      <div className="border-b border-page/50 bg-page/50 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Calendar className="h-5 w-5 text-primary-400" />
-            <h1 className="text-2xl font-bold text-white">{t('title')}</h1>
+            <Calendar className="h-5 w-5 text-brand-600" />
+            <h1 className="text-2xl font-bold text-ink-700">{t('title')}</h1>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={() => setWeekOffset((o) => o - 1)}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
 
             <div className="text-center min-w-[180px]">
-              <p className="text-sm font-medium text-white">{weekLabel}</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-sm font-medium text-ink-700">{weekLabel}</p>
+              <p className="text-xs text-ink-400">
                 {weekOffset === 0 ? t('thisWeek') : weekOffset === 1 ? t('nextWeek') : weekOffset === -1 ? t('lastWeek') : ''}
               </p>
             </div>
 
             <button
               onClick={() => setWeekOffset((o) => o + 1)}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -1091,7 +1091,7 @@ export default function WeeklyPlannerPage() {
             {weekOffset !== getDefaultOffset() && (
               <button
                 onClick={() => setWeekOffset(getDefaultOffset())}
-                className="min-h-[44px] text-xs text-primary-400 hover:text-primary-300 ms-2"
+                className="min-h-[44px] text-xs text-brand-600 hover:text-brand-700 ms-2"
               >
                 {t('current')}
               </button>
@@ -1105,7 +1105,7 @@ export default function WeeklyPlannerPage() {
       {/* Loading state */}
       {loadingPlans && (
         <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 text-slate-400 animate-spin" />
+          <Loader2 className="h-8 w-8 text-ink-400 animate-spin" />
         </div>
       )}
 
@@ -1113,12 +1113,12 @@ export default function WeeklyPlannerPage() {
       {!loadingPlans && !currentPlan && !showCreate && !parsing && (
         <div className="flex-1 flex items-center justify-center px-4">
           <div className="text-center space-y-6 max-w-sm">
-            <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto">
-              <Calendar className="h-7 w-7 text-slate-500" />
+            <div className="w-16 h-16 rounded-full bg-card border border-page flex items-center justify-center mx-auto">
+              <Calendar className="h-7 w-7 text-ink-400" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-white mb-2">{t('noPlan')}</h2>
-              <p className="text-sm text-slate-400">
+              <h2 className="text-xl font-semibold text-ink-700 mb-2">{t('noPlan')}</h2>
+              <p className="text-sm text-ink-400">
                 {programPdfUrl
                   ? t('uploadDescriptionProgram', { group: weekLabel })
                   : t('uploadDescription', { group: weekLabel })}
@@ -1180,17 +1180,17 @@ export default function WeeklyPlannerPage() {
           <div className="w-full max-w-2xl space-y-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary-600/15 flex items-center justify-center shrink-0">
-                  <Sparkles className="h-5 w-5 text-primary-400" />
+                <div className="w-10 h-10 rounded-xl bg-brand-600/15 flex items-center justify-center shrink-0">
+                  <Sparkles className="h-5 w-5 text-brand-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-white leading-tight">{t('createPlanFor', { group: weekLabel })}</h2>
-                  <p className="text-xs text-slate-500">{t('aiParseHint')}</p>
+                  <h2 className="text-lg font-semibold text-ink-700 leading-tight">{t('createPlanFor', { group: weekLabel })}</h2>
+                  <p className="text-xs text-ink-400">{t('aiParseHint')}</p>
                 </div>
               </div>
               <button
                 onClick={() => { setShowCreate(false); setError(null); }}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white shrink-0"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-ink-900 shrink-0"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1198,16 +1198,16 @@ export default function WeeklyPlannerPage() {
 
             {/* This week's uploaded program — the coach's source material */}
             {programPdfUrl && (
-              <div className="rounded-xl border border-slate-700 bg-slate-800/40 overflow-hidden">
+              <div className="rounded-xl border border-page bg-card/40 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2.5">
-                  <div className="flex items-center gap-2 text-sm text-slate-300">
-                    <FileText className="h-4 w-4 text-primary-400" />
+                  <div className="flex items-center gap-2 text-sm text-ink-500">
+                    <FileText className="h-4 w-4 text-brand-600" />
                     {t('programFor', { group: weekLabel })}
                   </div>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setShowProgramViewer((v) => !v)}
-                      className="min-h-[44px] flex items-center text-xs text-primary-400 hover:text-primary-300"
+                      className="min-h-[44px] flex items-center text-xs text-brand-600 hover:text-brand-700"
                     >
                       {showProgramViewer ? t('hide') : t('view')}
                     </button>
@@ -1215,7 +1215,7 @@ export default function WeeklyPlannerPage() {
                       href={programPdfUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="min-h-[44px] flex items-center text-xs text-slate-400 hover:text-white"
+                      className="min-h-[44px] flex items-center text-xs text-ink-400 hover:text-ink-900"
                     >
                       {t('openArrow')}
                     </a>
@@ -1224,15 +1224,15 @@ export default function WeeklyPlannerPage() {
                 {showProgramViewer && (
                   <iframe
                     src={programPdfUrl}
-                    className="w-full border-0 border-t border-slate-700 bg-white"
+                    className="w-full border-0 border-t border-page bg-white"
                     style={{ height: '60vh' }}
                     title={t('programFor', { group: weekLabel })}
                   />
                 )}
-                <div className="px-4 py-2 border-t border-slate-700/60">
+                <div className="px-4 py-2 border-t border-page/60">
                   <button
                     onClick={syncFromProgram}
-                    className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1.5"
+                    className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1.5"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                     {t('parseProgramAutomatically')}
@@ -1241,12 +1241,12 @@ export default function WeeklyPlannerPage() {
               </div>
             )}
 
-            <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-4 space-y-4">
+            <div className="rounded-card bg-card/80 border border-page/50 p-4 space-y-4">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-slate-700/60 flex items-center justify-center shrink-0">
-                  <FileText className="h-3.5 w-3.5 text-slate-400" />
+                <div className="w-6 h-6 rounded-md bg-page/60 flex items-center justify-center shrink-0">
+                  <FileText className="h-3.5 w-3.5 text-ink-400" />
                 </div>
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('pasteTextLabel')}</span>
+                <span className="text-xs font-semibold text-ink-400 uppercase tracking-wide">{t('pasteTextLabel')}</span>
               </div>
               <textarea
                 value={inputText}
@@ -1254,20 +1254,20 @@ export default function WeeklyPlannerPage() {
                 onPaste={handlePaste}
                 placeholder={t('pasteYourPlan')}
                 rows={7}
-                className="w-full resize-none text-base leading-relaxed bg-slate-900/60 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                className="w-full resize-none text-base leading-relaxed bg-page/60 border border-page/50 rounded-xl px-4 py-3 text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600/50"
               />
 
               <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-slate-700/50" />
-                <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">{t('or')}</span>
-                <div className="flex-1 h-px bg-slate-700/50" />
+                <div className="flex-1 h-px bg-page/50" />
+                <span className="text-2xs font-semibold text-ink-400 uppercase tracking-wide">{t('or')}</span>
+                <div className="flex-1 h-px bg-page/50" />
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-slate-700/60 flex items-center justify-center shrink-0">
-                  <ImageIcon className="h-3.5 w-3.5 text-slate-400" />
+                <div className="w-6 h-6 rounded-md bg-page/60 flex items-center justify-center shrink-0">
+                  <ImageIcon className="h-3.5 w-3.5 text-ink-400" />
                 </div>
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('uploadFileLabel')}</span>
+                <span className="text-xs font-semibold text-ink-400 uppercase tracking-wide">{t('uploadFileLabel')}</span>
               </div>
               <div
                 onDragOver={(e) => e.preventDefault()}
@@ -1276,8 +1276,8 @@ export default function WeeklyPlannerPage() {
                 className={cn(
                   'relative border-2 border-dashed rounded-xl p-5 text-center transition-all',
                   imagePreview
-                    ? 'border-primary-500 bg-primary-500/5'
-                    : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800/50 cursor-pointer'
+                    ? 'border-brand-600 bg-brand-600/5'
+                    : 'border-page hover:border-ink-300 hover:bg-page/50 cursor-pointer'
                 )}
               >
                 {imagePreview && (
@@ -1292,20 +1292,20 @@ export default function WeeklyPlannerPage() {
                 )}
                 {imagePreview === 'pdf' ? (
                   <div className="flex items-center justify-center gap-3">
-                    <div className="w-10 h-12 bg-red-500/20 rounded flex items-center justify-center">
-                      <span className="text-red-400 text-xs font-bold">PDF</span>
+                    <div className="w-10 h-12 bg-accent-red/20 rounded flex items-center justify-center">
+                      <span className="text-accent-red text-xs font-bold">PDF</span>
                     </div>
                     <div className="text-start">
-                      <p className="text-sm text-slate-300">{imageFile?.name}</p>
-                      <p className="text-xs text-slate-500">{t('readyToParse')}</p>
+                      <p className="text-sm text-ink-500">{imageFile?.name}</p>
+                      <p className="text-xs text-ink-400">{t('readyToParse')}</p>
                     </div>
                   </div>
                 ) : imagePreview ? (
                   <img src={imagePreview} alt={t('uploadedPlanAlt')} className="max-h-24 mx-auto rounded" />
                 ) : (
                   <div className="flex flex-col items-center gap-2 py-2">
-                    <Upload className="h-6 w-6 text-slate-500" />
-                    <p className="text-sm text-slate-400">{t('dropImage')}</p>
+                    <Upload className="h-6 w-6 text-ink-400" />
+                    <p className="text-sm text-ink-400">{t('dropImage')}</p>
                   </div>
                 )}
                 <input
@@ -1352,28 +1352,31 @@ export default function WeeklyPlannerPage() {
                     100% { transform: translate(15px, 92px); }
                   }
                 `}</style>
-                <rect className="stair stair-1" x="10" y="95" width="24" height="6" rx="2" fill="#4338ff" />
-                <rect className="stair stair-2" x="33" y="77" width="24" height="6" rx="2" fill="#4338ff" />
-                <rect className="stair stair-3" x="56" y="59" width="24" height="6" rx="2" fill="#4338ff" />
-                <rect className="stair stair-4" x="79" y="41" width="24" height="6" rx="2" fill="#4338ff" />
-                <rect className="stair stair-5" x="102" y="23" width="24" height="6" rx="2" fill="#4338ff" />
-                <rect x="33" y="83" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
-                <rect x="56" y="65" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
-                <rect x="79" y="47" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
-                <rect x="102" y="29" width="3" height="12" rx="1" fill="#4338ff" opacity="0.15" />
-                <circle className="runner-dot" cx="0" cy="0" r="5" fill="#4338ff" />
+                <rect className="stair stair-1" x="10" y="95" width="24" height="6" rx="2" fill="#1525FF" />
+                <rect className="stair stair-2" x="33" y="77" width="24" height="6" rx="2" fill="#1525FF" />
+                <rect className="stair stair-3" x="56" y="59" width="24" height="6" rx="2" fill="#1525FF" />
+                <rect className="stair stair-4" x="79" y="41" width="24" height="6" rx="2" fill="#1525FF" />
+                <rect className="stair stair-5" x="102" y="23" width="24" height="6" rx="2" fill="#1525FF" />
+                <rect x="33" y="83" width="3" height="12" rx="1" fill="#1525FF" opacity="0.15" />
+                <rect x="56" y="65" width="3" height="12" rx="1" fill="#1525FF" opacity="0.15" />
+                <rect x="79" y="47" width="3" height="12" rx="1" fill="#1525FF" opacity="0.15" />
+                <rect x="102" y="29" width="3" height="12" rx="1" fill="#1525FF" opacity="0.15" />
+                <circle className="runner-dot" cx="0" cy="0" r="5" fill="#1525FF" />
               </svg>
             </div>
             <div className="space-y-2">
-              <h2 className="text-xl font-semibold text-white">{savingAfterParse ? t('savingPlan') : t('parsingPlan')}</h2>
-              <p className="text-sm text-slate-400">{savingAfterParse ? t('finalizingWeek') : t('readingWorkouts')}</p>
+              <h2 className="text-xl font-semibold text-ink-700">{savingAfterParse ? t('savingPlan') : t('parsingPlan')}</h2>
+              <p className="text-sm text-ink-400">{savingAfterParse ? t('finalizingWeek') : t('readingWorkouts')}</p>
             </div>
-            <div className="w-48 mx-auto h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-primary-600 via-purple-500 to-primary-600 rounded-full animate-progress-indeterminate" />
+            <div className="w-48 mx-auto h-1.5 bg-card rounded-full overflow-hidden">
+              {/* Brand blue -> band 2 -> brand blue: a same-family shimmer. (The
+                  purple mid-stop was left over from the dark palette; it's the one
+                  place a category hue leaked into plain decoration.) */}
+              <div className="h-full bg-gradient-to-r from-brand-600 via-band-2 to-brand-600 rounded-full animate-progress-indeterminate" />
             </div>
             <button
               onClick={cancelParsing}
-              className="min-h-[44px] px-4 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+              className="min-h-[44px] px-4 text-sm text-ink-400 hover:text-ink-500 transition-colors"
             >
               {t('cancel')}
             </button>
@@ -1387,17 +1390,17 @@ export default function WeeklyPlannerPage() {
           {/* Status bar — button labels hide below sm (icon + title tooltip
               only) so 5 elements + a wrapping count don't fight for space on
               a phone-width screen; full labels return once there's room. */}
-          <div className="px-4 sm:px-6 py-3 border-b border-slate-700/50 bg-slate-800/30">
+          <div className="px-4 sm:px-6 py-3 border-b border-page/50 bg-card/30">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-sm text-slate-300 shrink-0">
+                <span className="text-sm text-ink-500 shrink-0">
                   {workoutCount} {t('workouts')}
                 </span>
                 <span className={cn(
                   'flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium shrink-0',
-                  currentPlan.status === 'pushed' ? 'text-green-400 bg-green-400/10' :
-                  currentPlan.status === 'partial' ? 'text-orange-400 bg-orange-400/10' :
-                  'text-yellow-400 bg-yellow-400/10'
+                  currentPlan.status === 'pushed' ? 'text-accent-600 bg-accent-600/10' :
+                  currentPlan.status === 'partial' ? 'text-band-3 bg-band-3/10' :
+                  'text-band-3 bg-band-3/10'
                 )}>
                   {currentPlan.status === 'pushed' ? <CheckCircle2 className="h-3 w-3" /> :
                    currentPlan.status === 'partial' ? <AlertCircle className="h-3 w-3" /> :
@@ -1421,7 +1424,7 @@ export default function WeeklyPlannerPage() {
                   size="sm"
                   onClick={() => setEditMode(!editMode)}
                   title={editMode ? t('done') : t('edit')}
-                  className={cn(editMode && 'ring-1 ring-primary-500')}
+                  className={cn(editMode && 'ring-1 ring-brand-600')}
                 >
                   <Edit3 className="h-4 w-4" />
                   <span className="hidden sm:inline">{editMode ? t('done') : t('edit')}</span>
@@ -1432,7 +1435,7 @@ export default function WeeklyPlannerPage() {
                   onClick={() => setConfirmDelete(true)}
                   disabled={deleting}
                   title={t('remove')}
-                  className="text-red-400 hover:text-red-300"
+                  className="text-accent-red hover:text-accent-red"
                 >
                   <Trash2 className="h-4 w-4" />
                   <span className="hidden sm:inline">{t('remove')}</span>
@@ -1455,7 +1458,7 @@ export default function WeeklyPlannerPage() {
           </div>
 
           {/* Bottom action bar */}
-          <div className="border-t border-slate-700 bg-slate-900/80 backdrop-blur px-6 py-4 sticky bottom-0">
+          <div className="border-t border-page bg-page/80 backdrop-blur px-6 py-4 sticky bottom-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {editMode && (
@@ -1465,8 +1468,8 @@ export default function WeeklyPlannerPage() {
                   </Button>
                 )}
                 {lastSavedAt && (
-                  <span className="text-xs text-slate-500 flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                  <span className="text-xs text-ink-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-accent-600" />
                     {t('savedAt', { time: lastSavedAt.toLocaleTimeString(locale === 'he' ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit' }) })}
                   </span>
                 )}
@@ -1502,8 +1505,8 @@ export default function WeeklyPlannerPage() {
         title={t('clipboardStudioTitle')}
         className="md:max-w-5xl md:mx-auto"
         footer={groupedPlans && (
-          <div className="flex items-center justify-between border-t border-slate-700 bg-slate-800/30 px-5 py-4">
-            <span className="text-xs text-slate-500">
+          <div className="flex items-center justify-between border-t border-page bg-card/30 px-5 py-4">
+            <span className="text-xs text-ink-400">
               {t('partsTimesGroups', { parts: groupedPlans.group1.workouts.length })}
             </span>
             <div className="flex items-center gap-3">
@@ -1534,7 +1537,7 @@ export default function WeeklyPlannerPage() {
       >
         {groupedPlans && savedPlanId && (
           <>
-            <p className="mb-3 text-xs text-slate-400">
+            <p className="mb-3 text-xs text-ink-400">
               {t('clipboardStudioDesc')}
             </p>
 
@@ -1546,8 +1549,8 @@ export default function WeeklyPlannerPage() {
             />
 
             <div className="grid md:grid-cols-[260px_1fr] gap-4">
-              <aside className="md:border-e border-slate-700 md:pe-3">
-                <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              <aside className="md:border-e border-page md:pe-3">
+                <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-widest text-ink-400">
                   {t('workoutParts')}
                 </p>
                 <div className="space-y-2">
@@ -1558,25 +1561,25 @@ export default function WeeklyPlannerPage() {
                       className={cn(
                         'w-full rounded-xl border p-3 text-start transition-colors',
                         clipboardWorkoutIndex === index
-                          ? 'border-primary-500 bg-primary-500/10'
-                          : 'border-slate-700 bg-slate-800/40 hover:border-slate-600',
+                          ? 'border-brand-600 bg-brand-600/10'
+                          : 'border-page bg-card/40 hover:border-ink-300',
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase text-slate-500">
+                        <span className="text-[10px] font-semibold uppercase text-ink-400">
                           {DAY_LABELS[workout.dayOfWeek]}
                           {workout.partCount && workout.partCount > 1
                             ? ` · ${t('partLabel', { index: workout.partIndex ?? 0, count: workout.partCount })}`
                             : ''}
                         </span>
                         {workout.clipboardImageUrl && (
-                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold text-emerald-400">
+                          <span className="rounded-full bg-accent-600/15 px-2 py-0.5 text-[9px] font-bold text-accent-600">
                             {t('published')}
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 truncate text-sm font-medium text-white">{workout.name}</p>
-                      <p className="mt-1 text-[10px] text-slate-500">
+                      <p className="mt-1 truncate text-sm font-medium text-ink-700">{workout.name}</p>
+                      <p className="mt-1 text-[10px] text-ink-400">
                         {workout.expectedDistanceM
                           ? t('expectedKm', { km: (workout.expectedDistanceM / 1000).toFixed(1) })
                           : workout.partKind || t('single')}
@@ -1596,8 +1599,8 @@ export default function WeeklyPlannerPage() {
                       <section>
                         <div className="mb-3 flex items-center justify-between">
                           <div>
-                            <h3 className="font-semibold text-white">{workout.name}</h3>
-                            <p className="text-xs text-slate-500">
+                            <h3 className="font-semibold text-ink-700">{workout.name}</h3>
+                            <p className="text-xs text-ink-400">
                               {workout.workoutKey} · {t('groupLabel', { n: activeGroup })}
                             </p>
                           </div>
@@ -1606,9 +1609,9 @@ export default function WeeklyPlannerPage() {
                             {t('editSteps')}
                           </Button>
                         </div>
-                        <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-xl border border-page bg-page/60 p-4">
                           {clipboardLoading && !clipboardPreview ? (
-                            <Loader2 className="h-7 w-7 animate-spin text-primary-400" />
+                            <Loader2 className="h-7 w-7 animate-spin text-brand-600" />
                           ) : clipboardPreview ? (
                             <img
                               src={clipboardPreview}
@@ -1616,7 +1619,7 @@ export default function WeeklyPlannerPage() {
                               className="max-h-[560px] max-w-full rounded-lg object-contain"
                             />
                           ) : (
-                            <div className="text-center text-sm text-slate-500">
+                            <div className="text-center text-sm text-ink-400">
                               <ImageIcon className="mx-auto mb-2 h-8 w-8" />
                               {t('previewUnavailable')}
                             </div>
@@ -1626,24 +1629,24 @@ export default function WeeklyPlannerPage() {
 
                       <section className="space-y-5">
                         <div>
-                          <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                          <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">
                             {t('aiReadableText')}
                           </h4>
-                          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-slate-700 bg-slate-950/60 p-4 text-xs leading-6 text-slate-200">
+                          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-page bg-page/60 p-4 text-xs leading-6 text-ink-700">
                             {clipboardText || workout.clipboardText || t('rendering')}
                           </pre>
                         </div>
 
-                        <div className="rounded-xl border border-slate-700 bg-slate-800/35 p-4">
-                          <h4 className="flex items-center gap-2 text-sm font-semibold text-white">
-                            <Sparkles className="h-4 w-4 text-purple-400" />
+                        <div className="rounded-xl border border-page bg-card/35 p-4">
+                          <h4 className="flex items-center gap-2 text-sm font-semibold text-ink-700">
+                            <Sparkles className="h-4 w-4 text-purple-600" />
                             {t('refineWithAi')}
                           </h4>
                           <textarea
                             value={clipboardInstruction}
                             onChange={(event) => setClipboardInstruction(event.target.value)}
                             placeholder={t('refinePlaceholder')}
-                            className="mt-3 min-h-24 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-primary-500 focus:outline-none"
+                            className="mt-3 min-h-24 w-full rounded-lg border border-ink-300 bg-page px-3 py-2 text-sm text-ink-700 placeholder:text-ink-400 focus:border-brand-600 focus:outline-none"
                           />
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                             <SegmentedControl
@@ -1669,7 +1672,7 @@ export default function WeeklyPlannerPage() {
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-primary-500/30 bg-primary-500/5 p-4 text-xs text-slate-300">
+                        <div className="rounded-xl border border-brand-600/30 bg-brand-600/5 p-4 text-xs text-ink-500">
                           {t('pngNote')}
                         </div>
                       </section>
@@ -1696,7 +1699,7 @@ export default function WeeklyPlannerPage() {
         onOpenChange={setShowMatchReview}
         title={t('matchReviewTitle')}
         footer={
-          <div className="flex justify-between border-t border-slate-700 bg-slate-800/30 p-4">
+          <div className="flex justify-between border-t border-page bg-card/30 p-4">
             <Button
               variant="secondary"
               onClick={() => {
@@ -1720,13 +1723,13 @@ export default function WeeklyPlannerPage() {
         }
       >
         <>
-            <p className="mb-4 text-xs text-slate-400">
+            <p className="mb-4 text-xs text-ink-400">
               {t('matchReviewDesc')}
             </p>
             <div className="min-h-0">
               {matchReviewLoading && !matchReview ? (
                 <div className="flex h-52 items-center justify-center">
-                  <Loader2 className="h-7 w-7 animate-spin text-primary-400" />
+                  <Loader2 className="h-7 w-7 animate-spin text-brand-600" />
                 </div>
               ) : matchReview?.activities.length ? (
                 <div className="space-y-2">
@@ -1744,14 +1747,14 @@ export default function WeeklyPlannerPage() {
                     return (
                       <div
                         key={activity.id}
-                        className="grid gap-3 rounded-xl border border-slate-700 bg-slate-800/35 p-4 md:grid-cols-[1fr_1.3fr]"
+                        className="grid gap-3 rounded-xl border border-page bg-card/35 p-4 md:grid-cols-[1fr_1.3fr]"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium text-white">
+                            <span className="font-medium text-ink-700">
                               {athlete?.name || activity.athlete_id}
                             </span>
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-ink-400">
                               {new Date(activity.start_time).toLocaleString(locale === 'he' ? 'he-IL' : 'en-GB', {
                                 weekday: 'short',
                                 hour: '2-digit',
@@ -1763,15 +1766,15 @@ export default function WeeklyPlannerPage() {
                               <span className={cn(
                                 'rounded-full px-2 py-0.5 text-[9px] font-bold uppercase',
                                 match.match_method === 'manual'
-                                  ? 'bg-purple-500/15 text-purple-300'
-                                  : 'bg-emerald-500/15 text-emerald-300',
+                                  ? 'bg-purple-500/15 text-purple-700'
+                                  : 'bg-accent-600/15 text-accent-600',
                               )}>
                                 {match.match_method === 'manual' ? t('matchManual') : t('matchAuto')}
                                 {match.score != null ? ` ${Math.round(match.score)}` : ''}
                               </span>
                             )}
                           </div>
-                          <p className="mt-1 truncate text-sm text-slate-300">
+                          <p className="mt-1 truncate text-sm text-ink-500">
                             {activity.activity_name || t('runFallback')} ·{' '}
                             {activity.distance ? `${(activity.distance / 1000).toFixed(2)} km` : '—'}
                           </p>
@@ -1780,7 +1783,7 @@ export default function WeeklyPlannerPage() {
                           type="button"
                           onClick={() => setMatchPickerActivityId(activity.id)}
                           disabled={matchReviewLoading}
-                          className="w-full min-h-[44px] flex items-center justify-between gap-2 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white text-start disabled:opacity-50"
+                          className="w-full min-h-[44px] flex items-center justify-between gap-2 rounded-lg border border-ink-300 bg-page px-3 py-2 text-sm text-ink-700 text-start disabled:opacity-50"
                         >
                           <span className="truncate">
                             {match
@@ -1795,14 +1798,14 @@ export default function WeeklyPlannerPage() {
                                 })()
                               : t('noMatchedWorkout')}
                           </span>
-                          <ChevronDown className="h-4 w-4 text-slate-500 shrink-0" />
+                          <ChevronDown className="h-4 w-4 text-ink-400 shrink-0" />
                         </button>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="py-16 text-center text-sm text-slate-500">
+                <div className="py-16 text-center text-sm text-ink-400">
                   {t('noActivitiesStored')}
                 </div>
               )}
@@ -1827,7 +1830,7 @@ export default function WeeklyPlannerPage() {
               <InsetRow
                 label={t('noMatchedWorkout')}
                 onClick={() => { setMatchPickerActivityId(null); void setManualMatch(activity.id, null); }}
-                trailing={!match ? <Check className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+                trailing={!match ? <Check className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
               />
               {candidates.map((workout) => (
                 <InsetRow
@@ -1838,7 +1841,7 @@ export default function WeeklyPlannerPage() {
                       : ''
                   } · ${workout.name}`}
                   onClick={() => { setMatchPickerActivityId(null); void setManualMatch(activity.id, workout.workoutKey ?? null); }}
-                  trailing={match?.workout_key === workout.workoutKey ? <Check className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+                  trailing={match?.workout_key === workout.workoutKey ? <Check className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
                 />
               ))}
             </InsetSection>
@@ -1878,14 +1881,14 @@ export default function WeeklyPlannerPage() {
             {pushResults ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2 text-green-400">
+                  <div className="flex items-center gap-2 text-accent-600">
                     <CheckCircle className="h-5 w-5" />
                     <span className="font-medium">
                       {pushResults.filter((r) => r.status === 'success').length} {t('succeeded')}
                     </span>
                   </div>
                   {pushResults.some((r) => r.status === 'failed') && (
-                    <div className="flex items-center gap-2 text-red-400">
+                    <div className="flex items-center gap-2 text-accent-red">
                       <XCircle className="h-5 w-5" />
                       <span className="font-medium">
                         {pushResults.filter((r) => r.status === 'failed').length} {t('failed')}
@@ -1901,26 +1904,26 @@ export default function WeeklyPlannerPage() {
                       className={cn(
                         'flex items-center justify-between p-3 rounded-lg border',
                         r.status === 'success'
-                          ? 'bg-green-500/5 border-green-500/20'
-                          : 'bg-red-500/5 border-red-500/20'
+                          ? 'bg-accent-600/5 border-accent-600/20'
+                          : 'bg-accent-red/5 border-accent-red/20'
                       )}
                     >
                       <div className="flex items-center gap-3">
                         {r.status === 'success' ? (
-                          <CheckCircle className="h-4 w-4 text-green-400 shrink-0" />
+                          <CheckCircle className="h-4 w-4 text-accent-600 shrink-0" />
                         ) : (
-                          <XCircle className="h-4 w-4 text-red-400 shrink-0" />
+                          <XCircle className="h-4 w-4 text-accent-red shrink-0" />
                         )}
                         <div>
                           <span className="text-sm font-medium">{r.athleteName}</span>
-                          {r.error && <p className="text-xs text-red-400 mt-0.5">{r.error}</p>}
+                          {r.error && <p className="text-xs text-accent-red mt-0.5">{r.error}</p>}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-700">
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-page">
                   {pushResults.some((r) => r.status === 'failed') && (
                     <Button variant="secondary" onClick={retryFailed} disabled={pushing}>
                       {pushing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
@@ -1936,14 +1939,14 @@ export default function WeeklyPlannerPage() {
               <>
                 {/* Which days to send — whole week (default) or specific days */}
                 {planDays.length > 0 && (
-                  <div className="mt-4 pb-4 border-b border-slate-700">
+                  <div className="mt-4 pb-4 border-b border-page">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-slate-400">{t('workoutsToSend')}</span>
+                      <span className="text-xs font-medium text-ink-400">{t('workoutsToSend')}</span>
                       <div className="flex items-center gap-2">
                         {planDays.includes(new Date().getDay()) && (
                           <button
                             onClick={() => setPushDays([new Date().getDay()])}
-                            className="text-2xs text-primary-400 hover:text-primary-300"
+                            className="text-2xs text-brand-600 hover:text-brand-700"
                           >
                             {t('todayOnly')}
                           </button>
@@ -1952,7 +1955,7 @@ export default function WeeklyPlannerPage() {
                           onClick={() => setPushDays(null)}
                           className={cn(
                             'text-2xs',
-                            pushDays === null ? 'text-primary-400 font-medium' : 'text-slate-500 hover:text-slate-300'
+                            pushDays === null ? 'text-brand-600 font-medium' : 'text-ink-400 hover:text-ink-500'
                           )}
                         >
                           {t('wholeWeek')}
@@ -1979,9 +1982,9 @@ export default function WeeklyPlannerPage() {
                             className={cn(
                               'px-2.5 py-1 rounded-md text-2xs font-medium border transition-colors',
                               selected
-                                ? 'bg-primary-500/15 border-primary-500/50 text-primary-300'
-                                : 'border-slate-700 text-slate-500 hover:border-slate-600',
-                              isToday && 'ring-1 ring-primary-500/40'
+                                ? 'bg-brand-600/15 border-brand-600/50 text-brand-600'
+                                : 'border-page text-ink-400 hover:border-ink-300',
+                              isToday && 'ring-1 ring-brand-600/40'
                             )}
                             title={DAY_LABELS[d]}
                           >
@@ -1990,7 +1993,7 @@ export default function WeeklyPlannerPage() {
                         );
                       })}
                     </div>
-                    <p className="text-3xs text-slate-500 mt-2">
+                    <p className="text-3xs text-ink-400 mt-2">
                       {t('sendingWorkouts', { count: selectedDayCount })}
                       {pushDays !== null && selectedDayCount === 0 && t('selectAtLeastOneDay')}
                     </p>
@@ -2011,7 +2014,7 @@ export default function WeeklyPlannerPage() {
                 <div className="py-4 min-h-[200px]">
                   {loadingAthletes ? (
                     <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                      <Loader2 className="h-6 w-6 animate-spin text-ink-400" />
                     </div>
                   ) : (
                     <>
@@ -2024,7 +2027,7 @@ export default function WeeklyPlannerPage() {
                                 <p className="text-lg font-medium">
                                   {t('activeAthletesCount', { count: activeAthletes.length })}
                                 </p>
-                                <p className="text-sm text-slate-400 mt-0.5">
+                                <p className="text-sm text-ink-400 mt-0.5">
                                   {t('garminWillReceive', { ready: readyCount, count: workoutCount })}
                                 </p>
                               </div>
@@ -2032,13 +2035,13 @@ export default function WeeklyPlannerPage() {
                           })()}
 
                           {groups.length === 0 ? (
-                            <p className="text-sm text-slate-400 text-center py-6">{t('noGroupsFound')}</p>
+                            <p className="text-sm text-ink-400 text-center py-6">{t('noGroupsFound')}</p>
                           ) : (
                             groups.map((group, groupIdx) => {
                               const groupColor =
-                                groupIdx === 0 ? { iconBg: 'bg-green-500', label: t('groupLabel', { n: 1 }) } :
-                                groupIdx === 1 ? { iconBg: 'bg-yellow-500', label: t('groupLabel', { n: 2 }) } :
-                                { iconBg: 'bg-orange-500', label: t('groupLabel', { n: 3 }) };
+                                groupIdx === 0 ? { iconBg: 'bg-accent-600', label: t('groupLabel', { n: 1 }) } :
+                                groupIdx === 1 ? { iconBg: 'bg-band-3', label: t('groupLabel', { n: 2 }) } :
+                                { iconBg: 'bg-band-3', label: t('groupLabel', { n: 3 }) };
                               const members = activeAthletes.filter((a) => a.group_id === group.id);
                               const readyMembers = members.filter((a) => a.hasGarmin);
                               const isOpen = expandedAllGroup === group.id;
@@ -2051,29 +2054,29 @@ export default function WeeklyPlannerPage() {
                                     sublabel={groupColor.label}
                                     onClick={() => setExpandedAllGroup(isOpen ? null : group.id)}
                                     trailing={
-                                      <span className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
+                                      <span className="flex items-center gap-1.5 text-xs text-ink-400 shrink-0">
                                         {t('readyOfTotal', { ready: readyMembers.length, total: members.length })}
-                                        {isOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                                        {isOpen ? <ChevronUp className="h-4 w-4 text-ink-400" /> : <ChevronDown className="h-4 w-4 text-ink-400" />}
                                       </span>
                                     }
                                   />
                                   {isOpen && (
                                     members.length === 0 ? (
-                                      <div className="px-4 py-3 text-xs text-slate-500 text-center">{t('noAthletesInGroup')}</div>
+                                      <div className="px-4 py-3 text-xs text-ink-400 text-center">{t('noAthletesInGroup')}</div>
                                     ) : (
                                       members.map((a) => (
                                         <InsetRow
                                           key={a.id}
                                           icon={Watch}
-                                          iconBg={a.hasGarmin ? 'bg-emerald-600' : 'bg-slate-600'}
+                                          iconBg={a.hasGarmin ? 'bg-accent-600' : 'bg-ink-300'}
                                           label={a.name}
                                           trailing={
                                             a.hasGarmin ? (
-                                              <span className="flex items-center gap-1 text-2xs text-green-400">
+                                              <span className="flex items-center gap-1 text-2xs text-accent-600">
                                                 <CheckCircle className="h-3.5 w-3.5" /> {t('garmin')}
                                               </span>
                                             ) : (
-                                              <span className="flex items-center gap-1 text-2xs text-slate-500">
+                                              <span className="flex items-center gap-1 text-2xs text-ink-400">
                                                 <XCircle className="h-3.5 w-3.5" /> {t('notConnected')}
                                               </span>
                                             )
@@ -2092,7 +2095,7 @@ export default function WeeklyPlannerPage() {
                             const ungrouped = activeAthletes.filter((a) => !a.group_id);
                             if (ungrouped.length === 0) return null;
                             return (
-                              <p className="text-xs text-slate-500 text-center pt-1">
+                              <p className="text-xs text-ink-400 text-center pt-1">
                                 {t('withoutGroupNote', { count: ungrouped.length })}
                               </p>
                             );
@@ -2103,7 +2106,7 @@ export default function WeeklyPlannerPage() {
                       {pushTab === 'groups' && (
                         <div>
                           {groups.length === 0 ? (
-                            <p className="text-sm text-slate-400 text-center py-8">{t('noGroupsFound')}</p>
+                            <p className="text-sm text-ink-400 text-center py-8">{t('noGroupsFound')}</p>
                           ) : (
                             <InsetSection>
                               {[...groups].sort((a, b) => {
@@ -2114,7 +2117,7 @@ export default function WeeklyPlannerPage() {
                                 const count = activeAthletes.filter((a) => a.group_id === group.id).length;
                                 const isSelected = selectedGroupIds.includes(group.id);
                                 const groupLabel = t('groupLabel', { n: Math.min(groupIdx + 1, 3) });
-                                const iconBg = groupIdx === 0 ? 'bg-green-500' : groupIdx === 1 ? 'bg-yellow-500' : 'bg-orange-500';
+                                const iconBg = groupIdx === 0 ? 'bg-accent-600' : groupIdx === 1 ? 'bg-band-3' : 'bg-band-3';
                                 return (
                                   <InsetRow
                                     key={group.id}
@@ -2129,8 +2132,8 @@ export default function WeeklyPlannerPage() {
                                     }}
                                     trailing={
                                       isSelected
-                                        ? <CheckCircle2 className="h-5 w-5 text-primary-400" />
-                                        : <span className="h-5 w-5 rounded-full border-2 border-slate-600" />
+                                        ? <CheckCircle2 className="h-5 w-5 text-brand-600" />
+                                        : <span className="h-5 w-5 rounded-full border-2 border-ink-300" />
                                     }
                                   />
                                 );
@@ -2143,19 +2146,19 @@ export default function WeeklyPlannerPage() {
                       {pushTab === 'athletes' && (
                         <div className="space-y-3">
                           <div className="relative">
-                            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400" />
                             <input
                               type="text"
                               value={athleteSearch}
                               onChange={(e) => setAthleteSearch(e.target.value)}
                               placeholder={t('searchAthletes')}
-                              className="w-full min-h-[44px] ps-9 text-sm bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                              className="w-full min-h-[44px] ps-9 text-sm bg-page border border-page rounded-lg text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600/50"
                             />
                           </div>
 
                           <div className="max-h-[300px] overflow-y-auto">
                             {filteredAthletes.length === 0 ? (
-                              <p className="text-sm text-slate-400 text-center py-6">{t('noAthletesFound')}</p>
+                              <p className="text-sm text-ink-400 text-center py-6">{t('noAthletesFound')}</p>
                             ) : (
                               <InsetSection className="mb-0">
                                 {filteredAthletes.map((athlete) => {
@@ -2167,7 +2170,7 @@ export default function WeeklyPlannerPage() {
                                   const row = (
                                     <InsetRow
                                       icon={Watch}
-                                      iconBg={canPush ? 'bg-emerald-600' : 'bg-slate-600'}
+                                      iconBg={canPush ? 'bg-accent-600' : 'bg-ink-300'}
                                       label={athlete.name}
                                       sublabel={athleteGroup?.name}
                                       onClick={canPush ? () => {
@@ -2177,10 +2180,10 @@ export default function WeeklyPlannerPage() {
                                       } : undefined}
                                       trailing={
                                         !canPush
-                                          ? <span className="text-3xs text-red-400/70 shrink-0">{t('noGarminTag')}</span>
+                                          ? <span className="text-3xs text-accent-red/70 shrink-0">{t('noGarminTag')}</span>
                                           : isSelected
-                                            ? <CheckCircle2 className="h-5 w-5 text-primary-400" />
-                                            : <span className="h-5 w-5 rounded-full border-2 border-slate-600" />
+                                            ? <CheckCircle2 className="h-5 w-5 text-brand-600" />
+                                            : <span className="h-5 w-5 rounded-full border-2 border-ink-300" />
                                       }
                                     />
                                   );
@@ -2201,8 +2204,8 @@ export default function WeeklyPlannerPage() {
 
                 {error && <ErrorBanner message={error} className="p-3" />}
 
-                <div className="flex items-center justify-between pt-4 border-t border-slate-700">
-                  <span className="text-sm text-slate-400">
+                <div className="flex items-center justify-between pt-4 border-t border-page">
+                  <span className="text-sm text-ink-400">
                     {t('athletesSelected', { count: pushTargetCount })}
                   </span>
                   <Button

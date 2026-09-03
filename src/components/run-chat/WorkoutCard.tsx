@@ -71,31 +71,31 @@ const KIND_HE: Record<string, string> = {
 };
 
 const KIND_COLOR: Record<string, string> = {
-  warmup:   'bg-red-500/20 text-red-300',
-  interval: 'bg-blue-500/25 text-blue-300',
-  recovery: 'bg-slate-500/30 text-slate-300',
-  rest:     'bg-slate-600/40 text-slate-300',
-  cooldown: 'bg-red-500/15 text-red-300',
-  easy:     'bg-green-500/20 text-green-400',
-  repeat:   'bg-slate-500/20 text-slate-400',
+  warmup:   'bg-accent-red/20 text-accent-red',
+  interval: 'bg-band-2/25 text-band-2',
+  recovery: 'bg-ink-300/30 text-ink-500',
+  rest:     'bg-ink-300/40 text-ink-500',
+  cooldown: 'bg-accent-red/15 text-accent-red',
+  easy:     'bg-accent-600/20 text-accent-600',
+  repeat:   'bg-ink-300/20 text-ink-400',
 };
 
 const KIND_BAR: Record<string, string> = {
-  warmup:   'bg-red-500/60',
-  interval: 'bg-blue-500/70',
-  recovery: 'bg-slate-500/40',
-  rest:     'bg-slate-600/50',
-  cooldown: 'bg-red-500/40',
-  easy:     'bg-green-500/40',
-  repeat:   'bg-slate-500/30',
+  warmup:   'bg-accent-red/60',
+  interval: 'bg-band-2/70',
+  recovery: 'bg-ink-300/40',
+  rest:     'bg-ink-300/50',
+  cooldown: 'bg-accent-red/40',
+  easy:     'bg-accent-600/40',
+  repeat:   'bg-ink-300/30',
 };
 
 function paceColor(actualSecPerKm: number, targetSecPerKm: number): string {
   const diff = actualSecPerKm - targetSecPerKm;
-  if (diff < -5) return 'text-yellow-400';
-  if (diff < 10) return 'text-green-400';
-  if (diff < 25) return 'text-amber-400';
-  return 'text-red-400';
+  if (diff < -5) return 'text-band-3';
+  if (diff < 10) return 'text-accent-600';
+  if (diff < 25) return 'text-band-3';
+  return 'text-accent-red';
 }
 
 export function WorkoutCard({ plannedText, plannedWorkout, laps }: Props) {
@@ -113,22 +113,22 @@ export function WorkoutCard({ plannedText, plannedWorkout, laps }: Props) {
   }, 0);
 
   return (
-    <div className="rounded-2xl bg-slate-800/60 border border-slate-700/40 overflow-hidden mb-2">
-      <div className="px-4 py-2.5 border-b border-slate-700/40 flex items-center gap-2">
-        <span className="text-xs font-semibold text-primary-400 uppercase tracking-wide">תוכנית אימון</span>
+    <div className="rounded-card bg-card/60 border border-page/40 overflow-hidden mb-2">
+      <div className="px-4 py-2.5 border-b border-page/40 flex items-center gap-2">
+        <span className="text-xs font-semibold text-brand-600 uppercase tracking-wide">תוכנית אימון</span>
         {plannedWorkout?.title && (
-          <span className="text-xs text-slate-400">{plannedWorkout.title}</span>
+          <span className="text-xs text-ink-400">{plannedWorkout.title}</span>
         )}
       </div>
 
       {prompt && (
-        <p className="px-4 py-2.5 text-sm text-white font-medium border-b border-slate-700/30 bg-slate-900/40">
+        <p className="px-4 py-2.5 text-sm text-ink-700 font-medium border-b border-page/30 bg-page/40">
           {prompt}
         </p>
       )}
 
       {segments.length > 0 ? (
-        <div className="divide-y divide-slate-700/30">
+        <div className="divide-y divide-page/30">
           {segments.map((seg, i) => {
             const reps = seg.reps ?? 1;
             const segDist =
@@ -148,19 +148,19 @@ export function WorkoutCard({ plannedText, plannedWorkout, laps }: Props) {
               <div key={i} className="px-4 py-2 flex items-center gap-3">
                 <span className={cn(
                   'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
-                  KIND_COLOR[seg.kind] ?? 'bg-slate-600 text-slate-300',
+                  KIND_COLOR[seg.kind] ?? 'bg-ink-300 text-ink-500',
                 )}>
                   {KIND_HE[seg.kind] ?? seg.kind}
                 </span>
 
-                <div className="flex-1 h-1.5 bg-slate-700/40 rounded-full overflow-hidden">
+                <div className="flex-1 h-1.5 bg-page/40 rounded-full overflow-hidden">
                   <div
-                    className={cn('h-full rounded-full transition-all', KIND_BAR[seg.kind] ?? 'bg-slate-500/40')}
+                    className={cn('h-full rounded-full transition-all', KIND_BAR[seg.kind] ?? 'bg-ink-300/40')}
                     style={{ width: `${barWidth}%` }}
                   />
                 </div>
 
-                <span className="text-xs text-slate-300 shrink-0 max-w-[55%] text-end">
+                <span className="text-xs text-ink-500 shrink-0 max-w-[55%] text-end">
                   {seg.label ? `${seg.label}: ` : ''}{segmentLabel(seg)}
                 </span>
 
@@ -174,7 +174,7 @@ export function WorkoutCard({ plannedText, plannedWorkout, laps }: Props) {
           })}
         </div>
       ) : plannedText && !prompt ? (
-        <p className="px-4 py-3 text-sm text-slate-300 whitespace-pre-line">{plannedText}</p>
+        <p className="px-4 py-3 text-sm text-ink-500 whitespace-pre-line">{plannedText}</p>
       ) : null}
     </div>
   );

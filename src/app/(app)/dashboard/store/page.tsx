@@ -36,7 +36,7 @@ const STATUS_LABEL_KEY: Record<string, string> = {
 
 export default function StorePage() {
   return (
-    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mt-20"></div>}>
+    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mt-20"></div>}>
       <StorePageContent />
     </Suspense>
   );
@@ -167,16 +167,16 @@ function StorePageContent() {
   return (
     <div className="space-y-4 pb-24">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-white tracking-tight" dir="rtl">{t('title')}</h1>
+        <h1 className="text-2xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
         {tab === 'shop' && (
           <button
             onClick={() => setCartOpen(true)}
-            className="relative p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50 text-white"
+            className="relative p-2.5 rounded-xl bg-card/60 border border-page/50 text-ink-700"
             aria-label={t('cart')}
           >
             <ShoppingCart className="h-5 w-5" />
             {cartCount > 0 && (
-              <span className="absolute -top-1.5 -end-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary-600 text-white text-3xs font-bold flex items-center justify-center">
+              <span className="absolute -top-1.5 -end-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-600 text-white text-3xs font-bold flex items-center justify-center">
                 {cartCount}
               </span>
             )}
@@ -193,7 +193,7 @@ function StorePageContent() {
         ]}
       />
 
-      <p className="text-2xs text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-xl px-3 py-2">
+      <p className="text-2xs text-band-3 bg-band-3/10 border border-band-3/25 rounded-xl px-3 py-2">
         {t('paymentComingSoonNotice')}
       </p>
 
@@ -209,17 +209,17 @@ function StorePageContent() {
             {products.map((p) => (
               <button key={p.id} onClick={() => openProduct(p)} className="text-start">
                 <Card variant="solid" className="!p-0 overflow-hidden h-full flex flex-col">
-                  <div className="aspect-square bg-slate-900/60 flex items-center justify-center">
+                  <div className="aspect-square bg-page/60 flex items-center justify-center">
                     {p.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={p.imageUrl} alt={name(p)} className="w-full h-full object-cover" />
                     ) : (
-                      <Package className="h-8 w-8 text-slate-600" />
+                      <Package className="h-8 w-8 text-ink-400" />
                     )}
                   </div>
                   <div className="p-2.5">
-                    <p className="text-sm font-semibold text-white truncate" dir="auto">{name(p)}</p>
-                    <p className="text-sm font-bold text-primary-400 mt-0.5">{p.price} {t('currency')}</p>
+                    <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{name(p)}</p>
+                    <p className="text-sm font-bold text-brand-600 mt-0.5">{p.price} {t('currency')}</p>
                   </div>
                 </Card>
               </button>
@@ -238,8 +238,8 @@ function StorePageContent() {
             {ordersData!.orders.map((o) => (
               <Card key={o.id} variant="solid">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-slate-500">{fmtDate(o.createdAt)}</p>
-                  <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-primary-600/20 text-primary-300">
+                  <p className="text-xs text-ink-400">{fmtDate(o.createdAt)}</p>
+                  <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-brand-600/20 text-brand-600">
                     {t(STATUS_LABEL_KEY[o.status] as any)}
                   </span>
                 </div>
@@ -247,13 +247,13 @@ function StorePageContent() {
                   {o.items.map((it, i) => {
                     const variant = [it.size, it.color].filter(Boolean).join(' · ');
                     return (
-                      <p key={i} className="text-sm text-slate-300" dir="auto">
+                      <p key={i} className="text-sm text-ink-500" dir="auto">
                         {it.quantity}× {locale === 'he' ? it.nameHe : it.nameEn}{variant ? ` (${variant})` : ''}
                       </p>
                     );
                   })}
                 </div>
-                <p className="text-sm font-bold text-white mt-1.5">{o.total} {t('currency')}</p>
+                <p className="text-sm font-bold text-ink-700 mt-1.5">{o.total} {t('currency')}</p>
               </Card>
             ))}
           </div>
@@ -264,19 +264,19 @@ function StorePageContent() {
       <Sheet open={!!product} onOpenChange={(o) => !o && setProduct(null)} title={product ? name(product) : ''}>
         {product && (
           <div className="space-y-3 pb-2">
-            <div className="aspect-square rounded-xl bg-slate-900/60 flex items-center justify-center overflow-hidden">
+            <div className="aspect-square rounded-xl bg-page/60 flex items-center justify-center overflow-hidden">
               {product.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={product.imageUrl} alt={name(product)} className="w-full h-full object-cover" />
               ) : (
-                <Package className="h-10 w-10 text-slate-600" />
+                <Package className="h-10 w-10 text-ink-400" />
               )}
             </div>
-            {description(product) && <p className="text-sm text-slate-300" dir="auto">{description(product)}</p>}
-            <p className="text-lg font-bold text-primary-400">{product.price} {t('currency')}</p>
+            {description(product) && <p className="text-sm text-ink-500" dir="auto">{description(product)}</p>}
+            <p className="text-lg font-bold text-brand-600">{product.price} {t('currency')}</p>
             {product.sizes && product.sizes.length > 0 && (
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('size')}</label>
+                <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('size')}</label>
                 <SegmentedControl<string>
                   value={size || product.sizes[0]}
                   onChange={setSize}
@@ -286,7 +286,7 @@ function StorePageContent() {
             )}
             {product.colors && product.colors.length > 0 && (
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('color')}</label>
+                <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('color')}</label>
                 <SegmentedControl<string>
                   value={color || product.colors[0]}
                   onChange={setColor}
@@ -305,16 +305,16 @@ function StorePageContent() {
         onOpenChange={setCartOpen}
         title={t('cart')}
         trailingAction={
-          <button onClick={() => setCartOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-white" aria-label={t('close')}>
+          <button onClick={() => setCartOpen(false)} className="p-1.5 rounded-lg text-ink-400 hover:text-ink-900" aria-label={t('close')}>
             <X className="h-5 w-5" />
           </button>
         }
         footer={
           cart.length > 0 ? (
-            <div className="px-5 pt-2 pb-4 border-t border-slate-700/60 space-y-2">
+            <div className="px-5 pt-2 pb-4 border-t border-page/60 space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400">{t('total')}</span>
-                <span className="font-bold text-white">{cartTotal} {t('currency')}</span>
+                <span className="text-ink-400">{t('total')}</span>
+                <span className="font-bold text-ink-700">{cartTotal} {t('currency')}</span>
               </div>
               <Button className="w-full" onClick={() => setCheckoutOpen(true)}>{t('checkout')}</Button>
             </div>
@@ -330,15 +330,15 @@ function StorePageContent() {
               if (!p) return null;
               const variant = [line.size, line.color].filter(Boolean).join(' · ');
               return (
-                <div key={i} className="flex items-center gap-3 bg-slate-800/50 rounded-xl px-3 py-2.5">
+                <div key={i} className="flex items-center gap-3 bg-card/50 rounded-xl px-3 py-2.5">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate" dir="auto">{name(p)}{variant ? ` (${variant})` : ''}</p>
-                    <p className="text-xs text-slate-500">{p.price} {t('currency')}</p>
+                    <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{name(p)}{variant ? ` (${variant})` : ''}</p>
+                    <p className="text-xs text-ink-400">{p.price} {t('currency')}</p>
                   </div>
-                  <button onClick={() => updateQty(line, -1)} className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-white"><Minus className="h-3.5 w-3.5" /></button>
-                  <span className="w-5 text-center text-sm font-bold text-white tabular-nums">{line.quantity}</span>
-                  <button onClick={() => updateQty(line, 1)} className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-white"><Plus className="h-3.5 w-3.5" /></button>
-                  <button onClick={() => removeLine(line)} className="text-red-400"><Trash2 className="h-4 w-4" /></button>
+                  <button onClick={() => updateQty(line, -1)} className="w-7 h-7 rounded-full bg-page flex items-center justify-center text-ink-700"><Minus className="h-3.5 w-3.5" /></button>
+                  <span className="w-5 text-center text-sm font-bold text-ink-700 tabular-nums">{line.quantity}</span>
+                  <button onClick={() => updateQty(line, 1)} className="w-7 h-7 rounded-full bg-page flex items-center justify-center text-ink-700"><Plus className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => removeLine(line)} className="text-accent-red"><Trash2 className="h-4 w-4" /></button>
                 </div>
               );
             })}
@@ -350,41 +350,41 @@ function StorePageContent() {
       <Sheet open={checkoutOpen} onOpenChange={setCheckoutOpen} title={t('checkout')}>
         {placedOrderId ? (
           <div className="py-8 text-center space-y-3">
-            <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto" />
-            <p className="text-sm font-bold text-white">{t('orderPlaced')}</p>
-            <p className="text-xs text-slate-400 max-w-xs mx-auto">{t('paymentComingSoonNotice')}</p>
+            <CheckCircle2 className="h-10 w-10 text-accent-600 mx-auto" />
+            <p className="text-sm font-bold text-ink-700">{t('orderPlaced')}</p>
+            <p className="text-xs text-ink-400 max-w-xs mx-auto">{t('paymentComingSoonNotice')}</p>
             <Button onClick={closeAfterOrder}>{t('viewMyOrders')}</Button>
           </div>
         ) : (
           <div className="space-y-3 pb-2">
-            <p className="text-2xs text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-xl px-3 py-2">
+            <p className="text-2xs text-band-3 bg-band-3/10 border border-band-3/25 rounded-xl px-3 py-2">
               {t('paymentComingSoonNotice')}
             </p>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('contactPhone')}</label>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('contactPhone')}</label>
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 dir="ltr"
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white text-end focus:outline-none focus:border-primary-600/50"
+                className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 text-end focus:outline-none focus:border-brand-600/50"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('notesOptional')}</label>
+              <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('notesOptional')}</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
                 dir="rtl"
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-white resize-none focus:outline-none focus:border-primary-600/50"
+                className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 resize-none focus:outline-none focus:border-brand-600/50"
               />
             </div>
             <div className="flex items-center justify-between text-sm px-1">
-              <span className="text-slate-400">{t('total')}</span>
-              <span className="font-bold text-white">{cartTotal} {t('currency')}</span>
+              <span className="text-ink-400">{t('total')}</span>
+              <span className="font-bold text-ink-700">{cartTotal} {t('currency')}</span>
             </div>
-            {placeError && <p className="text-xs text-red-400">{placeError}</p>}
+            {placeError && <p className="text-xs text-accent-red">{placeError}</p>}
             <Button className="w-full" onClick={placeOrder} disabled={placing}>
               {placing ? t('placingOrder') : t('placeOrder')}
             </Button>
