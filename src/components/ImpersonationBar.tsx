@@ -1,28 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Eye, LogOut, Shield, Megaphone, Footprints, Glasses, Construction } from 'lucide-react';
-import { getSupabase } from '@/lib/supabase/client';
-import { isSuperUser } from '@/lib/constants';
+import { Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui';
 import {
   getViewMode,
   startViewAs,
   stopViewAs,
+  useIsSuperUser,
   MAINTENANCE_MODE,
+  VIEW_AS_SCENARIOS,
 } from '@/lib/impersonation';
-
-// The scenarios the super user (Ofer) can preview. You stay signed in as
-// yourself — this only changes which ROLE the app renders as, plus a scenario
-// that force-shows the maintenance screen. See src/lib/impersonation.ts.
-const SCENARIOS: Array<{ mode: string; label: string; icon: any; tone: string }> = [
-  { mode: 'admin', label: 'מנהל', icon: Shield, tone: 'text-violet-700' },
-  { mode: 'coach', label: 'מאמן', icon: Megaphone, tone: 'text-band-2' },
-  { mode: 'runner', label: 'רץ', icon: Footprints, tone: 'text-accent-600' },
-  { mode: 'viewer', label: 'צופה', icon: Glasses, tone: 'text-ink-500' },
-  { mode: MAINTENANCE_MODE, label: 'מסך תחזוקה', icon: Construction, tone: 'text-band-3' },
-];
 
 // Super-user "view as" control. Always mounted in the root layout (a sibling of
 // MaintenanceGate, outside the intl provider) so it can overlay the maintenance
@@ -30,13 +19,20 @@ const SCENARIOS: Array<{ mode: string; label: string; icon: any; tone: string }>
 // maintenance screen), opened from the Header eye button / "צפייה כמשתמש" row
 // ('open-view-as' event), MaintenanceGate's own button when the gate is up, or a
 // floating trigger shown above the gate when maintenance is blocking Ofer with no
-// scenario active. That's the single entry point for switching AND exiting — no
-// separate persistent banner.
+// scenario active. No separate persistent banner.
+//
+// It is not the only way to switch any more: the tab bar's "More" sheet renders
+// the roles from VIEW_AS_SCENARIOS directly, so on a phone switching role is one
+// tap instead of avatar → menu → row → this sheet. This chooser stays as the
+// desktop entry point and as the only route to the maintenance-screen scenario.
 // Non-super-users get nothing.
 export function ImpersonationBar() {
+  const isSuper = useIsSuperUser();
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<string | null>(null);
-  const [canView, setCanView] = useState(false);
+  // An active scenario keeps Exit reachable even if the super-user check hasn't
+  // answered yet (or can't) — otherwise a preview could strand you in it.
+  const [previewing, setPreviewing] = useState(false);
   const [chooserOpen, setChooserOpen] = useState(false);
   // True when the maintenance gate is currently blocking the REAL super user and
   // no scenario is active — then the Header eye button is hidden behind the gate.
@@ -46,40 +42,24 @@ export function ImpersonationBar() {
     setMounted(true);
     const current = getViewMode();
     setMode(current);
+    if (current) setPreviewing(true);
+  }, []);
 
-    // Determine whether the real signed-in user is Ofer (the super user).
-    const gate = (email: string) => {
-      // Only relevant when no scenario is active; a role scenario bypasses the
-      // gate, and the maintenance scenario shows it with the banner already up.
-      if (current) return;
-      fetch(`/api/maintenance?email=${encodeURIComponent(email)}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d) setGateBlockingMe(!!d.maintenance && !d.allowed);
-        })
-        .catch(() => {});
-    };
-
-    if (current) setCanView(true); // a scenario is active → keep Exit reachable
-
-    const realEmail =
+  // Is the maintenance gate currently blocking the REAL super user? Only worth
+  // asking when no scenario is active: a role scenario bypasses the gate, and the
+  // maintenance scenario shows it with the trigger already up.
+  useEffect(() => {
+    if (!isSuper || mode) return;
+    const email =
       localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    if (isSuperUser(realEmail)) {
-      setCanView(true);
-      gate(realEmail);
-      return;
-    }
-    getSupabase()
-      .auth.getSession()
-      .then(({ data }) => {
-        const e = data.session?.user?.email || '';
-        if (isSuperUser(e)) {
-          setCanView(true);
-          gate(e);
-        }
+    if (!email) return;
+    fetch(`/api/maintenance?email=${encodeURIComponent(email)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setGateBlockingMe(!!d.maintenance && !d.allowed);
       })
       .catch(() => {});
-  }, []);
+  }, [isSuper, mode]);
 
   // Open the chooser when the Header eye button dispatches 'open-view-as'.
   useEffect(() => {
@@ -88,7 +68,7 @@ export function ImpersonationBar() {
     return () => window.removeEventListener('open-view-as', open);
   }, []);
 
-  if (!mounted || !canView) return null;
+  if (!mounted || !(isSuper || previewing)) return null;
 
   return (
     <>
@@ -121,7 +101,7 @@ export function ImpersonationBar() {
           </p>
 
           <div className="pt-3 grid grid-cols-2 gap-2">
-            {SCENARIOS.map((s) => {
+            {VIEW_AS_SCENARIOS.map((s) => {
               const Icon = s.icon;
               const activeMode = mode === s.mode;
               const isMaint = s.mode === MAINTENANCE_MODE;

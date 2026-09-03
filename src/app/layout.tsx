@@ -46,10 +46,16 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'Madregot',
   },
-  // Next's appleWebApp only emits the (now-deprecated) apple- prefixed tag;
-  // add the standard one so Chrome/Android stops warning.
+  // `appleWebApp.capable` above emits `mobile-web-app-capable` — the STANDARD
+  // name — and nothing else (next/dist/lib/metadata/metadata.js, Next 16.3).
+  // Next 14 emitted the apple- prefixed one instead, so the 14→16 upgrade
+  // silently dropped the only tag iOS reads before it consults the manifest.
+  // An icon added to the home screen after that stopped being a web app and
+  // became a plain bookmark that opens in a browser view — which takes
+  // standalone, app-native push, and the install-then-tour order (all of which
+  // hang off isStandalone()) down with it. So: emit both names, once each.
   other: {
-    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-capable': 'yes',
   },
   openGraph: {
     title: 'Madregot After 2KM',

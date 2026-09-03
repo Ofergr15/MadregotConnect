@@ -8,8 +8,7 @@ import {
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
-import { isSuperUser } from '@/lib/constants';
-import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { getViewMode, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 
 // Shared "which pages can this signed-in user reach" resolution. FOUR places
 // need the same answer: the desktop Header nav, the mobile BottomTabBar, the
@@ -128,8 +127,12 @@ export function resolveNavItems({
  */
 export function useNavIdentity() {
   const [isAthlete, setIsAthlete] = useState(false);
-  const [isSuper, setIsSuper] = useState(false);
   const [hasEmail, setHasEmail] = useState(false);
+  // Super-user is TWO signals OR'd together, and it has to be: a Strava/Garmin
+  // athlete signs in as a synthetic …@strava.madregot.local, which can never
+  // match SUPER_USER_EMAIL, so the local check alone hid every view-as entry
+  // point. `isSuper` on /api/auth/me is the server-verified answer.
+  const localSuper = useIsSuperUser();
 
   // Both answers go through useApi (SWR) rather than a raw fetch, because the
   // Header, the tab bar and Search all need the same two and each request pays
@@ -140,26 +143,25 @@ export function useNavIdentity() {
   );
   const permissions = permsData?.permissions || [];
 
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean }>(hasEmail ? '/api/auth/me' : null);
+  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean }>(
+    hasEmail ? '/api/auth/me' : null,
+  );
+  const isSuper = localSuper || !!meData?.isSuper;
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
     const email = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
     if (athleteId) setIsAthlete(true);
 
-    // The email still decides super-user status locally, but the ROLE comes from
-    // the session via /api/auth/me above — it stopped answering for whatever
-    // address it was handed.
-    const resolveEmail = (e: string) => {
-      if (!e) return;
-      setIsSuper(isSuperUser(e));
-      setHasEmail(true);
-    };
-    if (email) resolveEmail(email);
+    // All we need from the address is that there IS one — that's what unlocks
+    // the /api/auth/me request above, which reads the SESSION rather than
+    // whatever address it's handed. Role, academy membership and super-user
+    // status all come from that response now.
+    const markSignedIn = (e: string) => { if (e) setHasEmail(true); };
+    if (email) markSignedIn(email);
     else {
       getSupabase().auth.getSession().then(({ data }) => {
-        const e = data.session?.user?.email || '';
-        if (e) resolveEmail(e);
+        markSignedIn(data.session?.user?.email || '');
       }).catch(() => {});
     }
   }, []);
@@ -173,6 +175,12 @@ export function useNavIdentity() {
     permissions,
     effectiveRole,
     previewRole,
+    // The raw mode as well as previewRole, because the two differ in exactly one
+    // case that the view-as UI cares about: MAINTENANCE_MODE is a view mode but
+    // deliberately not a preview ROLE, and "back to my own view" has to be
+    // offered while it's active too.
+    viewMode,
+    isSuper,
     isAthlete,
     isAcademyMember: !!meData?.isAcademy,
     ready: !permsLoading && !!effectiveRole,

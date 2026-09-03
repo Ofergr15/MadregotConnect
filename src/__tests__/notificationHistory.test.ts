@@ -77,7 +77,7 @@ describe('styleKindFor', () => {
   it('buckets a kudos push the same way in both languages', () => {
     // Neither wording should be pulled into 'workout' — the Hebrew says ריצה,
     // not אימון, so the English must not match on a broader word either.
-    expect(styleKindFor({ title: 'דנה נתן/ה לך קודוס על הריצה! 👍', body: 'לחצו לצפייה' })).toBe('default');
+    expect(styleKindFor({ title: 'דנה נתן/ה לך כיף על הריצה! 👍', body: 'לחצו לצפייה' })).toBe('default');
     expect(styleKindFor({ title: 'Dana gave you kudos on your run! 👍', body: 'Tap to view' })).toBe('default');
   });
 

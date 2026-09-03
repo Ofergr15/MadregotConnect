@@ -1,5 +1,10 @@
 'use client';
 
+import { useEffect, useState, type ComponentType } from 'react';
+import { Shield, Megaphone, Footprints, Glasses, Construction } from 'lucide-react';
+import { isSuperUser } from '@/lib/constants';
+import { getSupabase } from '@/lib/supabase/client';
+
 // "View as" for the super user (Ofer — see SUPER_USER_EMAIL).
 //
 // This does NOT change who you are — you stay signed in as yourself. It only
@@ -45,4 +50,53 @@ export function stopViewAs() {
   localStorage.removeItem(KEY);
   localStorage.removeItem('dashboard_synced');
   window.location.assign('/dashboard');
+}
+
+/**
+ * The scenarios that can be previewed, in the order they're offered. One list,
+ * because three surfaces render it now — the chooser sheet (ImpersonationBar),
+ * the tab bar's "More" sheet, and the Header's own entry point — and a role
+ * missing from one of them is a role you can't get back to.
+ */
+export const VIEW_AS_SCENARIOS: Array<{ mode: string; label: string; icon: ComponentType<{ className?: string }>; tone: string }> = [
+  { mode: 'runner', label: 'רץ', icon: Footprints, tone: 'text-accent-600' },
+  { mode: 'coach', label: 'מאמן', icon: Megaphone, tone: 'text-band-2' },
+  { mode: 'admin', label: 'מנהל', icon: Shield, tone: 'text-violet-700' },
+  { mode: 'viewer', label: 'צופה', icon: Glasses, tone: 'text-ink-500' },
+  { mode: MAINTENANCE_MODE, label: 'מסך תחזוקה', icon: Construction, tone: 'text-band-3' },
+];
+
+/**
+ * Is the person at the keyboard the super user, so the view-as control should be
+ * offered at all?
+ *
+ * Both identity sources are checked, not one-then-the-other: the app has two
+ * login paths and each leaves a different trace. A Strava/Garmin athlete gets a
+ * synthetic `athlete_email` (…@strava.madregot.local) that will never match, so
+ * a check that stops at localStorage decides "not the super user" and hides
+ * every entry point — which is how the switcher went missing while all of its
+ * code was still there. The Supabase session is the authority; localStorage is
+ * only the fast answer that avoids a frame without the control.
+ *
+ * Purely a UI question: view-as changes what is RENDERED, never what the server
+ * will do (every API route authorizes the real session), so being wrong here
+ * costs a hidden button, not access.
+ */
+export function useIsSuperUser(): boolean {
+  const [isSuper, setIsSuper] = useState(false);
+
+  useEffect(() => {
+    const stored =
+      localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
+    if (isSuperUser(stored)) setIsSuper(true);
+
+    getSupabase()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (isSuperUser(data.session?.user?.email)) setIsSuper(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  return isSuper;
 }

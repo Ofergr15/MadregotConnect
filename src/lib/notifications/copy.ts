@@ -82,9 +82,12 @@ export function teammateActivityCopy(
   });
 }
 
-/** The 👍 kudos action button on a teammate-activity push. */
+/**
+ * The 👍 kudos action button on a teammate-activity push. Hebrew calls it כיף
+ * (as in "תן כיף") rather than the transliterated "קודוס" — Ofer's wording.
+ */
 export const KUDOS_ACTION_LABEL: Record<NotificationLocale, string> = {
-  he: '👍 קודוס',
+  he: '👍 כיף',
   en: '👍 Kudos',
 };
 
@@ -210,7 +213,7 @@ export function followCopy(locale: NotificationLocale, p: { name: string | null 
 export function kudosCopy(locale: NotificationLocale, p: { name: string | null | undefined }): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'
-    ? { title: `${who} נתן/ה לך קודוס על הריצה! 👍`, body: 'לחצו לצפייה' }
+    ? { title: `${who} נתן/ה לך כיף על הריצה! 👍`, body: 'לחצו לצפייה' }
     : { title: `${who} gave you kudos on your run! 👍`, body: 'Tap to view' };
 }
 
@@ -510,14 +513,14 @@ export function coachReplyCopy(
     : { title: name ? `💬 Reply from ${name}` : '💬 Reply from your coach' };
 }
 
-/** Sponsor name and perk title are admin-authored; only the header translates. */
+/** Sponsor name and deal title are admin-authored; only the header translates. */
 export function newPerkCopy(
   locale: NotificationLocale,
   p: { sponsor: string; title: string },
 ): PushCopy {
   return locale === 'he'
-    ? { title: '🎁 הטבה חדשה!', body: `${p.sponsor}: ${p.title}` }
-    : { title: '🎁 New perk!', body: `${p.sponsor}: ${p.title}` };
+    ? { title: '🎁 שותפות חדשה!', body: `${p.sponsor}: ${p.title}` }
+    : { title: '🎁 New partnership!', body: `${p.sponsor}: ${p.title}` };
 }
 
 // ── Staff-facing ──────────────────────────────────────────────────────────

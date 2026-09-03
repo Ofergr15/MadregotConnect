@@ -9,9 +9,8 @@ import { cn, resolveGroup } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { clearIdentityKeys } from '@/lib/auth/identity-keys';
-import { isSuperUser } from '@/lib/constants';
 import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
-import { getViewMode, stopViewAs, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
@@ -39,7 +38,11 @@ export function Header() {
   const [showGroupPicker, setShowGroupPicker] = useState(false);
   const [groupSaveFailed, setGroupSaveFailed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [isSuper, setIsSuper] = useState(false);
+  // Two independent answers to "is this the super user?", either of which is
+  // enough: the local one (useIsSuperUser, available immediately) and the
+  // `isSuper` that /api/auth/me derives from the verified session below. Neither
+  // alone was reliable — see the hook's comment.
+  const localSuper = useIsSuperUser();
 
   // Everything the shell needs on mount goes through useApi (SWR) rather than a
   // raw fetch, because the BottomTabBar needs the same two answers and both used
@@ -53,8 +56,11 @@ export function Header() {
   const permissions = permsData?.permissions || [];
   const permissionsLoaded = !permsLoading;
 
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean }>(userEmail ? '/api/auth/me' : null);
+  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean }>(
+    userEmail ? '/api/auth/me' : null,
+  );
   const userRole = meData?.role || null;
+  const isSuper = localSuper || !!meData?.isSuper;
   // Academy membership is the `is_academy` flag, not a role, so it decides a nav
   // entry that no permission row can express. The bar has always read it; this
   // header didn't, which is the drift the shared resolver closes.
@@ -128,14 +134,6 @@ export function Header() {
     if (storedAthleteId) setGroupId(localStorage.getItem('athlete_group_id'));
 
   }, []);
-
-  // The role itself comes from the session (see the useApi above) — sending an
-  // address was once enough to be handed that address's role. Only super-user
-  // status is still decided locally off the email.
-  useEffect(() => {
-    if (!userEmail) return;
-    setIsSuper(isSuperUser(userEmail));
-  }, [userEmail]);
 
   // Super-user "view as" override: while a role scenario is active, render the
   // nav as if we had that role (the maintenance scenario is handled by the gate,

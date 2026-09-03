@@ -4,9 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, CalendarCheck, Search, ShoppingBag, Gift } from 'lucide-react';
+import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
+import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
 
 // iOS-native redesign, phase 1: a bottom tab bar (the #1 "this is a real app"
@@ -48,7 +49,7 @@ export function BottomTabBar() {
   // and Search all read one SWR-keyed pair of requests rather than each asking
   // independently (each ask pays a full session verification server-side).
   const identity = useNavIdentity();
-  const { ready, isStaffView } = identity;
+  const { ready, isStaffView, isSuper, viewMode } = identity;
   // `fallback` so a role that resolves to nothing still gets a usable bar rather
   // than none at all.
   const navItems = ready ? resolveNavItems({ ...identity, fallback: true }) : [];
@@ -209,6 +210,33 @@ export function BottomTabBar() {
               </div>
             </div>
           )}
+
+          {/* Super-user "view as", one tap from the tab bar. It has lived behind
+              the Header's avatar menu (mobile) and a small eye icon (desktop),
+              which on a phone is three taps and easy to lose track of — and
+              switching role is the most-used admin action there is. The roles
+              themselves are the buttons here, so there's no sheet-on-sheet hop
+              through the chooser; ImpersonationBar still owns that chooser for
+              the maintenance screen and for the desktop entry point. */}
+          {(isSuper || viewMode) && (
+            <div>
+              <p className={cn('px-1 mb-2 text-2xs font-bold uppercase tracking-wider', 'text-ink-400')}>תצוגה כמשתמש</p>
+              <div className="grid grid-cols-3 gap-3">
+                {VIEW_AS_SCENARIOS.filter(sc => sc.mode !== MAINTENANCE_MODE).map(sc => (
+                  <MoreCard
+                    key={sc.mode}
+                    icon={sc.icon}
+                    label={sc.label}
+                    active={viewMode === sc.mode}
+                    onClick={() => startViewAs(sc.mode)}
+                  />
+                ))}
+                {viewMode && (
+                  <MoreCard icon={LogOut} label="חזרה לתצוגה שלי" active={false} onClick={() => stopViewAs()} />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </Sheet>
     </>
@@ -220,13 +248,13 @@ export function BottomTabBar() {
 // its label wrapping below, centered. 3 per row fits our longer labels
 // ("Workout Feedback", "Team Volume") more comfortably than the reference
 // apps' 2-line circular buttons while still reading as "a grid of actions".
-function MoreCard({ icon: Icon, label, href, active, onClick }: { icon: any; label: string; href: string; active: boolean; onClick: () => void }) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className="flex flex-col items-center gap-2 rounded-card bg-page p-3 text-center active:scale-[0.96] transition-transform"
-    >
+//
+// `href` is optional: the view-as cards below act on the page rather than
+// navigating, so they render as a button with the identical look.
+function MoreCard({ icon: Icon, label, href, active, onClick }: { icon: any; label: string; href?: string; active: boolean; onClick: () => void }) {
+  const className = 'flex flex-col items-center gap-2 rounded-card bg-page p-3 text-center active:scale-[0.96] transition-transform';
+  const inner = (
+    <>
       <span className={cn(
         'w-11 h-11 rounded-full flex items-center justify-center shrink-0',
         active ? 'bg-brand-600' : 'bg-card',
@@ -234,6 +262,8 @@ function MoreCard({ icon: Icon, label, href, active, onClick }: { icon: any; lab
         <Icon className={cn('h-5 w-5', active ? 'text-white' : 'text-brand-600')} />
       </span>
       <span className="text-2xs font-semibold leading-tight text-ink-700" dir="auto">{label}</span>
-    </Link>
+    </>
   );
+  if (!href) return <button type="button" onClick={onClick} className={className}>{inner}</button>;
+  return <Link href={href} onClick={onClick} className={className}>{inner}</Link>;
 }
