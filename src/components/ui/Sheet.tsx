@@ -1,68 +1,49 @@
 'use client';
 
-import { Drawer } from 'vaul';
-import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+import type { SheetProps } from './SheetDrawer';
 
-// Native-style bottom sheet (Phase 3) built on vaul: grabber handle, drag/
-// swipe-down-to-dismiss, backdrop, and built-in focus trap + Escape + aria-modal
-// (fixing the a11y gap where ~20 hand-rolled `fixed inset-0` modals had no dialog
-// semantics). Replaces centered web dialogs. RTL-safe (vertical drag only).
+// vaul pulls in @radix-ui/react-dialog, its Presence/Portal/DismissableLayer/
+// FocusScope internals and a scroll-lock — 84 KB raw, measured, in one chunk.
+// That chunk was on the initial load of all 30 in-app routes, because `Sheet` is
+// re-exported from '@/components/ui' and 78 files import something from that
+// barrel (only 39 of them touch a sheet at all). A bottom sheet is by definition
+// closed until someone taps something, so none of those bytes need to be there
+// before the page is interactive.
 //
-// Controlled usage:
-//   <Sheet open={open} onOpenChange={setOpen} title="…">…</Sheet>
-export function Sheet({
-  open,
-  onOpenChange,
-  title,
-  leadingAction,
-  trailingAction,
-  children,
-  footer,
-  className,
-  bodyClassName,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title?: React.ReactNode;
-  leadingAction?: React.ReactNode;
-  trailingAction?: React.ReactNode;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
-  className?: string;
-  bodyClassName?: string;
-}) {
-  return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange} shouldScaleBackground>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm" />
-        <Drawer.Content
-          className={cn(
-            'fixed bottom-0 inset-x-0 z-[310] flex flex-col outline-none',
-            'rounded-t-card border-t border-page bg-card',
-            'max-h-[92vh] pb-[env(safe-area-inset-bottom)]',
-            className
-          )}
-        >
-          <div className="mx-auto mt-2.5 mb-1 h-1.5 w-10 rounded-full bg-ink-300" />
-          {(leadingAction || trailingAction) ? (
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-page px-4 pb-3 pt-1">
-              <div className="justify-self-start">{leadingAction}</div>
-              {title && (
-                <Drawer.Title className="text-base font-bold text-center text-ink-900">
-                  {title}
-                </Drawer.Title>
-              )}
-              <div className="justify-self-end">{trailingAction}</div>
-            </div>
-          ) : title ? (
-            <Drawer.Title className="px-5 pt-2 pb-1 text-base font-bold text-center text-ink-900">
-              {title}
-            </Drawer.Title>
-          ) : null}
-          <div className={cn('overflow-y-auto px-4 pb-4 pt-2', bodyClassName)}>{children}</div>
-          {footer}
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
-  );
+// So the drawer lives in its own module and this loads it on demand.
+const SheetDrawer = dynamic(() => import('./SheetDrawer').then(m => m.SheetDrawer), {
+  ssr: false,
+});
+
+/**
+ * Native-style bottom sheet. Same props as before — see SheetDrawer for the
+ * actual drawer; this only controls when that module is fetched.
+ *
+ * Controlled usage:
+ *   <Sheet open={open} onOpenChange={setOpen} title="…">…</Sheet>
+ */
+export function Sheet(props: SheetProps) {
+  // next/dynamic starts the fetch when the lazy component *renders*, and plenty
+  // of callers (every ConfirmSheet, for one) keep a closed sheet mounted for the
+  // life of the screen. So don't render it until the sheet has actually been
+  // opened once — after that it stays mounted, which is what lets vaul animate
+  // the close rather than having the sheet vanish.
+  const [opened, setOpened] = useState(props.open);
+  if (props.open && !opened) setOpened(true);
+
+  // By the time a finger lands on the button that opens this, the module should
+  // already be in memory: waiting for a network round trip on tap would trade a
+  // faster load for a sheet that feels broken. So warm it once the page has gone
+  // quiet — off the critical path, but well ahead of the interaction.
+  // requestIdleCallback is still missing on Safari, which is every user here.
+  useEffect(() => {
+    if (opened) return;
+    const t = setTimeout(() => { void import('./SheetDrawer'); }, 2000);
+    return () => clearTimeout(t);
+  }, [opened]);
+
+  if (!opened) return null;
+  return <SheetDrawer {...props} />;
 }
