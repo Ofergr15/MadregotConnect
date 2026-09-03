@@ -57,7 +57,11 @@ at **נוכחות**.
 
 **Bar:** פיד · לוח בקרה · תוכנית · פרופיל · עוד
 **More → morePages:** סקירה · פעילויות · יומן
-**More → quickActions (every role):** חיפוש · חנות · הטבות
+**More → quickActions (every role):** חיפוש · חנות · שותפויות
+(**שותפויות** is the renamed הטבות — same `/dashboard/benefits` route. Search
+still finds it under the old word.)
+**More → תצוגה כמשתמש (super-user only):** one card per view-as role, plus
+חזרה לתצוגה שלי while a view-as is active. Nobody else sees this group.
 
 - [ ] Exactly those four tabs, in that order
 - [ ] Nothing staff-ish anywhere: no מתכנן, ספורטאים, קבוצות, נוכחות, משוב אימונים, נפח הקבוצה, היסטוריה, הגדרות, כלי מאמן
@@ -318,7 +322,7 @@ Easy to forget precisely because nothing in the bar points at them.
 | אקדמיה | Pairing + planner (both built and merged). Blocked on **data**, not code: all six `academy_bands` rows have `pace_profile.offsetSeconds` unset, and only **1 of 26** club rows has `is_academy = true`. Expect thin screens until that's fixed — don't file it as broken. |
 | יומן | Event list, detail, registration |
 | חנות | Products, cart, order |
-| הטבות | Perks list |
+| שותפויות | Perks list (was הטבות — the route is still `/dashboard/benefits`) |
 
 ### 2.13 Notifications and push
 
