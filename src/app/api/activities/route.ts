@@ -1,11 +1,15 @@
 /**
- * GET /api/activities?athleteId=&include=gps&limit=
+ * GET /api/activities?athleteId=&include=gps&limit=&scope=self
  *
  * Lists athlete_activities for the feed. Staff (coach/admin/academy_coach)
  * may omit athleteId for the club roster; runners must pass their own id.
  *
  * `limit` is optional, 1..200, and defaults to 200 (what this route always
  * returned). Pass a small one when you only need the newest few rows.
+ *
+ * `scope=self` restricts the response to `athleteId`'s own rows even for staff,
+ * who are otherwise widened to the whole club. A coach who is also a runner
+ * needs this on their personal screens — see the comment on `scopeSelf` below.
  *
  * `gps_points` (full per-run GPS trace, ~30-60KB/row) is excluded by default —
  * most callers only need distance/duration/pace/has_polyline and fetch the
@@ -40,6 +44,15 @@ export async function GET(request: Request) {
     // 200 fully-populated runs to set a boolean (/dashboard/profile did exactly
     // that). Clamped to the old default so no caller can ask for more than before.
     const limit = clampLimit(searchParams.get('limit'));
+    // `scope=self` means "only this athlete's rows, even if I'm staff". Staff are
+    // otherwise widened to the whole club below, which every personal screen then
+    // has to filter client-side — and that combination is silently wrong for a
+    // coach who is ALSO a runner: their own runs have to be inside the newest N
+    // club-wide rows to survive the filter, so on a busy week the club's admin
+    // could open their dashboard and see "0 runs this week". It also makes any
+    // `limit` unusable for those screens. Narrowing only, on an id the gate below
+    // has already authorised.
+    const scopeSelf = searchParams.get('scope') === 'self';
 
     // The doc comment above was the intended contract but nothing enforced it:
     // staff-ness came from an unverified x-user-email (forge a coach's address
@@ -68,11 +81,13 @@ export async function GET(request: Request) {
         .select(cols)
         .order('start_time', { ascending: false })
         .limit(limit);
-      // Staff deliberately get the club-wide list even when they named an
-      // athlete — the coach screens filter client-side and rely on having
-      // everyone. Unchanged here; the gate above is what decides who counts as
-      // staff in the first place.
-      if (!isStaff && athleteId) q = q.eq('athlete_id', athleteId);
+      // Staff otherwise get the club-wide list even when they named an athlete —
+      // the coach screens filter client-side and rely on having everyone — so a
+      // personal screen has to opt out with `scope=self`. Either way this can
+      // only ever ADD the filter: there is no combination of parameters that
+      // widens a runner past their own rows, and `athleteId` has already been
+      // checked against the session by the gate above.
+      if (athleteId && (!isStaff || scopeSelf)) q = q.eq('athlete_id', athleteId);
       return q;
     };
 

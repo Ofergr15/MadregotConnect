@@ -274,4 +274,68 @@ describe('GET /api/activities', () => {
     await get(`?athleteId=${ME}&limit=2.9`);
     expect(limitArg()).toBe(2);
   });
+
+  // `scope=self` exists because staff are widened to the whole club even when
+  // they name an athlete, and the personal screens (dashboard, profile) then
+  // filter client-side — which is silently wrong for a coach who ALSO runs:
+  // their own rows have to be inside the club's newest `limit` to survive the
+  // filter, so a busy week could show the club's admin "0 runs this week".
+  const scopedToMe = () => ops[0].filters.some(([fn, args]) => fn === 'eq' && args[0] === 'athlete_id' && args[1] === ME);
+
+  it('scopes staff to their own rows when they ask for scope=self', async () => {
+    requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
+    rows = [{ id: 'a1', athlete_id: ME, athletes: { name: 'Coach Who Runs' } }];
+    const res = await get(`?athleteId=${ME}&scope=self`);
+    expect(res.status).toBe(200);
+    expect(scopedToMe()).toBe(true);
+  });
+
+  // The bug it was written for: one row is only enough to answer "do I have any
+  // activities" if that row is guaranteed to be the caller's.
+  it('lets staff combine scope=self with a tiny limit', async () => {
+    requireSession.mockResolvedValue(session({ role: 'admin', isStaff: true }));
+    await get(`?athleteId=${ME}&scope=self&limit=1`);
+    expect(scopedToMe()).toBe(true);
+    expect(limitArg()).toBe(1);
+  });
+
+  it('still widens staff to the club when they do not ask for scope=self', async () => {
+    requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
+    await get(`?athleteId=${ME}`);
+    expect(scopedToMe()).toBe(false);
+  });
+
+  // Narrowing only. Anything other than the exact opt-in leaves the old
+  // behaviour alone rather than half-applying it.
+  it('ignores a scope value that is not exactly self', async () => {
+    for (const raw of ['club', 'all', 'SELF', 'self ', '1', 'true', '']) {
+      ops = [];
+      requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
+      await get(`?athleteId=${ME}&scope=${encodeURIComponent(raw)}`);
+      expect(scopedToMe(), `scope=${raw}`).toBe(false);
+    }
+  });
+
+  // The parameter must not become a way to READ more than before — a runner is
+  // already pinned to their own id, and asking for the club is still a 403.
+  it('cannot widen a runner past their own rows', async () => {
+    requireSession.mockResolvedValue(session());
+    await get(`?athleteId=${ME}&scope=club`);
+    expect(scopedToMe()).toBe(true);
+
+    ops = [];
+    requireSession.mockResolvedValue(session());
+    const res = await get('?scope=self');
+    expect(res.status).toBe(403);
+    expect(ops).toHaveLength(0);
+  });
+
+  // scope=self is about which rows come back, not who may ask — a runner naming
+  // somebody else is still refused before any query runs.
+  it('does not let scope=self smuggle in another athlete', async () => {
+    requireSession.mockResolvedValue(session());
+    const res = await get(`?athleteId=${OTHER}&scope=self`);
+    expect(res.status).toBe(403);
+    expect(ops).toHaveLength(0);
+  });
 });

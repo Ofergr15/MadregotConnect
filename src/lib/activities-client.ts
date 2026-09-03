@@ -19,14 +19,23 @@ import { apiHeaders } from '@/lib/api';
 // `limit` (1..200, default 200) caps how many rows come back. Rows carry `splits`
 // and `laps` JSONB, so ask for a small one when you only need the newest few — or
 // just to know whether the athlete has any activities at all.
+//
+// `selfOnly` is what a PERSONAL screen wants: the server hands staff the whole
+// club even when we name an athlete, so a coach who also runs would otherwise get
+// other people's activities back and have to filter them out client-side — and
+// their own runs would have to be inside the newest `limit` rows club-wide to
+// survive that filter. Pass it whenever the answer is about the signed-in athlete
+// ("do I have any runs", "what did I do this week"); leave it off for the club
+// feed and leaderboards, which want everyone.
 export async function fetchActivities(
-  options: { includeGps?: boolean; limit?: number } = {},
+  options: { includeGps?: boolean; limit?: number; selfOnly?: boolean } = {},
 ): Promise<Response> {
   const athleteId = typeof window !== 'undefined' ? localStorage.getItem('athlete_id') : null;
   const params = new URLSearchParams();
   if (athleteId) params.set('athleteId', athleteId);
   if (options.includeGps) params.set('include', 'gps');
   if (options.limit) params.set('limit', String(options.limit));
+  if (options.selfOnly) params.set('scope', 'self');
   const qs = params.toString();
   return fetch(`/api/activities${qs ? `?${qs}` : ''}`, {
     headers: await apiHeaders(),

@@ -138,7 +138,12 @@ export default function DashboardPage() {
     if (!myAthleteId) return;
     (async () => {
       try {
-        const res = await fetchActivities();
+        // `selfOnly`: the push named one of MY activities, and staff would
+        // otherwise be handed the club-wide page — where my target row has to
+        // beat 200 other people's runs to be in it at all, so the deep-link
+        // quietly did nothing for a coach who also runs. No `limit` here: the
+        // id can be an older activity if the push sat unopened.
+        const res = await fetchActivities({ selfOnly: true });
         if (!res.ok) return;
         const data = await res.json();
         const found = (data.activities || []).find(
@@ -228,7 +233,16 @@ export default function DashboardPage() {
       const mePromise = canSync
         ? apiHeaders().then(headers => fetch(`/api/athletes/me?id=${myAthleteId}`, { headers }))
         : null;
-      const activitiesPromise = fetchActivities();
+      // Everything this reads is about the signed-in athlete — their last three
+      // runs, their runs this week, and the id snapshot for the sync diff — so
+      // `selfOnly`, which also makes a small `limit` safe. Previously this asked
+      // for the club-wide 200 and filtered client-side, which was quietly WRONG
+      // for a coach who also runs: their own runs had to be inside the club's
+      // newest 200 to survive the filter, so on a busy week the dashboard could
+      // greet the club's own admin with "0 runs this week". 30 own rows covers
+      // three recents, any single week, and the diff below (a genuinely new
+      // activity lands at the top, so a shorter page can't invent one).
+      const activitiesPromise = fetchActivities({ limit: 30, selfOnly: true });
 
       try {
         let hasStrava = false;
@@ -266,7 +280,9 @@ export default function DashboardPage() {
           // personal "today's/tomorrow's workout" hero calc below, not a club
           // feed, so a coach who's also a runner needs their own activities
           // here too (not every athlete's), and a coach with no athlete
-          // profile just gets an empty list, same as before.
+          // profile just gets an empty list, same as before. `scope=self` on the
+          // request now does this server-side; the filter stays as a guard (and
+          // for the myAthleteId=null case, where the request sends no id).
           const filtered = allActs.filter((a: any) => a.athlete_id === myAthleteId);
           setRecentActivities(filtered.slice(0, 3));
           preSyncActivityIds = new Set(filtered.map((a: any) => a.id));
@@ -295,7 +311,9 @@ export default function DashboardPage() {
 
           // Refresh activities after sync completes
           try {
-            const refreshRes = await fetchActivities();
+            // Same shape as the pre-sync snapshot above — the diff below compares
+            // the two, so they have to be the same page of the same athlete.
+            const refreshRes = await fetchActivities({ limit: 30, selfOnly: true });
             if (refreshRes.ok) {
               const refreshData = await refreshRes.json();
               const allActs = refreshData.activities || [];
