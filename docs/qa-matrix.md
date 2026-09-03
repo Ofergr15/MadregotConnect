@@ -26,7 +26,7 @@ scope* — don't test them, don't file bugs against them.
 | 0.2 | Launch from the home-screen icon, not Safari | Same reason. |
 | 0.3 | Maintenance mode is **ON** — confirm your address is on the allowlist (`/api/maintenance?email=<you>`) | Everyone else sees the maintenance screen. If you get it too, you're not on the list. |
 | 0.4 | Sign in as yourself | You're a super-user, so your effective role is `admin` regardless of your DB role. |
-| 0.5 | Check the version in Settings | Should be **2.39.16** once `perf/app-speed` is merged. Anything else and you're testing a different build. |
+| 0.5 | Check the version in Settings | Should be **2.39.17** once `perf/app-speed` is merged. Anything else and you're testing a different build. |
 | 0.6 | Have a second non-admin account, or use **view-as** | Most of this matrix is about what a *runner* sees, which is not what you see. |
 
 **View-as** (`getViewMode()`) overrides your role for navigation only. It changes
@@ -382,4 +382,4 @@ names with "broken" next to them doesn't.
 | `coach_last_read_at` / `athlete_last_read_at` | Written on every read, but nothing reads them — there's no unread badge yet |
 | `GET /api/groups` returns every member's email | You said keep it for later |
 | `academy_bands` offsets unset; 1 of 26 rows `is_academy` | Data, not code |
-| `BottomTabBar.tsx` re-declares `ALL_NAV_ITEMS`, `PROFILE_ITEM`, `COACH_TOOLS_ITEM` and `TabPermission` that `nav-items.ts` already exports | Real drift risk — `nav-items.ts` was extracted specifically so the bar and the search page couldn't disagree, and the bar then kept its own copy. Worth collapsing. |
+| The desktop header used to omit the academy force-add | **Fixed in 2.39.17.** The Header, the tab bar and Search each had their own copy of the nav list and rules; the Header's was missing it, so an academy member whose role doesn't grant the tab saw אקדמיה on their phone and not on their laptop. All three now call one `resolveNavItems`, covered by 18 tests that assert the real production permission rows — i.e. the §1 tables above are now checked in CI, not just on the phone. Worth a quick look at the desktop nav anyway. |

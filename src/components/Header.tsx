@@ -4,47 +4,25 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Activity, Calendar, Users, Layers, Clock, ClipboardList, User, LogOut, Settings, X, Route, MessageSquare, Bell, Dumbbell, GraduationCap, Eye, UserCheck, ClipboardCheck, BarChart3, Newspaper, CalendarDays, Wrench, Search as SearchIcon } from 'lucide-react';
+import { User, LogOut, X, MessageSquare, Bell, Eye, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { clearIdentityKeys } from '@/lib/auth/identity-keys';
 import { isSuperUser } from '@/lib/constants';
+import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
 import { getViewMode, stopViewAs, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
-const allNavItems = [
-  { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
-  { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
-  { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
-  { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
-  { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
-  { href: '/dashboard/academy', tab: 'academy', labelKey: 'academy', icon: GraduationCap },
-  { href: '/dashboard/groups', tab: 'groups', labelKey: 'groups', icon: Layers },
-  { href: '/dashboard/activities', tab: 'activities', labelKey: 'activities', icon: Route },
-  { href: '/dashboard/program', tab: 'program', labelKey: 'program', icon: ClipboardList },
-  { href: '/dashboard/practice', tab: 'practice', labelKey: 'practice', icon: Dumbbell },
-  { href: '/dashboard/practice-attendance', tab: 'practice-attendance', labelKey: 'practiceAttendance', icon: UserCheck },
-  { href: '/dashboard/workout-feedback', tab: 'workout-feedback', labelKey: 'workoutFeedback', icon: ClipboardCheck },
-  { href: '/dashboard/team-volume', tab: 'team-volume', labelKey: 'teamVolume', icon: BarChart3 },
-  { href: '/dashboard/calendar', tab: 'calendar', labelKey: 'calendar', icon: CalendarDays },
-  { href: '/dashboard/history', tab: 'history', labelKey: 'history', icon: Clock },
-  // Photos is still being built — nav entry and route disabled for now. Restore
-  // this line (+ re-add the lucide Image import) alongside the BottomTabBar
-  // MoreCard and the page itself (see photos/page.tsx).
-  // { href: '/dashboard/photos', tab: 'photos', labelKey: 'photos', icon: Image },
-  { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },
-  { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench },
-];
-
-const profileNavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'profile', icon: User };
-
-interface TabPermission {
-  role: string;
-  tab: string;
-  enabled: boolean;
-}
+// The nav list, the role rules and the force-adds live in @/lib/nav-items — this
+// file kept its own copy of all three, and the copy was missing the academy
+// force-add, so an athlete whose role is plain `runner` but who IS in the
+// academy got the tab on their phone and not on their laptop. One source of
+// truth now; see resolveNavItems.
+//
+// (Photos is still being built, so it has no entry there either — restore it
+// alongside the BottomTabBar MoreCard and the page itself.)
 
 export function Header() {
   const pathname = usePathname();
@@ -75,8 +53,12 @@ export function Header() {
   const permissions = permsData?.permissions || [];
   const permissionsLoaded = !permsLoading;
 
-  const { data: meData } = useApi<{ role?: string }>(userEmail ? '/api/auth/me' : null);
+  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean }>(userEmail ? '/api/auth/me' : null);
   const userRole = meData?.role || null;
+  // Academy membership is the `is_academy` flag, not a role, so it decides a nav
+  // entry that no permission row can express. The bar has always read it; this
+  // header didn't, which is the drift the shared resolver closes.
+  const isAcademyMember = !!meData?.isAcademy;
 
   // Also shared — NotificationCenter and the profile page ask for it too.
   const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>>(
@@ -111,7 +93,7 @@ export function Header() {
 
   // Staff (admin/coach/academy_coach) get the pending benchmark-approval queue
   // surfaced in the header bell.
-  const isStaffRole = !!userRole && ['admin', 'coach', 'academy_coach'].includes(userRole);
+  const isStaffRole = !!userRole && STAFF_ROLES.includes(userRole);
   const { data: benchData } = useApi<{ results?: Array<{ id: string; athlete_name: string; test_name: string; time_seconds: number }> }>(
     isStaffRole ? '/api/academy/benchmarks?status=pending' : null,
   );
@@ -169,25 +151,17 @@ export function Header() {
 
   const navReady = permissionsLoaded && !!effectiveRole;
 
-  const navItems = (() => {
-    if (!navReady) return [];
-    const enabledTabs = permissions
-      .filter(p => p.role === effectiveRole && p.enabled)
-      .map(p => p.tab);
-    if (effectiveRole === 'admin' && !enabledTabs.includes('settings')) {
-      enabledTabs.push('settings');
-    }
-    const items = allNavItems.filter(item => enabledTabs.includes(item.tab));
-    // Athlete-flavoured roles get the profile tab.
-    if (isAthlete || (previewRole && !['admin', 'coach', 'academy_coach'].includes(previewRole))) {
-      if (!items.some(i => i.tab === 'profile')) items.push(profileNavItem);
-    }
-    // Coach Tools hub — every staff account gets it, mirrors BottomTabBar.
-    if (STAFF_ROLES.includes(effectiveRole || '') && !items.some(i => i.tab === 'coach-tools')) {
-      items.push(allNavItems.find(i => i.tab === 'coach-tools')!);
-    }
-    return items.length > 0 ? items : [allNavItems.find(i => i.tab === 'dashboard')!, profileNavItem];
-  })();
+  const navItems = navReady
+    ? resolveNavItems({
+        permissions,
+        effectiveRole,
+        previewRole,
+        isAthlete,
+        isAcademyMember,
+        // An empty header nav would leave a signed-in user with nowhere to go.
+        fallback: true,
+      })
+    : [];
 
   // Moving yourself between pace groups. The write used to go straight to
   // PostgREST from the browser under the anon key; it now goes through the route

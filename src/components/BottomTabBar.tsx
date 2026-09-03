@@ -1,19 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import {
-  Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
-  Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, Menu, Newspaper, CalendarCheck, CalendarDays, Wrench, Search, ShoppingBag, Gift,
-} from 'lucide-react';
+import { Menu, CalendarCheck, Search, ShoppingBag, Gift } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getSupabase } from '@/lib/supabase/client';
-import { useApi } from '@/lib/api';
-import { isSuperUser } from '@/lib/constants';
-import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { Sheet } from '@/components/ui';
 
 // iOS-native redesign, phase 1: a bottom tab bar (the #1 "this is a real app"
@@ -29,35 +22,10 @@ import { Sheet } from '@/components/ui';
 // still get them; sighted users rely on icon + position, same as the
 // reference). Active state is a plain color change — no weight/scale jump.
 
-interface NavItem { href: string; tab: string; labelKey: string; icon: any; }
-
-// Named because it's force-added for academy members below as well as being a
-// permission-gated staff tab.
-const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy', labelKey: 'academy', icon: GraduationCap };
-
-const ALL_NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
-  { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
-  { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
-  { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
-  { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
-  ACADEMY_ITEM,
-  { href: '/dashboard/groups', tab: 'groups', labelKey: 'groups', icon: Layers },
-  { href: '/dashboard/activities', tab: 'activities', labelKey: 'activities', icon: Route },
-  { href: '/dashboard/program', tab: 'program', labelKey: 'program', icon: ClipboardList },
-  { href: '/dashboard/practice', tab: 'practice', labelKey: 'practice', icon: Dumbbell },
-  { href: '/dashboard/practice-attendance', tab: 'practice-attendance', labelKey: 'practiceAttendance', icon: UserCheck },
-  { href: '/dashboard/workout-feedback', tab: 'workout-feedback', labelKey: 'workoutFeedback', icon: ClipboardCheck },
-  { href: '/dashboard/team-volume', tab: 'team-volume', labelKey: 'teamVolume', icon: BarChart3 },
-  { href: '/dashboard/calendar', tab: 'calendar', labelKey: 'calendar', icon: CalendarDays },
-  { href: '/dashboard/history', tab: 'history', labelKey: 'history', icon: Clock },
-  { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },
-];
-const PROFILE_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'profile', icon: User };
-// Staff-only hub replacing a flat "everything else" overflow — force-added for
-// staff exactly like `settings` is force-added for admin (not DB-permission
-// gated; every coach/admin/academy_coach account gets it).
-const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench };
+// The list itself, the role rules and the force-adds all live in
+// @/lib/nav-items now — this file used to keep its own copy of every one of
+// them, which is how the desktop nav and this bar drifted apart. Only the
+// bar-specific part (which of those items are PRIMARY) is still here.
 
 // Preferred order of PRIMARY tabs, role-explicit (not one shared list) — an
 // athlete's and a coach's four daily-use destinations are genuinely different,
@@ -71,78 +39,19 @@ const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-
 const ATHLETE_PRIMARY_ORDER = ['feed', 'dashboard', 'program', 'profile'];
 const STAFF_PRIMARY_ORDER = ['feed', 'dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
 
-interface TabPermission { role: string; tab: string; enabled: boolean; }
-
 export function BottomTabBar() {
   const pathname = usePathname();
   const t = useTranslations('nav');
-  const [isAthlete, setIsAthlete] = useState(false);
-  const [isSuper, setIsSuper] = useState(false);
-  const [hasEmail, setHasEmail] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  // Both of these are also what the Header needs, and both used to be fetched
-  // here independently — so every page view spent two extra round trips (each
-  // paying a server-side session verification) re-answering questions the Header
-  // had already asked. Going through useApi means SWR keys them and the two
-  // components share one result.
-  const { data: permsData, isLoading: permsLoading } = useApi<{ permissions?: TabPermission[] }>(
-    '/api/admin/tab-permissions',
-  );
-  const permissions = permsData?.permissions || [];
-  const permissionsLoaded = !permsLoading;
-
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean }>(hasEmail ? '/api/auth/me' : null);
-  const userRole = meData?.role || null;
-  const isAcademyMember = !!meData?.isAcademy;
-
-  useEffect(() => {
-    const athleteId = localStorage.getItem('athlete_id');
-    const email = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
-    if (athleteId) setIsAthlete(true);
-
-    // The email still decides super-user status locally; the ROLE comes from the
-    // session via /api/auth/me above, which stopped answering for whatever
-    // address it was handed.
-    const resolveEmail = (e: string) => {
-      if (!e) return;
-      setIsSuper(isSuperUser(e));
-      setHasEmail(true);
-    };
-    if (email) resolveEmail(email);
-    else {
-      getSupabase().auth.getSession().then(({ data }) => {
-        const e = data.session?.user?.email || '';
-        if (e) resolveEmail(e);
-      }).catch(() => {});
-    }
-  }, []);
-
-  // Same effective-role resolution as the Header.
-  const viewMode = typeof window !== 'undefined' ? getViewMode() : null;
-  const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
-  const baseRole = isSuper ? 'admin' : userRole;
-  const effectiveRole = previewRole || baseRole;
-  const ready = permissionsLoaded && !!effectiveRole;
-  const isStaffView = effectiveRole ? STAFF_ROLES.includes(effectiveRole) : false;
-
-  const navItems: NavItem[] = (() => {
-    if (!ready) return [];
-    const enabled = permissions.filter(p => p.role === effectiveRole && p.enabled).map(p => p.tab);
-    if (effectiveRole === 'admin' && !enabled.includes('settings')) enabled.push('settings');
-    const items = ALL_NAV_ITEMS.filter(i => enabled.includes(i.tab));
-    if (isAthlete || (previewRole && !['admin', 'coach', 'academy_coach'].includes(previewRole))) {
-      if (!items.some(i => i.tab === 'profile')) items.push(PROFILE_ITEM);
-    }
-    // Coach Tools hub — every staff account gets it, same force-add pattern as
-    // `settings` above (not gated by the DB tab-permissions table).
-    if (isStaffView && !items.some(i => i.tab === 'coach-tools')) items.push(COACH_TOOLS_ITEM);
-    // Academy members get the academy row whatever their role — membership is
-    // the `is_academy` flag, which no role_tab_permissions row can express. See
-    // the same force-add in useNavItems for the full reasoning.
-    if (isAcademyMember && !items.some(i => i.tab === 'academy')) items.push(ACADEMY_ITEM);
-    return items.length ? items : [ALL_NAV_ITEMS[0], PROFILE_ITEM];
-  })();
+  // Identity and permissions come from the shared hook, so the Header, this bar
+  // and Search all read one SWR-keyed pair of requests rather than each asking
+  // independently (each ask pays a full session verification server-side).
+  const identity = useNavIdentity();
+  const { ready, isStaffView } = identity;
+  // `fallback` so a role that resolves to nothing still gets a usable bar rather
+  // than none at all.
+  const navItems = ready ? resolveNavItems({ ...identity, fallback: true }) : [];
 
   if (!ready || navItems.length === 0) return null;
 

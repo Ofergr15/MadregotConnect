@@ -7,15 +7,25 @@ import {
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
-import { apiHeaders } from '@/lib/api';
+import { useApi } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 
-// Shared "which pages can this signed-in user reach" resolution — BottomTabBar
-// (the tab bar itself) and the global Search page (which suggests reachable
-// "sections" as a result category) both need the exact same answer. This used
-// to live only in BottomTabBar; extracted here so the two can't drift (e.g. a
-// tab visible in the bar but never offered by search, or vice versa).
+// Shared "which pages can this signed-in user reach" resolution. FOUR places
+// need the same answer: the desktop Header nav, the mobile BottomTabBar, the
+// global Search page (which offers reachable "sections" as a result category),
+// and this hook.
+//
+// It was extracted here so they couldn't drift — and then two of them kept
+// their own copy of the list and the rules anyway, which is precisely how the
+// desktop nav ended up without the academy force-add that mobile has: an
+// athlete whose role is plain `runner` but who IS in the academy got the tab on
+// their phone and not on their laptop. So the decision now lives in ONE pure
+// function, `resolveNavItems`, which every caller passes its inputs to.
+//
+// Pure on purpose: it's the only part of nav that can be unit-tested (this repo
+// has no jsdom, so the hook itself can't be), and it's the part where a wrong
+// answer is invisible until someone opens the app as an unusual role.
 
 export interface NavItem { href: string; tab: string; labelKey: string; icon: React.ComponentType<{ className?: string }>; }
 
@@ -48,38 +58,102 @@ export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 
 export const STORE_ITEM: NavItem = { href: '/dashboard/store', tab: 'store', labelKey: 'store', icon: ShoppingBag };
 export const BENEFITS_ITEM: NavItem = { href: '/dashboard/benefits', tab: 'benefits', labelKey: 'benefits', icon: Gift };
 
-interface TabPermission { role: string; tab: string; enabled: boolean; }
+export interface TabPermission { role: string; tab: string; enabled: boolean; }
 
-export function useNavItems() {
+export interface NavResolutionInput {
+  /** Every row from /api/admin/tab-permissions; filtered by role in here. */
+  permissions: TabPermission[];
+  /** The view-as role if one is active, else the account's own (admin for a super-user). */
+  effectiveRole: string | null;
+  /** Set only while previewing another role — it suppresses the profile force-add for staff previews. */
+  previewRole?: string | null;
+  /** Whether this account has an athlete row (`athlete_id` in localStorage). */
+  isAthlete?: boolean;
+  /** The `is_academy` flag from /api/auth/me. */
+  isAcademyMember?: boolean;
+  /**
+   * When true, a role that resolves to nothing gets [dashboard, profile] rather
+   * than an empty list. The two nav CHROMES want that (an empty bar or header
+   * would strand the user with no way out); Search does not — it just has no
+   * sections to offer.
+   */
+  fallback?: boolean;
+}
+
+/**
+ * Which pages this user can reach, in nav order. The single source of truth for
+ * the Header, the BottomTabBar, this module's hook and Search.
+ */
+export function resolveNavItems({
+  permissions,
+  effectiveRole,
+  previewRole = null,
+  isAthlete = false,
+  isAcademyMember = false,
+  fallback = false,
+}: NavResolutionInput): NavItem[] {
+  if (!effectiveRole) return [];
+  const enabled = permissions.filter(p => p.role === effectiveRole && p.enabled).map(p => p.tab);
+  // Admin can always reach settings — otherwise revoking that one row locks the
+  // only account that can grant it back out of the permissions editor.
+  if (effectiveRole === 'admin' && !enabled.includes('settings')) enabled.push('settings');
+  const items = ALL_NAV_ITEMS.filter(i => enabled.includes(i.tab));
+
+  // Athlete-flavoured roles get their own profile. Skipped for staff previews,
+  // where the point is to see the staff nav.
+  if (isAthlete || (previewRole && !STAFF_ROLES.includes(previewRole))) {
+    if (!items.some(i => i.tab === 'profile')) items.push(PROFILE_ITEM);
+  }
+  // Coach Tools hub — every staff account, same force-add pattern as `settings`
+  // (deliberately not gated by the DB permissions table).
+  if (STAFF_ROLES.includes(effectiveRole) && !items.some(i => i.tab === 'coach-tools')) {
+    items.push(COACH_TOOLS_ITEM);
+  }
+  // Academy members reach the academy regardless of role_tab_permissions.
+  // Membership is the `is_academy` flag, not a role — an athlete whose role is
+  // plain `runner` can be in the academy — so no permission row can express it.
+  // Migration 022 denies `academy_user` this tab on purpose, because the only
+  // thing behind it was the coach's admin console; /dashboard/academy now serves
+  // an athlete their own view, so the row is theirs to have.
+  if (isAcademyMember && !items.some(i => i.tab === 'academy')) items.push(ACADEMY_ITEM);
+
+  if (!items.length && fallback) return [ALL_NAV_ITEMS[0], PROFILE_ITEM];
+  return items;
+}
+
+/**
+ * The signed-in user's identity as the nav needs it: which role to render as,
+ * whether they're staff, and the two localStorage-derived flags. Shared by the
+ * Header and the BottomTabBar, which both used to resolve this independently.
+ */
+export function useNavIdentity() {
   const [isAthlete, setIsAthlete] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [isAcademyMember, setIsAcademyMember] = useState(false);
   const [isSuper, setIsSuper] = useState(false);
-  const [permissions, setPermissions] = useState<TabPermission[]>([]);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [hasEmail, setHasEmail] = useState(false);
+
+  // Both answers go through useApi (SWR) rather than a raw fetch, because the
+  // Header, the tab bar and Search all need the same two and each request pays
+  // a full session verification server-side. SWR keys them, so the pair
+  // resolves once per page view however many components ask.
+  const { data: permsData, isLoading: permsLoading } = useApi<{ permissions?: TabPermission[] }>(
+    '/api/admin/tab-permissions',
+  );
+  const permissions = permsData?.permissions || [];
+
+  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean }>(hasEmail ? '/api/auth/me' : null);
 
   useEffect(() => {
     const athleteId = localStorage.getItem('athlete_id');
     const email = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
     if (athleteId) setIsAthlete(true);
 
-    fetch('/api/admin/tab-permissions')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => { if (data?.permissions) setPermissions(data.permissions); setPermissionsLoaded(true); })
-      .catch(() => setPermissionsLoaded(true));
-
-    // The email still decides super-user status locally, but the ROLE now comes
-    // from the session — /api/auth/me stopped answering for whatever address it
-    // was handed. apiHeaders() is async, hence the inner IIFE.
+    // The email still decides super-user status locally, but the ROLE comes from
+    // the session via /api/auth/me above — it stopped answering for whatever
+    // address it was handed.
     const resolveEmail = (e: string) => {
       if (!e) return;
       setIsSuper(isSuperUser(e));
-      (async () => {
-        const res = await fetch('/api/auth/me', { headers: await apiHeaders() }).catch(() => null);
-        const data = res?.ok ? await res.json().catch(() => null) : null;
-        if (data?.role) setUserRole(data.role);
-        if (data?.isAcademy) setIsAcademyMember(true);
-      })();
+      setHasEmail(true);
     };
     if (email) resolveEmail(email);
     else {
@@ -92,29 +166,22 @@ export function useNavItems() {
 
   const viewMode = typeof window !== 'undefined' ? getViewMode() : null;
   const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
-  const baseRole = isSuper ? 'admin' : userRole;
+  const baseRole = isSuper ? 'admin' : meData?.role || null;
   const effectiveRole = previewRole || baseRole;
-  const ready = permissionsLoaded && !!effectiveRole;
-  const isStaffView = effectiveRole ? STAFF_ROLES.includes(effectiveRole) : false;
 
-  const navItems: NavItem[] = (() => {
-    if (!ready) return [];
-    const enabled = permissions.filter(p => p.role === effectiveRole && p.enabled).map(p => p.tab);
-    if (effectiveRole === 'admin' && !enabled.includes('settings')) enabled.push('settings');
-    const items = ALL_NAV_ITEMS.filter(i => enabled.includes(i.tab));
-    if (isAthlete || (previewRole && !['admin', 'coach', 'academy_coach'].includes(previewRole))) {
-      if (!items.some(i => i.tab === 'profile')) items.push(PROFILE_ITEM);
-    }
-    if (isStaffView && !items.some(i => i.tab === 'coach-tools')) items.push(COACH_TOOLS_ITEM);
-    // Academy members reach the academy regardless of role_tab_permissions.
-    // Membership is the `is_academy` flag, not a role — an athlete whose role is
-    // plain `runner` can be in the academy — so no permission row can express
-    // it. Migration 022 denies `academy_user` this tab on purpose, because the
-    // only thing behind it was the coach's admin console; /dashboard/academy now
-    // serves an athlete their own view, so the row is theirs to have.
-    if (isAcademyMember && !items.some(i => i.tab === 'academy')) items.push(ACADEMY_ITEM);
-    return items;
-  })();
+  return {
+    permissions,
+    effectiveRole,
+    previewRole,
+    isAthlete,
+    isAcademyMember: !!meData?.isAcademy,
+    ready: !permsLoading && !!effectiveRole,
+    isStaffView: effectiveRole ? STAFF_ROLES.includes(effectiveRole) : false,
+  };
+}
 
-  return { ready, isStaffView, navItems };
+export function useNavItems() {
+  const identity = useNavIdentity();
+  const { ready, isStaffView } = identity;
+  return { ready, isStaffView, navItems: ready ? resolveNavItems(identity) : [] };
 }
