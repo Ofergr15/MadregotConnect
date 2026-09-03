@@ -1,8 +1,11 @@
 /**
- * GET /api/activities?athleteId=&include=gps
+ * GET /api/activities?athleteId=&include=gps&limit=
  *
  * Lists athlete_activities for the feed. Staff (coach/admin/academy_coach)
  * may omit athleteId for the club roster; runners must pass their own id.
+ *
+ * `limit` is optional, 1..200, and defaults to 200 (what this route always
+ * returned). Pass a small one when you only need the newest few rows.
  *
  * `gps_points` (full per-run GPS trace, ~30-60KB/row) is excluded by default —
  * most callers only need distance/duration/pace/has_polyline and fetch the
@@ -16,12 +19,27 @@ import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
+/** Largest page this route has ever returned, and still its default. */
+const MAX_LIMIT = 200;
+
+/** `?limit=` → 1..MAX_LIMIT, defaulting to MAX_LIMIT for anything unparseable. */
+function clampLimit(raw: string | null): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return MAX_LIMIT;
+  return Math.min(Math.floor(n), MAX_LIMIT);
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const athleteId = searchParams.get('athleteId');
     const includeGps = searchParams.get('include') === 'gps';
+    // Rows are wide — `splits` and `laps` are per-km / per-lap JSONB — so a caller
+    // that only needs to know whether ANY activity exists was downloading up to
+    // 200 fully-populated runs to set a boolean (/dashboard/profile did exactly
+    // that). Clamped to the old default so no caller can ask for more than before.
+    const limit = clampLimit(searchParams.get('limit'));
 
     // The doc comment above was the intended contract but nothing enforced it:
     // staff-ness came from an unverified x-user-email (forge a coach's address
@@ -49,7 +67,7 @@ export async function GET(request: Request) {
         .from('athlete_activities')
         .select(cols)
         .order('start_time', { ascending: false })
-        .limit(200);
+        .limit(limit);
       // Staff deliberately get the club-wide list even when they named an
       // athlete — the coach screens filter client-side and rely on having
       // everyone. Unchanged here; the gate above is what decides who counts as

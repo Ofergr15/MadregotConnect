@@ -81,11 +81,25 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
 
   const supabase = createServerClient();
 
-  const { data: athlete } = await supabase
+  // NOT `.maybeSingle()`. That errors (PGRST116) on more than one row rather than
+  // returning the first, and since the error is discarded here the row would read
+  // as absent — so a single duplicated email would fall through to the coaches
+  // lookup and 403 "No membership found" on EVERY authenticated route in the app.
+  // Total lockout, from a data condition the app itself created for years.
+  // Migration 079 makes duplicates impossible in a fresh database, but this is the
+  // hottest path in the app and it should not depend on that.
+  //
+  // Prefer an active row, then the newest, which is how /api/auth/resolve-role
+  // picks among duplicates too — so the athleteId in the session matches the one
+  // sign-in handed the client.
+  const { data: athleteRows } = await supabase
     .from('athletes')
     .select('id, name, role, group_id, status')
     .eq('email', email)
-    .maybeSingle();
+    .order('created_at', { ascending: false });
+
+  const rows = athleteRows || [];
+  const athlete = rows.find((r) => r.status === 'active') || rows[0];
 
   if (athlete) {
     const role = athlete.role || 'runner';
@@ -104,12 +118,15 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
   }
 
   // Fallback for legacy staff that live only in `coaches` (same fallback order as
-  // /api/auth/me).
-  const { data: coach } = await supabase
+  // /api/auth/me). Same reason as above for taking the first row rather than
+  // .maybeSingle(): a duplicate must not read as "no such coach".
+  const { data: coachRows } = await supabase
     .from('coaches')
     .select('id, name, role')
     .eq('email', email)
-    .maybeSingle();
+    .limit(1);
+
+  const coach = (coachRows || [])[0];
 
   if (coach) {
     const role = coach.role || 'coach';

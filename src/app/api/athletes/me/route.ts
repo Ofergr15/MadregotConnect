@@ -12,7 +12,12 @@ type ShirtSize = (typeof SHIRT_SIZES)[number];
 // missing-column error (same "not migrated yet" tolerance as
 // notification-prefs' 42703 check, just done as a retry here since this
 // route's own shape doesn't have a dedicated 501 path).
-const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
+// strava_enabled joins strava_auth/data_source here (all three landed together in
+// migration 013) so one call can answer the whole "which watch is this athlete on"
+// question. /dashboard/profile used to get that from GET /api/admin/athlete-source,
+// which returns EVERY athlete's row — a whole-roster download to read four fields
+// about yourself, on a screen an athlete opens constantly.
+const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, strava_enabled, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
 const FULL_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone, discoverable`;
 
 // GET /api/athletes/me?id=…
@@ -49,6 +54,9 @@ export async function GET(req: NextRequest) {
       email: data.email,
       hasGarmin: !!data.garmin_auth,
       hasStrava: !!data.strava_auth,
+      // Same OR as /api/admin/athlete-source: a connected Strava account counts as
+      // enabled even on a row that predates the flag.
+      stravaEnabled: !!(data as any).strava_enabled || !!data.strava_auth,
       data_source: data.data_source || null,
       onboardingStatus: data.onboarding_status,
       avatarUrl: data.avatar_url || null,

@@ -236,4 +236,42 @@ describe('GET /api/activities', () => {
     expect(res.status).toBe(401);
     expect(ops).toHaveLength(0);
   });
+
+  // `limit` exists so a caller that only needs "does this athlete have any runs"
+  // (/dashboard/profile) stops downloading 200 rows of splits/laps JSONB for a
+  // boolean. It may only ever make the page SMALLER than the old fixed 200.
+  const limitArg = () => ops[0].filters.find(([fn]) => fn === 'limit')?.[1][0];
+
+  it('defaults to the 200 rows it always returned', async () => {
+    requireSession.mockResolvedValue(session());
+    await get(`?athleteId=${ME}`);
+    expect(limitArg()).toBe(200);
+  });
+
+  it('honours a smaller limit', async () => {
+    requireSession.mockResolvedValue(session());
+    await get(`?athleteId=${ME}&limit=1`);
+    expect(limitArg()).toBe(1);
+  });
+
+  it('clamps a bigger limit down to 200, so it can never widen the response', async () => {
+    requireSession.mockResolvedValue(session());
+    await get(`?athleteId=${ME}&limit=5000`);
+    expect(limitArg()).toBe(200);
+  });
+
+  it('falls back to 200 for junk, zero, and negatives', async () => {
+    for (const raw of ['abc', '0', '-5', '', 'NaN', 'Infinity']) {
+      ops = [];
+      requireSession.mockResolvedValue(session());
+      await get(`?athleteId=${ME}&limit=${raw}`);
+      expect(limitArg(), `limit=${raw}`).toBe(200);
+    }
+  });
+
+  it('floors a fractional limit rather than passing it through', async () => {
+    requireSession.mockResolvedValue(session());
+    await get(`?athleteId=${ME}&limit=2.9`);
+    expect(limitArg()).toBe(2);
+  });
 });

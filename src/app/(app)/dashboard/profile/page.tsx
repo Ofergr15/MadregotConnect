@@ -224,15 +224,31 @@ function ProfileContent() {
       .catch(() => {});
 
     if (id) {
+      // One call for everything this screen needs about the signed-in athlete.
+      // The four connection fields below used to come from a SECOND request to
+      // GET /api/admin/athlete-source, which returns a row for every athlete in
+      // the club so the client could `.find()` its own — a whole-roster download,
+      // on every open of the screen an athlete visits most, to read four booleans
+      // about themselves. /api/athletes/me is scoped to one row and was already
+      // being fetched here for the avatar.
       apiHeaders()
         .then(headers => fetch(`/api/athletes/me?id=${id}`, { headers }))
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data?.athlete) {
-            setAvatarUrl(data.athlete.avatarUrl || null);
-          }
+          const me = data?.athlete;
+          if (!me) throw new Error('no athlete');
+          setAvatarUrl(me.avatarUrl || null);
+          setDataSource(me.data_source || 'garmin');
+          setHasGarmin(me.hasGarmin);
+          setHasStrava(me.hasStrava);
+          setStravaEnabled(me.stravaEnabled);
         })
-        .catch(() => {});
+        .catch(() => {
+          // Assume the legacy default rather than rendering "no connection" over
+          // a network blip — same fallback this screen has always used.
+          setHasGarmin(true);
+          setDataSource('garmin');
+        });
     }
 
     if (id) {
@@ -248,35 +264,19 @@ function ProfileContent() {
     }
 
     if (id) {
-      fetchActivities()
+      // All this needs is "does this athlete have ANY activity", so one row is
+      // enough. It used to ask for the default page of 200, each carrying its
+      // per-km `splits` and per-lap `laps` JSONB — hundreds of KB over a phone
+      // connection to set a boolean.
+      fetchActivities({ limit: 1 })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           const acts = data?.activities || [];
           // Endpoint is already scoped to this athlete; keep the filter as a
           // belt-and-suspenders guard.
-          const myActs = acts.filter((a: any) => a.athlete_id === id);
-          if (myActs.length > 0) setHasActivities(true);
+          if (acts.some((a: any) => a.athlete_id === id)) setHasActivities(true);
         })
         .catch(() => {});
-
-      fetch('/api/admin/athlete-source')
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          const me = data?.athletes?.find((a: any) => a.id === id);
-          if (me) {
-            setDataSource(me.dataSource || 'garmin');
-            setHasGarmin(me.hasGarmin);
-            setHasStrava(me.hasStrava);
-            setStravaEnabled(me.stravaEnabled);
-          } else {
-            setHasGarmin(true);
-            setDataSource('garmin');
-          }
-        })
-        .catch(() => {
-          setHasGarmin(true);
-          setDataSource('garmin');
-        });
     }
   }, []);
 
