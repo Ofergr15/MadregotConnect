@@ -7,20 +7,10 @@ import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { requireCallerForAthlete, requireMember } from '@/lib/auth/self-or-staff';
 import { flattenPlannedSteps, matchLapsToSteps, buildPlannedBands, Lap } from '@/lib/academy/segments';
+import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
+import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 
 export const dynamic = 'force-dynamic';
-
-function extractWorkouts(parsed: any): ParsedWorkout[] {
-  if (!parsed) return [];
-  if (Array.isArray(parsed.workouts)) return parsed.workouts;
-  for (const key of ['group1', 'group2', 'group3']) {
-    if (parsed[key]?.workouts && Array.isArray(parsed[key].workouts)) return parsed[key].workouts;
-  }
-  for (const val of Object.values(parsed)) {
-    if (val && typeof val === 'object' && Array.isArray((val as any).workouts)) return (val as any).workouts;
-  }
-  return [];
-}
 function sundayOf(dateStr: string): string {
   const d = new Date(`${dateStr}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() - d.getUTCDay());
@@ -57,6 +47,15 @@ export async function GET(request: Request) {
     const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
     const { paceSec } = (await loadAcademySettings()).tolerances;
 
+    // Which of the three pace lanes this athlete runs. It has to be resolved
+    // before any plan is read: grading a group-3 athlete's laps against group 1's
+    // paces is exactly the false "slower than target" verdict that the adherence
+    // engine stopped producing, and this route was still doing it — it took
+    // whichever group bucket appeared first in the blob, which is always group 1.
+    // Started here and awaited after the plan read below, so its two round trips
+    // overlap that one instead of adding to the response time.
+    const lanePromise = groupNumberForAthlete(supabase, athleteId);
+
     // 1) Planned workout for that day — the athlete's individual plan wins (newest,
     //    tolerating duplicates), else the coach-wide shared plan (athlete_id NULL).
     let workouts: ParsedWorkout[] = [];
@@ -64,8 +63,15 @@ export async function GET(request: Request) {
       .from('weekly_plans').select('parsed_workouts, created_at')
       .eq('week_start_date', weekStart).eq('athlete_id', athleteId)
       .order('created_at', { ascending: false });
+    // laneWorkouts reads either stored shape: the pre-split group buckets of
+    // older rows, or a unified plan, which it runs through splitIntoGroups so
+    // "3:20 (3:30) ((3:40))" resolves down to the one pace this athlete was
+    // actually asked to run. An individual plan goes through it too — it's
+    // single-lane, so a plain plan comes back untouched, and one that does carry
+    // bracket notation resolves to this athlete's lane rather than the fastest.
+    const lane = (await lanePromise) as Lane;
     if (!indiv.error && indiv.data && indiv.data.length) {
-      workouts = extractWorkouts(indiv.data[0].parsed_workouts);
+      workouts = laneWorkouts(indiv.data[0].parsed_workouts, lane);
     } else {
       let shared = await supabase
         .from('weekly_plans').select('parsed_workouts, created_at')
@@ -78,7 +84,7 @@ export async function GET(request: Request) {
           .eq('coach_id', COACH_ID).eq('week_start_date', weekStart)
           .order('created_at', { ascending: false });
       }
-      workouts = shared.data?.length ? extractWorkouts(shared.data[0].parsed_workouts) : [];
+      workouts = shared.data?.length ? laneWorkouts(shared.data[0].parsed_workouts, lane) : [];
     }
     const planned = workouts.find(w => w.dayOfWeek === dayOfWeek);
     if (!planned) {

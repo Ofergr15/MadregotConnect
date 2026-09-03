@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { flattenPlannedSteps, matchLapsToSteps, Lap } from '../lib/academy/segments';
+import { laneWorkouts } from '../lib/academy/group-lane';
 import { ParsedWorkout, WorkoutStep } from '../lib/ai/types';
 
 function wk(steps: Partial<WorkoutStep>[]): ParsedWorkout {
@@ -35,6 +36,68 @@ describe('flattenPlannedSteps — repeat expansion', () => {
   it('marks a no-pace run as not graded', () => {
     const flat = flattenPlannedSteps(wk([{ type: 'active', durationType: 'distance', durationValue: 5000, targetType: 'no_target' }]));
     expect(flat[0].graded).toBe(false);
+  });
+});
+
+// /api/academy/segments reads the plan through laneWorkouts(parsed, lane), where
+// the lane is the athlete's own pace group. It used to take whichever group
+// bucket appeared first in the blob — always group 1 — so a group-3 athlete was
+// graded lap by lap against the club's fastest paces and told they were slower
+// than target for a session they had actually hit. Same class of false verdict
+// the whole-run grading fix removed; this is the per-segment half of it.
+describe('lane-aware planned paces — the group-3 athlete is graded on group 3', () => {
+  // A unified plan: one pace on the step, all three written into the note the way
+  // the coach writes them. 3:20 (3:30) ((3:40)) = 200 / 210 / 220 sec per km.
+  const unified = {
+    workouts: [wk([
+      {
+        type: 'interval', durationType: 'distance', durationValue: 1000,
+        targetType: 'pace', targetPaceMinPerKm: 200, targetPaceMaxPerKm: 200,
+        notes: '3:20 (3:30) ((3:40))',
+      },
+    ])],
+  };
+  // Run at exactly the group-3 pace.
+  const laps: Lap[] = [{ distance: 1000, duration: 220, averagePace: 220 }];
+
+  const gradeAsLane = (lane: 1 | 2 | 3) => {
+    const workouts = laneWorkouts(unified, lane);
+    const flat = flattenPlannedSteps(workouts[0]);
+    return { flat, report: matchLapsToSteps(flat, laps) };
+  };
+
+  it('resolves each lane to its own planned pace', () => {
+    expect(gradeAsLane(1).flat[0].paceMin).toBe(200);
+    expect(gradeAsLane(2).flat[0].paceMin).toBe(210);
+    expect(gradeAsLane(3).flat[0].paceMin).toBe(220);
+  });
+
+  it('calls the group-3 pace on target for a group-3 athlete', () => {
+    expect(gradeAsLane(3).report.segments[0].status).toBe('on_target');
+  });
+
+  it('is the verdict the old group-1 read got wrong', () => {
+    // The regression, pinned: the same lap against lane 1 is 15s/km outside the
+    // ±5s tolerance, which is the "slower than target" this route used to report.
+    expect(gradeAsLane(1).report.segments[0].status).toBe('slower');
+  });
+
+  it('reads the pre-split group buckets of older rows too', () => {
+    const grouped = {
+      group1: { workouts: [wk([{ type: 'interval', durationType: 'distance', durationValue: 1000, targetType: 'pace', targetPaceMinPerKm: 200, targetPaceMaxPerKm: 200 }])] },
+      group2: { workouts: [wk([{ type: 'interval', durationType: 'distance', durationValue: 1000, targetType: 'pace', targetPaceMinPerKm: 210, targetPaceMaxPerKm: 210 }])] },
+      group3: { workouts: [wk([{ type: 'interval', durationType: 'distance', durationValue: 1000, targetType: 'pace', targetPaceMinPerKm: 220, targetPaceMaxPerKm: 220 }])] },
+    };
+    const flat = flattenPlannedSteps(laneWorkouts(grouped, 3)[0]);
+    expect(flat[0].paceMin).toBe(220);
+    expect(matchLapsToSteps(flat, laps).segments[0].status).toBe('on_target');
+  });
+
+  it('leaves a single-pace plan alone whichever lane asks', () => {
+    const single = { workouts: [wk([{ type: 'interval', durationType: 'distance', durationValue: 1000, targetType: 'pace', targetPaceMinPerKm: 220, targetPaceMaxPerKm: 220 }])] };
+    for (const lane of [1, 2, 3] as const) {
+      expect(flattenPlannedSteps(laneWorkouts(single, lane)[0])[0].paceMin).toBe(220);
+    }
   });
 });
 
