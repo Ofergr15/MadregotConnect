@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isProtectedEmail } from '@/lib/constants';
-import { groupDisplayName } from '@/lib/utils';
+import { groupDisplayName, israelToday } from '@/lib/utils';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { authError, requireSession, type SessionUser } from '@/lib/auth-session';
 import { athleteWriteError, denyAthleteWrite } from '@/lib/auth/athlete-write-scope';
@@ -219,6 +219,44 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) throw error;
+
+    // Academy enrolment carries two facts the boolean alone doesn't: when they
+    // joined the *academy* (created_at is when they joined the club), and that
+    // leaving ends the 1:1 pair. Without the second, a coach would keep a phantom
+    // trainee on their caseload, and re-enrolling someone months later would
+    // silently restore a pairing nobody chose.
+    //
+    // Kept separate from the update above, and errors only logged, so a database
+    // that predates migration 077 still enrols and removes members normally.
+    if (isAcademy !== undefined) {
+      const today = israelToday();
+      if (isAcademy) {
+        // Only the first time — re-adding someone doesn't restart their history.
+        const { error: stampErr } = await supabase
+          .from('athletes')
+          .update({ academy_joined_on: today })
+          .eq('id', id)
+          .is('academy_joined_on', null);
+        if (stampErr) console.warn('academy_joined_on not set:', stampErr.message);
+      } else {
+        const { error: histErr } = await supabase
+          .from('academy_coach_history')
+          .update({ ended_on: today })
+          .eq('athlete_id', id)
+          .is('ended_on', null);
+        const { error: slotErr } = await supabase
+          .from('academy_slots')
+          .update({ active_to: today })
+          .eq('athlete_id', id)
+          .is('active_to', null);
+        const { error: unpairErr } = await supabase
+          .from('athletes')
+          .update({ academy_coach_id: null })
+          .eq('id', id);
+        const failed = histErr || slotErr || unpairErr;
+        if (failed) console.warn('academy pairing not cleared:', failed.message);
+      }
+    }
 
     try {
       await syncClubFollows(supabase, id);

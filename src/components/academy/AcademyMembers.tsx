@@ -19,7 +19,7 @@ import {
 // the row now, and the row opens the full drill-in.
 
 type SortKey = 'week' | 'adherence' | 'name';
-type FilterKey = 'all' | 'attention' | 'active' | 'nowatch';
+type FilterKey = 'all' | 'attention' | 'active' | 'nowatch' | 'nocoach';
 
 export function AcademyMembers({
   data,
@@ -37,10 +37,33 @@ export function AcademyMembers({
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [groupId, setGroupId] = useState<string | null>(null);
+  const [coachId, setCoachId] = useState<string | null>(null);
+  const [bandId, setBandId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>('week');
 
-  const members = data?.members ?? [];
+  // Memoised, not `data?.members ?? []`: the two memos below both depend on it,
+  // and a fresh `[]` on every render made neither of them memoise anything.
+  const members = useMemo(() => data?.members ?? [], [data?.members]);
   const groups = data?.groups ?? [];
+  const coaches = data?.coaches ?? [];
+  // A coach's payload is already only their own trainees, so filtering it by
+  // coach, or telling them how many of the academy's trainees are unpaired,
+  // would be answering a question they can't see the whole of.
+  const isManagerView = data?.scope === 'academy';
+  const unpaired = members.filter((m) => !m.academyCoachId).length;
+
+  // The goal bands (דבוקות) as chips — but only the buckets that actually hold
+  // someone, which is the rule `rollupGroups` already follows. 077 seeds six, and
+  // a rail of six zeroes is noise; "דבוקה 7 · 4" is the academy's own way of
+  // reading its roster. The unbanded bucket comes last, as an exception list.
+  const bandChips = useMemo(() => {
+    const chips = (data?.bands ?? [])
+      .filter((b) => (b.trainees ?? 0) > 0)
+      .map((b) => ({ key: b.id, label: b.name, count: b.trainees ?? 0 }));
+    const unbanded = members.filter((m) => !m.band).length;
+    if (unbanded > 0) chips.push({ key: '__none__', label: t('noBand'), count: unbanded });
+    return chips;
+  }, [data?.bands, members, t]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -51,9 +74,20 @@ export function AcademyMembers({
       // wants: "who still has no group?"
       list = groupId === '__none__' ? list.filter((m) => !m.groupId) : list.filter((m) => m.groupId === groupId);
     }
+    if (coachId) {
+      list = coachId === '__none__'
+        ? list.filter((m) => !m.academyCoachId)
+        : list.filter((m) => m.academyCoachId === coachId);
+    }
+    if (bandId) {
+      list = bandId === '__none__'
+        ? list.filter((m) => !m.band)
+        : list.filter((m) => m.band?.id === bandId);
+    }
     if (filter === 'attention') list = list.filter((m) => m.attention.length > 0);
     else if (filter === 'active') list = list.filter((m) => m.weekRuns > 0);
     else if (filter === 'nowatch') list = list.filter((m) => !m.hasWatch);
+    else if (filter === 'nocoach') list = list.filter((m) => !m.academyCoachId);
 
     const sorted = [...list];
     if (sort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name));
@@ -69,13 +103,19 @@ export function AcademyMembers({
       });
     } else sorted.sort((a, b) => b.weekKm - a.weekKm || a.name.localeCompare(b.name));
     return sorted;
-  }, [members, query, filter, groupId, sort]);
+  }, [members, query, filter, groupId, coachId, bandId, sort]);
 
   const filters: { key: FilterKey; label: string; count: number }[] = [
     { key: 'all', label: t('filterAll'), count: members.length },
     { key: 'attention', label: t('filterAttention'), count: members.filter((m) => m.attention.length > 0).length },
     { key: 'active', label: t('filterActive'), count: members.filter((m) => m.weekRuns > 0).length },
     { key: 'nowatch', label: t('filterNoWatch'), count: members.filter((m) => !m.hasWatch).length },
+    // Only offered once there is something to find: a chip reading "No coach 0"
+    // is a filter nobody needs, and before the academy names its coaches it
+    // would read as an alarm rather than a task.
+    ...(isManagerView && unpaired > 0
+      ? [{ key: 'nocoach' as FilterKey, label: t('filterNoCoach'), count: unpaired }]
+      : []),
   ];
 
   if (isLoading && !data) return <SkeletonList count={8} />;
@@ -87,7 +127,7 @@ export function AcademyMembers({
         {onAdd && (
           <button
             onClick={onAdd}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary-600 py-3 text-sm font-semibold text-white hover:bg-primary-500 active:scale-[0.99] transition-all min-h-[44px]"
+            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-600 py-3 text-sm font-semibold text-white hover:bg-brand-700 active:scale-[0.99] transition-all min-h-[44px]"
           >
             <UserPlus className="h-4 w-4" /> {t('addAthlete')}
           </button>
@@ -98,20 +138,36 @@ export function AcademyMembers({
 
   return (
     <div className="space-y-3" dir="auto">
+      {/* The manager's one standing job in a 1:1 academy: an unpaired trainee has
+          nobody writing their plan and nobody meeting them, so it's said once at
+          the top rather than only as a badge you have to scroll to find. */}
+      {isManagerView && unpaired > 0 && filter !== 'nocoach' && (
+        <button
+          onClick={() => { setFilter('nocoach'); setCoachId(null); }}
+          className="w-full flex items-center gap-2.5 rounded-2xl bg-band-2/10 border border-band-2/25 px-3 py-2.5 text-start hover:bg-band-2/15 active:scale-[0.99] transition-all min-h-[44px]"
+        >
+          <AlertTriangle className="h-4 w-4 text-band-2 shrink-0" />
+          <span className="flex-1 text-xs font-semibold text-band-2">
+            {t('unpairedBanner', { count: unpaired })}
+          </span>
+          <span className="text-xs font-bold text-band-2 shrink-0">{t('unpairedBannerAction')}</span>
+        </button>
+      )}
+
       {/* Search is always visible, not behind a toggle — at academy scale it's
           the primary way anyone finds one athlete. */}
       <div className="relative">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400 pointer-events-none" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('searchMembers')}
-          className="w-full rounded-xl bg-slate-800/80 border border-slate-700 ps-10 pe-10 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
+          className="w-full rounded-xl bg-card/80 border border-page ps-10 pe-10 py-3 text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600"
         />
         {query && (
           <button
             onClick={() => setQuery('')}
-            className="absolute end-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 hover:text-white"
+            className="absolute end-2 top-1/2 -translate-y-1/2 p-1.5 text-ink-400 hover:text-ink-900"
             aria-label={t('clear')}
           >
             <X className="h-4 w-4" />
@@ -129,14 +185,91 @@ export function AcademyMembers({
             className={cn(
               'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors min-h-[34px]',
               filter === f.key
-                ? 'bg-primary-600 border-primary-500 text-white'
-                : 'bg-slate-800/70 border-slate-700 text-slate-300 hover:bg-slate-800',
+                ? 'bg-brand-600 border-brand-600 text-white'
+                : 'bg-card/70 border-page text-ink-500 hover:bg-page',
             )}
           >
-            {f.label} <span className={cn('tabular-nums', filter === f.key ? 'text-white/70' : 'text-slate-500')}>{f.count}</span>
+            {f.label} <span className={cn('tabular-nums', filter === f.key ? 'text-ink-700/70' : 'text-ink-400')}>{f.count}</span>
           </button>
         ))}
       </div>
+
+      {/* By coach — the manager's real lens on a 1:1 academy, since "how is ענת's
+          caseload doing?" is a question about a person, not a pace band. Counts
+          include a coach holding nobody: spare hours are what a manager looks
+          for when the next trainee enrols. */}
+      {isManagerView && coaches.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
+          <button
+            onClick={() => setCoachId(null)}
+            className={cn(
+              'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors min-h-[34px]',
+              coachId === null
+                ? 'bg-band-2 border-band-2 text-white'
+                : 'bg-card/70 border-page text-ink-500 hover:bg-page',
+            )}
+          >
+            {t('allCoaches')}
+          </button>
+          {coaches.map((c) => {
+            const key = c.coachId ?? '__none__';
+            return (
+              <button
+                key={key}
+                onClick={() => { setCoachId(coachId === key ? null : key); setFilter('all'); }}
+                className={cn(
+                  'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors min-h-[34px]',
+                  coachId === key
+                    ? 'bg-band-2 border-band-2 text-white'
+                    : 'bg-card/70 border-page text-ink-500 hover:bg-page',
+                )}
+              >
+                {c.coachName || t('noCoach')}{' '}
+                <span className={cn('tabular-nums', coachId === key ? 'text-ink-700/70' : 'text-ink-400')}>
+                  {c.trainees}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* By goal band — what the academy is actually organised around, since it's
+          coached online and 1:1, so "who is training for a half?" is a real
+          question and "who trains on Tuesday at 17:30" is not one this academy
+          asks. Distinct from the club-group rail below: a trainee can be in both. */}
+      {bandChips.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
+          <button
+            onClick={() => setBandId(null)}
+            className={cn(
+              'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors min-h-[34px]',
+              bandId === null
+                ? 'bg-accent-600 border-accent-600 text-white'
+                : 'bg-card/70 border-page text-ink-500 hover:bg-page',
+            )}
+          >
+            {t('allBands')}
+          </button>
+          {bandChips.map((b) => (
+            <button
+              key={b.key}
+              onClick={() => { setBandId(bandId === b.key ? null : b.key); setFilter('all'); }}
+              className={cn(
+                'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors min-h-[34px]',
+                bandId === b.key
+                  ? 'bg-accent-600 border-accent-600 text-white'
+                  : 'bg-card/70 border-page text-ink-500 hover:bg-page',
+              )}
+            >
+              {b.label}{' '}
+              <span className={cn('tabular-nums', bandId === b.key ? 'text-ink-700/70' : 'text-ink-400')}>
+                {b.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {groups.length > 1 && (
         <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
@@ -146,7 +279,7 @@ export function AcademyMembers({
               'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors min-h-[34px]',
               groupId === null
                 ? 'bg-purple-600 border-purple-500 text-white'
-                : 'bg-slate-800/70 border-slate-700 text-slate-300 hover:bg-slate-800',
+                : 'bg-card/70 border-page text-ink-500 hover:bg-page',
             )}
           >
             {t('allGroups')}
@@ -161,10 +294,10 @@ export function AcademyMembers({
                   'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors min-h-[34px]',
                   groupId === key
                     ? 'bg-purple-600 border-purple-500 text-white'
-                    : 'bg-slate-800/70 border-slate-700 text-slate-300 hover:bg-slate-800',
+                    : 'bg-card/70 border-page text-ink-500 hover:bg-page',
                 )}
               >
-                {g.groupName || t('unassigned')} <span className="text-slate-500 tabular-nums">{g.members}</span>
+                {g.groupName || t('unassigned')} <span className="text-ink-400 tabular-nums">{g.members}</span>
               </button>
             );
           })}
@@ -182,9 +315,9 @@ export function AcademyMembers({
       />
 
       <div className="flex items-center justify-between gap-3 px-1">
-        <span className="text-xs text-slate-500">{t('showingCount', { shown: shown.length, total: members.length })}</span>
+        <span className="text-xs text-ink-400">{t('showingCount', { shown: shown.length, total: members.length })}</span>
         {onAdd && (
-          <button onClick={onAdd} className="flex items-center gap-1 text-xs font-semibold text-primary-400 hover:text-primary-300 min-h-[32px]">
+          <button onClick={onAdd} className="flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700 min-h-[32px]">
             <UserPlus className="h-3.5 w-3.5" /> {t('addAthlete')}
           </button>
         )}
@@ -192,7 +325,7 @@ export function AcademyMembers({
 
       {shown.length === 0 ? (
         <Card variant="muted">
-          <p className="text-sm text-slate-400 text-center py-4">{t('noMatches')}</p>
+          <p className="text-sm text-ink-400 text-center py-4">{t('noMatches')}</p>
         </Card>
       ) : (
         <div className="space-y-2">
@@ -200,26 +333,42 @@ export function AcademyMembers({
             <button
               key={m.athleteId}
               onClick={() => onSelectMember(m)}
-              className="w-full flex items-center gap-3 rounded-2xl bg-slate-800/50 border border-slate-700/50 p-3 text-start hover:bg-slate-800/80 active:scale-[0.99] transition-all"
+              className="w-full flex items-center gap-3 rounded-card bg-card/50 border border-page/50 p-3 text-start hover:bg-page/80 active:scale-[0.99] transition-all"
             >
               {m.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-primary-600/20 flex items-center justify-center text-xs font-bold text-primary-300 shrink-0">
+                <div className="w-10 h-10 rounded-full bg-brand-600/20 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">
                   {initialsOf(m.name)}
                 </div>
               )}
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-semibold text-white truncate">{m.name}</span>
-                  {!m.hasWatch && <Watch className="h-3.5 w-3.5 text-red-400 shrink-0" />}
-                  {m.attention.length > 0 && <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />}
+                  <span className="text-sm font-semibold text-ink-700 truncate">{m.name}</span>
+                  {!m.hasWatch && <Watch className="h-3.5 w-3.5 text-accent-red shrink-0" />}
+                  {m.attention.length > 0 && <AlertTriangle className="h-3.5 w-3.5 text-band-3 shrink-0" />}
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {/* Who coaches them and what they're training for — the two
+                      facts a 1:1 online row is actually about. Each shown only
+                      when set: when it isn't, the attention badge below already
+                      says "No coach" / "No band", and saying it twice on one row
+                      buys nothing. First name only: the surname is never the
+                      ambiguous part in an academy this size. */}
+                  {m.academyCoachId && m.academyCoachName && (
+                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-band-2/15 text-band-2 border border-band-2/20">
+                      {m.academyCoachName.split(' ')[0]}
+                    </span>
+                  )}
+                  {m.band && (
+                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-600 border border-accent-600/20">
+                      {m.band.name}
+                    </span>
+                  )}
                   {m.groupName && (
-                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/20">
+                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-700 border border-purple-500/20">
                       {m.groupName}
                     </span>
                   )}
@@ -238,14 +387,14 @@ export function AcademyMembers({
               </div>
 
               <div className="text-end shrink-0 w-14">
-                <div className="text-sm font-bold text-white tabular-nums leading-none">{m.weekKm.toFixed(1)}</div>
-                <div className="text-3xs text-slate-500 mt-0.5">{t('kmUnit')}</div>
+                <div className="text-sm font-bold text-ink-700 tabular-nums leading-none">{m.weekKm.toFixed(1)}</div>
+                <div className="text-3xs text-ink-400 mt-0.5">{t('kmUnit')}</div>
               </div>
               <div className="text-end shrink-0 w-11">
                 <div className={cn('text-sm font-bold tabular-nums leading-none', rateColor(m.completionRate))}>
                   {fmtRate(m.completionRate)}
                 </div>
-                <div className="text-3xs text-slate-500 mt-0.5">
+                <div className="text-3xs text-ink-400 mt-0.5">
                   {m.plannedCount > 0 ? `${m.completedCount}/${m.plannedCount}` : t('noPlanShort')}
                 </div>
               </div>

@@ -13,19 +13,35 @@ export type {
   AttentionReason,
   AcademyMember,
   AcademyGroupSummary,
+  AcademyCoachSummary,
+  AcademyCoachRef,
   AcademyTeamTotals,
   AcademyMembersResponse,
 } from '@/lib/academy/members';
+export type { AcademyBand, BandPaceProfile } from '@/lib/academy/bands';
 
 import type { AttentionReason } from '@/lib/academy/members';
 
+// Badge = a tint of the reason's colour behind that same colour's text, which is
+// how the light system does status chips on a white card (the old dark palette
+// needed a *lighter* text than its fill — hence the previous 500/15 + 300 pairs).
+// The designer's palette has one warning colour (band 3), so the near-identical
+// amber and orange reasons now share it; the badge's own text names the reason,
+// so nothing is lost by the two hues collapsing.
 export const ATTENTION_STYLE: Record<AttentionReason, string> = {
-  not_approved: 'bg-amber-500/15 text-amber-300 border-amber-500/25',
-  no_watch: 'bg-red-500/15 text-red-300 border-red-500/25',
-  inactive: 'bg-red-500/15 text-red-300 border-red-500/25',
-  low_adherence: 'bg-orange-500/15 text-orange-300 border-orange-500/25',
-  no_runs: 'bg-orange-500/15 text-orange-300 border-orange-500/25',
-  no_plan: 'bg-slate-500/15 text-slate-300 border-slate-500/25',
+  not_approved: 'bg-band-3/10 text-band-3 border-band-3/25',
+  // Read as a gap in the academy's own setup rather than a fault of the athlete,
+  // so it wears the accent colour the pairing UI uses, not a warning colour.
+  no_coach: 'bg-band-2/10 text-band-2 border-band-2/25',
+  // Same reading, same colour: a missing goal band is the academy's own setup gap,
+  // and it blocks the planner exactly the way a missing coach does.
+  no_band: 'bg-band-2/10 text-band-2 border-band-2/25',
+  no_watch: 'bg-accent-red/10 text-accent-red border-accent-red/25',
+  inactive: 'bg-accent-red/10 text-accent-red border-accent-red/25',
+  low_adherence: 'bg-band-3/10 text-band-3 border-band-3/25',
+  no_runs: 'bg-band-3/10 text-band-3 border-band-3/25',
+  // No plan is an absence, not a problem with a severity — neutral ink.
+  no_plan: 'bg-ink-300/15 text-ink-500 border-ink-300/40',
 };
 
 // ── Formatting ───────────────────────────────────────────────────────────────
@@ -53,10 +69,10 @@ export function fmtRate(rate: number | null): string {
 }
 
 export function rateColor(rate: number | null): string {
-  if (rate === null) return 'text-slate-500';
-  if (rate >= 0.8) return 'text-emerald-400';
-  if (rate >= 0.5) return 'text-amber-400';
-  return 'text-red-400';
+  if (rate === null) return 'text-ink-400';
+  if (rate >= 0.8) return 'text-accent-600';
+  if (rate >= 0.5) return 'text-band-3';
+  return 'text-accent-red';
 }
 
 /** Sunday-of, as a YYYY-MM-DD string, from a real Date. */

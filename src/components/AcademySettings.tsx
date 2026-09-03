@@ -46,9 +46,9 @@ export function AcademySettingsPanel() {
       <Section title="מבחני מדידה" desc="מבחני בנצ'מרק שאפשר למדוד ספורטאים לפיהם.">
         <div className="flex flex-wrap gap-2 mb-3">
           {s.tests.map(t => (
-            <span key={t} className="flex items-center gap-1.5 bg-slate-700/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-white">
+            <span key={t} className="flex items-center gap-1.5 bg-page/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-ink-700">
               {t}
-              <button onClick={() => setS({ ...s, tests: s.tests.filter(x => x !== t) })} className="text-slate-400 hover:text-red-300" disabled={s.tests.length <= 1}>
+              <button onClick={() => setS({ ...s, tests: s.tests.filter(x => x !== t) })} className="text-ink-400 hover:text-accent-red" disabled={s.tests.length <= 1}>
                 <X className="h-3.5 w-3.5" />
               </button>
             </span>
@@ -57,9 +57,9 @@ export function AcademySettingsPanel() {
         <div className="flex gap-2">
           <input value={newTest} onChange={e => setNewTest(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && newTest.trim()) { setS({ ...s, tests: [...new Set([...s.tests, newTest.trim()])] }); setNewTest(''); } }}
-            placeholder="לדוגמה: 5k" className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" />
+            placeholder="לדוגמה: 5k" className="flex-1 bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700" />
           <button onClick={() => { if (newTest.trim()) { setS({ ...s, tests: [...new Set([...s.tests, newTest.trim()])] }); setNewTest(''); } }}
-            className="flex items-center gap-1 px-3 min-h-[44px] rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white"><Plus className="h-4 w-4" /> הוספה</button>
+            className="flex items-center gap-1 px-3 min-h-[44px] rounded-lg bg-page hover:bg-ink-300/40 text-sm text-ink-700"><Plus className="h-4 w-4" /> הוספה</button>
         </div>
       </Section>
 
@@ -67,7 +67,7 @@ export function AcademySettingsPanel() {
       <Section title="התראות קצב על השעון" desc="הדחיפה לאקדמיה כוללת יעד אזור קצב בגרמין שמצפצף כשיוצאים מהקצב.">
         <div className="flex items-center gap-3">
           <Switch checked={s.paceAlerts} onChange={(v) => setS({ ...s, paceAlerts: v })} size="sm" />
-          <span className="text-sm text-slate-300">{s.paceAlerts ? 'פעיל — התראה כשיוצאים מהקצב' : 'כבוי — הקצב מוצג למידע בלבד'}</span>
+          <span className="text-sm text-ink-500">{s.paceAlerts ? 'פעיל — התראה כשיוצאים מהקצב' : 'כבוי — הקצב מוצג למידע בלבד'}</span>
         </div>
       </Section>
 
@@ -81,32 +81,32 @@ export function AcademySettingsPanel() {
           <TolField label="זמן ± (%)" value={Math.round(s.tolerances.duration * 100)}
             onChange={v => setS({ ...s, tolerances: { ...s.tolerances, duration: v / 100 } })} step={1} />
         </div>
-        <p className="text-xs text-slate-500 mt-2">
+        <p className="text-xs text-ink-400 mt-2">
           לדוגמה: יעד של 5:00 לק״מ עם ±{s.tolerances.paceSec} שנ&apos; נחשב בטווח בין {fmtPace(300 - s.tolerances.paceSec)} ל-{fmtPace(300 + s.tolerances.paceSec)}.
         </p>
       </Section>
 
       {/* Weekly report */}
       <Section title="דוח שבועי" desc="למי נשלח דוח ההיענות ובאיזה יום.">
-        <label className="block text-xs text-slate-400 mb-1.5">נשלח ביום</label>
+        <label className="block text-xs text-ink-400 mb-1.5">נשלח ביום</label>
         <select value={s.report.day} onChange={e => setS({ ...s, report: { ...s.report, day: Number(e.target.value) } })}
-          className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white mb-3">
+          className="bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700 mb-3">
           {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
         </select>
         <div className="flex flex-wrap gap-2 mb-2">
           {s.report.recipients.map(r => (
-            <span key={r} className="flex items-center gap-1.5 bg-slate-700/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-white" dir="ltr">
+            <span key={r} className="flex items-center gap-1.5 bg-page/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-ink-700" dir="ltr">
               {r}
-              <button onClick={() => setS({ ...s, report: { ...s.report, recipients: s.report.recipients.filter(x => x !== r) } })} className="text-slate-400 hover:text-red-300"><X className="h-3.5 w-3.5" /></button>
+              <button onClick={() => setS({ ...s, report: { ...s.report, recipients: s.report.recipients.filter(x => x !== r) } })} className="text-ink-400 hover:text-accent-red"><X className="h-3.5 w-3.5" /></button>
             </span>
           ))}
-          {s.report.recipients.length === 0 && <span className="text-xs text-slate-500">כברירת מחדל נשלח למייל מנהל המועדון.</span>}
+          {s.report.recipients.length === 0 && <span className="text-xs text-ink-400">כברירת מחדל נשלח למייל מנהל המועדון.</span>}
         </div>
         <div className="flex gap-2">
           <input value={newRecipient} onChange={e => setNewRecipient(e.target.value)} type="email" dir="ltr"
-            placeholder="coach@example.com" className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" />
+            placeholder="coach@example.com" className="flex-1 bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700" />
           <button onClick={() => { const v = newRecipient.trim(); if (v) { setS({ ...s, report: { ...s.report, recipients: [...new Set([...s.report.recipients, v])] } }); setNewRecipient(''); } }}
-            className="flex items-center gap-1 px-3 min-h-[44px] rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white"><Plus className="h-4 w-4" /> הוספה</button>
+            className="flex items-center gap-1 px-3 min-h-[44px] rounded-lg bg-page hover:bg-ink-300/40 text-sm text-ink-700"><Plus className="h-4 w-4" /> הוספה</button>
         </div>
       </Section>
 
@@ -114,7 +114,7 @@ export function AcademySettingsPanel() {
         <Button onClick={save} disabled={saving}>
           {saving ? <Spinner size={16} /> : <Save className="h-4 w-4" />} שמירת הגדרות
         </Button>
-        {saved && <span className="flex items-center gap-1.5 text-sm text-emerald-400"><CheckCircle2 className="h-4 w-4" /> נשמר</span>}
+        {saved && <span className="flex items-center gap-1.5 text-sm text-accent-600"><CheckCircle2 className="h-4 w-4" /> נשמר</span>}
       </div>
     </div>
   );
@@ -123,8 +123,8 @@ export function AcademySettingsPanel() {
 function Section({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
   return (
     <Card variant="solid">
-      <h3 className="text-sm font-bold text-white">{title}</h3>
-      <p className="text-xs text-slate-400 mb-4">{desc}</p>
+      <h3 className="text-sm font-bold text-ink-700">{title}</h3>
+      <p className="text-xs text-ink-400 mb-4">{desc}</p>
       {children}
     </Card>
   );
@@ -133,10 +133,10 @@ function Section({ title, desc, children }: { title: string; desc: string; child
 function TolField({ label, value, onChange, step }: { label: string; value: number; onChange: (v: number) => void; step: number }) {
   return (
     <div>
-      <label className="block text-xs text-slate-400 mb-1.5">{label}</label>
+      <label className="block text-xs text-ink-400 mb-1.5">{label}</label>
       <input type="number" min={0} step={step} value={value}
         onChange={e => onChange(Math.max(0, Number(e.target.value) || 0))}
-        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white tabular-nums" />
+        className="w-full bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700 tabular-nums" />
     </div>
   );
 }

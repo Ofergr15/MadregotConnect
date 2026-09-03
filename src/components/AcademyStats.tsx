@@ -86,22 +86,22 @@ export function AcademyStats() {
             return (
               <Card key={a.athleteId} variant="solid">
                 <div className="flex items-center gap-3">
-                  <div className="w-5 text-center text-xs font-bold text-slate-500 shrink-0">{i + 1}</div>
-                  <div className="bg-primary-600/20 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-primary-300 shrink-0">
+                  <div className="w-5 text-center text-xs font-bold text-ink-400 shrink-0">{i + 1}</div>
+                  <div className="bg-brand-600/20 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">
                     {initialsOf(a.name)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-white text-sm truncate" dir="auto">{a.name}</div>
-                    <div className="text-xs text-slate-400">{runs} אימונים · {fmtDuration(mins)}</div>
+                    <div className="font-semibold text-ink-700 text-sm truncate" dir="auto">{a.name}</div>
+                    <div className="text-xs text-ink-400">{runs} אימונים · {fmtDuration(mins)}</div>
                   </div>
                   <div className="text-end shrink-0">
-                    <div className="text-lg font-bold text-white tabular-nums">{km.toFixed(1)}</div>
-                    <div className="text-[10px] text-slate-500 -mt-0.5">ק&quot;מ</div>
+                    <div className="text-lg font-bold text-ink-700 tabular-nums">{km.toFixed(1)}</div>
+                    <div className="text-[10px] text-ink-400 -mt-0.5">ק&quot;מ</div>
                   </div>
                 </div>
                 {/* km bar */}
-                <div className="mt-2 h-1.5 rounded-full bg-slate-700/50 overflow-hidden">
-                  <div className="h-full bg-primary-500 rounded-full" style={{ width: `${(km / maxKm) * 100}%` }} />
+                <div className="mt-2 h-1.5 rounded-full bg-page/50 overflow-hidden">
+                  <div className="h-full bg-brand-600 rounded-full" style={{ width: `${(km / maxKm) * 100}%` }} />
                 </div>
               </Card>
             );
@@ -115,11 +115,11 @@ export function AcademyStats() {
 function TeamTile({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
   return (
     <Card variant="solid">
-      <div className="flex items-center gap-1.5 text-slate-400 mb-1">
+      <div className="flex items-center gap-1.5 text-ink-400 mb-1">
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[11px] font-semibold uppercase tracking-wider">{label}</span>
       </div>
-      <div className="text-2xl font-bold text-white tabular-nums">{value}</div>
+      <div className="text-2xl font-bold text-ink-700 tabular-nums">{value}</div>
     </Card>
   );
 }

@@ -109,28 +109,28 @@ export function AcademyRegistrations() {
   return (
     <div className="space-y-4" dir="rtl">
       {/* Share the form */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-card/50 border border-page/50 rounded-card p-4">
         <div>
-          <div className="text-sm font-semibold text-white">טופס הרשמה</div>
-          <div className="text-xs text-slate-400">אפשר לשלוח קישור זה במקום טופס גוגל.</div>
+          <div className="text-sm font-semibold text-ink-700">טופס הרשמה</div>
+          <div className="text-xs text-ink-400">אפשר לשלוח קישור זה במקום טופס גוגל.</div>
         </div>
         <div className="flex items-center gap-2">
           <a href={FORM_PATH} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white">
+            className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-page hover:bg-ink-300/40 text-sm text-ink-700">
             <ExternalLink className="h-4 w-4" /> פתיחה
           </a>
           <button onClick={copyLink}
-            className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-primary-600 hover:bg-primary-500 text-sm text-white font-semibold">
+            className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-brand-600 hover:bg-brand-700 text-sm text-white font-semibold">
             {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'הועתק' : 'העתקת קישור'}
           </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 bg-slate-800/50 border border-slate-700/50 rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 bg-card/50 border border-page/50 rounded-xl p-1 w-fit">
         {([['pending', 'מחכות לאישור'], ['all', 'הכול']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setShowAll(k === 'all')}
             className={cn('px-4 min-h-[44px] rounded-lg text-sm font-semibold transition-colors',
-              (showAll ? 'all' : 'pending') === k ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white')}>
+              (showAll ? 'all' : 'pending') === k ? 'bg-brand-600 text-white' : 'text-ink-400 hover:text-ink-900')}>
             {label}
           </button>
         ))}
@@ -146,58 +146,58 @@ export function AcademyRegistrations() {
           {regs.map(r => {
             const open = expanded === r.id;
             return (
-              <div key={r.id} className="bg-slate-800/50 border border-slate-700/50 rounded-2xl overflow-hidden">
+              <div key={r.id} className="bg-card/50 border border-page/50 rounded-card overflow-hidden">
                 <div className="flex items-center gap-3 p-4">
-                  <div className="bg-primary-600/20 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-primary-300 shrink-0">
+                  <div className="bg-brand-600/20 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-brand-600 shrink-0">
                     {initialsOf(r.name)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-white truncate" dir="auto">{r.name}</div>
-                    <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-3" dir="ltr">
+                    <div className="font-semibold text-ink-700 truncate" dir="auto">{r.name}</div>
+                    <div className="text-xs text-ink-400 flex flex-wrap items-center gap-x-3" dir="ltr">
                       <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{r.email}</span>
                       {r.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{r.phone}</span>}
                     </div>
                   </div>
                   {r.approved ? (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-emerald-400 shrink-0">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-accent-600 shrink-0">
                       <CheckCircle2 className="h-4 w-4" /> {r.hasGarmin ? 'פעיל/ה' : 'אושר'}
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-amber-400 shrink-0">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-band-3 shrink-0">
                       <Clock className="h-4 w-4" /> מחכה
                     </span>
                   )}
                   {r.intake && (
-                    <button onClick={() => setExpanded(open ? null : r.id)} className="p-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 min-h-[44px] min-w-[44px]">
+                    <button onClick={() => setExpanded(open ? null : r.id)} className="p-2.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page min-h-[44px] min-w-[44px]">
                       {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>
                   )}
                 </div>
 
                 {open && r.intake && (
-                  <div className="border-t border-slate-700/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                  <div className="border-t border-page/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
                     {Object.entries(r.intake).map(([k, v]) => (
                       <div key={k} className="text-sm">
-                        <span className="text-slate-500">{LABELS[k] || k}: </span>
-                        <span className="text-slate-200">{Array.isArray(v) ? v.join(', ') : String(v || '—')}</span>
+                        <span className="text-ink-400">{LABELS[k] || k}: </span>
+                        <span className="text-ink-700">{Array.isArray(v) ? v.join(', ') : String(v || '—')}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
                 {!r.approved && (
-                  <div className="border-t border-slate-700/50 p-3 flex items-center justify-end gap-2">
+                  <div className="border-t border-page/50 p-3 flex items-center justify-end gap-2">
                     <button onClick={() => setRejectTarget(r.id)} disabled={busy === r.id}
-                      className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-red-300 hover:bg-red-500/10 text-sm font-semibold disabled:opacity-50">
+                      className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-accent-red hover:bg-accent-red/10 text-sm font-semibold disabled:opacity-50">
                       <Trash2 className="h-4 w-4" /> דחייה
                     </button>
                     {canApproveHere ? (
                       <button onClick={() => approve(r.id)} disabled={busy === r.id}
-                        className="flex items-center gap-1.5 px-4 min-h-[44px] rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50">
+                        className="flex items-center gap-1.5 px-4 min-h-[44px] rounded-lg bg-accent-600 hover:opacity-90 text-white text-sm font-semibold disabled:opacity-50">
                         {busy === r.id ? <Spinner size={16} /> : <Check className="h-4 w-4" />} אישור
                       </button>
                     ) : (
-                      <span className="text-xs font-medium text-slate-500 px-2">האישור מוגבל למאמני המועדון</span>
+                      <span className="text-xs font-medium text-ink-400 px-2">האישור מוגבל למאמני המועדון</span>
                     )}
                   </div>
                 )}

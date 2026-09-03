@@ -95,20 +95,20 @@ export function AcademyMyView({ athleteId }: {
       <div className="flex items-center justify-center gap-2">
         <button
           onClick={() => setWeekStart(shiftWeek(weekStart, -1))}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
           aria-label={t('previousWeek')}
         >
           <ChevronRight className="h-5 w-5 rtl:block hidden" />
           <ChevronLeft className="h-5 w-5 rtl:hidden" />
         </button>
         <div className="text-center min-w-[170px]">
-          <div className="text-sm font-semibold text-white">{fmtWeekRange(weekStart, locale)}</div>
-          <div className="text-xs text-slate-500">{isCurrentWeek ? t('thisWeek') : ''}</div>
+          <div className="text-sm font-semibold text-ink-700">{fmtWeekRange(weekStart, locale)}</div>
+          <div className="text-xs text-ink-400">{isCurrentWeek ? t('thisWeek') : ''}</div>
         </div>
         <button
           onClick={() => setWeekStart(shiftWeek(weekStart, 1))}
           disabled={isCurrentWeek}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label={t('nextWeek')}
         >
           <ChevronLeft className="h-5 w-5 rtl:block hidden" />
@@ -118,17 +118,17 @@ export function AcademyMyView({ athleteId }: {
 
       {/* The headline the athlete came for: how much of my week did I do. */}
       <Card variant="solid" className="text-center">
-        <div className="text-2xs font-bold uppercase tracking-wider text-slate-500">{t('myWeekHeader')}</div>
+        <div className="text-2xs font-bold uppercase tracking-wider text-ink-400">{t('myWeekHeader')}</div>
         <div className={cn('mt-1.5 text-5xl font-black tabular-nums leading-none', rateColor(myRate))}>
           {fmtRate(myRate)}
         </div>
-        <div className="mt-2 text-sm text-slate-300">
+        <div className="mt-2 text-sm text-ink-500">
           {week && week.plannedCount > 0
             ? t('completedOfPlanned', { done: week.completedCount, planned: week.plannedCount })
             : t('noPlanThisWeek')}
         </div>
         {data?.athlete?.groupName && (
-          <div className="mt-2.5 inline-block text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-300 border border-purple-500/20">
+          <div className="mt-2.5 inline-block text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-700 border border-purple-500/20">
             {data.athlete.groupName}
           </div>
         )}
@@ -144,14 +144,14 @@ export function AcademyMyView({ athleteId }: {
       {/* Where I stand — only meaningful once someone ran. */}
       {data?.rank && academy && (
         <Card variant="muted" className="flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-            <Medal className="h-5 w-5 text-amber-300" />
+          <span className="w-10 h-10 rounded-xl bg-band-3/15 flex items-center justify-center shrink-0">
+            <Medal className="h-5 w-5 text-band-3" />
           </span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-bold text-white">
+            <div className="text-sm font-bold text-ink-700">
               {t('rankOf', { position: data.rank.position, of: data.rank.of })}
             </div>
-            <div className="text-xs text-slate-400">{t('rankHint')}</div>
+            <div className="text-xs text-ink-400">{t('rankHint')}</div>
           </div>
         </Card>
       )}
@@ -159,29 +159,29 @@ export function AcademyMyView({ athleteId }: {
       {/* This week's sessions, planned vs actual. */}
       <div>
         <SectionTitle>{t('myWorkouts')}</SectionTitle>
-        <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 overflow-hidden divide-y divide-slate-700/50">
+        <div className="rounded-card bg-card/80 border border-page/50 overflow-hidden divide-y divide-page/50">
           {!week || week.workouts.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-slate-500">{t('noPlannedWorkouts')}</p>
+            <p className="px-4 py-6 text-center text-xs text-ink-400">{t('noPlannedWorkouts')}</p>
           ) : (
             week.workouts.map((w, i) => (
               <div key={i} className="flex items-start gap-3 px-4 py-3">
                 <div className="w-9 shrink-0 text-center">
-                  <div className="text-2xs text-slate-500 font-semibold">{dayName(w.date)}</div>
+                  <div className="text-2xs text-ink-400 font-semibold">{dayName(w.date)}</div>
                   {w.completed
-                    ? <CheckCircle2 className="h-4 w-4 text-emerald-400 mx-auto mt-1" />
-                    : <XCircle className="h-4 w-4 text-slate-600 mx-auto mt-1" />}
+                    ? <CheckCircle2 className="h-4 w-4 text-accent-600 mx-auto mt-1" />
+                    : <XCircle className="h-4 w-4 text-ink-400 mx-auto mt-1" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">{w.name}</div>
+                  <div className="text-sm font-medium text-ink-700 truncate">{w.name}</div>
                   {w.completed ? (
-                    <div className="mt-0.5 text-xs text-slate-400 tabular-nums">
+                    <div className="mt-0.5 text-xs text-ink-400 tabular-nums">
                       {km(w.distance.actual)} / {km(w.distance.plannedMin)} {t('kmUnit')}
                       {' · '}
                       {mins(w.duration.actual)} / {mins(w.duration.planned)} {t('minUnit')}
                       {w.pace.actual != null && ` · ${formatPace(w.pace.actual)}`}
                     </div>
                   ) : (
-                    <div className="mt-0.5 text-xs text-slate-500">
+                    <div className="mt-0.5 text-xs text-ink-400">
                       {km(w.distance.plannedMin)} {t('kmUnit')} · {mins(w.duration.planned)} {t('minUnit')}
                     </div>
                   )}
@@ -195,9 +195,9 @@ export function AcademyMyView({ athleteId }: {
       {/* The academy's week, so an athlete sees the group they're part of. */}
       {academy && (
         <InsetSection header={t('academyThisWeek')}>
-          <InsetRow icon={Users} iconBg="bg-primary-600" label={t('statMembers')} value={String(academy.members)} />
-          <InsetRow icon={Activity} iconBg="bg-emerald-600" label={t('statActiveThisWeek')} value={`${academy.activeThisWeek}/${academy.members}`} />
-          <InsetRow icon={Route} iconBg="bg-sky-600" label={t('statAcademyKm')} value={academy.weekKm.toFixed(1)} />
+          <InsetRow icon={Users} iconBg="bg-brand-600" label={t('statMembers')} value={String(academy.members)} />
+          <InsetRow icon={Activity} iconBg="bg-accent-600" label={t('statActiveThisWeek')} value={`${academy.activeThisWeek}/${academy.members}`} />
+          <InsetRow icon={Route} iconBg="bg-band-2" label={t('statAcademyKm')} value={academy.weekKm.toFixed(1)} />
           <InsetRow icon={ClipboardList} iconBg="bg-violet-600" label={t('avgPerMember')} value={academy.avgWeekKm.toFixed(1)} />
         </InsetSection>
       )}
@@ -214,25 +214,25 @@ export function AcademyMyView({ athleteId }: {
                 className={cn(
                   'flex items-center gap-3 rounded-2xl border p-3',
                   r.isMe
-                    ? 'bg-primary-600/15 border-primary-500/40'
-                    : 'bg-slate-800/50 border-slate-700/50',
+                    ? 'bg-brand-600/15 border-brand-600/40'
+                    : 'bg-card/50 border-page/50',
                 )}
               >
-                <span className="w-4 text-center text-xs font-bold text-slate-500 shrink-0">{i + 1}</span>
+                <span className="w-4 text-center text-xs font-bold text-ink-400 shrink-0">{i + 1}</span>
                 {r.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={r.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-primary-600/20 flex items-center justify-center text-xs font-bold text-primary-300 shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-brand-600/20 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">
                     {initialsOf(r.name)}
                   </div>
                 )}
-                <span className={cn('flex-1 min-w-0 text-sm truncate', r.isMe ? 'font-bold text-white' : 'font-medium text-slate-200')}>
+                <span className={cn('flex-1 min-w-0 text-sm truncate', r.isMe ? 'font-bold text-ink-700' : 'font-medium text-ink-700')}>
                   {r.name}
-                  {r.isMe && <span className="ms-1.5 text-2xs font-semibold text-primary-300">{t('you')}</span>}
+                  {r.isMe && <span className="ms-1.5 text-2xs font-semibold text-brand-600">{t('you')}</span>}
                 </span>
-                <span className="text-sm font-bold text-white tabular-nums shrink-0">
-                  {r.weekKm.toFixed(1)} <span className="text-3xs text-slate-500 font-semibold">{t('kmUnit')}</span>
+                <span className="text-sm font-bold text-ink-700 tabular-nums shrink-0">
+                  {r.weekKm.toFixed(1)} <span className="text-3xs text-ink-400 font-semibold">{t('kmUnit')}</span>
                 </span>
               </div>
             ))}
@@ -244,18 +244,18 @@ export function AcademyMyView({ athleteId }: {
       {(data?.results?.length ?? 0) > 0 && (
         <div>
           <SectionTitle>{t('myResults')}</SectionTitle>
-          <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 overflow-hidden divide-y divide-slate-700/50">
+          <div className="rounded-card bg-card/80 border border-page/50 overflow-hidden divide-y divide-page/50">
             {data!.results!.map((r) => (
               <div key={r.id} className="flex items-center gap-3 px-4 py-3">
-                <Trophy className="h-4 w-4 text-amber-400 shrink-0" />
+                <Trophy className="h-4 w-4 text-band-3 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">{r.testName}</div>
-                  <div className="text-2xs text-slate-500">
+                  <div className="text-sm font-medium text-ink-700 truncate">{r.testName}</div>
+                  <div className="text-2xs text-ink-400">
                     {t('placedOf', { position: r.rank, of: r.entrants })}
                     {r.recordedOn && ` · ${new Date(`${r.recordedOn}T12:00:00Z`).toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' })}`}
                   </div>
                 </div>
-                <span className="text-sm font-bold text-white tabular-nums shrink-0">{formatClock(r.timeSeconds)}</span>
+                <span className="text-sm font-bold text-ink-700 tabular-nums shrink-0">{formatClock(r.timeSeconds)}</span>
               </div>
             ))}
           </div>
@@ -266,18 +266,18 @@ export function AcademyMyView({ athleteId }: {
       {vol && (
         <Card variant="muted" className="flex items-center justify-around text-center">
           <div>
-            <div className="text-xl font-bold text-white tabular-nums">{vol.totalKm.toFixed(0)}</div>
-            <div className="text-2xs text-slate-500">{t('allTimeKm')}</div>
+            <div className="text-xl font-bold text-ink-700 tabular-nums">{vol.totalKm.toFixed(0)}</div>
+            <div className="text-2xs text-ink-400">{t('allTimeKm')}</div>
           </div>
-          <div className="w-px h-8 bg-slate-700" />
+          <div className="w-px h-8 bg-page" />
           <div>
-            <div className="text-xl font-bold text-white tabular-nums">{vol.totalRuns}</div>
-            <div className="text-2xs text-slate-500">{t('allTimeRuns')}</div>
+            <div className="text-xl font-bold text-ink-700 tabular-nums">{vol.totalRuns}</div>
+            <div className="text-2xs text-ink-400">{t('allTimeRuns')}</div>
           </div>
-          <div className="w-px h-8 bg-slate-700" />
+          <div className="w-px h-8 bg-page" />
           <div>
-            <div className="text-xl font-bold text-white tabular-nums">{Math.round(vol.totalDurationMin / 60)}</div>
-            <div className="text-2xs text-slate-500">{t('allTimeHours')}</div>
+            <div className="text-xl font-bold text-ink-700 tabular-nums">{Math.round(vol.totalDurationMin / 60)}</div>
+            <div className="text-2xs text-ink-400">{t('allTimeHours')}</div>
           </div>
         </Card>
       )}
@@ -292,7 +292,7 @@ function formatClock(seconds: number): string {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="px-1 mb-2 text-sm font-bold text-white">{children}</h2>;
+  return <h2 className="px-1 mb-2 text-sm font-bold text-ink-700">{children}</h2>;
 }
 
 function MiniStat({
@@ -303,10 +303,10 @@ function MiniStat({
   label: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-3 text-center">
-      <Icon className="h-3.5 w-3.5 text-slate-500 mx-auto" />
-      <div className="mt-1 text-xl font-bold text-white tabular-nums leading-none">{value}</div>
-      <div className="mt-1 text-2xs text-slate-500">{label}</div>
+    <div className="rounded-card border border-page/60 bg-card/60 p-3 text-center">
+      <Icon className="h-3.5 w-3.5 text-ink-400 mx-auto" />
+      <div className="mt-1 text-xl font-bold text-ink-700 tabular-nums leading-none">{value}</div>
+      <div className="mt-1 text-2xs text-ink-400">{label}</div>
     </div>
   );
 }

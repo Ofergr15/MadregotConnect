@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, EmptyState, SkeletonList } from '@/components/ui';
+import { BandPaces } from './BandPaces';
 import {
   ATTENTION_ORDER, ATTENTION_STYLE, fmtRate, fmtWeekRange, initialsOf, rateColor,
   shiftWeek, sundayOf,
@@ -34,6 +35,7 @@ export function AcademyOverview({
   onWeekChange,
   onSelectMember,
   onGoTab,
+  onChanged,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -41,6 +43,8 @@ export function AcademyOverview({
   onWeekChange: (weekStart: string) => void;
   onSelectMember: (member: AcademyMember) => void;
   onGoTab: (tab: 'members' | 'registrations' | 'results' | 'compliance') => void;
+  /** Revalidate the academy payload after a band's paces are edited. */
+  onChanged: () => void | Promise<void>;
 }) {
   const t = useTranslations('academy');
   const locale = useLocale();
@@ -70,20 +74,20 @@ export function AcademyOverview({
       <div className="flex items-center justify-center gap-2">
         <button
           onClick={() => onWeekChange(shiftWeek(weekStart, -1))}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
           aria-label={t('previousWeek')}
         >
           <ChevronRight className="h-5 w-5 rtl:block hidden" />
           <ChevronLeft className="h-5 w-5 rtl:hidden" />
         </button>
         <div className="text-center min-w-[170px]">
-          <div className="text-sm font-semibold text-white">{fmtWeekRange(weekStart, locale)}</div>
-          <div className="text-xs text-slate-500">{isCurrentWeek ? t('thisWeek') : ''}</div>
+          <div className="text-sm font-semibold text-ink-700">{fmtWeekRange(weekStart, locale)}</div>
+          <div className="text-xs text-ink-400">{isCurrentWeek ? t('thisWeek') : ''}</div>
         </div>
         <button
           onClick={() => onWeekChange(shiftWeek(weekStart, 1))}
           disabled={isCurrentWeek}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label={t('nextWeek')}
         >
           <ChevronLeft className="h-5 w-5 rtl:block hidden" />
@@ -109,7 +113,7 @@ export function AcademyOverview({
               icon={Activity}
               label={t('statActiveThisWeek')}
               value={`${team.activeThisWeek}/${team.members}`}
-              valueClass={team.activeThisWeek === 0 ? 'text-red-400' : undefined}
+              valueClass={team.activeThisWeek === 0 ? 'text-accent-red' : undefined}
             />
             <Tile icon={Route} label={t('statAcademyKm')} value={team.weekKm.toFixed(1)} />
             <Tile
@@ -145,6 +149,18 @@ export function AcademyOverview({
             </div>
           )}
 
+          {/* The goal bands and their paces — sat with the inbox rather than
+              lower down because an unpriced band is a blocked planner, which is
+              the same kind of thing as an unreviewed registration: work waiting
+              on the manager, not a statistic. */}
+          {(data?.bands?.length ?? 0) > 0 && (
+            <BandPaces
+              bands={data!.bands}
+              canEdit={data!.scope === 'academy'}
+              onChanged={onChanged}
+            />
+          )}
+
           {/* Who needs a coach's attention, and why. */}
           <div>
             <SectionHeader
@@ -155,10 +171,10 @@ export function AcademyOverview({
             />
             {atRisk.length === 0 ? (
               <Card variant="muted" className="flex items-center gap-3">
-                <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="h-5 w-5 text-accent-600 shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-white">{t('allGood')}</div>
-                  <div className="text-xs text-slate-400">{t('allGoodDesc')}</div>
+                  <div className="text-sm font-semibold text-ink-700">{t('allGood')}</div>
+                  <div className="text-xs text-ink-400">{t('allGoodDesc')}</div>
                 </div>
               </Card>
             ) : (
@@ -167,11 +183,11 @@ export function AcademyOverview({
                   <button
                     key={m.athleteId}
                     onClick={() => onSelectMember(m)}
-                    className="w-full flex items-center gap-3 rounded-2xl bg-slate-800/50 border border-slate-700/50 p-3 text-start hover:bg-slate-800/80 active:scale-[0.99] transition-all min-h-[44px]"
+                    className="w-full flex items-center gap-3 rounded-card bg-card/50 border border-page/50 p-3 text-start hover:bg-page/80 active:scale-[0.99] transition-all min-h-[44px]"
                   >
                     <Avatar member={m} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-white truncate">{m.name}</div>
+                      <div className="text-sm font-semibold text-ink-700 truncate">{m.name}</div>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {ATTENTION_ORDER.filter((r) => m.attention.includes(r)).slice(0, 2).map((r) => (
                           <span key={r} className={cn('text-3xs font-semibold px-1.5 py-0.5 rounded border', ATTENTION_STYLE[r])}>
@@ -180,7 +196,7 @@ export function AcademyOverview({
                         ))}
                       </div>
                     </div>
-                    <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                    <AlertTriangle className="h-4 w-4 text-band-3 shrink-0" />
                   </button>
                 ))}
               </div>
@@ -196,17 +212,17 @@ export function AcademyOverview({
                 {data!.groups.map((g) => (
                   <Card key={g.groupId ?? '__none__'} variant="solid" className="flex items-center gap-3 py-3">
                     <span className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center shrink-0">
-                      <Layers className="h-4 w-4 text-purple-300" />
+                      <Layers className="h-4 w-4 text-purple-700" />
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-white truncate">
+                      <div className="text-sm font-semibold text-ink-700 truncate">
                         {g.groupName || t('unassigned')}
                       </div>
-                      <div className="text-xs text-slate-400">{t('membersCount', { count: g.members })}</div>
+                      <div className="text-xs text-ink-400">{t('membersCount', { count: g.members })}</div>
                     </div>
                     <div className="text-end shrink-0">
-                      <div className="text-sm font-bold text-white tabular-nums">{g.weekKm.toFixed(1)}</div>
-                      <div className="text-3xs text-slate-500 -mt-0.5">{t('kmUnit')}</div>
+                      <div className="text-sm font-bold text-ink-700 tabular-nums">{g.weekKm.toFixed(1)}</div>
+                      <div className="text-3xs text-ink-400 -mt-0.5">{t('kmUnit')}</div>
                     </div>
                     <div className={cn('w-12 text-end shrink-0 text-sm font-bold tabular-nums', rateColor(g.completionRate))}>
                       {fmtRate(g.completionRate)}
@@ -226,7 +242,7 @@ export function AcademyOverview({
             />
             {top.length === 0 ? (
               <Card variant="muted">
-                <p className="text-xs text-slate-500 text-center py-2">{t('noRunsThisWeek')}</p>
+                <p className="text-xs text-ink-400 text-center py-2">{t('noRunsThisWeek')}</p>
               </Card>
             ) : (
               <div className="space-y-2">
@@ -234,20 +250,20 @@ export function AcademyOverview({
                   <button
                     key={m.athleteId}
                     onClick={() => onSelectMember(m)}
-                    className="w-full flex items-center gap-3 rounded-2xl bg-slate-800/50 border border-slate-700/50 p-3 text-start hover:bg-slate-800/80 active:scale-[0.99] transition-all min-h-[44px]"
+                    className="w-full flex items-center gap-3 rounded-card bg-card/50 border border-page/50 p-3 text-start hover:bg-page/80 active:scale-[0.99] transition-all min-h-[44px]"
                   >
-                    <span className="w-4 text-center text-xs font-bold text-slate-500 shrink-0">{i + 1}</span>
+                    <span className="w-4 text-center text-xs font-bold text-ink-400 shrink-0">{i + 1}</span>
                     <Avatar member={m} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-white truncate">{m.name}</div>
-                      <div className="text-xs text-slate-400">
+                      <div className="text-sm font-semibold text-ink-700 truncate">{m.name}</div>
+                      <div className="text-xs text-ink-400">
                         {t('runsCount', { count: m.weekRuns })}
                         {m.completionRate !== null && ` · ${fmtRate(m.completionRate)}`}
                       </div>
                     </div>
                     <div className="text-end shrink-0">
-                      <div className="text-base font-bold text-white tabular-nums">{m.weekKm.toFixed(1)}</div>
-                      <div className="text-3xs text-slate-500 -mt-0.5">{t('kmUnit')}</div>
+                      <div className="text-base font-bold text-ink-700 tabular-nums">{m.weekKm.toFixed(1)}</div>
+                      <div className="text-3xs text-ink-400 -mt-0.5">{t('kmUnit')}</div>
                     </div>
                   </button>
                 ))}
@@ -260,7 +276,7 @@ export function AcademyOverview({
               planned sessions the week contained at all. */}
           <div className="grid grid-cols-2 gap-2.5">
             <Tile icon={Watch} label={t('statConnected')} value={`${team.connected}/${team.members}`}
-              valueClass={team.connected < team.members ? 'text-amber-400' : undefined} />
+              valueClass={team.connected < team.members ? 'text-band-3' : undefined} />
             <Tile icon={ClipboardCheck} label={t('statPlannedSessions')} value={`${team.completed}/${team.planned}`}
               onClick={() => onGoTab('compliance')} />
           </div>
@@ -276,7 +292,7 @@ function Avatar({ member }: { member: AcademyMember }) {
     return <img src={member.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />;
   }
   return (
-    <div className="w-9 h-9 rounded-full bg-primary-600/20 flex items-center justify-center text-xs font-bold text-primary-300 shrink-0">
+    <div className="w-9 h-9 rounded-full bg-brand-600/20 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">
       {initialsOf(member.name)}
     </div>
   );
@@ -292,12 +308,12 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 px-1 mb-2">
-      <h2 className="text-sm font-bold text-white">
+      <h2 className="text-sm font-bold text-ink-700">
         {title}
-        {count !== undefined && count > 0 && <span className="ms-1.5 text-slate-500 font-semibold">{count}</span>}
+        {count !== undefined && count > 0 && <span className="ms-1.5 text-ink-400 font-semibold">{count}</span>}
       </h2>
       {actionLabel && onAction && (
-        <button onClick={onAction} className="text-xs font-semibold text-primary-400 hover:text-primary-300 min-h-[32px]">
+        <button onClick={onAction} className="text-xs font-semibold text-brand-600 hover:text-brand-700 min-h-[32px]">
           {actionLabel}
         </button>
       )}
@@ -316,21 +332,21 @@ function Tile({
 }) {
   const inner = (
     <>
-      <div className="flex items-center gap-1.5 text-slate-400 mb-1">
+      <div className="flex items-center gap-1.5 text-ink-400 mb-1">
         <Icon className="h-3.5 w-3.5" />
         <span className="text-3xs font-semibold uppercase tracking-wider truncate">{label}</span>
       </div>
-      <div className={cn('text-2xl font-bold tabular-nums', valueClass || 'text-white')}>{value}</div>
+      <div className={cn('text-2xl font-bold tabular-nums', valueClass || 'text-ink-700')}>{value}</div>
     </>
   );
   if (onClick) {
     return (
-      <button onClick={onClick} className="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-3.5 text-start hover:bg-slate-800/90 active:scale-[0.98] transition-all">
+      <button onClick={onClick} className="rounded-card border border-page/60 bg-card/60 p-3.5 text-start hover:bg-page/90 active:scale-[0.98] transition-all">
         {inner}
       </button>
     );
   }
-  return <div className="rounded-2xl border border-slate-700/60 bg-slate-800/60 p-3.5">{inner}</div>;
+  return <div className="rounded-card border border-page/60 bg-card/60 p-3.5">{inner}</div>;
 }
 
 function ActionCard({
@@ -345,16 +361,16 @@ function ActionCard({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-start hover:bg-amber-500/15 active:scale-[0.99] transition-all min-h-[44px]"
+      className="flex items-center gap-3 rounded-2xl border border-band-3/30 bg-band-3/10 p-3.5 text-start hover:bg-band-3/15 active:scale-[0.99] transition-all min-h-[44px]"
     >
-      <span className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
-        <Icon className="h-4 w-4 text-amber-300" />
+      <span className="w-9 h-9 rounded-xl bg-band-3/20 flex items-center justify-center shrink-0">
+        <Icon className="h-4 w-4 text-band-3" />
       </span>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-bold text-white">{count}</div>
-        <div className="text-xs text-amber-200/80 truncate">{label}</div>
+        <div className="text-sm font-bold text-ink-700">{count}</div>
+        <div className="text-xs text-band-3/80 truncate">{label}</div>
       </div>
-      <ChevronLeft className="h-4 w-4 text-amber-300/70 shrink-0" />
+      <ChevronLeft className="h-4 w-4 text-band-3/70 shrink-0" />
     </button>
   );
 }

@@ -20,7 +20,7 @@ interface Result {
 }
 
 const medalColor = (rank: number) =>
-  rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-300' : rank === 3 ? 'text-orange-400' : 'text-slate-600';
+  rank === 1 ? 'text-band-3' : rank === 2 ? 'text-ink-500' : rank === 3 ? 'text-band-3' : 'text-ink-400';
 
 export function AcademyResults() {
   const [results, setResults] = useState<Result[]>([]);
@@ -114,21 +114,21 @@ export function AcademyResults() {
     <div className="space-y-4" dir="rtl">
       {/* Pending approval queue — athlete submissions that would rank top-3 */}
       {pending.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
+        <div className="bg-band-3/10 border border-band-3/30 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Clock className="h-4 w-4 text-amber-400" />
-            <h3 className="text-sm font-bold text-amber-300">מחכים לאישור ({pending.length})</h3>
+            <Clock className="h-4 w-4 text-band-3" />
+            <h3 className="text-sm font-bold text-band-3">מחכים לאישור ({pending.length})</h3>
           </div>
           <div className="space-y-1.5">
             {pending.map(p => (
-              <div key={p.id} className="flex items-center gap-3 bg-slate-900/40 rounded-lg px-3 py-2">
+              <div key={p.id} className="flex items-center gap-3 bg-page/40 rounded-lg px-3 py-2">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-white truncate" dir="auto">{p.athlete_name} <span className="text-slate-500">· {p.test_name}</span></div>
-                  {p.notes && <div className="text-xs text-slate-500 truncate" dir="auto">{p.notes}</div>}
+                  <div className="text-sm text-ink-700 truncate" dir="auto">{p.athlete_name} <span className="text-ink-400">· {p.test_name}</span></div>
+                  {p.notes && <div className="text-xs text-ink-400 truncate" dir="auto">{p.notes}</div>}
                 </div>
-                <span className="text-sm font-bold text-white tabular-nums">{formatTime(p.time_seconds)}</span>
-                <button onClick={() => moderate(p.id, 'approve')} className="p-2.5 rounded-lg text-emerald-400 hover:bg-emerald-500/15 min-h-[44px] min-w-[44px]" title="אישור"><Check className="h-4 w-4" /></button>
-                <button onClick={() => moderate(p.id, 'reject')} className="p-2.5 rounded-lg text-red-400 hover:bg-red-500/15 min-h-[44px] min-w-[44px]" title="דחייה"><X className="h-4 w-4" /></button>
+                <span className="text-sm font-bold text-ink-700 tabular-nums">{formatTime(p.time_seconds)}</span>
+                <button onClick={() => moderate(p.id, 'approve')} className="p-2.5 rounded-lg text-accent-600 hover:bg-accent-600/15 min-h-[44px] min-w-[44px]" title="אישור"><Check className="h-4 w-4" /></button>
+                <button onClick={() => moderate(p.id, 'reject')} className="p-2.5 rounded-lg text-accent-red hover:bg-accent-red/15 min-h-[44px] min-w-[44px]" title="דחייה"><X className="h-4 w-4" /></button>
               </div>
             ))}
           </div>
@@ -141,16 +141,16 @@ export function AcademyResults() {
             <select
               value={test}
               onChange={e => setTest(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 h-9 text-sm text-white"
+              className="bg-page border border-page rounded-lg px-3 h-9 text-sm text-ink-700"
             >
               {tests.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           ) : (
-            <span className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Trophy className="h-4 w-4 text-yellow-400" /> {test}
+            <span className="flex items-center gap-2 text-sm font-semibold text-ink-700">
+              <Trophy className="h-4 w-4 text-band-3" /> {test}
             </span>
           )}
-          <span className="text-xs text-slate-500">{shown.length} תוצאות</span>
+          <span className="text-xs text-ink-400">{shown.length} תוצאות</span>
         </div>
         <Button onClick={openNew} size="sm">
           <Plus className="h-4 w-4" /> הוספת תוצאה
@@ -166,22 +166,22 @@ export function AcademyResults() {
       ) : (
         <div className="space-y-1.5">
           {shown.map(r => (
-            <div key={r.id} className="flex items-center gap-3 bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
+            <div key={r.id} className="flex items-center gap-3 bg-card/50 border border-page/50 rounded-xl p-3">
               <div className="w-7 text-center shrink-0">
                 {r.rank && r.rank <= 3
                   ? <Medal className={cn('h-5 w-5 mx-auto', medalColor(r.rank))} />
-                  : <span className="text-sm font-bold text-slate-500">{r.rank ?? '–'}</span>}
+                  : <span className="text-sm font-bold text-ink-400">{r.rank ?? '–'}</span>}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-white text-sm truncate flex items-center gap-2" dir="auto">
+                <div className="font-medium text-ink-700 text-sm truncate flex items-center gap-2" dir="auto">
                   {r.athlete_name}
-                  {r.athlete_id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">מקושר</span>}
+                  {r.athlete_id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-600">מקושר</span>}
                 </div>
-                {r.notes && <div className="text-xs text-slate-500 truncate" dir="auto">{r.notes}</div>}
+                {r.notes && <div className="text-xs text-ink-400 truncate" dir="auto">{r.notes}</div>}
               </div>
-              <div className="text-base font-bold text-white tabular-nums shrink-0">{formatTime(r.time_seconds)}</div>
-              <button onClick={() => openEdit(r)} className="p-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 min-h-[44px] min-w-[44px]"><Pencil className="h-4 w-4" /></button>
-              <button onClick={() => setDeleteTarget(r.id)} className="p-2.5 rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10 min-h-[44px] min-w-[44px]"><Trash2 className="h-4 w-4" /></button>
+              <div className="text-base font-bold text-ink-700 tabular-nums shrink-0">{formatTime(r.time_seconds)}</div>
+              <button onClick={() => openEdit(r)} className="p-2.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page min-h-[44px] min-w-[44px]"><Pencil className="h-4 w-4" /></button>
+              <button onClick={() => setDeleteTarget(r.id)} className="p-2.5 rounded-lg text-ink-400 hover:text-accent-red hover:bg-accent-red/10 min-h-[44px] min-w-[44px]"><Trash2 className="h-4 w-4" /></button>
             </div>
           ))}
         </div>
@@ -192,21 +192,21 @@ export function AcademyResults() {
         <div className="space-y-3">
           <Field label="מבחן">
             <input value={editing?.test_name || test} onChange={e => setEditing(prev => ({ ...prev, test_name: e.target.value }))}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" placeholder="2000m" />
+              className="w-full bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700" placeholder="2000m" />
           </Field>
           <Field label="שם הספורטאי/ת">
             <input value={editing?.athlete_name || ''} onChange={e => setEditing(prev => ({ ...prev, athlete_name: e.target.value }))}
-              dir="auto" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" placeholder="שם מלא" />
+              dir="auto" className="w-full bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700" placeholder="שם מלא" />
           </Field>
           <Field label="זמן (m:ss.ss)">
             <input value={timeText} onChange={e => setTimeText(e.target.value)} dir="ltr"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white tabular-nums" placeholder="5:46.96" />
+              className="w-full bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700 tabular-nums" placeholder="5:46.96" />
           </Field>
           <Field label="הערות (לא חובה)">
             <input value={editing?.notes || ''} onChange={e => setEditing(prev => ({ ...prev, notes: e.target.value }))}
-              dir="auto" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 h-11 text-sm text-white" placeholder="" />
+              dir="auto" className="w-full bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700" placeholder="" />
           </Field>
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-accent-red">{error}</p>}
           <Button className="w-full" disabled={saving} onClick={save}>
             {saving && <Spinner size={16} />} שמירה
           </Button>
@@ -229,7 +229,7 @@ export function AcademyResults() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-400 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-ink-400 mb-1.5">{label}</label>
       {children}
     </div>
   );
