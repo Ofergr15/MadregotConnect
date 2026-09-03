@@ -35,12 +35,12 @@ function readLocaleCookie(): Language {
 // notificationPrefs.categories — keyed by the same category name, so the two
 // can't drift apart.
 const ROWS: { key: Category; icon: typeof Calendar; bg: string }[] = [
-  { key: 'workouts', icon: Calendar, bg: 'bg-primary-600' },
-  { key: 'coach', icon: MessageSquare, bg: 'bg-sky-500' },
-  { key: 'achievements', icon: Flame, bg: 'bg-emerald-500' },
-  { key: 'program', icon: ClipboardList, bg: 'bg-amber-500' },
-  { key: 'teammates', icon: Users, bg: 'bg-orange-500' },
-  { key: 'news', icon: Megaphone, bg: 'bg-rose-500' },
+  { key: 'workouts', icon: Calendar, bg: 'bg-brand-600' },
+  { key: 'coach', icon: MessageSquare, bg: 'bg-band-2' },
+  { key: 'achievements', icon: Flame, bg: 'bg-accent-600' },
+  { key: 'program', icon: ClipboardList, bg: 'bg-band-3' },
+  { key: 'teammates', icon: Users, bg: 'bg-band-3' },
+  { key: 'news', icon: Megaphone, bg: 'bg-accent-red' },
   { key: 'events', icon: PartyPopper, bg: 'bg-violet-500' },
 ];
 
@@ -273,7 +273,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
         <InsetSection header={t('pushHeader')}>
           <InsetRow
             icon={BellRing}
-            iconBg="bg-red-500"
+            iconBg="bg-accent-red"
             label={enabling ? t('enabling') : t('enable')}
             sublabel={
               enableError ? t('enableError', { error: enableError })
@@ -301,7 +301,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
         ))}
       </InsetSection>
       {languageError && (
-        <p className="px-4 pb-2 text-xs text-red-400" dir="auto">{languageError}</p>
+        <p className="px-4 pb-2 text-xs text-accent-red" dir="auto">{languageError}</p>
       )}
       {/* Always available — a granted permission is no proof of a live
           subscription, so these two rows are the only self-service way to tell
@@ -309,7 +309,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       <InsetSection header={t('testHeader')}>
         <InsetRow
           icon={Send}
-          iconBg="bg-green-600"
+          iconBg="bg-accent-600"
           label={testing ? t('sending') : t('sendTest')}
           sublabel={testResult || t('sendTestHint')}
           onClick={testing ? undefined : sendTest}
@@ -317,7 +317,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
         {permission === 'granted' && (
           <InsetRow
             icon={RefreshCw}
-            iconBg="bg-sky-600"
+            iconBg="bg-band-2"
             label={refreshing ? t('repairing') : t('repair')}
             sublabel={refreshResult || t('repairHint')}
             onClick={refreshing ? undefined : refreshSub}
@@ -334,7 +334,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
               icon={icon}
               iconBg={bg}
               label={label}
-              trailing={<Switch checked={on} onChange={() => toggle(key)} disabled={saving === key} activeColor="bg-green-500" ariaLabel={label} />}
+              trailing={<Switch checked={on} onChange={() => toggle(key)} disabled={saving === key} activeColor="bg-accent-600" ariaLabel={label} />}
             />
           );
         })}
@@ -342,7 +342,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       {/* A failed toggle was set into state and then never rendered, so the
           optimistic switch just flicked back with no explanation. */}
       {saveError && (
-        <p className="px-4 pb-2 text-xs text-red-400" dir="auto">{saveError}</p>
+        <p className="px-4 pb-2 text-xs text-accent-red" dir="auto">{saveError}</p>
       )}
     </div>
   );

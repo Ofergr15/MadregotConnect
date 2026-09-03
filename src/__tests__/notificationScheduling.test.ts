@@ -74,10 +74,10 @@ describe('describeNotificationRow', () => {
     const result = describeNotificationRow({ ...base, status: 'sent', sent_count: 3 });
     expect(result.statusText).toBe('נשלח (3)');
     expect(result.iconKind).toBe('sent');
-    expect(result.iconBg).toBe('bg-green-500');
+    expect(result.iconBg).toBe('bg-accent-600');
   });
 
-  it('a cancelled notification shows "בוטל" and a slate icon, regardless of schedule_type', () => {
+  it('a cancelled notification shows "בוטל" and a grey icon, regardless of schedule_type', () => {
     const result = describeNotificationRow({ ...base, status: 'cancelled', schedule_type: 'recurring', recur_interval: 2, recur_unit: 'week' });
     expect(result.statusText).toBe('בוטל');
     expect(result.iconKind).toBe('cancelled');
@@ -98,7 +98,7 @@ describe('describeNotificationRow', () => {
     const result = describeNotificationRow({ ...base, next_run_at: '2026-03-01T10:00:00.000Z' });
     expect(result.statusText).not.toBe('מתוזמן'); // real date, not the generic fallback
     expect(result.iconKind).toBe('scheduled');
-    expect(result.iconBg).toBe('bg-amber-500');
+    expect(result.iconBg).toBe('bg-band-3');
   });
 
   it('a one-off scheduled notification with no next_run_at yet falls back to a generic label', () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Loader2, Check, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Bell, Loader2, Check, ChevronDown, CheckCircle2, MapPin } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
@@ -13,6 +13,13 @@ interface Cfg {
   dayBefore: { enabled: boolean; hour: number };
   eveningBefore: { enabled: boolean; hour: number };
   workoutHour?: number; // team workout start (IL); drives the RSVP cutoff
+  // Where the team meets. Free text — the club moves between the stairs, the
+  // park and the track, and there's no venue table to point at. Needs no
+  // migration or route change: `reminder_config` is a JSON value column, GET
+  // spreads whatever is stored over DEFAULT, and PUT persists whatever object
+  // it's handed. Read by the Profile screen's מיקום column, which hides itself
+  // while this is unset rather than showing an invented default.
+  location?: string;
 }
 const DAYS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש']; // Sun..Sat (Hebrew initials)
 
@@ -20,10 +27,14 @@ type PickerTarget = 'dayBefore' | 'eveningBefore' | 'workoutHour' | null;
 
 export function ReminderConfig() {
   const t = useTranslations('settings');
+  const tCommon = useTranslations('common');
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(false);
   const [pickerFor, setPickerFor] = useState<PickerTarget>(null);
+  // Held as a draft rather than saved per keystroke — a PUT per character would
+  // be 20 writes to app_settings for one place name.
+  const [locDraft, setLocDraft] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/reminder-config').then(r => r.ok ? r.json() : null).then(d => setCfg(d?.config || null)).catch(() => {});
@@ -76,10 +87,10 @@ export function ReminderConfig() {
             <button
               onClick={() => setPickerFor(stage)}
               disabled={!enabled}
-              className="min-h-[44px] min-w-[44px] flex items-center gap-1 px-1.5 text-sm text-slate-300 disabled:opacity-40 tabular-nums"
+              className="min-h-[44px] min-w-[44px] flex items-center gap-1 px-1.5 text-sm text-ink-500 disabled:opacity-40 tabular-nums"
             >
               {fmtHour(cfg[stage].hour)}
-              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              <ChevronDown className="h-3.5 w-3.5 text-ink-400" />
             </button>
           </div>
         }
@@ -91,41 +102,69 @@ export function ReminderConfig() {
     <div dir="rtl" className="mb-6">
       {(saving || flash) && (
         <div className="flex items-center justify-end gap-1.5 px-1 mb-1.5">
-          {saving && <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />}
-          {flash && <Check className="w-3.5 h-3.5 text-green-400" />}
+          {saving && <Loader2 className="w-3.5 h-3.5 text-ink-400 animate-spin" />}
+          {flash && <Check className="w-3.5 h-3.5 text-accent-600" />}
         </div>
       )}
 
       <InsetSection header={t('workoutReminders')}>
         <InsetRow
           icon={Bell}
-          iconBg="bg-primary-600"
+          iconBg="bg-brand-600"
           label={t('teamWorkoutTime')}
           value={fmtHour(cfg.workoutHour ?? 18)}
           onClick={() => setPickerFor('workoutHour')}
+        />
+        <InsetRow
+          icon={MapPin}
+          iconBg="bg-teal-500"
+          label={t('teamWorkoutLocation')}
+          value={cfg.location?.trim() || t('notSet')}
+          valueMuted={!cfg.location?.trim()}
+          onClick={() => setLocDraft(cfg.location || '')}
         />
         <StageRow label={t('reminderDayBefore')} stage="dayBefore" />
         <StageRow label={t('reminderEveningBefore')} stage="eveningBefore" />
       </InsetSection>
 
-      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4">
-        <p className="text-xs font-semibold text-slate-400 mb-2">{t('teamWorkoutDays')}</p>
+      <div className="rounded-card border border-page/50 bg-card/50 p-4">
+        <p className="text-xs font-semibold text-ink-400 mb-2">{t('teamWorkoutDays')}</p>
         <div className="flex gap-1.5 flex-wrap">
           {DAYS.map((d, i) => (
             <button key={i} onClick={() => toggleDay(i)}
               className={cn('min-w-[44px] min-h-[44px] rounded-lg text-xs font-bold transition',
-                cfg.teamDays.includes(i) ? 'bg-primary-600 text-white' : 'bg-slate-700/40 text-slate-400 hover:bg-slate-700')}>
+                cfg.teamDays.includes(i) ? 'bg-brand-600 text-white' : 'bg-page/40 text-ink-400 hover:bg-ink-300/40')}>
               {d}
             </button>
           ))}
         </div>
-        <p className="text-2xs text-slate-500 mt-3">{t('reminderFooterNote')}</p>
+        <p className="text-2xs text-ink-400 mt-3">{t('reminderFooterNote')}</p>
       </div>
+
+      {/* Meeting place. Empty input = clear it, which puts the Profile screen's
+          מיקום column back to hidden. */}
+      <Sheet open={locDraft !== null} onOpenChange={(o) => !o && setLocDraft(null)} title={t('teamWorkoutLocation')}>
+        <input
+          value={locDraft ?? ''}
+          onChange={e => setLocDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          placeholder={t('teamWorkoutLocationPlaceholder')}
+          autoFocus
+          dir="auto"
+          className="w-full bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
+        />
+        <button
+          onClick={() => { save({ ...cfg, location: (locDraft || '').trim() }); setLocDraft(null); }}
+          className="mt-3 w-full min-h-[44px] rounded-xl bg-brand-600 text-sm font-bold text-white"
+        >
+          {tCommon('save')}
+        </button>
+      </Sheet>
 
       {/* Hour picker — a bottom sheet list, replacing the raw 24-option
           <select> (the least native-feeling way to pick a time on iOS). */}
       <Sheet open={pickerFor !== null} onOpenChange={(o) => !o && setPickerFor(null)} title={t('selectHour')}>
-        <div className="rounded-2xl bg-slate-900/40 overflow-hidden divide-y divide-slate-700/50">
+        <div className="rounded-2xl bg-page/40 overflow-hidden divide-y divide-page/50">
           {hours.map(h => {
             const isSelected = h === currentHourForPicker;
             return (
@@ -133,7 +172,7 @@ export function ReminderConfig() {
                 key={h}
                 label={fmtHour(h)}
                 onClick={() => setHour(h)}
-                trailing={isSelected ? <CheckCircle2 className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+                trailing={isSelected ? <CheckCircle2 className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
               />
             );
           })}

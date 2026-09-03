@@ -115,22 +115,22 @@ export function PushOptIn({ title, description }: { title?: string; description?
     // and lifted clear of the ~72px tab bar on mobile so the Enable button is
     // never hidden behind it. On desktop (no tab bar) it sits at the normal edge.
     <div className="fixed inset-x-0 bottom-0 z-50 p-4 pb-[calc(72px+env(safe-area-inset-bottom)+8px)] md:pb-4 pointer-events-none">
-      <div className="pointer-events-auto mx-auto max-w-md bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl p-4 flex items-start gap-3">
-        <div className="bg-primary-500/20 w-11 h-11 rounded-xl flex items-center justify-center shrink-0">
-          <Bell className="h-5 w-5 text-primary-400" />
+      <div className="pointer-events-auto mx-auto max-w-md bg-card rounded-card border border-page shadow-2xl p-4 flex items-start gap-3">
+        <div className="bg-brand-600/20 w-11 h-11 rounded-xl flex items-center justify-center shrink-0">
+          <Bell className="h-5 w-5 text-brand-600" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-bold text-white">{title || t('title')}</h2>
-          <p className="text-xs text-slate-400 mt-0.5">{description || t('description')}</p>
+          <h2 className="text-sm font-bold text-ink-700">{title || t('title')}</h2>
+          <p className="text-xs text-ink-400 mt-0.5">{description || t('description')}</p>
           <button
             onClick={enable}
             disabled={busy}
-            className="mt-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            className="mt-3 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
             {busy ? t('enabling') : t('enable')}
           </button>
         </div>
-        <button onClick={dismiss} aria-label={t('dismiss')} className="text-slate-400 hover:text-white shrink-0">
+        <button onClick={dismiss} aria-label={t('dismiss')} className="text-ink-400 hover:text-ink-900 shrink-0">
           <X className="h-5 w-5" />
         </button>
       </div>

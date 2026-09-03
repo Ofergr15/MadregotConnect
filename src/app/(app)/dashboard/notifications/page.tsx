@@ -40,11 +40,11 @@ function timeAgo(iso: string, t: (key: string, values?: Record<string, number>) 
 // for the InsetRow icon tile (white icon on a solid bg, the app-wide
 // InsetRow convention).
 const STYLE_BY_KIND: Record<ReturnType<typeof styleKindFor>, { Icon: typeof Activity; tile: string }> = {
-  coach: { Icon: MessageSquare, tile: 'bg-sky-500' },
-  race: { Icon: Trophy, tile: 'bg-amber-500' },
-  achievement: { Icon: Flame, tile: 'bg-emerald-500' },
-  workout: { Icon: Calendar, tile: 'bg-primary-600' },
-  default: { Icon: Activity, tile: 'bg-slate-500' },
+  coach: { Icon: MessageSquare, tile: 'bg-band-2' },
+  race: { Icon: Trophy, tile: 'bg-band-3' },
+  achievement: { Icon: Flame, tile: 'bg-accent-600' },
+  workout: { Icon: Calendar, tile: 'bg-brand-600' },
+  default: { Icon: Activity, tile: 'bg-ink-300' },
 };
 function styleFor(it: Item): { Icon: typeof Activity; tile: string } {
   return STYLE_BY_KIND[styleKindFor(it)];
@@ -94,7 +94,7 @@ function RsvpInlineButtons({ weekStart, day, athleteId }: { weekStart: string; d
         onClick={(e) => submit(e, true)}
         className={cn(
           'flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-          attending === true ? 'bg-primary-600 text-white' : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700',
+          attending === true ? 'bg-brand-600 text-white' : 'bg-page/60 text-ink-500 hover:bg-ink-300/40',
         )}
       >
         <CheckCircle2 className="h-3.5 w-3.5" />
@@ -104,7 +104,7 @@ function RsvpInlineButtons({ weekStart, day, athleteId }: { weekStart: string; d
         onClick={(e) => submit(e, false)}
         className={cn(
           'flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-          attending === false ? 'bg-slate-600 text-white' : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700',
+          attending === false ? 'bg-ink-300 text-ink-700' : 'bg-page/60 text-ink-500 hover:bg-ink-300/40',
         )}
       >
         <XCircle className="h-3.5 w-3.5" />
@@ -152,7 +152,7 @@ function KudosButton({ activityId, athleteId }: { activityId: string; athleteId:
       onClick={toggle}
       className={cn(
         'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0',
-        given ? 'bg-primary-600 text-white' : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700',
+        given ? 'bg-brand-600 text-white' : 'bg-page/60 text-ink-500 hover:bg-ink-300/40',
       )}
     >
       <ThumbsUp className="h-3.5 w-3.5" /> {given ? 'ניתן' : 'קודוס'}
@@ -232,14 +232,14 @@ export default function NotificationsInboxPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Bell className="h-6 w-6 text-primary-400" /> {tn('title')}
+        <h1 className="text-2xl font-bold text-ink-700 flex items-center gap-2">
+          <Bell className="h-6 w-6 text-brand-600" /> {tn('title')}
         </h1>
         {totalUnread > 0 && (
           <button
             type="button"
             onClick={markAllRead}
-            className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-primary-300 hover:text-white hover:bg-slate-700/60 transition-colors"
+            className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-brand-600 hover:text-ink-900 hover:bg-page/60 transition-colors"
           >
             <CheckCheck className="h-3.5 w-3.5" /> {tn('markAllRead')}
           </button>
@@ -261,7 +261,7 @@ export default function NotificationsInboxPage() {
                 const rsvp = rsvpTarget(it);
                 return (
                   <div key={it.id} className="relative">
-                    {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-500 z-10" aria-hidden="true" />}
+                    {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-brand-600 z-10" aria-hidden="true" />}
                     <InsetRow
                       icon={Icon}
                       iconBg={tile}
@@ -272,12 +272,12 @@ export default function NotificationsInboxPage() {
                       trailing={
                         kudosId && athleteId ? (
                           <div className="flex flex-col items-end gap-1.5">
-                            <span className="text-xs text-slate-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
+                            <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
                             <KudosButton activityId={kudosId} athleteId={athleteId} />
                           </div>
                         ) : rsvp && athleteId ? (
                           <div className="flex flex-col items-end gap-1.5">
-                            <span className="text-xs text-slate-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
+                            <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
                             <RsvpInlineButtons weekStart={rsvp.weekStart} day={rsvp.day} athleteId={athleteId} />
                           </div>
                         ) : undefined

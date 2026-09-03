@@ -52,6 +52,9 @@ export function describeNotificationRow(n: NotificationStatusRow): {
     : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן';
   const audienceText = n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם';
   const iconKind: StatusIconKind = n.status === 'sent' ? 'sent' : n.status === 'cancelled' ? 'cancelled' : n.schedule_type === 'recurring' ? 'recurring' : 'scheduled';
-  const iconBg = n.status === 'sent' ? 'bg-green-500' : n.status === 'cancelled' ? 'bg-slate-600' : 'bg-amber-500';
+  // Light-system fills for the row's icon tile: sent = the accent green, still
+  // pending = the designer's one warning colour (band 3), cancelled = a grey that
+  // reads as "nothing will happen here" on a white card.
+  const iconBg = n.status === 'sent' ? 'bg-accent-600' : n.status === 'cancelled' ? 'bg-ink-300' : 'bg-band-3';
   return { statusText, audienceText, iconKind, iconBg };
 }

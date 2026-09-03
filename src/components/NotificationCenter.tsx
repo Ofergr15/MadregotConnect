@@ -98,14 +98,14 @@ function NotificationRowView({ n, onCancel, onRemove }: {
           {n.status === 'scheduled' && (
             <InsetRow
               icon={Clock}
-              iconBg="bg-amber-500"
+              iconBg="bg-band-3"
               label="ביטול תזמון"
               onClick={() => { setActionsOpen(false); onCancel(n.id); }}
             />
           )}
           <InsetRow
             icon={Trash2}
-            iconBg="bg-red-500"
+            iconBg="bg-accent-red"
             label="מחיקה"
             danger
             onClick={() => { setActionsOpen(false); setConfirmDeleteOpen(true); }}
@@ -418,7 +418,7 @@ export function NotificationCenter() {
     loadList();
   };
 
-  const inputCls = 'w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2.5 text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600';
+  const inputCls = 'w-full bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600';
 
   const selectedAthlete = athletes.find(a => a.id === audienceId);
   const selectedAthleteName = selectedAthlete?.name;
@@ -463,17 +463,17 @@ export function NotificationCenter() {
   const previewImageUrl = composeMode === 'survey' ? '' : imageUrl;
   const notifPreview = (
     <div>
-      <label className="text-xs font-semibold text-slate-400 mb-1.5 block">תצוגה מקדימה — כך זה יופיע במכשיר</label>
+      <label className="text-xs font-semibold text-ink-400 mb-1.5 block">תצוגה מקדימה — כך זה יופיע במכשיר</label>
       <div className="rounded-2xl bg-white shadow-lg border border-black/5 overflow-hidden" dir="rtl">
         <div className="p-3 flex items-start gap-2.5">
           <img src={previewImageUrl || '/images/icon-192.png'} alt="" className="w-9 h-9 rounded-[10px] shrink-0 object-cover" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2 mb-0.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Madregot</span>
-              <span className="text-[10px] text-slate-400">עכשיו</span>
+              <span className="text-[10px] font-bold text-ink-400 uppercase tracking-wide">Madregot</span>
+              <span className="text-[10px] text-ink-400">עכשיו</span>
             </div>
-            <p className="text-[13px] font-bold text-slate-900 truncate" dir="auto">{previewTitle}</p>
-            <p className="text-[13px] text-slate-700 line-clamp-2" dir="auto">{previewBody}</p>
+            <p className="text-[13px] font-bold text-ink-900 truncate" dir="auto">{previewTitle}</p>
+            <p className="text-[13px] text-ink-900 line-clamp-2" dir="auto">{previewBody}</p>
           </div>
         </div>
         {/* Expanded banner — only Chrome/Android renders `image` this large;
@@ -495,7 +495,7 @@ export function NotificationCenter() {
           on mobile that collapsed into one giant stacked form with no
           navigation hierarchy or title bar. */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-white">התראות</h3>
+        <h3 className="font-bold text-ink-700">התראות</h3>
         <Button size="sm" onClick={() => { reset(); setComposeOpen(true); }}>
           <Plus className="w-4 h-4" />
           שליחת התראה
@@ -535,15 +535,15 @@ export function NotificationCenter() {
           with no code deploy). */}
       {recurringTemplates.length > 0 && (
         <div className="mt-6">
-          <h3 className="font-bold text-white mb-3 flex items-center gap-2">
-            <Footprints className="w-4 h-4 text-primary-400" /> תבניות דבוקות שבועיות
+          <h3 className="font-bold text-ink-700 mb-3 flex items-center gap-2">
+            <Footprints className="w-4 h-4 text-brand-600" /> תבניות דבוקות שבועיות
           </h3>
           <InsetSection>
             {recurringTemplates.map((tpl) => (
               <InsetRow
                 key={tpl.id}
                 icon={Pencil}
-                iconBg={tpl.active ? 'bg-primary-600' : 'bg-slate-600'}
+                iconBg={tpl.active ? 'bg-brand-600' : 'bg-ink-300'}
                 label={DOW_NAMES_HE[tpl.day_of_week] || `יום ${tpl.day_of_week}`}
                 sublabel={tpl.question_he}
                 value={tpl.active ? undefined : 'כבוי'}
@@ -559,30 +559,30 @@ export function NotificationCenter() {
           count) are shown inline instead of just a delivery status. */}
       {surveys.length > 0 && (
         <div className="mt-6">
-          <h3 className="font-bold text-white mb-3 flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-primary-400" /> סקרים
+          <h3 className="font-bold text-ink-700 mb-3 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-brand-600" /> סקרים
           </h3>
           <div className="space-y-2">
             {surveys.map((s) => {
               const max = Math.max(1, ...s.counts);
               return (
-                <div key={s.id} className="bg-slate-900/40 rounded-xl border border-slate-700/30 p-3">
-                  <p className="text-sm font-semibold text-white mb-2" dir="auto">{s.question_he}</p>
+                <div key={s.id} className="bg-page/40 rounded-xl border border-page/30 p-3">
+                  <p className="text-sm font-semibold text-ink-700 mb-2" dir="auto">{s.question_he}</p>
                   <div className="space-y-1.5">
                     {s.options_he.map((opt, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs text-slate-300 w-20 truncate shrink-0" dir="auto">{opt}</span>
-                        <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                        <span className="text-xs text-ink-500 w-20 truncate shrink-0" dir="auto">{opt}</span>
+                        <div className="flex-1 h-2 rounded-full bg-card overflow-hidden">
                           <div
-                            className="h-full bg-primary-600 rounded-full"
+                            className="h-full bg-brand-600 rounded-full"
                             style={{ width: `${((s.counts[i] || 0) / max) * 100}%` }}
                           />
                         </div>
-                        <span className="text-xs text-slate-400 w-6 text-end shrink-0 tabular-nums">{s.counts[i] || 0}</span>
+                        <span className="text-xs text-ink-400 w-6 text-end shrink-0 tabular-nums">{s.counts[i] || 0}</span>
                       </div>
                     ))}
                   </div>
-                  <p className="text-3xs text-slate-500 mt-2">{s.totalResponses} תשובות</p>
+                  <p className="text-3xs text-ink-400 mt-2">{s.totalResponses} תשובות</p>
                 </div>
               );
             })}
@@ -610,30 +610,30 @@ export function NotificationCenter() {
                 const Icon = tpl.icon;
                 return (
                   <button key={tpl.key} onClick={() => applyTemplate(tpl)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700/40 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition" dir="rtl">
-                    <Icon className="w-3.5 h-3.5 text-primary-600" /> {tpl.label}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-page/40 hover:bg-ink-300/40 text-ink-700 text-xs font-semibold transition" dir="rtl">
+                    <Icon className="w-3.5 h-3.5 text-brand-600" /> {tpl.label}
                   </button>
                 );
               })}
             </div>
 
             {/* Future workouts — one-tap reminder, auto-dated */}
-            <div className="mb-3 rounded-xl bg-slate-900/40 border border-slate-700/40 p-2.5">
-              <p className="text-2xs font-bold text-slate-400 mb-1.5" dir="rtl">אימונים קרובים · תזכורת בלחיצה</p>
+            <div className="mb-3 rounded-xl bg-page/40 border border-page/40 p-2.5">
+              <p className="text-2xs font-bold text-ink-400 mb-1.5" dir="rtl">אימונים קרובים · תזכורת בלחיצה</p>
               {upcoming.length > 0 ? (
                 <div className="space-y-1">
                   {upcoming.map(w => (
                     <button key={w.dayOfWeek} onClick={() => remindWorkout(w)}
-                      className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition text-right" dir="rtl">
-                      <span className="text-xs text-slate-200 truncate">{w.dayName} · {w.name}</span>
-                      <span className="text-3xs font-bold text-primary-600 shrink-0">שלח תזכורת ←</span>
+                      className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-card/60 hover:bg-page transition text-right" dir="rtl">
+                      <span className="text-xs text-ink-700 truncate">{w.dayName} · {w.name}</span>
+                      <span className="text-3xs font-bold text-brand-600 shrink-0">שלח תזכורת ←</span>
                     </button>
                   ))}
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-2 px-1 py-1.5" dir="rtl">
-                  <span className="text-xs text-slate-500">אין תוכנית לשבוע הזה עדיין</span>
-                  <a href="/dashboard/program" className="text-3xs font-bold text-primary-600 shrink-0">הוספת תוכנית ←</a>
+                  <span className="text-xs text-ink-400">אין תוכנית לשבוע הזה עדיין</span>
+                  <a href="/dashboard/program" className="text-3xs font-bold text-brand-600 shrink-0">הוספת תוכנית ←</a>
                 </div>
               )}
             </div>
@@ -642,20 +642,20 @@ export function NotificationCenter() {
 
         {/* תוכן — one visually distinct card per mode, instead of a
             continuous scroll of bare labeled inputs. */}
-        <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3 space-y-3 mb-3">
-          <p className="text-2xs font-bold text-slate-400 uppercase tracking-wide" dir="rtl">תוכן</p>
+        <div className="rounded-2xl bg-page/40 border border-page/40 p-3 space-y-3 mb-3">
+          <p className="text-2xs font-bold text-ink-400 uppercase tracking-wide" dir="rtl">תוכן</p>
           {composeMode === 'message' ? (
             <>
               <div>
-                <label className="text-xs font-semibold text-slate-400">כותרת (עברית)</label>
+                <label className="text-xs font-semibold text-ink-400">כותרת (עברית)</label>
                 <input dir="rtl" value={titleHe} onChange={e => setTitleHe(e.target.value)} className={inputCls} placeholder="לדוגמה: אימון היום ב-18:00" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-400">תוכן (עברית)</label>
+                <label className="text-xs font-semibold text-ink-400">תוכן (עברית)</label>
                 <textarea dir="rtl" value={bodyHe} onChange={e => setBodyHe(e.target.value)} rows={2} className={inputCls} placeholder="פרטי ההתראה" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-400 mb-1.5 block" dir="rtl">תמונה (אופציונלי)</label>
+                <label className="text-xs font-semibold text-ink-400 mb-1.5 block" dir="rtl">תמונה (אופציונלי)</label>
                 <input
                   ref={imageFileRef}
                   type="file"
@@ -669,7 +669,7 @@ export function NotificationCenter() {
                     <img src={imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
                     <button
                       onClick={() => setImageUrl('')}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-red-400 hover:text-red-300 bg-slate-800/60 hover:bg-slate-800 transition"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-accent-red hover:text-accent-red bg-card/60 hover:bg-page transition"
                     >
                       <X className="w-3.5 h-3.5" /> הסרת תמונה
                     </button>
@@ -678,22 +678,22 @@ export function NotificationCenter() {
                   <button
                     onClick={() => imageFileRef.current?.click()}
                     disabled={uploadingImage}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-primary-400 bg-primary-600/10 hover:bg-primary-600/20 transition disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-brand-600 bg-brand-600/10 hover:bg-brand-600/20 transition disabled:opacity-50"
                   >
                     {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
                     {uploadingImage ? 'מעלה...' : 'הוספת תמונה'}
                   </button>
                 )}
-                {imageError && <p className="text-xs text-red-400 mt-1.5" dir="rtl">{imageError}</p>}
+                {imageError && <p className="text-xs text-accent-red mt-1.5" dir="rtl">{imageError}</p>}
               </div>
               {notifPreview}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-400">Title (English)</label>
+                  <label className="text-xs font-semibold text-ink-400">Title (English)</label>
                   <input value={titleEn} onChange={e => setTitleEn(e.target.value)} className={inputCls} placeholder="optional" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-400">Body (English)</label>
+                  <label className="text-xs font-semibold text-ink-400">Body (English)</label>
                   <input value={bodyEn} onChange={e => setBodyEn(e.target.value)} className={inputCls} placeholder="optional" />
                 </div>
               </div>
@@ -701,11 +701,11 @@ export function NotificationCenter() {
           ) : (
             <>
               <div>
-                <label className="text-xs font-semibold text-slate-400">שאלה (עברית)</label>
+                <label className="text-xs font-semibold text-ink-400">שאלה (עברית)</label>
                 <input dir="rtl" value={surveyQuestionHe} onChange={e => setSurveyQuestionHe(e.target.value)} className={inputCls} placeholder="לדוגמה: איזה יום מתאים לאימון נוסף?" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-400">תשובות אפשריות (עברית)</label>
+                <label className="text-xs font-semibold text-ink-400">תשובות אפשריות (עברית)</label>
                 <div className="space-y-2 mt-1">
                   {surveyOptionsHe.map((opt, i) => (
                     <div key={i} className="flex items-center gap-2">
@@ -720,7 +720,7 @@ export function NotificationCenter() {
                         <button
                           type="button"
                           onClick={() => setSurveyOptionsHe(surveyOptionsHe.filter((_, j) => j !== i))}
-                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400 shrink-0"
+                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red shrink-0"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -730,7 +730,7 @@ export function NotificationCenter() {
                   <button
                     type="button"
                     onClick={() => setSurveyOptionsHe([...surveyOptionsHe, ''])}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-500"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
                   >
                     <Plus className="w-3.5 h-3.5" /> הוספת אפשרות
                   </button>
@@ -738,7 +738,7 @@ export function NotificationCenter() {
               </div>
               {notifPreview}
               <div>
-                <label className="text-xs font-semibold text-slate-400">Question (English, optional)</label>
+                <label className="text-xs font-semibold text-ink-400">Question (English, optional)</label>
                 <input value={surveyQuestionEn} onChange={e => setSurveyQuestionEn(e.target.value)} className={inputCls} placeholder="optional" />
                 {surveyQuestionEn.trim() && (
                   <div className="space-y-2 mt-2">
@@ -764,8 +764,8 @@ export function NotificationCenter() {
 
         <div className="space-y-3">
           {/* קהל יעד — segmented control + contextual picker */}
-          <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3">
-            <label className="text-xs font-semibold text-slate-400">קהל יעד</label>
+          <div className="rounded-2xl bg-page/40 border border-page/40 p-3">
+            <label className="text-xs font-semibold text-ink-400">קהל יעד</label>
             <SegmentedControl
               className="mt-1.5"
               value={audienceType}
@@ -785,7 +785,7 @@ export function NotificationCenter() {
                   options={groups.map(g => ({ value: g.id, label: g.name }))}
                 />
               ) : (
-                <span className="text-xs text-slate-500 mt-2 block" dir="rtl">אין דבוקות</span>
+                <span className="text-xs text-ink-400 mt-2 block" dir="rtl">אין דבוקות</span>
               )
             )}
             {audienceType === 'athlete' && (
@@ -797,11 +797,11 @@ export function NotificationCenter() {
               >
                 {selectedAthlete ? (
                   <span className="flex flex-col items-start">
-                    <span className="text-white">{selectedAthlete.name}</span>
-                    <span className="text-2xs text-slate-500" dir="ltr">{selectedAthlete.email}</span>
+                    <span className="text-ink-700">{selectedAthlete.name}</span>
+                    <span className="text-2xs text-ink-400" dir="ltr">{selectedAthlete.email}</span>
                   </span>
                 ) : (
-                  <span className="text-slate-500">בחרו רץ…</span>
+                  <span className="text-ink-400">בחרו רץ…</span>
                 )}
               </button>
             )}
@@ -811,9 +811,9 @@ export function NotificationCenter() {
               for one notification kind); scheduling only applies to regular
               messages. */}
           {composeMode === 'message' && (
-            <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3 space-y-2">
+            <div className="rounded-2xl bg-page/40 border border-page/40 p-3 space-y-2">
               <div>
-                <label className="text-xs font-semibold text-slate-400">תזמון</label>
+                <label className="text-xs font-semibold text-ink-400">תזמון</label>
                 <SegmentedControl
                   className="mt-1"
                   value={scheduleType}
@@ -838,7 +838,7 @@ export function NotificationCenter() {
                           onClick={() => setSchedDate(targetDate)}
                           className={cn(
                             'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition',
-                            active ? 'bg-primary-600 text-white' : 'bg-slate-700/40 text-slate-300 hover:bg-slate-700'
+                            active ? 'bg-brand-600 text-white' : 'bg-page/40 text-ink-500 hover:bg-ink-300/40'
                           )}
                         >
                           {q.label}
@@ -854,7 +854,7 @@ export function NotificationCenter() {
               )}
               {scheduleType === 'recurring' && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400 shrink-0">כל</span>
+                  <span className="text-xs text-ink-400 shrink-0">כל</span>
                   <input
                     type="number"
                     min={1}
@@ -867,7 +867,7 @@ export function NotificationCenter() {
                       const n = Math.floor(Number(e.target.value));
                       setRecurInterval(Number.isFinite(n) && n >= 1 ? n : 1);
                     }}
-                    className="w-20 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white"
+                    className="w-20 bg-page/50 border border-page rounded-lg px-3 py-2 text-ink-700"
                   />
                   <SegmentedControl<'day' | 'week'>
                     className="flex-1"
@@ -883,10 +883,10 @@ export function NotificationCenter() {
             </div>
           )}
 
-          {msg && <p className="text-sm text-primary-600">{msg}</p>}
+          {msg && <p className="text-sm text-brand-600">{msg}</p>}
 
           <button onClick={() => setConfirmSendOpen(true)} disabled={sending}
-            className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-lg transition">
+            className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-bold rounded-lg transition">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {composeMode === 'survey' ? 'שליחת סקר' : scheduleType === 'now' ? 'שליחה עכשיו' : 'תזמון'}
           </button>
@@ -917,18 +917,18 @@ export function NotificationCenter() {
           dir="rtl"
           className={cn(inputCls, 'mb-3')}
         />
-        <div className="rounded-2xl bg-slate-900/40 overflow-hidden divide-y divide-slate-700/50 max-h-[50vh] overflow-y-auto">
+        <div className="rounded-2xl bg-page/40 overflow-hidden divide-y divide-page/50 max-h-[50vh] overflow-y-auto">
           {filteredAthletes.map(a => (
             <InsetRow
               key={a.id}
               label={a.name}
               sublabel={a.email}
               onClick={() => { setAudienceId(a.id); setAthletePickerOpen(false); setAthleteSearch(''); }}
-              trailing={a.id === audienceId ? <CheckCircle2 className="h-4 w-4 text-primary-400" /> : <span className="w-4 h-4" />}
+              trailing={a.id === audienceId ? <CheckCircle2 className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
             />
           ))}
           {filteredAthletes.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-slate-500" dir="rtl">אין תוצאות</p>
+            <p className="px-4 py-6 text-center text-sm text-ink-400" dir="rtl">אין תוצאות</p>
           )}
         </div>
       </Sheet>
@@ -941,21 +941,21 @@ export function NotificationCenter() {
         title={editingTemplate ? `תבנית יום ${DOW_NAMES_HE[editingTemplate.day_of_week]}` : ''}
       >
         <div className="space-y-3 pb-2">
-          {tplError && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{tplError}</div>}
+          {tplError && <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{tplError}</div>}
 
-          <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3 space-y-3">
+          <div className="rounded-2xl bg-page/40 border border-page/40 p-3 space-y-3">
             <div>
-              <label className="text-xs font-semibold text-slate-400">שאלה (עברית)</label>
+              <label className="text-xs font-semibold text-ink-400">שאלה (עברית)</label>
               <input dir="rtl" value={tplQuestionHe} onChange={e => setTplQuestionHe(e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-400">Question (English, optional)</label>
+              <label className="text-xs font-semibold text-ink-400">Question (English, optional)</label>
               <input value={tplQuestionEn} onChange={e => setTplQuestionEn(e.target.value)} className={inputCls} placeholder="optional" />
             </div>
           </div>
 
-          <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3">
-            <label className="text-xs font-semibold text-slate-400">תשובות אפשריות (עברית)</label>
+          <div className="rounded-2xl bg-page/40 border border-page/40 p-3">
+            <label className="text-xs font-semibold text-ink-400">תשובות אפשריות (עברית)</label>
             <div className="space-y-2 mt-1">
               {tplOptionsHe.map((opt, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -970,7 +970,7 @@ export function NotificationCenter() {
                     <button
                       type="button"
                       onClick={() => setTplOptionsHe(tplOptionsHe.filter((_, j) => j !== i))}
-                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-red-400 shrink-0"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red shrink-0"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -980,14 +980,14 @@ export function NotificationCenter() {
               <button
                 type="button"
                 onClick={() => setTplOptionsHe([...tplOptionsHe, ''])}
-                className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-500"
+                className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
               >
                 <Plus className="w-3.5 h-3.5" /> הוספת אפשרות
               </button>
             </div>
             {tplQuestionEn.trim() && (
               <div className="space-y-2 mt-3">
-                <label className="text-xs font-semibold text-slate-400">Options (English)</label>
+                <label className="text-xs font-semibold text-ink-400">Options (English)</label>
                 {tplOptionsHe.map((_, i) => (
                   <input
                     key={i}
@@ -1005,8 +1005,8 @@ export function NotificationCenter() {
             )}
           </div>
 
-          <div className="rounded-2xl bg-slate-900/40 border border-slate-700/40 p-3 flex items-center justify-between" dir="rtl">
-            <span className="text-sm text-white">פעיל</span>
+          <div className="rounded-2xl bg-page/40 border border-page/40 p-3 flex items-center justify-between" dir="rtl">
+            <span className="text-sm text-ink-700">פעיל</span>
             <Switch checked={tplActive} onChange={setTplActive} ariaLabel="פעיל" />
           </div>
 
