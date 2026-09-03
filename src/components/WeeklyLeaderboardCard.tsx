@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { cn, getActivityWeekStart, activityWeekStart, israelDateAnchor } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
 import { SegmentedControl } from '@/components/ui';
-import { apiHeaders } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 
 interface Props {
   athleteId: string | null;
@@ -26,7 +26,13 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
   const [weekTarget, setWeekTarget] = useState<{ min: number; max: number } | null>(null);
   const [leaderboard, setLeaderboard] = useState<Array<{ id: string; name: string; groupId: string; distanceKm: number; runs: number }>>([]);
   const [leaderboardFilter, setLeaderboardFilter] = useState<'all' | string>('all');
-  const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
+  // Group names for the leaderboard filter chips. Same SWR key the Header uses
+  // on every screen, so this reads the cache instead of re-running a 4KB
+  // groups+athletes join for three labels.
+  const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>>(
+    athleteId ? '/api/groups' : null,
+  );
+  const groups = Array.isArray(groupsData) ? groupsData : (groupsData?.groups || []);
 
   useEffect(() => {
     if (!athleteId) return;
@@ -35,10 +41,17 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
         // Both the leaderboard and the weekly plan are session-gated now, so
         // resolve the bearer header once and reuse it for the pair.
         const headers = await apiHeaders();
-        const [actRes, lbRes, grpRes, weeklyRes] = await Promise.all([
-          fetchActivities(),
+        // `selfOnly`: despite the name, the activities here are only ever used
+        // for MY numbers — this week's km and the 12-week volume bars. The
+        // club-wide half of this card is /api/groups/leaderboard, which is
+        // aggregated server-side. Without it, staff are handed the club's newest
+        // 200 rows and `filtered` below keeps whichever of mine happen to be in
+        // there — so a coach who also runs saw a truncated volume chart (and a
+        // wrong "this week") on a busy week, plus every other athlete's splits
+        // and laps JSONB downloaded to throw away.
+        const [actRes, lbRes, weeklyRes] = await Promise.all([
+          fetchActivities({ selfOnly: true }),
           fetch('/api/groups/leaderboard', { headers }),
-          fetch('/api/groups'),
           fetch('/api/dashboard/weekly', { headers }),
         ]);
 
@@ -77,10 +90,6 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
         }
 
         if (lbRes.ok) setLeaderboard((await lbRes.json()).leaderboard || []);
-        if (grpRes.ok) {
-          const grpData = await grpRes.json();
-          setGroups(grpData.groups || grpData || []);
-        }
       } catch { /* best-effort — section just hides if nothing loads */ }
     })();
   }, [athleteId]);

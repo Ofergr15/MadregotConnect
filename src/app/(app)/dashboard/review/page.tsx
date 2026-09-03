@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Send, CheckCircle2, MessageSquare, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, Images, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { apiHeaders } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { Card, Button, Spinner, Sheet, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
@@ -36,7 +36,14 @@ export default function ReviewPage() {
   const [athleteName, setAthleteName] = useState('');
   const [athleteEmail, setAthleteEmail] = useState('');
   const [athleteId, setAthleteId] = useState('');
-  const [groupName, setGroupName] = useState('');
+  // Just the athlete's own group NAME, stamped on the feedback they send. Same
+  // SWR key the Header already holds, so it costs nothing here.
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>>(
+    groupId ? '/api/groups' : null,
+  );
+  const groupName =
+    (Array.isArray(groupsData) ? groupsData : groupsData?.groups || []).find(g => g.id === groupId)?.name || '';
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -47,16 +54,7 @@ export default function ReviewPage() {
     setAthleteEmail(localStorage.getItem('athlete_email') || '');
     setAthleteId(localStorage.getItem('athlete_id') || '');
 
-    const groupId = localStorage.getItem('athlete_group_id');
-    if (groupId) {
-      fetch('/api/groups')
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          const group = (data?.groups || data || []).find((g: any) => g.id === groupId);
-          if (group?.name) setGroupName(group.name);
-        })
-        .catch(() => {});
-    }
+    setGroupId(localStorage.getItem('athlete_group_id'));
   }, []);
 
   const handleFile = (file: File) => {

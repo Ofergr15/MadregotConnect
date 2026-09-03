@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints, ImagePlus } from 'lucide-react';
 import { cn, getPlanWeekStart } from '@/lib/utils';
-import { apiHeaders } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState, Switch } from '@/components/ui';
 import { InsetRow, InsetSection } from '@/components/ui/InsetList';
@@ -127,7 +127,10 @@ function NotificationRowView({ n, onCancel, onRemove }: {
 }
 
 export function NotificationCenter() {
-  const [groups, setGroups] = useState<Group[]>([]);
+  // Group list for the "send to group" picker. Same SWR key the Header uses on
+  // every screen, so opening this panel doesn't re-run the groups+athletes join.
+  const { data: groupsData } = useApi<{ groups?: Group[] }>('/api/groups');
+  const groups: Group[] = (groupsData?.groups || []).map(g => ({ id: g.id, name: g.name }));
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [list, setList] = useState<NotificationRow[]>([]);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
@@ -279,9 +282,6 @@ export function NotificationCenter() {
   };
 
   useEffect(() => {
-    fetch('/api/groups').then(r => r.ok ? r.json() : null).then(d => {
-      if (d?.groups) setGroups(d.groups.map((g: any) => ({ id: g.id, name: g.name })));
-    }).catch(() => {});
     apiHeaders().then(h => fetch('/api/admin/users', { headers: h })).then(r => r.ok ? r.json() : null).then(d => {
       if (d?.users) setAthletes(d.users.map((u: any) => ({ id: u.id, name: u.name, email: u.email })));
     }).catch(() => {});

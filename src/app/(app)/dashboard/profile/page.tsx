@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { mutate as globalMutate } from 'swr';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { apiHeaders } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { useTranslations } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
@@ -129,7 +129,8 @@ function ProfileContent() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [currentGroupId, setCurrentGroupId] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState('');
-  const [groups, setGroups] = useState<Group[]>([]);
+  // Club-global and read-only here, so it's derived straight from the cache
+  // rather than copied into state — see the useApi call below.
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dataSource, setDataSource] = useState<'garmin' | 'strava' | null>(null);
@@ -167,22 +168,28 @@ function ProfileContent() {
   const [shareDay, setShareDay] = useState<number>(() => new Date().getDay());
   const [copied, setCopied] = useState(false);
 
+  // useApi, not a raw fetch: this is the screen an athlete opens most, and SWR
+  // renders the previous answer instantly on a revisit instead of blanking the
+  // Share Workout row while five requests go out again. The plan is club-global
+  // and unkeyed, so every screen that asks shares one cache entry.
+  const { data: planData } = useApi<{ plan?: { parsed_workouts?: GroupedWeeklyPlans; week_start_date?: string; is_current?: boolean } }>(
+    '/api/public/current-plan',
+  );
+  // Same key the Header already uses on every screen, so this is normally a
+  // cache read rather than a second copy of a 4KB groups+athletes join.
+  const { data: groupsData } = useApi<{ groups?: Group[] }>('/api/groups');
+  const groups = groupsData?.groups || [];
   useEffect(() => {
-    fetch('/api/public/current-plan')
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => {
-        const plan = data?.plan;
-        if (!plan?.parsed_workouts) return;
-        const pw = plan.parsed_workouts;
-        // Only the grouped shape (group1/2/3) can produce the ❶ (❷) ((❸)) copy.
-        if (pw.group1 && pw.group2 && pw.group3) {
-          setPlanWorkouts(pw as GroupedWeeklyPlans);
-          setPlanWeekStart(plan.week_start_date);
-          setPlanIsCurrent(!!plan.is_current);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    const plan = planData?.plan;
+    if (!plan?.parsed_workouts) return;
+    const pw = plan.parsed_workouts;
+    // Only the grouped shape (group1/2/3) can produce the ❶ (❷) ((❸)) copy.
+    if (pw.group1 && pw.group2 && pw.group3) {
+      setPlanWorkouts(pw as GroupedWeeklyPlans);
+      setPlanWeekStart(plan.week_start_date || null);
+      setPlanIsCurrent(!!plan.is_current);
+    }
+  }, [planData]);
 
   // ?tab= is a deep-link target, not just a bookmark: the first-run tour ends by
   // pushing ?tab=setup. The initial state above only reads the param on mount, so
@@ -218,51 +225,6 @@ function ProfileContent() {
     setCurrentGroupId(groupId);
     setSelectedGroupId(groupId);
 
-    fetch('/api/groups')
-      .then(res => res.json())
-      .then(data => setGroups(data.groups || []))
-      .catch(() => {});
-
-    if (id) {
-      // One call for everything this screen needs about the signed-in athlete.
-      // The four connection fields below used to come from a SECOND request to
-      // GET /api/admin/athlete-source, which returns a row for every athlete in
-      // the club so the client could `.find()` its own — a whole-roster download,
-      // on every open of the screen an athlete visits most, to read four booleans
-      // about themselves. /api/athletes/me is scoped to one row and was already
-      // being fetched here for the avatar.
-      apiHeaders()
-        .then(headers => fetch(`/api/athletes/me?id=${id}`, { headers }))
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          const me = data?.athlete;
-          if (!me) throw new Error('no athlete');
-          setAvatarUrl(me.avatarUrl || null);
-          setDataSource(me.data_source || 'garmin');
-          setHasGarmin(me.hasGarmin);
-          setHasStrava(me.hasStrava);
-          setStravaEnabled(me.stravaEnabled);
-        })
-        .catch(() => {
-          // Assume the legacy default rather than rendering "no connection" over
-          // a network blip — same fallback this screen has always used.
-          setHasGarmin(true);
-          setDataSource('garmin');
-        });
-    }
-
-    if (id) {
-      fetch(`/api/athletes/${id}/connections`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data) {
-            setFollowingCount(data.followingCount || 0);
-            setFollowingList(data.following || []);
-          }
-        })
-        .catch(() => {});
-    }
-
     if (id) {
       // All this needs is "does this athlete have ANY activity", so one row is
       // enough. It used to ask for the default page of 200, each carrying its
@@ -283,6 +245,51 @@ function ProfileContent() {
         .catch(() => {});
     }
   }, []);
+
+  // One call for everything this screen needs about the signed-in athlete. The
+  // four connection fields used to come from a SECOND request to GET
+  // /api/admin/athlete-source, which returns a row for every athlete in the club
+  // so the client could `.find()` its own — a whole-roster download, on every
+  // open of the screen an athlete visits most, to read four booleans about
+  // themselves. /api/athletes/me is scoped to one row.
+  //
+  // The answers land in state rather than being read straight off `data` because
+  // this screen also writes them locally: connecting Garmin sets hasGarmin,
+  // uploading a photo sets avatarUrl, the Strava toggle sets stravaEnabled. SWR
+  // seeds them and a revalidation refreshes them; the local writes still win
+  // until then.
+  const { data: meData, error: meError, mutate: mutateMe } = useApi<{
+    athlete?: { avatarUrl?: string | null; data_source?: 'garmin' | 'strava' | null; hasGarmin?: boolean; hasStrava?: boolean; stravaEnabled?: boolean };
+  }>(athleteId ? `/api/athletes/me?id=${encodeURIComponent(athleteId)}` : null);
+
+  useEffect(() => {
+    const me = meData?.athlete;
+    if (!me) return;
+    setAvatarUrl(me.avatarUrl || null);
+    setDataSource(me.data_source || 'garmin');
+    setHasGarmin(!!me.hasGarmin);
+    setHasStrava(!!me.hasStrava);
+    setStravaEnabled(!!me.stravaEnabled);
+  }, [meData]);
+
+  useEffect(() => {
+    // Assume the legacy default rather than rendering "no connection" over a
+    // network blip — same fallback this screen has always used.
+    if (!meError) return;
+    setHasGarmin(true);
+    setDataSource('garmin');
+  }, [meError]);
+
+  // Following list — also state, because unfollowing edits it in place.
+  const { data: connectionsData } = useApi<{ followingCount?: number; following?: FollowedAthlete[] }>(
+    athleteId ? `/api/athletes/${encodeURIComponent(athleteId)}/connections` : null,
+  );
+
+  useEffect(() => {
+    if (!connectionsData) return;
+    setFollowingCount(connectionsData.followingCount || 0);
+    setFollowingList(connectionsData.following || []);
+  }, [connectionsData]);
 
   const hasChanges = selectedGroupId !== currentGroupId;
 
@@ -373,6 +380,11 @@ function ProfileContent() {
       const data = await res.json();
       if (res.ok && data.avatarUrl) {
         setAvatarUrl(data.avatarUrl);
+        // The cached /api/athletes/me still carries the OLD avatar, and picking a
+        // file can blur and refocus the page — which is exactly when SWR
+        // revalidates. Without this, that stale response could land after the
+        // upload and put the previous photo back until the next refresh.
+        mutateMe();
         // Flips the setup checklist's "add a photo" task straight away — this is
         // the only setup task you can complete without leaving the screen, so
         // it's the only one that needs a nudge rather than the checklist's own

@@ -15,7 +15,7 @@ import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceTo
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { canApprove, canGrantAdmin } from '@/lib/constants';
-import { apiHeaders } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNav } from '@/components/ui';
@@ -339,7 +339,14 @@ export default function SettingsPage() {
   const [updatingFeedback, setUpdatingFeedback] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<string>('');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [groupsById, setGroupsById] = useState<Record<string, string>>({});
+  // Group names, to label the group sub-sections in User Manager. Same SWR key
+  // the Header holds on every screen, so this is a cache read; keyed on the tab
+  // so the landing still doesn't ask for it.
+  const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> }>(
+    activeTab === 'users' ? '/api/groups' : null,
+  );
+  const groupsById: Record<string, string> = {};
+  (groupsData?.groups || []).forEach(g => { groupsById[g.id] = g.name; });
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [uSearch, setUSearch] = useState('');
   const [uRole, setURole] = useState<'all' | Role>('all');
@@ -351,19 +358,6 @@ export default function SettingsPage() {
     setCanApproveHere(canApprove(me));
     setCanGrantAdminHere(canGrantAdmin(me));
   }, []);
-
-  // Group names, to label the group sub-sections in User Manager.
-  const fetchGroupNames = async () => {
-    try {
-      const res = await fetch('/api/groups');
-      if (!res.ok) return;
-      const d = await res.json();
-      if (!d?.groups) return;
-      const map: Record<string, string> = {};
-      d.groups.forEach((g: any) => { map[g.id] = g.name; });
-      setGroupsById(map);
-    } catch {}
-  };
 
   // Which datasets have already been requested, so re-opening a detail screen
   // (or bouncing back to the landing and in again) doesn't refetch. The mutation
@@ -387,7 +381,6 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeTab === 'users') {
       loadOnce('users', fetchUsers);
-      loadOnce('groups', fetchGroupNames);
     } else if (activeTab === 'tabs') {
       loadOnce('permissions', fetchPermissions);
       loadOnce('mobilePermissions', fetchMobilePermissions);
