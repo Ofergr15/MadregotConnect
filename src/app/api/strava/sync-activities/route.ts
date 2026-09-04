@@ -82,6 +82,43 @@ export async function POST(request: Request) {
       return t === 'Run' || t === 'TrailRun' || t === 'VirtualRun';
     };
 
+    // Enrichment (laps + GPX) costs two or three Strava calls per run against a
+    // 100-per-15-minutes limit, so it runs on a budget — and the budget is
+    // club-wide, where it used to be reset inside the athlete loop: a sync of N
+    // Strava athletes could spend N × 15 × ~3 calls and breach the limit.
+    //
+    // Two budgets, because one number cannot do both jobs:
+    //
+    //   RECENT    the live path. A run someone finished this morning must get its
+    //             laps on this sync, not eventually.
+    //   BACKFILL  the history. The old code had a hard 45-day gate and no
+    //             backfill at all, which is why 170 of 175 Strava runs have no
+    //             laps: past the window a run could never be enriched however
+    //             many times the sync passed over it, so the backlog was
+    //             permanent and the splits table had nothing to show.
+    //
+    // Keeping them apart is the whole point — one shared budget would let a
+    // 154-run historical backlog crowd out a run finished an hour ago.
+    // `needsEnrich` goes false once laps are stored (enrich writes `[]` when
+    // Strava has none), so each sync spends the backfill budget on the next slice
+    // and the backlog drains instead of being retried forever.
+    const RECENT_ENRICH_LIMIT = 15;
+    const BACKFILL_ENRICH_LIMIT = 10;
+    const RECENT_MS = 45 * 24 * 60 * 60 * 1000;
+    let recentEnriched = 0;
+    let backfilled = 0;
+    // Claims a slot from the right budget, so callers cannot forget to count.
+    const shouldEnrich = (startLocal: string) => {
+      if (Date.now() - new Date(startLocal).getTime() < RECENT_MS) {
+        if (recentEnriched >= RECENT_ENRICH_LIMIT) return false;
+        recentEnriched++;
+        return true;
+      }
+      if (backfilled >= BACKFILL_ENRICH_LIMIT) return false;
+      backfilled++;
+      return true;
+    };
+
     for (const athlete of athletes) {
       if (!athlete.strava_auth) continue;
       try {
@@ -165,15 +202,6 @@ export async function POST(request: Request) {
         // Post-workout feedback nudge (same purpose as Garmin sync's) needs
         // the newest genuinely-new activity's details after the loop below.
         const newActivityPushInfo: Array<{ activityId: number; distance: number; activityType: string; startTimeLocal: string }> = [];
-        // Enrich (laps/GPX) is rate-limit heavy — only for the newest N runs.
-        const ENRICH_LIMIT = 15;
-        let enrichCount = 0;
-        const shouldEnrich = (startLocal: string) => {
-          if (enrichCount >= ENRICH_LIMIT) return false;
-          const ageMs = Date.now() - new Date(startLocal).getTime();
-          return ageMs < 45 * 24 * 60 * 60 * 1000; // ~45 days
-        };
-
         for (const a of runActivities) {
           const known = existingByStrava.get(a.id);
           if (known) {
@@ -209,7 +237,6 @@ export async function POST(request: Request) {
               }
             }
             if (known.needsEnrich && shouldEnrich(a.start_date_local)) {
-              enrichCount++;
               await enrichStravaActivity(supabase, client, {
                 athleteId: athlete.id,
                 stravaActivityId: a.id,
@@ -320,7 +347,6 @@ export async function POST(request: Request) {
           }
 
           if (shouldEnrich(a.start_date_local)) {
-            enrichCount++;
             await enrichStravaActivity(supabase, client, {
               athleteId: athlete.id,
               stravaActivityId: a.id,
@@ -402,7 +428,15 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ synced: totalSynced, results });
+    // recentEnriched / backfilled are club-wide budgets, so they belong on the
+    // envelope rather than per athlete. `backfilled` hitting its cap is how you
+    // know the lap backlog is still draining.
+    return NextResponse.json({
+      synced: totalSynced,
+      recentEnriched,
+      backfilled,
+      results,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Sync failed';
     console.error('Strava sync error:', error);
