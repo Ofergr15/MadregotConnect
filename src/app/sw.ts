@@ -2,6 +2,7 @@
 import { defaultCache, PAGES_CACHE_NAME } from '@serwist/turbopack/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { ExpirationPlugin, NetworkFirst, NetworkOnly, Serwist } from 'serwist';
+import { BASEMAP_HOSTNAME } from '@/lib/basemap';
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -59,14 +60,14 @@ const serwist = new Serwist({
       matcher: ({ url }) => url.hostname.endsWith('.supabase.co'),
       handler: new NetworkOnly(),
     },
-    // 4) Don't mediate the Races-page map (Leaflet CDN + CARTO map tiles).
+    // 4) Don't mediate map tiles (Leaflet CDN + the basemap provider) — the
+    //    Races-page map, the route detail map, and every feed-card thumbnail.
     //    defaultCache would otherwise route these cross-origin requests through
     //    NetworkFirst, which can make opaque no-cors responses flaky on mobile.
     //    Let the browser fetch them directly, exactly as it did pre-PWA.
     {
       matcher: ({ url }) =>
-        url.hostname === 'unpkg.com' ||
-        url.hostname.endsWith('.basemaps.cartocdn.com'),
+        url.hostname === 'unpkg.com' || url.hostname === BASEMAP_HOSTNAME,
       handler: new NetworkOnly(),
     },
     // 5) Navigations/documents/RSC payloads, same as defaultCache's own

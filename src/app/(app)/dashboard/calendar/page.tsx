@@ -8,6 +8,11 @@ import {
   Tent, BookOpen, PartyPopper, Camera, Gift, Dumbbell, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  BASEMAP_ATTRIBUTION,
+  BASEMAP_MAX_ZOOM,
+  BASEMAP_URL_TEMPLATE_DARK,
+} from '@/lib/basemap';
 import { useApi } from '@/lib/api';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
@@ -344,10 +349,15 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
         center: [31.5, 34.8],
         zoom: 7,
         zoomControl: false,
-        attributionControl: false,
       });
       L.control.zoom({ position: 'bottomright' }).addTo(map);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+      // Was CARTO's `dark_all`, which now answers 200 with "API KEY REQUIRED"
+      // stamped across every tile — this map had been quietly watermarked. Kept
+      // dark to leave the page looking as intended; provider lives in lib/basemap.
+      L.tileLayer(BASEMAP_URL_TEMPLATE_DARK, {
+        maxZoom: BASEMAP_MAX_ZOOM,
+        attribution: BASEMAP_ATTRIBUTION,
+      }).addTo(map);
       setTimeout(() => map.invalidateSize(), 200);
 
       sorted.forEach((race) => {
