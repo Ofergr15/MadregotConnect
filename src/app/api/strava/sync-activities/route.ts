@@ -4,6 +4,11 @@
  *
  * Syncs Strava runs into athlete_activities (laps + gps_points + GPX).
  * When athleteId is omitted, syncs every athlete with data_source=strava.
+ *
+ * PATCH /api/strava/sync-activities?mode=route
+ * Staff-only one-shot repair of runs already stored without geometry. See the
+ * handler's own comment — the POST path only reaches an athlete's backlog when
+ * that athlete personally opens the app.
  */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -23,7 +28,7 @@ import { notifyTeammatesOfActivity } from '@/lib/push';
 import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
-import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
+import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -442,4 +447,210 @@ export async function POST(request: Request) {
     console.error('Strava sync error:', error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+/**
+ * PATCH /api/strava/sync-activities?mode=route[&athleteId=…][&maxPages=…]
+ *
+ * Repairs geometry on Strava runs already stored without it — the counterpart
+ * the Garmin backfill's own comment asks for ("Those rows need Strava's own
+ * polyline, not this endpoint").
+ *
+ * Why this exists as its own endpoint rather than riding the POST sync: the POST
+ * path is only ever called client-side, from the dashboard, profile and
+ * activities pages, and `cron/sync` is deliberately Garmin-only. So a run's
+ * route is repaired only when *that* athlete personally opens the app. Measured
+ * on production 2026-09-04: 171 of 175 Strava runs had no geometry and 158 of
+ * them belong to one athlete, so the whole backlog was waiting on one person's
+ * next login — behind maintenance mode.
+ *
+ * It is cheap in a way the Garmin equivalent is not. The route comes from
+ * `map.summary_polyline` on the activity *list*, so the cost is a handful of
+ * page requests per athlete no matter how many rows are repaired, where the
+ * Garmin backfill spends two requests per row. That is why there is no
+ * per-row budget here and no age gate — and why it still fetches nothing for an
+ * athlete with no rows to fix.
+ */
+export async function PATCH(request: Request) {
+  try {
+    // Staff-only. Cheap is not free: this walks every Strava athlete's history
+    // and writes to their activity rows.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!caller.isSuperUser && !caller.isStaff) {
+      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+
+    const supabase = createServerClient();
+    const { searchParams } = new URL(request.url);
+    const scopedAthleteId = searchParams.get('athleteId');
+    const maxPages = Math.min(Math.max(Number(searchParams.get('maxPages')) || 10, 1), 20);
+
+    // Deliberately NOT selecting gps_points: the point of the query is to find
+    // rows where it is null, and the column holds thousands of coordinates on
+    // the rows that do have one.
+    type Target = {
+      id: string;
+      athlete_id: string;
+      strava_activity_id: number;
+      start_time: string | null;
+      has_polyline: boolean | null;
+    };
+    let targetQuery = supabase
+      .from('athlete_activities')
+      .select('id, athlete_id, strava_activity_id, start_time, has_polyline')
+      .eq('source', 'strava')
+      .is('gps_points', null)
+      .not('strava_activity_id', 'is', null);
+    if (scopedAthleteId) targetQuery = targetQuery.eq('athlete_id', scopedAthleteId);
+    const { data: targets, error: targetError } = await targetQuery.returns<Target[]>();
+    if (targetError) throw targetError;
+    if (!targets?.length) {
+      return NextResponse.json({
+        repaired: 0,
+        cleared: 0,
+        unreachable: 0,
+        message: 'No Strava runs are missing geometry',
+      });
+    }
+
+    // Group first so each athlete's history is fetched once, not per row.
+    const byAthlete = new Map<string, Target[]>();
+    for (const t of targets) {
+      const rows = byAthlete.get(t.athlete_id);
+      if (rows) rows.push(t);
+      else byAthlete.set(t.athlete_id, [t]);
+    }
+
+    const { data: athletes, error: athError } = await supabase
+      .from('athletes')
+      .select('id, name, strava_auth')
+      .in('id', [...byAthlete.keys()])
+      .returns<Array<{ id: string; name: string; strava_auth: string | null }>>();
+    if (athError) throw athError;
+
+    let repaired = 0;
+    let cleared = 0;
+    let unreachable = 0;
+    const results: Array<{
+      athleteId: string;
+      name: string;
+      /** Rows that got a real route. */
+      repaired: number;
+      /** Rows where Strava confirms there is no route, so has_polyline went false. */
+      cleared: number;
+      /** Rows Strava's list never returned — older than the pages walked, or deleted there. */
+      unreachable: number;
+      error?: string;
+    }> = [];
+
+    for (const athlete of athletes || []) {
+      const rows = byAthlete.get(athlete.id) || [];
+      const fail = (error: string) => {
+        unreachable += rows.length;
+        results.push({
+          athleteId: athlete.id,
+          name: athlete.name,
+          repaired: 0,
+          cleared: 0,
+          unreachable: rows.length,
+          error,
+        });
+      };
+
+      if (!athlete.strava_auth) {
+        // A row with source='strava' whose athlete has since disconnected.
+        fail('No Strava authorisation');
+        continue;
+      }
+
+      try {
+        const auth = decrypt(athlete.strava_auth) as StravaTokens;
+        const token = await getValidStravaToken(supabase, athlete.id, auth);
+        if (!token) {
+          fail('Token refresh failed');
+          continue;
+        }
+
+        // Page back only as far as the oldest row that actually needs repair,
+        // rather than the POST path's fixed 180 days: it keeps a small repair
+        // to one request, and lets a genuinely old backlog be reached at all.
+        const oldestMs = rows.reduce<number | null>((oldest, row) => {
+          if (!row.start_time) return oldest;
+          const ms = new Date(row.start_time).getTime();
+          if (Number.isNaN(ms)) return oldest;
+          return oldest === null || ms < oldest ? ms : oldest;
+        }, null);
+        const activities = await fetchActivitiesSince(token, oldestMs, maxPages);
+
+        // `has`, not the value: an activity present in the list with no
+        // summary_polyline is a confirmed routeless run (treadmill, manual
+        // entry), which is a different answer from "not found".
+        const polylineById = new Map<number, string | null | undefined>();
+        for (const a of activities) polylineById.set(a.id, a.map?.summary_polyline);
+
+        let athleteRepaired = 0;
+        let athleteCleared = 0;
+        let athleteUnreachable = 0;
+
+        for (const row of rows) {
+          if (!polylineById.has(row.strava_activity_id)) {
+            athleteUnreachable++;
+            continue;
+          }
+          const route = routeFromSummaryPolyline(polylineById.get(row.strava_activity_id));
+          // No route and the row already admits it — nothing to write.
+          if (!route && !row.has_polyline) continue;
+
+          const { error: updateError } = await supabase
+            .from('athlete_activities')
+            .update(
+              route
+                ? { gps_points: route, has_polyline: true }
+                // gps_points stays NULL rather than []: "no route" and "never
+                // fetched" should not become indistinguishable. Clearing the
+                // flag is what stops the feed reserving a map area it cannot
+                // fill — 112 rows were in exactly that state.
+                : { has_polyline: false },
+            )
+            .eq('id', row.id);
+          if (updateError) {
+            console.warn(`Route backfill for Strava activity ${row.strava_activity_id} failed:`, updateError.message);
+            continue;
+          }
+          if (route) athleteRepaired++;
+          else athleteCleared++;
+        }
+
+        repaired += athleteRepaired;
+        cleared += athleteCleared;
+        unreachable += athleteUnreachable;
+        results.push({
+          athleteId: athlete.id,
+          name: athlete.name,
+          repaired: athleteRepaired,
+          cleared: athleteCleared,
+          unreachable: athleteUnreachable,
+        });
+      } catch (e: unknown) {
+        fail(e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    return NextResponse.json({ targets: targets.length, repaired, cleared, unreachable, results });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Route backfill failed';
+    console.error('Strava route backfill error:', error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * Every activity from `oldestMs` (minus a day's slack for timezone skew between
+ * the stored local start_time and Strava's epoch filter) to now.
+ */
+async function fetchActivitiesSince(token: string, oldestMs: number | null, maxPages: number) {
+  const after = oldestMs === null ? undefined : Math.floor(oldestMs / 1000) - 24 * 60 * 60;
+  // per_page 200 is Strava's maximum, so this is the fewest requests possible.
+  return new StravaClient(token).getAllActivities({ after, maxPages, perPage: 200 });
 }
