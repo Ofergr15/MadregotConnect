@@ -14,14 +14,16 @@
  * any login at all. Hence this: a pass that repairs rows regardless of whose they
  * are or who is currently signed in.
  *
- * Its only caller today is the staff PATCH on /api/strava/sync-activities. It is
- * written to be safe on a schedule too — the cheapness is the point. Garmin's
+ * Two callers: cron/sync, which drains the backlog with nobody involved, and the
+ * staff PATCH on /api/strava/sync-activities for forcing a pass by hand or
+ * scoping one to a single athlete.
+ *
+ * The cheapness is what makes the scheduled caller reasonable. Garmin's
  * equivalent backfill spends two requests per row; here the cost is a few page
  * requests per athlete however many rows get fixed, and **zero** requests once
  * there is nothing left to repair, because one indexed query answers that and
- * returns before any client is constructed. Wiring it into cron/sync (which is
- * deliberately Garmin-only today) would drain the backlog with no human involved
- * and then go quiet; that call is Ofer's, not made here.
+ * returns before any client is constructed. So this fixes the gap and then goes
+ * quiet, rather than becoming a standing per-tick cost.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decrypt } from '@/lib/encryption';

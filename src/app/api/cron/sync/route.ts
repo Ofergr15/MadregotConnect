@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { runSyncRequest as garminSync } from '../../garmin/sync-activities/route';
 import { snapshotWeeklyKm } from '@/lib/weekly-snapshots';
+import { backfillStravaRoutes } from '@/lib/strava/backfill-routes';
+import { createServerClient } from '@/lib/supabase/server';
 import { israelNow } from '@/lib/utils';
 
 // Give the sync enough time to walk every athlete (Pro plan allows up to 300s).
@@ -24,21 +26,31 @@ export function isWithinSyncWindow(hour: number): boolean {
 }
 
 /**
- * Scheduled server-side activity sync — Garmin only.
+ * Scheduled server-side activity sync — Garmin, plus a Strava route repair.
  *
- * Strava was dropped deliberately (2026-08-28): all 22 active athletes are
- * data_source='garmin', and the only Strava rows in the database belong to two
- * of Ofer's own accounts, one of them already disconnected. Garmin is also the
- * richer source — it supplies the GPS polyline, cadence, VO2max, stride length,
- * laps and RPE that the feed and the post-workout sheet render, none of which
- * the Strava path ever stored. Calling it every 5 minutes for nobody was pure
- * cost, and it was worse than useless historically: the Strava sync filters on
- * data_source='strava', matched no one, and returned synced:0 with a green
- * checkmark, which is what hid the broken notifications for so long.
+ * The Strava *poll* stays dropped (2026-08-28), for its original reasons: Garmin
+ * is the richer source — polyline, cadence, VO2max, stride length, laps and RPE,
+ * none of which the Strava path stored — and polling it every 5 minutes for
+ * athletes who are all data_source='garmin' was pure cost. Worse, the Strava sync
+ * filters on data_source='strava', matched no one, and returned synced:0 with a
+ * green checkmark, which is what hid the broken notifications for so long.
  *
- * The existing Strava rows are left untouched, and /api/strava/* (including the
- * webhook) still works if a Strava athlete is ever onboarded again — this only
- * stops the scheduled poll.
+ * `backfillStravaRoutes` (added 2026-09-04) is not that poll. It fetches no
+ * activity a row does not already exist for, and it retires the premise of the
+ * paragraph above — "the only Strava rows belong to two of Ofer's own accounts"
+ * stopped being true: there are 170 Strava runs with no stored route, 154 of them
+ * one athlete's, and 112 of them advertising `has_polyline` with nothing to draw.
+ *
+ * It belongs on a schedule rather than only behind the staff PATCH because the
+ * sync path that would otherwise repair a row runs *solely* when that athlete
+ * personally opens the app — and for an athlete whose data_source is 'garmin' but
+ * who has Strava rows, never at all. Leaving it manual means the backlog waits on
+ * one person's next login.
+ *
+ * The cost is why this is safe here: the route comes off the activity list, so a
+ * repair is a few page requests per athlete however many rows it fixes, and once
+ * the backlog is drained one indexed query returns no rows and no Strava call is
+ * made at all. It fixes the gap, then goes quiet.
  *
  * Auth: Vercel attaches `Authorization: Bearer <CRON_SECRET>` when set.
  */
@@ -77,6 +89,19 @@ async function runSync(request: Request) {
 
   const totalSynced = garmin?.synced || 0;
 
+  // Never let the Strava repair break the Garmin sync — it is a bonus pass over
+  // history, and a Strava outage or a revoked token must not cost the club its
+  // scheduled Garmin sync.
+  let stravaRoutes: any = null;
+  try {
+    const result = await backfillStravaRoutes(createServerClient());
+    // Stay silent on the overwhelmingly common drained case, so a non-zero
+    // `stravaRoutes` in the logs always means something actually happened.
+    stravaRoutes = result.targets > 0 ? result : null;
+  } catch (e: any) {
+    stravaRoutes = { error: String(e?.message || e) };
+  }
+
   let snapshot: any = null;
   try {
     snapshot = await snapshotWeeklyKm(1);
@@ -84,9 +109,9 @@ async function runSync(request: Request) {
     snapshot = { error: String(e?.message || e) };
   }
 
-  console.log('[cron/sync] done', { totalSynced, garmin, snapshot });
+  console.log('[cron/sync] done', { totalSynced, garmin, stravaRoutes, snapshot });
 
-  return NextResponse.json({ ok: true, totalSynced, garmin, snapshot });
+  return NextResponse.json({ ok: true, totalSynced, garmin, stravaRoutes, snapshot });
 }
 
 export async function GET(request: Request) {
