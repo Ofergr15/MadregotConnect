@@ -51,7 +51,24 @@ function useStravaLogin() {
       // Drop Test Runner / stale JWT so /auth/resolve adopts the Strava user.
       const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
       await clearLocalIdentity();
-      const res = await fetch('/api/strava?mode=login');
+
+      // Ask for the session to be handed back rather than established wherever
+      // this navigation ends up. On a standalone PWA it does not end up here: iOS
+      // refuses to let the app leave its origin and opens an in-app browser sheet
+      // with its own storage partition, so a session created there is invisible
+      // to the app and the member stays logged out no matter how often they log
+      // in. The verifier below stays in THIS partition and is what proves, on the
+      // way back, that this app is the one that started the login.
+      //
+      // Stored after clearLocalIdentity, not before — that call clears keys.
+      const { newVerifier, challengeFor, storePendingVerifier } = await import(
+        '@/lib/auth/login-handoff'
+      );
+      const verifier = newVerifier();
+      const challenge = await challengeFor(verifier);
+      storePendingVerifier(verifier);
+
+      const res = await fetch(`/api/strava?mode=login&challenge=${encodeURIComponent(challenge)}`);
       const data = await res.json();
       if (!res.ok || !data.authUrl) throw new Error(data.message || data.error || 'Strava login unavailable');
       window.location.href = data.authUrl;
@@ -129,20 +146,98 @@ export default function HomePage() {
   // that should see the marketing page.
   useEffect(() => {
     let cancelled = false;
+    let running = false;
+    // Once the device cookie has come back empty, it will stay empty until a
+    // login writes one, so don't ask again on every foreground.
+    let reauthFailed = false;
     const supabase = getSupabase();
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        router.replace('/auth/resolve');
-        return;
+
+    /**
+     * Collect a login that finished in iOS's in-app browser sheet.
+     *
+     * Returning from that sheet does not reload this page — the app was never
+     * unloaded, it was covered — so this has to run on foreground, not just on
+     * mount. A missing or stale verifier makes it a no-op, and a 404 from the
+     * route is the ordinary answer when nothing is waiting.
+     */
+    const claimPendingLogin = async (): Promise<boolean> => {
+      const { readPendingVerifier, clearPendingVerifier } = await import(
+        '@/lib/auth/login-handoff'
+      );
+      const verifier = readPendingVerifier();
+      if (!verifier) return false;
+      try {
+        const res = await fetch('/api/auth/claim-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verifier }),
+        });
+        if (res.status === 404) return false; // still authorising in the sheet
+        const data = await res.json();
+        if (!res.ok || !data.session?.access_token) {
+          clearPendingVerifier();
+          return false;
+        }
+        // Here is the whole point: setSession writes into the app's own storage,
+        // which is the partition the sheet could never reach.
+        const { error } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        clearPendingVerifier();
+        return !error;
+      } catch {
+        return false;
       }
-      const { trySilentReauth } = await import('@/lib/auth/silent-reauth');
-      const token = await trySilentReauth();
-      if (cancelled) return;
-      if (token) router.replace('/auth/resolve');
-      else setChecking(false);
-    });
+    };
+
+    const settle = async () => {
+      if (running || cancelled) return;
+      running = true;
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (session) {
+          router.replace('/auth/resolve');
+          return;
+        }
+        if (await claimPendingLogin()) {
+          if (!cancelled) router.replace('/auth/resolve');
+          return;
+        }
+        if (reauthFailed) {
+          setChecking(false);
+          return;
+        }
+        const { trySilentReauth } = await import('@/lib/auth/silent-reauth');
+        const token = await trySilentReauth();
+        if (cancelled) return;
+        if (token) {
+          router.replace('/auth/resolve');
+        } else {
+          reauthFailed = true;
+          setChecking(false);
+        }
+      } finally {
+        running = false;
+      }
+    };
+
+    void settle();
+
+    // The sheet closes → the app is visible again → the login is waiting.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void settle();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
     };
   }, [router]);
 

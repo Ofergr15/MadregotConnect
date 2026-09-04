@@ -11,6 +11,7 @@ import {
   pickAthleteRow,
   type IdentityRow,
 } from '@/lib/auth/athlete-identity';
+import { HANDOFF_TTL_MS, parseLoginState } from '@/lib/auth/login-handoff';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -73,6 +74,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state');
+  // 'login' | 'login:<challenge>' | '<athleteId>'. The challenge means the login
+  // began in a standalone PWA, which cannot see a session established here —
+  // park it in login_handoffs and let the app collect it instead.
+  const { isLogin, challenge } = parseLoginState(state);
   // Localhost stays local even if .env still points at production.
   // Behind a Cloudflare tunnel (non-localhost host), prefer NEXT_PUBLIC_APP_URL.
   const origin = resolveAppOrigin(request);
@@ -115,7 +120,7 @@ export async function GET(request: Request) {
       // could have been handed each other's session.
       const isInvalidCode =
         typeof exchangeErr?.message === 'string' && exchangeErr.message.includes('"invalid"');
-      if (isInvalidCode && state === 'login') {
+      if (isInvalidCode && isLogin) {
         console.info(`[auth-debug:${debugId}] callback:duplicate_code`);
         return NextResponse.redirect(`${origin}/auth/resolve`);
       }
@@ -146,7 +151,7 @@ export async function GET(request: Request) {
     const avatar = tokenData.athlete?.profile || tokenData.athlete?.profile_medium || null;
 
     // ── Coach link mode ──────────────────────────────────────────────────────
-    if (state !== 'login') {
+    if (!isLogin) {
       const supabase = createServerClient();
       const { error } = await supabase
         .from('athletes')
@@ -268,6 +273,31 @@ export async function GET(request: Request) {
         return NextResponse.redirect(new URL('/?strava=error&reason=save_failed', origin));
       }
       athleteId = created.id;
+    }
+
+    // ── Handoff mode ─────────────────────────────────────────────────────────
+    // The login started in a standalone PWA, so we are running inside iOS's
+    // in-app browser sheet and anything we establish here lands in the sheet's
+    // storage partition, which the app cannot read. Park the login instead: the
+    // app claims it with the verifier it kept, and mints the session in its OWN
+    // partition. No session is created here at all — one login, one session, so
+    // there is no second refresh token to rotate this one out from under the app.
+    if (challenge) {
+      // Self-cleaning, so no cron has to remember this table exists.
+      await admin.from('login_handoffs').delete().lt('expires_at', new Date().toISOString());
+      const { error: handoffErr } = await admin.from('login_handoffs').insert({
+        challenge,
+        auth_email: email,
+        expires_at: new Date(Date.now() + HANDOFF_TTL_MS).toISOString(),
+      });
+      if (!handoffErr) {
+        console.info(`[auth-debug:${debugId}] callback:handoff_parked`);
+        return NextResponse.redirect(`${origin}/auth/handoff?debug=${debugId}`);
+      }
+      // Migration 082 not applied yet, or the insert genuinely failed. Fall
+      // through to establishing the session right here — which is the behaviour
+      // this branch improves on, not a broken state.
+      console.error(`[auth-debug:${debugId}] callback:handoff_failed`, handoffErr);
     }
 
     const authResult = await createSyntheticSession(admin, email, {
