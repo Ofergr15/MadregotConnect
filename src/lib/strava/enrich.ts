@@ -112,11 +112,21 @@ export async function enrichStravaActivity(
     // `[]` (not null) when Strava has nothing, so callers know the run was
     // already looked at and do not burn API calls re-enriching it.
     const storedLaps = laps?.length ? laps : [];
-    const corePatch: Record<string, unknown> = {
-      laps: storedLaps,
-      gps_points: gps_points.length ? gps_points : null,
-      has_polyline: gps_points.length > 0,
-    };
+    const corePatch: Record<string, unknown> = { laps: storedLaps };
+    // Geometry is upgrade-only. Streams are the richer source — thousands of
+    // points carrying time and elevation — but they are not always there: an
+    // activity uploaded without a GPS track comes back with no latlng stream.
+    // This used to write `null` in that case, which would now erase the route
+    // the sync decoded from the activity list's summary polyline and re-fire
+    // migration 047's trigger to null out route_preview with it. The feed card
+    // would lose a map it was drawing a moment ago. So only touch these two
+    // columns when a real route came back; being honest about a genuinely
+    // routeless run is the sync's job, and it has the summary polyline to
+    // decide with.
+    if (gps_points.length) {
+      corePatch.gps_points = gps_points;
+      corePatch.has_polyline = true;
+    }
     const patch: Record<string, unknown> = {
       ...corePatch,
       strava_gpx_url,

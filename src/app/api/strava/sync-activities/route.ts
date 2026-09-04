@@ -15,6 +15,7 @@ import {
   getValidStravaToken,
   isMissingColumnError,
 } from '@/lib/strava/enrich';
+import { routeFromSummaryPolyline } from '@/lib/strava/polyline';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
@@ -70,6 +71,8 @@ export async function POST(request: Request) {
       synced: number;
       fetched?: number;
       runs?: number;
+      /** Routes recovered onto runs already stored without one. */
+      routesAdded?: number;
       planMatches?: number;
       error?: string;
     }> = [];
@@ -130,6 +133,33 @@ export async function POST(request: Request) {
           }
         }
 
+        // Which already-stored runs still have no route, and whether each one
+        // currently claims to have one. Fetched as its own query rather than
+        // added to the lookup above on purpose: gps_points holds thousands of
+        // coordinates per row, so selecting the column just to test it for null
+        // would pull megabytes per athlete across the whole history.
+        //
+        // Measured on production before this change: 171 of 175 Strava runs had
+        // no route at all, and 112 of those had has_polyline = true — the feed
+        // was reserving a map area for runs whose geometry had been thrown away.
+        const routeless = new Map<number, boolean>();
+        const { data: routelessRows, error: routelessError } = await supabase
+          .from('athlete_activities')
+          .select('strava_activity_id, has_polyline')
+          .eq('athlete_id', athlete.id)
+          .eq('source', 'strava')
+          .is('gps_points', null)
+          .not('strava_activity_id', 'is', null)
+          .returns<Array<{ strava_activity_id: number | null; has_polyline: boolean | null }>>();
+        if (routelessError) {
+          // Repairing old rows is a bonus pass; never fail the whole sync for it.
+          console.warn(`Routeless lookup for ${athlete.id} skipped:`, routelessError.message);
+        }
+        for (const r of routelessRows || []) {
+          if (r.strava_activity_id != null) routeless.set(r.strava_activity_id, !!r.has_polyline);
+        }
+        let routesAdded = 0;
+
         let synced = 0;
         const insertErrors: string[] = [];
         // Post-workout feedback nudge (same purpose as Garmin sync's) needs
@@ -147,6 +177,37 @@ export async function POST(request: Request) {
         for (const a of runActivities) {
           const known = existingByStrava.get(a.id);
           if (known) {
+            // Recover the route from the summary polyline this list response
+            // already carries. Deliberately NOT behind shouldEnrich: that gate
+            // protects the rate-limited streams call, and applying it here would
+            // leave every run older than 45 days permanently map-less. This
+            // costs no request at all, so there is no budget to protect.
+            const claimsRoute = routeless.get(a.id);
+            if (claimsRoute !== undefined) {
+              const route = routeFromSummaryPolyline(a.map?.summary_polyline);
+              // Nothing to draw and the flag already admits it: leave the row
+              // alone instead of writing the same `false` back on every sync.
+              if (route || claimsRoute) {
+                const { error: routeError } = await supabase
+                  .from('athlete_activities')
+                  .update(
+                    route
+                      ? { gps_points: route, has_polyline: true }
+                      // Strava has no route for this run (treadmill, or a manual
+                      // entry). Clear the flag so hasRoute in lib/feed/project.ts
+                      // stops promising a map that cannot be drawn. gps_points
+                      // stays NULL rather than [] — "no route" and "not fetched"
+                      // should not become indistinguishable.
+                      : { has_polyline: false },
+                  )
+                  .eq('id', known.id);
+                if (routeError) {
+                  console.warn(`Route repair for Strava activity ${a.id} failed:`, routeError.message);
+                } else if (route) {
+                  routesAdded++;
+                }
+              }
+            }
             if (known.needsEnrich && shouldEnrich(a.start_date_local)) {
               enrichCount++;
               await enrichStravaActivity(supabase, client, {
@@ -171,6 +232,15 @@ export async function POST(request: Request) {
           if (await hasCrossSourceDuplicate(supabase, athlete.id, a.start_date_local, distanceM)) {
             continue;
           }
+
+          // The list response carries the entire route as an encoded polyline,
+          // and this used to reduce it to `has_polyline: !!…` and drop the
+          // geometry on the floor. Decoding it needs no extra request, so a new
+          // run has its map from the moment it lands — including the runs
+          // enrichment will never reach, which is nearly all of them (newest 15,
+          // under 45 days old). Enrichment overwrites this with the finer
+          // streams trace when it does run.
+          const route = routeFromSummaryPolyline(a.map?.summary_polyline);
 
           // garmin_activity_id is NOT NULL + UNIQUE(athlete_id, garmin_activity_id).
           // Never reuse a shared sentinel like -1 — that only lets one Strava row insert.
@@ -198,7 +268,8 @@ export async function POST(request: Request) {
             end_lat: a.end_latlng?.[0] || null,
             end_lng: a.end_latlng?.[1] || null,
             moving_duration: a.moving_time ? Math.round(a.moving_time) : null,
-            has_polyline: !!a.map?.summary_polyline,
+            gps_points: route,
+            has_polyline: !!route,
             shoe_id: athlete.active_shoe_id || null,
           };
 
@@ -319,6 +390,7 @@ export async function POST(request: Request) {
           synced,
           fetched: activities.length,
           runs: runActivities.length,
+          routesAdded,
           planMatches,
           ...(insertErrors.length
             ? { error: `${insertErrors.length} insert failures: ${insertErrors[0]}` }
