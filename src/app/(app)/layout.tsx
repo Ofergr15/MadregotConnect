@@ -96,8 +96,11 @@ export default function AppLayout({
 
   if (!authorized) {
     return (
+      // Ink, not brand: this is the frame immediately after AppSplash on a cold
+      // open, and the splash is monochrome. A blue ring here was the one spot of
+      // colour in the whole launch sequence.
       <div className="min-h-[100dvh] bg-page flex items-center justify-center">
-        <Spinner size={32} />
+        <Spinner size={32} tone="ink" />
       </div>
     );
   }

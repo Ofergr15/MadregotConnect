@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from 'react';
 
-// App-open loading splash: brand blue floods the logo's staircase bottom-to-top
-// (the badge is used as a mask), the mark snaps to solid ink when the fill tops
-// out, then the whole layer fades out to reveal the app.
+// App-open loading splash: ink floods the logo's staircase bottom-to-top (the
+// badge is used as a mask), the mark snaps to solid ink when the fill tops out,
+// then the whole layer fades out to reveal the app.
+//
+// Deliberately monochrome — no brand blue anywhere on this layer. The logo is a
+// black mark, so a grey-to-ink fill is the mark filling itself in; the blue it
+// used to be was the only colour in the whole launch and read as a different
+// brand than the one on the badge. The fill still has to be *lighter* than the
+// ink it settles to (see .app-fill-fluid in globals.css) or the snap at the top
+// of the rise has nothing to snap to.
 //
 // Shows once per browser session (cold open / PWA launch), never on client-side
 // route transitions.
@@ -70,16 +77,18 @@ export function AppSplash() {
       }`}
       // Card white in the middle easing out to the page grey (#DFDFDF) — the same
       // colour as the manifest's background and the app body, so there's no jump
-      // when the layer fades. The brand-blue radial keeps it branded rather than
-      // utilitarian.
+      // when the layer fades.
       style={{ background: 'radial-gradient(120% 90% at 50% 42%, #FFFFFF 0%, #DFDFDF 60%, #D2D2D2 100%)' }}
     >
       <div className="relative flex items-center justify-center">
         {/* Blooms only once the fill tops out, so the "arrived" beat is the glow
-            and the ink snap together rather than an ambient halo throughout. */}
+            and the ink snap together rather than an ambient halo throughout. In
+            ink rather than blue it reads as the mark casting a soft shadow onto
+            the white — which is why it's kept this faint: any denser and the
+            bloom looks like a smudge instead of a lift. */}
         <div
           className="app-fill-halo absolute h-[230px] w-[230px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(21,37,255,.16) 0%, rgba(21,37,255,0) 70%)', filter: 'blur(8px)' }}
+          style={{ background: 'radial-gradient(circle, rgba(29,30,38,.14) 0%, rgba(29,30,38,0) 70%)', filter: 'blur(8px)' }}
         />
         <div className="relative h-[150px] w-[150px]">
           {/* The unfilled mark: the real logo flattened to black by
@@ -107,7 +116,7 @@ export function AppSplash() {
           fill run on the timer above, not on real load progress. Block child, so
           it fills from the inline start in both LTR and RTL. */}
       <div className="app-fill-level mt-[22px] h-[3px] w-[112px] overflow-hidden rounded-pill bg-ink-900/10">
-        <i className="block h-full rounded-pill bg-brand-600" />
+        <i className="block h-full rounded-pill bg-ink-900" />
       </div>
     </div>
   );

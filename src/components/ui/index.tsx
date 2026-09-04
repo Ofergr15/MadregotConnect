@@ -17,7 +17,34 @@ export { BackNav } from './BackNav';
 // ── Spinner ──────────────────────────────────────────────────────────────────
 // One brand-colored ring, replacing the mix of border-b-2 half-circles and
 // ad-hoc rings across the app.
-export function Spinner({ size = 24, className }: { size?: number; className?: string }) {
+//
+// `tone="ink"` is for the app-open path only — the auth gate and the landing
+// check that sit between the (monochrome) AppSplash and the first real screen.
+// Those are the same moment as the splash, and a blue ring appearing a beat after
+// a black-and-white splash is a colour arriving from nowhere. Everywhere else
+// keeps the brand ring, so this stays an opt-in and not a repaint of every
+// loading state in the app.
+//
+// It has to be a prop rather than a className: the colours are inline styles
+// (they're derived from `size`), and inline styles beat any utility class, so
+// `className="border-ink-900"` on this component silently does nothing.
+type SpinnerTone = 'brand' | 'ink';
+
+const SPINNER_TONES: Record<SpinnerTone, { track: string; head: string }> = {
+  brand: { track: 'rgba(21,37,255,0.22)', head: '#1525FF' },
+  ink: { track: 'rgba(29,30,38,0.18)', head: '#1D1E26' },
+};
+
+export function Spinner({
+  size = 24,
+  className,
+  tone = 'brand',
+}: {
+  size?: number;
+  className?: string;
+  tone?: SpinnerTone;
+}) {
+  const { track, head } = SPINNER_TONES[tone];
   return (
     <span
       role="status"
@@ -28,18 +55,26 @@ export function Spinner({ size = 24, className }: { size?: number; className?: s
         height: size,
         borderWidth: Math.max(2, Math.round(size / 12)),
         borderStyle: 'solid',
-        borderColor: 'rgba(21,37,255,0.22)',
-        borderTopColor: '#1525FF',
+        borderColor: track,
+        borderTopColor: head,
       }}
     />
   );
 }
 
 // A full-area centered spinner for page/section loading.
-export function LoadingBlock({ className, size = 28 }: { className?: string; size?: number }) {
+export function LoadingBlock({
+  className,
+  size = 28,
+  tone,
+}: {
+  className?: string;
+  size?: number;
+  tone?: SpinnerTone;
+}) {
   return (
     <div className={cn('flex items-center justify-center py-16', className)}>
-      <Spinner size={size} />
+      <Spinner size={size} tone={tone} />
     </div>
   );
 }

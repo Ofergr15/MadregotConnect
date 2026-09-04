@@ -241,7 +241,9 @@ export default function AuthResolvePage() {
   return (
     <div className="min-h-screen bg-page flex items-center justify-center">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mb-4"></div>
+        {/* Monochrome, like AppSplash and the auth gate — this screen is part of
+            the same cold-open sequence. */}
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink-900 mx-auto mb-4"></div>
         <p className="text-ink-400 text-sm" dir="rtl">מתחבר...</p>
       </div>
     </div>

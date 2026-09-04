@@ -292,8 +292,11 @@ export default function HomePage() {
 
   if (checking) {
     return (
+      // The "do we already have a session?" frame, so it's part of the cold-open
+      // sequence and follows AppSplash's monochrome, not the brand ring the rest
+      // of this page's loading states use.
       <div className="min-h-screen bg-[#f0f0f0] flex items-center justify-center">
-        <LoadingBlock />
+        <LoadingBlock tone="ink" />
       </div>
     );
   }
