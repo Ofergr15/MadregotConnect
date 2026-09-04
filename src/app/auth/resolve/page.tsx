@@ -190,7 +190,12 @@ export default function AuthResolvePage() {
     });
 
     if (data.role === 'coach' || data.role === 'admin') {
-      localStorage.setItem('coach_email', email);
+      // The athlete row's OWN address, not the session's. A Strava login signs in
+      // as strava_<id>@strava.madregot.local, and coach_email is what the app
+      // checks against SUPER_USER_EMAIL and the coaches table — storing the
+      // synthetic address there left staff holding a coach_email that matched
+      // nothing, so view-as and every coach-email gate quietly failed.
+      localStorage.setItem('coach_email', data.athlete?.email || email);
       if (data.athlete) {
         localStorage.setItem('athlete_id', data.athlete.id);
         localStorage.setItem('athlete_name', data.athlete.name || '');

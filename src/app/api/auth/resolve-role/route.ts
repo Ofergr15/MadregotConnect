@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { pickAthleteRow, stravaIdFromAuthEmail } from '@/lib/auth/athlete-identity';
 
 // Every athlete field any branch below needs, so the table is read once.
 const ATHLETE_COLUMNS =
-  'id, name, email, group_id, status, garmin_auth, strava_auth, approved, role, created_at';
+  'id, name, email, group_id, status, garmin_auth, strava_auth, approved, role, created_at, strava_athlete_id';
 
 interface AthleteRow {
   id: string;
@@ -16,6 +17,7 @@ interface AthleteRow {
   approved: boolean | null;
   role: string | null;
   created_at: string;
+  strava_athlete_id: number | null;
 }
 
 /**
@@ -55,6 +57,20 @@ export async function POST(req: NextRequest) {
           .is('avatar_url', null)
       : null;
 
+    // A Strava login arrives as strava_<id>@strava.madregot.local — an address the
+    // app invents, which no roster row is keyed on. Looking athletes up on it
+    // alone is how three admins ended up signed in as brand-new runners: their
+    // real row was never a candidate, only the duplicate that happened to own the
+    // synthetic address. The id inside the address is the actual identity, so
+    // match on it too.
+    //
+    // The `.or()` below interpolates a request-body value into a PostgREST
+    // filter, which is only safe because it runs solely when this regex matched:
+    // ^strava_\d+@strava\.madregot\.local$ admits no comma or parenthesis, so no
+    // extra filter can be smuggled in. Don't loosen it without switching to a
+    // second query.
+    const stravaId = stravaIdFromAuthEmail(lowerEmail);
+
     // One read serves every branch. This route used to query athletes for the same
     // email up to four times in sequence — coach/admin, then active, then invited,
     // then any status, plus a re-read of a row it had already found — and it runs on
@@ -62,11 +78,17 @@ export async function POST(req: NextRequest) {
     // spent on a loading screen. The filtering is pure logic; do it here.
     const [coachRes, athleteRes] = await Promise.all([
       supabase.from('coaches').select('id, email, name').eq('email', lowerEmail).maybeSingle(),
-      supabase
-        .from('athletes')
-        .select(ATHLETE_COLUMNS)
-        .eq('email', lowerEmail)
-        .order('created_at', { ascending: false }),
+      stravaId
+        ? supabase
+            .from('athletes')
+            .select(ATHLETE_COLUMNS)
+            .or(`email.eq.${lowerEmail},strava_athlete_id.eq.${stravaId}`)
+            .order('created_at', { ascending: false })
+        : supabase
+            .from('athletes')
+            .select(ATHLETE_COLUMNS)
+            .eq('email', lowerEmail)
+            .order('created_at', { ascending: false }),
       backfill,
     ]);
 
@@ -96,15 +118,10 @@ export async function POST(req: NextRequest) {
       // Coach record exists but no matching athlete — treat as new user (was deleted)
     }
 
-    // Prefer Strava-connected rows (primary source), then Garmin legacy. Sort is
-    // stable and the fetch is newest-first, so ties keep the most recent row.
-    const athlete = rows
-      .filter(r => r.status === 'active')
-      .sort(
-        (a, b) =>
-          (b.strava_auth ? 2 : 0) + (b.garmin_auth ? 1 : 0) -
-          ((a.strava_auth ? 2 : 0) + (a.garmin_auth ? 1 : 0)),
-      )[0];
+    // Of the rows this login could be, the one it IS — see pickAthleteRow: the
+    // Strava id first, then connected credentials, a real email over a synthetic
+    // one, and a staff role over 'runner'.
+    const athlete = pickAthleteRow(rows.filter(r => r.status === 'active'), stravaId);
 
     if (athlete) {
       if (athlete.approved === false) {
@@ -194,6 +211,25 @@ export async function POST(req: NextRequest) {
     // Completely new user — create record and track onboarding. Sequential on
     // purpose: the insert needs a coach for the foreign key. This is the
     // once-per-lifetime path, not the one every sign-in pays for.
+    //
+    // Except for a synthetic Strava address: the OAuth callback owns row creation
+    // for those, and it has already run by the time we get here. Inserting one
+    // from this route as well would be a second duplicate on top of the one the
+    // callback used to make — so send them through onboarding, where they give a
+    // real email that can actually be matched to the roster.
+    if (stravaId) {
+      console.warn('resolve-role: no athlete row for strava identity', stravaId);
+      return NextResponse.json({
+        role: 'runner',
+        email: lowerEmail,
+        name,
+        needsOnboarding: true,
+        missingGroup: true,
+        missingGarmin: true,
+        pendingApproval: true,
+      });
+    }
+
     const { data: defaultCoach } = await supabase
       .from('coaches')
       .select('id')

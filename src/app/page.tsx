@@ -114,15 +114,36 @@ export default function HomePage() {
   }, []);
   const displayError = resolveError || stravaError;
 
+  // A member who is already in the app must never be shown the login screen.
+  // Supabase sessions expire routinely — and iOS evicts them from a standalone
+  // PWA's storage on its own schedule — so "no session" is normally not "logged
+  // out", it's "session needs re-minting". Landing on the public page instead
+  // was actively harmful, not just untidy: its only way back in is the Strava
+  // button, and a cross-origin navigation from a standalone PWA opens iOS's
+  // in-app browser, so the session gets established in a DIFFERENT storage jar
+  // and the app itself is still logged out. Hence the "X" — an app that asked
+  // you to leave it to log back into it.
+  //
+  // trySilentReauth re-mints from the signed httpOnly device cookie and returns
+  // null when this browser genuinely never logged in, which is the only case
+  // that should see the marketing page.
   useEffect(() => {
+    let cancelled = false;
     const supabase = getSupabase();
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         router.replace('/auth/resolve');
-      } else {
-        setChecking(false);
+        return;
       }
+      const { trySilentReauth } = await import('@/lib/auth/silent-reauth');
+      const token = await trySilentReauth();
+      if (cancelled) return;
+      if (token) router.replace('/auth/resolve');
+      else setChecking(false);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   useEffect(() => {

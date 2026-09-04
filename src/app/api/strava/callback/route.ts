@@ -6,9 +6,19 @@ import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
 import { resolveAppOrigin, stravaAuthEmail } from '@/lib/strava/client';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
+import {
+  matchAthleteByName,
+  pickAthleteRow,
+  type IdentityRow,
+} from '@/lib/auth/athlete-identity';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+// Everything pickAthleteRow ranks on. garmin_auth and strava_auth are read as
+// presence only — they are OAuth credentials and must not leave this route.
+const ATHLETE_MATCH_COLUMNS =
+  'id, name, email, role, status, created_at, strava_athlete_id, strava_auth, garmin_auth';
 
 type TokenPayload = {
   access_token: string;
@@ -91,43 +101,23 @@ export async function GET(request: Request) {
     try {
       tokenData = await exchangeCode(code);
     } catch (exchangeErr: any) {
-      // If the code is already spent (duplicate callback hit), check whether the
-      // first call already created a session for this user. Look up the most
-      // recently created athlete whose Strava auth was updated in the last minute.
+      // A spent code means this callback fired twice and the FIRST one already
+      // minted the session — so hand the browser to /auth/resolve with no
+      // fragment and let it pick that session up. If there wasn't one, resolve
+      // bounces to /?strava=error&reason=session_failed, which the landing page
+      // explains.
+      //
+      // What this replaces tried to identify the user by "the strava athlete
+      // updated in the last minute" — a query against athletes.updated_at, a
+      // column that does not exist in production, so it errored (the error was
+      // discarded) and the recovery never once ran. Which is just as well: it was
+      // not scoped to this user, so two members logging in within the same minute
+      // could have been handed each other's session.
       const isInvalidCode =
         typeof exchangeErr?.message === 'string' && exchangeErr.message.includes('"invalid"');
       if (isInvalidCode && state === 'login') {
-        const admin = adminClient();
-        const cutoff = new Date(Date.now() - 60_000).toISOString();
-        const { data: recent } = await admin
-          .from('athletes')
-          .select('id, email, name, strava_athlete_id')
-          .eq('data_source', 'strava')
-          .gte('updated_at', cutoff)
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (recent?.id) {
-          console.info(`[auth-debug:${debugId}] callback:duplicate_code_recovered`, {
-            athleteId: recent.id,
-          });
-          const authResult = await createSyntheticSession(admin, recent.email, {
-            strava_athlete_id: recent.strava_athlete_id,
-            athlete_id: recent.id,
-            name: recent.name,
-          });
-          if (authResult.session) {
-            const sessionFragment = new URLSearchParams({
-              access_token: authResult.session.access_token,
-              refresh_token: authResult.session.refresh_token,
-              expires_in: String(authResult.session.expires_in),
-              token_type: authResult.session.token_type,
-              type: 'strava',
-              debug_id: debugId,
-            });
-            return NextResponse.redirect(`${origin}/auth/resolve#${sessionFragment.toString()}`);
-          }
-        }
+        console.info(`[auth-debug:${debugId}] callback:duplicate_code`);
+        return NextResponse.redirect(`${origin}/auth/resolve`);
       }
       throw exchangeErr;
     }
@@ -180,38 +170,74 @@ export async function GET(request: Request) {
     // ── Login mode ───────────────────────────────────────────────────────────
     const admin = adminClient();
 
-    const { data: existing, error: existingError } = await admin
+    // Who in the club is this? Three ways in, in descending order of certainty:
+    // the Strava athlete id, the synthetic address derived from it, and — only if
+    // neither exists yet — an exact unique name match against the active roster.
+    // The id-only lookup this replaces could not recognise a member on their
+    // FIRST Strava login, because strava_athlete_id is written by a Strava login:
+    // it was always NULL, so the callback inserted a second row for someone
+    // already in the club. That is where all four production duplicates came from.
+    const { data: matched, error: existingError } = await admin
       .from('athletes')
-      .select('id, approved, status, role')
-      .eq('strava_athlete_id', stravaId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    console.info(`[auth-debug:${debugId}] callback:athlete_lookup`, {
-      found: !!existing,
-      athleteId: existing?.id || null,
-      errorCode: existingError?.code || null,
-      errorMessage: existingError?.message || null,
-    });
+      .select(ATHLETE_MATCH_COLUMNS)
+      .or(`strava_athlete_id.eq.${stravaId},email.eq.${email}`);
     if (existingError) {
       console.error('Strava login athlete lookup failed:', existingError);
       return NextResponse.redirect(new URL('/?strava=error&reason=lookup_failed', origin));
     }
 
+    let existing = pickAthleteRow((matched || []) as unknown as IdentityRow[], stravaId);
+    let matchedBy = existing ? 'strava_identity' : 'none';
+
+    if (!existing) {
+      // First Strava login for a member who is already on the roster. Small club,
+      // so read the active rows and match in JS: the comparison normalises case,
+      // whitespace and Unicode composition, none of which PostgREST can do.
+      const { data: roster } = await admin
+        .from('athletes')
+        .select(ATHLETE_MATCH_COLUMNS)
+        .eq('status', 'active');
+      existing = matchAthleteByName((roster || []) as unknown as IdentityRow[], name);
+      if (existing) matchedBy = 'name';
+    }
+
+    console.info(`[auth-debug:${debugId}] callback:athlete_lookup`, {
+      found: !!existing,
+      athleteId: existing?.id || null,
+      matchedBy,
+      candidates: matched?.length || 0,
+    });
+
     let athleteId = existing?.id as string | undefined;
 
     if (athleteId) {
-      await admin
+      // Adopt the existing row. Two fields are deliberately NOT written:
+      //
+      //   email — overwriting a member's own address with the synthetic one broke
+      //     this outright. athletes.email is UNIQUE in production, the duplicate
+      //     row already held the synthetic address, so the UPDATE failed on the
+      //     constraint; its error was discarded, the row silently kept its real
+      //     address, and resolve-role then matched the synthetic address to the
+      //     duplicate. Logging in should never rename an account anyway.
+      //   data_source — it decides which sync cron owns this athlete, so flipping
+      //     it on every login cut a Garmin athlete off from Garmin sync. Only
+      //     claim it when Strava really is the only source connected.
+      const { error: updateErr } = await admin
         .from('athletes')
         .update({
           strava_auth: encrypted,
+          strava_athlete_id: stravaId,
           strava_enabled: true,
-          data_source: 'strava',
-          name,
-          email,
+          ...(existing?.garmin_auth ? {} : { data_source: 'strava' }),
           ...(avatar ? { avatar_url: avatar } : {}),
         })
         .eq('id', athleteId);
+      if (updateErr) {
+        // Never silent again: this is the failure that let a broken login look
+        // like a successful one all the way through to the feed.
+        console.error(`[auth-debug:${debugId}] callback:adopt_failed`, updateErr);
+        return NextResponse.redirect(new URL('/?strava=error&reason=save_failed', origin));
+      }
     } else {
       // Ensure club coach row exists (athletes.coach_id FK) — create placeholder if missing.
       await admin.from('coaches').upsert(

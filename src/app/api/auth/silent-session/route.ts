@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
 import {
+  pickAthleteRow,
+  stravaIdFromAuthEmail,
+  type IdentityRow,
+} from '@/lib/auth/athlete-identity';
+import {
   DEVICE_COOKIE,
   DEVICE_COOKIE_OPTIONS,
   readDeviceToken,
@@ -48,19 +53,36 @@ export async function POST(request: NextRequest) {
 
     // The cookie is long-lived, so re-check the account still exists and is not
     // deactivated — a token issued a year ago must not outlive the membership.
+    //
+    // Resolved exactly the way a real login resolves (see athlete-identity), for
+    // two reasons: a cookie holding a synthetic strava_<id>@… address has to reach
+    // the member's real row rather than whichever row owns that address, and this
+    // read used .maybeSingle(), which ERRORS when two rows share an email — so a
+    // duplicated athlete was told their device had never logged in, and had their
+    // device cookie deleted for good measure.
+    const stravaId = stravaIdFromAuthEmail(email);
     const supabase = createServerClient();
-    const { data: athlete } = await supabase
+    const query = supabase
       .from('athletes')
-      .select('id, status')
-      .ilike('email', email)
-      .maybeSingle();
+      .select('id, name, email, role, status, created_at, strava_athlete_id, strava_auth, garmin_auth');
+    const { data: rows } = await (stravaId
+      ? query.or(`email.ilike.${email},strava_athlete_id.eq.${stravaId}`)
+      : query.ilike('email', email));
+    const athlete = pickAthleteRow((rows || []) as unknown as IdentityRow[], stravaId);
     if (!athlete) {
       const gone = NextResponse.json({ error: 'no_device_token' }, { status: 401 });
       gone.cookies.delete(DEVICE_COOKIE);
       return gone;
     }
 
-    const result = await createSyntheticSession(adminClient(), email);
+    // Refresh the session's metadata every time. createSyntheticSession merges it
+    // onto the auth user, so a stale athlete_id written by an older login would
+    // otherwise be carried forward for as long as the account exists.
+    const result = await createSyntheticSession(adminClient(), email, {
+      athlete_id: athlete.id,
+      ...(athlete.strava_athlete_id ? { strava_athlete_id: athlete.strava_athlete_id } : {}),
+      ...(athlete.name ? { name: athlete.name } : {}),
+    });
     if (result.error || !result.session) {
       console.error('silent-session failed:', result.error);
       return NextResponse.json({ error: result.error || 'session_create_failed' }, { status: 500 });
