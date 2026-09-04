@@ -1210,7 +1210,10 @@
     "manualError": "לא הצלחנו לשמור את האימון. בדקו את השדות ונסו שוב.",
     "manualErrorMissingDate": "בחרו תאריך.",
     "manualErrorMissingDistance": "הזינו מרחק גדול מ-0.",
-    "manualErrorMissingDuration": "הזינו משך זמן (mm:ss)."
+    "manualErrorMissingDuration": "הזינו משך זמן (mm:ss).",
+    "detailNotFound": "האימון לא נמצא",
+    "detailNoAccess": "אין לך הרשאה לאימון הזה",
+    "detailNotFoundHint": "ייתכן שהוא נמחק, או שהקישור מפנה לריצה שלא סונכרנה."
   },
   "connectPrompt": {
     "title": "חברו את נתוני האימונים שלכם",
@@ -1522,6 +1525,11 @@
     "statDistance": "מרחק",
     "statPace": "קצב",
     "statTime": "זמן",
+    "statMoving": "בתנועה",
+    "statMaxHr": "מקס׳",
+    "statCalories": "קלוריות",
+    "statEffort": "מאמץ",
+    "viewDetails": "לצפייה בריצה המלאה",
     "whenToday": "היום ב-{time}",
     "whenYesterday": "אתמול ב-{time}",
     "whenOn": "{date} ב-{time}",

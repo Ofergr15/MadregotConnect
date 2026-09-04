@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award } from 'lucide-react';
+import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge, ChevronRight } from 'lucide-react';
 import { activityDayRelation, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
@@ -291,15 +291,27 @@ function ActivityCard({
   onDelete?: () => void;
 }) {
   const t = useTranslations('feed');
+  const router = useRouter();
   const act = item.activity!;
   const distKm = (act.distance / 1000).toFixed(1);
   const paceStr = act.averagePace ? formatPace(act.averagePace) : null;
   const durationStr = formatDuration(act.duration);
+  const movingStr = act.movingDuration ? formatDuration(act.movingDuration) : null;
   const showElevation = (act.elevationGain ?? 0) > 5;
+  // Moving time is only worth a chip when it actually differs from elapsed —
+  // otherwise it's the same number twice.
+  const showMoving = !!movingStr && movingStr !== durationStr;
+
+  // The card is a doorway to the full run: route map, per-km splits, pace/HR/
+  // elevation charts. It used to be a dead end — the only tap target was the
+  // run-chat button in the action row.
+  const openDetail = () => router.push(`/dashboard/activities/${act.id}`);
 
   return (
     <div className="bg-card rounded-card border border-page overflow-hidden">
       <div className="p-4">
+        {/* AuthorRow stays outside the tap target — it has its own link to the
+            runner's profile, and nesting the two would swallow it. */}
         <div className="flex items-start gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <AuthorRow item={item} />
@@ -309,57 +321,98 @@ function ActivityCard({
           </div>
         </div>
 
-        {act.activityName && (
-          <p className="text-sm text-ink-700 font-semibold mb-3">{act.activityName}</p>
-        )}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={openDetail}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              openDetail();
+            }
+          }}
+          aria-label={t('viewDetails')}
+          className="-mx-2 px-2 pt-1 pb-1 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
+        >
+          {act.activityName && (
+            <p className="text-sm text-ink-700 font-semibold mb-3">{act.activityName}</p>
+          )}
 
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="bg-page rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statDistance')}</p>
-            <p className="text-base font-black text-ink-700 tabular-nums">
-              {distKm}<span className="text-[10px] text-ink-400 ms-0.5">{t('km')}</span>
-            </p>
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="bg-page rounded-xl p-2.5 text-center">
+              <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statDistance')}</p>
+              <p className="text-base font-black text-ink-700 tabular-nums">
+                {distKm}<span className="text-[10px] text-ink-400 ms-0.5">{t('km')}</span>
+              </p>
+            </div>
+            <div className="bg-page rounded-xl p-2.5 text-center">
+              <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statPace')}</p>
+              <p className="text-base font-black text-ink-700 tabular-nums">
+                {paceStr || '—'}<span className="text-[10px] text-ink-400 ms-0.5">{t('perKm')}</span>
+              </p>
+            </div>
+            <div className="bg-page rounded-xl p-2.5 text-center">
+              <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statTime')}</p>
+              <p className="text-base font-black text-ink-700 tabular-nums">{durationStr}</p>
+              {showMoving && (
+                <p className="text-[10px] text-ink-400 tabular-nums mt-0.5">{movingStr} {t('statMoving')}</p>
+              )}
+            </div>
           </div>
-          <div className="bg-page rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statPace')}</p>
-            <p className="text-base font-black text-ink-700 tabular-nums">
-              {paceStr || '—'}<span className="text-[10px] text-ink-400 ms-0.5">{t('perKm')}</span>
-            </p>
-          </div>
-          <div className="bg-page rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statTime')}</p>
-            <p className="text-base font-black text-ink-700 tabular-nums">{durationStr}</p>
-          </div>
+
+          {/* Chips for the rest of what the projection already ships — max HR,
+              calories and the athlete's own effort rating were being fetched and
+              thrown away. */}
+          {(act.averageHr || act.maxHr || act.calories || act.perceivedRpe != null || showElevation || act.locationName) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-ink-400">
+              {act.averageHr && (
+                <span className="flex items-center gap-1">
+                  <Heart className="h-3 w-3 text-accent-red" />
+                  {act.averageHr} bpm
+                  {act.maxHr ? <span className="text-ink-300">· {t('statMaxHr')} {act.maxHr}</span> : null}
+                </span>
+              )}
+              {act.calories ? (
+                <span className="flex items-center gap-1">
+                  <Flame className="h-3 w-3 text-band-3" />
+                  {act.calories} {t('statCalories')}
+                </span>
+              ) : null}
+              {act.perceivedRpe != null && (
+                <span className="flex items-center gap-1">
+                  <Gauge className="h-3 w-3 text-brand-600" />
+                  {t('statEffort')} {act.perceivedRpe.toFixed(0)}/10
+                  {act.perceivedFeel != null && (
+                    <span>{['😣', '😕', '😐', '🙂', '😄'][Math.round(act.perceivedFeel)] ?? ''}</span>
+                  )}
+                </span>
+              )}
+              {showElevation && (
+                <span className="flex items-center gap-1">
+                  <Mountain className="h-3 w-3 text-accent-600" />
+                  +{Math.round(act.elevationGain ?? 0)}m
+                </span>
+              )}
+              {act.locationName && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {act.locationName}
+                </span>
+              )}
+            </div>
+          )}
+
+          {act.routePreview && act.routePreview.length > 2 && (
+            <div className="mb-3">
+              <RouteMinimap points={act.routePreview} />
+            </div>
+          )}
+
+          <p className="flex items-center gap-1 mb-3 text-xs font-semibold text-brand-600">
+            {t('viewDetails')}
+            <ChevronRight className="h-3.5 w-3.5 rtl:rotate-180" />
+          </p>
         </div>
-
-        {(act.averageHr || showElevation || act.locationName) && (
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-ink-400">
-            {act.averageHr && (
-              <span className="flex items-center gap-1">
-                <Heart className="h-3 w-3 text-accent-red" />
-                {act.averageHr} bpm
-              </span>
-            )}
-            {showElevation && (
-              <span className="flex items-center gap-1">
-                <Mountain className="h-3 w-3 text-accent-600" />
-                +{Math.round(act.elevationGain ?? 0)}m
-              </span>
-            )}
-            {act.locationName && (
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                {act.locationName}
-              </span>
-            )}
-          </div>
-        )}
-
-        {act.routePreview && act.routePreview.length > 2 && (
-          <div className="mb-3">
-            <RouteMinimap points={act.routePreview} />
-          </div>
-        )}
 
         {item.body && (
           <p className="text-sm text-ink-500 mb-2 leading-relaxed"><FeedBodyText body={item.body} /></p>

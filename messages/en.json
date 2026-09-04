@@ -1210,7 +1210,10 @@
     "manualError": "Couldn't save this activity. Check the fields and try again.",
     "manualErrorMissingDate": "Pick a date.",
     "manualErrorMissingDistance": "Enter a distance greater than 0.",
-    "manualErrorMissingDuration": "Enter a duration (mm:ss)."
+    "manualErrorMissingDuration": "Enter a duration (mm:ss).",
+    "detailNotFound": "Activity not found",
+    "detailNoAccess": "You don't have access to this activity",
+    "detailNotFoundHint": "It may have been deleted, or the link points to a run that never synced."
   },
   "connectPrompt": {
     "title": "Connect Your Training Data",
@@ -1522,6 +1525,11 @@
     "statDistance": "Distance",
     "statPace": "Pace",
     "statTime": "Time",
+    "statMoving": "moving",
+    "statMaxHr": "max",
+    "statCalories": "cal",
+    "statEffort": "Effort",
+    "viewDetails": "View full run",
     "whenToday": "Today at {time}",
     "whenYesterday": "Yesterday at {time}",
     "whenOn": "{date} at {time}",

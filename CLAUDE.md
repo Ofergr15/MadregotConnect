@@ -61,7 +61,7 @@ src/
     supabase/           Clients + hand-written DB types
     utils.ts            cn(), week-start + activity-time helpers, group identity
   i18n/                 next-intl cookie-based locale
-messages/{en,he}.json   452 keys each, currently at parity
+messages/{en,he}.json   1716 keys each, currently at parity
 supabase/
   schema.sql            ⚠️ ORIGINAL schema only — stale
   migrations/0NN_*.sql  ⚠️ The real schema. Applied MANUALLY in the Supabase SQL editor.
@@ -143,21 +143,38 @@ Notes:
 
 ### ⚠️ Security posture — know this before touching auth
 
-**API routes are not authenticated.** They run as service-role and trust caller-supplied
-identity from the request body or query string (`coach_id`, `email`, `approverEmail`,
-and the `x-user-email` header on `/api/auth/me`). There is no server-side session
-verification anywhere; Supabase auth is used **client-side only**, and the dashboard
-layout gates on `localStorage` + a client session check.
+**Most API routes are not authenticated.** They run as service-role and trust
+caller-supplied identity from the request body or query string (`coach_id`, `email`,
+`approverEmail`). Supabase auth is otherwise used **client-side only**, and the
+dashboard layout gates on `localStorage` + a client session check.
 
-Practically: **any caller can hit any endpoint as anyone.** Role gates
-(`canApprove`, `canGrantAdmin` in `src/lib/constants.ts`) are enforced against an
-email the *client* supplied, so they're a UI guardrail, not a security boundary.
+Practically: **for those routes, any caller can hit any endpoint as anyone.** Role
+gates (`canApprove`, `canGrantAdmin` in `src/lib/constants.ts`) are enforced against
+an email the *client* supplied, so they're a UI guardrail, not a security boundary.
 
 This is a known, deliberate state for a small private club app — don't silently
 "fix" it as a side effect of another task. But **do not add new endpoints that
 widen it** (e.g. deletion or role mutation driven purely by a body field), and flag
 it if the app's exposure changes. A real fix means verifying the Supabase JWT
 server-side and deriving identity from it.
+
+**The personal-data read routes are the exception, and they're already fixed.** The
+ten routes listed in `src/__tests__/verifiedRouteIdentity.test.ts` (athlete PRs,
+badges, heatmap, volume, summary, challenges, activities, activity details, Garmin
+details, `auth/me`) resolve identity from the Supabase JWT via the gates in
+`src/lib/auth/self-or-staff.ts` — all of which funnel through `resolveVerifiedCaller`.
+`x-user-email` is gone and that test fails if any route under `app/api/` reads it
+back. Client callers send the JWT with `apiHeaders()` / `bearerHeaders()`
+(`src/lib/api.ts`). Pick the narrowest gate that fits: `mayActFor` (self-or-staff),
+`requireMember` (any verified club member), `requireStaff`.
+
+Recorded exposure change, **2026-09-03**: `GET /api/activities/details` moved from
+self-or-staff to `requireMember`, so tapping a teammate's run in the feed opens the
+same detail the runner sees. The response is a full GPS trace — where someone lives
+and when they were out — and that is now club-visible by product decision. It must
+never become public. Related gap: `feed_items.payload.hiddenFields` (set in the share
+sheet) is stored but honoured nowhere, so a stat an athlete chose to hide is still
+rendered.
 
 ## The AI parser — the accuracy-critical path
 
@@ -223,7 +240,7 @@ via `Promise.allSettled` so one provider failing doesn't block the other, then w
 ## i18n
 
 `next-intl`, cookie-based (`NEXT_LOCALE`), **Hebrew default**, no locale in the URL.
-`messages/en.json` and `messages/he.json` are at 452 keys each — keep them in sync;
+`messages/en.json` and `messages/he.json` are at 1716 keys each — keep them in sync;
 adding a key to one and not the other is the common mistake.
 
 Adoption is partial: 14 of 44 components use `useTranslations`. Several (notably the

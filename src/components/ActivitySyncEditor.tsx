@@ -393,7 +393,12 @@ export function ActivitySyncEditor({
             Strava/Garmin composer layout) — the tile takes the full row alone
             when there's no route to show. */}
         <div className={cn('grid gap-2', hasRoute ? 'grid-cols-2' : 'grid-cols-1')}>
-          {hasRoute && <RouteMinimap points={routePoints!} className="!aspect-square h-full w-full" />}
+          {/* Square here, not the feed card's 3:1 — the thumbnail sits next to
+              the photo tile. The box shape has to reach the projection, not just
+              CSS, or the basemap tiles would be fitted to the wrong aspect. */}
+          {hasRoute && (
+            <RouteMinimap points={routePoints!} width={300} height={300} className="h-full w-full" />
+          )}
           <button
             onClick={() => fileRef.current?.click()}
             disabled={!editable || media.length >= MAX_IMAGES || uploading}

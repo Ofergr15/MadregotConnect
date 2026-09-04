@@ -72,6 +72,7 @@ export async function GET(request: Request) {
         start_time, distance, duration, moving_duration, average_pace, average_hr, max_hr,
         calories, elevation_gain, start_lat, start_lng, end_lat, end_lng,
         avg_cadence, avg_stride_length, vo2max, lap_count, location_name,
+        perceived_rpe, perceived_feel,
         has_polyline, splits, laps, created_at,
         athletes (name)`;
 

@@ -1,91 +1,138 @@
 'use client';
 
-export type RoutePoint = { lat: number; lng: number };
+import { useEffect, useId, useRef, useState } from 'react';
+import { planRoutePlate, toSvgPath, type LatLng } from '@/lib/activity/tiles';
 
+export type RoutePoint = LatLng;
+
+/**
+ * The route thumbnail on a feed card — now on an actual map.
+ *
+ * It draws the basemap itself (see `planRoutePlate`) instead of mounting a map
+ * library: a page of 20 feed cards means 20 of these, and Leaflet per card would
+ * undo a lot of what the perf pass bought. Tiles are plain `<image>` elements in
+ * the same SVG as the line, so the whole thing scales with the card and needs no
+ * layout measurement.
+ *
+ * Tiles are only requested once the thumbnail is near the viewport. The line
+ * renders immediately, so a card that is scrolled past never asks the network
+ * for anything.
+ */
 export function RouteMinimap({
   points,
   className = '',
+  width = 300,
+  height = 100,
 }: {
   points: RoutePoint[];
   className?: string;
+  width?: number;
+  height?: number;
 }) {
-  const validPoints = points.filter(
-    (point) => Number.isFinite(point.lat) && Number.isFinite(point.lng),
-  );
-  if (validPoints.length < 2) return null;
+  const plate = planRoutePlate(points, width, height);
+  const clipId = useId();
+  const hostRef = useRef<SVGSVGElement>(null);
+  const [tilesVisible, setTilesVisible] = useState(false);
 
-  const lats = validPoints.map((point) => point.lat);
-  const lngs = validPoints.map((point) => point.lng);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const width = 300;
-  const height = 100;
-  const padding = 12;
+  useEffect(() => {
+    if (tilesVisible) return;
+    const host = hostRef.current;
+    if (!host) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setTilesVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setTilesVisible(true);
+          observer.disconnect();
+        }
+      },
+      // Start fetching just before the card scrolls in, so the map is already
+      // there by the time it's on screen.
+      { rootMargin: '250px' },
+    );
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [tilesVisible]);
 
-  // Longitude degrees get physically narrower away from the equator. Project
-  // both axes into the same scale and center the route instead of stretching
-  // latitude and longitude independently to fill the box.
-  const middleLatitude = (minLat + maxLat) / 2;
-  const longitudeScale = Math.max(Math.cos((middleLatitude * Math.PI) / 180), 0.01);
-  const rawPoints = validPoints.map((point) => ({
-    x: (point.lng - minLng) * longitudeScale,
-    y: maxLat - point.lat,
-  }));
-  const xRange = Math.max(...rawPoints.map((point) => point.x), 0.000001);
-  const yRange = Math.max(...rawPoints.map((point) => point.y), 0.000001);
-  const scale = Math.min(
-    (width - padding * 2) / xRange,
-    (height - padding * 2) / yRange,
-  );
-  const offsetX = (width - xRange * scale) / 2;
-  const offsetY = (height - yRange * scale) / 2;
-  const projected = rawPoints.map((point) => ({
-    x: offsetX + point.x * scale,
-    y: offsetY + point.y * scale,
-  }));
-  const path = projected
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
-    .join(' ');
+  if (!plate) return null;
+
+  const path = toSvgPath(plate.points);
+  const start = plate.points[0];
+  const end = plate.points[plate.points.length - 1];
 
   return (
     <svg
+      ref={hostRef}
       viewBox={`0 0 ${width} ${height}`}
-      className={`aspect-[3/1] h-auto w-full rounded-xl ${className}`}
+      style={{ aspectRatio: `${width} / ${height}` }}
+      className={`h-auto w-full rounded-xl ${className}`}
       role="img"
       aria-label="Route preview"
     >
-      {/* Light system: the map plate is the page grey, so the thumbnail reads as
-          part of the white card it sits on rather than the one dark rectangle on
-          the screen. Route = band 3 (which is within a hair of the Strava orange
-          it used to be), start/end = the accent green and red, ringed in white
-          instead of navy so they still separate from the plate. */}
-      <rect width={width} height={height} rx="12" fill="#DFDFDF" />
-      <path
-        d={path}
-        fill="none"
-        stroke="#FF5315"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle
-        cx={projected[0].x.toFixed(1)}
-        cy={projected[0].y.toFixed(1)}
-        r="4"
-        fill="#16a34a"
-        stroke="#FFFFFF"
-        strokeWidth="1.5"
-      />
-      <circle
-        cx={projected[projected.length - 1].x.toFixed(1)}
-        cy={projected[projected.length - 1].y.toFixed(1)}
-        r="4"
-        fill="#D74E4E"
-        stroke="#FFFFFF"
-        strokeWidth="1.5"
-      />
+      <defs>
+        <clipPath id={clipId}>
+          <rect width={width} height={height} rx="12" />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${clipId})`}>
+        {/* Page grey shows through until the tiles land, and stays as the
+            backdrop for an indoor run with a stray fix or two. */}
+        <rect width={width} height={height} fill="#DFDFDF" />
+        {tilesVisible &&
+          plate.tiles.map((tile) => (
+            <image
+              key={tile.key}
+              href={tile.url}
+              x={tile.x}
+              y={tile.y}
+              width={tile.size}
+              height={tile.size}
+              preserveAspectRatio="none"
+            />
+          ))}
+        {/* Route = band 3 (within a hair of the Strava orange it used to be),
+            start/end = the accent green and red, ringed in white so they stay
+            legible over streets and parks alike. */}
+        <path
+          d={path}
+          fill="none"
+          stroke="#FF5315"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle
+          cx={start.x.toFixed(1)}
+          cy={start.y.toFixed(1)}
+          r="4"
+          fill="#16a34a"
+          stroke="#FFFFFF"
+          strokeWidth="1.5"
+        />
+        <circle
+          cx={end.x.toFixed(1)}
+          cy={end.y.toFixed(1)}
+          r="4"
+          fill="#D74E4E"
+          stroke="#FFFFFF"
+          strokeWidth="1.5"
+        />
+        {/* Required wherever these tiles show. Kept short at this size — the
+            full string is on the detail map, which has room for it. */}
+        <text
+          x={width - 4}
+          y={height - 4}
+          textAnchor="end"
+          fontSize="6"
+          fill="#1D1E26"
+          opacity="0.55"
+        >
+          Esri · © OpenStreetMap
+        </text>
+      </g>
     </svg>
   );
 }

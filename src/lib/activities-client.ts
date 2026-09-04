@@ -47,10 +47,20 @@ export function fetchPlanMatch(activityId: string): Promise<Response> {
   return fetch(`/api/activities/${encodeURIComponent(activityId)}/plan-match`);
 }
 
-/** Fetch route/splits for one activity (DB uuid preferred). */
-export async function fetchActivityDetails(activityId: number | string, athleteId: string): Promise<Response> {
-  return fetch(
-    `/api/activities/details?activityId=${encodeURIComponent(String(activityId))}&athleteId=${encodeURIComponent(athleteId)}`,
-    { headers: await apiHeaders() },
-  );
+/**
+ * Fetch route/splits/summary for one activity (DB uuid preferred).
+ *
+ * `athleteId` is optional: the detail page reached from a feed card knows only
+ * the activity id. Pass it when you have it — it narrows the lookup, which is
+ * how a legacy numeric garmin/strava id stays unambiguous between athletes.
+ */
+export async function fetchActivityDetails(
+  activityId: number | string,
+  athleteId?: string | null,
+): Promise<Response> {
+  const params = new URLSearchParams({ activityId: String(activityId) });
+  if (athleteId) params.set('athleteId', athleteId);
+  return fetch(`/api/activities/details?${params.toString()}`, {
+    headers: await apiHeaders(),
+  });
 }

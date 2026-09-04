@@ -64,9 +64,14 @@ describe('verified identity on every API route', () => {
     expect(offenders).toEqual([]);
   });
 
+  // Every gate in lib/auth/self-or-staff.ts qualifies — they all funnel through
+  // `resolveVerifiedCaller`, and which one a route picks is a scope decision
+  // (self-or-staff vs. any club member vs. staff-only), not an identity one.
   it.each(MIGRATED_ROUTES)('%s gates on a verified session', (route) => {
     const source = readFileSync(new URL(route, SRC), 'utf8');
-    expect(source).toMatch(/resolveVerifiedCaller|requireCallerForAthlete|requireSession/);
+    expect(source).toMatch(
+      /resolveVerifiedCaller|requireCallerForAthlete|requireSession|requireMember|requireStaff/,
+    );
   });
 
   // The client half: sending the header is what made forging it the obvious
@@ -129,6 +134,7 @@ vi.mock('@/lib/supabase/server', () => ({
         limit: track('limit'),
         eq: track('eq'),
         in: track('in'),
+        or: track('or'),
         maybeSingle: () => Promise.resolve({ data: selected, error: null }),
         then: (resolve: (v: unknown) => unknown) =>
           Promise.resolve({ data: rows, error: null }).then(resolve),
@@ -140,6 +146,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 const { GET: me } = await import('@/app/api/auth/me/route');
 const { GET: activities } = await import('@/app/api/activities/route');
+const { GET: activityDetails } = await import('@/app/api/activities/details/route');
 
 beforeEach(() => {
   requireSession.mockReset();
@@ -350,5 +357,72 @@ describe('GET /api/activities', () => {
     const res = await get(`?athleteId=${OTHER}&scope=self`);
     expect(res.status).toBe(403);
     expect(ops).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * This route's scope was WIDENED on purpose (2026-09-03): tapping a teammate's
+ * run in the club feed now opens the same detail view the runner sees, so it
+ * gates on club membership rather than self-or-staff. That's a product
+ * decision about a response containing a full GPS trace, so the two halves of
+ * it are pinned here — a club member gets in, and a caller without a verified
+ * session still doesn't.
+ */
+describe('GET /api/activities/details', () => {
+  const ACTIVITY = '33333333-3333-3333-3333-333333333333';
+  const get = (qs: string) =>
+    activityDetails(new Request(`https://example.test/api/activities/details${qs}`));
+
+  it('lets a club-mate open another athlete’s run', async () => {
+    requireSession.mockResolvedValue(session());
+    selected = { id: ACTIVITY, athlete_id: OTHER, gps_points: [{ lat: 1, lng: 2 }], splits: [], athletes: { name: 'Someone' } };
+    const res = await get(`?activityId=${ACTIVITY}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.gpsPoints).toEqual([{ lat: 1, lng: 2 }]);
+    // The summary row rides along so a detail page holding only an id doesn't
+    // need a second request — and the trace isn't repeated inside it.
+    expect(body.activity).toMatchObject({ id: ACTIVITY, athlete_name: 'Someone' });
+    expect(body.activity.gps_points).toBeUndefined();
+  });
+
+  it('401s an anonymous caller — club-visible is not public', async () => {
+    requireSession.mockResolvedValue({ ok: false, status: 401, error: 'Missing bearer token' });
+    const res = await get(`?activityId=${ACTIVITY}`);
+    expect(res.status).toBe(401);
+    expect(ops).toHaveLength(0);
+  });
+
+  it('403s a verified account that belongs to no club', async () => {
+    requireSession.mockResolvedValue({ ok: false, status: 403, error: 'No membership found for this account' });
+    const res = await get(`?activityId=${ACTIVITY}`);
+    expect(res.status).toBe(403);
+    expect(ops).toHaveLength(0);
+  });
+
+  it('400s without an activityId rather than answering with an arbitrary run', async () => {
+    requireSession.mockResolvedValue(session());
+    const res = await get('');
+    expect(res.status).toBe(400);
+    expect(ops).toHaveLength(0);
+  });
+
+  // athleteId is optional now (a feed card only has the activity uuid), but when
+  // it IS passed it must still narrow the lookup — that's how a legacy numeric
+  // garmin/strava id stays unambiguous between two athletes.
+  it('narrows the lookup when an athleteId is supplied', async () => {
+    requireSession.mockResolvedValue(session());
+    selected = { id: ACTIVITY, athlete_id: ME, splits: [] };
+    await get(`?activityId=${ACTIVITY}&athleteId=${ME}`);
+    expect(ops[0].filters).toContainEqual(['eq', ['athlete_id', ME]]);
+  });
+
+  it('404s an activity that is not there', async () => {
+    requireSession.mockResolvedValue(session());
+    selected = null;
+    const res = await get(`?activityId=${ACTIVITY}`);
+    expect(res.status).toBe(404);
   });
 });

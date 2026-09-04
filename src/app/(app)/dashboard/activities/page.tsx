@@ -5,38 +5,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { RefreshCw, Activity, ChevronLeft, ChevronRight, Timer, Heart, Flame, Route, Mountain, TrendingUp, Plus } from 'lucide-react';
 import { ActivityFeed } from '@/components/ActivityFeed';
+// One shared row shape (this page had its own near-identical copy) — the feed
+// card and the [activityId] detail page read the same fields off it.
+import type { ActivityEntry } from '@/components/activity/types';
 import { cn, israelToday } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
 import { Spinner, BigStat } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { ManualActivitySheet } from '@/components/ManualActivitySheet';
-
-interface ActivityEntry {
-  id: string;
-  athlete_id: string;
-  garmin_activity_id: number;
-  activity_name: string;
-  activity_type: string;
-  start_time: string;
-  distance: number;
-  duration: number;
-  moving_duration?: number;
-  average_pace: number | null;
-  average_hr: number | null;
-  max_hr: number | null;
-  calories: number | null;
-  elevation_gain: number | null;
-  start_lat?: number | null;
-  start_lng?: number | null;
-  avg_cadence?: number | null;
-  avg_stride_length?: number | null;
-  vo2max?: number | null;
-  lap_count?: number | null;
-  location_name?: string | null;
-  has_polyline?: boolean;
-  splits?: any[] | null;
-  athlete_name?: string;
-}
 
 // Local-date ISO (YYYY-MM-DD). NOT toISOString(), which converts to UTC and
 // shifts the day back in timezones ahead of UTC (Israel is +2/+3), throwing the
