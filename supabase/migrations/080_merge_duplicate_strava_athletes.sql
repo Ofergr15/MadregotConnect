@@ -237,7 +237,27 @@ BEGIN
           EXECUTE format('UPDATE %s SET %I = $1 WHERE ctid = $2', fk.tbl, fk.col)
              USING real_id, ct;
           t_moved := t_moved + 1;
-        EXCEPTION WHEN unique_violation OR exclusion_violation THEN
+        -- Every integrity violation in SQLSTATE class 23, not just a duplicate
+        -- key. Two showed up on production in a row, and enumerating them one
+        -- failure at a time is not a strategy:
+        --
+        --   unique_violation  workout_attendance, one attendance row per
+        --                     (athlete, week, day) and both rows had 2026-08-30
+        --   check_violation   athlete_follows, CHECK (follower_id <> following_id)
+        --                     — the duplicate followed the real row, so moving it
+        --                     would make the real row follow itself
+        --
+        -- The common meaning is the same whichever constraint fires: this row
+        -- cannot legally live on the real row. So set it aside rather than guess
+        -- in advance which constraints exist. `others` is deliberately NOT caught
+        -- — a genuine bug in this migration must still stop the merge.
+        EXCEPTION WHEN integrity_constraint_violation
+                    OR restrict_violation
+                    OR not_null_violation
+                    OR foreign_key_violation
+                    OR unique_violation
+                    OR check_violation
+                    OR exclusion_violation THEN
           EXECUTE format(
             'INSERT INTO migration_080_discarded (table_name, duplicate_id, real_id, row_data) '
             'SELECT %L, $1, $2, to_jsonb(t) FROM %s t WHERE t.ctid = $3',
