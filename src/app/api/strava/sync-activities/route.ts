@@ -5,7 +5,7 @@
  * Syncs Strava runs into athlete_activities (laps + gps_points + GPX).
  * When athleteId is omitted, syncs every athlete with data_source=strava.
  *
- * PATCH /api/strava/sync-activities?mode=route
+ * PATCH /api/strava/sync-activities
  * Staff-only one-shot repair of runs already stored without geometry. See the
  * handler's own comment — the POST path only reaches an athlete's backlog when
  * that athlete personally opens the app.
@@ -451,13 +451,16 @@ export async function POST(request: Request) {
 }
 
 /**
- * PATCH /api/strava/sync-activities?mode=route[&athleteId=…][&maxPages=…]
+ * PATCH /api/strava/sync-activities[?athleteId=…][&maxPages=…]
  *
  * Staff-only manual trigger for the route repair — the counterpart the Garmin
  * backfill's own comment asks for ("Those rows need Strava's own polyline, not
- * this endpoint"). The same pass also runs on cron/sync, so this exists for
- * forcing it out of the window or scoping it to one athlete while debugging;
- * see backfillStravaRoutes for what it actually does and why it is cheap.
+ * this endpoint"). No `mode` param, unlike the Garmin one: there is only the one
+ * job here. `athleteId` scopes it to a single athlete, which is what you want
+ * for a first cautious run; omitting it repairs everyone's rows.
+ *
+ * See backfillStravaRoutes for what it does and why it is cheap enough to be
+ * safe to re-run.
  */
 export async function PATCH(request: Request) {
   try {
