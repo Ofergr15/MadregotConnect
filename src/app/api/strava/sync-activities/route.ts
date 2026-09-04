@@ -476,6 +476,9 @@ export async function PATCH(request: Request) {
     const result = await backfillStravaRoutes(createServerClient(), {
       athleteId: searchParams.get('athleteId'),
       maxPages: Number(searchParams.get('maxPages')) || undefined,
+      // Re-asks Strava about runs already recorded as having no route. Off by
+      // default — that is the answer that keeps the cron free.
+      includeCleared: searchParams.get('includeCleared') === '1',
     });
 
     return NextResponse.json(

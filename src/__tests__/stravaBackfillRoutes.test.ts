@@ -52,11 +52,16 @@ function fakeSupabase(
   athletes: Array<{ id: string; name: string; strava_auth: string | null }>,
 ) {
   const updates: Array<{ id: string; values: Record<string, unknown> }> = [];
+  /** Every filter applied to the target query, as `method(arg, arg…)`. */
+  const filters: string[] = [];
 
-  const thenable = (data: unknown) => {
+  const thenable = (data: unknown, record = false) => {
     const chain: Record<string, unknown> = {};
     for (const m of ['select', 'eq', 'is', 'not', 'in', 'returns']) {
-      chain[m] = () => chain;
+      chain[m] = (...args: unknown[]) => {
+        if (record) filters.push(`${m}(${args.join(',')})`);
+        return chain;
+      };
     }
     chain.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
       Promise.resolve({ data, error: null }).then(res, rej);
@@ -66,7 +71,7 @@ function fakeSupabase(
   const supabase = {
     from: (table: string) => {
       if (table === 'athletes') return thenable(athletes);
-      const chain = thenable(targets) as Record<string, unknown>;
+      const chain = thenable(targets, true) as Record<string, unknown>;
       chain.update = (values: Record<string, unknown>) => ({
         eq: (_col: string, id: string) => {
           updates.push({ id, values });
@@ -77,7 +82,7 @@ function fakeSupabase(
     },
   };
 
-  return { supabase: supabase as never, updates };
+  return { supabase: supabase as never, updates, filters };
 }
 
 const ATHLETE = { id: 'ath-1', name: 'Shahar Glazner', strava_auth: 'encrypted' };
@@ -168,6 +173,26 @@ describe('backfillStravaRoutes', () => {
     expect(updates).toHaveLength(0);
     expect(result.unreachable).toBe(2);
     expect(result.results[0].error).toMatch(/No Strava authorisation/);
+  });
+
+  it('does not re-ask about runs already recorded as having no route', async () => {
+    // The efficiency bug the first production run exposed: 57 rows were correctly
+    // marked has_polyline=false, but still matched the target query, so every
+    // 5-minute cron tick re-fetched their athletes' lists to re-learn the same
+    // answer. Excluding them is what makes a drained backlog actually free.
+    const { supabase, filters } = fakeSupabase([], [ATHLETE]);
+
+    await backfillStravaRoutes(supabase);
+
+    expect(filters).toContain('not(has_polyline,is,false)');
+  });
+
+  it('can be forced to revisit cleared rows', async () => {
+    const { supabase, filters } = fakeSupabase([], [ATHLETE]);
+
+    await backfillStravaRoutes(supabase, { includeCleared: true });
+
+    expect(filters).not.toContain('not(has_polyline,is,false)');
   });
 
   it('counts each athlete separately', async () => {

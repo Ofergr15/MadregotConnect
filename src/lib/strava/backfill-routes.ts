@@ -63,9 +63,16 @@ interface Target {
 
 const DEFAULT_MAX_PAGES = 10;
 
+/** Just enough of Supabase's query builder to add the two conditional filters. */
+interface FilterHandle {
+  not(column: string, operator: string, value: unknown): FilterHandle;
+  eq(column: string, value: unknown): FilterHandle;
+  returns<T>(): PromiseLike<{ data: T | null; error: { message: string } | null }>;
+}
+
 export async function backfillStravaRoutes(
   supabase: SupabaseClient,
-  options?: { athleteId?: string | null; maxPages?: number },
+  options?: { athleteId?: string | null; maxPages?: number; includeCleared?: boolean },
 ): Promise<RouteBackfillResult> {
   const maxPages = Math.min(Math.max(options?.maxPages || DEFAULT_MAX_PAGES, 1), 20);
   const empty: RouteBackfillResult = {
@@ -79,12 +86,33 @@ export async function backfillStravaRoutes(
   // Deliberately NOT selecting gps_points: the whole point is to find rows where
   // it is null, and on the rows that do have one it holds thousands of
   // coordinates. Selecting it to test it for null would pull megabytes.
+  //
+  // The cast: two *conditional* filters follow, and reassigning the builder to
+  // itself twice more makes tsc give up on Supabase's generic (TS2589, "type
+  // instantiation is excessively deep"). Narrowing the handle to the three
+  // methods used here keeps the row type on `.returns<Target[]>()`, which is the
+  // part worth having.
   let targetQuery = supabase
     .from('athlete_activities')
     .select('id, athlete_id, strava_activity_id, start_time, has_polyline')
     .eq('source', 'strava')
     .is('gps_points', null)
-    .not('strava_activity_id', 'is', null);
+    .not('strava_activity_id', 'is', null) as unknown as FilterHandle;
+  if (!options?.includeCleared) {
+    // has_polyline=false is this function's own record of "asked Strava, there is
+    // genuinely no route" — a treadmill session or a manual entry. Excluding
+    // those is what makes the drained state actually free.
+    //
+    // Without it the first pass left 57 such rows matching forever, so every
+    // 5-minute tick re-fetched their athletes' activity lists and wrote nothing:
+    // a permanent cost for a question already answered. Strava does not grow a
+    // route retroactively, so re-asking has no upside. `includeCleared` is the
+    // escape hatch for the staff PATCH if that ever needs revisiting.
+    //
+    // `not(is, false)` and not `is(true)`: it must still pick up has_polyline
+    // NULL, which means nobody has looked yet.
+    targetQuery = targetQuery.not('has_polyline', 'is', false);
+  }
   if (options?.athleteId) targetQuery = targetQuery.eq('athlete_id', options.athleteId);
   const { data: targets, error: targetError } = await targetQuery.returns<Target[]>();
   if (targetError) throw targetError;
