@@ -55,7 +55,47 @@
 -- nothing. Safe to run before or after 054 and 079. Note that 079 (unique index
 -- on athletes.email) is unaffected either way — the duplicates hold synthetic
 -- addresses, not repeated ones.
+--
+-- CORRECTION, 2026-09-04. The first run of this file aborted:
+--
+--   duplicate key value violates unique constraint
+--   "workout_attendance_athlete_id_week_start_date_day_of_week_key"
+--   Key (athlete_id, week_start_date, day_of_week)=(4e7d7c0f…, 2026-08-30, 2)
+--
+-- The measurement above — "nothing else in the database points at any of the
+-- four duplicates" — was taken from activity counts alone and was simply wrong:
+-- Ofer's duplicate holds workout_attendance rows, and his real row already has
+-- one for the same week and day. Moving rows onto the real row can collide with
+-- any natural key it already satisfies, and one blind UPDATE took the whole
+-- transaction down. Step 2 now moves rows one at a time and sets a colliding row
+-- aside — see the comment there for which copy wins and how to get the other one
+-- back.
 -- ═══════════════════════════════════════════════════════════════════════════
+
+-- Two audit tables, so a merge run leaves a record that survives the
+-- transaction. They exist because the Supabase SQL editor does not display
+-- RAISE NOTICE output: without them a hand-run repair reports what it did into
+-- a void. migration_080_discarded is what makes step 2 reversible.
+CREATE TABLE IF NOT EXISTS migration_080_log (
+  id             bigserial   PRIMARY KEY,
+  ran_at         timestamptz NOT NULL DEFAULT now(),
+  duplicate_name text,
+  table_name     text,
+  moved          int,
+  discarded      int
+);
+
+CREATE TABLE IF NOT EXISTS migration_080_discarded (
+  id           bigserial   PRIMARY KEY,
+  ran_at       timestamptz NOT NULL DEFAULT now(),
+  table_name   text        NOT NULL,
+  duplicate_id uuid        NOT NULL,
+  real_id      uuid        NOT NULL,
+  row_data     jsonb       NOT NULL
+);
+
+ALTER TABLE migration_080_log       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE migration_080_discarded ENABLE ROW LEVEL SECURITY;
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- DRY RUN. Run this on its own first and check the numbers against the table
@@ -107,10 +147,13 @@ DECLARE
   dup_row     athletes;
   real_name   text;
   fk          record;
+  row_ctids   tid[];
+  ct          tid;
   n_deleted   int;
   n_moved     int;
-  n_this      int;
-  n_repointed int;
+  n_dropped   int;
+  t_moved     int;
+  t_dropped   int;
 BEGIN
   FOREACH pair SLICE 1 IN ARRAY pairs LOOP
     dup_id  := pair[1];
@@ -139,16 +182,40 @@ BEGIN
                   OR (a.start_time IS NOT NULL AND b.start_time IS NOT NULL
                       AND abs(extract(epoch FROM (b.start_time - a.start_time))) <= 300)));
     GET DIAGNOSTICS n_deleted = ROW_COUNT;
+    IF n_deleted > 0 THEN
+      INSERT INTO migration_080_log (duplicate_name, table_name, moved, discarded)
+        VALUES (dup_row.name, 'athlete_activities (twins)', 0, n_deleted);
+    END IF;
 
-    -- 2. Move what's left.
-    UPDATE athlete_activities SET athlete_id = real_id WHERE athlete_id = dup_id;
-    GET DIAGNOSTICS n_moved = ROW_COUNT;
-
-    -- Then everything else that references the duplicate. Read from the catalog
-    -- rather than a hand-written table list: the checked-in schema has drifted
-    -- from production before, and a table left out here would be silently
-    -- deleted by ON DELETE CASCADE in step 4.
-    n_repointed := 0;
+    -- 2. Move everything that still points at the duplicate, ONE ROW AT A TIME.
+    --
+    --    A blind `UPDATE .. SET athlete_id = real_id` aborts the entire merge the
+    --    moment the real row already holds a row with the same natural key. That
+    --    is what killed the first run, on
+    --    workout_attendance_athlete_id_week_start_date_day_of_week_key: both rows
+    --    have an attendance record for the week of 2026-08-30, and a UNIQUE
+    --    (athlete_id, week_start_date, day_of_week) cannot hold both.
+    --
+    --    Row by row, a collision therefore sets that row aside instead of taking
+    --    the transaction down. The REAL row's copy wins — it is the row the
+    --    member's roster history, group and plans hang off — but the discarded row
+    --    is first written to migration_080_discarded IN FULL as jsonb. That makes
+    --    the choice reversible: if the duplicate's copy turns out to be the truer
+    --    one (these members were, after all, signing in AS the duplicate), it can
+    --    be read straight back out. Nothing is destroyed without a copy.
+    --
+    --    Catching the exception per row rather than pre-computing which rows would
+    --    collide is deliberate: Postgres knows every unique and exclusion
+    --    constraint on every table, and enumerating them by hand from the catalog
+    --    is a much better way to miss one.
+    --
+    --    Tables come from the FK catalog rather than a hand-written list: the
+    --    checked-in schema has drifted from production before, and a table left
+    --    out would be silently emptied by ON DELETE CASCADE in step 4.
+    --    athlete_activities goes through here too — step 1 has already removed the
+    --    twins, so what is left is genuinely new.
+    n_moved := 0;
+    n_dropped := 0;
     FOR fk IN
       SELECT c.conrelid::regclass AS tbl, a.attname AS col
         FROM pg_constraint c
@@ -156,15 +223,36 @@ BEGIN
        WHERE c.confrelid = 'public.athletes'::regclass
          AND c.contype = 'f'
          AND array_length(c.conkey, 1) = 1
-         AND c.conrelid <> 'public.athlete_activities'::regclass
     LOOP
-      EXECUTE format('UPDATE %s SET %I = $1 WHERE %I = $2', fk.tbl, fk.col, fk.col)
-         USING real_id, dup_id;
-      GET DIAGNOSTICS n_this = ROW_COUNT;
-      IF n_this > 0 THEN
-        n_repointed := n_repointed + n_this;
-        RAISE NOTICE '080:   re-pointed % row(s) in %.%', n_this, fk.tbl, fk.col;
+      -- ctids up front rather than a live cursor: each row is touched exactly
+      -- once, so the snapshot cannot go stale underneath the loop.
+      EXECUTE format('SELECT array_agg(ctid) FROM %s WHERE %I = $1', fk.tbl, fk.col)
+         INTO row_ctids USING dup_id;
+      CONTINUE WHEN row_ctids IS NULL;
+
+      t_moved   := 0;
+      t_dropped := 0;
+      FOREACH ct IN ARRAY row_ctids LOOP
+        BEGIN
+          EXECUTE format('UPDATE %s SET %I = $1 WHERE ctid = $2', fk.tbl, fk.col)
+             USING real_id, ct;
+          t_moved := t_moved + 1;
+        EXCEPTION WHEN unique_violation OR exclusion_violation THEN
+          EXECUTE format(
+            'INSERT INTO migration_080_discarded (table_name, duplicate_id, real_id, row_data) '
+            'SELECT %L, $1, $2, to_jsonb(t) FROM %s t WHERE t.ctid = $3',
+            fk.tbl::text, fk.tbl) USING dup_id, real_id, ct;
+          EXECUTE format('DELETE FROM %s WHERE ctid = $1', fk.tbl) USING ct;
+          t_dropped := t_dropped + 1;
+        END;
+      END LOOP;
+
+      IF t_moved > 0 OR t_dropped > 0 THEN
+        INSERT INTO migration_080_log (duplicate_name, table_name, moved, discarded)
+          VALUES (dup_row.name, fk.tbl::text, t_moved, t_dropped);
       END IF;
+      n_moved   := n_moved   + t_moved;
+      n_dropped := n_dropped + t_dropped;
     END LOOP;
 
     -- 3. Carry the Strava identity over. The duplicate has to release its
@@ -184,8 +272,11 @@ BEGIN
     -- 4. And the duplicate is gone.
     DELETE FROM athletes WHERE id = dup_id;
 
-    RAISE NOTICE '080: merged the % duplicate into % — % duplicate activities deleted, % moved, % other row(s) re-pointed.',
-      dup_row.name, real_name, n_deleted, n_moved, n_repointed;
+    INSERT INTO migration_080_log (duplicate_name, table_name, moved, discarded)
+      VALUES (dup_row.name, format('athletes (merged into %s)', real_name), n_moved, n_deleted + n_dropped);
+
+    RAISE NOTICE '080: merged the % duplicate into % — % twin activities deleted, % row(s) moved, % row(s) set aside on a key collision.',
+      dup_row.name, real_name, n_deleted, n_moved, n_dropped;
   END LOOP;
 
   PERFORM 1 FROM athletes WHERE email LIKE 'strava\_%@strava.madregot.local';
