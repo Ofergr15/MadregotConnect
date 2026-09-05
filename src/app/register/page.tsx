@@ -225,12 +225,53 @@ function SectionCaption({ children }: { children: React.ReactNode }) {
   return <p className="px-2 mb-2 text-3xs font-semibold uppercase tracking-[0.09em] text-ink-400">{children}</p>;
 }
 
+/**
+ * Addresses this BROWSER has already sent. Not a server check on purpose.
+ *
+ * The API answers `{ok:true}` identically for new / already-pending / already-a-
+ * member, so the page cannot be told that an address is a repeat — that is the
+ * whole anti-enumeration property and it must stay. But sending twice and getting
+ * the same silent confirmation both times reads as "I registered twice", which is
+ * exactly what Ofer reported. The DB is fine (a partial unique index over pending
+ * emails means the second submit updates the first row rather than adding one);
+ * only the screen was lying.
+ *
+ * localStorage is honest about what it actually knows: what happened on this
+ * device. It reveals nothing about anyone else's address, so it can say so plainly.
+ */
+const SENT_KEY = 'madregot_register_sent';
+
+function readSent(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(SENT_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter(x => typeof x === 'string') : [];
+  } catch {
+    // Private-mode or a corrupted value. The form still works without it; the
+    // only thing lost is the "you already sent this" nicety.
+    return [];
+  }
+}
+
+function rememberSent(email: string) {
+  try {
+    const next = [...new Set([...readSent(), email])].slice(-10);
+    window.localStorage.setItem(SENT_KEY, JSON.stringify(next));
+  } catch {
+    /* nothing to do — see readSent() */
+  }
+}
+
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [groupId, setGroupId] = useState<string>('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  /** true when THIS browser had already sent this address before now. */
+  const [repeat, setRepeat] = useState(false);
+  /** The normalised address that was actually sent — what the success screen shows. */
+  const [sentEmail, setSentEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -246,6 +287,11 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
     if (!email.trim()) { setError('צריך אימייל'); return; }
+    // Normalised the same way the API does it, or "Ofer@Gmail.com" and
+    // "ofer@gmail.com" would look like two different addresses to this check while
+    // the server treats them as one.
+    const normalised = email.trim().toLowerCase();
+    const alreadySent = readSent().includes(normalised);
     setSubmitting(true);
     try {
       const res = await fetch('/api/public/signup', {
@@ -257,6 +303,11 @@ export default function RegisterPage() {
       if (!res.ok) {
         throw new Error(data.error === 'invalid-email' ? 'האימייל לא נראה תקין' : 'ההרשמה נכשלה, נסו שוב');
       }
+      // Still posted, even on a repeat: the request is idempotent server-side, and
+      // it is how a corrected group choice gets saved. Only the wording changes.
+      rememberSent(normalised);
+      setSentEmail(normalised);
+      setRepeat(alreadySent);
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ההרשמה נכשלה, נסו שוב');
@@ -266,29 +317,77 @@ export default function RegisterPage() {
   };
 
   if (done) {
+    // What happens next, in order, because "we'll be in touch" is the wording that
+    // makes people register a second time. Each step says who acts — the coach, the
+    // inbox, the app — so nobody is left waiting on a step that is not theirs.
+    const steps = [
+      'המאמן מאשר את ההרשמה.',
+      'מגיע אליך מייל עם קישור להשלמת הפרטים — שם וחיבור השעון.',
+      'ביום רביעי ב-20:00 האפליקציה נפתחת.',
+    ];
+
     return (
-      // Black card, not another white one: this is the end of the flow and the
-      // only screen with nothing to do on it, so it gets to look different.
-      <div className="min-h-[100dvh] bg-page flex items-center justify-center px-4" dir="rtl">
+      // White card on the page grey, the same as the form screen. This was a black
+      // card, meant to mark the end of the flow, and it just read as a different
+      // app: the mark inverted, the type inverted, nothing carried over from the
+      // screen half a second earlier.
+      <div className="min-h-[100dvh] bg-page flex items-center justify-center px-4 py-6" dir="rtl">
         <div className="w-full max-w-md">
-          <div className="rounded-card bg-ink-900 px-5 py-8 text-center shadow-[0_4px_18px_rgba(0,0,0,0.07)]">
+          <div className="rounded-card bg-card px-5 pt-6 pb-6 text-center shadow-[0_4px_18px_rgba(0,0,0,0.07)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/logo-white.png" alt="מדרגות" className="h-10 w-auto mx-auto object-contain opacity-95" />
-            <span className="mt-6 w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="h-5 w-5 text-white" />
+            <img
+              src="/images/logo.png"
+              alt="מדרגות — After 2KM Running Club"
+              className="h-[54px] w-auto mx-auto object-contain"
+            />
+
+            <div className="h-px bg-ink-900/[0.07] mx-4 mt-5 mb-5" aria-hidden="true" />
+
+            <span className="w-11 h-11 rounded-full bg-ink-900 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="h-5 w-5 text-white" strokeWidth={2.5} />
             </span>
-            <h2 className="mt-4 text-lg font-bold text-white">ההרשמה נשלחה</h2>
-            <p className="mt-2 px-2 text-2xs text-white/60 leading-relaxed">
-              קיבלנו את הפרטים. לאחר אישור יגיע אליך מייל עם קישור להשלמת ההרשמה —
-              שם, וחיבור השעון. מיום רביעי אפשר להתחיל להשתמש באפליקציה.
+
+            {/* Two headings, because they answer two different questions. A repeat
+                sender is asking "did it work the first time?", and "ההרשמה נשלחה"
+                again does not answer that — it is why the same address got sent
+                twice to begin with. */}
+            <h2 className="mt-3.5 text-lg font-bold text-ink-900">
+              {repeat ? 'הבקשה שלך כבר אצלנו' : 'ההרשמה נשלחה'}
+            </h2>
+            <p className="mt-1.5 text-2xs text-ink-500 leading-relaxed">
+              {repeat
+                ? 'שלחת את הכתובת הזאת כבר. היא רשומה פעם אחת בלבד — אין צורך לשלוח שוב.'
+                : 'הכתובת נשמרה. אין מה לעשות עכשיו — נעדכן אותך במייל.'}
             </p>
-            <div className="h-px bg-white/[0.12] mx-4 my-5" aria-hidden="true" />
-            <p className="text-3xs text-white/45">
-              האימייל שנרשם: <span dir="ltr" className="text-2xs text-white/85">{email}</span>
+
+            {/* The NORMALISED address, not what was typed. Someone who typed
+                "Dana.Levi92@Gmail.com" is registered as lowercase, and showing
+                them the capitals back invites them to wonder whether the two are
+                the same record. They are. */}
+            <p className="mt-4 inline-flex items-center gap-1.5 rounded-pill bg-page px-3 py-1.5 text-3xs text-ink-500">
+              הכתובת:
+              <span dir="ltr" className="text-2xs font-semibold text-ink-900">{sentEmail}</span>
             </p>
+
+            <div className="h-px bg-ink-900/[0.07] mx-4 mt-5 mb-4" aria-hidden="true" />
+
+            {/* Numbered and right-aligned rather than a centred paragraph: this is a
+                sequence, and centred RTL prose is where the previous version lost
+                people — it said all three things in one breath. */}
+            <ol className="text-right space-y-2.5">
+              {steps.map((s, i) => (
+                <li key={s} className="flex items-start gap-2.5">
+                  <span className="mt-px w-[18px] h-[18px] shrink-0 rounded-full bg-ink-900 text-white text-3xs font-bold flex items-center justify-center tabular-nums">
+                    {i + 1}
+                  </span>
+                  <span className="text-2xs text-ink-700 leading-relaxed">{s}</span>
+                </li>
+              ))}
+            </ol>
           </div>
-          <p className="mt-5 px-6 text-center text-2xs text-ink-400 leading-relaxed">
-            עד לאישור המאמן אין גישה לאפליקציה. שווה לבדוק גם בספאם.
+
+          <p className="mt-4 px-4 text-center text-2xs text-ink-400 leading-relaxed">
+            לא הגיע מייל? כדאי לבדוק גם בספאם.
             <br />
             {/* Matched to the same weight it has on the form, so it doesn't look
                 like an afterthought on the screen people actually stop and read. */}
