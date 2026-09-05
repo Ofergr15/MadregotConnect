@@ -48,7 +48,7 @@ export function AcademySettingsPanel() {
           {s.tests.map(t => (
             <span key={t} className="flex items-center gap-1.5 bg-page/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-ink-700">
               {t}
-              <button onClick={() => setS({ ...s, tests: s.tests.filter(x => x !== t) })} className="text-ink-400 hover:text-accent-red" disabled={s.tests.length <= 1}>
+              <button onClick={() => setS({ ...s, tests: s.tests.filter(x => x !== t) })} className="text-ink-400 hover:text-accent-red active:text-accent-red" disabled={s.tests.length <= 1}>
                 <X className="h-3.5 w-3.5" />
               </button>
             </span>
@@ -97,7 +97,7 @@ export function AcademySettingsPanel() {
           {s.report.recipients.map(r => (
             <span key={r} className="flex items-center gap-1.5 bg-page/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-ink-700" dir="ltr">
               {r}
-              <button onClick={() => setS({ ...s, report: { ...s.report, recipients: s.report.recipients.filter(x => x !== r) } })} className="text-ink-400 hover:text-accent-red"><X className="h-3.5 w-3.5" /></button>
+              <button onClick={() => setS({ ...s, report: { ...s.report, recipients: s.report.recipients.filter(x => x !== r) } })} className="text-ink-400 hover:text-accent-red active:text-accent-red"><X className="h-3.5 w-3.5" /></button>
             </span>
           ))}
           {s.report.recipients.length === 0 && <span className="text-xs text-ink-400">כברירת מחדל נשלח למייל מנהל המועדון.</span>}

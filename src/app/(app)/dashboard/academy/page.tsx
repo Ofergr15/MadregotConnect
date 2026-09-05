@@ -6,7 +6,7 @@ import {
   GraduationCap, Plus, Search, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus, LayoutDashboard,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getGroupChip } from '@/lib/utils';
 import { Sheet, Spinner, SkeletonList } from '@/components/ui';
 import { AcademyCompliance } from '@/components/AcademyCompliance';
 import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
@@ -58,18 +58,7 @@ interface Athlete {
 
 type Tab = 'overview' | 'members' | 'registrations' | 'plans' | 'compliance' | 'stats' | 'results' | 'settings';
 
-// Same three group hues as lib/utils' groupColorMap (green / sky blue / orange).
-const groupColors: Record<string, { bg: string; text: string; border: string }> = {
-  'Group 1': { bg: 'bg-accent-600/15', text: 'text-accent-900', border: 'border-accent-600/20' },
-  'Group 2': { bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/20' },
-  'Group 3': { bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/20' },
-};
 
-function getGroupStyle(name: string | null) {
-  if (!name) return null;
-  // A squad we don't recognise gets neutral ink, not a fourth hue.
-  return groupColors[name] || { bg: 'bg-ink-300/20', text: 'text-ink-500', border: 'border-ink-300/40' };
-}
 
 function initialsOf(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
@@ -406,7 +395,7 @@ export default function AcademyPage() {
             </p>
           ) : (
             addableAthletes.map(a => {
-              const gs = getGroupStyle(a.groupName);
+              const gs = getGroupChip(a.groupName);
               return (
                 <button
                   key={a.id}

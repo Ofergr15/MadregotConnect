@@ -235,7 +235,7 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
           {!adding && editingId && (
             <button
               onClick={() => setConfirmDeleteId(editingId)}
-              className="w-full flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-sm font-semibold text-accent-red hover:text-accent-red transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-sm font-semibold text-accent-red hover:text-accent-red active:text-accent-red transition-colors"
             >
               <Trash2 className="h-4 w-4" /> מחיקת נעליים
             </button>

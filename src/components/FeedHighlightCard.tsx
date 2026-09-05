@@ -93,8 +93,14 @@ function WeekBars({ week, label }: { week: HighlightWeek; label: (i: number) => 
                 style={{ height: km > 0 ? `${Math.max(12, (km / max) * 100)}%` : 0 }}
               />
             </div>
+            {/* Three legible weights instead of two-plus-a-hairline. A future
+                day used to be ink-300, which is the border value (1.92:1) and
+                is not a colour any text can be read in — aria-hidden hides
+                this row from a screen reader but does nothing for the person
+                squinting at it outdoors. Future stays the lightest of the
+                three, so it still reads as "hasn't happened yet". */}
             <span
-              className={`text-4xs ${today ? 'font-bold text-ink-700' : future ? 'text-ink-300' : 'text-ink-400'}`}
+              className={`text-4xs ${today ? 'font-bold text-ink-700' : future ? 'text-ink-400' : 'text-ink-500'}`}
             >
               {label(i)}
             </span>
@@ -146,7 +152,9 @@ function ChallengeRow({ challenge, onHide }: { challenge: HighlightChallenge; on
         aria-label={t('dismissChallenge')}
         // Generous hit area on a small glyph — a missed tap opens the challenges
         // screen instead.
-        className="absolute top-1 end-1 grid place-items-center w-9 h-9 text-ink-300 active:text-ink-500"
+        // ink-400 rather than the ink-300 hairline value: an unlabelled glyph
+        // is the entire control, so 1.92:1 isn't enough to find it.
+        className="absolute top-1 end-1 grid place-items-center w-9 h-9 text-ink-400 active:text-ink-700"
       >
         <X className="h-4 w-4" />
       </button>

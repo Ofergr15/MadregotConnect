@@ -329,7 +329,10 @@ export function ActionRow({
         {onDelete && (
           <button
             onClick={onDelete}
-            className="ms-auto flex items-center justify-center min-h-11 min-w-11 rounded-full text-ink-300 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+            // ink-400, not ink-300: the icon is the whole control here — no
+            // label beside it — so it has to clear 3:1, and ink-300 is the
+            // hairline value at 1.92:1 (see the ramp in tailwind.config.ts).
+            className="ms-auto flex items-center justify-center min-h-11 min-w-11 rounded-full text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 transition-all"
             aria-label={t('deletePost')}
           >
             <Trash2 className="h-4 w-4" />

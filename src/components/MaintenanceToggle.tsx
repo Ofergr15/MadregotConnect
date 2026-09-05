@@ -108,7 +108,7 @@ export function MaintenanceAllowlist() {
               <span className="text-sm text-ink-700 flex-1 min-w-0 truncate">{u ? u.name : e}{u && <span className="text-ink-400 text-xs"> · {e}</span>}</span>
               {/* Padded hit-area (p-2.5 -m-2.5): visually unchanged 16px icon,
                   but the tappable region grows to the 44px minimum. */}
-              <button onClick={() => removeEmail(e)} className="p-2.5 -m-2.5 text-ink-400 hover:text-accent-red shrink-0" aria-label={`Remove ${e}`}><X className="w-4 h-4" /></button>
+              <button onClick={() => removeEmail(e)} className="p-2.5 -m-2.5 text-ink-400 hover:text-accent-red active:text-accent-red shrink-0" aria-label={`Remove ${e}`}><X className="w-4 h-4" /></button>
             </div>
           );
         })}

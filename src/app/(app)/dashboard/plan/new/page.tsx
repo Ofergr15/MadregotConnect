@@ -1520,7 +1520,7 @@ export default function WeeklyPlannerPage() {
                   onClick={() => setConfirmDelete(true)}
                   disabled={deleting}
                   title={t('remove')}
-                  className="text-accent-red hover:text-accent-red"
+                  className="text-accent-red hover:text-accent-red active:text-accent-red"
                 >
                   <Trash2 className="h-4 w-4" />
                   <span className="hidden sm:inline">{t('remove')}</span>

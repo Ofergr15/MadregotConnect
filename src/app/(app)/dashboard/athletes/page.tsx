@@ -6,7 +6,7 @@ import {
   Users as UsersIcon, Check, Mail, Trash2, ChevronDown,
   PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getGroupChip } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { isProtectedEmail } from '@/lib/constants';
 import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow, Card, Button, EmptyState, BigStat } from '@/components/ui';
@@ -36,19 +36,7 @@ interface Group {
   marathonGoal?: string;
 }
 
-// Same three group hues as lib/utils' groupColorMap (green / sky blue / orange).
-const groupColors: Record<string, { bg: string; text: string; border: string }> = {
-  'Group 1': { bg: 'bg-accent-600/15', text: 'text-accent-900', border: 'border-accent-600/20' },
-  'Group 2': { bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/20' },
-  'Group 3': { bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/20' },
-};
 
-function getGroupStyle(name: string | null) {
-  if (!name) return null;
-  // A squad we don't recognise gets neutral ink, not a fourth hue — the three
-  // above are the only group colours the app means anything by.
-  return groupColors[name] || { bg: 'bg-ink-300/20', text: 'text-ink-500', border: 'border-ink-300/40' };
-}
 
 export default function AthletesPage() {
   const t = useTranslations('athletes');
@@ -448,7 +436,7 @@ ${inviteLink}`;
         <InsetSection>
           {filteredAthletes.map((athlete) => {
             const initials = athlete.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-            const groupStyle = getGroupStyle(athlete.groupName);
+            const groupStyle = getGroupChip(athlete.groupName);
             return (
               <button
                 key={athlete.id}

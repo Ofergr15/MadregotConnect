@@ -169,7 +169,7 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
               <button
                 onClick={() => handleDelete(c.id)}
                 aria-label="Delete comment"
-                className="shrink-0 self-start mt-1.5 p-1.5 rounded-full text-ink-300 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+                className="shrink-0 self-start mt-1.5 p-1.5 rounded-full text-ink-300 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 transition-all"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

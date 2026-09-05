@@ -269,6 +269,8 @@ const groupColorMap = {
     dot: 'bg-accent-600',
     badge: 'bg-accent-600/20 text-accent-900 border-accent-600/30',
     card: 'border-accent-600/40 bg-accent-600/10 hover:bg-accent-600/20',
+    chip: { bg: 'bg-accent-600/15', text: 'text-accent-900', border: 'border-accent-600/20' },
+    panel: { bg: 'bg-accent-600/10', border: 'border-accent-600/30', text: 'text-accent-900', badge: 'bg-accent-600/20', dot: 'bg-accent-600' },
   },
   medium: {
     bg: 'bg-band-2/20',
@@ -277,6 +279,8 @@ const groupColorMap = {
     dot: 'bg-band-2',
     badge: 'bg-band-2/20 text-band-2-ink border-band-2/30',
     card: 'border-band-2/40 bg-band-2/10 hover:bg-band-2/20',
+    chip: { bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/20' },
+    panel: { bg: 'bg-band-2/10', border: 'border-band-2/30', text: 'text-band-2-ink', badge: 'bg-band-2/20', dot: 'bg-band-2' },
   },
   slow: {
     bg: 'bg-band-3/20',
@@ -285,6 +289,8 @@ const groupColorMap = {
     dot: 'bg-band-3',
     badge: 'bg-band-3/20 text-band-3-ink border-band-3/30',
     card: 'border-band-3/40 bg-band-3/10 hover:bg-band-3/20',
+    chip: { bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/20' },
+    panel: { bg: 'bg-band-3/10', border: 'border-band-3/30', text: 'text-band-3-ink', badge: 'bg-band-3/20', dot: 'bg-band-3' },
   },
 } as const;
 
@@ -295,6 +301,10 @@ const defaultGroupColor = {
   dot: 'bg-ink-300',
   badge: 'bg-ink-300/20 text-ink-500 border-ink-300/40',
   card: 'border-ink-300/50 bg-ink-300/10 hover:bg-ink-300/20',
+  // A squad we don't recognise gets neutral ink, not a fourth hue — the three
+  // above are the only group colours the app means anything by.
+  chip: { bg: 'bg-ink-300/20', text: 'text-ink-500', border: 'border-ink-300/40' },
+  panel: { bg: 'bg-ink-300/10', border: 'border-ink-300/30', text: 'text-ink-500', badge: 'bg-ink-300/20', dot: 'bg-ink-300' },
 };
 
 export function getGroupColors(level?: GroupLevel | null) {
@@ -342,6 +352,32 @@ export function resolveGroup(name?: string | null): ResolvedGroup {
 /** Convenience: canonical display name only. */
 export function groupDisplayName(name?: string | null): string {
   return resolveGroup(name).displayName;
+}
+
+/**
+ * A squad's chip colours, resolved from its NAME.
+ *
+ * Three pages (athletes, academy, groups) each carried their own copy of this
+ * table. Two of them keyed it on the literal string `'Group 1'`, so the moment a
+ * coach renames a squad to anything real the chip fell through to neutral grey —
+ * and the club's squads are in fact named "SUB 2:30" and friends. Going through
+ * resolveGroup means every alias the rest of the app understands works here too.
+ *
+ * Returns null for no name at all, which is the "render no chip" signal those
+ * pages already used.
+ */
+export function getGroupChip(name?: string | null) {
+  if (!name) return null;
+  return resolveGroup(name).colors.chip;
+}
+
+/**
+ * A squad's panel colours by 0-based index, for the callers that already know
+ * which of the three squads they're drawing and have no name to hand.
+ */
+export function getGroupPanel(index: number) {
+  const level = GROUP_LEVELS[index];
+  return (level ? getGroupColors(level) : defaultGroupColor).panel;
 }
 
 /**

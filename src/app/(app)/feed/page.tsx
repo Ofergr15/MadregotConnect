@@ -389,7 +389,7 @@ export default function FeedPage() {
           textClassName="text-brand-600"
         />
         <span className="flex-1 text-sm text-ink-400">{t('composerPlaceholder')}</span>
-        <PenSquare className="h-4 w-4 text-ink-300" />
+        <PenSquare className="h-4 w-4 text-ink-400" />
       </div>
 
       {/* ═══ What's in the feed — runs, or everything else ═══

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
+import { escapeLike, quoteFilterValue } from '@/lib/db/like';
 import {
   pickAthleteRow,
   stravaIdFromAuthEmail,
@@ -66,8 +67,11 @@ export async function POST(request: NextRequest) {
       .from('athletes')
       .select('id, name, email, role, status, created_at, strava_athlete_id, strava_auth, garmin_auth');
     const { data: rows } = await (stravaId
-      ? query.or(`email.ilike.${email},strava_athlete_id.eq.${stravaId}`)
-      : query.ilike('email', email));
+      // Escaped, and quoted for the filter string: `_` is both a LIKE wildcard
+      // and a legal email character, so an address containing one matched more
+      // rows than its owner's.
+      ? query.or(`email.ilike.${quoteFilterValue(escapeLike(email))},strava_athlete_id.eq.${stravaId}`)
+      : query.ilike('email', escapeLike(email)));
     const athlete = pickAthleteRow((rows || []) as unknown as IdentityRow[], stravaId);
     if (!athlete) {
       const gone = NextResponse.json({ error: 'no_device_token' }, { status: 401 });

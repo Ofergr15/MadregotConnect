@@ -450,7 +450,7 @@ export function Header() {
             </div>
             <button
               onClick={handleLogout}
-              className={cn('p-2.5 rounded-lg transition-colors', 'text-ink-400 hover:text-accent-red hover:bg-card')}
+              className={cn('p-2.5 rounded-lg transition-colors', 'text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-card')}
               title={tc('signOut')}
               aria-label={tc('signOut')}
             >

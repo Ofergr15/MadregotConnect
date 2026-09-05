@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { cn, getActivityWeekStart, activityWeekStart, israelDateAnchor } from '@/lib/utils';
+import { cn, getActivityWeekStart, activityWeekStart, activityLocalDateStr, israelDateAnchor, toISODate } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
 import { apiHeaders } from '@/lib/api';
 
@@ -30,6 +30,9 @@ export function WeeklyVolumeCard({ athleteId }: Props) {
   const [weeklyKm, setWeeklyKm] = useState(0);
   const [volumes, setVolumes] = useState<Array<{ week: string; km: number; runs: number }>>([]);
   const [weekTarget, setWeekTarget] = useState<{ min: number; max: number } | null>(null);
+  // The like-for-like trend — see the comment where it's computed. `null` while
+  // there is nothing honest to compare against.
+  const [trend, setTrend] = useState<number | null>(null);
 
   useEffect(() => {
     if (!athleteId) return;
@@ -59,9 +62,49 @@ export function WeeklyVolumeCard({ athleteId }: Props) {
           const actData = await actRes.json();
           const mine = (actData.activities || []).filter((a: any) => a.athlete_id === athleteId);
 
-          const weekStart = new Date(getActivityWeekStart(israelDateAnchor()));
-          const thisWeek = mine.filter((a: any) => new Date(a.start_time) >= weekStart);
-          setWeeklyKm(Math.round((thisWeek.reduce((s: number, a: any) => s + (a.distance || 0), 0) / 1000) * 10) / 10);
+          // ── The trend badge, compared like for like ──
+          //
+          // It used to be this week's total against last week's total. Those are
+          // never the same measurement: the current week is still in progress, so
+          // on a Monday it compared one day against seven and the badge read
+          // "-80%" every single week until Saturday night. A number that is
+          // negative six days out of seven is not a signal.
+          //
+          // So the previous week is truncated to the same slice of week that has
+          // elapsed so far. Sunday-to-now against Sunday-to-the-same-point, which
+          // is the comparison "am I ahead of last week?" actually means.
+          const anchor = israelDateAnchor();
+          const daysElapsed = anchor.getDay() + 1; // Sun → 1 … Sat → 7
+          const thisKey = getActivityWeekStart(anchor);
+          const prevStart = new Date(`${thisKey}T00:00:00`);
+          prevStart.setDate(prevStart.getDate() - 7);
+          // prevStart is already a Sunday, so this just formats it as YYYY-MM-DD
+          // using the same function that produced `thisKey` — no second date
+          // formatter to drift out of step with it.
+          const prevKey = getActivityWeekStart(prevStart);
+          // Only the part of last week that had happened by this weekday. Compared
+          // as a DATE STRING, not as instants: start_time is wall clock stored as
+          // UTC, so `new Date(a.start_time) < cutoff` shifted it +3h here and let a
+          // late-evening run on the cutoff day fall on the wrong side of it.
+          const prevCutoff = new Date(prevStart);
+          prevCutoff.setDate(prevCutoff.getDate() + daysElapsed);
+          const prevCutoffKey = toISODate(prevCutoff);
+          const prevSoFar = mine
+            .filter((a: any) => activityWeekStart(a.start_time) === prevKey)
+            .filter((a: any) => activityLocalDateStr(a.start_time) < prevCutoffKey)
+            .reduce((s: number, a: any) => s + (a.distance || 0), 0) / 1000;
+          const thisSoFar = mine
+            .filter((a: any) => activityWeekStart(a.start_time) === thisKey)
+            .reduce((s: number, a: any) => s + (a.distance || 0), 0) / 1000;
+          // A week you didn't run has no percentage — "+∞%" is not a badge.
+          setTrend(prevSoFar > 0 ? Math.round(((thisSoFar - prevSoFar) / prevSoFar) * 100) : null);
+
+          // The headline number IS `thisSoFar` — one computation, not two. It used
+          // to be summed again just above with `new Date(a.start_time) >= weekStart`,
+          // which is the local-getter mistake the bar loop below warns about: the
+          // big "this week" figure and the last bar of the chart under it could
+          // disagree by a Saturday-evening run.
+          setWeeklyKm(Math.round(thisSoFar * 10) / 10);
 
           // Keyed by the week-start Sunday as ISO (YYYY-MM-DD), which sorts
           // correctly as a plain string, and only turned into a DD/MM label at
@@ -97,11 +140,6 @@ export function WeeklyVolumeCard({ athleteId }: Props) {
   if (volumes.length <= 1) return null;
 
   const maxKm = Math.max(...volumes.map(w => w.km), 1);
-  const lastWeek = volumes[volumes.length - 1];
-  const prevWeek = volumes[volumes.length - 2];
-  const trend = prevWeek && prevWeek.km > 0 && lastWeek
-    ? Math.round(((lastWeek.km - prevWeek.km) / prevWeek.km) * 100)
-    : 0;
 
   return (
     <section className="bg-card rounded-card border border-page p-4 sm:p-5">
@@ -116,7 +154,7 @@ export function WeeklyVolumeCard({ athleteId }: Props) {
               {t('weekGoalRange', { min: weekTarget.min, max: weekTarget.max, unit: tc('km') })}
             </span>
           )}
-          {trend !== 0 && (
+          {trend !== null && trend !== 0 && (
             // dir="ltr" because a signed number is not RTL text. Inside the
             // Hebrew page bidi moved the minus to the far end and "-56%"
             // rendered as "56%-", which reads as a typo at best.
@@ -145,8 +183,16 @@ export function WeeklyVolumeCard({ athleteId }: Props) {
       {/* Columns are flex-1 rather than a fixed 28px each: ten fixed columns
           plus their gaps came to 334px of content, which a 320pt phone cannot
           give. Sharing the row means the chart fits any width instead of
-          deciding how wide the card has to be. */}
-      <div className="flex items-end justify-center gap-1" style={{ height: '100px' }}>
+          deciding how wide the card has to be.
+
+          dir="ltr" on the row only. The array is oldest-first, and inside the
+          page's RTL flow that laid the oldest week out on the RIGHT and this
+          week on the far LEFT — time running backwards. A time axis reads
+          left-to-right in Hebrew charts the same as anywhere else, and it puts
+          the current week (the orange one) where the eye lands last. Nothing
+          inside is text that needs mirroring: the labels are DD/MM and the
+          values are numbers. */}
+      <div dir="ltr" className="flex items-end justify-center gap-1" style={{ height: '100px' }}>
         {volumes.map((w, i) => {
           const isLast = i === volumes.length - 1;
           const barH = Math.max(10, Math.round((w.km / maxKm) * 65));

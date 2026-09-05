@@ -368,7 +368,7 @@ function SubStepEditor({
               type="button"
               onClick={() => onChange({ ...step, targetType: 'no_target', targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined })}
               title={t('noPace')}
-              className="text-[10px] text-ink-400 hover:text-accent-red mb-1 shrink-0"
+              className="text-[10px] text-ink-400 hover:text-accent-red active:text-accent-red mb-1 shrink-0"
             >
               {t('noPace')}
             </button>

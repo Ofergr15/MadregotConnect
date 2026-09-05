@@ -407,7 +407,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
                   <button onClick={() => setEditingDay(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page" title="עריכה">
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button onClick={() => clearSlot(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red hover:bg-accent-red/10" title="הסרה">
+                  <button onClick={() => clearSlot(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10" title="הסרה">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </>
@@ -802,7 +802,7 @@ function LibraryPicker({
                   {(item.workout.steps || []).map(stepSummary).join(' · ')}
                 </div>
               </button>
-              <button onClick={() => onDelete(item.id)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red hover:bg-accent-red/10 shrink-0" title="הסרה מהספרייה" aria-label="הסרה מהספרייה">
+              <button onClick={() => onDelete(item.id)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 shrink-0" title="הסרה מהספרייה" aria-label="הסרה מהספרייה">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

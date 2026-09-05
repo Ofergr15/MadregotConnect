@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Users, Trophy, Edit3, ChevronDown, ChevronUp, Medal, Watch, Flame, User } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
-import { cn } from '@/lib/utils';
+import { cn, getGroupPanel } from '@/lib/utils';
 import {
   SegmentedControl, Sheet, Button, Card, EmptyState,
   Skeleton, SkeletonCard, SkeletonList, InsetSection, InsetRow,
@@ -46,16 +46,6 @@ interface LeaderboardEntry {
 
 type LeaderboardMetric = 'distance' | 'streak' | 'runs';
 
-// Same three group hues as lib/utils' groupColorMap (green / sky blue / orange).
-const GROUP_COLORS: Record<number, { bg: string; border: string; text: string; badge: string; dot: string }> = {
-  0: { bg: 'bg-accent-600/10', border: 'border-accent-600/30', text: 'text-accent-900', badge: 'bg-accent-600/20', dot: 'bg-accent-600' },
-  1: { bg: 'bg-band-2/10', border: 'border-band-2/30', text: 'text-band-2-ink', badge: 'bg-band-2/20', dot: 'bg-band-2' },
-  2: { bg: 'bg-band-3/10', border: 'border-band-3/30', text: 'text-band-3-ink', badge: 'bg-band-3/20', dot: 'bg-band-3' },
-};
-
-function getGroupColors(index: number) {
-  return GROUP_COLORS[index] || GROUP_COLORS[0];
-}
 
 export default function GroupsPage() {
   const t = useTranslations('groups');
@@ -158,7 +148,7 @@ export default function GroupsPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {groups.map((group, idx) => {
-          const colors = getGroupColors(idx);
+          const colors = getGroupPanel(idx);
           return (
             <button
               key={group.id}
@@ -198,7 +188,7 @@ export default function GroupsPage() {
       {/* Group Details */}
       <div className="space-y-4">
         {groups.map((group, idx) => {
-          const colors = getGroupColors(idx);
+          const colors = getGroupPanel(idx);
           const isExpanded = expandedGroup === group.id;
 
           return (
@@ -359,7 +349,7 @@ export default function GroupsPage() {
                   <div className="divide-y divide-page/50">
                     {activeList.map((entry, idx) => {
                       const groupIdx = groups.findIndex(g => g.id === entry.groupId);
-                      const colors = groupIdx >= 0 ? getGroupColors(groupIdx) : { dot: 'bg-ink-300', text: 'text-ink-400' };
+                      const colors = groupIdx >= 0 ? getGroupPanel(groupIdx) : { dot: 'bg-ink-300', text: 'text-ink-400' };
                       return (
                         <div key={entry.id} className="flex items-center justify-between px-4 py-3 hover:bg-page/30 transition-colors">
                           <div className="flex items-center gap-3">
@@ -412,7 +402,7 @@ export default function GroupsPage() {
         ) : (
           <div className="space-y-3">
             {groups.map((group, idx) => {
-              const colors = getGroupColors(idx);
+              const colors = getGroupPanel(idx);
               const entries = groupLeaderboards[group.id] || [];
               const groupTotal = entries.reduce((sum, e) => sum + e.distanceKm, 0);
               return (

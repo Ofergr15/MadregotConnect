@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { containsPattern, quoteFilterValue } from '@/lib/db/like';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,11 @@ export async function GET(request: Request) {
     }
 
     const supabase = createServerClient();
-    const pattern = `%${q}%`;
+    // `pattern` for the single-column helpers, `filterPattern` for the `.or()`
+    // strings — see src/lib/db/like.ts for why they differ. Typing a comma used
+    // to 400 the whole request; typing `_` used to match any character.
+    const pattern = containsPattern(q);
+    const filterPattern = quoteFilterValue(pattern);
 
     // Mirrors GET /api/perks's tier gate exactly — a core_runner-tier perk must
     // stay invisible to everyone else, including via search. Same fix, too: the
@@ -42,7 +47,7 @@ export async function GET(request: Request) {
       .from('club_perks')
       .select('id, sponsor_name, title_he, title_en, image_url')
       .eq('active', true)
-      .or(`title_he.ilike.${pattern},title_en.ilike.${pattern},sponsor_name.ilike.${pattern}`)
+      .or(`title_he.ilike.${filterPattern},title_en.ilike.${filterPattern},sponsor_name.ilike.${filterPattern}`)
       .limit(RESULT_LIMIT);
     if (!isCoreRunner) perksQuery = perksQuery.eq('tier', 'all');
 
@@ -56,14 +61,14 @@ export async function GET(request: Request) {
       supabase
         .from('events')
         .select('id, name, kind, date, location')
-        .or(`name.ilike.${pattern},location.ilike.${pattern}`)
+        .or(`name.ilike.${filterPattern},location.ilike.${filterPattern}`)
         .order('date', { ascending: false })
         .limit(RESULT_LIMIT),
       supabase
         .from('store_products')
         .select('id, name_he, name_en, price, image_url')
         .eq('active', true)
-        .or(`name_he.ilike.${pattern},name_en.ilike.${pattern}`)
+        .or(`name_he.ilike.${filterPattern},name_en.ilike.${filterPattern}`)
         .limit(RESULT_LIMIT),
       perksQuery,
     ]);

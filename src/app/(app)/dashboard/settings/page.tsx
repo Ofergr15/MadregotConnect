@@ -474,7 +474,7 @@ export default function SettingsPage() {
               <button
                 onClick={() => setPendingDelete(user)}
                 disabled={updatingUsers.has(user.id)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
                 title={t('deleteUser')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -996,7 +996,7 @@ export default function SettingsPage() {
                       <button
                         onClick={() => setPendingDelete(user)}
                         disabled={updatingUsers.has(user.id)}
-                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50 shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1239,7 +1239,7 @@ export default function SettingsPage() {
                       <button
                         onClick={() => setConfirmDeleteOpen(true)}
                         disabled={updatingFeedback === selectedFeedback.id}
-                        className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-accent-red hover:bg-accent-red/10 border border-accent-red/20 hover:border-accent-red/40 transition-all disabled:opacity-50"
+                        className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 border border-accent-red/20 hover:border-accent-red/40 transition-all disabled:opacity-50"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         {tc('delete')}
