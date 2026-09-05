@@ -1988,6 +1988,7 @@
     "title": "Plan vs. execution",
     "accuracyShort": "accuracy",
     "ringLabel": "Execution accuracy {score} percent",
+    "ringLabelUngraded": "Execution accuracy not scored for this run",
     "feedLabel": "Execution accuracy",
     "dir_on_target": "Ran to plan",
     "dir_too_fast": "Ran faster than planned",

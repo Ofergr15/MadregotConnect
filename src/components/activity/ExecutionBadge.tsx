@@ -43,7 +43,15 @@ export function ExecutionBadge({
       // glance from a scroll — the number is for whoever stops.
       style={{ background: `${color}0F` }}
     >
-      <ExecutionRing score={summary.score} direction={summary.direction} size={44} />
+      {/* The label is not optional: `role="img"` prunes the ring's own digits from
+          the accessibility tree, so without it the one number this badge exists
+          for is announced as nothing at all. */}
+      <ExecutionRing
+        score={summary.score}
+        direction={summary.direction}
+        size={44}
+        ariaLabel={t('ringLabel', { score: summary.score })}
+      />
       <div className="min-w-0 flex-1">
         <p className="text-3xs font-bold uppercase tracking-wide text-ink-400">{t('feedLabel')}</p>
         <p className="truncate text-sm font-bold leading-tight" style={{ color }}>

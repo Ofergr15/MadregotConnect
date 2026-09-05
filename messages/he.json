@@ -1988,6 +1988,7 @@
     "title": "תוכנית מול ביצוע",
     "accuracyShort": "דיוק",
     "ringLabel": "דיוק ביצוע {score} אחוז",
+    "ringLabelUngraded": "אין ציון דיוק לאימון הזה",
     "feedLabel": "דיוק ביצוע",
     "dir_on_target": "בוצע לפי התוכנית",
     "dir_too_fast": "רצתם מהר מהמתוכנן",

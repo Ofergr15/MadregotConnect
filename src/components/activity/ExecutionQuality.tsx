@@ -478,7 +478,12 @@ export function ExecutionQuality({
             direction={verdict.direction}
             size={104}
             caption={t('accuracyShort')}
-            ariaLabel={t('ringLabel', { score: verdict.score ?? 0 })}
+            // Not `score ?? 0`: a withheld score is not a zero, and announcing
+            // "accuracy 0 percent" is the same false number the ring is dashed
+            // out precisely to avoid.
+            ariaLabel={verdict.score == null
+              ? t('ringLabelUngraded')
+              : t('ringLabel', { score: verdict.score })}
           />
         </div>
 
