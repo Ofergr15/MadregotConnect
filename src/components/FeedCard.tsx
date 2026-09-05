@@ -160,10 +160,15 @@ function CommentPreview({
 
   return (
     <div className="pt-1.5 space-y-1">
+      {/* `py-1 -my-1` on the button below buys the 24px WCAG 2.5.8 minimum out of
+          a 16px text line without moving anything. Not 44: this is a secondary
+          way into the sheet — the comment bubble in the action row is the 44px
+          one — and a 44px band here would push two comments of preview off the
+          card, which is the whole reason the preview exists. */}
       {commentCount > comments.length && (
         <button
           onClick={onOpen}
-          className="block text-xs font-medium text-ink-400 hover:text-ink-500 transition-colors"
+          className="block text-xs font-medium text-ink-400 hover:text-ink-500 transition-colors py-1 -my-1"
         >
           {t('viewAllComments', { count: commentCount })}
         </button>
@@ -246,7 +251,7 @@ export function ActionRow({
         <div className="pt-2">
           <button
             onClick={() => setSheetOpen(true)}
-            className="group relative flex items-center gap-1.5 max-w-full text-start"
+            className="group relative flex items-center gap-1.5 max-w-full text-start min-h-6"
           >
             <LikerStack likers={likers} />
             <span className="text-xs text-ink-400 group-hover:text-ink-500 transition-colors truncate">
@@ -271,13 +276,19 @@ export function ActionRow({
         </div>
       )}
 
+      {/* Every button in this row is 44×44 (`min-h-11 min-w-11`), not the 40×28
+          the padding alone gave them. These are the app's primary interactions —
+          liking and commenting on a clubmate's run — and they were the smallest
+          targets on the screen, on a card the whole club scrolls one-handed.
+          The pill is `rounded-full` and only paints on hover/liked, so the extra
+          height costs nothing visually; the row keeps its 4px rhythm. */}
       <div className="flex items-center gap-1 pt-1 -ms-1">
         <button
           onClick={handleLike}
           aria-label={liked ? t('unlike') : t('like')}
           aria-pressed={liked}
           className={cn(
-            'flex items-center px-3 py-1.5 rounded-full transition-all active:scale-90',
+            'flex items-center justify-center min-h-11 min-w-11 px-3 rounded-full transition-all active:scale-90',
             liked ? 'text-accent-red-ink bg-accent-red/10' : 'text-ink-400 hover:text-ink-500 hover:bg-page',
           )}
         >
@@ -286,7 +297,7 @@ export function ActionRow({
 
         <button
           onClick={onCommentPress}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-ink-400 hover:text-ink-500 hover:bg-page transition-all active:scale-90"
+          className="flex items-center justify-center gap-1.5 min-h-11 min-w-11 px-3 rounded-full text-sm font-medium text-ink-400 hover:text-ink-500 hover:bg-page transition-all active:scale-90"
         >
           <MessageCircle className="h-4 w-4" />
           {commentCount > 0 && <span className="tabular-nums text-xs">{commentCount}</span>}
@@ -296,7 +307,7 @@ export function ActionRow({
           <button
             onClick={() => setShareOpen(true)}
             aria-label={t('shareToStory')}
-            className="flex items-center px-3 py-1.5 rounded-full text-ink-400 hover:text-ink-500 hover:bg-page transition-all active:scale-90"
+            className="flex items-center justify-center min-h-11 min-w-11 px-3 rounded-full text-ink-400 hover:text-ink-500 hover:bg-page transition-all active:scale-90"
           >
             <Share2 className="h-4 w-4" />
           </button>
@@ -305,7 +316,7 @@ export function ActionRow({
         {canOpenRunChat && (
           <button
             onClick={() => router.push(`/dashboard/run-chat/${item.activity!.id}`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-ink-400 hover:text-brand-600 hover:bg-brand-600/10 transition-all active:scale-90"
+            className="flex items-center justify-center gap-1.5 min-h-11 min-w-11 px-3 rounded-full text-sm font-medium text-ink-400 hover:text-brand-600 hover:bg-brand-600/10 transition-all active:scale-90"
           >
             {/* Distinct from the comment button's icon just above — same
                 glyph for two different actions in one row read as a visual
@@ -318,7 +329,7 @@ export function ActionRow({
         {onDelete && (
           <button
             onClick={onDelete}
-            className="ms-auto p-2 rounded-full text-ink-300 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+            className="ms-auto flex items-center justify-center min-h-11 min-w-11 rounded-full text-ink-300 hover:text-accent-red hover:bg-accent-red/10 transition-all"
             aria-label={t('deletePost')}
           >
             <Trash2 className="h-4 w-4" />

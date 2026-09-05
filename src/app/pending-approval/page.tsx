@@ -25,6 +25,7 @@ export default function PendingApprovalPage() {
 
         <EmptyState
           icon={Clock}
+          titleAs="h1"
           title={t('waitingApproval')}
           description={t('approvalMessage')}
           action={<Button variant="secondary" onClick={handleBackHome}>{t('backHome')}</Button>}

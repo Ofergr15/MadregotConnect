@@ -312,6 +312,13 @@ export default function FeedPage() {
       onTouchMove={handlePullMove}
       onTouchEnd={handlePullEnd}
     >
+      {/* The frames deliberately give the feed no title bar — the cards are the
+          content and a heading would just eat a card's worth of screen. So this
+          is `sr-only`: the app's most-visited screen had no h1 at all, which
+          leaves a screen reader with nothing to announce on arrival and no
+          landmark to skip to. Visual design unchanged. */}
+      <h1 className="sr-only">{t('pageTitle')}</h1>
+
       {/* Pull-to-refresh affordance — grows with the swipe, shows a spinner
           while `refreshing` runs loadInitial(). */}
       <div

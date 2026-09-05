@@ -240,11 +240,16 @@ export default function AuthResolvePage() {
 
   return (
     <div className="min-h-screen bg-page flex items-center justify-center">
-      <div className="text-center">
+      <div className="text-center" role="status">
+        {/* Hidden because there is nothing to show — this screen always redirects,
+            and visually it is one spinner. But it had no heading at all, so a
+            screen reader arriving mid-sign-in got a page it could not name.
+            `role="status"` above makes the spinner's caption announce itself. */}
+        <h1 className="sr-only" dir="rtl">מתחבר...</h1>
         {/* Monochrome, like AppSplash and the auth gate — this screen is part of
             the same cold-open sequence. */}
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink-900 mx-auto mb-4"></div>
-        <p className="text-ink-400 text-sm" dir="rtl">מתחבר...</p>
+        <p className="text-ink-400 text-sm" dir="rtl" aria-hidden="true">מתחבר...</p>
       </div>
     </div>
   );

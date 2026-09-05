@@ -213,7 +213,12 @@ export function Header() {
         <div className="flex items-center justify-between h-14">
           {/* Logo + Review */}
           <div className="flex items-center gap-3 shrink-0">
-            <Link href="/feed" className="flex items-center gap-2.5">
+            {/* `-m-1 p-1` grows the tap area to 44×44 without moving the mark a
+                pixel: the padding pushes the hit box out and the equal negative
+                margin pulls the layout box back. On the narrow screens where the
+                wordmark is hidden this link IS the 36px logo, and it's the
+                home button on all 32 signed-in pages. */}
+            <Link href="/feed" className="flex items-center gap-2.5 -m-1 p-1">
               {/* The mark is a dark PNG; `brightness-0` flattens it to solid
                   black, which is what the page grey wants. */}
               <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0" />

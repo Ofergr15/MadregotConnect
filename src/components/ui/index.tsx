@@ -146,12 +146,24 @@ export function EmptyState({
   description,
   action,
   className,
+  titleAs: TitleTag = 'p',
 }: {
   icon?: React.ComponentType<{ className?: string }>;
   title: string;
   description?: string;
   action?: React.ReactNode;
   className?: string;
+  /**
+   * The element the title renders as. A `<p>` is right for the usual case — an
+   * empty state INSIDE a page that already has its own heading, where an `h1`
+   * would be a second one and an `h2` would claim a section that isn't there.
+   *
+   * Pass `"h1"` on the handful of screens where the empty state IS the whole
+   * page (/pending-approval, /auth/resolve): those had no heading at all, so a
+   * screen reader landed on a page with nothing to announce and no way to jump
+   * to the content.
+   */
+  titleAs?: 'p' | 'h1' | 'h2';
 }) {
   return (
     <div className={cn('flex flex-col items-center justify-center text-center py-12 px-6', className)}>
@@ -160,7 +172,7 @@ export function EmptyState({
           <Icon className="h-6 w-6 text-ink-400" />
         </div>
       )}
-      <p className="text-base font-bold text-ink-700">{title}</p>
+      <TitleTag className="text-base font-bold text-ink-700">{title}</TitleTag>
       {description && <p className="mt-1.5 text-sm max-w-[280px] text-ink-400">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
