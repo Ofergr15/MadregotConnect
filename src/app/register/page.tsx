@@ -166,12 +166,21 @@ function HeroBackdrop() {
  */
 function HeroHeading() {
   return (
-    <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center">
+    // `justify-start`, not `justify-center`. Centring inside flex-1 pinned the
+    // mark to the middle of whatever space was left over, which on a tall phone
+    // put it below the optical centre of the photograph — the runners are in the
+    // upper half, and the mark was sitting on their backs. Anchored to the top
+    // instead, so it reads as a masthead and the growing/shrinking happens below
+    // it rather than under it.
+    <div className="flex-1 min-h-0 flex flex-col items-center justify-start text-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
+      {/* ⚠️ The `short:` height is the height-constrained one, and 84px overflowed
+          320x480 by 7px. 76px is what fits with the countdown, both footnotes and
+          the wordmark all still on screen — measured, not guessed. */}
       <img
         src="/images/logo-white.png"
         alt="מדרגות — After 2KM Running Club"
-        className="h-[102px] short:h-[68px] w-auto object-contain"
+        className="h-[132px] short:h-[76px] w-auto object-contain"
       />
 
       {/* Says what the thing being launched IS, and that this is the launch. A
@@ -247,13 +256,17 @@ function CountdownRow() {
 }
 
 /**
- * The sponsor line that closes the page — a rule, the wordmark, a rule.
+ * The club's own wordmark, closing the page — a rule, the name, a rule.
  *
- * Letterspaced small caps rather than a logo file: there is no HOKA asset in this
- * repo, and inventing one from a web image would put someone else's trademark
- * into the build at whatever resolution happened to be lying around. Type the
- * club can set itself is the honest version, and it is what the reference design
- * does with its own wordmark in this slot.
+ * NOT a copyright line, deliberately. A © notice has been legally optional since
+ * the Berne Convention: copyright attaches on creation, and the notice adds no
+ * protection in Israel or anywhere else that signed it. So the slot carries the
+ * name of the club instead, which is the thing a stranger arriving from a
+ * WhatsApp link actually needs to read.
+ *
+ * Letterspaced small caps rather than a logo file: the logo is already at the top
+ * of this page at 132px, and repeating the mark 40px from the bottom would say
+ * the same thing twice.
  *
  * The rules are flex-1 and the label is not, so the pair always centres on the
  * wordmark whatever the screen width — no magic widths to re-tune at 320px.
@@ -262,10 +275,14 @@ function CountdownRow() {
  */
 function PoweredBy() {
   return (
-    <div className="mt-6 short:mt-3.5 flex items-center justify-center" aria-label="Powered by HOKA">
+    <div className="mt-6 short:mt-3.5 flex items-center justify-center">
       <span className="h-px flex-1 max-w-[52px] bg-white/25" aria-hidden="true" />
-      <span className="ms-3 me-3 text-4xs font-semibold uppercase tracking-[0.3em] text-white/80">
-        Powered by HOKA
+      {/* ⚠️ dir="ltr" is load-bearing. "@Madregot After 2KM" is neutral-then-Latin,
+          so under this page's RTL parent the bidi algorithm moved the "@" to the
+          far end and it rendered "MADREGOT AFTER 2KM@". The margins stay ms/me
+          because they are symmetric here, so the dir flip costs nothing. */}
+      <span dir="ltr" className="ms-3 me-3 text-4xs font-semibold uppercase tracking-[0.3em] text-white/80">
+        @Madregot After 2KM
       </span>
       <span className="h-px flex-1 max-w-[52px] bg-white/25" aria-hidden="true" />
     </div>
