@@ -524,7 +524,7 @@ export default function RegisterPage() {
           {/* Same treatment as the form screen's footnotes: own paragraphs, uneven
               rhythm, the weightier line first. See the note there. */}
           <p className={cn('px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
-            ההרשמה לחברי האקדמיה תיפתח מספר ימים לאחר ההשקה.
+            ההרשמה לרצי האקדמיה תיפתח מספר ימים לאחר ההשקה.
           </p>
           <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
             לא הגיע מייל? כדאי לבדוק גם בספאם.
@@ -673,7 +673,7 @@ export default function RegisterPage() {
             the first place. Every pixel added here comes out of the hero, which is
             `flex-1` — so it costs nothing else and cannot cause a scroll. */}
         <p className={cn('mt-5 short:mt-3 px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
-          ההרשמה לחברי האקדמיה תיפתח מספר ימים לאחר ההשקה.
+          ההרשמה לרצי האקדמיה תיפתח מספר ימים לאחר ההשקה.
         </p>
         <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
           ההרשמה טעונה אישור של מנהלי המדרגות.
