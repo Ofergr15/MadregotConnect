@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 
 /**
@@ -21,7 +20,10 @@ export async function requireApprover(
 ): Promise<{ denied: Response | null; email: string }> {
   const auth = await requireSession(request);
   if (!auth.ok) return { denied: authError(auth), email: '' };
-  if (!canApprove(auth.user.email)) {
+  // Off the session, not recomputed from the address: APPROVER_EMAILS cannot
+  // express an account that signed in through Strava, because Strava gives no
+  // email and the app mints a synthetic one. See migration 084.
+  if (!auth.user.canApprove) {
     return {
       denied: NextResponse.json({ error: 'Not authorized.' }, { status: 403 }),
       email: '',

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { isSuperUser } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 
 // Coach/admin-flavoured roles that may act on behalf of any athlete. Kept as
@@ -35,7 +34,10 @@ export function isSelfOrStaff(
 /** A caller whose identity came from a verified Supabase session. */
 export interface VerifiedCaller {
   email: string;
+  /** Resolved by `requireSession` from the athlete row's flag OR the email literal. */
   isSuperUser: boolean;
+  /** Same two sources. May approve registrations and broadcast to the club. */
+  canApprove: boolean;
   /** True for admin/coach/academy_coach, incl. legacy `coaches`-only accounts. */
   isStaff: boolean;
   /** Null for a staff account with no `athletes` row. */
@@ -79,14 +81,18 @@ export async function resolveVerifiedCaller(
   if (!auth.ok) {
     return {
       denied: authError(auth),
-      caller: { email: '', isSuperUser: false, isStaff: false, athleteId: null, role: '' },
+      caller: { email: '', isSuperUser: false, canApprove: false, isStaff: false, athleteId: null, role: '' },
     };
   }
   return {
     denied: null,
     caller: {
       email: auth.user.email,
-      isSuperUser: isSuperUser(auth.user.email),
+      // Both come off the session now rather than being recomputed from the
+      // email here — an account signed in through Strava has a synthetic address
+      // that no literal can match (migration 084).
+      isSuperUser: auth.user.isSuperUser,
+      canApprove: auth.user.canApprove,
       isStaff: auth.user.isStaff,
       athleteId: auth.user.athleteId,
       role: auth.user.role,

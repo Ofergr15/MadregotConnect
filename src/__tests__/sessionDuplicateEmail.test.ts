@@ -93,6 +93,11 @@ describe('requireSession — duplicate emails must not lock anyone out', () => {
       groupId: 'g1',
       athleteStatus: 'active',
       isStaff: false,
+      // Migration 084: privilege now comes off the row, not only off the address.
+      // A plain runner is neither, and this stays an exact-shape assertion so a
+      // future field can't appear on the session unnoticed.
+      isSuperUser: false,
+      canApprove: false,
     });
     // No coaches fallback when an athlete row was found.
     expect(reads.map(r => r.table)).toEqual(['athletes']);

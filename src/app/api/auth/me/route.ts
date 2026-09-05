@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
-import { isSuperUser } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -29,11 +28,22 @@ export async function GET(request: Request) {
     // `isSuper` rides along because the nav's view-as control was deciding it
     // client-side off whatever address localStorage happened to hold — a
     // synthetic Strava address answers "not the super user" and the control
-    // disappears. Here it's derived from the JWT's own verified email.
-    const isSuper = isSuperUser(auth.user.email);
+    // disappears.
+    //
+    // Deriving it from the verified JWT email fixed the *forgeable* half but not
+    // the synthetic-address half: the address is genuinely not SUPER_USER_EMAIL,
+    // so the honest answer was still "no". Migration 084 moves the truth onto the
+    // athlete row, and requireSession resolves row-flag-OR-literal; both flags
+    // now just ride out from there. `canApprove` joins it so the Settings and
+    // Registrations screens can stop importing the allowlist into the browser.
+    // `=== true` rather than a bare read: JSON.stringify drops an undefined
+    // value entirely, so a caller that resolved a session without these fields
+    // would silently omit the keys instead of answering false.
+    const isSuper = auth.user.isSuperUser === true;
+    const canApproveHere = auth.user.canApprove === true;
 
     if (!auth.user.athleteId) {
-      return NextResponse.json({ role: auth.user.role || 'coach', isSuper });
+      return NextResponse.json({ role: auth.user.role || 'coach', isSuper, canApprove: canApproveHere });
     }
 
     const supabase = createServerClient();
@@ -55,7 +65,7 @@ export async function GET(request: Request) {
       .update({ last_seen_at: new Date().toISOString() })
       .eq('id', auth.user.athleteId);
 
-    return NextResponse.json({ role: auth.user.role || 'runner', isAcademy: !!row?.is_academy, isSuper });
+    return NextResponse.json({ role: auth.user.role || 'runner', isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

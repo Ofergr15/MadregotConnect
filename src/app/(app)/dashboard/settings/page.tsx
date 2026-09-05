@@ -14,7 +14,7 @@ import { PerksManager } from '@/components/PerksManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
-import { canApprove, canGrantAdmin } from '@/lib/constants';
+import { canGrantAdmin } from '@/lib/constants';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
@@ -312,10 +312,9 @@ export default function SettingsPage() {
   // ever read inside its own detail screen, so one staying true forever because
   // that screen was never opened costs nothing.
   const [loading, setLoading] = useState(true);
-  // Whether the signed-in account is allowed to approve registrations / grant
-  // admin. Computed client-side (identity lives in localStorage); the server
-  // re-checks both anyway.
-  const [canApproveHere, setCanApproveHere] = useState(false);
+  // Whether the signed-in account may grant the admin role. Still computed from
+  // the address, because ADMIN_GRANTER_EMAIL is the club account and not affected
+  // by the synthetic-email problem below. The server re-checks it anyway.
   const [canGrantAdminHere, setCanGrantAdminHere] = useState(false);
   const [updatingUsers, setUpdatingUsers] = useState<Set<string>>(new Set());
   const [savedUsers, setSavedUsers] = useState<Set<string>>(new Set());
@@ -355,9 +354,18 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const me = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    setCanApproveHere(canApprove(me));
     setCanGrantAdminHere(canGrantAdmin(me));
   }, []);
+
+  // Approver rights come from the server, not from the address in localStorage.
+  // Two reasons the old way was wrong: localStorage is not identity, and an
+  // account signed in through Strava carries a synthetic address that can never
+  // match APPROVER_EMAILS — so the Approve button vanished for a genuine
+  // approver. /api/auth/me resolves it from the athlete row (migration 084) or
+  // the literal, whichever says yes. The Header holds this same SWR key on every
+  // screen, so this is a cache read rather than another request.
+  const { data: meData } = useApi<{ canApprove?: boolean }>('/api/auth/me');
+  const canApproveHere = !!meData?.canApprove;
 
   // Which datasets have already been requested, so re-opening a detail screen
   // (or bouncing back to the landing and in again) doesn't refetch. The mutation

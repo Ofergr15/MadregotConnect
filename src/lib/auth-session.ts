@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
+import { canApprove, isSuperUser } from '@/lib/constants';
 import {
   entryExpiry,
   isTokenExpired,
@@ -20,6 +21,14 @@ export interface SessionUser {
   groupId: string | null;
   athleteStatus: string | null;
   isStaff: boolean;
+  /**
+   * May "view as" any member. Resolved as `athletes.is_super_user` OR the
+   * SUPER_USER_EMAIL literal, because an account signed in through Strava has a
+   * synthetic email that can never match a literal — see migration 084.
+   */
+  isSuperUser: boolean;
+  /** May approve registrations and broadcast to the club. Same two sources. */
+  canApprove: boolean;
 }
 
 export type AuthResult =
@@ -27,6 +36,58 @@ export type AuthResult =
   | { ok: false; status: number; error: string };
 
 const STAFF_ROLES = ['admin', 'coach', 'academy_coach'];
+
+/** Columns of `athletes` this resolver needs, minus the two added by migration 084. */
+const ATHLETE_BASE_COLUMNS = 'id, name, role, group_id, status';
+/** Postgres "column does not exist" — i.e. migration 084 has not been applied here. */
+const UNDEFINED_COLUMN = '42703';
+
+interface AthleteRow {
+  id: string;
+  name: string | null;
+  role: string | null;
+  group_id: string | null;
+  status: string | null;
+  is_super_user?: boolean | null;
+  is_approver?: boolean | null;
+}
+
+/**
+ * The athlete rows for an email, newest first.
+ *
+ * Asks for the migration-084 privilege flags and, if this database does not have
+ * them yet, retries without. Worth the branch rather than just requiring the
+ * migration first: this is the query every authenticated request depends on, and
+ * a missing column here is not a degraded feature but a 403 on every route in the
+ * app. The retry only ever runs on the error path, so a migrated database pays
+ * nothing, and the fallback still yields a working session — just one where the
+ * email literals are the only source of privilege, which is the behaviour that
+ * shipped before 084.
+ */
+async function fetchAthleteRows(
+  supabase: ReturnType<typeof createServerClient>,
+  email: string,
+): Promise<AthleteRow[]> {
+  // Cast rather than `.returns<AthleteRow[]>()`: the column list is a runtime
+  // string, so Supabase's generic can't infer the row shape from it anyway, and
+  // `.returns` is one more method every test fake of this chain would have to
+  // grow for no added safety.
+  const query = async (columns: string) => {
+    const { data, error } = await supabase
+      .from('athletes')
+      .select(columns)
+      .eq('email', email)
+      .order('created_at', { ascending: false });
+    return { rows: (data || []) as unknown as AthleteRow[], error };
+  };
+
+  const first = await query(`${ATHLETE_BASE_COLUMNS}, is_super_user, is_approver`);
+  if (!first.error) return first.rows;
+  if (first.error.code !== UNDEFINED_COLUMN) return [];
+
+  console.warn('[auth] migration 084 not applied; privilege flags unavailable');
+  return (await query(ATHLETE_BASE_COLUMNS)).rows;
+}
 
 function bearerToken(request: Request): string {
   const header = request.headers.get('authorization') || '';
@@ -92,13 +153,7 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
   // Prefer an active row, then the newest, which is how /api/auth/resolve-role
   // picks among duplicates too — so the athleteId in the session matches the one
   // sign-in handed the client.
-  const { data: athleteRows } = await supabase
-    .from('athletes')
-    .select('id, name, role, group_id, status')
-    .eq('email', email)
-    .order('created_at', { ascending: false });
-
-  const rows = athleteRows || [];
+  const rows = await fetchAthleteRows(supabase, email);
   const athlete = rows.find((r) => r.status === 'active') || rows[0];
 
   if (athlete) {
@@ -113,6 +168,11 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
         groupId: athlete.group_id || null,
         athleteStatus: athlete.status || null,
         isStaff: STAFF_ROLES.includes(role),
+        // Either source is enough. The row flag exists for accounts whose email
+        // can never match a literal (Strava signups); the literal stays so this
+        // is purely additive and nobody loses access if a flag is unset.
+        isSuperUser: athlete.is_super_user === true || isSuperUser(email),
+        canApprove: athlete.is_approver === true || canApprove(email),
       },
     };
   }
@@ -140,6 +200,12 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
         groupId: null,
         athleteStatus: null,
         isStaff: true,
+        // No athlete row means no flag to read, so a legacy `coaches`-only
+        // account is still governed by the literals alone. Those accounts all
+        // have real addresses — the synthetic-email problem arrives with Strava
+        // signups, which always create an athlete row.
+        isSuperUser: isSuperUser(email),
+        canApprove: canApprove(email),
       },
     };
   }

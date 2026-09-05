@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
-import { SUPER_USER_EMAIL } from '@/lib/constants';
+import { canApprove, isSuperUser, SUPER_USER_EMAIL } from '@/lib/constants';
 
 /**
  * These routes used to take the caller's identity from `x-user-email` — a header
@@ -93,19 +93,37 @@ vi.mock('@/lib/auth-session', () => ({
 const ME = '11111111-1111-1111-1111-111111111111';
 const OTHER = '22222222-2222-2222-2222-222222222222';
 
-const session = (over: Partial<{ email: string; athleteId: string | null; role: string; isStaff: boolean }> = {}) => ({
-  ok: true as const,
-  user: {
-    email: 'runner@madregot.local',
-    athleteId: ME,
-    name: 'Runner',
-    role: 'runner',
-    groupId: null,
-    athleteStatus: 'active',
-    isStaff: false,
-    ...over,
-  },
-});
+type SessionOverrides = Partial<{
+  email: string;
+  athleteId: string | null;
+  role: string;
+  isStaff: boolean;
+  isSuperUser: boolean;
+  canApprove: boolean;
+}>;
+
+const session = (over: SessionOverrides = {}) => {
+  const email = over.email ?? 'runner@madregot.local';
+  return {
+    ok: true as const,
+    user: {
+      email,
+      athleteId: ME,
+      name: 'Runner',
+      role: 'runner',
+      groupId: null,
+      athleteStatus: 'active',
+      isStaff: false,
+      // requireSession resolves these as `athletes` row flag OR email literal
+      // (migration 084). It's mocked here, so the helper reproduces the literal
+      // half; pass them explicitly to stand in for the row-flag half — which is
+      // the only thing that can be true for a Strava account.
+      isSuperUser: isSuperUser(email),
+      canApprove: canApprove(email),
+      ...over,
+    },
+  };
+};
 
 // Records every filter the route applies, so "did it scope the query to this
 // athlete" is checkable without a database.
@@ -176,7 +194,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
     selected = { is_academy: true };
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', isAcademy: true, isSuper: false });
+    expect(await res.json()).toEqual({ role: 'coach', isAcademy: true, isSuper: false, canApprove: false });
 
     const update = ops.find((o) => o.op === 'update');
     expect(update?.table).toBe('athletes');
@@ -188,7 +206,7 @@ describe('GET /api/auth/me', () => {
   it('serves a legacy coaches-only account, which has no athletes row to read', async () => {
     requireSession.mockResolvedValue(session({ athleteId: null, role: 'coach', isStaff: true }));
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', isSuper: false });
+    expect(await res.json()).toEqual({ role: 'coach', isSuper: false, canApprove: false });
     // Nothing to select or stamp — and stamping by a null id would touch rows.
     expect(ops).toHaveLength(0);
   });
@@ -198,19 +216,49 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session());
     selected = null;
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'runner', isAcademy: false, isSuper: false });
+    expect(await res.json()).toEqual({ role: 'runner', isAcademy: false, isSuper: false, canApprove: false });
   });
 
   // The view-as control was deciding "is this the super user" client-side, off
   // whatever address localStorage held — a Strava athlete's synthetic
   // …@strava.madregot.local answers no, and the switcher vanishes. This is the
-  // authoritative answer, so it has to come from the JWT's own email and from
-  // nothing the caller can write.
+  // authoritative answer, so it comes off the verified session and from nothing
+  // the caller can write.
   it('flags the super user from the session email', async () => {
     requireSession.mockResolvedValue(session({ email: SUPER_USER_EMAIL }));
     selected = { is_academy: false };
     const res = await me(new Request('https://example.test/api/auth/me'));
     expect(await res.json()).toMatchObject({ isSuper: true });
+  });
+
+  // The case the email literal cannot express, and the reason migration 084
+  // exists: a Strava-only account whose address is synthetic. Nothing about
+  // …@strava.madregot.local will ever match SUPER_USER_EMAIL, so before the row
+  // flag the honest answer was "no" and the switcher stayed hidden.
+  it('flags a Strava account whose address can never match a literal', async () => {
+    const strava = 'strava_106828158@strava.madregot.local';
+    expect(isSuperUser(strava)).toBe(false);
+    requireSession.mockResolvedValue(
+      session({ email: strava, isSuperUser: true, canApprove: true }),
+    );
+    selected = { is_academy: false };
+    const res = await me(new Request('https://example.test/api/auth/me'));
+    expect(await res.json()).toMatchObject({ isSuper: true, canApprove: true });
+  });
+
+  // Both keys must always be present. JSON.stringify drops an undefined value
+  // entirely, so a session resolved without them would omit the keys rather than
+  // answer false — and a client reading `body.canApprove` would hide a control
+  // for a reason that looks identical to a real denial.
+  it('always answers both flags, never omits them', async () => {
+    const user = { ...session().user } as Record<string, unknown>;
+    delete user.isSuperUser;
+    delete user.canApprove;
+    requireSession.mockResolvedValue({ ok: true, user });
+    selected = { is_academy: false };
+    const body = await (await me(new Request('https://example.test/api/auth/me'))).json();
+    expect(body).toHaveProperty('isSuper', false);
+    expect(body).toHaveProperty('canApprove', false);
   });
 });
 

@@ -3,6 +3,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { Shield, Megaphone, Footprints, Glasses, Construction } from 'lucide-react';
 import { isSuperUser } from '@/lib/constants';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { getSupabase } from '@/lib/supabase/client';
 
 // "View as" for the super user (Ofer — see SUPER_USER_EMAIL).
@@ -75,8 +76,14 @@ export const VIEW_AS_SCENARIOS: Array<{ mode: string; label: string; icon: Compo
  * synthetic `athlete_email` (…@strava.madregot.local) that will never match, so
  * a check that stops at localStorage decides "not the super user" and hides
  * every entry point — which is how the switcher went missing while all of its
- * code was still there. The Supabase session is the authority; localStorage is
- * only the fast answer that avoids a frame without the control.
+ * code was still there.
+ *
+ * Reading the Supabase session instead was not enough either: the session's email
+ * IS the synthetic one, so the literal honestly does not match and the switcher
+ * stayed hidden. The authority is now the server, which resolves the flag off the
+ * athlete row (migration 084) or the literal, whichever says yes. The two local
+ * checks stay in front of it as the fast path — they answer instantly for anyone
+ * with a real address, so the request only decides the synthetic case.
  *
  * Purely a UI question: view-as changes what is RENDERED, never what the server
  * will do (every API route authorizes the real session), so being wrong here
@@ -90,12 +97,24 @@ export function useIsSuperUser(): boolean {
       localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
     if (isSuperUser(stored)) setIsSuper(true);
 
+    let cancelled = false;
     getSupabase()
       .auth.getSession()
-      .then(({ data }) => {
-        if (isSuperUser(data.session?.user?.email)) setIsSuper(true);
+      .then(async ({ data }) => {
+        if (isSuperUser(data.session?.user?.email)) {
+          if (!cancelled) setIsSuper(true);
+          return;
+        }
+        // Only reached when the address doesn't match — i.e. exactly the Strava
+        // case. Never downgrades to false: a failed request or a signed-out
+        // moment must not yank a control that the fast path already showed.
+        const res = await fetch('/api/auth/me', { headers: await bearerHeaders(false) });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!cancelled && body?.isSuper) setIsSuper(true);
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   return isSuper;
