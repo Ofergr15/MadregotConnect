@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { useApi } from '@/lib/api';
 import { Users, Trophy, Edit3, ChevronDown, ChevronUp, Medal, Watch, Flame, User } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
 import { cn, getGroupPanel } from '@/lib/utils';
@@ -53,51 +54,38 @@ export default function GroupsPage() {
   // this page was printing the raw DB enum instead.
   const ta = useTranslations('athletes');
   const tm = useTranslations('momentum'); // reuse the weekStreak/weekStreakOne wording from the momentum card
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [leaderboardByStreak, setLeaderboardByStreak] = useState<LeaderboardEntry[]>([]);
-  const [leaderboardByRuns, setLeaderboardByRuns] = useState<LeaderboardEntry[]>([]);
-  const [groupLeaderboards, setGroupLeaderboards] = useState<Record<string, LeaderboardEntry[]>>({});
   const [activeTab, setActiveTab] = useState<'members' | 'leaderboard'>('members');
   const [metric, setMetric] = useState<LeaderboardMetric>('distance');
 
+  // Both reads go through useApi rather than the useEffect+fetch+useState triads
+  // this page used to run. Not only for the SWR cache and the dedupe: the plain
+  // `fetch('/api/groups')` sent NO Authorization header at all, and neither call
+  // had the one-shot 401 recovery that apiFetcher does, so a token that expired
+  // while the tab sat open left this screen permanently empty until a reload.
+  const { data: groupsData, isLoading, mutate: refreshGroups } = useApi<{ groups: Group[] }>('/api/groups');
+  const { data: lb } = useApi<{
+    leaderboard: LeaderboardEntry[];
+    leaderboardByStreak: LeaderboardEntry[];
+    leaderboardByRuns: LeaderboardEntry[];
+    groupLeaderboards: Record<string, LeaderboardEntry[]>;
+  }>('/api/groups/leaderboard');
+
+  const groups = groupsData?.groups ?? [];
+  const loading = isLoading;
+  const leaderboard = lb?.leaderboard ?? [];
+  const leaderboardByStreak = lb?.leaderboardByStreak ?? [];
+  const leaderboardByRuns = lb?.leaderboardByRuns ?? [];
+  const groupLeaderboards = lb?.groupLeaderboards ?? {};
+
+  // First group open by default. It was previously set inside the fetch, which
+  // is why it needed the `!expandedGroup` guard — from here the effect only
+  // re-runs when the group list itself changes.
   useEffect(() => {
-    fetchGroups();
-    fetchLeaderboard();
-  }, []);
-
-  const fetchLeaderboard = async () => {
-    try {
-      // requireMember on the route — the bearer header is what carries identity.
-      // false = no JSON Content-Type; this is a GET with no body.
-      const response = await fetch('/api/groups/leaderboard', { headers: await bearerHeaders(false) });
-      const data = await response.json();
-      setLeaderboard(data.leaderboard || []);
-      setLeaderboardByStreak(data.leaderboardByStreak || []);
-      setLeaderboardByRuns(data.leaderboardByRuns || []);
-      setGroupLeaderboards(data.groupLeaderboards || {});
-    } catch (error) {
-      console.error('Failed to fetch leaderboard:', error);
-    }
-  };
-
-  const fetchGroups = async () => {
-    try {
-      const response = await fetch('/api/groups');
-      const data = await response.json();
-      setGroups(data.groups || []);
-      if (data.groups?.length > 0 && !expandedGroup) {
-        setExpandedGroup(data.groups[0].id);
-      }
-    } catch (error) {
-      console.error('Failed to fetch groups:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (groups.length > 0 && !expandedGroup) setExpandedGroup(groups[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups.length]);
 
   const updateGroup = async (updates: Partial<Group> & { id: string }) => {
     try {
@@ -108,7 +96,7 @@ export default function GroupsPage() {
       });
       if (response.ok) {
         setEditingGroup(null);
-        fetchGroups();
+        refreshGroups();
       }
     } catch (error) {
       console.error('Failed to update group:', error);
