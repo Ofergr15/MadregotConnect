@@ -3,7 +3,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { Shield, Megaphone, Footprints, Glasses, Construction } from 'lucide-react';
 import { isSuperUser } from '@/lib/constants';
-import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 
 // "View as" for the super user (Ofer — see SUPER_USER_EMAIL).
@@ -90,32 +90,47 @@ export const VIEW_AS_SCENARIOS: Array<{ mode: string; label: string; icon: Compo
  * costs a hidden button, not access.
  */
 export function useIsSuperUser(): boolean {
-  const [isSuper, setIsSuper] = useState(false);
+  // Answered by an address alone, with no network at all.
+  const [emailSuper, setEmailSuper] = useState(false);
+  // Set only once the session has resolved AND neither address matched — i.e.
+  // the synthetic-Strava case, the one time the server has to be asked.
+  const [askServer, setAskServer] = useState(false);
 
   useEffect(() => {
     const stored =
       localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    if (isSuperUser(stored)) setIsSuper(true);
+    if (isSuperUser(stored)) { setEmailSuper(true); return; }
 
     let cancelled = false;
     getSupabase()
       .auth.getSession()
-      .then(async ({ data }) => {
-        if (isSuperUser(data.session?.user?.email)) {
-          if (!cancelled) setIsSuper(true);
-          return;
-        }
-        // Only reached when the address doesn't match — i.e. exactly the Strava
-        // case. Never downgrades to false: a failed request or a signed-out
-        // moment must not yank a control that the fast path already showed.
-        const res = await fetch('/api/auth/me', { headers: await bearerHeaders(false) });
-        if (!res.ok) return;
-        const body = await res.json();
-        if (!cancelled && body?.isSuper) setIsSuper(true);
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (isSuperUser(data.session?.user?.email)) setEmailSuper(true);
+        else setAskServer(true);
       })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
-  return isSuper;
+  // useApi, NOT a hand-written fetch. This hook has three callers (Header,
+  // ImpersonationBar and useNavItems) and each one mounts its own copy, so a
+  // bare fetch here was three uncached round trips on EVERY page — measured at
+  // seven /api/auth/me requests on a single load. SWR keys on the URL alone, so
+  // all three now share one in-flight request, and they share it with the
+  // `useApi('/api/auth/me')` that Header and useNavItems already make: the extra
+  // cost of the synthetic case drops to zero requests rather than three.
+  //
+  // Worth being precise about who was paying: the fast path above returns early
+  // for anyone with a real address, so club members never made these calls at
+  // all. It was specifically the Strava-only accounts — Ofer's own included,
+  // whose session email is …@strava.madregot.local and cannot match the literal
+  // — that fell through to the network on every single screen.
+  const { data } = useApi<{ isSuper?: boolean }>(
+    askServer && !emailSuper ? '/api/auth/me' : null,
+  );
+
+  // Only ever ORed to true, never assigned from the response: a failed request
+  // or a signed-out moment must not yank a control the fast path already showed.
+  return emailSuper || !!data?.isSuper;
 }

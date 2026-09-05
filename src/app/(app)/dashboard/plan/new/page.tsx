@@ -1087,21 +1087,32 @@ export default function WeeklyPlannerPage() {
     <div className="min-h-[calc(100vh-6rem)] flex flex-col">
       {/* Week Navigation Header */}
       <div className="border-b border-page/50 bg-page/50 px-6 py-4">
-        <div className="flex items-center justify-between">
+        {/* `flex-wrap` + a narrower label below `sm`. On a 375px phone the title
+            block and the week navigator together needed ~458px of the 327px this
+            row actually has (px-6 either side), and because the page is RTL the
+            overflow went off the START edge: the "previous week" arrow sat at
+            x -57..-13, entirely outside the viewport and impossible to tap. The
+            same navigator on /dashboard/activities already carries the
+            `min-w-[140px] sm:min-w-[180px]` pair — this one just never got it. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-4">
             <Calendar className="h-5 w-5 text-brand-600" />
-            <h1 className="text-2xl font-bold text-ink-700">{t('title')}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-ink-700">{t('title')}</h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setWeekOffset((o) => o - 1)}
+              // Icon-only, so without this the control is an unnamed button to a
+              // screen reader. AcademyCompliance's identical navigator labels
+              // both of its arrows; these two were missed.
+              aria-label={t('lastWeek')}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
 
-            <div className="text-center min-w-[180px]">
+            <div className="text-center min-w-[140px] sm:min-w-[180px]">
               <p className="text-sm font-medium text-ink-700">{weekLabel}</p>
               <p className="text-xs text-ink-400">
                 {weekOffset === 0 ? t('thisWeek') : weekOffset === 1 ? t('nextWeek') : weekOffset === -1 ? t('lastWeek') : ''}
@@ -1110,6 +1121,7 @@ export default function WeeklyPlannerPage() {
 
             <button
               onClick={() => setWeekOffset((o) => o + 1)}
+              aria-label={t('nextWeek')}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
             >
               <ChevronRight className="h-5 w-5" />

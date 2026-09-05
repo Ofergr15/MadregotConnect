@@ -1,12 +1,27 @@
 import { NextResponse } from 'next/server';
 import { resolveStravaRedirectUri } from '@/lib/strava/client';
 import { loginState } from '@/lib/auth/login-handoff';
+import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 /**
  * GET /api/strava?mode=login[&challenge=<base64url sha256>]
- * GET /api/strava?athleteId=<uuid>  (coach link to existing athlete)
+ * GET /api/strava?athleteId=<uuid>  (link Strava onto an existing athlete)
  *
  * Returns { authUrl } for the Strava OAuth authorize page.
+ *
+ * `mode=login` is deliberately open — it is the sign-in entry point on the
+ * public landing page, so there is no session to require yet, and the state it
+ * mints names nobody.
+ *
+ * The `athleteId` branch is NOT open, because `state` is echoed back by Strava
+ * and the callback's link mode writes the returning tokens onto whatever athlete
+ * row `state` names. Ungated, that was a full account takeover in three steps:
+ * ask this route for an authorize URL carrying a victim's athlete id, authorise
+ * with your OWN Strava account, and the callback stamps your strava_athlete_id
+ * onto their row — after which `mode=login` resolves you INTO their account,
+ * because it matches on strava_athlete_id first. No password needed and no
+ * session needed at any point; a bare athlete UUID was the whole credential.
+ * (The retired /api/auth/athlete-login handed those UUIDs out for any email.)
  *
  * `challenge` is how a standalone PWA asks for its session back rather than
  * having it established wherever the OAuth ends up — see lib/auth/login-handoff.
@@ -35,6 +50,11 @@ export async function GET(request: Request) {
   if (mode === 'login' || (!athleteId && mode !== 'link')) {
     state = loginState(challenge);
   } else if (athleteId) {
+    // Self-or-staff: a runner may connect their own Strava (profile page), a
+    // coach may connect anyone's (athletes page). Both are real callers, which
+    // is why this is `requireCallerForAthlete` and not a staff-only gate.
+    const { denied } = await requireCallerForAthlete(request, athleteId);
+    if (denied) return denied;
     state = athleteId;
   } else {
     return NextResponse.json({ error: 'athleteId or mode=login required' }, { status: 400 });

@@ -286,7 +286,9 @@ export default function ProgramPage() {
         {isAdmin && activeView !== 'workout' && (
           <Button onClick={() => setShowUploadForm(true)}>
             <Plus className="h-4 w-4" />
-            New Week
+            {/* Was a bare English literal — the only Latin text on an otherwise
+                fully Hebrew page, sitting right beside the translated heading. */}
+            {t('newWeek')}
           </Button>
         )}
       </div>

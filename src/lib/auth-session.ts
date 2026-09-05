@@ -133,10 +133,35 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
   let email = '';
   try {
     const { data, error } = await createClient(url, anonKey).auth.getUser(token);
-    if (error) return { ok: false, status: 401, error: 'Invalid or expired session' };
+    if (error) {
+      // Log it. This used to discard the error, which made two very different
+      // failures indistinguishable from the outside: a token that really is
+      // bad, and Supabase Auth throttling or being briefly unavailable. Both
+      // surfaced as "Invalid or expired session" on every gated route at once,
+      // so the app went blank with nothing to go on. Observed live: a JWT with
+      // nine minutes left on its `exp` 401'ing on every route while the open
+      // routes kept serving.
+      console.warn('[auth] getUser rejected a token', {
+        status: error.status,
+        code: (error as { code?: string }).code,
+        message: error.message,
+      });
+      // Only an upstream 4xx is evidence about the TOKEN. A 429 or a 5xx is
+      // evidence about the auth service, and answering 401 for that tells the
+      // client to stop trusting a session that is in fact fine. 503 says
+      // "ask again", which is what a caller should actually do.
+      const upstream = error.status ?? 0;
+      if (upstream === 429 || upstream >= 500) {
+        return { ok: false, status: 503, error: 'Could not verify session, try again' };
+      }
+      return { ok: false, status: 401, error: 'Invalid or expired session' };
+    }
     email = (data?.user?.email || '').toLowerCase().trim();
-  } catch {
-    return { ok: false, status: 401, error: 'Could not verify session' };
+  } catch (err) {
+    // Network-level failure reaching the auth service — never the token's
+    // fault, so this one is unconditionally 503.
+    console.warn('[auth] getUser threw', err instanceof Error ? err.message : err);
+    return { ok: false, status: 503, error: 'Could not verify session, try again' };
   }
   if (!email) return { ok: false, status: 401, error: 'Session has no email' };
 

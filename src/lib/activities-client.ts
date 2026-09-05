@@ -27,8 +27,29 @@ import { apiHeaders } from '@/lib/api';
 // survive that filter. Pass it whenever the answer is about the signed-in athlete
 // ("do I have any runs", "what did I do this week"); leave it off for the club
 // feed and leaderboards, which want everyone.
+//
+// `volumeOnly` asks for four columns — id, athlete_id, start_time, distance —
+// instead of all 32. For a caller that only totals kilometres per week that is
+// the whole answer, and `limit` is no substitute: it caps ROWS, so the wide
+// columns (`splits`, `laps`) still come down for each one. Measured on the feed's
+// weekly-volume card: 113 KB / 5.2 s for the full shape.
+//
+// `sinceDays` is a start_time floor expressed in days back, and `since`/`until`
+// are explicit YYYY-MM-DD bounds (`until` exclusive) for a caller that wants one
+// named window rather than a count. A row count can't express either: how far
+// back 200 rows reaches depends entirely on how often the athlete runs, so the
+// oldest weeks silently fall off a twelve-week chart for anyone with high
+// mileage, and a screen showing one PAST week may not find that week at all.
 export async function fetchActivities(
-  options: { includeGps?: boolean; limit?: number; selfOnly?: boolean } = {},
+  options: {
+    includeGps?: boolean;
+    limit?: number;
+    selfOnly?: boolean;
+    volumeOnly?: boolean;
+    sinceDays?: number;
+    since?: string;
+    until?: string;
+  } = {},
 ): Promise<Response> {
   const athleteId = typeof window !== 'undefined' ? localStorage.getItem('athlete_id') : null;
   const params = new URLSearchParams();
@@ -36,6 +57,16 @@ export async function fetchActivities(
   if (options.includeGps) params.set('include', 'gps');
   if (options.limit) params.set('limit', String(options.limit));
   if (options.selfOnly) params.set('scope', 'self');
+  if (options.volumeOnly) params.set('shape', 'volume');
+  if (options.sinceDays) {
+    // Date-only (YYYY-MM-DD), not a full timestamp: start_time is stored as the
+    // athlete's wall clock, so a UTC instant here would shift the boundary a few
+    // hours and is precision this floor doesn't have anyway.
+    const floor = new Date(Date.now() - options.sinceDays * 86400_000);
+    params.set('since', floor.toISOString().slice(0, 10));
+  }
+  if (options.since) params.set('since', options.since);
+  if (options.until) params.set('until', options.until);
   const qs = params.toString();
   return fetch(`/api/activities${qs ? `?${qs}` : ''}`, {
     headers: await apiHeaders(),

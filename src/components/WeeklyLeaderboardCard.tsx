@@ -49,8 +49,19 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
         // there — so a coach who also runs saw a truncated volume chart (and a
         // wrong "this week") on a busy week, plus every other athlete's splits
         // and laps JSONB downloaded to throw away.
+        // `volumeOnly` + `sinceDays`: this card reads exactly three fields off an
+        // activity — athlete_id, start_time, distance — and only ever looks back
+        // twelve weeks, because that's how many bars it draws. Asking for the
+        // default shape instead was 113 KB over 5.2 s (138 rows × 32 columns,
+        // `laps` JSONB included) to produce thirteen numbers, and it was the
+        // single slowest request on the feed. Neither parameter widens anything:
+        // one drops columns, the other drops rows.
+        //
+        // Thirteen weeks, not twelve: the oldest bar's week has to arrive whole or
+        // it renders as a short bar and reads as a bad week rather than a partial
+        // one.
         const [actRes, lbRes, weeklyRes] = await Promise.all([
-          fetchActivities({ selfOnly: true }),
+          fetchActivities({ selfOnly: true, volumeOnly: true, sinceDays: 13 * 7 }),
           fetch('/api/groups/leaderboard', { headers }),
           fetch('/api/dashboard/weekly', { headers }),
         ]);
@@ -68,24 +79,31 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
           const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
           setWeeklyKm(Math.round((thisWeekActs.reduce((s: number, a: any) => s + (a.distance || 0), 0) / 1000) * 10) / 10);
 
+          // Keyed by the week-start Sunday as ISO (YYYY-MM-DD), which sorts
+          // correctly as a plain string, and only turned into a DD/MM label at
+          // the end. The previous version keyed by DD/MM and sorted on month then
+          // day, so it had no year: across New Year the January weeks sorted
+          // ahead of December's and the bars came out in the wrong order — and
+          // now that the window is thirteen weeks, that wrong order also picks
+          // the wrong twelve to keep.
           const weekMap: Record<string, { km: number; runs: number }> = {};
           filtered.forEach((a: any) => {
             // activityWeekStart, not getActivityWeekStart: start_time is the
             // athlete's wall-clock read as UTC, so local getters here shift it +3h
             // in an Israel browser and a 21:30 Saturday run jumps into next week.
-            const key = activityWeekStart(a.start_time).split('-').reverse().slice(0, 2).join('/'); // DD/MM of the week-start Sunday
+            const key = activityWeekStart(a.start_time);
             if (!weekMap[key]) weekMap[key] = { km: 0, runs: 0 };
             weekMap[key].km += (a.distance || 0) / 1000;
             weekMap[key].runs += 1;
           });
           const sortedWeeks = Object.entries(weekMap)
-            .map(([week, data]) => ({ week, km: Math.round(data.km * 10) / 10, runs: data.runs }))
-            .sort((a, b) => {
-              const [dA, mA] = a.week.split('/').map(Number);
-              const [dB, mB] = b.week.split('/').map(Number);
-              return mA !== mB ? mA - mB : dA - dB;
-            })
-            .slice(-12);
+            .sort(([a], [b]) => a.localeCompare(b))
+            .slice(-12)
+            .map(([iso, data]) => ({
+              week: iso.split('-').reverse().slice(0, 2).join('/'), // DD/MM
+              km: Math.round(data.km * 10) / 10,
+              runs: data.runs,
+            }));
           setRunnerWeeklyVolumes(sortedWeeks);
         }
 

@@ -906,7 +906,12 @@ function ProfileContent() {
                     onClick={async () => {
                       setConnectingStrava(true);
                       try {
-                        const res = await fetch(`/api/strava?athleteId=${athleteId}`);
+                        // Authenticated: the link branch of /api/strava is
+                        // self-or-staff gated, because its `state` decides
+                        // whose row the returning Strava tokens land on.
+                        const res = await fetch(`/api/strava?athleteId=${athleteId}`, {
+                          headers: await apiHeaders(),
+                        });
                         const data = await res.json();
                         if (data.authUrl) {
                           window.location.href = data.authUrl;

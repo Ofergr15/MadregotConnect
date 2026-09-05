@@ -96,12 +96,15 @@ export default function ActivitiesPage() {
     });
   };
 
+  // Hoisted above the effects because the fetch is now scoped to this week, so
+  // the week is an input to it rather than something only the render needs.
+  const weekStartDate = getCurrentWeekSunday(weekOffset);
+
   useEffect(() => {
     const coachEmail = localStorage.getItem('coach_email');
     const storedAthleteId = localStorage.getItem('athlete_id');
     setIsCoach(!!coachEmail);
     setAthleteId(storedAthleteId);
-    fetchActivities();
 
     // Legacy deep link from every "🏃 X finished a run" push sent before the
     // link was fixed: those rows point here with ?kudos=<activityId>. This page
@@ -125,13 +128,37 @@ export default function ActivitiesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchActivities = async () => {
+  // Re-fetch when the user pages to another week. Each week is one small request
+  // now, so this is cheaper than the single 16 MB response it replaces even after
+  // several taps of the arrows.
+  useEffect(() => {
+    fetchActivities(weekStartDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStartDate]);
+
+  // This screen shows exactly ONE week at a time, so it asks for exactly one
+  // week. It used to ask for the newest 200 activities with `includeGps: true`
+  // and filter down client-side, which was wrong twice over:
+  //
+  //  - Size. gps_points is a full per-run lat/lng trace. Measured on this page:
+  //    16 MB in a single response — 200 rows × ~80 KB — to render the seven days
+  //    the user can actually see. On a phone over cellular that is the difference
+  //    between a screen and a stall. ActivityFeed does prefer an inlined route
+  //    when one is there, but it already has the lazy per-card
+  //    /api/activities/details path for rows synced before GPS was persisted, and
+  //    a collapsed card doesn't draw a map at all — so the trace is only ever
+  //    needed for the ONE card someone expands, which fetches details anyway.
+  //  - Correctness. "The newest 200" is not "the week you're looking at". For a
+  //    coach those 200 rows are club-wide and cover roughly two weeks at this
+  //    club's volume, so paging back a month showed an empty week with no
+  //    explanation. A window can't be truncated that way.
+  const fetchActivities = async (weekStart: string) => {
     setLoading(true);
     try {
-      // ActivityFeed prefers the route stored at sync time (activity.gps_points)
-      // over its lazy per-card /api/activities/details fetch, so this page
-      // needs gps_points inlined in the list response.
-      const res = await fetchActivitiesScoped({ includeGps: true });
+      // `until` is exclusive, so it's the Sunday AFTER the week being shown.
+      const end = new Date(weekStart + 'T00:00:00');
+      end.setDate(end.getDate() + 7);
+      const res = await fetchActivitiesScoped({ since: weekStart, until: iso(end) });
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities || []);
@@ -161,7 +188,11 @@ export default function ActivitiesPage() {
           body: JSON.stringify({ athleteId: id }),
         }),
       ]);
-      const res = await fetchActivitiesScoped({ includeGps: true });
+      // Same window as the plain fetch — a sync that pulled in new runs still
+      // only needs to refresh the week on screen.
+      const end = new Date(weekStartDate + 'T00:00:00');
+      end.setDate(end.getDate() + 7);
+      const res = await fetchActivitiesScoped({ since: weekStartDate, until: iso(end) });
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities || []);
@@ -198,8 +229,8 @@ export default function ActivitiesPage() {
     return activities;
   }, [activities, isCoach, athleteId]);
 
-  // Compute weekly data based on current weekOffset
-  const weekStartDate = getCurrentWeekSunday(weekOffset);
+  // Compute weekly data based on current weekOffset (weekStartDate is hoisted
+  // above the effects, since the fetch is scoped to it now).
   const weekLabel = getWeekLabel(weekStartDate, locale);
 
   const weekData = useMemo(() => {
@@ -496,7 +527,7 @@ export default function ActivitiesPage() {
           open={showManualEntry}
           onOpenChange={setShowManualEntry}
           athleteId={athleteId}
-          onSaved={fetchActivities}
+          onSaved={() => fetchActivities(weekStartDate)}
         />
       )}
     </div>

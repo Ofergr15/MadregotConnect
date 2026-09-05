@@ -1,35 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
-  try {
-    const { email } = await req.json();
-
-    if (!email) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
-    }
-
-    const supabase = createServerClient();
-
-    const { data: athlete, error } = await supabase
-      .from('athletes')
-      .select('id, name, email, group_id, status')
-      .eq('email', email.toLowerCase())
-      .eq('status', 'active')
-      .single();
-
-    if (error || !athlete) {
-      return NextResponse.json(
-        { error: 'No active account found with this email. Make sure you joined via your invite link first.' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ athlete });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: 'Login failed' },
-      { status: 500 }
-    );
-  }
+/**
+ * Retired. This route used to be an unauthenticated identity oracle: it took
+ * `{ email }` with no password, no token and no verification of any kind, and
+ * answered with `{ id, name, email, group_id, status }` for any active member.
+ * That is a membership-enumeration endpoint — probe an address, learn whether
+ * that person is in the club and get their internal ids — and it was live in
+ * production (verified: a POST to www.madregot.app answered 404 for a
+ * non-member and 400 "Email is required" for an empty body).
+ *
+ * The ids are the part that matters. Eleven routes still take an athlete id
+ * from the query string, so handing out `id` and `group_id` to an anonymous
+ * caller is the first half of an IDOR. `docs/feed-plan.md` recorded it as a
+ * "known unrelated hole, not fixed here".
+ *
+ * Nothing calls it — the athlete portal has signed in through Supabase Auth
+ * since c73b675, and a repo-wide search for "athlete-login" finds only that
+ * doc note. It answers 410 rather than being deleted so a stale PWA cache or
+ * an old bookmark gets a definite "this is gone" instead of a Next.js 404 that
+ * looks like a deploy glitch; the file is safe to delete outright later.
+ */
+export async function POST() {
+  return NextResponse.json(
+    { error: 'This endpoint has been removed. Sign in with your email and password.' },
+    { status: 410 },
+  );
 }

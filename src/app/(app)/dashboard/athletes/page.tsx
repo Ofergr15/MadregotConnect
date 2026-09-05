@@ -7,7 +7,7 @@ import {
   PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useApi } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { isProtectedEmail } from '@/lib/constants';
 import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow, Card, Button, EmptyState, BigStat } from '@/components/ui';
 import { useTranslations } from 'next-intl';
@@ -132,7 +132,12 @@ export default function AthletesPage() {
 
   const connectStrava = async (athleteId: string) => {
     try {
-      const res = await fetch(`/api/strava?athleteId=${athleteId}`);
+      // Authenticated: the link branch of /api/strava is self-or-staff gated,
+      // because its `state` decides whose athlete row the returning Strava
+      // tokens get written onto.
+      const res = await fetch(`/api/strava?athleteId=${athleteId}`, {
+        headers: await apiHeaders(),
+      });
       const data = await res.json();
       if (data.authUrl) {
         window.location.href = data.authUrl;
@@ -308,7 +313,12 @@ ${inviteLink}`;
         onChange={setFilter}
         options={(['all', 'active', 'invited', 'paused'] as const).map((tab) => ({
           value: tab,
-          label: `${tab} (${tab === 'all' ? athletes.length : athletes.filter((a) => a.status === tab).length})`,
+          // `t(tab)`, not the raw key: these chips rendered as "all (22) /
+          // active (21) / invited (1) / paused (0)" — four English words in the
+          // middle of a Hebrew page, directly under the stat blocks that already
+          // say פעיל / הוזמן / מושהה. The keys existed; the interpolation just
+          // never went through the translator.
+          label: `${t(tab)} (${tab === 'all' ? athletes.length : athletes.filter((a) => a.status === tab).length})`,
         }))}
         className="w-fit"
       />

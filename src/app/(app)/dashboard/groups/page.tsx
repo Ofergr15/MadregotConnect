@@ -196,35 +196,58 @@ export default function GroupsPage() {
                 isExpanded ? 'bg-card/80' : 'bg-card/40'
               )}
             >
-              {/* Group Header */}
-              <button
-                className="w-full flex items-center justify-between p-4 sm:p-5"
-                onClick={() => setExpandedGroup(isExpanded ? null : group.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={cn("w-3 h-3 rounded-full", colors.dot)} />
-                  <div className="text-left">
-                    <h3 className="text-lg font-semibold">{group.name}</h3>
-                    <span className="text-sm text-ink-400">
-                      {group.athleteCount} {t('athletes')}
-                      {group.marathonGoal && ` · Goal: ${group.marathonGoal}`}
-                    </span>
+              {/* Group Header.
+
+                  The expand control is an `absolute inset-0` button UNDER the
+                  row rather than a <button> wrapping it, because the edit
+                  control is also a button and `<button>` inside `<button>` is
+                  invalid HTML: React was logging a real hydration error here
+                  ("In HTML, <button> cannot be a descendant of <button>") —
+                  the only application-level console error found anywhere in
+                  the app. Safari and screen readers both treat the nesting
+                  inconsistently, and `stopPropagation` only papered over the
+                  click, not the invalid tree.
+
+                  This keeps the whole row tappable and the layout
+                  pixel-identical: the content sits on top with
+                  `pointer-events-none`, and the edit button re-enables its own
+                  pointer events so it still wins the tap. */}
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-expanded={isExpanded}
+                  aria-label={group.name}
+                  className="absolute inset-0 w-full"
+                  onClick={() => setExpandedGroup(isExpanded ? null : group.id)}
+                />
+                <div className="pointer-events-none relative w-full flex items-center justify-between p-4 sm:p-5">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("w-3 h-3 rounded-full", colors.dot)} />
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold">{group.name}</h3>
+                      <span className="text-sm text-ink-400">
+                        {group.athleteCount} {t('athletes')}
+                        {group.marathonGoal && ` · ${t('goal')}: ${group.marathonGoal}`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      aria-label={t('editGroup')}
+                      onClick={() => setEditingGroup(group)}
+                      className="pointer-events-auto flex items-center justify-center min-w-[44px] min-h-[44px] hover:bg-page active:scale-[0.92] rounded-lg transition-all"
+                    >
+                      <Edit3 className="h-4 w-4 text-ink-400" />
+                    </button>
+                    {isExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-ink-400" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-ink-400" />
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setEditingGroup(group); }}
-                    className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:bg-page active:scale-[0.92] rounded-lg transition-all"
-                  >
-                    <Edit3 className="h-4 w-4 text-ink-400" />
-                  </button>
-                  {isExpanded ? (
-                    <ChevronUp className="h-5 w-5 text-ink-400" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-ink-400" />
-                  )}
-                </div>
-              </button>
+              </div>
 
               {/* Expanded Content - Athlete List */}
               {isExpanded && (

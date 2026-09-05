@@ -94,6 +94,17 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
 
     const onBeforeInstall = (event: Event) => {
       event.preventDefault();
+      // Re-check, don't trust the guard above. This provider sits in the
+      // persistent (app) layout, so the effect runs ONCE per load while
+      // Chromium fires `beforeinstallprompt` again on every client-side
+      // navigation. Without this line, pressing "לא עכשיו" and then tapping any
+      // tab brought the sheet straight back — a full-screen modal over the app,
+      // on every route change, for the rest of the visit. skipForSession() had
+      // written the session flag correctly; this stale listener was re-opening
+      // the sheet behind it.
+      // (iOS Safari never fires this event — it takes the `isIosSafari()` branch
+      // below, which runs inside the effect and so was never affected.)
+      if (isInstallStepAnswered()) return;
       show({ kind: 'prompt', prompt: event as BeforeInstallPromptEvent });
     };
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
