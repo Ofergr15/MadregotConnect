@@ -220,7 +220,7 @@ export function StoreManager() {
                   onClick={() => openEdit(p)}
                   trailing={
                     <div className="flex items-center gap-2.5 shrink-0">
-                      <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400')}>
+                      <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400')}>
                         {p.active ? t('active') : t('inactive')}
                       </span>
                       <div className="w-9 h-9 rounded-lg bg-page/60 border border-page/50 flex items-center justify-center overflow-hidden">
@@ -289,7 +289,7 @@ export function StoreManager() {
 
       <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editProduct') : t('newProduct')}>
         <div className="space-y-4 pb-2">
-          {error && <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{error}</div>}
+          {error && <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red-ink text-xs">{error}</div>}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

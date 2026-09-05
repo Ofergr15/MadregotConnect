@@ -3,6 +3,7 @@
 import { getSupabase } from '@/lib/supabase/client';
 import { trySilentReauth } from '@/lib/auth/silent-reauth';
 import type { FeedItem, FeedLiker, FeedMedia } from '@/lib/feed/project';
+import type { FeedHighlight } from '@/lib/feed/highlight';
 
 /**
  * Client helpers for the feed API.
@@ -46,6 +47,20 @@ export async function fetchFeed(cursor?: string | null, limit = 15, types?: read
   if (types && types.length > 0) qs.set('types', types.join(','));
   const res = await fetch(`/api/feed?${qs}`, { headers: await authHeaders() });
   return parse<{ items: FeedItem[]; nextCursor: string | null }>(res);
+}
+
+/**
+ * The single card pinned above the feed. Takes no athlete id — the server reads
+ * it off the JWT, so this can only ever return the caller's own numbers.
+ *
+ * `highlight` is null whenever there's nothing true to say (a member with no
+ * synced runs, staff with no athlete row, or a server-side failure the route
+ * swallows on purpose). Callers render nothing in that case; the card is not
+ * load-bearing.
+ */
+export async function fetchFeedHighlight() {
+  const res = await fetch('/api/feed/highlight', { headers: await authHeaders() });
+  return parse<{ highlight: FeedHighlight | null }>(res);
 }
 
 export async function toggleLike(itemId: string) {
@@ -190,4 +205,4 @@ export async function uploadMedia(file: File): Promise<FeedMedia> {
   return media;
 }
 
-export type { FeedItem, FeedLiker, FeedMedia };
+export type { FeedItem, FeedLiker, FeedMedia, FeedHighlight };

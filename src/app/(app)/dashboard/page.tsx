@@ -14,7 +14,7 @@ import { StatTiles } from '@/components/StatTiles';
 import { CoachPulse } from '@/components/CoachPulse';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
-import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_LABELS as typeLabels } from '@/lib/plans/workout-parsing';
+import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, WORKOUT_TYPE_LABELS as typeLabels } from '@/lib/plans/workout-parsing';
 import { Spinner, Card, BigStat, EmptyState, Button } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 // The goal race lived here as three consts until the designer's Profile frame
@@ -513,6 +513,7 @@ export default function DashboardPage() {
           workout={heroWorkout.nextWorkout}
           typeLabel={typeLabels[heroWorkout.nextWorkout.type] || heroWorkout.nextWorkout.type}
           typeColor={typeColors[heroWorkout.nextWorkout.type] || '#159AFF'}
+          typeTextColor={typeTextColors[heroWorkout.nextWorkout.type] || '#0B5285'}
           done={heroWorkout.showingToday && heroWorkout.todayDone}
           doneKm={heroWorkout.showingToday ? heroWorkout.todayKm : undefined}
           date={heroWorkout.nextDate}

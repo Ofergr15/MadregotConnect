@@ -12,7 +12,10 @@ const PREVIEW_BASE = 'https://madregot-connect-git-preview-ios-redesign-st-d1c44
 
 const CSS = `
   :root{
-    --indigo:#4338ff;--indigo-l:#818cf8;--s400:#94a3b8;--s500:#64748b;--amber:#f59e0b;
+    /* --s500 lifted from slate-500 #64748b, which measured 3.36:1 as 12px
+       caption text on this page's #16213b — the captions under each phone are
+       the only thing explaining what you're looking at. 5.18:1 now. */
+    --indigo:#4338ff;--indigo-l:#818cf8;--s400:#94a3b8;--s500:#8494ab;--amber:#f59e0b;
     --ti-1:#5c5c60;--ti-2:#8b8b8f;--ti-3:#3a3a3d;
   }
   *{box-sizing:border-box;margin:0;padding:0}

@@ -40,7 +40,10 @@ export interface StravaActivity {
   average_heartrate?: number;
   max_heartrate?: number;
   average_cadence?: number;
+  /** Detailed activity only — the list response omits it. */
   calories?: number;
+  /** Detailed activity only: the caption the athlete typed on Strava. */
+  description?: string | null;
   map?: { summary_polyline?: string | null };
   start_latlng?: [number, number] | null;
   end_latlng?: [number, number] | null;

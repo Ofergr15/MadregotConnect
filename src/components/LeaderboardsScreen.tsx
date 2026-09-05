@@ -146,9 +146,9 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
                   <div className="flex items-center gap-3">
                     <span className={cn(
                       'w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
-                      idx === 0 ? 'bg-band-3/20 text-band-3'
+                      idx === 0 ? 'bg-band-3/20 text-band-3-ink'
                         : idx === 1 ? 'bg-ink-300/20 text-ink-500'
-                        : idx === 2 ? 'bg-band-3/20 text-band-3'
+                        : idx === 2 ? 'bg-band-3/20 text-band-3-ink'
                         : 'bg-page text-ink-400',
                     )}>
                       {idx + 1}

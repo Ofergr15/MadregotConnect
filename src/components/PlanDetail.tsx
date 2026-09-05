@@ -50,9 +50,9 @@ function workoutsByDay(parsedWorkouts: Record<string, any>): Record<string, any>
 }
 
 const statusConfig = {
-  pending: { icon: Clock, color: 'text-band-3', bg: 'bg-band-3/10', label: 'Pending' },
-  success: { icon: CheckCircle2, color: 'text-accent-600', bg: 'bg-accent-600/10', label: 'Success' },
-  failed: { icon: XCircle, color: 'text-accent-red', bg: 'bg-accent-red/10', label: 'Failed' },
+  pending: { icon: Clock, color: 'text-band-3-ink', bg: 'bg-band-3/10', label: 'Pending' },
+  success: { icon: CheckCircle2, color: 'text-accent-900', bg: 'bg-accent-600/10', label: 'Success' },
+  failed: { icon: XCircle, color: 'text-accent-red-ink', bg: 'bg-accent-red/10', label: 'Failed' },
 };
 
 export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps) {

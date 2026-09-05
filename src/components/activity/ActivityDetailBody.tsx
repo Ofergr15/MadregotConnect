@@ -9,6 +9,7 @@ import { PlannedKmPoint } from '@/lib/academy/segments';
 import { cn } from '@/lib/utils';
 import { ElevationChart, HRChart, PaceChart } from './charts';
 import { formatDuration, formatPace, getHRZone } from './format';
+import { useAthleteMaxHR } from './useAthleteMaxHR';
 import { RouteMap } from './RouteMap';
 import { SplitsTable } from './SplitsTable';
 import type { ActivityDetailsData, ActivityEntry } from './types';
@@ -65,7 +66,14 @@ export function ActivityDetailBody({
   const paceStr = act.average_pace ? formatPace(act.average_pace) : null;
   const durationStr = formatDuration(act.duration);
   const movingStr = act.moving_duration ? formatDuration(act.moving_duration) : null;
-  const hrZone = act.average_hr ? getHRZone(act.average_hr) : null;
+
+  // Zones against this athlete's own 220 − age where their birth date is
+  // readable, and against 190 otherwise — see useAthleteMaxHR. A heart rate the
+  // run itself recorded above that estimate is proof the estimate is low, so it
+  // raises the ceiling rather than being clipped into zone 5.
+  const maxHRAt = useAthleteMaxHR(act.athlete_id);
+  const maxHR = Math.max(maxHRAt(act.start_time), act.max_hr ?? 0);
+  const hrZone = act.average_hr ? getHRZone(act.average_hr, maxHR) : null;
 
   const splits = details?.splits || act.splits || [];
   // Prefer the route stored at sync time (instant, reliable); fall back to the
@@ -234,7 +242,7 @@ export function ActivityDetailBody({
           </div>
           {splits.some(s => s.averageHR) && (
             <div className="bg-page/40 rounded-xl p-4 border border-page/20">
-              <HRChart splits={splits} maxHR={act.max_hr || 190} />
+              <HRChart splits={splits} maxHR={maxHR} />
             </div>
           )}
           <div className="bg-page/40 rounded-xl p-4 border border-page/20">

@@ -248,26 +248,26 @@ export type GroupLevel = 'fast' | 'medium' | 'slow';
 const groupColorMap = {
   fast: {
     bg: 'bg-accent-600/20',
-    text: 'text-accent-600',
+    text: 'text-accent-900',
     border: 'border-accent-600/30',
     dot: 'bg-accent-600',
-    badge: 'bg-accent-600/20 text-accent-600 border-accent-600/30',
+    badge: 'bg-accent-600/20 text-accent-900 border-accent-600/30',
     card: 'border-accent-600/40 bg-accent-600/10 hover:bg-accent-600/20',
   },
   medium: {
     bg: 'bg-band-2/20',
-    text: 'text-band-2',
+    text: 'text-band-2-ink',
     border: 'border-band-2/30',
     dot: 'bg-band-2',
-    badge: 'bg-band-2/20 text-band-2 border-band-2/30',
+    badge: 'bg-band-2/20 text-band-2-ink border-band-2/30',
     card: 'border-band-2/40 bg-band-2/10 hover:bg-band-2/20',
   },
   slow: {
     bg: 'bg-band-3/20',
-    text: 'text-band-3',
+    text: 'text-band-3-ink',
     border: 'border-band-3/30',
     dot: 'bg-band-3',
-    badge: 'bg-band-3/20 text-band-3 border-band-3/30',
+    badge: 'bg-band-3/20 text-band-3-ink border-band-3/30',
     card: 'border-band-3/40 bg-band-3/10 hover:bg-band-3/20',
   },
 } as const;

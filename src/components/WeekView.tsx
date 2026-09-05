@@ -338,7 +338,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     ) : (
                       <button
                         onClick={() => setExpandedDay(dayIndex)}
-                        className="text-xs font-bold text-accent-red bg-accent-red/10 border border-accent-red/20 rounded-lg py-2 px-3 text-center hover:bg-accent-red/15 transition-colors min-h-[36px]"
+                        className="text-xs font-bold text-accent-red-ink bg-accent-red/10 border border-accent-red/20 rounded-lg py-2 px-3 text-center hover:bg-accent-red/15 transition-colors min-h-[36px]"
                       >
                         {tp('moreCount', { count: dayWorkouts.length - 1 })}
                       </button>

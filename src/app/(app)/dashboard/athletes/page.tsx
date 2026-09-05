@@ -38,9 +38,9 @@ interface Group {
 
 // Same three group hues as lib/utils' groupColorMap (green / sky blue / orange).
 const groupColors: Record<string, { bg: string; text: string; border: string }> = {
-  'Group 1': { bg: 'bg-accent-600/15', text: 'text-accent-600', border: 'border-accent-600/20' },
-  'Group 2': { bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/20' },
-  'Group 3': { bg: 'bg-band-3/15', text: 'text-band-3', border: 'border-band-3/20' },
+  'Group 1': { bg: 'bg-accent-600/15', text: 'text-accent-900', border: 'border-accent-600/20' },
+  'Group 2': { bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/20' },
+  'Group 3': { bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/20' },
 };
 
 function getGroupStyle(name: string | null) {
@@ -241,19 +241,19 @@ ${inviteLink}`;
     switch (status) {
       case 'active':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-600/20 text-accent-600 border border-accent-600/30">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-600/20 text-accent-900 border border-accent-600/30">
             <Wifi className="h-3 w-3" /> {t('active')}
           </span>
         );
       case 'invited':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-band-3/20 text-band-3 border border-band-3/30">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-band-3/20 text-band-3-ink border border-band-3/30">
             <Clock className="h-3 w-3" /> {t('invited')}
           </span>
         );
       case 'paused':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-band-3/20 text-band-3 border border-band-3/30">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-band-3/20 text-band-3-ink border border-band-3/30">
             <PauseCircle className="h-3 w-3" /> {t('paused')}
           </span>
         );
@@ -469,8 +469,8 @@ ${inviteLink}`;
                             {athlete.groupName}
                           </span>
                         )}
-                        {athlete.hasGarmin && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-600">Garmin</span>}
-                        {athlete.hasStrava && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-band-3/15 text-band-3">Strava</span>}
+                        {athlete.hasGarmin && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-900">Garmin</span>}
+                        {athlete.hasStrava && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-band-3/15 text-band-3-ink">Strava</span>}
                       </span>
                     )}
                   </span>

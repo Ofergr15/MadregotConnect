@@ -358,7 +358,11 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
     likedByMe: ctx.likedItemIds.has(row.id),
     likePreview: ctx.likersByItem?.get(row.id) ?? [],
     commentPreview: ctx.commentsByItem?.get(row.id) ?? [],
-    canDelete: row.type === 'post' && (ctx.viewerIsStaff || isOwn),
+    // Announcements have no author, so only staff can take one down; DELETE
+    // /api/feed/posts enforces the same pair of rules.
+    canDelete:
+      (row.type === 'post' && (ctx.viewerIsStaff || isOwn)) ||
+      (row.type === 'announcement' && ctx.viewerIsStaff),
     activity,
   };
 }

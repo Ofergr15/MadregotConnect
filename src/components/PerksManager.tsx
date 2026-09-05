@@ -189,11 +189,11 @@ export function PerksManager() {
               trailing={
                 <div className="flex items-center gap-2.5 shrink-0">
                   {p.tier === 'core_runner' && (
-                    <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-600">
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
                       {t('tierCoreRunner')}
                     </span>
                   )}
-                  <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400')}>
+                  <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400')}>
                     {p.active ? t('active') : t('inactive')}
                   </span>
                 </div>
@@ -226,7 +226,7 @@ export function PerksManager() {
 
       <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editPerk') : t('newPerk')}>
         <div className="space-y-4 pb-2">
-          {error && <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{error}</div>}
+          {error && <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red-ink text-xs">{error}</div>}
 
           <div>
             <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('sponsorName')}</label>

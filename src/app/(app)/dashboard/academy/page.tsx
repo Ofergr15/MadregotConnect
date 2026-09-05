@@ -60,9 +60,9 @@ type Tab = 'overview' | 'members' | 'registrations' | 'plans' | 'compliance' | '
 
 // Same three group hues as lib/utils' groupColorMap (green / sky blue / orange).
 const groupColors: Record<string, { bg: string; text: string; border: string }> = {
-  'Group 1': { bg: 'bg-accent-600/15', text: 'text-accent-600', border: 'border-accent-600/20' },
-  'Group 2': { bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/20' },
-  'Group 3': { bg: 'bg-band-3/15', text: 'text-band-3', border: 'border-band-3/20' },
+  'Group 1': { bg: 'bg-accent-600/15', text: 'text-accent-900', border: 'border-accent-600/20' },
+  'Group 2': { bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/20' },
+  'Group 3': { bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/20' },
 };
 
 function getGroupStyle(name: string | null) {
@@ -112,7 +112,7 @@ function ScrollableSegmentedControl<T extends string>({
             {!!opt.badge && (
               <span className={cn(
                 'ms-0.5 min-w-[18px] px-1 rounded-full text-3xs font-bold tabular-nums',
-                active ? 'bg-page text-ink-700' : 'bg-band-3/20 text-band-3',
+                active ? 'bg-page text-ink-700' : 'bg-band-3/20 text-band-3-ink',
               )}>
                 {opt.badge}
               </span>

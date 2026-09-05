@@ -243,22 +243,22 @@ export default function ProgramPage() {
 
   const getTagColor = (tag: string): string => {
     const tagColors: Record<string, string> = {
-      'Legs': 'bg-band-2/20 text-band-2 border-band-2/30',
+      'Legs': 'bg-band-2/20 text-band-2-ink border-band-2/30',
       'Glutes': 'bg-pink-500/20 text-pink-600 border-pink-500/30',
-      'Core': 'bg-band-3/20 text-band-3 border-band-3/30',
-      'Upper': 'bg-purple-500/20 text-purple-600 border-purple-500/30',
-      'Prehab': 'bg-accent-600/20 text-accent-600 border-accent-600/30',
+      'Core': 'bg-band-3/20 text-band-3-ink border-band-3/30',
+      'Upper': 'bg-purple-500/20 text-purple-800 border-purple-500/30',
+      'Prehab': 'bg-accent-600/20 text-accent-900 border-accent-600/30',
       'Compound': 'bg-accent-red/20 text-accent-red border-accent-red/30',
-      'Unilateral': 'bg-band-3/20 text-band-3 border-band-3/30',
+      'Unilateral': 'bg-band-3/20 text-band-3-ink border-band-3/30',
       'Strength': 'bg-ink-300/20 text-ink-500 border-ink-300/30',
       'Bodyweight': 'bg-teal-500/20 text-teal-600 border-teal-500/30',
       'Isolation': 'bg-indigo-500/20 text-indigo-600 border-indigo-500/30',
-      'Balance': 'bg-band-2/20 text-band-2 border-band-2/30',
-      'Stability': 'bg-accent-600/20 text-accent-600 border-accent-600/30',
+      'Balance': 'bg-band-2/20 text-band-2-ink border-band-2/30',
+      'Stability': 'bg-accent-600/20 text-accent-900 border-accent-600/30',
       'Mobility': 'bg-lime-500/20 text-lime-600 border-lime-500/30',
-      'Functional': 'bg-band-3/20 text-band-3 border-band-3/30',
+      'Functional': 'bg-band-3/20 text-band-3-ink border-band-3/30',
       'Advanced': 'bg-accent-red/20 text-accent-red border-accent-red/30',
-      'Calves': 'bg-band-2/20 text-band-2 border-band-2/30',
+      'Calves': 'bg-band-2/20 text-band-2-ink border-band-2/30',
       'Hamstrings': 'bg-violet-500/20 text-violet-600 border-violet-500/30',
       'Shoulders': 'bg-fuchsia-500/20 text-fuchsia-600 border-fuchsia-500/30',
       'Grip': 'bg-ink-300/20 text-ink-500 border-ink-300/30',
@@ -329,7 +329,7 @@ export default function ProgramPage() {
               <div dir="ltr" className="text-xs text-ink-400 text-end">{currentWeek.date_range}</div>
             </div>
             {isCurrentWeek && (
-              <span className="bg-accent-600/20 text-accent-600 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
+              <span className="bg-accent-600/20 text-accent-900 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
                 {t('current')}
               </span>
             )}
@@ -363,7 +363,7 @@ export default function ProgramPage() {
                 <div dir="ltr" className="text-xs text-ink-400 text-end">{week.date_range}</div>
               </div>
               {week.week_start_date === thisWeekStart && (
-                <span className="bg-accent-600/20 text-accent-600 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
+                <span className="bg-accent-600/20 text-accent-900 text-xs px-2 py-0.5 rounded-full font-medium shrink-0">
                   {t('current')}
                 </span>
               )}
@@ -476,7 +476,7 @@ export default function ProgramPage() {
               </div>
               <p className="text-xs text-ink-400 mt-1 line-clamp-2">{currentExercise.desc}</p>
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-band-3/20 text-band-3 border border-band-3/30 font-bold">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-band-3/20 text-band-3-ink border border-band-3/30 font-bold">
                   {currentExercise.sets}
                 </span>
                 {currentExercise.tags.map((tag) => (
@@ -972,7 +972,7 @@ function UploadForm({
           </InsetSection>
 
           {error && (
-            <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
+            <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
               {error}
             </div>
           )}

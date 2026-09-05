@@ -75,7 +75,7 @@ export function GroupSelector({ coachId, selectedGroupIds, onSelectionChange }: 
 
   if (error) {
     return (
-      <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-4 text-accent-red text-sm">
+      <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-4 text-accent-red-ink text-sm">
         {error}
       </div>
     );

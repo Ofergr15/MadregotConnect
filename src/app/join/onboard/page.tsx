@@ -346,7 +346,7 @@ function OnboardContent() {
               </div>
             )}
             {error && step === 'info' && (
-              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
               </div>
             )}
@@ -412,7 +412,7 @@ function OnboardContent() {
             </div>
 
             {error && (
-              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
               </div>
             )}
@@ -504,7 +504,7 @@ function OnboardContent() {
             </div>
 
             {error && (
-              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
               </div>
             )}

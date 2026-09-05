@@ -77,13 +77,13 @@ interface RegistrationsPayload {
 }
 
 const KIND_STYLES: Record<EventKind, { bg: string; text: string }> = {
-  race: { bg: 'bg-purple-500/15', text: 'text-purple-600' },
-  camp: { bg: 'bg-band-2/15', text: 'text-band-2' },
-  lecture: { bg: 'bg-band-3/15', text: 'text-band-3' },
+  race: { bg: 'bg-purple-500/15', text: 'text-purple-800' },
+  camp: { bg: 'bg-band-2/15', text: 'text-band-2-ink' },
+  lecture: { bg: 'bg-band-3/15', text: 'text-band-3-ink' },
   social: { bg: 'bg-pink-500/15', text: 'text-pink-600' },
   photo_shoot: { bg: 'bg-teal-500/15', text: 'text-teal-600' },
   sponsor: { bg: 'bg-indigo-500/15', text: 'text-indigo-600' },
-  workout: { bg: 'bg-accent-600/15', text: 'text-accent-600' },
+  workout: { bg: 'bg-accent-600/15', text: 'text-accent-900' },
 };
 
 /**

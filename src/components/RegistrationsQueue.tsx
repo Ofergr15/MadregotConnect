@@ -611,7 +611,7 @@ function QueueRow({
             <span
               className={cn(
                 'text-3xs font-bold px-1.5 py-0.5 rounded',
-                r.status === 'approved' ? 'bg-ink-900 text-white' : 'bg-accent-red/15 text-accent-red',
+                r.status === 'approved' ? 'bg-ink-900 text-white' : 'bg-accent-red/15 text-accent-red-ink',
               )}
             >
               {r.status === 'approved' ? 'אושר' : 'נדחה'}

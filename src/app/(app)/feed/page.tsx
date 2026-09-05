@@ -12,6 +12,9 @@ import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { FeedHighlightCard } from '@/components/FeedHighlightCard';
+import { GroupRunCard } from '@/components/GroupRunCard';
+import { groupFeedItems } from '@/lib/feed/group-runs';
 import { SquadStandings } from '@/components/SquadStandings';
 import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
@@ -353,6 +356,15 @@ export default function FeedPage() {
         </div>
       )}
 
+      {/* ═══ THE HIGHLIGHT CARD ═══
+          One number about the reader, above everything about everyone else: the
+          challenge they're mid-way through, or their own consistency when no
+          challenge is running. Renders nothing when there's nothing true to say,
+          so it costs no vertical space on a cold or empty account. */}
+      <div className="mb-4 empty:mb-0">
+        <FeedHighlightCard />
+      </div>
+
       {/* ═══ SQUAD RIVALRY + WEEKLY LEADERBOARD — moved here from the (now
           hero-only) home page. Feed is where "how's everyone doing" content
           belongs; home is only "what do I do today". ═══ */}
@@ -447,25 +459,49 @@ export default function FeedPage() {
         <div className="space-y-3">
           {/* The pinned card above is the same feed item, so skip it here
               rather than showing the run twice. Day headings are inserted on the
-              way through: a card gets one when it opens a new calendar day. */}
+              way through: a card gets one when it opens a new calendar day.
+
+              Grouping runs here — over the whole accumulated list, not per page —
+              is deliberate: a club run recorded by eight people can straddle a
+              pagination boundary, and grouping server-side per page would emit a
+              group of five and then a group of three for the same run. */}
           {(() => {
             const visible = items.filter(item => item.id !== focusItem?.id);
+            const entries = groupFeedItems(visible, myAthleteId);
             let lastDay = '';
-            return visible.map(item => {
-              const day = feedDayKey(item.occurredAt, item.activity?.startTime);
+            return entries.map(entry => {
+              // A group sits at its newest member's position, so that member is
+              // what the day rule reads. (items[0] is the viewer's own run when
+              // they were on it, which isn't necessarily the newest — hence the
+              // reduce rather than a plain index.)
+              const dayItem =
+                entry.kind === 'group'
+                  ? entry.group.items.reduce((a, b) => (a.occurredAt >= b.occurredAt ? a : b))
+                  : entry.item;
+              const day = feedDayKey(dayItem.occurredAt, dayItem.activity?.startTime);
               const opensDay = day !== lastDay;
               lastDay = day;
               return (
-                <Fragment key={item.id}>
+                <Fragment key={entry.kind === 'group' ? entry.group.key : entry.item.id}>
                   {opensDay && <DayHeading dayKey={day} />}
-                  <FeedCard
-                    item={item}
-                    commentCount={item.commentCount}
-                    myAthleteId={myAthleteId}
-                    isStaff={isStaff}
-                    onComment={i => setCommentItem(i)}
-                    onDelete={handleDelete}
-                  />
+                  {entry.kind === 'group' ? (
+                    <GroupRunCard
+                      group={entry.group}
+                      myAthleteId={myAthleteId}
+                      isStaff={isStaff}
+                      onComment={i => setCommentItem(i)}
+                      onDelete={handleDelete}
+                    />
+                  ) : (
+                    <FeedCard
+                      item={entry.item}
+                      commentCount={entry.item.commentCount}
+                      myAthleteId={myAthleteId}
+                      isStaff={isStaff}
+                      onComment={i => setCommentItem(i)}
+                      onDelete={handleDelete}
+                    />
+                  )}
                 </Fragment>
               );
             });

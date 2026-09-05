@@ -53,11 +53,11 @@ function getRoleLabel(role: Role, t: TFunc): string {
 }
 
 const roleConfig = {
-  admin: { label: 'Admin', bg: 'bg-purple-500/15', text: 'text-purple-600', border: 'border-purple-500/30', dot: 'bg-purple-400' },
-  coach: { label: 'Coach', bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/30', dot: 'bg-band-2' },
-  academy_coach: { label: 'Academy Coach', bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/30', dot: 'bg-band-2' },
-  runner: { label: 'Runner', bg: 'bg-accent-600/15', text: 'text-accent-600', border: 'border-accent-600/30', dot: 'bg-accent-600' },
-  core_runner: { label: 'Core Runner', bg: 'bg-accent-600/15', text: 'text-accent-600', border: 'border-accent-600/30', dot: 'bg-accent-600' },
+  admin: { label: 'Admin', bg: 'bg-purple-500/15', text: 'text-purple-800', border: 'border-purple-500/30', dot: 'bg-purple-400' },
+  coach: { label: 'Coach', bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/30', dot: 'bg-band-2' },
+  academy_coach: { label: 'Academy Coach', bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/30', dot: 'bg-band-2' },
+  runner: { label: 'Runner', bg: 'bg-accent-600/15', text: 'text-accent-900', border: 'border-accent-600/30', dot: 'bg-accent-600' },
+  core_runner: { label: 'Core Runner', bg: 'bg-accent-600/15', text: 'text-accent-900', border: 'border-accent-600/30', dot: 'bg-accent-600' },
   academy_user: { label: 'Academy', bg: 'bg-brand-600/15', text: 'text-brand-600', border: 'border-brand-600/30', dot: 'bg-brand-600' },
   viewer: { label: 'Viewer', bg: 'bg-ink-300/15', text: 'text-ink-400', border: 'border-ink-300/30', dot: 'bg-ink-300' },
 };
@@ -251,16 +251,16 @@ interface FeedbackItem {
 }
 
 const categoryConfig = {
-  feature_request: { label: 'Feature Request', icon: Lightbulb, color: 'text-purple-600', bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
-  bug_report: { label: 'Bug Report', icon: Bug, color: 'text-accent-red', bg: 'bg-accent-red/15', border: 'border-accent-red/30' },
-  training_feedback: { label: 'Training Feedback', icon: Dumbbell, color: 'text-band-2', bg: 'bg-band-2/15', border: 'border-band-2/30' },
+  feature_request: { label: 'Feature Request', icon: Lightbulb, color: 'text-purple-800', bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
+  bug_report: { label: 'Bug Report', icon: Bug, color: 'text-accent-red-ink', bg: 'bg-accent-red/15', border: 'border-accent-red/30' },
+  training_feedback: { label: 'Training Feedback', icon: Dumbbell, color: 'text-band-2-ink', bg: 'bg-band-2/15', border: 'border-band-2/30' },
   general: { label: 'General', icon: MessageCircle, color: 'text-teal-600', bg: 'bg-teal-500/15', border: 'border-teal-500/30' },
 };
 
 const priorityConfig = {
-  low: { label: 'Low', bg: 'bg-band-2/15', text: 'text-band-2', border: 'border-band-2/30' },
-  medium: { label: 'Medium', bg: 'bg-band-3/15', text: 'text-band-3', border: 'border-band-3/30' },
-  high: { label: 'High', bg: 'bg-accent-red/15', text: 'text-accent-red', border: 'border-accent-red/30' },
+  low: { label: 'Low', bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/30' },
+  medium: { label: 'Medium', bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/30' },
+  high: { label: 'High', bg: 'bg-accent-red/15', text: 'text-accent-red-ink', border: 'border-accent-red/30' },
 };
 
 function getOnboardingStep(status: string | undefined, approved: boolean | undefined): { step: number; label: string; color: string } {
@@ -444,21 +444,21 @@ export default function SettingsPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-ink-700 truncate">{user.name}</p>
-            {isAdmin && <span className="text-3xs font-bold text-purple-600 bg-purple-500/15 px-1.5 py-0.5 rounded">{t('admin').toUpperCase()}</span>}
+            {isAdmin && <span className="text-3xs font-bold text-purple-800 bg-purple-500/15 px-1.5 py-0.5 rounded">{t('admin').toUpperCase()}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-ink-400 truncate">{user.email}</span>
             <span className={cn('text-3xs font-medium', lastSeenColor)}>{lastSeenLabel}</span>
             {user.onboardingStatus === 'garmin_authed' && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-600 border border-accent-600/20 flex items-center gap-1">
+              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-900 border border-accent-600/20 flex items-center gap-1">
                 <Watch className="w-2.5 h-2.5" />{t('garmin')}
               </span>
             )}
             {user.onboardingStatus === 'google_authed' && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-band-3/15 text-band-3 border border-band-3/20">{t('googleOnly')}</span>
+              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-band-3/15 text-band-3-ink border border-band-3/20">{t('googleOnly')}</span>
             )}
             {user.approved === false && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-red/15 text-accent-red border border-accent-red/20">{t('pending')}</span>
+              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-red/15 text-accent-red-ink border border-accent-red/20">{t('pending')}</span>
             )}
           </div>
         </div>
@@ -946,11 +946,11 @@ export default function SettingsPage() {
                       <div className="hidden sm:flex items-center gap-1.5">
                         <span className={cn(
                           'text-3xs font-semibold px-2 py-0.5 rounded-full',
-                          onboarding.step >= 1 ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400'
+                          onboarding.step >= 1 ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400'
                         )}>{t('google')}</span>
                         <span className={cn(
                           'text-3xs font-semibold px-2 py-0.5 rounded-full',
-                          onboarding.step >= 2 ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400'
+                          onboarding.step >= 2 ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400'
                         )}>{t('garmin')}</span>
                       </div>
 

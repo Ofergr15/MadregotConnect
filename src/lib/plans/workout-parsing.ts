@@ -192,6 +192,21 @@ export const WORKOUT_TYPE_COLORS: Record<string, string> = {
   fartlek: '#ec4899', progressive: '#14b8a6', easy: '#159AFF', rest: '#BBBBBB',
 };
 
+// The same seven hues, dark enough to be READ. The map above is a fill palette —
+// bars, dots, step blocks — where saturation is the whole point and contrast
+// against the page is irrelevant. Used as a text colour it fails AA on every
+// entry (2.49:1 for `progressive`, 1.92:1 for `rest`), which is what the profile
+// card's workout-type cell was doing at 3.76:1.
+//
+// Two maps rather than one darkened map, because darkening the fills would mute
+// the weekly bar chart and the Program step blocks for no reason — and because
+// the fills are shared with the screens still on the dark palette, where these
+// text values would be the ones that disappear. Keep the keys in step.
+export const WORKOUT_TYPE_TEXT_COLORS: Record<string, string> = {
+  intervals: '#AD3838', long_run: '#6B21A8', tempo: '#8A2B08',
+  fartlek: '#9D174D', progressive: '#115E59', easy: '#0B5285', rest: '#5F5F5F',
+};
+
 export const WORKOUT_TYPE_LABELS: Record<string, string> = {
   intervals: 'Intervals', long_run: 'Long Run', tempo: 'Tempo',
   fartlek: 'Fartlek', progressive: 'Progressive', easy: 'Easy', rest: 'Rest',

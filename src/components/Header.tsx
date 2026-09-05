@@ -228,7 +228,7 @@ export function Header() {
                     'hidden md:flex items-center gap-2 px-4 h-9 rounded-xl font-bold text-sm transition-all',
                     isActive
                       ? 'bg-band-3 text-ink-900 shadow-md shadow-band-3/25'
-                      : 'bg-band-3/15 text-band-3 border border-band-3/30 hover:bg-band-3/25'
+                      : 'bg-band-3/15 text-band-3-ink border border-band-3/30 hover:bg-band-3/25'
                   )}
                 >
                   <MessageSquare className="h-4 w-4" />

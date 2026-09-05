@@ -17,9 +17,20 @@ const FEEL_FACES = ['😣', '😕', '😐', '🙂', '😄'];
 // The light system's severity trio (accent-600 / band-3 / accent-red) plus the
 // brand blue for "as expected" — the old emerald/amber/red were tuned for a dark
 // card and read as washed-out pastels once these numbers sat on white.
-const DIFFICULTY_COLOR = (n: number): string => (n <= 3 ? '#16a34a' : n <= 6 ? '#1525FF' : n <= 8 ? '#FF5315' : '#D74E4E');
+const DIFFICULTY_COLOR = (n: number): string => (n <= 3 ? '#16a34a' : n <= 6 ? '#1525FF' : n <= 8 ? '#FF5315' : '#AD3838');
+// The label that stays readable ON a given DIFFICULTY_COLOR fill. The trio spans
+// from a dark brand blue to a bright orange, so no single label colour clears AA
+// across all four: white measures 3.30:1 on the green and 3.23:1 on the orange,
+// while ink-900 measures 2.16:1 on the blue. Picking by the fill's own luminance
+// gives 5.03 / 7.66 / 5.13 / 6.18, and keeps holding if the palette is retuned.
+const ON_FILL = (fill: string): string => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(fill.slice(i, i + 2), 16) / 255);
+  const f = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const lum = 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  return lum > 0.16 ? '#1D1E26' : '#FFFFFF';
+};
 // One color per FEEL_FACES index (😣 worst → 😄 best) — same palette, inverted.
-const FEEL_COLOR = ['#D74E4E', '#FF5315', '#969696', '#1525FF', '#16a34a'];
+const FEEL_COLOR = ['#AD3838', '#FF5315', '#5F5F5F', '#1525FF', '#16a34a'];
 
 // A small "still needs your input" marker — every question the watch can't
 // answer (pain, coach-feedback) plus difficulty/feel when there was no watch
@@ -30,7 +41,7 @@ function RequiredTag({ show }: { show: boolean }) {
   const t = useTranslations('workoutFeedback');
   if (!show) return null;
   return (
-    <span className="text-[10px] font-bold text-band-3 bg-band-3/15 px-1.5 py-0.5 rounded-full">
+    <span className="text-[10px] font-bold text-band-3-ink bg-band-3/15 px-1.5 py-0.5 rounded-full">
       {t('required')}
     </span>
   );
@@ -197,9 +208,15 @@ function FeedbackForm() {
         {scale.map(n => (
           <button key={n} onClick={() => setDifficulty(n)}
             className="aspect-square rounded-lg text-sm font-bold transition"
+            // Unselected was `rgba(51,65,85,.5)` on `#cbd5e1` — slate-700 and
+            // slate-300, a leftover from the dark card. Over the light page that
+            // composites to #89909a carrying #cbd5e1 text: 2.17:1, on a 1-10
+            // control that is the main thing this form asks for. Now the page
+            // grey with body ink, which is how every other unselected pill in
+            // the light system reads.
             style={difficulty === n
-              ? { background: DIFFICULTY_COLOR(n), color: 'white' }
-              : { background: 'rgba(51,65,85,.5)', color: '#cbd5e1' }}
+              ? { background: DIFFICULTY_COLOR(n), color: ON_FILL(DIFFICULTY_COLOR(n)) }
+              : { background: '#DFDFDF', color: '#2D2E38' }}
           >
             {n}
           </button>

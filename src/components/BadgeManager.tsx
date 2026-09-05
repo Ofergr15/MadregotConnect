@@ -201,7 +201,7 @@ export function BadgeManager() {
       </div>
 
       {deleteError && (
-        <div className="mb-3 p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{deleteError}</div>
+        <div className="mb-3 p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red-ink text-xs">{deleteError}</div>
       )}
 
       {loading ? (
@@ -219,7 +219,7 @@ export function BadgeManager() {
                 sublabel={label ? `${b.name_en} · ${label}` : b.name_en}
                 trailing={
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', b.active ? 'bg-accent-600/15 text-accent-600' : 'bg-page text-ink-400')}>
+                    <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', b.active ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400')}>
                       {b.active ? t('active') : t('inactive')}
                     </span>
                     <button
@@ -255,7 +255,7 @@ export function BadgeManager() {
       <Sheet open={sheetOpen} onOpenChange={o => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editBadge') : t('newBadge')}>
         <div className="space-y-4 pb-2">
           {error && (
-            <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{error}</div>
+            <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red-ink text-xs">{error}</div>
           )}
 
           <div className="grid grid-cols-2 gap-3">

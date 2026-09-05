@@ -661,7 +661,7 @@ export default function HomePage() {
           {/* Three smaller supporting cards. */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <div className="group bg-white rounded-3xl border border-page p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-red/10 text-accent-red">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-red/10 text-accent-red-ink">
                 <Heart className="h-5 w-5 stroke-[1.75]" />
               </div>
               <h3 className="text-base font-bold mb-2">{t('recovery')}</h3>
@@ -672,7 +672,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div className="group bg-white rounded-3xl border border-page p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-band-3/10 text-band-3">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-band-3/10 text-band-3-ink">
                 <Zap className="h-5 w-5 stroke-[1.75]" />
               </div>
               <h3 className="text-base font-bold mb-2">{t('nutrition')}</h3>

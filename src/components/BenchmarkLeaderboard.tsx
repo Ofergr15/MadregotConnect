@@ -17,9 +17,9 @@ interface Result {
 }
 
 const podium = [
-  { ring: 'ring-band-3/40', text: 'text-band-3', bg: 'bg-band-3/10' },
+  { ring: 'ring-band-3/40', text: 'text-band-3-ink', bg: 'bg-band-3/10' },
   { ring: 'ring-page/40', text: 'text-ink-700', bg: 'bg-ink-300/10' },
-  { ring: 'ring-band-3/40', text: 'text-band-3', bg: 'bg-band-3/10' },
+  { ring: 'ring-band-3/40', text: 'text-band-3-ink', bg: 'bg-band-3/10' },
 ];
 
 function initialsOf(name: string) {

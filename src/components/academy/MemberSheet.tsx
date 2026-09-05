@@ -128,15 +128,15 @@ export function MemberSheet({
               <div className="text-xs text-ink-400 truncate" dir="ltr">{member.email}</div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 {member.groupName && (
-                  <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-700 border border-purple-500/20">
+                  <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-800 border border-purple-500/20">
                     {member.groupName}
                   </span>
                 )}
                 <span className={cn(
                   'text-2xs font-bold px-2 py-0.5 rounded-md border flex items-center gap-1',
                   member.hasWatch
-                    ? 'bg-accent-600/15 text-accent-600 border-accent-600/20'
-                    : 'bg-accent-red/15 text-accent-red border-accent-red/20',
+                    ? 'bg-accent-600/15 text-accent-900 border-accent-600/20'
+                    : 'bg-accent-red/15 text-accent-red-ink border-accent-red/20',
                 )}>
                   <Watch className="h-3 w-3" />
                   {member.hasWatch ? (member.hasGarmin ? 'Garmin' : 'Strava') : t('noGarmin')}

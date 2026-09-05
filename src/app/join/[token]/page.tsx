@@ -351,9 +351,9 @@ export default function JoinPage() {
                   {groups.map(g => {
                     const isSelected = selectedGroup === g.id;
                     const levelColors = {
-                      fast: 'text-accent-600 bg-accent-600/10',
-                      medium: 'text-band-3 bg-band-3/10',
-                      slow: 'text-band-3 bg-band-3/10',
+                      fast: 'text-accent-900 bg-accent-600/10',
+                      medium: 'text-band-3-ink bg-band-3/10',
+                      slow: 'text-band-3-ink bg-band-3/10',
                     };
                     const levelLabels = {
                       fast: 'SUB 2:30',
@@ -384,7 +384,7 @@ export default function JoinPage() {
               </div>
             )}
             {error && step === 'info' && (
-              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
               </div>
             )}
@@ -411,7 +411,7 @@ export default function JoinPage() {
             </div>
 
             {error && (
-              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
               </div>
             )}
@@ -499,7 +499,7 @@ export default function JoinPage() {
             </div>
 
             {error && (
-              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
               </div>
             )}
@@ -566,7 +566,7 @@ export default function JoinPage() {
             </div>
 
             {error && (
-              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
               </div>
             )}

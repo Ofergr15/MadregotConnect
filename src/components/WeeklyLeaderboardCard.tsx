@@ -137,7 +137,7 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
                 <span className="text-xs font-semibold text-ink-500">Goal: {weekTarget.min}–{weekTarget.max} {tc('km')}</span>
               )}
               {trend !== 0 && (
-                <span className={cn('text-3xs font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-accent-600/10 text-accent-600' : 'bg-band-3/10 text-band-3')}>
+                <span className={cn('text-3xs font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-accent-600/10 text-accent-900' : 'bg-band-3/10 text-band-3-ink')}>
                   {trend > 0 ? '+' : ''}{trend}%
                 </span>
               )}
@@ -205,7 +205,7 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
             {top3.length >= 1 && (
               <div className="flex flex-col items-center" style={{ width: '56px' }}>
                 <span className="text-sm mb-0.5">👑</span>
-                <span className="text-xs font-black text-band-3 mb-1 tabular-nums">{top3[0].distanceKm}</span>
+                <span className="text-xs font-black text-band-3-ink mb-1 tabular-nums">{top3[0].distanceKm}</span>
                 <div className="w-6 rounded-t bg-band-3" style={{ height: '70px' }} />
                 <Link
                   href={`/dashboard/teammate/${top3[0].id}`}
@@ -217,7 +217,7 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
             )}
             {top3.length >= 3 && (
               <div className="flex flex-col items-center" style={{ width: '56px' }}>
-                <span className="text-2xs font-bold text-band-3 mb-1 tabular-nums">{top3[2].distanceKm}</span>
+                <span className="text-2xs font-bold text-band-3-ink mb-1 tabular-nums">{top3[2].distanceKm}</span>
                 <div className="w-6 rounded-t bg-band-3/80" style={{ height: '35px' }} />
                 <Link
                   href={`/dashboard/teammate/${top3[2].id}`}

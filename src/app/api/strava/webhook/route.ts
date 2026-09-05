@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { POST as stravaSync } from '../sync-activities/route';
+import { runStravaSyncRequest } from '../sync-activities/route';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -59,14 +59,17 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (athlete) {
-      // Mirrors the direct-import pattern already used by cron/sync/route.ts
-      // to call this same handler for a single athlete.
+      // Mirrors the direct-import pattern cron/sync/route.ts uses for the
+      // Garmin sync: call the sync body, not the HTTP handler. Going through
+      // the handler meant going through its self-or-staff gate, which a
+      // synthetic in-process Request has no session to satisfy — every event
+      // was denied and then acked 200, so the webhook has been a no-op.
       const syntheticRequest = new Request('http://internal/strava-webhook', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ athleteId: athlete.id }),
       });
-      await stravaSync(syntheticRequest);
+      await runStravaSyncRequest(syntheticRequest);
     }
   } catch (err) {
     console.error('Strava webhook sync failed:', err);

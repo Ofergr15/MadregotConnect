@@ -129,7 +129,7 @@ export function AcademyMyView({ athleteId }: {
             : t('noPlanThisWeek')}
         </div>
         {data?.athlete?.groupName && (
-          <div className="mt-2.5 inline-block text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-700 border border-purple-500/20">
+          <div className="mt-2.5 inline-block text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-800 border border-purple-500/20">
             {data.athlete.groupName}
           </div>
         )}

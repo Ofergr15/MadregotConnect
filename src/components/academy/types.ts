@@ -29,17 +29,17 @@ import type { AttentionReason } from '@/lib/academy/members';
 // amber and orange reasons now share it; the badge's own text names the reason,
 // so nothing is lost by the two hues collapsing.
 export const ATTENTION_STYLE: Record<AttentionReason, string> = {
-  not_approved: 'bg-band-3/10 text-band-3 border-band-3/25',
+  not_approved: 'bg-band-3/10 text-band-3-ink border-band-3/25',
   // Read as a gap in the academy's own setup rather than a fault of the athlete,
   // so it wears the accent colour the pairing UI uses, not a warning colour.
-  no_coach: 'bg-band-2/10 text-band-2 border-band-2/25',
+  no_coach: 'bg-band-2/10 text-band-2-ink border-band-2/25',
   // Same reading, same colour: a missing goal band is the academy's own setup gap,
   // and it blocks the planner exactly the way a missing coach does.
-  no_band: 'bg-band-2/10 text-band-2 border-band-2/25',
-  no_watch: 'bg-accent-red/10 text-accent-red border-accent-red/25',
-  inactive: 'bg-accent-red/10 text-accent-red border-accent-red/25',
-  low_adherence: 'bg-band-3/10 text-band-3 border-band-3/25',
-  no_runs: 'bg-band-3/10 text-band-3 border-band-3/25',
+  no_band: 'bg-band-2/10 text-band-2-ink border-band-2/25',
+  no_watch: 'bg-accent-red/10 text-accent-red-ink border-accent-red/25',
+  inactive: 'bg-accent-red/10 text-accent-red-ink border-accent-red/25',
+  low_adherence: 'bg-band-3/10 text-band-3-ink border-band-3/25',
+  no_runs: 'bg-band-3/10 text-band-3-ink border-band-3/25',
   // No plan is an absence, not a problem with a severity — neutral ink.
   no_plan: 'bg-ink-300/15 text-ink-500 border-ink-300/40',
 };

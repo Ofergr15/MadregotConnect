@@ -89,7 +89,7 @@ function BenefitsPageContent() {
                   <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{title(p)}</p>
                   <p className="text-xs text-ink-400 truncate mt-0.5" dir="auto">{p.sponsorName}</p>
                   {p.tier === 'core_runner' && (
-                    <span className="inline-block self-start mt-1.5 text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-600">
+                    <span className="inline-block self-start mt-1.5 text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
                       {t('coreRunnerBadge')}
                     </span>
                   )}
@@ -114,7 +114,7 @@ function BenefitsPageContent() {
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-brand-600" dir="auto">{perk.sponsorName}</p>
               {perk.tier === 'core_runner' && (
-                <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-600">
+                <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
                   {t('coreRunnerBadge')}
                 </span>
               )}

@@ -103,6 +103,25 @@ function StorePageContent() {
     if (match) openProduct(match);
   }, [searchParams, productsData]);
 
+  // The athlete's own shirt size. It has been collected twice over — in Settings
+  // and at academy registration — and then ignored at the one place it was for,
+  // so everyone has been buying whatever size happened to be first in the list.
+  // /api/athletes/me is self-or-staff gated and this is the caller's own id, so it
+  // resolves; a null (never filled, or migration 061 unapplied) leaves the old
+  // first-in-the-list default exactly as it was.
+  const { data: meData } = useApi<{ athlete?: { shirtSize?: string | null } }>(
+    athleteId ? `/api/athletes/me?id=${encodeURIComponent(athleteId)}` : null,
+    { revalidateOnFocus: false },
+  );
+  const myShirtSize = meData?.athlete?.shirtSize || null;
+
+  // Applied here rather than inside openProduct because the deep-link path above
+  // can open a product before that request resolves. Keyed on the product, so a
+  // size the athlete picks by hand is not snapped back.
+  useEffect(() => {
+    if (product && myShirtSize && product.sizes?.includes(myShirtSize)) setSize(myShirtSize);
+  }, [product, myShirtSize]);
+
   const addToCart = () => {
     if (!product) return;
     setCart((prev) => {
@@ -193,7 +212,7 @@ function StorePageContent() {
         ]}
       />
 
-      <p className="text-2xs text-band-3 bg-band-3/10 border border-band-3/25 rounded-xl px-3 py-2">
+      <p className="text-2xs text-band-3-ink bg-band-3/10 border border-band-3/25 rounded-xl px-3 py-2">
         {t('paymentComingSoonNotice')}
       </p>
 
@@ -357,7 +376,7 @@ function StorePageContent() {
           </div>
         ) : (
           <div className="space-y-3 pb-2">
-            <p className="text-2xs text-band-3 bg-band-3/10 border border-band-3/25 rounded-xl px-3 py-2">
+            <p className="text-2xs text-band-3-ink bg-band-3/10 border border-band-3/25 rounded-xl px-3 py-2">
               {t('paymentComingSoonNotice')}
             </p>
             <div>

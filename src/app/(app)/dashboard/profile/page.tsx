@@ -755,7 +755,7 @@ function ProfileContent() {
                   </div>
                 </div>
                 {hasGarmin ? (
-                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-600">{t('connected')}</span>
+                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">{t('connected')}</span>
                 ) : (
                   <button
                     onClick={() => setConnectingGarmin(!connectingGarmin)}
@@ -900,7 +900,7 @@ function ProfileContent() {
                   </div>
                 </div>
                 {hasStrava ? (
-                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-band-3/15 text-band-3">{t('connected')}</span>
+                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-band-3/15 text-band-3-ink">{t('connected')}</span>
                 ) : (
                   <button
                     onClick={async () => {
@@ -951,7 +951,7 @@ function ProfileContent() {
           )}
 
           {!hasGarmin && !hasStrava && (
-            <div className="mt-4 flex items-center gap-2 text-sm text-band-3 bg-band-3/10 border border-band-3/20 rounded-xl px-4 py-3">
+            <div className="mt-4 flex items-center gap-2 text-sm text-band-3-ink bg-band-3/10 border border-band-3/20 rounded-xl px-4 py-3">
               <WifiOff className="h-4 w-4 shrink-0" />
               <span>{t('noDataSource')}</span>
             </div>

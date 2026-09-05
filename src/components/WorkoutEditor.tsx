@@ -433,11 +433,11 @@ function StepRow({
         <span className={cn(
           'text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide',
           step.type === 'interval' ? 'bg-accent-red/20 text-accent-red' :
-          step.type === 'warmup' ? 'bg-band-3/20 text-band-3' :
-          step.type === 'cooldown' ? 'bg-band-2/20 text-band-2' :
+          step.type === 'warmup' ? 'bg-band-3/20 text-band-3-ink' :
+          step.type === 'cooldown' ? 'bg-band-2/20 text-band-2-ink' :
           step.type === 'rest' ? 'bg-ink-300/20 text-ink-400' :
-          step.type === 'recovery' ? 'bg-accent-600/20 text-accent-600' :
-          'bg-purple-500/20 text-purple-600'
+          step.type === 'recovery' ? 'bg-accent-600/20 text-accent-900' :
+          'bg-purple-500/20 text-purple-800'
         )}>
           {stepLabel(step.type, t)}
         </span>
@@ -446,7 +446,7 @@ function StepRow({
           <span dir="ltr" className="text-[11px] text-brand-600 ms-auto me-1 tabular-nums">@{formatBracketPaceTarget(step, t)}</span>
         )}
         {step.repeatCount && (
-          <span className="text-[10px] bg-band-3/20 text-band-3 px-1.5 py-0.5 rounded font-bold">
+          <span className="text-[10px] bg-band-3/20 text-band-3-ink px-1.5 py-0.5 rounded font-bold">
             {step.repeatCount}x
           </span>
         )}
@@ -870,7 +870,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
               <div className="flex items-center gap-2 mb-1.5">
                 <span className={cn(
                   'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
-                  c.kind === 'added' ? 'bg-accent-600/20 text-accent-600' :
+                  c.kind === 'added' ? 'bg-accent-600/20 text-accent-900' :
                   c.kind === 'removed' ? 'bg-accent-red/20 text-accent-red' :
                   'bg-brand-600/20 text-brand-600'
                 )}>

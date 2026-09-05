@@ -358,17 +358,17 @@ export function AcademyMembers({
                       buys nothing. First name only: the surname is never the
                       ambiguous part in an academy this size. */}
                   {m.academyCoachId && m.academyCoachName && (
-                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-band-2/15 text-band-2 border border-band-2/20">
+                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-band-2/15 text-band-2-ink border border-band-2/20">
                       {m.academyCoachName.split(' ')[0]}
                     </span>
                   )}
                   {m.band && (
-                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-600 border border-accent-600/20">
+                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-900 border border-accent-600/20">
                       {m.band.name}
                     </span>
                   )}
                   {m.groupName && (
-                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-700 border border-purple-500/20">
+                    <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-800 border border-purple-500/20">
                       {m.groupName}
                     </span>
                   )}

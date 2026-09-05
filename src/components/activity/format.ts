@@ -27,15 +27,57 @@ export function getTimeLabel(startTime: string): string {
   return 'Evening Run';
 }
 
+export interface RunTypeBadge { type: string; label: string; color: string; bg: string }
+
+/**
+ * The badge for a run whose sport the provider named outright.
+ *
+ * `athlete_activities.activity_type` is the sport, not the session's intent —
+ * Garmin sends `trail_running` / `treadmill_running` / `track_running` and Strava's
+ * `TrailRun` maps onto the same set. When one of these is present it is a fact,
+ * and a fact beats the guess below.
+ */
+const SPORT_BADGES: Record<string, RunTypeBadge> = {
+  trail_running: { type: 'trail_running', label: 'Trail', color: 'text-accent-900', bg: 'bg-accent-600/15' },
+  treadmill_running: { type: 'treadmill_running', label: 'Treadmill', color: 'text-ink-400', bg: 'bg-ink-300/15' },
+  indoor_running: { type: 'treadmill_running', label: 'Treadmill', color: 'text-ink-400', bg: 'bg-ink-300/15' },
+  track_running: { type: 'track_running', label: 'Track', color: 'text-band-2', bg: 'bg-band-2/15' },
+  virtual_run: { type: 'virtual_run', label: 'Virtual', color: 'text-band-2', bg: 'bg-band-2/15' },
+};
+
+/**
+ * The badge on a run, from what we actually know first and a guess only after.
+ *
+ * The guess is what this used to be for every run, and it was wrong in the two
+ * cases that matter most: a trail run's slow pace read as "Recovery", and a
+ * treadmill session's steady 4:20 read as "Tempo". `activity_type` was sitting in
+ * the row the whole time.
+ */
+export function resolveRunTypeBadge(
+  activityType: string | null | undefined,
+  distanceKm: number,
+  avgPaceSec: number | null,
+): RunTypeBadge {
+  const named = activityType ? SPORT_BADGES[activityType] : undefined;
+  return named ?? inferRunTypeFromActivity(distanceKm, avgPaceSec);
+}
+
+/**
+ * A guess at the session's intent from its distance and pace, for the plain
+ * `running` rows where the provider tells us nothing more.
+ *
+ * It is a heuristic and it can be wrong — an athlete's easy pace is another's
+ * tempo. Prefer `resolveRunTypeBadge`, which only falls back to this.
+ */
 export function inferRunTypeFromActivity(
   distanceKm: number,
   avgPaceSec: number | null,
-): { type: string; label: string; color: string; bg: string } {
+): RunTypeBadge {
   const types: Record<string, { label: string; color: string; bg: string }> = {
-    long_run: { label: 'Long Run', color: 'text-purple-600', bg: 'bg-purple-500/15' },
-    tempo: { label: 'Tempo', color: 'text-band-3', bg: 'bg-band-3/15' },
-    intervals: { label: 'Intervals', color: 'text-accent-red', bg: 'bg-accent-red/15' },
-    easy: { label: 'Easy', color: 'text-accent-600', bg: 'bg-accent-600/15' },
+    long_run: { label: 'Long Run', color: 'text-purple-800', bg: 'bg-purple-500/15' },
+    tempo: { label: 'Tempo', color: 'text-band-3-ink', bg: 'bg-band-3/15' },
+    intervals: { label: 'Intervals', color: 'text-accent-red-ink', bg: 'bg-accent-red/15' },
+    easy: { label: 'Easy', color: 'text-accent-900', bg: 'bg-accent-600/15' },
     recovery: { label: 'Recovery', color: 'text-ink-400', bg: 'bg-ink-300/15' },
   };
 
@@ -48,15 +90,57 @@ export function inferRunTypeFromActivity(
   return { type: 'easy', ...types.easy };
 }
 
+/**
+ * The stand-in max heart rate when the athlete's age is unknown.
+ *
+ * 190 is 220 − 30, i.e. the club's rough median. It is the wrong number for
+ * everyone specifically, which is the whole reason `estimatedMaxHR` exists —
+ * a 55-year-old's zone 3 was being drawn as zone 2.
+ */
+export const DEFAULT_MAX_HR = 190;
+
+/** Whole years between a `YYYY-MM-DD` birth date and a `YYYY-MM-DD` day. */
+export function ageOnDay(birthDate: string, dayKey: string): number | null {
+  const [by, bm, bd] = birthDate.slice(0, 10).split('-').map(Number);
+  const [dy, dm, dd] = dayKey.slice(0, 10).split('-').map(Number);
+  if (![by, bm, bd, dy, dm, dd].every(Number.isFinite)) return null;
+  let age = dy - by;
+  // Not yet had this year's birthday on that day.
+  if (dm < bm || (dm === bm && dd < bd)) age -= 1;
+  return age >= 5 && age <= 110 ? age : null;
+}
+
+/**
+ * Age-predicted maximum heart rate — the Fox formula, 220 − age.
+ *
+ * Crude (Tanaka's 208 − 0.7·age is the better-validated one) but it is the number
+ * Garmin itself defaults to, so the zones here agree with the zones on the watch
+ * that recorded the run. Falls back to DEFAULT_MAX_HR whenever the birth date is
+ * missing or unusable, which today is most of the roster.
+ *
+ * Dates are compared as bare `YYYY-MM-DD` strings on purpose: an activity's day
+ * comes from `activityLocalDateStr`, and putting either value through a Date in
+ * the viewer's timezone is how a run lands on the wrong side of a birthday.
+ */
+export function estimatedMaxHR(birthDate: string | null | undefined, dayKey: string): number {
+  if (!birthDate) return DEFAULT_MAX_HR;
+  const age = ageOnDay(birthDate, dayKey);
+  return age == null ? DEFAULT_MAX_HR : 220 - age;
+}
+
 export function getHRZone(
   hr: number,
-  maxHR = 190,
+  maxHR = DEFAULT_MAX_HR,
 ): { zone: number; label: string; color: string; bgColor: string } {
   const pct = hr / maxHR;
+  // `color` paints the bpm NUMBER itself — 30px on the activity detail, 18px in
+  // the feed — so it has to be readable, not just on-hue. The bright twins live
+  // in `bgColor`, which is only ever a fill. Zones 2/3/4 used to carry the fill
+  // hues here and measured 2.5-2.9:1 against the surfaces the number sits on.
   if (pct < 0.6) return { zone: 1, label: 'Easy', color: 'text-ink-400', bgColor: '#969696' };
-  if (pct < 0.7) return { zone: 2, label: 'Aerobic', color: 'text-band-2', bgColor: '#60a5fa' };
-  if (pct < 0.8) return { zone: 3, label: 'Tempo', color: 'text-accent-600', bgColor: '#16a34a' };
-  if (pct < 0.9) return { zone: 4, label: 'Threshold', color: 'text-band-3', bgColor: '#fb923c' };
+  if (pct < 0.7) return { zone: 2, label: 'Aerobic', color: 'text-band-2-ink', bgColor: '#60a5fa' };
+  if (pct < 0.8) return { zone: 3, label: 'Tempo', color: 'text-accent-900', bgColor: '#16a34a' };
+  if (pct < 0.9) return { zone: 4, label: 'Threshold', color: 'text-band-3-ink', bgColor: '#fb923c' };
   return { zone: 5, label: 'VO2max', color: 'text-accent-red', bgColor: '#D74E4E' };
 }
 

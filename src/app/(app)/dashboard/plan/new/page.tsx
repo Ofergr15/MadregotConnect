@@ -150,7 +150,7 @@ function getWeekLabel(dateStr: string, locale: string): string {
 
 function ErrorBanner({ message, className }: { message: string; className?: string }) {
   return (
-    <div className={cn('bg-accent-red/10 border border-accent-red/30 rounded-lg p-4 text-accent-red text-sm', className)}>
+    <div className={cn('bg-accent-red/10 border border-accent-red/30 rounded-lg p-4 text-accent-red-ink text-sm', className)}>
       {message}
     </div>
   );
@@ -1483,9 +1483,9 @@ export default function WeeklyPlannerPage() {
                 </span>
                 <span className={cn(
                   'flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium shrink-0',
-                  currentPlan.status === 'pushed' ? 'text-accent-600 bg-accent-600/10' :
-                  currentPlan.status === 'partial' ? 'text-band-3 bg-band-3/10' :
-                  'text-band-3 bg-band-3/10'
+                  currentPlan.status === 'pushed' ? 'text-accent-900 bg-accent-600/10' :
+                  currentPlan.status === 'partial' ? 'text-band-3-ink bg-band-3/10' :
+                  'text-band-3-ink bg-band-3/10'
                 )}>
                   {currentPlan.status === 'pushed' ? <CheckCircle2 className="h-3 w-3" /> :
                    currentPlan.status === 'partial' ? <AlertCircle className="h-3 w-3" /> :
@@ -1658,7 +1658,7 @@ export default function WeeklyPlannerPage() {
                             : ''}
                         </span>
                         {workout.clipboardImageUrl && (
-                          <span className="rounded-full bg-accent-600/15 px-2 py-0.5 text-[9px] font-bold text-accent-600">
+                          <span className="rounded-full bg-accent-600/15 px-2 py-0.5 text-[9px] font-bold text-accent-900">
                             {t('published')}
                           </span>
                         )}
@@ -1852,8 +1852,8 @@ export default function WeeklyPlannerPage() {
                               <span className={cn(
                                 'rounded-full px-2 py-0.5 text-[9px] font-bold uppercase',
                                 match.match_method === 'manual'
-                                  ? 'bg-purple-500/15 text-purple-700'
-                                  : 'bg-accent-600/15 text-accent-600',
+                                  ? 'bg-purple-500/15 text-purple-800'
+                                  : 'bg-accent-600/15 text-accent-900',
                               )}>
                                 {match.match_method === 'manual' ? t('matchManual') : t('matchAuto')}
                                 {match.score != null ? ` ${Math.round(match.score)}` : ''}

@@ -18,7 +18,7 @@ import { AlertCircle, MessageCircle, Route, Share2 } from 'lucide-react';
 import { BackNav, Button, EmptyState, LoadingBlock } from '@/components/ui';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { ActivityDetailBody } from '@/components/activity/ActivityDetailBody';
-import { getTimeLabel, inferRunTypeFromActivity } from '@/components/activity/format';
+import { getTimeLabel, resolveRunTypeBadge } from '@/components/activity/format';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
 import { activityLocalDay, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
 
@@ -69,7 +69,7 @@ export default function ActivityDetailPage() {
 
   const isMyActivity = !!myAthleteId && act.athlete_id === myAthleteId;
   const runChatLabel = isStaff && !isMyActivity ? 'שוחח עם הרץ' : 'שוחח עם המאמן';
-  const runType = inferRunTypeFromActivity(act.distance / 1000, act.average_pace);
+  const runType = resolveRunTypeBadge(act.activity_type, act.distance / 1000, act.average_pace);
   const dayLabel = HEBREW_DAYS[activityLocalDay(act.start_time)];
 
   return (

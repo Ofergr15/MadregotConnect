@@ -941,7 +941,7 @@ export function NotificationCenter() {
         title={editingTemplate ? `תבנית יום ${DOW_NAMES_HE[editingTemplate.day_of_week]}` : ''}
       >
         <div className="space-y-3 pb-2">
-          {tplError && <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-xs">{tplError}</div>}
+          {tplError && <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red-ink text-xs">{tplError}</div>}
 
           <div className="rounded-2xl bg-page/40 border border-page/40 p-3 space-y-3">
             <div>

@@ -73,7 +73,7 @@ export function PersonalRecords({ athleteId }: { athleteId: string }) {
         ))}
         {longest && (
           <div className="flex items-center gap-3 bg-page/50 rounded-xl p-3">
-            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-accent-600 bg-accent-600/20 rounded-lg py-2">
+            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-accent-900 bg-accent-600/20 rounded-lg py-2">
               MAX
             </span>
             <div className="flex-1 min-w-0">
@@ -89,7 +89,7 @@ export function PersonalRecords({ athleteId }: { athleteId: string }) {
         )}
         {bestMonth && (
           <div className="flex items-center gap-3 bg-page/50 rounded-xl p-3">
-            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-band-3 bg-band-3/20 rounded-lg py-2">
+            <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-band-3-ink bg-band-3/20 rounded-lg py-2">
               נפח
             </span>
             <div className="flex-1 min-w-0">

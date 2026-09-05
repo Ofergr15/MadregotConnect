@@ -196,7 +196,7 @@ export default function ReviewPage() {
         {error && <p className="mt-4 text-sm text-accent-red text-center">{t('submitError')}</p>}
 
         {sent && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-accent-600 bg-accent-600/10 border border-accent-600/20 rounded-xl px-4 py-3 animate-fade-in">
+          <div className="mt-4 flex items-center gap-2 text-sm text-accent-900 bg-accent-600/10 border border-accent-600/20 rounded-xl px-4 py-3 animate-fade-in">
             <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
             <span>{t('thankYou')}</span>
           </div>

@@ -214,12 +214,12 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
       {(it.pain || it.wantsFeedback) && (
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           {it.pain && (
-            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-band-3/20 text-band-3 border border-band-3/40">
+            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-band-3/20 text-band-3-ink border border-band-3/40">
               <AlertTriangle className="h-3 w-3" /> כאב{it.painDetail ? `: ${it.painDetail}` : ''}
             </span>
           )}
           {it.wantsFeedback && (
-            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-band-2/15 text-band-2 border border-band-2/30">
+            <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-band-2/15 text-band-2-ink border border-band-2/30">
               <Bell className="h-3 w-3" /> ביקש/ה משוב
             </span>
           )}

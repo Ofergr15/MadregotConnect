@@ -146,7 +146,11 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
           </button>
           <button
             onClick={() => submit(false)}
-            className={cn(pill, attending === false ? 'bg-ink-500 text-ink-700 font-bold' : idle)}
+            // Filled-with-white-text, mirroring `מגיע` above: the previous
+            // `bg-ink-500 text-ink-700` put near-black text on a mid-grey fill
+            // at 2.31:1, the worst contrast in the app, and darkening ink-500
+            // for the ramp would only have made it worse.
+            className={cn(pill, attending === false ? 'bg-ink-700 text-white font-bold' : idle)}
             dir="rtl"
           >
             {t('notComing')}

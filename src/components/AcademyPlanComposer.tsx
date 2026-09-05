@@ -445,7 +445,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
 
       {/* What will happen to the paces, before it happens. */}
       {unresolved.length > 0 && (
-        <div className="flex items-start gap-2 bg-band-3/10 border border-band-3/30 text-band-3 rounded-xl px-4 py-3 text-xs leading-relaxed">
+        <div className="flex items-start gap-2 bg-band-3/10 border border-band-3/30 text-band-3-ink rounded-xl px-4 py-3 text-xs leading-relaxed">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>
             {unresolved.length === selected.length
@@ -466,7 +466,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
       )}
 
       {error && (
-        <div className="flex items-center gap-2 bg-accent-red/10 border border-accent-red/30 text-accent-red rounded-xl px-4 py-3 text-sm">
+        <div className="flex items-center gap-2 bg-accent-red/10 border border-accent-red/30 text-accent-red-ink rounded-xl px-4 py-3 text-sm">
           <XCircle className="h-4 w-4 shrink-0" /> {error}
         </div>
       )}
@@ -477,7 +477,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
               key={r.id}
               className={cn(
                 'flex items-start gap-2 rounded-xl px-4 py-2.5 text-xs border leading-relaxed',
-                r.ok ? 'bg-accent-600/10 border-accent-600/30 text-accent-600' : 'bg-accent-red/10 border-accent-red/30 text-accent-red',
+                r.ok ? 'bg-accent-600/10 border-accent-600/30 text-accent-900' : 'bg-accent-red/10 border-accent-red/30 text-accent-red-ink',
               )}
             >
               {r.ok ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-px" /> : <XCircle className="h-4 w-4 shrink-0 mt-px" />}
@@ -644,7 +644,7 @@ function TraineePicker({
               </span>
               <span className={cn(
                 'text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0',
-                off ? 'bg-brand-600/12 text-brand-600' : 'bg-band-3/12 text-band-3',
+                off ? 'bg-brand-600/12 text-brand-600' : 'bg-band-3/12 text-band-3-ink',
               )}>
                 {off || 'אין קצב'}
               </span>

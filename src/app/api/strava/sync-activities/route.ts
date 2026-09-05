@@ -35,16 +35,37 @@ import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
+/**
+ * HTTP entry point. Same gate as the Garmin sync: your own athleteId, or staff
+ * for a whole-club sync.
+ *
+ * The Strava webhook calls `runStravaSyncRequest` below directly rather than
+ * coming through here, exactly as the crons do for Garmin. It used to POST a
+ * synthetic Request at this handler — which carries no session, so the gate
+ * denied it, and the webhook then acked Strava with a cheerful 200 having done
+ * nothing at all. A real-time sync that silently never ran is worse than no
+ * webhook, because the green 200 is what hides it.
+ */
 export async function POST(request: Request) {
+  const { athleteId } = await request
+    .clone()
+    .json()
+    .catch(() => ({} as { athleteId?: string }));
+  const { denied } = await requireCallerForAthlete(request, athleteId);
+  if (denied) return denied;
+  return runStravaSyncRequest(request);
+}
+
+/**
+ * The sync itself, with no auth of its own — callers must have established
+ * theirs. Reachable in-process only (the webhook, which Strava authenticates by
+ * the verify-token handshake on the GET above); it is not exported through any
+ * route of its own.
+ */
+export async function runStravaSyncRequest(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const athleteId = body?.athleteId as string | undefined;
-
-    // Same gate as the Garmin sync: your own athleteId, or staff for a
-    // whole-club sync. Nothing calls this in-process, so there's no cron
-    // bypass to keep here.
-    const { denied } = await requireCallerForAthlete(request, athleteId);
-    if (denied) return denied;
 
     // suppressPush: skip the inline post-workout feedback nudge — mirrors
     // garmin/sync-activities' same param, for a future cron teaser to reuse.
@@ -295,6 +316,10 @@ export async function POST(request: Request) {
             average_pace: distanceM > 0 ? Math.round(durationSec / (distanceM / 1000)) : null,
             average_hr: a.average_heartrate || null,
             max_hr: a.max_heartrate || null,
+            // Almost always null: Strava returns calories on the *detail*
+            // endpoint, not on the list this pages through. enrichStravaActivity
+            // fills it in from the detail it fetches. Kept as a cheap best case in
+            // case a future list response carries it.
             calories: a.calories || null,
             elevation_gain: a.total_elevation_gain || null,
             start_lat: a.start_latlng?.[0] || null,

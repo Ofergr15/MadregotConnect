@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience } from '@/lib/push';
 import { pickBilingual } from '@/lib/notifications/copy';
+import { publishAnnouncement } from '@/lib/feed/announce';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -88,6 +89,10 @@ async function run(request: Request) {
           })
           .eq('id', n.id);
       }
+      // Same feed trace the send-now path leaves. Recurring reminders are
+      // filtered out inside publishAnnouncement, not here, so the two callers
+      // cannot disagree about what counts as an announcement.
+      await publishAnnouncement(supabase, n, nowIso);
       results.push({ id: n.id, sent });
     } catch (e: unknown) {
       // Don't let one bad notification block the rest.

@@ -44,9 +44,9 @@ type LeaderboardMetric = 'distance' | 'streak' | 'runs';
 
 // Same three group hues as lib/utils' groupColorMap (green / sky blue / orange).
 const GROUP_COLORS: Record<number, { bg: string; border: string; text: string; badge: string; dot: string }> = {
-  0: { bg: 'bg-accent-600/10', border: 'border-accent-600/30', text: 'text-accent-600', badge: 'bg-accent-600/20', dot: 'bg-accent-600' },
-  1: { bg: 'bg-band-2/10', border: 'border-band-2/30', text: 'text-band-2', badge: 'bg-band-2/20', dot: 'bg-band-2' },
-  2: { bg: 'bg-band-3/10', border: 'border-band-3/30', text: 'text-band-3', badge: 'bg-band-3/20', dot: 'bg-band-3' },
+  0: { bg: 'bg-accent-600/10', border: 'border-accent-600/30', text: 'text-accent-900', badge: 'bg-accent-600/20', dot: 'bg-accent-600' },
+  1: { bg: 'bg-band-2/10', border: 'border-band-2/30', text: 'text-band-2-ink', badge: 'bg-band-2/20', dot: 'bg-band-2' },
+  2: { bg: 'bg-band-3/10', border: 'border-band-3/30', text: 'text-band-3-ink', badge: 'bg-band-3/20', dot: 'bg-band-3' },
 };
 
 function getGroupColors(index: number) {
@@ -172,7 +172,11 @@ export default function GroupsPage() {
                     <span className="font-mono">{group.marathonGoal}</span>
                   </div>
                 )}
-                <div className="text-xs text-ink-400 mt-1">
+                {/* ink-500, not ink-400: this caption sits on the squad card's
+                    own `bg-band-N/10` wash rather than on the page, which is
+                    darker than either surface ink-400 is derived against and
+                    left it at 4.32-4.40:1. */}
+                <div className="text-xs text-ink-500 mt-1">
                   {t('paceOffset')}: {group.paceOffsetSeconds > 0 ? '+' : ''}{group.paceOffsetSeconds}s/km
                 </div>
               </Card>
@@ -266,7 +270,7 @@ export default function GroupsPage() {
                               <span className={cn(
                                 "flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-medium",
                                 athlete.hasGarmin
-                                  ? 'bg-accent-600/20 text-accent-600'
+                                  ? 'bg-accent-600/20 text-accent-900'
                                   : 'bg-ink-300/30 text-ink-400'
                               )}>
                                 <Watch className="h-3 w-3" />
@@ -275,7 +279,7 @@ export default function GroupsPage() {
                               <span className={cn(
                                 "text-xs px-2 py-0.5 rounded-full",
                                 athlete.status === 'active'
-                                  ? 'bg-accent-600/20 text-accent-600'
+                                  ? 'bg-accent-600/20 text-accent-900'
                                   : 'bg-ink-300/30 text-ink-400'
                               )}>
                                 {athlete.status}
@@ -349,9 +353,9 @@ export default function GroupsPage() {
                           <div className="flex items-center gap-3">
                             <span className={cn(
                               "w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold",
-                              idx === 0 ? 'bg-band-3/20 text-band-3' :
+                              idx === 0 ? 'bg-band-3/20 text-band-3-ink' :
                               idx === 1 ? 'bg-ink-300/20 text-ink-500' :
-                              idx === 2 ? 'bg-band-3/20 text-band-3' :
+                              idx === 2 ? 'bg-band-3/20 text-band-3-ink' :
                               'bg-page text-ink-400'
                             )}>
                               {idx + 1}

@@ -16,13 +16,13 @@ import { toAchievementPayload } from '@/lib/feed/project';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 
-function formatPace(secPerKm: number): string {
+export function formatPace(secPerKm: number): string {
   const min = Math.floor(secPerKm / 60);
   const sec = Math.round(secPerKm % 60);
   return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
-function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.round(seconds % 60);
@@ -70,7 +70,9 @@ function WhenLabel({ item }: { item: FeedItem }) {
   }
 }
 
-function AuthorRow({ item }: { item: FeedItem }) {
+/** Exported for GroupRunCard, which heads each runner's block with the same row
+ *  so a grouped run and a solo run name their athlete identically. */
+export function AuthorRow({ item }: { item: FeedItem }) {
   const identity = (
     <>
       <FeedAvatar name={item.author.name} url={item.author.avatarUrl} />
@@ -181,7 +183,16 @@ function CommentPreview({
   );
 }
 
-function ActionRow({
+/**
+ * Likes, comments, share, run-chat — per feed item.
+ *
+ * Exported because a group run card renders one of these PER RUNNER rather than
+ * one for the card: a like is a gesture toward a person, not toward a card, and
+ * the eight people who ran together each earn their own. That is also why the
+ * grouping never merges the underlying feed_items — every runner keeps their own
+ * row, their own like count and their own thread.
+ */
+export function ActionRow({
   item,
   commentCount,
   myAthleteId,
@@ -266,7 +277,7 @@ function ActionRow({
           aria-pressed={liked}
           className={cn(
             'flex items-center px-3 py-1.5 rounded-full transition-all active:scale-90',
-            liked ? 'text-accent-red bg-accent-red/10' : 'text-ink-400 hover:text-ink-500 hover:bg-page',
+            liked ? 'text-accent-red-ink bg-accent-red/10' : 'text-ink-400 hover:text-ink-500 hover:bg-page',
           )}
         >
           <Heart className={cn('h-4 w-4', liked && 'fill-accent-red')} />
@@ -334,6 +345,104 @@ function ActionRow({
   );
 }
 
+/**
+ * Distance / pace / time, the three numbers every card leads with.
+ *
+ * Exported so a runner's block inside a group run card renders the identical
+ * tiles. Reads only what the projection shipped — a pace the athlete hid arrives
+ * here already null (see maskHiddenStats) and shows as "—", which is exactly what
+ * has to happen when their card is rendered beside a teammate's.
+ */
+export function ActivityStatTiles({ act }: { act: NonNullable<FeedItem['activity']> }) {
+  const t = useTranslations('feed');
+  const distKm = (act.distance / 1000).toFixed(1);
+  const paceStr = act.averagePace ? formatPace(act.averagePace) : null;
+  const durationStr = formatDuration(act.duration);
+  const movingStr = act.movingDuration ? formatDuration(act.movingDuration) : null;
+  // Moving time is only worth a caption when it actually differs from elapsed —
+  // otherwise it's the same number twice.
+  const showMoving = !!movingStr && movingStr !== durationStr;
+
+  return (
+    <div className="grid grid-cols-3 gap-2 mb-3">
+      <div className="bg-page rounded-xl p-2.5 text-center">
+        <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statDistance')}</p>
+        <p className="text-base font-black text-ink-700 tabular-nums">
+          {distKm}<span className="text-[10px] text-ink-400 ms-0.5">{t('km')}</span>
+        </p>
+      </div>
+      <div className="bg-page rounded-xl p-2.5 text-center">
+        <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statPace')}</p>
+        <p className="text-base font-black text-ink-700 tabular-nums">
+          {paceStr || '—'}<span className="text-[10px] text-ink-400 ms-0.5">{t('perKm')}</span>
+        </p>
+      </div>
+      <div className="bg-page rounded-xl p-2.5 text-center">
+        <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statTime')}</p>
+        <p className="text-base font-black text-ink-700 tabular-nums">{durationStr}</p>
+        {showMoving && (
+          <p className="text-[10px] text-ink-400 tabular-nums mt-0.5">{movingStr} {t('statMoving')}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The secondary row — HR, calories, effort, elevation, place. Everything the
+ * projection already ships and the card used to throw away.
+ *
+ * Same masking note as ActivityStatTiles: hidden HR and calories arrive null, so
+ * the chip simply isn't rendered.
+ */
+export function ActivityChips({ act }: { act: NonNullable<FeedItem['activity']> }) {
+  const t = useTranslations('feed');
+  const showElevation = (act.elevationGain ?? 0) > 5;
+  const anything =
+    act.averageHr || act.maxHr || act.calories || act.perceivedRpe != null ||
+    showElevation || act.locationName;
+  if (!anything) return null;
+
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-ink-400">
+      {act.averageHr && (
+        <span className="flex items-center gap-1">
+          <Heart className="h-3 w-3 text-accent-red" />
+          {act.averageHr} bpm
+          {act.maxHr ? <span className="text-ink-400">· {t('statMaxHr')} {act.maxHr}</span> : null}
+        </span>
+      )}
+      {act.calories ? (
+        <span className="flex items-center gap-1">
+          <Flame className="h-3 w-3 text-band-3" />
+          {act.calories} {t('statCalories')}
+        </span>
+      ) : null}
+      {act.perceivedRpe != null && (
+        <span className="flex items-center gap-1">
+          <Gauge className="h-3 w-3 text-brand-600" />
+          {t('statEffort')} {act.perceivedRpe.toFixed(0)}/10
+          {act.perceivedFeel != null && (
+            <span>{['😣', '😕', '😐', '🙂', '😄'][Math.round(act.perceivedFeel)] ?? ''}</span>
+          )}
+        </span>
+      )}
+      {showElevation && (
+        <span className="flex items-center gap-1">
+          <Mountain className="h-3 w-3 text-accent-600" />
+          +{Math.round(act.elevationGain ?? 0)}m
+        </span>
+      )}
+      {act.locationName && (
+        <span className="flex items-center gap-1">
+          <MapPin className="h-3 w-3" />
+          {act.locationName}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function ActivityCard({
   item,
   commentCount,
@@ -352,14 +461,6 @@ function ActivityCard({
   const t = useTranslations('feed');
   const router = useRouter();
   const act = item.activity!;
-  const distKm = (act.distance / 1000).toFixed(1);
-  const paceStr = act.averagePace ? formatPace(act.averagePace) : null;
-  const durationStr = formatDuration(act.duration);
-  const movingStr = act.movingDuration ? formatDuration(act.movingDuration) : null;
-  const showElevation = (act.elevationGain ?? 0) > 5;
-  // Moving time is only worth a chip when it actually differs from elapsed —
-  // otherwise it's the same number twice.
-  const showMoving = !!movingStr && movingStr !== durationStr;
 
   // The card is a doorway to the full run: route map, per-km splits, pace/HR/
   // elevation charts. It used to be a dead end — the only tap target was the
@@ -397,69 +498,11 @@ function ActivityCard({
             <p className="text-sm text-ink-700 font-semibold mb-3">{act.activityName}</p>
           )}
 
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            <div className="bg-page rounded-xl p-2.5 text-center">
-              <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statDistance')}</p>
-              <p className="text-base font-black text-ink-700 tabular-nums">
-                {distKm}<span className="text-[10px] text-ink-400 ms-0.5">{t('km')}</span>
-              </p>
-            </div>
-            <div className="bg-page rounded-xl p-2.5 text-center">
-              <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statPace')}</p>
-              <p className="text-base font-black text-ink-700 tabular-nums">
-                {paceStr || '—'}<span className="text-[10px] text-ink-400 ms-0.5">{t('perKm')}</span>
-              </p>
-            </div>
-            <div className="bg-page rounded-xl p-2.5 text-center">
-              <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statTime')}</p>
-              <p className="text-base font-black text-ink-700 tabular-nums">{durationStr}</p>
-              {showMoving && (
-                <p className="text-[10px] text-ink-400 tabular-nums mt-0.5">{movingStr} {t('statMoving')}</p>
-              )}
-            </div>
-          </div>
+          <ActivityStatTiles act={act} />
 
-          {/* Chips for the rest of what the projection already ships — max HR,
-              calories and the athlete's own effort rating were being fetched and
-              thrown away. */}
-          {(act.averageHr || act.maxHr || act.calories || act.perceivedRpe != null || showElevation || act.locationName) && (
-            <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-ink-400">
-              {act.averageHr && (
-                <span className="flex items-center gap-1">
-                  <Heart className="h-3 w-3 text-accent-red" />
-                  {act.averageHr} bpm
-                  {act.maxHr ? <span className="text-ink-400">· {t('statMaxHr')} {act.maxHr}</span> : null}
-                </span>
-              )}
-              {act.calories ? (
-                <span className="flex items-center gap-1">
-                  <Flame className="h-3 w-3 text-band-3" />
-                  {act.calories} {t('statCalories')}
-                </span>
-              ) : null}
-              {act.perceivedRpe != null && (
-                <span className="flex items-center gap-1">
-                  <Gauge className="h-3 w-3 text-brand-600" />
-                  {t('statEffort')} {act.perceivedRpe.toFixed(0)}/10
-                  {act.perceivedFeel != null && (
-                    <span>{['😣', '😕', '😐', '🙂', '😄'][Math.round(act.perceivedFeel)] ?? ''}</span>
-                  )}
-                </span>
-              )}
-              {showElevation && (
-                <span className="flex items-center gap-1">
-                  <Mountain className="h-3 w-3 text-accent-600" />
-                  +{Math.round(act.elevationGain ?? 0)}m
-                </span>
-              )}
-              {act.locationName && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  {act.locationName}
-                </span>
-              )}
-            </div>
-          )}
+          {/* The rest of what the projection already ships — max HR, calories and
+              the athlete's own effort rating were being fetched and thrown away. */}
+          <ActivityChips act={act} />
 
           {act.routePreview && act.routePreview.length > 2 && (
             <div className="mb-3">

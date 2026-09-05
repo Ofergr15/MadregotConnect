@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience } from '@/lib/push';
 import { pickBilingual } from '@/lib/notifications/copy';
+import { publishAnnouncement } from '@/lib/feed/announce';
 import { requireApprover } from '@/lib/auth/require-approver';
 
 export const dynamic = 'force-dynamic';
@@ -117,6 +118,9 @@ export async function POST(request: Request) {
         .from('scheduled_notifications')
         .update({ status: 'sent', last_sent_at: new Date().toISOString(), sent_count: sent })
         .eq('id', created.id);
+      // Leave the broadcast in the feed too, so it outlives the notification
+      // shade — see lib/feed/announce.ts for what it does and does not publish.
+      await publishAnnouncement(supabase, created);
       return NextResponse.json({ notification: { ...created, status: 'sent', sent_count: sent }, sent });
     }
 

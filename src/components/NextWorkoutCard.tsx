@@ -20,7 +20,12 @@ interface NextWorkoutCardProps {
   isToday: boolean;
   workout: WorkoutTile;
   typeLabel: string;
+  /** The workout type's FILL hue — this card uses it as a 20% chip wash. */
   typeColor: string;
+  /** The readable twin of `typeColor`, for the label sitting ON that wash.
+   *  The fill palette is far too light to read against 20% of itself: the
+   *  `easy` blue measured 2.28:1 here. See WORKOUT_TYPE_TEXT_COLORS. */
+  typeTextColor: string;
   /** Only meaningful when isToday — has today's distance target already been met. */
   done?: boolean;
   doneKm?: number;
@@ -43,7 +48,7 @@ interface NextWorkoutCardProps {
 // Talos Barbershop / My Disney Experience research on consolidating
 // "what's next" into a single hero card with inline actions.)
 export function NextWorkoutCard({
-  isToday, workout, typeLabel, typeColor, done, doneKm, date, workoutHour,
+  isToday, workout, typeLabel, typeColor, typeTextColor, done, doneKm, date, workoutHour,
   hasRsvpTarget, rsvpAnswered, isNewPlan, children,
 }: NextWorkoutCardProps) {
   const t = useTranslations('nextWorkout');
@@ -76,7 +81,7 @@ export function NextWorkoutCard({
               {done && <CheckCircle2 className="h-3.5 w-3.5 text-accent-600" />}
               <span
                 className="text-3xs font-bold px-2 py-0.5 rounded-full"
-                style={{ background: `${typeColor}20`, color: typeColor }}
+                style={{ background: `${typeColor}20`, color: typeTextColor }}
               >
                 {typeLabel}
               </span>

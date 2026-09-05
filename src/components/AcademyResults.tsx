@@ -127,7 +127,7 @@ export function AcademyResults() {
                   {p.notes && <div className="text-xs text-ink-400 truncate" dir="auto">{p.notes}</div>}
                 </div>
                 <span className="text-sm font-bold text-ink-700 tabular-nums">{formatTime(p.time_seconds)}</span>
-                <button onClick={() => moderate(p.id, 'approve')} className="p-2.5 rounded-lg text-accent-600 hover:bg-accent-600/15 min-h-[44px] min-w-[44px]" title="אישור"><Check className="h-4 w-4" /></button>
+                <button onClick={() => moderate(p.id, 'approve')} className="p-2.5 rounded-lg text-accent-900 hover:bg-accent-600/15 min-h-[44px] min-w-[44px]" title="אישור"><Check className="h-4 w-4" /></button>
                 <button onClick={() => moderate(p.id, 'reject')} className="p-2.5 rounded-lg text-accent-red hover:bg-accent-red/15 min-h-[44px] min-w-[44px]" title="דחייה"><X className="h-4 w-4" /></button>
               </div>
             ))}
@@ -175,7 +175,7 @@ export function AcademyResults() {
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-ink-700 text-sm truncate flex items-center gap-2" dir="auto">
                   {r.athlete_name}
-                  {r.athlete_id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-600">מקושר</span>}
+                  {r.athlete_id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-900">מקושר</span>}
                 </div>
                 {r.notes && <div className="text-xs text-ink-400 truncate" dir="auto">{r.notes}</div>}
               </div>

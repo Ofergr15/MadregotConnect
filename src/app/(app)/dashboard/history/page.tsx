@@ -26,9 +26,9 @@ interface PlanHistory {
 }
 
 const statusConfig = {
-  draft: { icon: Clock, color: 'text-band-3', bg: 'bg-band-3/10', labelKey: 'draft' as const },
-  pushed: { icon: CheckCircle2, color: 'text-accent-600', bg: 'bg-accent-600/10', labelKey: 'pushed' as const },
-  partial: { icon: AlertCircle, color: 'text-band-3', bg: 'bg-band-3/10', labelKey: 'partial' as const },
+  draft: { icon: Clock, color: 'text-band-3-ink', bg: 'bg-band-3/10', labelKey: 'draft' as const },
+  pushed: { icon: CheckCircle2, color: 'text-accent-900', bg: 'bg-accent-600/10', labelKey: 'pushed' as const },
+  partial: { icon: AlertCircle, color: 'text-band-3-ink', bg: 'bg-band-3/10', labelKey: 'partial' as const },
 };
 
 export default function HistoryPage() {
@@ -156,7 +156,7 @@ export default function HistoryPage() {
       </div>
 
       {repushError && (
-        <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-4 text-accent-red text-sm">
+        <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-4 text-accent-red-ink text-sm">
           {repushError}
         </div>
       )}

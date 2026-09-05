@@ -77,17 +77,30 @@ export async function enrichStravaActivity(
 ): Promise<number | null> {
   const { athleteId, stravaActivityId, activityName, startTimeLocal, rowId } = target;
   try {
+    // The detail endpoint is the only place Strava returns `calories` and the
+    // athlete's own `description`. The activity list the sync pages through
+    // carries neither — which is why every Strava run has landed in the feed with
+    // an empty calories chip and no caption, while the card has always had a place
+    // to draw both.
+    //
+    // It is fetched unconditionally now rather than only as the splits fallback
+    // below. That is one extra request per enriched activity in the case where the
+    // watch did send laps, against a budget of 25 enrichments per sync run
+    // (RECENT_ENRICH_LIMIT + BACKFILL_ENRICH_LIMIT in the sync route) — so at most
+    // 25 calls, well inside Strava's 100-per-15-minutes. The alternative is
+    // fetching it for the splits and then throwing away two fields that are
+    // already in the response.
+    const detail = await client.getActivity(stravaActivityId).catch((detailErr) => {
+      console.warn(`Strava detail for ${stravaActivityId} unavailable:`, detailErr);
+      return null;
+    });
+
     let laps = await client.getActivityLaps(stravaActivityId).catch(() => [] as StravaLap[]);
     if (!hasUsefulLaps(laps)) {
       // No laps on the watch — fall back to Strava's own per-km splits so the
       // actuals card still shows a breakdown instead of one big block.
-      try {
-        const detail = await client.getActivity(stravaActivityId);
-        const fromSplits = splitsToLaps(detail.splits_metric);
-        if (fromSplits.length) laps = fromSplits;
-      } catch (detailErr) {
-        console.warn(`Strava detail for ${stravaActivityId} unavailable:`, detailErr);
-      }
+      const fromSplits = splitsToLaps(detail?.splits_metric);
+      if (fromSplits.length) laps = fromSplits;
     }
 
     const streams = await client.getActivityStreams(stravaActivityId);
@@ -113,6 +126,10 @@ export async function enrichStravaActivity(
     // already looked at and do not burn API calls re-enriching it.
     const storedLaps = laps?.length ? laps : [];
     const corePatch: Record<string, unknown> = { laps: storedLaps };
+    // Only when Strava actually reported one: the sync's insert writes
+    // `a.calories || null` from the list response, which is always null, and
+    // writing null back here would be indistinguishable from having asked.
+    if (detail?.calories) corePatch.calories = Math.round(detail.calories);
     // Geometry is upgrade-only. Streams are the richer source — thousands of
     // points carrying time and elevation — but they are not always there: an
     // activity uploaded without a GPS track comes back with no latlng stream.
@@ -156,10 +173,60 @@ export async function enrichStravaActivity(
       console.warn(`enrichStravaActivity ${stravaActivityId} update failed:`, error.message);
       return null;
     }
+
+    const caption = detail?.description?.trim();
+    if (caption) await applyStravaCaption(supabase, { athleteId, stravaActivityId, rowId, caption });
+
     return storedLaps.length;
   } catch (err) {
     console.warn(`enrichStravaActivity ${stravaActivityId} failed:`, err);
     return null;
+  }
+}
+
+/** Same ceiling the share sheet and POST /api/feed/posts enforce on a caption. */
+const MAX_CAPTION = 5000;
+
+/**
+ * Puts the athlete's Strava caption on the run's feed card.
+ *
+ * `athlete_activities` has no description column and this phase adds no
+ * migrations — but `feed_items.body` already *is* this field. It is what the share
+ * sheet writes, what the projection ships, and what FeedCard renders. So a run
+ * described on Strava now reads in the feed exactly as if it had been captioned
+ * from inside the app, and "5×1000 עם המקבצת" stops being lost on the way in.
+ *
+ * Only ever fills a NULL body, so a caption the member typed here (or edited via
+ * PATCH /api/feed/items/[id]) always wins. Every enrichment path is gated on
+ * `laps == null` and enrichment writes `[]` when Strava has none, so this runs at
+ * most once per run — a caption the member deliberately cleared does not come back.
+ *
+ * `payload` is deliberately not touched: it carries `hiddenFields`, and merging it
+ * from here would be a way to lose a stat the athlete chose to hide.
+ */
+async function applyStravaCaption(
+  supabase: SupabaseClient,
+  target: { athleteId: string; stravaActivityId: number; rowId: string | null; caption: string },
+): Promise<void> {
+  let activityId = target.rowId;
+  if (!activityId) {
+    const { data } = await supabase
+      .from('athlete_activities')
+      .select('id')
+      .eq('athlete_id', target.athleteId)
+      .eq('strava_activity_id', target.stravaActivityId)
+      .maybeSingle();
+    activityId = (data?.id as string | undefined) ?? null;
+  }
+  if (!activityId) return;
+
+  const { error } = await supabase
+    .from('feed_items')
+    .update({ body: target.caption.slice(0, MAX_CAPTION) })
+    .eq('activity_id', activityId)
+    .is('body', null);
+  if (error) {
+    console.warn(`Strava caption for activity ${activityId} not stored:`, error.message);
   }
 }
 

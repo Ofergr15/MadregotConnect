@@ -66,7 +66,9 @@ export default function TeamVolumePage() {
 function VolumeRow({ r, globalMax }: { r: Row; globalMax: number }) {
   const t = useTranslations('teamVolume');
   const TrendIcon = r.deltaKm > 0.05 ? TrendingUp : r.deltaKm < -0.05 ? TrendingDown : Minus;
-  const trendColor = r.deltaKm > 0.05 ? 'text-accent-600' : r.deltaKm < -0.05 ? 'text-band-3' : 'text-ink-400';
+  // The -ink companions, not the fill colours: this is 11px text on a
+  // card/60 tile, where accent-600 measures 2.95:1 and band-3 2.89:1.
+  const trendColor = r.deltaKm > 0.05 ? 'text-accent-900' : r.deltaKm < -0.05 ? 'text-band-3-ink' : 'text-ink-400';
   const initials = (r.name.split(' ').map((x) => x[0]).join('').toUpperCase().slice(0, 2)) || '?';
 
   // Sparkline geometry — bars, shared globalMax so rows are comparable.

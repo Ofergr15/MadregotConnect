@@ -101,8 +101,12 @@ export async function POST(request: Request) {
 /**
  * DELETE /api/feed/posts?id=… — soft-delete own post; staff may delete any.
  *
- * Only type='post' is deletable: activity items are generated from Garmin syncs and
+ * Posts and announcements only: activity items are generated from Garmin syncs and
  * would simply reappear, so hiding a run is a visibility concern, not a delete.
+ *
+ * Announcements are staff-only both ways — nobody authored them (see
+ * lib/feed/announce.ts), so there is no "own" case, and an admin who broadcasts the
+ * wrong date needs to be able to take the card down without a SQL editor.
  */
 export async function DELETE(request: Request) {
   const auth = await requireSession(request);
@@ -123,10 +127,13 @@ export async function DELETE(request: Request) {
     if (!item || item.deleted_at) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
-    if (item.type !== 'post') {
+    if (item.type !== 'post' && item.type !== 'announcement') {
       return NextResponse.json({ error: 'Only posts can be deleted' }, { status: 400 });
     }
-    if (item.author_athlete_id !== auth.user.athleteId && !auth.user.isStaff) {
+    if (item.type === 'announcement' && !auth.user.isStaff) {
+      return NextResponse.json({ error: 'Not allowed to delete this post' }, { status: 403 });
+    }
+    if (item.type === 'post' && item.author_athlete_id !== auth.user.athleteId && !auth.user.isStaff) {
       return NextResponse.json({ error: 'Not allowed to delete this post' }, { status: 403 });
     }
 

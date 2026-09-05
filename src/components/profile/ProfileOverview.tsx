@@ -6,7 +6,7 @@ import { Camera, ChevronLeft, Loader2, Trophy } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { cn, getPlanWeekStart } from '@/lib/utils';
 import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
-import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
+import { WORKOUT_TYPE_TEXT_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import type { FeedItem } from '@/lib/feed/project';
@@ -254,7 +254,7 @@ export function ProfileOverview({
             <Field
               label={t('colType')}
               value={WORKOUT_TYPE_LABELS[upcoming.workout.type] || upcoming.workout.type}
-              color={WORKOUT_TYPE_COLORS[upcoming.workout.type]}
+              color={WORKOUT_TYPE_TEXT_COLORS[upcoming.workout.type]}
             />
           </div>
 
