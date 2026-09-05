@@ -504,6 +504,27 @@ async function run(request: Request) {
   if (durationMs > 0.6 * 60_000) console.warn('[cron/tick] approaching maxDuration', line);
   else console.log('[cron/tick] done', line);
 
+  // Also onto the lock row (migration 085), because the log line above turned out
+  // to be unreadable: `vercel logs` only tails live, so there is no history to
+  // fetch and the number was correct but invisible. This is the same value stored
+  // where it can be queried — and the trend is the point, since a single sample
+  // says nothing about whether the Sunday recap is creeping toward the ceiling.
+  //
+  // Awaited, not fire-and-forget. A serverless function is frozen once it returns
+  // a response, so a floating promise here would be killed before the round trip
+  // finished and the column would stay NULL on every healthy tick — which is the
+  // one value that has to mean "did not finish". One PK-matched UPDATE against a
+  // 60s budget is a rounding error; silently losing the metric is not. Swallowed
+  // rather than thrown, because a metric must not turn a tick that already sent
+  // its notifications into a cron Vercel reports as failed.
+  // The error is *returned*, not thrown, so it has to be read — otherwise a
+  // database that hasn't had 085 applied yet fails this silently forever.
+  const { error: timingError } = await supabase
+    .from('cron_tick_locks')
+    .update({ duration_ms: durationMs, fired_count: fired.length })
+    .eq('tick_at', tickAt);
+  if (timingError) console.warn('[cron/tick] could not record timing:', timingError.message);
+
   return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, scanned, durationMs });
 }
 
