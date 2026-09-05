@@ -158,7 +158,12 @@ export function projectBandsToBins(bands: PlannedBand[], binMeters: number[]): (
       const overlap = oe - os;
       if (overlap > 0) { covered += overlap; wMin += b.min * overlap; wMax += b.max * overlap; }
     }
-    if (covered >= width * 0.5) {
+    // `covered > 0` as well as the half-width rule: a zero-width bin satisfies
+    // `covered >= 0` with nothing covered at all, and the averages below would
+    // then divide 0 by 0 and put NaN into the overlay. Today's only caller
+    // coerces a 0-distance split to 1000 m so it can't happen from there, but
+    // this is exported as a pure utility for any chart to call.
+    if (covered > 0 && covered >= width * 0.5) {
       const min = Math.round(wMin / covered);
       const max = Math.round(wMax / covered);
       out.push({ pace: Math.round((min + max) / 2), min, max });
