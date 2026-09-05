@@ -117,7 +117,20 @@ export function Button({
   size?: ButtonSize;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   // The frames' buttons are 50px pills at weight 700.
-  const base = 'inline-flex items-center justify-center gap-2 rounded-pill font-bold transition-colors active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none';
+  //
+  // The focus ring is on `focus-visible`, so it only ever appears for keyboard
+  // and never after a tap or a click — which is why it can be this loud without
+  // touching the design. It had no focus style at all, and because every screen
+  // builds its controls from this one component that meant a keyboard user could
+  // not see where they were anywhere in the app (the probe counted 21 unringed
+  // controls on /dashboard/practice-attendance alone; they are all this button).
+  // `ring-offset-2` lifts the ring clear of the fill so it reads on `primary`
+  // and `danger` too, where a flush ring would sit on top of its own colour —
+  // and the offset is `transparent`, not a colour, because these buttons sit on
+  // both the white card and the page grey. Tailwind's default white offset would
+  // draw a 2px white halo around every button on a grey background; transparent
+  // lets whatever is actually behind show through the gap.
+  const base = 'inline-flex items-center justify-center gap-2 rounded-pill font-bold transition-colors active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent';
   const variants: Record<ButtonVariant, string> = {
     primary: 'bg-brand-600 hover:bg-brand-700 text-white',
     // The frames' secondary is an outline pill, not a grey fill.

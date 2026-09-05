@@ -138,7 +138,8 @@ export default function ReviewPage() {
             <img src={imagePreview} alt="Attached" className="max-h-32 rounded-lg border border-page/50" />
             <button
               onClick={() => setImagePreview(null)}
-              className="absolute -top-2 -end-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-page hover:bg-accent-red rounded-full transition-colors"
+              aria-label={t('removeScreenshot')}
+              className="absolute -top-2 -end-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-page hover:bg-accent-red rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
             >
               <X className="w-3 h-3 text-ink-700" />
             </button>
@@ -151,7 +152,7 @@ export default function ReviewPage() {
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
-          className="mt-4 w-full flex items-center justify-center gap-2 px-5 py-4 min-h-[44px] rounded-xl border border-page/50 bg-card/40 hover:bg-page/60 text-ink-700 hover:text-brand-700 transition-all"
+          className="mt-4 w-full flex items-center justify-center gap-2 px-5 py-4 min-h-[44px] rounded-xl border border-page/50 bg-card/40 hover:bg-page/60 text-ink-700 hover:text-brand-700 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
         >
           <Camera className="h-5 w-5" />
           <span className="text-sm font-semibold">{imagePreview ? t('changeScreenshot') : t('attachScreenshot')}</span>

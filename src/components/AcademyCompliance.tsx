@@ -125,7 +125,7 @@ export function AcademyCompliance() {
       <div className="flex items-center justify-center gap-3 mb-6">
         <button
           onClick={() => setWeekStart(w => shiftWeek(w, -1))}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
+          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
           aria-label="השבוע הקודם"
         >
           <ChevronRight className="h-5 w-5" />
@@ -137,7 +137,7 @@ export function AcademyCompliance() {
         <button
           onClick={() => setWeekStart(w => shiftWeek(w, 1))}
           disabled={isCurrentWeek}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label="השבוע הבא"
         >
           <ChevronLeft className="h-5 w-5" />

@@ -71,7 +71,7 @@ export function FeedComposer({ onClose, onPost, myAthleteId }: Props) {
       leadingAction={
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
+          className="p-1.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
           aria-label={t('close')}
         >
           <X className="h-5 w-5" />

@@ -96,7 +96,7 @@ export function AcademyMyView({ athleteId }: {
       <div className="flex items-center justify-center gap-2">
         <button
           onClick={() => setWeekStart(shiftWeek(weekStart, -1))}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
+          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
           aria-label={t('previousWeek')}
         >
           <ChevronRight className="h-5 w-5 rtl:block hidden" />
@@ -109,7 +109,7 @@ export function AcademyMyView({ athleteId }: {
         <button
           onClick={() => setWeekStart(shiftWeek(weekStart, 1))}
           disabled={isCurrentWeek}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label={t('nextWeek')}
         >
           <ChevronLeft className="h-5 w-5 rtl:block hidden" />

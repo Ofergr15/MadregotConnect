@@ -886,6 +886,7 @@
     "general": "General",
     "placeholder": "What's on your mind? Training feedback, feature ideas, anything...",
     "attachScreenshot": "Attach a Screenshot",
+    "removeScreenshot": "Remove the screenshot",
     "changeScreenshot": "Change Screenshot",
     "dragDrop": "Drag & drop an image here or tap to browse",
     "takePhoto": "Take Photo",

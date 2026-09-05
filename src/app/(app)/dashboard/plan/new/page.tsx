@@ -1130,7 +1130,7 @@ export default function WeeklyPlannerPage() {
               // screen reader. AcademyCompliance's identical navigator labels
               // both of its arrows; these two were missed.
               aria-label={t('lastWeek')}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
             >
               {/* Right for "previous", left for "next" below — the page is `dir="rtl"`,
                   so earlier is to the right. Both were the other way round, which is
@@ -1151,7 +1151,7 @@ export default function WeeklyPlannerPage() {
             <button
               onClick={() => setWeekOffset((o) => o + 1)}
               aria-label={t('nextWeek')}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
