@@ -1,6 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+
+// Pages that must NOT play the app-open splash. /register is a link handed to
+// people who do not have the app yet: 2.1s of a logo they don't recognise, on
+// top of the form they were sent to fill in, reads as a page that failed to
+// load — which is exactly how it was reported ("the logo is stuck and I can not
+// see the register"). The splash is an app-launch beat; a public sign-up form is
+// not an app launch.
+const NO_SPLASH_PATHS = ['/register', '/academy-register'];
 
 // App-open loading splash: ink floods the logo's staircase bottom-to-top (the
 // badge is used as a mask), the mark snaps to solid ink when the fill tops out,
@@ -48,8 +57,16 @@ export function AppSplash() {
   // Renders visible on the very first paint (server + client identical, so no
   // hydration mismatch). The decision to skip/animate happens in effects only.
   const [phase, setPhase] = useState<'in' | 'out' | 'done'>('in');
+  // usePathname resolves during the server render of a client component too, so
+  // the skip is decided on the very first frame — the splash never flashes on
+  // these pages before being taken away.
+  const pathname = usePathname();
+  const skip = NO_SPLASH_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   useEffect(() => {
+    // Bail before touching SESSION_KEY: marking it here would mean somebody who
+    // lands on /register first never sees the splash when they do open the app.
+    if (skip) return;
     // Already shown this session (e.g. locale reload) -> skip instantly. Our own
     // key from a moment ago doesn't count, hence the runtime flag.
     if (!startedInThisRuntime && sessionStorage.getItem(SESSION_KEY)) {
@@ -65,9 +82,9 @@ export function AppSplash() {
       clearTimeout(toOut);
       clearTimeout(toDone);
     };
-  }, []);
+  }, [skip]);
 
-  if (phase === 'done') return null;
+  if (skip || phase === 'done') return null;
 
   return (
     <div
