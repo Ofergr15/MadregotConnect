@@ -1,9 +1,11 @@
 {
   "name": "madregot-connect",
-  "version": "2.39.73",
+  "version": "2.39.74",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-pdf-worker.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-pdf-worker.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -46,6 +48,7 @@
     "next-intl": "^4.13.6",
     "oauth-1.0a": "^2.2.6",
     "openai": "^6.45.0",
+    "pdfjs-dist": "^6.3.289",
     "posthog-js": "^1.425.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

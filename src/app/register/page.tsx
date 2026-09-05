@@ -34,6 +34,11 @@ import { cn } from '@/lib/utils';
  * submit button is the one thing that costs sign-ups here. If you add a field,
  * take the height from somewhere — do not let this page start scrolling.
  *
+ * The form's own heights (60px field, 62px pills, 60px button) are deliberately
+ * generous rather than minimal: on a page whose whole job is one submission, spare
+ * height is better spent making the targets easier to hit than left as empty
+ * photograph. The `short:` variants stay small — a 667px phone has none to spend.
+ *
  * The דבוקה picker is three pills abreast, not the four stacked 52px rows it used
  * to be. That is what paid for the photo: 208px of list became 46px of pills, and
  * the hero got the difference. Going back to stacked rows means dropping the hero.
@@ -209,7 +214,7 @@ function HeroHeading() {
     // upper half, and the mark was sitting on their backs. Anchored to the top
     // instead, so it reads as a masthead and the growing/shrinking happens below
     // it rather than under it.
-    <div className="flex-1 min-h-0 flex flex-col items-center justify-start text-center">
+    <div className="flex-[2] min-h-0 flex flex-col items-center justify-start text-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {/* ⚠️ The `short:` height is the height-constrained one, and 84px overflowed
           320x480 by 7px. 76px is what fits with the countdown, both footnotes and
@@ -557,7 +562,7 @@ export default function RegisterPage() {
               and on a page with one field a label above it is a row of type that
               buys nothing. The <label> is still here for screen readers. */}
           <label htmlFor="reg-email" className="sr-only">אימייל</label>
-          <div className={cn('flex items-center h-[52px] short:h-[46px] border-white/25 px-4 focus-within:border-white', FIELD)}>
+          <div className={cn('flex items-center h-[60px] short:h-[54px] border-white/25 px-4 focus-within:border-white', FIELD)}>
             <input
               id="reg-email"
               type="email"
@@ -585,7 +590,7 @@ export default function RegisterPage() {
               required, and an unsure runner would guess rather than leave it. A
               PREFERENCE is obviously optional, and group_id is nullable — the
               coach assigns it at approval either way. */}
-          <p className={cn('mt-4 short:mt-2.5 mb-2 text-center text-2xs short:text-3xs text-white/90', TEXT_ON_PHOTO)}>
+          <p className={cn('mt-6 short:mt-2.5 mb-3.5 short:mb-2 text-center text-2xs short:text-3xs text-white/90', TEXT_ON_PHOTO)}>
             בחרו דבוקה מועדפת
           </p>
 
@@ -603,7 +608,7 @@ export default function RegisterPage() {
                 <label
                   key={g.id}
                   className={cn(
-                    'flex-1 min-w-0 flex items-center justify-center h-[54px] short:h-[46px] cursor-pointer px-2',
+                    'flex-1 min-w-0 flex items-center justify-center h-[62px] short:h-[54px] cursor-pointer px-2',
                     FIELD,
                     i > 0 && 'ms-2',
                     // Orange, the page's one accent — the same token as the rule
@@ -650,12 +655,21 @@ export default function RegisterPage() {
             type="submit"
             size="lg"
             disabled={submitting}
-            className="mt-3.5 short:mt-2.5 w-full h-[54px] short:h-[48px] rounded-pill bg-band-3 text-white hover:bg-band-3/90 text-[19px] font-bold shadow-[0_6px_22px_rgba(255,83,21,0.45)]"
+            className="mt-5 short:mt-2.5 w-full h-[60px] short:h-[54px] rounded-pill bg-band-3 text-white hover:bg-band-3/90 text-[19px] font-bold shadow-[0_6px_22px_rgba(255,83,21,0.45)]"
           >
             {submitting && <LoadingBlock size={20} className="py-0" />}
             {submitting ? 'שולח…' : 'שליחה'}
           </Button>
         </form>
+
+        {/* ⚠️ THE SECOND SPACER, and the reason the hero above is `flex-[2]` and not
+            `flex-1`. With only one spacer every spare pixel on the screen piled up in
+            a single place — 217px of empty photograph between the countdown and the
+            email field, with the form welded to the bottom edge. Two spacers in a 2:1
+            ratio split it instead, at whatever height the phone happens to be, so the
+            form floats in the lower middle. Deleting this puts the gap back in one
+            lump. */}
+        <div className="flex-1 min-h-0" aria-hidden="true" />
 
         {/* ── THE BOTTOM THIRD IS SPACING-SENSITIVE ──────────────────────────
             Three things stack below the button now — two footnotes and the
