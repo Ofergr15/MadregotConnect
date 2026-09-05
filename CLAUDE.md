@@ -79,14 +79,25 @@ supabase/
   individual academy plan.
 - **`athlete_activities`** — synced actuals. `weekly_km_snapshots` is a durable rollup.
 
-### Two different "week starts" — do not mix them
+### Week starts — both are Sunday now
 
-This has caused real bugs. `src/lib/utils.ts` documents it:
+This has caused real bugs. `src/lib/utils.ts` is the authority:
 
-- **Plan week = Sunday.** `weekly_plans.week_start_date`, workout dates
-  (`week_start + dayOfWeek`, 0 = Sunday), adherence, academy reports.
-- **Activity week = Monday.** `getActivityWeekStart()` — matches how Garmin/Strava
-  report weekly mileage. Use for leaderboards and weekly km.
+- **Plan week = Sunday.** `getPlanWeekStart()` — `weekly_plans.week_start_date`,
+  workout dates (`week_start + dayOfWeek`, 0 = Sunday), adherence, academy reports.
+- **Activity week = Sunday too**, since **2026-08-21**. `getActivityWeekStart()` —
+  leaderboards and weekly km. It used to be Monday, to match how Garmin/Strava report
+  weekly mileage; that was changed by product decision so an athlete's week lines up
+  with the coach's plan week. Don't "restore" it from a stale doc — this one was the
+  stale doc.
+
+The trap that remains: a plan day carries only a `dayOfWeek`, and the week
+`/api/dashboard/weekly` returns is **not always the week the browser is standing in**
+(`getDisplayWeekStart` rolls forward after Saturday 20:00 Israel so athletes can
+preview). Turn it into a date with `planDayKey(weekStart, dayOfWeek)` from
+`src/lib/plans/workout-parsing.ts` and compare dates — never `d.dayOfWeek ===
+new Date().getDay()`. That route also reports `hasPlan: false` for a week with no
+plan rather than substituting another week's; check it before rendering anything.
 
 ### Activity timestamps are UTC-shaped, not UTC
 

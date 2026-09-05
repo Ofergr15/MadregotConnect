@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
-import { getDisplayWeekStart, extractWorkouts, getWorkoutKm, buildWeekBreakdown } from '@/lib/plans/workout-parsing';
+import { getDisplayWeekStart, extractWorkouts, getWorkoutKm, buildWeekBreakdown, dedupeWorkoutsByDay } from '@/lib/plans/workout-parsing';
 
 // A coach pushes a new plan roughly once a week (weekly_plans has only 10
 // rows total, live-verified), so a few minutes of staleness is invisible to
@@ -50,20 +50,29 @@ export async function GET(request: Request) {
     }
     const uniquePlans = Array.from(plansByWeek.values());
 
-    let currentPlan = uniquePlans.find(p => p.week_start_date === currentWeekStart);
-    if (!currentPlan && uniquePlans.length > 0) {
-      currentPlan = uniquePlans[uniquePlans.length - 1];
-    }
+    // ONLY the displayed week's plan. There used to be a fallback here to
+    // "whatever the newest plan is" when the displayed week had none — while
+    // still returning `currentWeekStart` as the week it belonged to. Every
+    // consumer maps `dailyDistances[].dayOfWeek` onto a real date, so an old
+    // plan came back wearing this week's dates: the dashboard hero announced a
+    // fortnight-old session as "today's workout", the RSVP labelled itself from
+    // it, and the "new plan" badge fired off its `created_at`. Live-checked
+    // 2026-09-05 — the newest plan was the week of 2026-08-23 and the fallback
+    // was doing exactly this in production.
+    //
+    // `/api/plans/week` has always answered `hasPlan: false` for a week with no
+    // plan; this route now agrees with it instead of inventing data.
+    const currentPlan = uniquePlans.find(p => p.week_start_date === currentWeekStart);
 
     // Previous week = 7 days before the DISPLAYED week (keeps the delta correct
     // after the Saturday-evening rollover).
     const prevWeek = new Date(currentWeekStart);
     prevWeek.setUTCDate(prevWeek.getUTCDate() - 7);
     const previousWeekStartStr = prevWeek.toISOString().split('T')[0];
-    let prevPlan = uniquePlans.find(p => p.week_start_date === previousWeekStartStr);
-    if (!prevPlan && uniquePlans.length >= 2) {
-      prevPlan = uniquePlans[uniquePlans.length - 2];
-    }
+    // Same rule as the current week, for the same reason: a delta against an
+    // arbitrary older week is not a week-over-week delta. No previous plan means
+    // no comparison, which `weekDelta` already expresses as 0 (the pill hides).
+    const prevPlan = uniquePlans.find(p => p.week_start_date === previousWeekStartStr);
 
     // Per-day distances/types + key (non-easy) sessions for the displayed week —
     // shared with /api/plans/week so the Program page's arbitrary-week view can
@@ -73,7 +82,7 @@ export async function GET(request: Request) {
 
     // Previous week volume
     let prevWeekTotal = 0;
-    const prevWorkouts = extractWorkouts(prevPlan?.parsed_workouts).filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
+    const prevWorkouts = dedupeWorkoutsByDay(extractWorkouts(prevPlan?.parsed_workouts));
     if (prevWorkouts.length > 0) {
       for (const w of prevWorkouts) {
         const km = getWorkoutKm(w);
@@ -87,7 +96,7 @@ export async function GET(request: Request) {
     const weeklyVolumes: Array<{ week: string; volume: number; weekNum: number }> = [];
     const longRunProgression: Array<{ week: string; distance: number }> = [];
     for (const plan of uniquePlans) {
-      const workouts = extractWorkouts(plan.parsed_workouts).filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
+      const workouts = dedupeWorkoutsByDay(extractWorkouts(plan.parsed_workouts));
       if (workouts.length === 0) continue;
       let vol = 0;
       let maxDist = 0;
@@ -117,7 +126,11 @@ export async function GET(request: Request) {
       weekTotalMin: Math.round(weekTotalMin * 10) / 10,
       weekTotalMax: Math.round(weekTotalMax * 10) / 10,
       weekDelta,
-      prevWeekTotal,
+      prevWeekTotal: Math.round(prevWeekTotal * 10) / 10,
+      // Whether the displayed week actually HAS a plan. Everything above is
+      // zeroed/empty when it doesn't, so a client can tell "no plan pushed yet"
+      // apart from "a rest week", and no client has to infer it from a total.
+      hasPlan: !!currentPlan,
       weeklyVolumes,
       longRunProgression,
       keySessions,

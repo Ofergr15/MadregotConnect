@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { getActivityWeekStart, activityWeekStart, computeWeekStreak, israelDateAnchor } from '@/lib/utils';
+import { getActivityWeekStart, activityWeekStart, activityLocalDateStr, computeWeekStreak, israelDateAnchor, toISODate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,14 +50,19 @@ export async function GET(request: Request) {
     // "this month" would both be a period behind — and on a Sunday or the 1st
     // of a month, off by a whole week/month.
     const today = israelDateAnchor(now);
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
+    // The month boundary as a DATE STRING, compared against each activity's own
+    // local date. `new Date(r.start_time).getTime()` read the wall clock stored in
+    // that column as UTC and shifted it, so a run late on the last evening of a
+    // month counted into the next one — the same mistake the week bucketing below
+    // uses `activityWeekStart` to avoid.
+    const monthStartKey = toISODate(new Date(today.getFullYear(), today.getMonth(), 1));
     let totalKm = 0;
     let totalDurationSec = 0;
     let thisMonthRuns = 0;
     for (const r of runs) {
       totalKm += r.distance / 1000;
       totalDurationSec += r.duration || 0;
-      if (new Date(r.start_time).getTime() >= monthStart) thisMonthRuns += 1;
+      if (activityLocalDateStr(r.start_time) >= monthStartKey) thisMonthRuns += 1;
     }
 
     // Bucket runs by activity-week (Sunday-based ISO date).

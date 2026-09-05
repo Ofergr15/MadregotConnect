@@ -1,7 +1,8 @@
 'use client';
 
 import { useApi } from '@/lib/api';
-import { getPlanWeekStart } from '@/lib/utils';
+import { getPlanWeekStart, israelDateAnchor, toISODate } from '@/lib/utils';
+import { planDayKey } from '@/lib/plans/workout-parsing';
 import { AttendanceRSVP } from './AttendanceRSVP';
 
 // The athlete's "confirm attendance" surface, now that the tab bar has no
@@ -17,7 +18,10 @@ import { AttendanceRSVP } from './AttendanceRSVP';
 // athlete_id) — so a coach on the program page sees no change.
 
 interface WeeklyPlan {
-  dailyDistances?: Array<{ day: string; dayOfWeek: number; type: string }>;
+  dailyDistances?: Array<{ day: string; dayOfWeek: number; type: string; max: number }>;
+  currentWeekStart?: string;
+  /** False when the returned week has no plan — `dailyDistances` is then all rest. */
+  hasPlan?: boolean;
 }
 
 export function AttendanceConfirmCard() {
@@ -32,10 +36,14 @@ export function AttendanceConfirmCard() {
   // day itself it only nudges whoever never answered (hideIfAnswered below).
   // Unlike the dashboard this has no ?rsvp= deep-link override — the pushes link
   // to /dashboard, which keeps owning the "answer a days-old notification" case.
+  //
+  // Anchored on ISRAEL's day, not the device's: a phone left on a US timezone is
+  // hours behind, and "today" here decides which day's attendance gets recorded.
   const target = (() => {
-    const todayDow = new Date().getDay();
-    if (teamDays.includes(todayDow)) return { date: new Date(), dow: todayDow, dayBefore: false };
-    const tomorrow = new Date();
+    const anchor = israelDateAnchor();
+    const todayDow = anchor.getDay();
+    if (teamDays.includes(todayDow)) return { date: anchor, dow: todayDow, dayBefore: false };
+    const tomorrow = israelDateAnchor();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowDow = tomorrow.getDay();
     if (teamDays.includes(tomorrowDow)) return { date: tomorrow, dow: tomorrowDow, dayBefore: true };
@@ -43,7 +51,15 @@ export function AttendanceConfirmCard() {
   })();
   if (!target) return null;
 
-  const workout = weekly?.dailyDistances?.find((d) => d.dayOfWeek === target.dow);
+  // Matched on the target DATE against the week the endpoint actually returned,
+  // and only a day that HAS a workout. Matching on `dayOfWeek` alone labelled the
+  // card off next week's plan after the Saturday-20:00 rollover, and with no
+  // `max > 0` guard a team day the coach left empty read "Tue · rest".
+  const planWeek = weekly?.hasPlan ? weekly.currentWeekStart : undefined;
+  const targetKey = toISODate(target.date);
+  const workout = planWeek
+    ? weekly?.dailyDistances?.find((d) => d.max > 0 && planDayKey(planWeek, d.dayOfWeek) === targetKey)
+    : undefined;
   // The title itself says today/tomorrow (AttendanceRSVP's dayBefore prop); this
   // label only names the workout.
   const label = workout?.type ? `${workout.day} · ${workout.type}` : workout?.day;

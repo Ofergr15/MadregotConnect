@@ -4,7 +4,10 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { Calendar, ArrowRight, TrendingUp, TrendingDown, MapPin, Flame } from 'lucide-react';
-import { cn, getActivityWeekStart, getPlanWeekStart, isRecentlyPublished, israelDateAnchor } from '@/lib/utils';
+import {
+  cn, getActivityWeekStart, getPlanWeekStart, isRecentlyPublished, israelDateAnchor,
+  activityWeekStart, activityLocalDateStr, activityDayRelation, israelToday, israelNow, toISODate,
+} from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
@@ -15,7 +18,7 @@ import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { CoachPulse } from '@/components/CoachPulse';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
-import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, WORKOUT_TYPE_LABELS as typeLabels } from '@/lib/plans/workout-parsing';
+import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, WORKOUT_TYPE_LABELS as typeLabels, planDayKey } from '@/lib/plans/workout-parsing';
 import { Spinner, Card, BigStat, EmptyState, Button } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 // The goal race lived here as three consts until the designer's Profile frame
@@ -51,6 +54,8 @@ interface WeeklyData {
   typeDistribution: Record<string, number>;
   trainingDays: number;
   currentWeekStart: string;
+  /** False when no plan exists for `currentWeekStart` — everything above is then empty. */
+  hasPlan?: boolean;
   publishedAt?: string | null;
 }
 
@@ -67,6 +72,19 @@ interface RecentActivity {
   elevation_gain: number | null;
   has_polyline?: boolean;
   garmin_activity_id?: number;
+}
+
+/**
+ * How many of these activities fall in the current activity week.
+ *
+ * `activityWeekStart`, not `new Date(a.start_time) >= weekStart`: `start_time`
+ * holds the athlete's own wall clock in a TIMESTAMPTZ, so local getters shift it
+ * +3h in an Israel browser and a 21:30 Saturday run lands in NEXT week — dropped
+ * from the count it belongs to. See the convention note in src/lib/utils.ts.
+ */
+function countThisWeek(activities: Array<{ start_time: string }>): number {
+  const thisWeek = getActivityWeekStart(israelDateAnchor());
+  return activities.filter((a) => activityWeekStart(a.start_time) === thisWeek).length;
 }
 
 // A radically simplified home: one hero (today's/tomorrow's workout + RSVP),
@@ -289,10 +307,7 @@ export default function DashboardPage() {
           preSyncActivityIds = new Set(filtered.map((a: any) => a.id));
 
           if (myAthleteId) {
-            // Activity week (Sunday-based, matches the club's plan week).
-            const weekStart = new Date(getActivityWeekStart(israelDateAnchor()));
-            const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
-            setWeeklyRuns(thisWeekActs.length);
+            setWeeklyRuns(countThisWeek(filtered));
           }
         }
 
@@ -321,20 +336,21 @@ export default function DashboardPage() {
               const filtered = allActs.filter((a: any) => a.athlete_id === myAthleteId);
               setRecentActivities(filtered.slice(0, 3));
 
-              const weekStart = new Date(getActivityWeekStart(israelDateAnchor()));
-              const thisWeekActs = filtered.filter((a: any) => new Date(a.start_time) >= weekStart);
-              setWeeklyRuns(thisWeekActs.length);
+              setWeeklyRuns(countThisWeek(filtered));
 
               // This is the "sync just completed" moment: activities present now
               // that weren't in the pre-sync snapshot are genuinely new. `filtered`
               // is already start_time-desc (server order), so the first match is
-              // the most recent. Skip anything older than 24h so a first-time
-              // 180-day Strava backfill doesn't pop the customization sheet for a
-              // run from months ago.
+              // the most recent. Skip anything that didn't happen today or
+              // yesterday so a first-time 180-day Strava backfill doesn't pop the
+              // customization sheet for a run from months ago.
+              //
+              // A day comparison rather than `Date.now() - new Date(start_time)`:
+              // that mixed the two time conventions (a wall clock read as an
+              // instant), which made every run read 3h newer than it was.
               const newActivities = filtered.filter((a: any) => !preSyncActivityIds.has(a.id));
-              const RECENT_MS = 24 * 60 * 60 * 1000;
               const justSynced = newActivities.find(
-                (a: any) => Date.now() - new Date(a.start_time).getTime() < RECENT_MS,
+                (a: any) => activityDayRelation(a.start_time) !== 'older',
               );
               if (justSynced) {
                 setSyncedActivity(justSynced);
@@ -362,7 +378,13 @@ export default function DashboardPage() {
     </div>
   );
 
-  const todayDow = new Date().getDay();
+  // Israel's calendar day, not the device's. Everything below pairs a plan day
+  // with a real date, and the plan week itself was chosen in Israel time by the
+  // server — reading the day from the browser instead put the two out of step.
+  const todayKey = israelToday();
+  const todayDow = israelDateAnchor().getDay();
+  const tomorrowDate = (() => { const d = israelDateAnchor(); d.setDate(d.getDate() + 1); return d; })();
+  const tomorrowKey = toISODate(tomorrowDate);
   const hasData = weekly && weekly.weekTotalMax > 0;
 
   // Which workout does the RSVP target? RSVP is a DAY-BEFORE flow (matching the
@@ -383,24 +405,33 @@ export default function DashboardPage() {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
       return { date: base, dow: rsvpUrlOverride.day, dayBefore: base.getTime() > todayStart.getTime() };
     }
+    // Israel-anchored dates: `getPlanWeekStart` below reads local date parts, so
+    // a raw `new Date()` files the answer under the wrong week between midnight
+    // and 03:00 — and on a Sunday that is the whole previous week.
     if (teamDays.includes(todayDow)) {
-      return { date: new Date(), dow: todayDow, dayBefore: false }; // workout day
+      return { date: israelDateAnchor(), dow: todayDow, dayBefore: false }; // workout day
     }
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowDow = tomorrow.getDay();
+    const tomorrowDow = tomorrowDate.getDay();
     if (teamDays.includes(tomorrowDow)) {
-      return { date: tomorrow, dow: tomorrowDow, dayBefore: true }; // day before
+      return { date: tomorrowDate, dow: tomorrowDow, dayBefore: true }; // day before
     }
     return null;
   })();
   const rsvpWeekStart = rsvpUrlOverride ? rsvpUrlOverride.weekStart : (rsvpTarget ? getPlanWeekStart(rsvpTarget.date) : '');
-  const rsvpWorkout = rsvpTarget ? weekly?.dailyDistances?.find(d => d.dayOfWeek === rsvpTarget.dow) : null;
+  // `max > 0`, and matched on the RSVP date rather than the weekday: without the
+  // first, `dailyDistances` always carries all seven days so a team day with no
+  // session labelled the card "Tue · rest"; without the second it could name a
+  // session from the previewed week after Saturday 20:00.
+  const rsvpWorkout = rsvpTarget && weekly?.hasPlan && weekly.currentWeekStart
+    ? weekly.dailyDistances?.find(
+        d => d.max > 0 && planDayKey(weekly.currentWeekStart, d.dayOfWeek) === toISODate(rsvpTarget.date),
+      )
+    : null;
   // The title says "today"/"tomorrow" (via AttendanceRSVP's own dayBefore prop);
   // this label just names the workout itself.
   const rsvpLabel = rsvpWorkout?.type ? `${rsvpWorkout.day} · ${rsvpWorkout.type}` : rsvpWorkout?.day;
-  // Time-based greeting (Israel-ish local hour) for the large title.
-  const greetHour = new Date().getHours();
+  // Time-based greeting, on Israel's clock like every other hour in the app.
+  const greetHour = israelNow().hour;
   const greeting = greetHour < 12 ? t('goodMorning') : greetHour < 18 ? t('goodAfternoon') : t('goodEvening');
   const firstName = (athleteName || '').split(' ')[0];
   // Locale-aware race date (was a hardcoded "Dec 6, 2026" — reads as a Hebrew
@@ -408,20 +439,34 @@ export default function DashboardPage() {
   const raceDateLabel = GOAL_RACE.date.toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
 
   const heroWorkout = (() => {
-    const todayW = weekly?.dailyDistances?.find(d => d.dayOfWeek === todayDow && d.max > 0);
-    const tomorrowDow = (todayDow + 1) % 7;
-    const tomorrowW = weekly?.dailyDistances?.find(d => d.dayOfWeek === tomorrowDow && d.max > 0);
+    // Matched on DATE, not on weekday. `dayOfWeek` alone is meaningless without
+    // the week it belongs to, and the week the server returns is not always the
+    // one the browser is in: `getDisplayWeekStart` rolls the plan forward after
+    // Saturday 20:00 Israel so athletes can preview the coming week. Matching by
+    // weekday meant that on Saturday evening this card presented NEXT Saturday's
+    // session as "today", and measured tonight's kilometres against it.
+    if (!weekly?.hasPlan || !weekly.currentWeekStart) return null;
+    const dayFor = (d: { dayOfWeek: number }) => planDayKey(weekly.currentWeekStart, d.dayOfWeek);
+    const planned = (weekly.dailyDistances || []).filter(d => d.max > 0);
+    const todayW = planned.find(d => dayFor(d) === todayKey);
+    const tomorrowW = planned.find(d => dayFor(d) === tomorrowKey);
     if (!todayW && !tomorrowW) return null;
 
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const todayKm = recentActivities.filter(a => new Date(a.start_time) >= todayStart).reduce((s, a) => s + (a.distance || 0) / 1000, 0);
+    // activityLocalDateStr, not a local-midnight comparison: see countThisWeek.
+    // A 22:00 run used to read as tomorrow's, so the card kept insisting today's
+    // workout wasn't done.
+    const todayKm = recentActivities
+      .filter(a => activityLocalDateStr(a.start_time) === todayKey)
+      .reduce((s, a) => s + (a.distance || 0) / 1000, 0);
     const todayDone = !!todayW && todayKm >= todayW.min;
     // Next relevant workout: today's if it isn't done yet; otherwise
     // tomorrow's; falling back to today's (as a completed recap) if
     // there's no workout scheduled tomorrow.
     const nextWorkout = (todayW && !todayDone) ? todayW : (tomorrowW || todayW)!;
     const showingToday = nextWorkout === todayW;
-    const nextDate = showingToday ? new Date() : (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; })();
+    // Noon anchor off the matched day key, so the date handed to the calendar
+    // link is the workout's own date and can't drift across a midnight.
+    const nextDate = new Date(`${showingToday ? todayKey : tomorrowKey}T12:00:00`);
     return { nextWorkout, showingToday, todayDone, todayKm, nextDate };
   })();
 

@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { Camera, ChevronLeft, Loader2, Trophy } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { cn, getPlanWeekStart } from '@/lib/utils';
+import { cn, getPlanWeekStart, israelDateAnchor, israelNow, israelToday } from '@/lib/utils';
 import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
-import { WORKOUT_TYPE_TEXT_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
+import { WORKOUT_TYPE_TEXT_COLORS, WORKOUT_TYPE_LABELS, planDayKey } from '@/lib/plans/workout-parsing';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import type { FeedItem } from '@/lib/feed/project';
@@ -43,6 +43,8 @@ interface WeeklyData {
   dailyDistances: DailyDistance[];
   weekTotalMax: number;
   currentWeekStart: string;
+  /** False when no plan exists for `currentWeekStart` — the rest is then empty. */
+  hasPlan?: boolean;
   trainingDays: number;
 }
 
@@ -88,7 +90,7 @@ export function ProfileOverview({
   // card behind it only when there IS a second one.
   const { data: updates } = useApi<{ items: FeedItem[] }>('/api/feed?types=announcement&limit=2');
 
-  const greetHour = new Date().getHours();
+  const greetHour = israelNow().hour;
   const greeting = greetHour < 12 ? td('goodMorning') : greetHour < 18 ? td('goodAfternoon') : td('goodEvening');
 
   const teamDays = reminder?.config?.teamDays ?? [2, 5];
@@ -96,8 +98,26 @@ export function ProfileOverview({
   const location = reminder?.config?.location?.trim() || '';
 
   const days = weekly?.dailyDistances || [];
-  const weekKmGoal = weekly?.weekTotalMax || 0;
   const weekKmDone = summary?.thisWeek?.km ?? 0;
+
+  // The goal comes from the plan for the week the athlete is STANDING IN, which
+  // is not always the week `/api/dashboard/weekly` returns: that one rolls to the
+  // next week after Saturday 20:00 so the card above can preview it. Taking the
+  // goal from there divided this week's kilometres by next week's target every
+  // Saturday evening. `/api/plans/week` answers for one explicit week and reports
+  // `hasPlan: false` rather than substituting another, so the bar hides instead of
+  // measuring against a week that was never planned.
+  const { data: thisWeekPlan } = useApi<{ hasPlan?: boolean; weekTotalMin?: number; weekTotalMax?: number }>(
+    `/api/plans/week?weekStart=${getPlanWeekStart(israelDateAnchor())}`,
+  );
+  // The MIDPOINT of the plan's range, not its top. `weekTotalMax` made the bar
+  // permanently unfinishable — run every session at the middle of its range and it
+  // sat near 85% — and the midpoint is already what this codebase means by a
+  // week's planned volume (`weekDelta` and the volume-trend chart both average
+  // min and max).
+  const weekKmGoal = thisWeekPlan?.hasPlan
+    ? round1(((thisWeekPlan.weekTotalMin || 0) + (thisWeekPlan.weekTotalMax || 0)) / 2)
+    : 0;
 
   // Which workout does the card show? Simply the SOONEST planned day — today
   // first, then tomorrow, and so on.
@@ -111,18 +131,31 @@ export function ProfileOverview({
   // The card's RSVP is unaffected — that still only appears on a team day, and
   // only for today or tomorrow (see showRsvp below). It just no longer decides
   // which workout the whole card is about.
+  //
+  // Walks the plan week's own DATES rather than counting weekdays forward from
+  // today. `dayOfWeek` means nothing without the week it belongs to, and the week
+  // this endpoint returns is not always the week the browser is in — it rolls to
+  // the next one after Saturday 20:00 Israel so athletes can preview. Stepping
+  // `offset` days from today onto that data mislabelled a session up to seven days
+  // out as tomorrow's, and handed `getPlanWeekStart` a date from the wrong week,
+  // which filed the RSVP under a week the workout isn't in.
   const upcoming = (() => {
-    if (days.length === 0) return null;
-    const todayDow = new Date().getDay();
-    for (let offset = 0; offset < 7; offset++) {
-      const dow = (todayDow + offset) % 7;
-      const workout = days.find((d) => d.dayOfWeek === dow && d.max > 0);
-      if (!workout) continue;
-      const date = new Date();
-      date.setDate(date.getDate() + offset);
-      return { workout, date, isTeamDay: teamDays.includes(dow), offset };
-    }
-    return null;
+    if (!weekly?.hasPlan || !weekly.currentWeekStart) return null;
+    const todayKey = israelToday();
+    return days
+      .filter((d) => d.max > 0)
+      .map((d) => {
+        const key = planDayKey(weekly.currentWeekStart, d.dayOfWeek);
+        return {
+          workout: d,
+          date: new Date(`${key}T12:00:00`),
+          isTeamDay: teamDays.includes(d.dayOfWeek),
+          // Whole days from today to that date, so 0 = today and 1 = tomorrow.
+          offset: Math.round((Date.parse(`${key}T12:00:00Z`) - Date.parse(`${todayKey}T12:00:00Z`)) / 86_400_000),
+        };
+      })
+      .filter((c) => c.offset >= 0)
+      .sort((a, b) => a.offset - b.offset)[0] ?? null;
   })();
 
   // RSVP only for today's or tomorrow's TEAM workout. Answering for a session
@@ -304,9 +337,12 @@ export function ProfileOverview({
                 key={d.dayOfWeek}
                 letter={(tc.raw('dayNamesShort') as string[])[d.dayOfWeek]}
                 date={weekly?.currentWeekStart ? dayOfWeekDate(weekly.currentWeekStart, d.dayOfWeek) : null}
-                km={d.max}
+                km={d.min === d.max ? `${d.max}` : `${d.min}–${d.max}`}
+                hasKm={d.max > 0}
                 locale={locale}
-                isToday={d.dayOfWeek === new Date().getDay()}
+                // By date, not by weekday: on Saturday evening the strip shows the
+                // NEXT week, where matching on weekday ringed next Saturday as today.
+                isToday={!!weekly?.currentWeekStart && planDayKey(weekly.currentWeekStart, d.dayOfWeek) === israelToday()}
                 isTeamDay={teamDays.includes(d.dayOfWeek)}
                 kmUnit={tc('km')}
               />
@@ -341,11 +377,14 @@ function Field({ label, value, color }: { label: string; value: string; color?: 
 }
 
 function DayTile({
-  letter, date, km, locale, isToday, isTeamDay, kmUnit,
+  letter, date, km, hasKm, locale, isToday, isTeamDay, kmUnit,
 }: {
   letter: string;
   date: Date | null;
-  km: number;
+  /** Pre-formatted, so a day whose plan is a RANGE reads the same here as on the
+   *  card above it — the strip used to print only the top of it. */
+  km: string;
+  hasKm: boolean;
   locale: string;
   isToday: boolean;
   isTeamDay: boolean;
@@ -367,7 +406,7 @@ function DayTile({
           {date.getDate()} {date.toLocaleDateString(locale, { month: 'short' })}
         </span>
       )}
-      <span className="text-sm font-light text-ink-500">{km > 0 ? `${km} ${kmUnit}` : '—'}</span>
+      <span className="text-sm font-light text-ink-500">{hasKm ? `${km} ${kmUnit}` : '—'}</span>
       {/* The frame's blue dots mark the club's team-workout days. */}
       {isTeamDay && <span className="absolute bottom-2 h-1.5 w-1.5 rounded-full bg-brand-600" />}
     </div>
