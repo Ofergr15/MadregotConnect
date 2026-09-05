@@ -141,6 +141,28 @@ Only three tabs are permitted — and **feed is not one of them**.
 - [ ] פעילויות is 4th only as a fallback fill; without an athlete row you'd get
       three tabs. Either is fine.
 
+### What the API already decides — settled 2026-09-05, no phone needed
+
+Each ⚠️ above asked two questions: *does the API agree with the tab?* and *what
+should the rule be?* The first is answerable from the gates, and answering it
+collapses most of the second — a tab whose API already permits the role is a nav
+gap, while one the API refuses is only clutter. Read from the live
+`role_tab_permissions` rows, not the migrations.
+
+`isStaff` — the gate on every route below — is `['admin', 'coach',
+'academy_coach']` (four copies of the list; `src/lib/auth/self-or-staff.ts:9` is
+the one the routes import).
+
+| Flagged | Live rows | API gate | So it is |
+|---|---|---|---|
+| coach has no משוב אימונים | `workout-feedback`: **admin only** | `requireStaffCaller` → **coach passes** | A **nav gap**. The API already intends coaches to triage feedback; only the permission row is missing. Adding it grants nothing the API doesn't already allow. |
+| נוכחות slot renders for coach unconditionally | `practice-attendance`: **admin only** | `resolveVerifiedCaller` + `isStaff` → **coach passes** | The **slot is right, the row is wrong**. Tab bar and API already agree in behaviour; the row is stale metadata that contradicts both. |
+| core_runner gets מתכנן | `plan/new`: **enabled** | `/api/plans` and `/api/program-weeks` are `isStaff` → **core_runner is refused** | **Not a privilege leak** — a dead end. They reach the coach's authoring screen and every save 403s. Cost is confusion, not exposure. |
+| admin has no אימון | `practice`: **academy_coach, academy_user** | No `/api/practice` route exists at all | A **pure product call**, no security dimension. Note `PUT /api/practice-videos` is gated on `requireApprover` (an email allowlist), so it is unusable by a Strava-login account regardless of role — same root cause as the super-user issue. |
+
+Still genuinely yours to decide, and not answerable from code: whether coaches
+*should* triage pain reports, and whether admin wants אימון.
+
 ---
 
 ## 2. Screen by screen
