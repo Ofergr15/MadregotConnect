@@ -139,15 +139,16 @@ function LaunchCountdown() {
       <img
         src="/images/logo.png"
         alt="מדרגות — After 2KM Running Club"
-        className="h-[74px] short:h-[46px] w-auto mx-auto object-contain"
+        className="h-[104px] short:h-[64px] w-auto mx-auto object-contain"
       />
 
-      {/* Says what the thing being launched IS. Without it the card opened on a
-          badge and a bare clock, and a countdown with no subject is a puzzle —
-          especially for the people this link is sent to, who have never seen the
-          app. Sits above the clock so it is read first. */}
+      {/* Says what the thing being launched IS, and that this is the launch.
+          Without it the card opened on a badge and a bare clock, and a countdown
+          with no subject is a puzzle — especially for the people this link is
+          sent to, who have never seen the app. Sits above the clock so it is
+          read first. */}
       <h1 className="mt-2.5 short:mt-1 text-[19px] short:text-[16px] font-bold leading-tight text-ink-900">
-        אפליקציית מדרגות
+        אפליקציית המדרגות — ההשקה
       </h1>
 
       <div className="h-px bg-ink-900/[0.07] mx-4 mt-4 mb-4 short:mt-1.5 short:mb-1.5" aria-hidden="true" />
@@ -177,17 +178,13 @@ function LaunchCountdown() {
         ))}
       </div>
 
-      {/* The one line under the clock, and the only one there needs to be.
-          There used to be a generated sentence here as well — "עוד 4 ימים, 4 שעות
-          ו-11 דקות להשקת האפליקציה" — directly beneath numerals already reading
-          4 · 4 · 11 with those exact captions. It restated the block above it in
-          words and nothing more, so it is gone; what it was carrying that the
-          numerals are not is the DATE, which is now said here, once.
-          Weighted as the card's second voice after the title: this is the fact
-          somebody has to remember after closing the page. */}
-      <p className="mt-3 short:mt-1.5 text-[17px] short:text-[15px] font-bold leading-snug text-ink-900">
-        יום רביעי, 20:00 — האפליקציה נפתחת.
-      </p>
+      {/* ⚠️ Nothing else about the time goes in this card. Two lines have already
+          been tried and removed from right below the clock: a generated sentence
+          ("עוד 4 ימים, 4 שעות ו-11 דקות להשקת האפליקציה") that restated the three
+          numerals word for word, and then a bold date line ("יום רביעי, 20:00 —
+          האפליקציה נפתחת"), which was a second way of saying the same thing to
+          somebody already looking at a live clock. The countdown says it once —
+          that is the whole design of the card, not an oversight. */}
       {/* The academy opens later than the app, and saying so here stops the
           obvious wrong assumption: that this one form is the academy sign-up and
           Wednesday is the date for it. It is a separate registration, and it is
