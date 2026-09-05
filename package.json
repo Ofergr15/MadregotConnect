@@ -1,6 +1,6 @@
 {
   "name": "madregot-connect",
-  "version": "2.39.39",
+  "version": "2.39.40",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -51,6 +51,8 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
     "@playwright/test": "^1.62.1",
     "@serwist/turbopack": "^9.5.12",
     "@types/node": "^20.12.0",

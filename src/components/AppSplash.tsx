@@ -72,7 +72,9 @@ export function AppSplash() {
   return (
     <div
       aria-hidden="true"
-      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden ${
+      // `app-splash-layer` is the CSS-only failsafe (see globals.css): it takes
+      // this layer away on its own at 4s even if none of the JS below ever runs.
+      className={`app-splash-layer fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden ${
         phase === 'out' ? 'app-splash-out' : ''
       }`}
       // Card white in the middle easing out to the page grey (#DFDFDF) — the same

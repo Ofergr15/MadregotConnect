@@ -328,6 +328,29 @@
   width: 0;
   animation: appFillLevel 1270ms cubic-bezier(0.32, 0.72, 0.3, 1) 120ms both;
 }
+/* ── FAILSAFE: the splash must never be able to trap the app ────────────────
+   The splash is a fixed, full-screen z-100 layer, and the ONLY thing that
+   removed it was React unmounting it (AppSplash's timer effect). That made any
+   client-JS failure — a chunk that 404s, a stale service worker, a syntax
+   error on an older Safari — indistinguishable from a hang: the CSS animations
+   below still run to completion, so the logo inks in and the level bar fills,
+   and then the layer sits there forever over a page that is actually rendered
+   and fine underneath. Reported from a real phone: fully-inked logo, full bar,
+   stuck.
+   So the layer also removes ITSELF, in CSS, with no JS involved. 4000ms is well
+   past the 2120ms JS path, so in the normal case React has already unmounted
+   the node and this never fires.
+   `visibility` and not `opacity` alone: visibility is what stops the invisible
+   layer from still eating every tap. (`pointer-events` is not animatable, so it
+   cannot do this job from a keyframe.) */
+@keyframes appSplashFailsafe {
+  to { opacity: 0; visibility: hidden; }
+}
+.app-splash-layer {
+  animation: appSplashFailsafe 300ms linear 4000ms forwards;
+}
+/* Must stay AFTER .app-splash-layer: both set the `animation` shorthand at the
+   same specificity, so source order is what lets the real fade-out win. */
 .app-splash-out {
   animation: appOpenReveal 420ms cubic-bezier(0.4, 0, 1, 1) forwards;
   pointer-events: none;
