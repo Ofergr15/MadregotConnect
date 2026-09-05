@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import {
   Activity, Flame, Footprints, Gauge, Heart, MapPin, Mountain,
   RefreshCw, Sparkles, TrendingUp, Zap,
@@ -54,6 +55,8 @@ export function ActivityDetailBody({
   planned?: (PlannedKmPoint | null)[] | null;
   className?: string;
 }) {
+  const t = useTranslations('activities');
+
   // The row the fetch returned is the same row, only wider (perceived effort,
   // shoe, cadence) — let it fill in whatever the caller's copy lacks.
   const act: ActivityEntry = details?.activity ? { ...activity, ...details.activity } : activity;
@@ -91,7 +94,7 @@ export function ActivityDetailBody({
       {loading && !details && (
         <div className="flex items-center justify-center py-8">
           <RefreshCw className="h-5 w-5 text-ink-400 animate-spin" />
-          <span className="text-sm text-ink-400 ms-2">Loading activity details...</span>
+          <span className="text-sm text-ink-400 ms-2">{t('detailLoading')}</span>
         </div>
       )}
 
@@ -103,7 +106,7 @@ export function ActivityDetailBody({
       ) : (!loading && (knownNoRoute || details)) ? (
         <div className="rounded-card border border-page/30 bg-card/40 py-6 text-center">
           <MapPin className="h-5 w-5 text-ink-400 mx-auto mb-1" />
-          <p className="text-xs text-ink-400">No route recorded (indoor/treadmill run)</p>
+          <p className="text-xs text-ink-400">{t('noRoute')}</p>
         </div>
       ) : null}
 
@@ -111,18 +114,18 @@ export function ActivityDetailBody({
       <div className="bg-gradient-to-br from-card/60 to-page/60 rounded-xl p-5 border border-page/30">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <div>
-            <p className="text-xs text-ink-400 mb-1">Distance</p>
+            <p className="text-xs text-ink-400 mb-1">{t('distance')}</p>
             <p className="text-3xl font-black text-ink-700 tabular-nums">{distKm}<span className="text-sm text-ink-400 ms-1">km</span></p>
           </div>
           <div>
-            <p className="text-xs text-ink-400 mb-1">Pace</p>
+            <p className="text-xs text-ink-400 mb-1">{t('pace')}</p>
             <p className="text-3xl font-black text-ink-700 tabular-nums">{paceStr || '—'}<span className="text-sm text-ink-400 ms-1">/km</span></p>
           </div>
           <div>
-            <p className="text-xs text-ink-400 mb-1">Time</p>
+            <p className="text-xs text-ink-400 mb-1">{t('duration')}</p>
             <p className="text-3xl font-black text-ink-700 tabular-nums">{durationStr}</p>
             {movingStr && movingStr !== durationStr && (
-              <p className="text-3xs text-ink-400 mt-0.5">{movingStr} moving</p>
+              <p className="text-3xs text-ink-400 mt-0.5">{movingStr} {t('movingSuffix')}</p>
             )}
           </div>
           {/* Avg HR and elevation used to be desktop-only here. On a phone — where
@@ -130,14 +133,14 @@ export function ActivityDetailBody({
               numbers, so they wrap into the grid instead of disappearing. */}
           {act.average_hr && (
             <div>
-              <p className="text-xs text-ink-400 mb-1">Avg HR</p>
+              <p className="text-xs text-ink-400 mb-1">{t('avgHrShort')}</p>
               <p className={cn('text-3xl font-black tabular-nums', hrZone?.color)}>{act.average_hr}</p>
-              {hrZone && <p className="text-3xs text-ink-400 mt-0.5">Zone {hrZone.zone} · {hrZone.label}</p>}
+              {hrZone && <p className="text-3xs text-ink-400 mt-0.5">{t('zone')} {hrZone.zone} · {t(`hrZone${hrZone.zone}` as 'hrZone1')}</p>}
             </div>
           )}
           {act.elevation_gain ? (
             <div>
-              <p className="text-xs text-ink-400 mb-1">Elevation</p>
+              <p className="text-xs text-ink-400 mb-1">{t('elevation')}</p>
               <p className="text-3xl font-black text-ink-700 tabular-nums">{Math.round(act.elevation_gain)}<span className="text-sm text-ink-400 ms-1">m</span></p>
             </div>
           ) : null}
@@ -147,75 +150,75 @@ export function ActivityDetailBody({
       {/* Performance Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {calories ? (
-          <StatTile icon={<Flame className="h-3.5 w-3.5 text-band-3" />} label="Calories">
+          <StatTile icon={<Flame className="h-3.5 w-3.5 text-band-3" />} label={t('caloriesLabel')}>
             <p className="text-2xl font-black text-ink-700 tabular-nums">{calories}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">kcal</p>
+            <p className="text-3xs text-ink-400 mt-0.5">{t('unitKcal')}</p>
           </StatTile>
         ) : null}
         {cadence ? (
-          <StatTile icon={<Footprints className="h-3.5 w-3.5 text-band-2" />} label="Cadence">
+          <StatTile icon={<Footprints className="h-3.5 w-3.5 text-band-2" />} label={t('cadence')}>
             <p className="text-2xl font-black text-ink-700 tabular-nums">{Math.round(cadence)}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">steps/min</p>
+            <p className="text-3xs text-ink-400 mt-0.5">{t('unitStepsPerMin')}</p>
           </StatTile>
         ) : null}
         {strideStr ? (
-          <StatTile icon={<TrendingUp className="h-3.5 w-3.5 text-purple-600" />} label="Stride">
+          <StatTile icon={<TrendingUp className="h-3.5 w-3.5 text-purple-600" />} label={t('stride')}>
             <p className="text-2xl font-black text-ink-700 tabular-nums">{strideStr}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">meters</p>
+            <p className="text-3xs text-ink-400 mt-0.5">{t('unitMeters')}</p>
           </StatTile>
         ) : null}
         {vo2 ? (
-          <StatTile icon={<Zap className="h-3.5 w-3.5 text-band-3" />} label="VO2 Max">
+          <StatTile icon={<Zap className="h-3.5 w-3.5 text-band-3" />} label={t('vo2max')}>
             <p className="text-2xl font-black text-ink-700 tabular-nums">{vo2}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">ml/kg/min</p>
+            <p className="text-3xs text-ink-400 mt-0.5">{t('unitVo2')}</p>
           </StatTile>
         ) : null}
         {act.max_hr ? (
-          <StatTile icon={<Heart className="h-3.5 w-3.5 text-accent-red" />} label="Max HR">
+          <StatTile icon={<Heart className="h-3.5 w-3.5 text-accent-red" />} label={t('maxHr')}>
             <p className="text-2xl font-black text-ink-700 tabular-nums">{act.max_hr}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">bpm</p>
+            <p className="text-3xs text-ink-400 mt-0.5">{t('bpm')}</p>
           </StatTile>
         ) : null}
         {act.lap_count ? (
-          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2" />} label="Laps">
+          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2" />} label={t('laps')}>
             <p className="text-2xl font-black text-ink-700 tabular-nums">{act.lap_count}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">recorded</p>
+            <p className="text-3xs text-ink-400 mt-0.5">{t('lapsRecorded')}</p>
           </StatTile>
         ) : null}
         {details?.summary?.trainingEffect ? (
-          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2" />} label="Training Effect">
+          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2" />} label={t('trainingEffect')}>
             <div className="flex items-baseline gap-3">
               <div>
                 <p className="text-xl font-black text-band-2 tabular-nums">{details.summary.trainingEffect.toFixed(1)}</p>
-                <p className="text-3xs text-ink-400">Aerobic</p>
+                <p className="text-3xs text-ink-400">{t('aerobic')}</p>
               </div>
               {details.summary.anaerobicTrainingEffect && (
                 <div>
                   <p className="text-xl font-black text-band-3 tabular-nums">{details.summary.anaerobicTrainingEffect.toFixed(1)}</p>
-                  <p className="text-3xs text-ink-400">Anaerobic</p>
+                  <p className="text-3xs text-ink-400">{t('anaerobic')}</p>
                 </div>
               )}
             </div>
           </StatTile>
         ) : null}
         {act.shoe_name ? (
-          <StatTile icon={<Footprints className="h-3.5 w-3.5 text-ink-500" />} label="Shoe">
+          <StatTile icon={<Footprints className="h-3.5 w-3.5 text-ink-500" />} label={t('shoe')}>
             <p className="text-base font-bold text-ink-700 leading-tight">{act.shoe_name}</p>
           </StatTile>
         ) : null}
         {(rpe != null || feel != null) && (
-          <StatTile icon={<Gauge className="h-3.5 w-3.5 text-brand-600" />} label="Self Evaluation">
+          <StatTile icon={<Gauge className="h-3.5 w-3.5 text-brand-600" />} label={t('selfEval')}>
             <div className="flex items-baseline gap-3">
               {rpe != null && (
                 <div>
                   <p className="text-xl font-black text-brand-600 tabular-nums">{rpe.toFixed(0)}<span className="text-xs text-ink-400">/10</span></p>
-                  <p className="text-3xs text-ink-400">Effort</p>
+                  <p className="text-3xs text-ink-400">{t('effort')}</p>
                 </div>
               )}
               {feel != null && (
                 <div>
                   <p className="text-xl leading-none">{['😣', '😕', '😐', '🙂', '😄'][Math.round(feel)] ?? '—'}</p>
-                  <p className="text-3xs text-ink-400 mt-1">Feel</p>
+                  <p className="text-3xs text-ink-400 mt-1">{t('feel')}</p>
                 </div>
               )}
             </div>
@@ -249,7 +252,7 @@ export function ActivityDetailBody({
         <div className="rounded-card border border-page/30 bg-card/40 py-6 text-center">
           <Sparkles className="h-5 w-5 text-ink-400 mx-auto mb-1" />
           <p className="text-xs text-ink-400">
-            No per-km splits recorded for this run — only the totals above.
+            {t('noSplits')}
           </p>
         </div>
       )}

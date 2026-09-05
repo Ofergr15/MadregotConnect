@@ -12,6 +12,7 @@ import { ActivityDetailBody } from '@/components/activity/ActivityDetailBody';
 import {
   formatDuration, formatPace, getHRZone, getTimeLabel, inferRunTypeFromActivity,
 } from '@/components/activity/format';
+import { useTranslations } from 'next-intl';
 import type { ActivityEntry } from '@/components/activity/types';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
 
@@ -31,6 +32,7 @@ function ActivityCard({
   myAthleteId: string | null;
   isStaff: boolean;
 }) {
+  const t = useTranslations('activities');
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const isMyActivity = !!myAthleteId && activity.athlete_id === myAthleteId;
@@ -121,7 +123,7 @@ function ActivityCard({
               <span className="hidden sm:inline">{runChatLabel}</span>
             </button>
             <span className={cn('text-3xs font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
-              {runType.label}
+              {t(`runType_${runType.type}` as 'runType_easy')}
             </span>
             {expanded ? <ChevronUp className="h-4 w-4 text-ink-400" /> : <ChevronDown className="h-4 w-4 text-ink-400" />}
           </div>
@@ -131,20 +133,20 @@ function ActivityCard({
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div>
-            <p className="text-3xs text-ink-400 font-medium">Distance</p>
+            <p className="text-3xs text-ink-400 font-medium">{t('distance')}</p>
             <p className="text-lg font-black text-ink-700 tabular-nums">{distKm}<span className="text-xs text-ink-400 ms-0.5">km</span></p>
           </div>
           <div>
-            <p className="text-3xs text-ink-400 font-medium">Pace</p>
+            <p className="text-3xs text-ink-400 font-medium">{t('pace')}</p>
             <p className="text-lg font-black text-ink-700 tabular-nums">{paceStr || '—'}<span className="text-xs text-ink-400 ms-0.5">/km</span></p>
           </div>
           <div>
-            <p className="text-3xs text-ink-400 font-medium">Time</p>
+            <p className="text-3xs text-ink-400 font-medium">{t('duration')}</p>
             <p className="text-lg font-black text-ink-700 tabular-nums">{durationStr}</p>
           </div>
           {activity.average_hr && (
             <div className="hidden lg:block">
-              <p className="text-3xs text-ink-400 font-medium">Avg HR</p>
+              <p className="text-3xs text-ink-400 font-medium">{t('avgHrShort')}</p>
               <p className={cn("text-lg font-black tabular-nums flex items-center gap-1", hrZone?.color)}>
                 <Heart className="h-3.5 w-3.5" />{activity.average_hr}
               </p>
@@ -152,7 +154,7 @@ function ActivityCard({
           )}
           {activity.elevation_gain && activity.elevation_gain > 0 ? (
             <div className="hidden lg:block">
-              <p className="text-3xs text-ink-400 font-medium">Elevation</p>
+              <p className="text-3xs text-ink-400 font-medium">{t('elevation')}</p>
               <p className="text-lg font-black text-ink-700 tabular-nums flex items-center gap-1">
                 <Mountain className="h-3.5 w-3.5 text-accent-600" />{Math.round(activity.elevation_gain)}<span className="text-xs text-ink-400">m</span>
               </p>
@@ -197,11 +199,13 @@ export function ActivityFeed({
   myAthleteId = null,
   isStaff = false,
 }: ActivityFeedProps) {
+  const t = useTranslations('activities');
+
   if (activities.length === 0 && !syncing) {
     return (
       <div className="bg-card/30 rounded-card border border-page/20 p-8 text-center">
         <Activity className="h-8 w-8 text-ink-400 mx-auto mb-3" />
-        <p className="text-sm text-ink-400">No activities this week.</p>
+        <p className="text-sm text-ink-400">{t('noActivitiesWeek')}</p>
       </div>
     );
   }

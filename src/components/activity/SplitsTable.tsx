@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Timer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDuration, formatPace } from './format';
@@ -8,6 +9,8 @@ import type { Split } from './types';
 // ─── Splits Table ──────────────────────────────────────────────────────────────
 
 export function SplitsTable({ splits }: { splits: Split[] }) {
+  const t = useTranslations('activities');
+
   if (splits.length === 0) return null;
 
   const fastest = splits.reduce((min, s) => s.averagePace < min.averagePace ? s : min, splits[0]);
@@ -17,15 +20,15 @@ export function SplitsTable({ splits }: { splits: Split[] }) {
   return (
     <div>
       <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
-        <Timer className="h-3 w-3" /> Splits
+        <Timer className="h-3 w-3" /> {t('splits')}
       </h4>
       <div className="space-y-1">
         <div className="grid grid-cols-12 gap-2 text-3xs font-semibold uppercase text-ink-400 px-3 pb-1">
-          <span className="col-span-1">KM</span>
-          <span className="col-span-4">Pace</span>
-          <span className="col-span-3">Time</span>
-          <span className="col-span-2">HR</span>
-          <span className="col-span-2">Elev</span>
+          <span className="col-span-1">{t('km')}</span>
+          <span className="col-span-4">{t('pace')}</span>
+          <span className="col-span-3">{t('duration')}</span>
+          <span className="col-span-2">{t('hr')}</span>
+          <span className="col-span-2">{t('elevShort')}</span>
         </div>
         {splits.map((split, i) => {
           const isFastest = split.averagePace === fastest.averagePace;
