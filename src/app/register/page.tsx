@@ -43,10 +43,16 @@ import { cn } from '@/lib/utils';
  * submit button 169px below the fold; every `short:` on this page exists to buy
  * that back. Test any height change at BOTH 390×844 and 375×667.
  *
+ * The full-height class is `min-h-viewport` (globals.css), NOT `min-h-screen` and
+ * NOT `min-h-[100dvh]`. Read the comment there before changing it: those two as
+ * separate classes let stylesheet order pick the winner, 100vh won, and on iOS
+ * Safari 100vh is the viewport WITHOUT the toolbars — so the bottom of this page
+ * lived under Safari's chrome and the submit button was unreachable.
+ *
  * Two things this page must keep working on an iPhone 6, which tops out at iOS 12:
- * no `dvh` (hence `min-h-screen` before every `min-h-[100dvh]`, as the fallback
- * an unsupported unit falls back to) and no flexbox `gap` (hence `ms-*` margins
- * where a gap would be idiomatic — Safari only got gap in 14.1).
+ * no `dvh`/`svh` (hence the stacked `min-height` fallbacks in that one rule) and no
+ * flexbox `gap` (hence `ms-*` margins where a gap would be idiomatic — Safari only
+ * got gap in 14.1).
  */
 
 interface Group {
@@ -474,9 +480,9 @@ export default function RegisterPage() {
       // Same photo, same type on it, no card here either. Landing on a
       // different-looking screen half a second after submitting reads as a
       // different app, which is what the white card this replaced used to do.
-      <div className="relative min-h-screen min-h-[100dvh]" dir="rtl">
+      <div className="relative min-h-viewport" dir="rtl">
         <HeroBackdrop />
-        <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-5 pt-6 pb-5 short:pt-3 short:pb-2">
+        <div className="relative max-w-md mx-auto min-h-viewport flex flex-col px-5 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] short:pt-3 short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <HeroHeading />
 
           {/* ── TYPE SIZES ARE MATCHED TO THE FORM SCREEN ─────────────────────
@@ -537,13 +543,13 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative min-h-screen min-h-[100dvh]" dir="rtl">
+    <div className="relative min-h-viewport" dir="rtl">
       <HeroBackdrop />
 
       {/* px-5, and nothing between the fields and the photo. The card that used to
           hold all of this is gone: the form IS the page now, which is why the
           hero above it is `flex-1` and takes every pixel of slack. */}
-      <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-5 pt-6 pb-5 short:pt-3 short:pb-2">
+      <div className="relative max-w-md mx-auto min-h-viewport flex flex-col px-5 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] short:pt-3 short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         <HeroHeading />
 
         <form onSubmit={submit}>

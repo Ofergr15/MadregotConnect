@@ -426,6 +426,31 @@
 .safe-inline-start { padding-inline-start: env(safe-area-inset-left); }
 .safe-inline-end { padding-inline-end: env(safe-area-inset-right); }
 
+/* One viewport height, for a page that must never scroll (/register).
+ *
+ * ⚠️ Do NOT go back to `min-h-screen min-h-[100dvh]` in the markup. Those are two
+ * separate rules of equal specificity, so the winner is decided by their order in
+ * the compiled stylesheet, not by the order you type the classes — and Tailwind
+ * emits arbitrary values BEFORE core utilities, so `.min-h-screen` (100vh) landed
+ * after `.min-h-[100dvh]` and silently won everywhere. On iOS Safari 100vh is the
+ * LARGE viewport: it ignores the URL bar and the bottom toolbar, so ~120px of the
+ * page sat underneath Safari's own chrome. On a real iPhone that hid the submit
+ * button, both footnotes and the wordmark.
+ *
+ * Three declarations in ONE rule instead: a browser drops the units it does not
+ * understand and the last surviving one wins, whatever the file order.
+ *   100vh  — iOS 12 / the iPhone 6 this page still supports.
+ *   100dvh — correct, but it RESIZES as Safari's toolbars collapse, which makes a
+ *            fixed layout jump while you read it.
+ *   100svh — the small viewport: toolbars always counted as present, never
+ *            changes. For a page specified to fit exactly once, that is the one.
+ */
+.min-h-viewport {
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: 100svh;
+}
+
 /* Touch-friendly minimum sizes */
 .touch-target { min-height: 44px; min-width: 44px; }
 
