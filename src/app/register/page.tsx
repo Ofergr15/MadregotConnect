@@ -61,17 +61,24 @@ interface Group {
 /** "דבוקה 1/2/3" — the club calls them that out loud, and this page is Hebrew-only. */
 const groupLabel = (g: Group) => (g.index >= 0 ? `דבוקה ${g.index + 1}` : g.name);
 
-// When the app opens to the club — Wednesday, 20:00 Israel time. This is a LAUNCH
-// date, not a training day: the countdown tells whoever registers when they can
-// actually start using the thing. Change the hour here; nothing else depends on it.
+// When the app opens to the club — Thursday, 20:00 Israel time (moved a day later
+// than the original Wednesday on 2026-09-05). This is a LAUNCH date, not a training
+// day: the countdown tells whoever registers when they can actually start using the
+// thing. Both constants live here and nothing else depends on them.
 const LAUNCH_HOUR = 20;
+/** 0 = Sunday … 4 = Thursday. */
+const LAUNCH_DAY = 4;
 
-/** ms until the coming Wednesday at LAUNCH_HOUR; if it's already Wednesday past that
- *  hour, this rolls to next week rather than counting backwards. */
-function msToNextWednesday(now = new Date()): number {
+/** ms until the coming launch day at LAUNCH_HOUR; if it's already that day past the
+ *  hour, this rolls to next week rather than counting backwards.
+ *
+ *  Exported for the same reason countdownUnits is: the day and the roll-forward are
+ *  the two things a reader cannot verify by looking, and getting the day wrong shows
+ *  a wrong date to everyone who opens the link. */
+export function msToLaunch(now = new Date()): number {
   const target = new Date(now);
   target.setHours(LAUNCH_HOUR, 0, 0, 0);
-  const daysAhead = (3 - target.getDay() + 7) % 7; // 3 = Wednesday
+  const daysAhead = (LAUNCH_DAY - target.getDay() + 7) % 7;
   target.setDate(target.getDate() + daysAhead);
   if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 7);
   return target.getTime() - now.getTime();
@@ -100,7 +107,7 @@ interface CountdownUnit {
  * without waiting for a Tuesday.
  */
 export function countdownUnits(ms: number): CountdownUnit[] {
-  // Clamped: msToNextWednesday() rolls forward to next week so this should never
+  // Clamped: msToLaunch() rolls forward to next week so this should never
   // be negative, but a clock skew must not render "-1 שניות".
   const total = Math.max(0, ms);
   const minutes = { label: 'דקות', value: Math.floor((total / 60_000) % 60), pad: true };
@@ -222,7 +229,7 @@ function CountdownRow() {
     // Every second, in both modes. Minutes are always on screen, so a slower tick
     // would leave them visibly stale — up to half a minute wrong reads as a broken
     // clock, and that costs more than the render does.
-    const tick = () => setLeft(msToNextWednesday());
+    const tick = () => setLeft(msToLaunch());
     tick();
     const t = setInterval(tick, 1_000);
     return () => clearInterval(t);
