@@ -11,14 +11,16 @@ export const dynamic = 'force-dynamic';
  * POST /api/public/signup — PUBLIC, unauthenticated. The shareable /register form.
  * Body: { email, groupId? }
  *
+ * Answers { ok: true, state: 'member' | 'pending' | 'new' } so the form can say
+ * plainly that an address is already registered — see the note on that below.
+ *
  * Writes a row to `signup_requests` (migration 083) and mails the approvers. It
  * creates NOTHING else: no auth user, no athlete row, no group membership. A
  * request is not a member until somebody approves it, and approval is what
  * creates the athlete (see /api/admin/registrations/approve).
  *
  * DELIBERATELY NOT SESSION-GATED — it runs before the person has any account at
- * all. What keeps it safe is that it can only ever insert into this one table,
- * and the response is identical whatever the address turns out to be (below).
+ * all. What keeps it safe is that it can only ever insert into this one table.
  */
 
 export async function POST(request: Request) {
@@ -49,13 +51,21 @@ export async function POST(request: Request) {
       groupName = group?.name ? groupDisplayName(group.name) : null;
     }
 
-    // ── The three outcomes, all of which answer the same thing to the caller ──
+    // ── The three outcomes, and they are now told apart ──────────────────────
     //
-    // A public form must not be an oracle over who is in the club. "You are
-    // already a member" and "you already applied" and "you are new" are three
-    // different sentences, and any of them told apart from the others turns this
-    // endpoint into a membership check for an arbitrary address. So each path
-    // returns { ok: true } and the form says the same thing.
+    // This used to answer an identical { ok: true } to all three, so that the
+    // endpoint could not be used as a membership check for an arbitrary address.
+    // Ofer asked for the opposite twice ("אני רוצה לראות כשאני נרשם עם מייל קיים
+    // — שיהיה ממש רשום שהוא כבר נרשם"): people who resubmit cannot tell whether
+    // the first attempt worked, and a silent confirmation is what makes them do it.
+    //
+    // THE TRADE-OFF, stated because it is not visible from the call site: anyone
+    // can now type an address here and learn whether it belongs to the club. That
+    // was the property being protected. Accepted deliberately — one coach, ~20
+    // athletes, and a link that only circulates inside the club — but it is the
+    // reason to think twice before this route grows any more fields.
+    //
+    // `state` is advisory for the copy only. It never changes what gets written.
 
     // 1. Already a member (an athlete row exists). Nothing to queue.
     //
@@ -71,7 +81,7 @@ export async function POST(request: Request) {
       .eq('email', email)
       .maybeSingle();
     if (existingAthlete) {
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, state: 'member' });
     }
 
     // 2. Already pending. Update the chosen group (they may have come back to
@@ -86,7 +96,7 @@ export async function POST(request: Request) {
       if (resolvedGroupId) {
         await supabase.from('signup_requests').update({ group_id: resolvedGroupId }).eq('id', pending.id);
       }
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, state: 'pending' });
     }
 
     // 3. New request.
@@ -112,7 +122,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, state: 'new' });
   } catch (err) {
     console.error('Failed to record signup request:', err);
     return NextResponse.json({ error: 'failed' }, { status: 500 });

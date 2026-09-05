@@ -268,8 +268,12 @@ export default function RegisterPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  /** true when THIS browser had already sent this address before now. */
-  const [repeat, setRepeat] = useState(false);
+  /**
+   * What the address turned out to be, as the server reports it:
+   * 'new' — first time; 'pending' — already waiting for approval;
+   * 'member' — already has an account.
+   */
+  const [state, setState] = useState<'new' | 'pending' | 'member'>('new');
   /** The normalised address that was actually sent — what the success screen shows. */
   const [sentEmail, setSentEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -307,7 +311,10 @@ export default function RegisterPage() {
       // it is how a corrected group choice gets saved. Only the wording changes.
       rememberSent(normalised);
       setSentEmail(normalised);
-      setRepeat(alreadySent);
+      // The server knows whether this address is already a member or already
+      // queued; localStorage only knows about this device, so it is the fallback
+      // for an older deployment or a response without the field.
+      setState(data.state === 'member' || data.state === 'pending' ? data.state : alreadySent ? 'pending' : 'new');
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ההרשמה נכשלה, נסו שוב');
@@ -317,14 +324,24 @@ export default function RegisterPage() {
   };
 
   if (done) {
-    // What happens next, in order, because "we'll be in touch" is the wording that
-    // makes people register a second time. Each step says who acts — the coach, the
-    // inbox, the app — so nobody is left waiting on a step that is not theirs.
-    const steps = [
-      'המאמן מאשר את ההרשמה.',
-      'מגיע אליך מייל עם קישור להשלמת הפרטים — שם וחיבור השעון.',
-      'ביום רביעי ב-20:00 האפליקציה נפתחת.',
-    ];
+    // One heading and one line each. The three-step list that was here said too
+    // much — the only thing anyone needs is WHEN the mail arrives.
+    const copy = {
+      new: {
+        title: 'ההרשמה נשלחה',
+        line: 'ביום רביעי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
+      },
+      pending: {
+        title: 'כבר נרשמת',
+        line: 'הכתובת הזאת כבר בהרשמה. ביום רביעי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
+      },
+      // Not "you already applied" — this address has an account. Saying so is what
+      // stops a member re-registering and waiting for a mail that isn't coming.
+      member: {
+        title: 'הכתובת הזאת כבר רשומה',
+        line: 'יש לך כבר חשבון במדרגות, אין צורך להירשם שוב. ביום רביעי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
+      },
+    }[state];
 
     return (
       // White card on the page grey, the same as the form screen. This was a black
@@ -347,18 +364,11 @@ export default function RegisterPage() {
               <CheckCircle2 className="h-5 w-5 text-white" strokeWidth={2.5} />
             </span>
 
-            {/* Two headings, because they answer two different questions. A repeat
-                sender is asking "did it work the first time?", and "ההרשמה נשלחה"
-                again does not answer that — it is why the same address got sent
-                twice to begin with. */}
-            <h2 className="mt-3.5 text-lg font-bold text-ink-900">
-              {repeat ? 'הבקשה שלך כבר אצלנו' : 'ההרשמה נשלחה'}
-            </h2>
-            <p className="mt-1.5 text-2xs text-ink-500 leading-relaxed">
-              {repeat
-                ? 'שלחת את הכתובת הזאת כבר. היא רשומה פעם אחת בלבד — אין צורך לשלוח שוב.'
-                : 'הכתובת נשמרה. אין מה לעשות עכשיו — נעדכן אותך במייל.'}
-            </p>
+            {/* A different heading per outcome: someone resubmitting is asking
+                "did the first one work?", and "ההרשמה נשלחה" a second time does not
+                answer that — which is why the same address got sent twice. */}
+            <h2 className="mt-3.5 text-lg font-bold text-ink-900">{copy.title}</h2>
+            <p className="mt-2 px-1 text-2xs text-ink-700 leading-relaxed">{copy.line}</p>
 
             {/* The NORMALISED address, not what was typed. Someone who typed
                 "Dana.Levi92@Gmail.com" is registered as lowercase, and showing
@@ -369,21 +379,6 @@ export default function RegisterPage() {
               <span dir="ltr" className="text-2xs font-semibold text-ink-900">{sentEmail}</span>
             </p>
 
-            <div className="h-px bg-ink-900/[0.07] mx-4 mt-5 mb-4" aria-hidden="true" />
-
-            {/* Numbered and right-aligned rather than a centred paragraph: this is a
-                sequence, and centred RTL prose is where the previous version lost
-                people — it said all three things in one breath. */}
-            <ol className="text-right space-y-2.5">
-              {steps.map((s, i) => (
-                <li key={s} className="flex items-start gap-2.5">
-                  <span className="mt-px w-[18px] h-[18px] shrink-0 rounded-full bg-ink-900 text-white text-3xs font-bold flex items-center justify-center tabular-nums">
-                    {i + 1}
-                  </span>
-                  <span className="text-2xs text-ink-700 leading-relaxed">{s}</span>
-                </li>
-              ))}
-            </ol>
           </div>
 
           <p className="mt-4 px-4 text-center text-2xs text-ink-400 leading-relaxed">
