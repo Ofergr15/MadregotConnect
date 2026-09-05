@@ -9,6 +9,17 @@ export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } =
     // SW install time on real devices.
     swSrc: 'src/app/sw.ts',
     useNativeEsbuild: true,
+    // The service worker is built by esbuild, which by default takes its target
+    // from our `browserslist` — and that now names iOS/Safari 12 so the APP
+    // bundle gets downlevelled for old iPhones. esbuild cannot downlevel
+    // destructuring to safari12 ("not supported yet") and fails the whole build.
+    //
+    // Pinning the SW alone is correct rather than a workaround: a service worker
+    // only ever runs in a browser that HAS service workers, and this one is
+    // written against the Cache/Fetch APIs, so nothing about it needs a target
+    // older than es2020. The old-iPhone target belongs on the app bundle, which
+    // is the code that has to parse on the phone's main thread.
+    esbuildOptions: { target: 'es2020' },
     // Keep the precache manifest to app-shell-sized files. Without this, every
     // visitor's browser downloads the full manifest (incl. rarely-used
     // features) in the background on install, and re-downloads it in full on

@@ -6,6 +6,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { Providers } from './providers';
 import { AppSplash } from '@/components/AppSplash';
+import { LEGACY_POLYFILLS } from './legacy-polyfills';
 import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { ImpersonationBar } from '@/components/ImpersonationBar';
 // UpdatePrompt intentionally unmounted for now — the "new version available"
@@ -87,6 +88,12 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={dir}>
+      <head>
+        {/* Blocking, inline, and FIRST — it has to have run before any app chunk
+            calls one of the methods it adds. See legacy-polyfills.ts for what is
+            polyfilled, what deliberately isn't, and why any of it is needed. */}
+        <script dangerouslySetInnerHTML={{ __html: LEGACY_POLYFILLS }} />
+      </head>
       <body className={`${heebo.variable} ${inter.variable} font-sans`}>
         <SerwistProvider
           swUrl="/serwist/sw.js"
