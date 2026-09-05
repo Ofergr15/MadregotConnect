@@ -221,7 +221,9 @@
     "myStats": "הנתונים שלי",
     "weekOfTotal": "שבוע {week}/{total}",
     "top3": "שלושת המובילים",
-    "yourRank": "המקום שלך: {rank}"
+    "groupLabel": "קבוצה {name}",
+    "runsCount": "{count} ריצות",
+    "noLeaderboardYet": "אף אחד לא רץ עדיין השבוע"
   },
   "athletes": {
     "title": "ספורטאים",

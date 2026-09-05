@@ -221,7 +221,9 @@
     "myStats": "My stats",
     "weekOfTotal": "Week {week}/{total}",
     "top3": "Top 3",
-    "yourRank": "You: #{rank}"
+    "groupLabel": "Group {name}",
+    "runsCount": "{count} runs",
+    "noLeaderboardYet": "Nobody has run yet this week"
   },
   "athletes": {
     "title": "Athletes",

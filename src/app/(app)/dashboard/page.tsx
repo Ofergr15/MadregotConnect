@@ -11,6 +11,7 @@ import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation'
 import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRSVP';
 import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { StatTiles } from '@/components/StatTiles';
+import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { CoachPulse } from '@/components/CoachPulse';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
@@ -573,6 +574,13 @@ export default function DashboardPage() {
           <StatTiles athleteId={athleteId} />
         </>
       )}
+
+      {/* ═══ CLUB STANDINGS — this week's top three by distance, with my own row
+          appended when I'm outside it. Moved here off the feed: the feed is
+          "what happened", and a ranking is a control-panel readout. Renders for
+          coaches too (athleteId is null for a coach with no athlete profile, in
+          which case the card simply has no "me" row to highlight). ═══ */}
+      <WeeklyLeaderboardCard athleteId={athleteId} />
 
       {/* Coach's "no plan at all" fallback already has its own upload CTA
           above; the athlete case already gets NextWorkoutCard's own built-in

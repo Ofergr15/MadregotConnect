@@ -16,7 +16,6 @@ import { FeedHighlightCard } from '@/components/FeedHighlightCard';
 import { GroupRunCard } from '@/components/GroupRunCard';
 import { groupFeedItems } from '@/lib/feed/group-runs';
 import { SquadStandings } from '@/components/SquadStandings';
-import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -378,11 +377,6 @@ export default function FeedPage() {
       <div className="mb-4">
         <SquadStandings />
       </div>
-      {myAthleteId && (
-        <div className="mb-4">
-          <WeeklyLeaderboardCard athleteId={myAthleteId} />
-        </div>
-      )}
 
       <div
         className="mb-4 bg-card rounded-2xl border border-page p-3 flex items-center gap-3 cursor-pointer hover:bg-page/40 transition-colors active:scale-[0.98]"
