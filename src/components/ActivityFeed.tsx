@@ -13,7 +13,7 @@ import {
   formatDuration, formatPace, getHRZone, getTimeLabel, resolveRunTypeBadge,
 } from '@/components/activity/format';
 import { useAthleteMaxHR } from '@/components/activity/useAthleteMaxHR';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { ActivityEntry } from '@/components/activity/types';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
 
@@ -34,6 +34,7 @@ function ActivityCard({
   isStaff: boolean;
 }) {
   const t = useTranslations('activities');
+  const locale = useLocale();
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const isMyActivity = !!myAthleteId && activity.athlete_id === myAthleteId;
@@ -54,7 +55,7 @@ function ActivityCard({
   const distKmNum = activity.distance / 1000;
   const paceStr = activity.average_pace ? formatPace(activity.average_pace) : null;
   const durationStr = formatDuration(activity.duration);
-  const dateStr = formatActivityDate(activity.start_time);
+  const dateStr = formatActivityDate(activity.start_time, locale);
   const timeStr = formatActivityTime(activity.start_time);
   const hebrewDays = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
   const dayLabel = hebrewDays[activityLocalDay(activity.start_time)];

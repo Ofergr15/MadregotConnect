@@ -99,13 +99,19 @@ describe('activity-local accessors', () => {
       expect(activityLocalHour(form)).toBe(6);
       expect(activityLocalDateStr(form)).toBe('2026-07-12');
       expect(activityLocalDay(form)).toBe(0); // Sunday
-      expect(formatActivityTime(form)).toBe('6:01 AM');
+      expect(formatActivityTime(form)).toBe('6:01');
     }
   });
 
   it('keeps a late-evening run on its own day', () => {
     expect(activityLocalDateStr('2026-07-12 22:45:00')).toBe('2026-07-12');
     expect(activityLocalHour('2026-07-12 22:45:00')).toBe(22);
+  });
+
+  it('reads an evening run on a 24-hour clock, with no meridiem to leak', () => {
+    expect(formatActivityTime('2026-07-12 22:45:00')).toBe('22:45');
+    expect(formatActivityTime('2026-07-12 00:05:00')).toBe('0:05');
+    expect(formatActivityTime('2026-07-12 12:00:00')).toBe('12:00');
   });
 });
 
@@ -165,7 +171,7 @@ describe('the relative-time trap on activity timestamps', () => {
   });
 
   it('sidesteps it by formatting the stored wall-clock as-is', () => {
-    expect(formatActivityTime('2026-08-28T08:00:00')).toBe('8:00 AM');
+    expect(formatActivityTime('2026-08-28T08:00:00')).toBe('8:00');
   });
 });
 

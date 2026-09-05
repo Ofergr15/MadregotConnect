@@ -143,14 +143,30 @@ function parseActivityInstant(startTime: string): Date {
   return new Date(/(Z|[+-]\d{2}:?\d{2})$/.test(s) ? s : `${s}Z`);
 }
 
+/**
+ * The activity's start time on a 24-hour clock — "6:01", "18:30".
+ *
+ * Built from the parts rather than through a locale, because there is no locale
+ * to ask: this runs in FeedCard, ActivityFeed, GroupRunCard and the plan
+ * importer, and it used to hardcode `en-US`, which put an English "AM"/"PM"
+ * inside otherwise-Hebrew lines on five screens ("היום ב-8:21 AM"). Israel reads
+ * a 24-hour clock, so dropping the meridiem is not a compromise — it is the
+ * right format, and it needs no locale plumbing to be correct.
+ */
 export function formatActivityTime(startTime: string): string {
-  return parseActivityInstant(startTime).toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
-  });
+  const d = parseActivityInstant(startTime);
+  return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
 
-export function formatActivityDate(startTime: string): string {
-  return parseActivityInstant(startTime).toLocaleDateString('en-US', {
+/**
+ * The activity's date as "Sat, Sep 5" / "שבת, 5 בספט׳".
+ *
+ * `locale` is threaded in because a date DOES need one — unlike the time above,
+ * the weekday and month are words. Defaults to en-US so the server-side and
+ * test callers keep their old output; every UI caller passes the viewer's.
+ */
+export function formatActivityDate(startTime: string, locale: string = 'en-US'): string {
+  return parseActivityInstant(startTime).toLocaleDateString(locale, {
     weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
   });
 }

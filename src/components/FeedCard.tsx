@@ -58,6 +58,7 @@ type Translate = ReturnType<typeof useTranslations<'feed'>>;
  */
 function WhenLabel({ item }: { item: FeedItem }) {
   const format = useFormatter();
+  const locale = useLocale();
   const t = useTranslations('feed');
   const startTime = item.activity?.startTime;
   if (!startTime) return <>{format.relativeTime(new Date(item.occurredAt))}</>;
@@ -66,7 +67,7 @@ function WhenLabel({ item }: { item: FeedItem }) {
   switch (activityDayRelation(startTime)) {
     case 'today': return <>{t('whenToday', { time })}</>;
     case 'yesterday': return <>{t('whenYesterday', { time })}</>;
-    default: return <>{t('whenOn', { date: formatActivityDate(startTime), time })}</>;
+    default: return <>{t('whenOn', { date: formatActivityDate(startTime, locale), time })}</>;
   }
 }
 

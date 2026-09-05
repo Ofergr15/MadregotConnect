@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { AlertCircle, MessageCircle, Route, Share2 } from 'lucide-react';
 import { BackNav, Button, EmptyState, LoadingBlock } from '@/components/ui';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
@@ -29,6 +29,7 @@ export default function ActivityDetailPage() {
   const router = useRouter();
   const t = useTranslations('activities');
   const tc = useTranslations('common');
+  const locale = useLocale();
 
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
   const [isStaff, setIsStaff] = useState(false);
@@ -89,7 +90,7 @@ export default function ActivityDetailPage() {
               </span>
             </div>
             <p className="text-xs text-ink-400">
-              {act.athlete_name || 'Unknown'} · {formatActivityDate(act.start_time)} · {formatActivityTime(act.start_time)}
+              {act.athlete_name || 'Unknown'} · {formatActivityDate(act.start_time, locale)} · {formatActivityTime(act.start_time)}
             </p>
             <p className="text-xs text-ink-400">
               {getTimeLabel(act.start_time)}{act.location_name ? ` · ${act.location_name}` : ''}
