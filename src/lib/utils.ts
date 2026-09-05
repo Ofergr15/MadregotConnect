@@ -36,9 +36,17 @@ export function getActivityWeekStart(date: Date): string {
 
 /**
  * The PLAN week start: the Sunday on/before `date`, as YYYY-MM-DD. This matches
- * `weekly_plans.week_start_date` (Sunday–Saturday), so use THIS — not
- * getActivityWeekStart (Monday) — for anything keyed to a scheduled workout
- * (e.g. pre-workout attendance RSVP).
+ * `weekly_plans.week_start_date` (Sunday–Saturday). Use it for anything keyed to
+ * a scheduled workout (e.g. pre-workout attendance RSVP).
+ *
+ * Identical to `getActivityWeekStart` since the 2026-08-21 Monday→Sunday change,
+ * and deliberately still two names: they answer different questions and could
+ * diverge again if the club ever re-splits them. This doc used to say "not
+ * getActivityWeekStart (Monday)", which stopped being true on that date — the two
+ * agree now, so picking the wrong one is a readability problem, not a bug.
+ *
+ * For "which week is it now?" don't call this with a bare `new Date()` on a
+ * server — use `planWeekStartOf`, which anchors on Israel's calendar day.
  */
 export function getPlanWeekStart(date: Date): string {
   const d = new Date(date);
