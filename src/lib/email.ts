@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { APPROVER_EMAILS } from '@/lib/constants';
 
 // Colours here are literal hex because email clients don't run Tailwind, but they
 // are the design system's tokens, not free choices: brand-600 #1525FF for
@@ -82,6 +83,78 @@ export async function notifyAdminUserApproved(admin: { email: string }, user: { 
     html: `
       <div style="font-family: sans-serif; max-width: 500px;">
         <p style="color: #2D2E38;">${user.name} (${user.email}) has been approved and notified.</p>
+      </div>
+    `,
+  });
+}
+
+// ── Public /register form (migration 083, signup_requests) ───────────────────
+//
+// Two mails, one each side of the approval:
+//   notifyAdminNewSignupRequest  → the approvers, "someone registered"
+//   notifyRegistrationApproved   → the applicant, WITH the link to finish
+//
+// The second is the whole point of the feature, and it is why this is not
+// notifyUserApproved: that one links to /dashboard, which a person who has only
+// ever given an email address cannot use yet. They have no name and no watch
+// connected, so what they need is /join/{token} — the flow that asks for both.
+
+export async function notifyAdminNewSignupRequest(req: { email: string; groupName?: string | null }) {
+  if (!isConfigured()) return;
+  await getResend().emails.send({
+    from: FROM,
+    // Sent to the approver list, not just ADMIN_EMAIL: whoever is nearest their
+    // phone should be able to let a new runner in.
+    to: APPROVER_EMAILS,
+    subject: `🏃 New registration waiting: ${req.email}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 500px;">
+        <h2 style="color: #1D1E26;">New Registration</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="padding: 8px 0; color: #656565;">Email</td><td style="padding: 8px 0; font-weight: 600;">${req.email}</td></tr>
+          <tr><td style="padding: 8px 0; color: #656565;">Group</td><td style="padding: 8px 0;">${req.groupName || '—'}</td></tr>
+        </table>
+        <p style="margin-top: 20px;">
+          <a href="${APP_URL}/dashboard/settings?tab=registrations" style="background: #1525FF; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            Review &amp; Approve →
+          </a>
+        </p>
+        <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">
+          They cannot enter the app until someone approves this.
+        </p>
+      </div>
+    `,
+  });
+}
+
+/**
+ * The approval mail — Hebrew, because the recipient is a club member and the app
+ * is Hebrew-first. This is the ONE email in this file the applicant reads before
+ * they have an account, so it carries the link and nothing else to do.
+ */
+export async function notifyRegistrationApproved(user: { email: string; token: string; groupName?: string | null }) {
+  if (!isConfigured()) return;
+  const link = `${APP_URL}/join/${user.token}`;
+  await getResend().emails.send({
+    from: FROM,
+    to: user.email,
+    subject: `✅ ההרשמה שלך למדרגות אושרה`,
+    html: `
+      <div dir="rtl" style="font-family: sans-serif; max-width: 500px; text-align: right;">
+        <h2 style="color: #1D1E26;">אושרת! 🎉</h2>
+        <p style="color: #2D2E38; line-height: 1.7;">
+          ההרשמה שלך למדרגות אושרה${user.groupName ? ` — ${user.groupName}` : ''}.
+          נשאר רק להשלים את הפרטים ולחבר את השעון, וזה הכל.
+        </p>
+        <p style="margin-top: 20px;">
+          <a href="${link}" style="background: #1525FF; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
+            להשלמת ההרשמה →
+          </a>
+        </p>
+        <p style="color: #656565; font-size: 13px; line-height: 1.6; margin-top: 20px;">
+          הקישור אישי — אל תעבירו אותו לאף אחד.
+        </p>
+        <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">מדרגות After 2KM</p>
       </div>
     `,
   });

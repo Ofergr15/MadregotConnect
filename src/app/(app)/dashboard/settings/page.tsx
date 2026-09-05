@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
@@ -14,6 +14,7 @@ import { PerksManager } from '@/components/PerksManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
+import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -214,10 +215,11 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
+  { key: 'registrations' as SettingsTab, label: 'Registrations', icon: UserPlus, iconBg: 'bg-accent-600' },
   { key: 'users' as SettingsTab, label: 'User Manager', icon: Users, iconBg: 'bg-indigo-500' },
   { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout, iconBg: 'bg-band-3' },
   { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare, iconBg: 'bg-teal-500' },
@@ -366,6 +368,11 @@ export default function SettingsPage() {
   // screen, so this is a cache read rather than another request.
   const { data: meData } = useApi<{ canApprove?: boolean }>('/api/auth/me');
   const canApproveHere = !!meData?.canApprove;
+
+  // Drives the badge on the "הרשמות" row. Same SWR key the queue itself reads,
+  // so opening it is a cache hit and the count on the landing can't disagree
+  // with the list inside.
+  const pendingRegistrations = usePendingRegistrationsCount(canApproveHere);
 
   // Which datasets have already been requested, so re-opening a detail screen
   // (or bouncing back to the landing and in again) doesn't refetch. The mutation
@@ -807,6 +814,38 @@ export default function SettingsPage() {
       {/* ═══ LANDING — iOS-Settings inset lists (drill into detail screens) ═══ */}
       {activeTab === null && (
         <>
+          {/* People waiting to be let into the club — first thing an approver
+              sees, with the count on the row so the answer to "is anyone
+              waiting?" costs no taps at all. Hidden entirely for everyone else:
+              this screen is a list of strangers' email addresses. */}
+          {canApproveHere && (
+            <InsetSection>
+              <InsetRow
+                icon={UserPlus}
+                iconBg="bg-accent-600"
+                label={t('registrations')}
+                sublabel={
+                  pendingRegistrations === null
+                    ? undefined
+                    : pendingRegistrations === 0
+                      ? t('registrationsNoneWaiting')
+                      : t('registrationsWaiting', { count: pendingRegistrations })
+                }
+                onClick={() => setActiveTab('registrations')}
+                trailing={
+                  <span className="flex items-center gap-2 shrink-0">
+                    {!!pendingRegistrations && (
+                      <span className="min-w-[22px] px-1.5 py-0.5 rounded-pill bg-accent-red text-white text-3xs font-bold text-center tabular-nums">
+                        {pendingRegistrations}
+                      </span>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-ink-400 shrink-0 rotate-180" />
+                  </span>
+                }
+              />
+            </InsetSection>
+          )}
+
           {/* First card: maintenance toggle + reminders, grouped like the reference. */}
           <InsetSection>
             <MaintenanceRow />
@@ -836,6 +875,11 @@ export default function SettingsPage() {
           </div>
         </>
       )}
+
+      {/* Registrations detail — the /register approval queue. The component
+          re-checks canApprove against /api/auth/me itself, so a hand-typed
+          ?tab=registrations doesn't get a list. */}
+      {activeTab === 'registrations' && <RegistrationsQueue />}
 
       {/* Reminders detail */}
       {activeTab === 'reminders' && <ReminderConfig />}

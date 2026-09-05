@@ -13,7 +13,15 @@ import { useApi } from '@/lib/api';
 // Ofer in the installed PWA, which has its own session separate from Safari)
 // can't reach the login screen to sign in, a dead end. The gate still blocks
 // the actual app (/dashboard/*) after login.
-const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join'];
+// '/register' is here because it is a link the club SENDS OUT. Without it, the
+// gate answered the public sign-up form with "בונים מחדש את המדרגות" — so every
+// runner who followed the shared link during a maintenance window saw a closed
+// door and no way to register, and nobody would have reported it. Maintenance is
+// about the app being mid-rebuild; taking new registrations is not affected by
+// that, and they are queued for approval anyway.
+// (NOTE: '/academy-register' has the same problem and is deliberately left alone
+// here — same argument applies to it, but it is not this change's business.)
+const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register'];
 const isPublicPath = (p: string) =>
   PUBLIC_PATHS.some((pub) => p === pub || p.startsWith(pub + '/'));
 
