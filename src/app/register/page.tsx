@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
  * ── LAYOUT: EVERYTHING ON ONE SCREEN ────────────────────────────────────────
  * The whole form is sized to fit a 390×844 phone without scrolling, which is why
  * the countdown is a compact card rather than a full-bleed hero and the choice
- * rows are 56px instead of the app's usual 64px. Someone opening a link from
+ * rows are 52px instead of the app's usual 64px. Someone opening a link from
  * WhatsApp decides whether to bother in the first second; a fold hiding the
  * submit button is the one thing that costs sign-ups here. If you add a field,
  * take the height from somewhere — do not let this page start scrolling.
@@ -175,15 +175,23 @@ function LaunchCountdown() {
   const units = countdownUnits(left ?? 0);
 
   return (
-    <div className="rounded-card bg-card shadow-[0_4px_18px_rgba(0,0,0,0.07)] px-5 pt-6 pb-6 short:pt-3 short:pb-3 text-center">
+    <div className="rounded-card bg-card shadow-[0_4px_18px_rgba(0,0,0,0.07)] px-5 pt-5 pb-5 short:pt-2 short:pb-2 text-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/images/logo.png"
         alt="מדרגות — After 2KM Running Club"
-        className="h-[54px] short:h-8 w-auto mx-auto object-contain"
+        className="h-[74px] short:h-[46px] w-auto mx-auto object-contain"
       />
 
-      <div className="h-px bg-ink-900/[0.07] mx-4 mt-5 mb-5 short:mt-2 short:mb-2" aria-hidden="true" />
+      {/* Says what the thing being launched IS. Without it the card opened on a
+          badge and a bare clock, and a countdown with no subject is a puzzle —
+          especially for the people this link is sent to, who have never seen the
+          app. Sits above the clock so it is read first. */}
+      <h1 className="mt-2.5 short:mt-1 text-[19px] short:text-[16px] font-bold leading-tight text-ink-900">
+        אפליקציית מדרגות
+      </h1>
+
+      <div className="h-px bg-ink-900/[0.07] mx-4 mt-4 mb-4 short:mt-1.5 short:mb-1.5" aria-hidden="true" />
 
       {/* Each numeral is labelled under itself. The label has to sit with its own
           number rather than in one sentence below: "4 · 8" alone reads as a time of
@@ -192,7 +200,7 @@ function LaunchCountdown() {
           re-renders every second in the last day, and that is exactly where a
           layout that breathes with the digits gets noticed. The height is the same
           in both modes so nothing below it moves when the third unit appears. */}
-      <div className="h-[70px] short:h-[46px] flex items-center justify-center">
+      <div className="h-[64px] short:h-[40px] flex items-center justify-center">
         {units.map((u, i) => (
           <div key={u.label} className="flex-1 flex items-stretch">
             {i > 0 && <div className="w-px bg-ink-900/[0.08] my-1" aria-hidden="true" />}
@@ -213,7 +221,7 @@ function LaunchCountdown() {
       {/* Two lines' worth of height, always. The three-unit sentence wraps and the
           shorter ones don't, so without this the card grows and shrinks as the
           wording changes — once a minute, pushing the whole form down and back. */}
-      <p className="mt-4 short:mt-2 min-h-[45px] short:min-h-[32px] text-[15px] short:text-[13px] font-bold text-ink-900">
+      <p className="mt-3 short:mt-1 min-h-[40px] short:min-h-[28px] text-[15px] short:text-[13px] font-bold text-ink-900">
         {left === null ? 'להשקת האפליקציה' : launchSentence(left)}
       </p>
       <p className="mt-1.5 short:mt-1 text-xs short:text-3xs text-ink-500">יום רביעי, 20:00 — האפליקציה נפתחת.</p>
@@ -358,14 +366,14 @@ export default function RegisterPage() {
       // card, meant to mark the end of the flow, and it just read as a different
       // app: the mark inverted, the type inverted, nothing carried over from the
       // screen half a second earlier.
-      <div className="min-h-screen min-h-[100dvh] bg-page flex items-center justify-center px-4 py-6 short:py-2" dir="rtl">
+      <div className="min-h-screen min-h-[100dvh] bg-page flex items-center justify-center px-4 py-4 short:py-1" dir="rtl">
         <div className="w-full max-w-md">
-          <div className="rounded-card bg-card px-5 pt-6 pb-6 text-center shadow-[0_4px_18px_rgba(0,0,0,0.07)]">
+          <div className="rounded-card bg-card px-5 pt-5 pb-5 text-center shadow-[0_4px_18px_rgba(0,0,0,0.07)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/images/logo.png"
               alt="מדרגות — After 2KM Running Club"
-              className="h-[54px] w-auto mx-auto object-contain"
+              className="h-[74px] w-auto mx-auto object-contain"
             />
 
             <div className="h-px bg-ink-900/[0.07] mx-4 mt-5 mb-5" aria-hidden="true" />
@@ -412,11 +420,11 @@ export default function RegisterPage() {
           it into one hole between the form and the button, which read as a
           rendering fault. Centred, the same slack splits above and below and looks
           like margin. */}
-      <div className="max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col justify-center px-4 py-6 short:py-2">
+      <div className="max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col justify-center px-4 py-4 short:py-1">
         <LaunchCountdown />
 
         <form onSubmit={submit} className="flex flex-col">
-          <div className="mt-6 short:mt-2">
+          <div className="mt-4 short:mt-1">
             <SectionCaption>פרטי הרשמה</SectionCaption>
             <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
               <div className="px-4 py-3.5 short:py-2 border-b border-page">
@@ -462,7 +470,7 @@ export default function RegisterPage() {
                   <label
                     key={opt.id || 'unsure'}
                     className={cn(
-                      'flex items-center h-[56px] short:h-[42px] px-4 cursor-pointer',
+                      'flex items-center h-[52px] short:h-[40px] px-4 cursor-pointer',
                       // Hairlines stop short of the card edge and the last row has
                       // none — inset dividers, not a table.
                       i < all.length - 1 && 'border-b border-page mx-0',
@@ -493,7 +501,7 @@ export default function RegisterPage() {
 
           {error && <p className="mt-3 text-sm text-accent-red text-center">{error}</p>}
 
-          <div className="h-5 short:h-1.5" />
+          <div className="h-3 short:h-1" />
 
           {/* Black, not the brand blue this Button defaults to — the whole page is
               mono, and cn()'s tailwind-merge lets the later class win. */}
