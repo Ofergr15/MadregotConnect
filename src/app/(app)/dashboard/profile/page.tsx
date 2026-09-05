@@ -16,6 +16,7 @@ import { MemberDiscovery } from '@/components/MemberDiscovery';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
 import { ShoeManager } from '@/components/ShoeManager';
+import { WeeklyVolumeCard } from '@/components/WeeklyVolumeCard';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { ProfileOverview } from '@/components/profile/ProfileOverview';
@@ -531,6 +532,15 @@ function ProfileContent() {
             onPhotoClick={() => photoInputRef.current?.click()}
             onOpenSetup={() => setActiveTab('setup')}
           />
+
+          {/* This week against the plan's target, then the last ten weeks as
+              bars. It used to sit on the feed beside the club top-3, which was
+              the wrong room for it: the feed is everyone, and a chart of
+              nothing but my own weekly totals is the most personal view in the
+              app. Directly under the header because it is the profile's
+              headline number — hides itself when there is only one week of
+              history to draw. */}
+          <WeeklyVolumeCard athleteId={athleteId} />
 
           {/* Email, join date, pace-group goal and the Garmin/Strava chips are
               no longer on the landing — the frame's header is greeting + name +

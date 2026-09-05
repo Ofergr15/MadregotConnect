@@ -220,7 +220,8 @@
     "preSeason": "Pre-season",
     "myStats": "My stats",
     "weekOfTotal": "Week {week}/{total}",
-    "top3": "Top 3"
+    "top3": "Top 3",
+    "yourRank": "You: #{rank}"
   },
   "athletes": {
     "title": "Athletes",

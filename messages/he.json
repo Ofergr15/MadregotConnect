@@ -220,7 +220,8 @@
     "preSeason": "טרום-עונה",
     "myStats": "הנתונים שלי",
     "weekOfTotal": "שבוע {week}/{total}",
-    "top3": "שלושת המובילים"
+    "top3": "שלושת המובילים",
+    "yourRank": "המקום שלך: {rank}"
   },
   "athletes": {
     "title": "ספורטאים",
