@@ -176,14 +176,14 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-1.5">
               <Trophy className="h-3.5 w-3.5 text-band-3" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-ink-400">Top 3</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-ink-400">{t('top3')}</span>
             </div>
             {groups.length > 1 && (
               <SegmentedControl
                 value={leaderboardFilter}
                 onChange={setLeaderboardFilter}
                 options={[
-                  { value: 'all', label: 'All' },
+                  { value: 'all', label: tc('all') },
                   ...groups.map(g => ({ value: g.id, label: g.name.replace('Group ', '').replace(' - SUB ', ' ') })),
                 ]}
               />

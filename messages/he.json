@@ -21,6 +21,7 @@
     "km": "ק״מ",
     "bpm": "פעימות/דקה",
     "language": "שפה",
+    "all": "הכל",
     "dayNames": ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"],
     "dayNamesShort": ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"]
   },
@@ -201,7 +202,8 @@
     "goodEvening": "ערב טוב",
     "preSeason": "טרום-עונה",
     "myStats": "הנתונים שלי",
-    "weekOfTotal": "שבוע {week}/{total}"
+    "weekOfTotal": "שבוע {week}/{total}",
+    "top3": "שלושת המובילים"
   },
   "athletes": {
     "title": "ספורטאים",
@@ -387,6 +389,26 @@
     "stepsMore": "+{count} עוד",
     "stepsLess": "פחות"
   },
+  "planDetail": {
+    "viewDetails": "הצגת פירוט",
+    "originalInput": "הקלט המקורי",
+    "noInput": "לא נשמר קלט",
+    "workoutSummary": "סיכום האימונים",
+    "workoutFallback": "אימון",
+    "deliveryStatus": "סטטוס שליחה",
+    "repushSelected": "שליחה חוזרת ({count})",
+    "loadingDeliveries": "טוען פרטי שליחה...",
+    "noDeliveries": "לא נרשמו שליחות לתכנית הזו",
+    "colSelect": "בחירה",
+    "colAthlete": "ספורטאי",
+    "colDate": "תאריך",
+    "colStatus": "סטטוס",
+    "colGarminId": "מזהה גרמין",
+    "colError": "שגיאה",
+    "statusPending": "ממתין",
+    "statusSuccess": "נשלח",
+    "statusFailed": "נכשל"
+  },
   "workoutEditor": {
     "stepWarmup": "חימום",
     "stepInterval": "אינטרוול",
@@ -394,6 +416,8 @@
     "stepRecovery": "שחרור",
     "stepCooldown": "שיפשוף",
     "stepActive": "ריצה",
+    "stepOpen": "פתוח",
+    "noStepDetails": "אין פירוט מקטעים לאימון הזה",
     "zoneEasy": "קל",
     "zoneThreshold": "סף",
     "zoneInterval": "אינטרוול",
@@ -866,7 +890,10 @@
     "save": "שמירה",
     "saving": "שומר…",
     "remove": "הסרה",
-    "pairingError": "השמירה נכשלה. נסו שוב."
+    "pairingError": "השמירה נכשלה. נסו שוב.",
+    "benchmarkTitle": "מבחן זמן · {test}",
+    "benchmarkHideBoard": "הסתרת הטבלה המלאה",
+    "benchmarkShowAll": "הצגת כל {count}"
   },
   "teamVolume": {
     "title": "נפח הקבוצה",
@@ -1162,7 +1189,8 @@
     "syncing": "מסנכרן...",
     "syncedNewActivities": "סונכרנו {count} פעילויות חדשות",
     "syncFailed": "הסנכרון נכשל. נסה שוב מאוחר יותר.",
-    "noConnection": "אין חיבור"
+    "noConnection": "אין חיבור",
+    "copyWorkout": "העתקת האימון"
   },
   "profileBest": {
     "title": "השיאים שלך",

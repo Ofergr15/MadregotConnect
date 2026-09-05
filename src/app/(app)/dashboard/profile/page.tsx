@@ -1088,12 +1088,12 @@ function ProfileContent() {
                 {copied ? (
                   <>
                     <Check className="h-4 w-4" />
-                    Copied!
+                    {tCommon('copied')}
                   </>
                 ) : (
                   <>
                     <Copy className="h-4 w-4" />
-                    Copy workout
+                    {t('copyWorkout')}
                   </>
                 )}
               </button>

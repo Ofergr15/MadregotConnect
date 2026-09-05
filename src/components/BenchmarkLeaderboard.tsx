@@ -5,6 +5,7 @@ import { Trophy, Medal, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/academy/benchmark';
 import { useApi } from '@/lib/api';
+import { useTranslations } from 'next-intl';
 
 interface Result {
   id: string;
@@ -27,6 +28,7 @@ function initialsOf(name: string) {
 }
 
 export function BenchmarkLeaderboard() {
+  const t = useTranslations('academy');
   const [test, setTest] = useState('');
   const [expanded, setExpanded] = useState(false);
   const { data } = useApi<{ results: Result[]; tests: string[] }>('/api/academy/benchmarks');
@@ -49,7 +51,7 @@ export function BenchmarkLeaderboard() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Trophy className="h-5 w-5 text-band-3" />
-            <h2 className="text-base font-semibold text-ink-700">Time Trial · {activeTest}</h2>
+            <h2 className="text-base font-semibold text-ink-700">{t('benchmarkTitle', { test: activeTest })}</h2>
           </div>
           {tests.length > 1 && (
             <select
@@ -89,7 +91,7 @@ export function BenchmarkLeaderboard() {
               className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-ink-400 hover:text-ink-900"
             >
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              {expanded ? 'Hide full board' : `Show all ${shown.length}`}
+              {expanded ? t('benchmarkHideBoard') : t('benchmarkShowAll', { count: shown.length })}
             </button>
             {expanded && (
               <div className="mt-3 space-y-1">

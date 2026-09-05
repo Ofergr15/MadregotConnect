@@ -1,6 +1,7 @@
 'use client';
 
 import { X, Repeat } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { groupPaceTokens } from '@/lib/garmin/pace';
 import { Sheet } from '@/components/ui';
@@ -29,13 +30,26 @@ function formatDuration(seconds: number): string {
   return `${seconds}s`;
 }
 
-function getStepLabel(step: any): string {
+/**
+ * The step's name — the coach's own note if there is one, otherwise the step
+ * type in words.
+ *
+ * `t` is passed in rather than pulled from a hook because this is a module-level
+ * helper called from inside a `.map()`. The labels come from the `workoutEditor`
+ * namespace, which already had all six in Hebrew: the editor writes them and
+ * this sheet reads them back, so they had better be the same words. They were
+ * hardcoded English here ("Warmup", "Hard", "Recovery"), i.e. English step names
+ * inside an otherwise-Hebrew workout — and "Hard" didn't even match the editor's
+ * own "אינטרוול".
+ */
+function getStepLabel(step: any, t: (key: string) => string): string {
   if (step.notes) return step.notes;
-  const labels: Record<string, string> = {
-    warmup: 'Warmup', cooldown: 'Cooldown', interval: 'Hard',
-    active: 'Run', rest: 'Recovery', recovery: 'Recovery',
+  const keys: Record<string, string> = {
+    warmup: 'stepWarmup', cooldown: 'stepCooldown', interval: 'stepInterval',
+    active: 'stepActive', rest: 'stepRest', recovery: 'stepRecovery',
   };
-  return labels[step.type] || step.type;
+  const key = keys[step.type];
+  return key ? t(key) : step.type;
 }
 
 function getStepColor(step: any): string {
@@ -150,6 +164,8 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
   onPickGroup: (idx: number) => void;
   onClose: () => void;
 }) {
+  const tc = useTranslations('common');
+  const t = useTranslations('workoutEditor');
   const blocks = summarizeSteps(session.steps || []);
   // Only show the group toggle when the plan actually carries per-group paces.
   const hasGroupPaces = (session.steps || []).some((s: any) =>
@@ -170,7 +186,13 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
               )}
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-page text-ink-400 hover:text-ink-900 transition-colors">
+          {/* The sheet's only visible close affordance, and an X carries no name
+              of its own. `common.close` already existed. */}
+          <button
+            onClick={onClose}
+            aria-label={tc('close')}
+            className="p-2 rounded-lg hover:bg-page text-ink-400 hover:text-ink-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -204,7 +226,7 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
               return (
                 <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-card/40">
                   <div className="w-1 h-5 rounded-full bg-band-3 flex-shrink-0" />
-                  <span className="text-sm text-ink-700 font-medium">{block.phase === 'warmup' ? 'Warmup' : 'Cooldown'}</span>
+                  <span className="text-sm text-ink-700 font-medium">{t(block.phase === 'warmup' ? 'stepWarmup' : 'stepCooldown')}</span>
                   {durLabel && <span className="text-sm text-ink-400">{durLabel}</span>}
                   <span className="ms-auto"><GroupPaces step={step0} viewGroup={viewGroup} /></span>
                 </div>
@@ -215,7 +237,7 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
               const substeps = block.substeps || [];
               const summary = substeps.map((sub: any) => {
                 const dur = formatStepDuration(sub);
-                const label = getStepLabel(sub);
+                const label = getStepLabel(sub, t);
                 return { dur, label, isRest: sub.type === 'rest' || sub.type === 'recovery', step: sub };
               });
 
@@ -243,19 +265,19 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
 
             if (block.type === 'rest') {
               const s = block.step;
-              const dur = formatStepDuration(s) || 'Open';
+              const dur = formatStepDuration(s) || t('stepOpen');
               return (
                 <div key={i} className="flex items-center gap-2 py-1.5 px-3 text-sm text-ink-400">
                   <div className="w-1 h-4 rounded-full bg-ink-300" />
-                  <span>{s.notes || 'Recovery'}</span>
+                  <span>{s.notes || t('stepRecovery')}</span>
                   <span className="ms-auto">{dur}</span>
                 </div>
               );
             }
 
             const s = block.step;
-            const dur = formatStepDuration(s) || 'Open';
-            const label = getStepLabel(s);
+            const dur = formatStepDuration(s) || t('stepOpen');
+            const label = getStepLabel(s, t);
             return (
               <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-card/40 text-sm">
                 <div className="w-1 h-5 rounded-full flex-shrink-0" style={{ background: getStepColor(s) }} />
@@ -267,7 +289,7 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
           })}
 
           {(!session.steps || session.steps.length === 0) && (
-            <p className="text-sm text-ink-400 text-center py-8">No step details available</p>
+            <p className="text-sm text-ink-400 text-center py-8">{t('noStepDetails')}</p>
           )}
         </div>
     </Sheet>

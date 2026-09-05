@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Calendar, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
+import { useLocale, useTranslations } from 'next-intl';
 
 interface DeliveryDetail {
   id: string;
@@ -49,13 +50,20 @@ function workoutsByDay(parsedWorkouts: Record<string, any>): Record<string, any>
   return parsedWorkouts || {}; // legacy flat day-keyed plans
 }
 
+// `labelKey` rather than `label`: this table is a coach's view of whether the
+// week reached each athlete's watch, and it was rendering its three outcomes as
+// English words ("Pending"/"Success"/"Failed") in the middle of a Hebrew screen.
+// The config is module-level so it cannot hold a hook — it holds the key and the
+// component translates it.
 const statusConfig = {
-  pending: { icon: Clock, color: 'text-band-3-ink', bg: 'bg-band-3/10', label: 'Pending' },
-  success: { icon: CheckCircle2, color: 'text-accent-900', bg: 'bg-accent-600/10', label: 'Success' },
-  failed: { icon: XCircle, color: 'text-accent-red-ink', bg: 'bg-accent-red/10', label: 'Failed' },
-};
+  pending: { icon: Clock, color: 'text-band-3-ink', bg: 'bg-band-3/10', labelKey: 'statusPending' },
+  success: { icon: CheckCircle2, color: 'text-accent-900', bg: 'bg-accent-600/10', labelKey: 'statusSuccess' },
+  failed: { icon: XCircle, color: 'text-accent-red-ink', bg: 'bg-accent-red/10', labelKey: 'statusFailed' },
+} as const;
 
 export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps) {
+  const t = useTranslations('planDetail');
+  const locale = useLocale();
   const [deliveries, setDeliveries] = useState<DeliveryDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -134,7 +142,7 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
     return {
       day: day.charAt(0).toUpperCase() + day.slice(1),
       isEmpty: false,
-      summary: (workout.name || workout.description || 'Workout').toString().substring(0, 30),
+      summary: (workout.name || workout.description || t('workoutFallback')).toString().substring(0, 30),
     };
   });
 
@@ -156,7 +164,7 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
         onClick={handleToggle}
         className="w-full flex items-center justify-between text-start hover:text-brand-700 transition-colors"
       >
-        <span className="text-sm font-medium">View Details</span>
+        <span className="text-sm font-medium">{t('viewDetails')}</span>
         {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
 
@@ -164,15 +172,15 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
         <div className="mt-4 space-y-6">
           {/* Original Input */}
           <div>
-            <h3 className="text-sm font-medium text-ink-500 mb-2">Original Input</h3>
+            <h3 className="text-sm font-medium text-ink-500 mb-2">{t('originalInput')}</h3>
             <div className="bg-card rounded-lg p-4 text-sm text-ink-500 whitespace-pre-wrap font-mono">
-              {originalInput || 'No input recorded'}
+              {originalInput || t('noInput')}
             </div>
           </div>
 
           {/* Workout Summary - 7 Day Cards */}
           <div>
-            <h3 className="text-sm font-medium text-ink-500 mb-2">Workout Summary</h3>
+            <h3 className="text-sm font-medium text-ink-500 mb-2">{t('workoutSummary')}</h3>
             <div className="grid grid-cols-7 gap-2">
               {workoutSummary.map((item, index) => (
                 <div
@@ -192,7 +200,7 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
           {/* Delivery Status */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-ink-500">Delivery Status</h3>
+              <h3 className="text-sm font-medium text-ink-500">{t('deliveryStatus')}</h3>
               {hasFailures && (
                 <button
                   onClick={handleRepush}
@@ -205,7 +213,7 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
                   )}
                 >
                   <RefreshCw className="h-3 w-3" />
-                  Re-push Selected ({selectedFailedAthletes.size})
+                  {t('repushSelected', { count: selectedFailedAthletes.size })}
                 </button>
               )}
             </div>
@@ -213,24 +221,24 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
             {loading ? (
               <div className="bg-card rounded-lg p-8 text-center">
                 <Clock className="h-8 w-8 text-ink-400 mx-auto mb-2 animate-pulse" />
-                <p className="text-sm text-ink-400">Loading delivery details...</p>
+                <p className="text-sm text-ink-400">{t('loadingDeliveries')}</p>
               </div>
             ) : deliveries.length === 0 ? (
               <div className="bg-card rounded-lg p-8 text-center">
                 <AlertCircle className="h-8 w-8 text-ink-400 mx-auto mb-2" />
-                <p className="text-sm text-ink-400">No deliveries recorded for this plan</p>
+                <p className="text-sm text-ink-400">{t('noDeliveries')}</p>
               </div>
             ) : (
               <div className="bg-card rounded-lg overflow-hidden">
                 <table className="w-full">
                   <thead className="bg-page/50">
                     <tr>
-                      {hasFailures && <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Select</th>}
-                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Athlete</th>
-                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Date</th>
-                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Status</th>
-                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Garmin ID</th>
-                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">Error</th>
+                      {hasFailures && <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">{t('colSelect')}</th>}
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">{t('colAthlete')}</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">{t('colDate')}</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">{t('colStatus')}</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">{t('colGarminId')}</th>
+                      <th className="px-4 py-2 text-start text-xs font-medium text-ink-400">{t('colError')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-page">
@@ -256,7 +264,7 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
                             )}
                             <td className="px-4 py-3 text-sm">{athlete_name}</td>
                             <td className="px-4 py-3 text-sm text-ink-400">
-                              {new Date(delivery.workout_date).toLocaleDateString('en-US', {
+                              {new Date(delivery.workout_date).toLocaleDateString(locale, {
                                 month: 'short',
                                 day: 'numeric',
                               })}
@@ -264,7 +272,7 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
                             <td className="px-4 py-3">
                               <div className={cn('inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs', config.bg, config.color)}>
                                 <StatusIcon className="h-3 w-3" />
-                                {config.label}
+                                {t(config.labelKey)}
                               </div>
                             </td>
                             <td className="px-4 py-3 text-sm text-ink-400 font-mono">

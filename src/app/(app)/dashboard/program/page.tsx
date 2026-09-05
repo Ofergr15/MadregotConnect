@@ -445,8 +445,13 @@ export default function ProgramPage() {
                   <h3 className="text-base sm:text-lg font-bold text-ink-700 truncate">{currentExercise.name}</h3>
                 </div>
                 <div className="flex items-center gap-1 shrink-0 ms-2">
+                  {/* Icon-only, so it needs a real name: the "3/12" counter beside
+                      it is a separate span, and a screen reader announcing two
+                      unnamed buttons around a bare fraction has nothing to work
+                      with. `program.previous`/`program.next` already existed. */}
                   <button
                     onClick={handlePrevious}
+                    aria-label={t('previous')}
                     disabled={currentFilteredIndex === 0}
                     className={cn(
                       'p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-all',
@@ -462,6 +467,7 @@ export default function ProgramPage() {
                   </span>
                   <button
                     onClick={handleNext}
+                    aria-label={t('next')}
                     disabled={currentFilteredIndex === filteredExercises.length - 1}
                     className={cn(
                       'p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-all',

@@ -21,6 +21,7 @@
     "km": "km",
     "bpm": "bpm",
     "language": "Language",
+    "all": "All",
     "dayNames": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
     "dayNamesShort": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
   },
@@ -201,7 +202,8 @@
     "goodEvening": "Good evening",
     "preSeason": "Pre-season",
     "myStats": "My stats",
-    "weekOfTotal": "Week {week}/{total}"
+    "weekOfTotal": "Week {week}/{total}",
+    "top3": "Top 3"
   },
   "athletes": {
     "title": "Athletes",
@@ -387,6 +389,26 @@
     "stepsMore": "+{count} more",
     "stepsLess": "less"
   },
+  "planDetail": {
+    "viewDetails": "View details",
+    "originalInput": "Original input",
+    "noInput": "No input recorded",
+    "workoutSummary": "Workout summary",
+    "workoutFallback": "Workout",
+    "deliveryStatus": "Delivery status",
+    "repushSelected": "Re-push selected ({count})",
+    "loadingDeliveries": "Loading delivery details...",
+    "noDeliveries": "No deliveries recorded for this plan",
+    "colSelect": "Select",
+    "colAthlete": "Athlete",
+    "colDate": "Date",
+    "colStatus": "Status",
+    "colGarminId": "Garmin ID",
+    "colError": "Error",
+    "statusPending": "Pending",
+    "statusSuccess": "Sent",
+    "statusFailed": "Failed"
+  },
   "workoutEditor": {
     "stepWarmup": "Warmup",
     "stepInterval": "Interval",
@@ -394,6 +416,8 @@
     "stepRecovery": "Recovery",
     "stepCooldown": "Cooldown",
     "stepActive": "Run",
+    "stepOpen": "Open",
+    "noStepDetails": "No step details available",
     "zoneEasy": "Easy",
     "zoneThreshold": "Threshold",
     "zoneInterval": "Interval",
@@ -866,7 +890,10 @@
     "save": "Save",
     "saving": "Saving…",
     "remove": "Remove",
-    "pairingError": "Could not save. Try again."
+    "pairingError": "Could not save. Try again.",
+    "benchmarkTitle": "Time trial · {test}",
+    "benchmarkHideBoard": "Hide the full board",
+    "benchmarkShowAll": "Show all {count}"
   },
   "teamVolume": {
     "title": "Team Volume",
@@ -1162,7 +1189,8 @@
     "syncing": "Syncing...",
     "syncedNewActivities": "Synced {count} new activities",
     "syncFailed": "Sync failed. Try again later.",
-    "noConnection": "No Connection"
+    "noConnection": "No Connection",
+    "copyWorkout": "Copy the workout"
   },
   "profileBest": {
     "title": "Your Best",
