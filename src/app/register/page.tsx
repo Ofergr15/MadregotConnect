@@ -190,21 +190,27 @@ function HeroBackdrop() {
  * this area is the black SAYSKY teardrop banner, and the banner carries a white
  * star and a white wordmark. White numerals crossing that white artwork is
  * unreadable mush — it is legible on the banner's plain black, and only there.
- * Measured off the rendered 390×844 page:
  *
- *     flag's clean black band   y 176 – 248
- *     white star begins         y 250
- *     this countdown occupies   y 192 – 248   ← fits, with nothing to spare
+ * The trap: the star does not sit still. The photo is `object-cover object-center`,
+ * so it is rescaled per viewport, and the star's top edge measured out anywhere
+ * from y136 (320×480) to y240 (390×844). A single mark height therefore CANNOT be
+ * right everywhere — and the previous one was not. 132px was measured at 390×844
+ * and correct there, while quietly putting the numerals 7px onto the star at
+ * 390×734 and 1.5px at 320×480.
  *
- * That budget is why the "להשקת האפליקציה" label sits BELOW the numbers instead
- * of above them: moving it down freed the ~30px the numbers needed to clear the
- * star, and it was the only arrangement that did not require shrinking the mark.
- * It is also why the label is pushed to the right — centred, it lands on the star.
+ * So the mark's height is banded by viewport height, in `.hero-mark` in
+ * globals.css — the table of star positions and clearances lives there, next to
+ * the numbers it explains. Read it before changing any of this.
  *
- * So: if the logo height, the top padding, or the hero photo changes, this can
- * silently land back on the white artwork. Re-measure. Contrast is NOT the
- * warning sign — white on this scrimmed photo measures 6.5:1 even in the bad
- * position, so it passes AA while looking broken.
+ * That budget is also why the "להשקת האפליקציה" label sits BELOW the numbers
+ * instead of above them: moving it down freed the ~30px the numbers needed to
+ * clear the star, and it was the only arrangement that did not require shrinking
+ * the mark.
+ *
+ * ⚠️ Contrast is NOT the warning sign here, which is exactly how the 390×734 case
+ * survived: white on this scrimmed photo measures 6.5:1 even sitting on the star,
+ * so it passes AA while looking broken. The only reliable check is to project the
+ * star's position in the source JPEG through object-cover and compare rectangles.
  */
 function HeroHeading() {
   return (
@@ -216,19 +222,20 @@ function HeroHeading() {
     // it rather than under it.
     <div className="flex-[2] min-h-0 flex flex-col items-center justify-start text-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {/* ⚠️ The `short:` height is the height-constrained one, and 84px overflowed
-          320x480 by 7px. 76px is what fits with the countdown, both footnotes and
-          the wordmark all still on screen — measured, not guessed. */}
+      {/* ⚠️ No height here on purpose. `.hero-mark` (globals.css) sets it in five
+          height bands, because the white artwork it has to clear moves with the
+          viewport — see the table there. A literal `h-[...]` is only ever correct
+          at one screen size. */}
       <img
         src="/images/logo-white.png"
         alt="מדרגות — After 2KM Running Club"
-        className="h-[132px] short:h-[76px] w-auto object-contain"
+        className="hero-mark w-auto object-contain"
       />
 
-      {/* ⚠️ mt-2 (8px) is load-bearing — see the banner measurements above. This is
-          what puts the numerals at y192, on the flag's plain black. Growing this
-          gap walks them down onto the white star. */}
-      <div className="mt-2 short:mt-1.5 w-full">
+      {/* ⚠️ `.hero-mark-gap`, also banded. This gap is load-bearing twice over: it
+          is what separates the numerals from the mark, and it is the last 10–12px
+          before they reach the banner's white star. Growing it walks them onto it. */}
+      <div className="hero-mark-gap w-full">
         <CountdownRow />
       </div>
 
@@ -489,7 +496,7 @@ export default function RegisterPage() {
       // different app, which is what the white card this replaced used to do.
       <div className="relative min-h-viewport" dir="rtl">
         <HeroBackdrop />
-        <div className="relative max-w-md mx-auto min-h-viewport flex flex-col px-5 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] short:pt-3 short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="relative max-w-md mx-auto min-h-viewport flex flex-col px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <HeroHeading />
 
           {/* ── TYPE SIZES ARE MATCHED TO THE FORM SCREEN ─────────────────────
@@ -556,7 +563,7 @@ export default function RegisterPage() {
       {/* px-5, and nothing between the fields and the photo. The card that used to
           hold all of this is gone: the form IS the page now, which is why the
           hero above it is `flex-1` and takes every pixel of slack. */}
-      <div className="relative max-w-md mx-auto min-h-viewport flex flex-col px-5 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] short:pt-3 short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <div className="relative max-w-md mx-auto min-h-viewport flex flex-col px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         <HeroHeading />
 
         <form onSubmit={submit}>

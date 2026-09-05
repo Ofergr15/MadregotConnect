@@ -49,6 +49,33 @@ describe('/register viewport height', () => {
     expect(body.indexOf('100svh')).toBeGreaterThan(body.indexOf('100dvh'));
   });
 
+  /**
+   * The mark's height decides where the countdown lands, and what the countdown has
+   * to clear — the white star on the banner in the hero photo — moves with the
+   * viewport, because the photo is object-cover. Measured, the star's top edge runs
+   * from y136 at 320x480 to y240 at 390x844. So a literal height can only ever be
+   * right at one size, and the previous 132px (measured at 390x844) was quietly 7px
+   * onto the star at 390x734. Nothing caught it, because the scrim holds contrast at
+   * 6.5:1 even then. Hence: banded in CSS, and no literal height in the markup.
+   */
+  it('sizes the hero mark from .hero-mark, never a literal height', () => {
+    expect(markup).toContain('hero-mark w-auto');
+    // No `s` flag — this file compiles against an es2017 target.
+    const img = markup.match(/<img[^>]*logo-white[^>]*>/);
+    expect(img, 'the logo <img> moved').toBeTruthy();
+    expect(img![0]).not.toMatch(/h-\[\d+px\]/);
+  });
+
+  it('bands the hero mark across every height it has to survive', () => {
+    // One base value plus the four breakpoints that bracket 320x480, 375x667,
+    // 390x734, 430x790 and 390x844. Losing one silently re-shares a band with a
+    // shorter phone, which is how an iPhone 6 ended up with a 320x480-sized mark.
+    for (const q of [601, 721, 760, 800]) {
+      expect(css, `missing the min-height:${q}px band`).toContain(`min-height: ${q}px`);
+    }
+    expect(css).toMatch(/\.hero-mark\s*\{[^}]*height:\s*62px/);
+  });
+
   it('leaves room for the home indicator, which svh does not account for', () => {
     // In standalone (installed) mode there are no toolbars, so svh is the whole
     // screen and the bottom 34px belongs to the home bar. max() makes this a no-op
