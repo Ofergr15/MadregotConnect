@@ -1102,7 +1102,12 @@ export default function WeeklyPlannerPage() {
   // ─────────────────────────────────────────────
 
   return (
-    <div className="min-h-[calc(100vh-6rem)] flex flex-col">
+    // dvh, and 9.25rem rather than 6rem. `100vh` on iOS is the viewport measured
+    // with the URL bar hidden, so it overstates the height a phone actually has —
+    // and the app shell is `min-h-[100dvh]`, so this was the one page still mixing
+    // the two units. 9.25rem is the chrome this sits inside and has to leave room
+    // for: the 56px header, the shell's own pt-5, and the 72px bottom tab bar.
+    <div className="min-h-[calc(100dvh-9.25rem)] flex flex-col">
       {/* Week Navigation Header */}
       <div className="border-b border-page/50 bg-page/50 px-6 py-4">
         {/* `flex-wrap` + a narrower label below `sm`. On a 375px phone the title
@@ -1127,7 +1132,13 @@ export default function WeeklyPlannerPage() {
               aria-label={t('lastWeek')}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
             >
-              <ChevronLeft className="h-5 w-5" />
+              {/* Right for "previous", left for "next" below — the page is `dir="rtl"`,
+                  so earlier is to the right. Both were the other way round, which is
+                  the LTR convention leaking in: the button sitting on the right,
+                  correctly, pointed left. Matches the two other navigators of this
+                  exact shape, AcademyCompliance's week nav and the calendar's month
+                  nav, which both already do it this way. */}
+              <ChevronRight className="h-5 w-5" />
             </button>
 
             <div className="text-center min-w-[140px] sm:min-w-[180px]">
@@ -1142,7 +1153,7 @@ export default function WeeklyPlannerPage() {
               aria-label={t('nextWeek')}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5" />
             </button>
 
             {weekOffset !== getDefaultOffset() && (
@@ -1239,7 +1250,10 @@ export default function WeeklyPlannerPage() {
 
       {/* Create mode */}
       {!loadingPlans && !currentPlan && showCreate && !parsing && (
-        <div className="flex-1 flex items-center justify-center px-4 py-8">
+        // `items-start`, not `items-center`: this panel is taller than the space a
+        // phone has, and a centred flex item that overflows its container gets
+        // clipped at the top with no way to scroll to it.
+        <div className="flex-1 flex items-start justify-center px-4 py-5">
           <div className="w-full max-w-2xl space-y-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1253,6 +1267,7 @@ export default function WeeklyPlannerPage() {
               </div>
               <button
                 onClick={() => { setShowCreate(false); setError(null); }}
+                aria-label={t('cancel')}
                 className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-ink-900 shrink-0"
               >
                 <X className="h-5 w-5" />
@@ -1383,10 +1398,17 @@ export default function WeeklyPlannerPage() {
 
             {error && <ErrorBanner message={error} />}
 
-            <Button onClick={parsePlan} disabled={!hasInput} size="lg" className="w-full">
-              <Sparkles className="h-5 w-5" />
-              {t('parsePlan')}
-            </Button>
+            {/* Sticky, because this panel's content is ~837px at 390×844 while the
+                header and tab bar leave it 696 — so the one button the whole screen
+                exists for used to sit 37px below the fold, under the tab bar,
+                reachable only by scrolling a page that gave no sign it scrolled.
+                Same action-bar treatment the registrations queue uses. */}
+            <div className="sticky bottom-[calc(72px+env(safe-area-inset-bottom))] md:bottom-0 z-20 -mx-4 px-4 pb-4 pt-3 rounded-t-card border-t border-page bg-card/95 backdrop-blur">
+              <Button onClick={parsePlan} disabled={!hasInput} size="lg" className="w-full">
+                <Sparkles className="h-5 w-5" />
+                {t('parsePlan')}
+              </Button>
+            </div>
           </div>
         </div>
       )}

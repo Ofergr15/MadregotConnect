@@ -283,8 +283,11 @@ export default function ActivitiesPage() {
   }
 
   return (
+    // dvh and 9.25rem — see the same wrapper on the weekly planner. `100vh` is the
+    // URL-bar-hidden height on iOS, and 6rem doesn't cover the 56px header plus
+    // the shell's pt-5 plus the 72px tab bar this sits between.
     <div
-      className="min-h-[calc(100vh-6rem)] flex flex-col"
+      className="min-h-[calc(100dvh-9.25rem)] flex flex-col"
       onTouchStart={handlePullStart}
       onTouchMove={handlePullMove}
       onTouchEnd={handlePullEnd}

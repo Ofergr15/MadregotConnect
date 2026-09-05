@@ -2,6 +2,7 @@
 
 import { Drawer } from 'vaul';
 import { cn } from '@/lib/utils';
+import { useBackDismiss } from '@/lib/use-back-dismiss';
 
 export interface SheetProps {
   open: boolean;
@@ -34,6 +35,11 @@ export function SheetDrawer({
   className,
   bodyClassName,
 }: SheetProps) {
+  // vaul already handles Escape and the swipe-down drag; this adds the third way
+  // out of a sheet, which on a phone is the main one — the back gesture. Every
+  // sheet in the app renders through this component, so they all get it at once.
+  useBackDismiss(open, () => onOpenChange(false));
+
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} shouldScaleBackground>
       <Drawer.Portal>
@@ -42,7 +48,10 @@ export function SheetDrawer({
           className={cn(
             'fixed bottom-0 inset-x-0 z-[310] flex flex-col outline-none',
             'rounded-t-card border-t border-page bg-card',
-            'max-h-[92vh] pb-[env(safe-area-inset-bottom)]',
+            // dvh, not vh: on iOS `100vh` is the tall viewport measured with the
+            // URL bar hidden, so a `vh`-capped sheet is taller than the screen
+            // actually is and its footer sits under the browser chrome.
+            'max-h-[92dvh] pb-[env(safe-area-inset-bottom)]',
             className
           )}
         >
