@@ -136,6 +136,10 @@ export function CrashScreen({
             {working ? 'טוען…' : 'טעינה מחדש'}
           </button>
           {!stale && (
+            // A plain <a>, not next/link, on purpose: Link routes client-side through
+            // the very router that may be what threw, and would leave the user on the
+            // same dead tree. A full document load is the point here.
+            // eslint-disable-next-line @next/next/no-html-link-for-pages
             <a
               href="/"
               style={{

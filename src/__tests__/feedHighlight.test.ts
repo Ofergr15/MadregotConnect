@@ -1,200 +1,169 @@
 import { describe, expect, it } from 'vitest';
 import {
-  pickHighlight,
-  activeDaysInWindow,
-  bestPriorActiveDays,
-  shiftDayKey,
+  WEEK_DAYS,
+  buildHighlight,
   dayKeyDiff,
-  ACTIVE_DAYS_WINDOW,
+  shiftDayKey,
+  weekRemainingKm,
+  weekStatus,
   type HighlightChallenge,
-  type HighlightInput,
+  type HighlightWeek,
 } from '@/lib/feed/highlight';
 
-const TODAY = '2026-09-05';
+const WEEK_START = '2026-09-06'; // a Sunday
 
-/** Day keys for the last `n` days, today first. */
-function lastDays(n: number, from = TODAY): string[] {
-  return Array.from({ length: n }, (_, i) => shiftDayKey(from, -i));
-}
-
-function input(over: Partial<HighlightInput> = {}): HighlightInput {
+function week(over: Partial<HighlightWeek> = {}): HighlightWeek {
   return {
-    challenge: null,
-    activeDayKeys: new Set<string>(),
-    todayKey: TODAY,
-    weekStreak: 0,
-    longestStreak: 0,
-    thisWeekKm: 0,
-    priorWeeksKm: [],
-    totalRuns: 5,
+    weekStart: WEEK_START,
+    km: 0,
+    targetMin: 0,
+    targetMax: 0,
+    dailyKm: new Array(WEEK_DAYS).fill(0),
+    daysElapsed: 1,
     ...over,
   };
 }
 
-const challenge: HighlightChallenge = {
-  id: 'c1',
-  nameHe: 'ספטמבר 100',
-  nameEn: 'September 100',
-  icon: '🏆',
-  iconUrl: null,
-  metric: 'distance_km',
-  current: 62.5,
-  target: 100,
-  daysLeft: 12,
-  onTrack: true,
-};
+function challenge(over: Partial<HighlightChallenge> = {}): HighlightChallenge {
+  return {
+    id: 'c1',
+    nameHe: 'ספטמבר 100',
+    nameEn: 'September 100',
+    icon: '🏆',
+    iconUrl: null,
+    metric: 'distance_km',
+    current: 40,
+    target: 100,
+    daysLeft: 10,
+    done: false,
+    onTrack: true,
+    ...over,
+  };
+}
 
-describe('day key arithmetic', () => {
-  it('shifts across month boundaries without touching the local timezone', () => {
+describe('day-key arithmetic', () => {
+  it('shifts across a month boundary', () => {
+    expect(shiftDayKey('2026-08-31', 1)).toBe('2026-09-01');
     expect(shiftDayKey('2026-09-01', -1)).toBe('2026-08-31');
-    expect(shiftDayKey('2026-02-28', 1)).toBe('2026-03-01');
-    expect(shiftDayKey(TODAY, 0)).toBe(TODAY);
+    expect(shiftDayKey('2026-09-06', 6)).toBe('2026-09-12');
   });
 
-  it('measures whole days, signed', () => {
-    expect(dayKeyDiff('2026-09-01', '2026-09-05')).toBe(4);
-    expect(dayKeyDiff('2026-09-05', '2026-09-01')).toBe(-4);
-    expect(dayKeyDiff('2026-08-31', '2026-09-01')).toBe(1);
-  });
-});
-
-describe('activeDaysInWindow', () => {
-  it('counts today and reaches back window - 1 days, not window', () => {
-    const keys = new Set([TODAY, shiftDayKey(TODAY, -29), shiftDayKey(TODAY, -30)]);
-    const { days } = activeDaysInWindow(keys, TODAY, 30);
-    expect(days).toBe(2);
+  it('counts whole days in both directions', () => {
+    expect(dayKeyDiff('2026-09-06', '2026-09-09')).toBe(3);
+    expect(dayKeyDiff('2026-09-09', '2026-09-06')).toBe(-3);
+    expect(dayKeyDiff('2026-09-06', '2026-09-06')).toBe(0);
   });
 
-  it('puts today in the newest bucket so the chart reads oldest to newest', () => {
-    const { spark } = activeDaysInWindow(new Set([TODAY]), TODAY, 30, 6);
-    expect(spark).toEqual([0, 0, 0, 0, 0, 1]);
-
-    const oldest = activeDaysInWindow(new Set([shiftDayKey(TODAY, -29)]), TODAY, 30, 6);
-    expect(oldest.spark).toEqual([1, 0, 0, 0, 0, 0]);
-  });
-
-  it('spreads a full window evenly across the buckets', () => {
-    const { days, spark } = activeDaysInWindow(new Set(lastDays(30)), TODAY, 30, 6);
-    expect(days).toBe(30);
-    expect(spark).toEqual([5, 5, 5, 5, 5, 5]);
-  });
-
-  it('ignores days outside the window entirely', () => {
-    const { days, spark } = activeDaysInWindow(new Set([shiftDayKey(TODAY, -45)]), TODAY, 30, 6);
-    expect(days).toBe(0);
-    expect(spark).toEqual([0, 0, 0, 0, 0, 0]);
+  it('is immune to DST — Israel moves its clocks inside this range', () => {
+    // If these were local Dates, the October shift would make one of the two 23h
+    // and round to the wrong number of days.
+    expect(dayKeyDiff('2026-10-20', '2026-10-27')).toBe(7);
+    expect(dayKeyDiff('2026-03-24', '2026-03-31')).toBe(7);
   });
 });
 
-describe('bestPriorActiveDays', () => {
-  it('is 0 with no history, which makes a first month a personal best', () => {
-    expect(bestPriorActiveDays(new Set(lastDays(10)), TODAY, 30, 365)).toBe(0);
+describe('weekStatus', () => {
+  it('says noTarget when the coach published no plan for the week', () => {
+    expect(weekStatus(week({ km: 22 }))).toBe('noTarget');
   });
 
-  it('never counts a window that overlaps today', () => {
-    // Twenty consecutive days ending today. Every window containing any of them
-    // also contains today, so nothing prior is comparable.
-    expect(bestPriorActiveDays(new Set(lastDays(20)), TODAY, 30, 365)).toBe(0);
+  it('says met at the low end of the range, not the high end', () => {
+    // The range is "30–40 ק״מ"; 30 is the number that was asked for.
+    expect(weekStatus(week({ km: 30, targetMin: 30, targetMax: 40, daysElapsed: 5 }))).toBe('met');
   });
 
-  it('finds the best genuinely past window', () => {
-    // 25 active days, all at least 30 days ago.
-    const past = Array.from({ length: 25 }, (_, i) => shiftDayKey(TODAY, -(35 + i)));
-    expect(bestPriorActiveDays(new Set(past), TODAY, 30, 365)).toBe(25);
+  it('measures against the max when the plan gives a single number', () => {
+    expect(weekStatus(week({ km: 40, targetMin: 0, targetMax: 40, daysElapsed: 7 }))).toBe('met');
+    expect(weekStatus(week({ km: 5, targetMin: 0, targetMax: 40, daysElapsed: 7 }))).toBe('behind');
+  });
+
+  it('pro-rates against the days gone by, so nobody is behind on Wednesday for no reason', () => {
+    // Wednesday = 4 days in of 7. 40 km week ⇒ 22.8 km is the bar.
+    const wed = { targetMin: 40, targetMax: 40, daysElapsed: 4 };
+    expect(weekStatus(week({ ...wed, km: 23 }))).toBe('onTrack');
+    expect(weekStatus(week({ ...wed, km: 17 }))).toBe('behind');
+  });
+
+  it('is generous on the first day of the week — one run of a 40 km week is on track', () => {
+    expect(weekStatus(week({ km: 6, targetMin: 40, targetMax: 40, daysElapsed: 1 }))).toBe('onTrack');
+  });
+
+  it('only says behind on the last day when the target really was missed', () => {
+    const sat = { targetMin: 40, targetMax: 40, daysElapsed: 7 };
+    expect(weekStatus(week({ ...sat, km: 39.9 }))).toBe('behind');
+    expect(weekStatus(week({ ...sat, km: 41 }))).toBe('met');
   });
 });
 
-describe('pickHighlight', () => {
-  it('shows nothing to a member who has never synced a run', () => {
-    expect(pickHighlight(input({ totalRuns: 0, thisWeekKm: 40 }))).toBeNull();
+describe('weekRemainingKm', () => {
+  it('counts down to the same bar weekStatus uses', () => {
+    expect(weekRemainingKm(week({ km: 18, targetMin: 30, targetMax: 40 }))).toBe(12);
+    expect(weekRemainingKm(week({ km: 18, targetMin: 0, targetMax: 40 }))).toBe(22);
   });
 
-  it('shows nothing when there is no volume and no average either', () => {
-    expect(pickHighlight(input({ thisWeekKm: 0, priorWeeksKm: [0, 0, 0] }))).toBeNull();
+  it('never goes negative — a met week owes nothing', () => {
+    expect(weekRemainingKm(week({ km: 45, targetMin: 40, targetMax: 40 }))).toBe(0);
   });
 
-  it('lets an unfinished challenge win over everything else', () => {
-    const picked = pickHighlight(input({
-      challenge,
-      challengeSpark: [10, 30, 62.5],
-      activeDayKeys: new Set(lastDays(30)),
-      weekStreak: 9,
-      thisWeekKm: 60,
-      priorWeeksKm: [30, 30, 30],
-    }));
+  it('is zero with no target rather than a bogus number', () => {
+    expect(weekRemainingKm(week({ km: 12 }))).toBe(0);
+  });
+});
 
-    expect(picked).toMatchObject({ kind: 'challenge', value: 62.5 });
-    expect(picked!.challenge).toBe(challenge);
-    expect(picked!.spark).toEqual([10, 30, 62.5]);
+describe('buildHighlight', () => {
+  const base = {
+    weekStart: WEEK_START,
+    weekKm: 0,
+    weekTargetMin: 0,
+    weekTargetMax: 0,
+    weekDailyKm: [] as number[],
+    daysElapsed: 3,
+    challenge: null as HighlightChallenge | null,
+  };
+
+  it('renders nothing when there is nothing true to say', () => {
+    // No runs, no target, no challenge — a progress card stuck on zero is worse
+    // than no card.
+    expect(buildHighlight(base)).toBeNull();
   });
 
-  it('falls past a challenge that is already met', () => {
-    const done = { ...challenge, current: 100 };
-    const picked = pickHighlight(input({ challenge: done, weekStreak: 4 }));
-    expect(picked!.kind).toBe('streak');
+  it('shows up for a target even before the first run of the week', () => {
+    const h = buildHighlight({ ...base, weekTargetMin: 30, weekTargetMax: 35, daysElapsed: 1 });
+    expect(h).not.toBeNull();
+    expect(h!.week.targetMin).toBe(30);
+    expect(h!.week.km).toBe(0);
   });
 
-  it('shows active days when the count is a personal best', () => {
-    // Six days in the last thirty — not a headline on its own, but nothing prior
-    // to compare with, so it is this athlete's best.
-    const picked = pickHighlight(input({ activeDayKeys: new Set(lastDays(6)) }));
-    expect(picked).toMatchObject({
-      kind: 'activeDays',
-      activeDays: { days: 6, window: ACTIVE_DAYS_WINDOW, isBest: true },
+  it('shows up for a challenge alone, in a week with no plan and no runs', () => {
+    const h = buildHighlight({ ...base, challenge: challenge() });
+    expect(h!.challenge!.id).toBe('c1');
+    expect(h!.week.km).toBe(0);
+  });
+
+  it('pads the day array to seven and rounds to one decimal', () => {
+    const h = buildHighlight({ ...base, weekKm: 18.4567, weekDailyKm: [10.0111, 8.4456] });
+    expect(h!.week.dailyKm).toEqual([10, 8.4, 0, 0, 0, 0, 0]);
+    expect(h!.week.km).toBe(18.5);
+  });
+
+  it('carries the week start through, because the dismiss X keys on it', () => {
+    const h = buildHighlight({ ...base, weekKm: 12 });
+    expect(h!.week.weekStart).toBe(WEEK_START);
+  });
+
+  it('clamps daysElapsed into the week — a bad clock cannot produce day 0 or day 9', () => {
+    expect(buildHighlight({ ...base, weekKm: 5, daysElapsed: 0 })!.week.daysElapsed).toBe(1);
+    expect(buildHighlight({ ...base, weekKm: 5, daysElapsed: 12 })!.week.daysElapsed).toBe(7);
+  });
+
+  it('keeps a completed challenge instead of hiding it', () => {
+    // "Did I do it?" is the question this half of the card exists to answer, so a
+    // challenge must not vanish the moment it is finished.
+    const h = buildHighlight({
+      ...base,
+      weekKm: 12,
+      challenge: challenge({ current: 100, done: true }),
     });
-  });
-
-  it('does not show a mediocre active-days count once there is better past form', () => {
-    // 6 recent days against a past month of 25 — true, and not worth the top slot.
-    const past = Array.from({ length: 25 }, (_, i) => shiftDayKey(TODAY, -(35 + i)));
-    const picked = pickHighlight(input({
-      activeDayKeys: new Set([...lastDays(6), ...past]),
-      thisWeekKm: 20,
-      priorWeeksKm: [20, 20, 20],
-    }));
-    expect(picked!.kind).toBe('volume');
-  });
-
-  it('shows a high active-days count even when it is not a best', () => {
-    const past = Array.from({ length: 28 }, (_, i) => shiftDayKey(TODAY, -(35 + i)));
-    const picked = pickHighlight(input({
-      activeDayKeys: new Set([...lastDays(14), ...past]),
-      thisWeekKm: 20,
-    }));
-    expect(picked).toMatchObject({ kind: 'activeDays', activeDays: { days: 14, isBest: false } });
-  });
-
-  it('treats one week as no streak at all', () => {
-    const oneWeek = pickHighlight(input({ weekStreak: 1, thisWeekKm: 20, priorWeeksKm: [20, 20, 20] }));
-    expect(oneWeek!.kind).toBe('volume');
-
-    const twoWeeks = pickHighlight(input({ weekStreak: 2, longestStreak: 7, thisWeekKm: 20 }));
-    expect(twoWeeks).toMatchObject({ kind: 'streak', streak: { weeks: 2, longest: 7 } });
-  });
-
-  it('caps the streak sparkline so a long streak stays drawable', () => {
-    const picked = pickHighlight(input({ weekStreak: 40, longestStreak: 40 }));
-    expect(picked!.spark).toHaveLength(12);
-    expect(picked!.value).toBe(40);
-  });
-
-  it('compares this week against the athlete own trailing average', () => {
-    const picked = pickHighlight(input({ thisWeekKm: 48, priorWeeksKm: [30, 40, 50] }));
-    expect(picked).toMatchObject({
-      kind: 'volume',
-      volume: { km: 48, averageKm: 40, deltaPct: 20 },
-    });
-    // The chart is the prior weeks plus this one, oldest first.
-    expect(picked!.spark).toEqual([30, 40, 50, 48]);
-  });
-
-  it('keeps empty weeks in the average rather than flattering a comeback', () => {
-    const picked = pickHighlight(input({ thisWeekKm: 12, priorWeeksKm: [0, 0, 30] }));
-    expect(picked!.volume!.averageKm).toBe(10);
-  });
-
-  it('reports no average at all for a first week, instead of a fake 100%', () => {
-    const picked = pickHighlight(input({ thisWeekKm: 12, priorWeeksKm: [0, 0, 0] }));
-    expect(picked!.volume).toMatchObject({ km: 12, averageKm: 0, deltaPct: 0 });
+    expect(h!.challenge!.done).toBe(true);
   });
 });

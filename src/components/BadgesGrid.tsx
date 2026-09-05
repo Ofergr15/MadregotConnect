@@ -96,7 +96,9 @@ export function BadgesGrid({ athleteId }: { athleteId: string }) {
               </span>
               {b.earned && b.awardedAt && (
                 <span className="text-3xs text-ink-400">
-                  {t('earnedOn')} {fmtDate(b.awardedAt)}
+                  {/* Interpolated, not glued — JSX's space turned "זכית ב-" into
+                      "זכית ב- 5 בספט׳". */}
+                  {t('earnedOnDate', { date: fmtDate(b.awardedAt) })}
                 </span>
               )}
             </Card>

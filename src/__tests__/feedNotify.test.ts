@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildMentionNotification, shouldNotifyFeedInteraction } from '@/lib/feed/notify';
-import { feedInteractionCopy, mentionCopy } from '@/lib/notifications/copy';
+import { buildMentionNotification, likeAnnouncement, shouldNotifyFeedInteraction } from '@/lib/feed/notify';
+import { feedInteractionCopy, kudosCopy, mentionCopy } from '@/lib/notifications/copy';
 
 const ALICE = '11111111-1111-1111-1111-111111111111';
 const BOB = '22222222-2222-2222-2222-222222222222';
@@ -28,6 +28,32 @@ describe('shouldNotifyFeedInteraction', () => {
     expect(shouldNotifyFeedInteraction({
       authorAthleteId: 'author', actorAthleteId: 'actor', actorName: 'Alice', kind: 'like',
     })).toBe(true);
+  });
+});
+
+// A ❤️ on a run card and a 👍 on the run's push notification are one row in
+// feed_likes (migration 088 folded activity_kudos into it), so they have to be
+// announced with one wording — whichever button the athlete actually tapped.
+describe('likeAnnouncement', () => {
+  it('announces a like on a run as kudos, and stores it under that kind', () => {
+    expect(likeAnnouncement('activity')).toEqual({ isKudos: true, historyKind: 'kudos' });
+  });
+
+  it('leaves a like on a post, announcement or achievement as a plain like', () => {
+    for (const type of ['post', 'announcement', 'achievement', 'new_plan']) {
+      expect(likeAnnouncement(type)).toEqual({ isKudos: false, historyKind: 'like' });
+    }
+  });
+
+  it('treats an unknown or absent item type as a plain like — never invents a kudos', () => {
+    expect(likeAnnouncement(null).isKudos).toBe(false);
+    expect(likeAnnouncement(undefined).isKudos).toBe(false);
+    expect(likeAnnouncement('').isKudos).toBe(false);
+  });
+
+  it('gives the run case the same copy the notification 👍 has always used', () => {
+    expect(kudosCopy('he', { name: 'Alice' }).title).toContain('כיף');
+    expect(kudosCopy('en', { name: 'Alice' }).title).toBe('Alice gave you kudos on your run! 👍');
   });
 });
 

@@ -82,6 +82,17 @@ export function RouteMap({
         // the map's ceiling from its tile layer, and the old grey basemap's
         // raster cache stopped at z16. The street plate runs to 19.
         maxZoom: BASEMAP_MAX_ZOOM,
+        // Let `fitBounds` below land on a fractional zoom. Leaflet's default snaps
+        // the view to whole zoom levels and rounds *down*, and whole levels are a
+        // factor of two apart — so a route that just missed the next level was
+        // framed at up to half the size it had room for, which is what "the route
+        // is too zoomed out" was. The tiles are then drawn slightly scaled, the
+        // same trade the feed thumbnail makes in `planRoutePlate`.
+        zoomSnap: 0,
+        // …but the +/− buttons and a double-tap still move a whole level, so
+        // zooming by hand doesn't turn into a crawl now that the base is fractional.
+        zoomDelta: 1,
+        wheelPxPerZoomLevel: 120,
         // Pinch and double-tap are the zoom gestures that actually matter — this
         // is read on a phone. Stated explicitly rather than left to the defaults
         // so a later edit can't quietly drop them.
@@ -148,9 +159,13 @@ export function RouteMap({
     const map = mapInstance.current;
     const L = (window as any).L;
     if (!ready || !map || !L || stablePoints.length < 2) return;
+    // 14px, down from 20. With `zoomSnap: 0` the padding is now the *only* thing
+    // standing between the route and the edge of the map, so it stops being a
+    // rounding cushion and becomes what it says: enough margin that the start and
+    // end markers (7px radius plus their white ring) sit clear of the border.
     map.fitBounds(
       L.latLngBounds(stablePoints.map((p) => [p.lat, p.lng])),
-      { padding: [20, 20] },
+      { padding: [14, 14] },
     );
   }, [ready, stablePoints]);
 

@@ -91,42 +91,14 @@ export function inferRunTypeFromActivity(
 }
 
 /**
- * The stand-in max heart rate when the athlete's age is unknown.
+ * The max heart rate the zone shading is drawn against, for everyone.
  *
- * 190 is 220 − 30, i.e. the club's rough median. It is the wrong number for
- * everyone specifically, which is the whole reason `estimatedMaxHR` exists —
- * a 55-year-old's zone 3 was being drawn as zone 2.
+ * 190 is roughly 220 − 30, the club's median. A per-athlete 220 − age version was
+ * built and then removed on request: it meant reading each member's birth date to
+ * render a card, and the zones here are a shaded backdrop, not a training
+ * prescription. One constant, no PII in the render path.
  */
 export const DEFAULT_MAX_HR = 190;
-
-/** Whole years between a `YYYY-MM-DD` birth date and a `YYYY-MM-DD` day. */
-export function ageOnDay(birthDate: string, dayKey: string): number | null {
-  const [by, bm, bd] = birthDate.slice(0, 10).split('-').map(Number);
-  const [dy, dm, dd] = dayKey.slice(0, 10).split('-').map(Number);
-  if (![by, bm, bd, dy, dm, dd].every(Number.isFinite)) return null;
-  let age = dy - by;
-  // Not yet had this year's birthday on that day.
-  if (dm < bm || (dm === bm && dd < bd)) age -= 1;
-  return age >= 5 && age <= 110 ? age : null;
-}
-
-/**
- * Age-predicted maximum heart rate — the Fox formula, 220 − age.
- *
- * Crude (Tanaka's 208 − 0.7·age is the better-validated one) but it is the number
- * Garmin itself defaults to, so the zones here agree with the zones on the watch
- * that recorded the run. Falls back to DEFAULT_MAX_HR whenever the birth date is
- * missing or unusable, which today is most of the roster.
- *
- * Dates are compared as bare `YYYY-MM-DD` strings on purpose: an activity's day
- * comes from `activityLocalDateStr`, and putting either value through a Date in
- * the viewer's timezone is how a run lands on the wrong side of a birthday.
- */
-export function estimatedMaxHR(birthDate: string | null | undefined, dayKey: string): number {
-  if (!birthDate) return DEFAULT_MAX_HR;
-  const age = ageOnDay(birthDate, dayKey);
-  return age == null ? DEFAULT_MAX_HR : 220 - age;
-}
 
 export function getHRZone(
   hr: number,

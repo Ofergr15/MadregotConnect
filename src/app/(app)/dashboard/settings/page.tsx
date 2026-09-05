@@ -289,7 +289,10 @@ export default function SettingsPage() {
   // visible rows above it) but are still real, refreshable deep-link targets.
   const router = useRouter();
   const searchParams = useSearchParams();
-  const ALL_TAB_KEYS: SettingsTab[] = [...settingsTabs.map(st => st.key), 'personalInfo', 'notifprefs'];
+  // 'reminders' is listed by hand because it has a detail screen (ReminderConfig)
+  // but no entry in `settingsTabs` — so Coach Tools' ?tab=reminders link was
+  // being rejected here and silently dropped the reader on the landing list.
+  const ALL_TAB_KEYS: SettingsTab[] = [...settingsTabs.map(st => st.key), 'personalInfo', 'notifprefs', 'reminders'];
   const [activeTab, setActiveTabState] = useState<SettingsTab | null>(() => {
     const tab = searchParams.get('tab');
     return ALL_TAB_KEYS.includes(tab as SettingsTab) ? (tab as SettingsTab) : null;
@@ -843,6 +846,24 @@ export default function SettingsPage() {
                     <ChevronRight className="h-4 w-4 text-ink-400 shrink-0 rotate-180" />
                   </span>
                 }
+              />
+            </InsetSection>
+          )}
+
+          {/* Challenge Manager, back on the Settings landing.
+              The other 9 management rows live only in Coach Tools (see the
+              comment above ALL_TAB_KEYS) and that stays true — but "create a
+              challenge" is the one of them an admin goes looking for *in
+              Settings*, and until now the only way in was Coach Tools or a
+              hand-typed ?tab=challenges. Same detail screen either way. */}
+          {canApproveHere && (
+            <InsetSection header={t('management')}>
+              <InsetRow
+                icon={Trophy}
+                iconBg="bg-band-3"
+                label={t('challengeManager')}
+                onClick={() => setActiveTab('challenges')}
+                trailing={<ChevronRight className="h-4 w-4 text-ink-400 shrink-0 rotate-180" />}
               />
             </InsetSection>
           )}

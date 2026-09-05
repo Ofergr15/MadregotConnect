@@ -22,12 +22,16 @@
  * ── Detection ────────────────────────────────────────────────────────────────
  * Two runs are the same run when BOTH hold:
  *   · their start times are within START_TOLERANCE_S of each other, and
- *   · at least MIN_OVERLAP of the shorter route runs within PROXIMITY_M of the
- *     longer one.
- * Grouping is then the transitive closure of that relation (union-find), which
- * makes it symmetric by construction: unlike Strava — where someone who joined
- * for the last 5 km "ran with" you but you did not run with them — if we ran
- * together, we both ran together. One card, everybody on it, nothing to explain.
+ *   · at least MIN_OVERLAP of EACH route runs within PROXIMITY_M of the other.
+ *
+ * The second condition is deliberately mutual, and that is the whole product
+ * rule: "we ran together" has to be true of both runs, not just the shorter one.
+ * Someone who joined for the last 4 km of a 15 km run is 100% on your route while
+ * you are only 27% on theirs — Strava calls that running together, we don't. They
+ * get their own card, which is also the honest one: they didn't run your run.
+ *
+ * Grouping is then the transitive closure of that relation (union-find), so a
+ * pack that strings out still lands on one card as long as each link holds.
  */
 
 import type { FeedItem } from '@/lib/feed/project';
@@ -47,8 +51,16 @@ export const START_TOLERANCE_S = 300;
  *  pack stringing out, and the ~10 m of GPS noise a phone adds in a street. */
 export const PROXIMITY_M = 250;
 
-/** Fraction of the shorter route that must be close to the longer one. */
-export const MIN_OVERLAP = 0.5;
+/**
+ * Fraction of *each* route that must be close to the other one.
+ *
+ * 80%: a shared run with a bit of solo warm-up or cool-down on either end still
+ * counts, half a run together does not. The cost of raising it is the odd false
+ * negative — run 10 km with the group and then 3 km home alone and you are at
+ * 77%, so your run splits off. That is the trade the threshold buys; drop it to
+ * 0.7 if that turns out to be common in practice.
+ */
+export const MIN_OVERLAP = 0.8;
 
 /** Groups only form from this many runners up. Two is a group run. */
 const MIN_GROUP_SIZE = 2;
@@ -124,10 +136,12 @@ function boxesDisjoint(a: Box, b: Box): boolean {
 
 /**
  * Fraction of `probe`'s points that lie within PROXIMITY_M of some point of
- * `against`.
+ * `against` — one direction only. `mutualOverlap` is what the detector uses; this
+ * is the half it is built from, kept exported because the asymmetry is the thing
+ * worth being able to test in isolation.
  *
  * `routePreview` is ~60 points spread evenly along the run, so "fraction of
- * points" stands in for "fraction of the run" closely enough for a 50% threshold.
+ * points" stands in for "fraction of the run" closely enough for an 80% threshold.
  * It is not "fraction of time" — a walked kilometre carries about as many samples
  * as a fast one — but the difference cannot move a real group run across the
  * threshold.
@@ -148,6 +162,38 @@ export function routeOverlap(
     }
   }
   return near / probe.length;
+}
+
+/**
+ * How much of the run the two of them actually did together: the SMALLER of the
+ * two one-way overlaps.
+ *
+ * `routeOverlap` on its own can't answer the question, because it is asymmetric —
+ * a subset of a route scores 1.0 against it no matter how short it is. Taking the
+ * minimum is what makes "80% together" mean 80% of both runs, and it is also the
+ * number worth showing on the card: the share of the run that both people were on.
+ *
+ * Computed in one pass rather than by calling `routeOverlap` twice — same 60 × 60
+ * distance calls as the one-way version used to cost, both counts out of it. (No
+ * early break: a point of `a` being matched doesn't tell us anything about which
+ * points of `b` are matched, and that second column is the whole point here.)
+ */
+export function mutualOverlap(
+  a: Array<{ lat: number; lng: number }>,
+  b: Array<{ lat: number; lng: number }>,
+): number {
+  if (a.length === 0 || b.length === 0) return 0;
+  const nearA = new Uint8Array(a.length);
+  const nearB = new Uint8Array(b.length);
+  for (let i = 0; i < a.length; i++) {
+    for (let j = 0; j < b.length; j++) {
+      if (haversineM(a[i], b[j]) <= PROXIMITY_M) { nearA[i] = 1; nearB[j] = 1; }
+    }
+  }
+  let countA = 0, countB = 0;
+  for (const flag of nearA) countA += flag;
+  for (const flag of nearB) countB += flag;
+  return Math.min(countA / a.length, countB / b.length);
 }
 
 // ─── candidacy ─────────────────────────────────────────────────────────────────
@@ -202,8 +248,7 @@ function sameRun(a: Candidate, b: Candidate): number {
   if (a.item.activity!.athleteId === b.item.activity!.athleteId) return 0;
   if (boxesDisjoint(a.box, b.box)) return 0;
 
-  const [shorter, longer] = a.route.length <= b.route.length ? [a, b] : [b, a];
-  const overlap = routeOverlap(shorter.route, longer.route);
+  const overlap = mutualOverlap(a.route, b.route);
   return overlap >= MIN_OVERLAP ? overlap : 0;
 }
 

@@ -10,9 +10,8 @@ import { cn, formatActivityTime, formatActivityDate, activityLocalDay } from '@/
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { ActivityDetailBody } from '@/components/activity/ActivityDetailBody';
 import {
-  formatDuration, formatPace, getHRZone, getTimeLabel, resolveRunTypeBadge,
+  DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone, getTimeLabel, resolveRunTypeBadge,
 } from '@/components/activity/format';
-import { useAthleteMaxHR } from '@/components/activity/useAthleteMaxHR';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ActivityEntry } from '@/components/activity/types';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
@@ -60,10 +59,8 @@ function ActivityCard({
   const hebrewDays = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
   const dayLabel = hebrewDays[activityLocalDay(activity.start_time)];
   const timeLabel = getTimeLabel(activity.start_time);
-  // 220 - age where the birth date is readable, 190 otherwise, never below what
-  // the run itself recorded — see useAthleteMaxHR.
-  const maxHRAt = useAthleteMaxHR(activity.athlete_id);
-  const maxHR = Math.max(maxHRAt(activity.start_time), activity.max_hr ?? 0);
+  // The club-wide 190, but never below what the run itself recorded.
+  const maxHR = Math.max(DEFAULT_MAX_HR, activity.max_hr ?? 0);
   const hrZone = activity.average_hr ? getHRZone(activity.average_hr, maxHR) : null;
   // The provider's own sport first (trail / treadmill / track); the distance-and-
   // pace guess only for a plain road run.

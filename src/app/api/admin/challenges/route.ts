@@ -12,6 +12,19 @@ type Scope = (typeof SCOPES)[number];
 
 const CHALLENGE_ICON = '🏆'; // default emoji when the admin doesn't upload artwork
 
+/**
+ * Whether a Supabase error is "the `challenges` table isn't there".
+ *
+ * `PGRST205` is PostgREST's schema-cache miss; `42P01` is Postgres' own
+ * undefined_table, which is what comes back when the cache is warm but the
+ * relation still isn't. Migration 062 is applied by hand, so this is a real
+ * state to expect rather than an impossible one.
+ */
+function isMissingTable(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === 'PGRST205' || code === '42P01';
+}
+
 /** Same recipe as /api/admin/badges' generateUniqueCode — badges.code is a
  * shared UNIQUE column, so a challenge's underlying badge needs the same
  * collision-safe generation. */
@@ -45,8 +58,12 @@ export async function GET(request: Request) {
     .order('start_date', { ascending: false });
   if (error) {
     // PGRST205 = PostgREST's "table not in schema cache" — migration 062 may
-    // not be applied yet in this environment.
-    if ((error as { code?: string }).code === 'PGRST205') return NextResponse.json({ challenges: [] });
+    // not be applied yet in this environment. Say so instead of only returning
+    // an empty list: migrations here are applied by hand in the Supabase SQL
+    // editor, so "no challenges yet" and "the table does not exist" look
+    // identical to the admin, and the second one can't be fixed by using the
+    // form harder.
+    if (isMissingTable(error)) return NextResponse.json({ challenges: [], setupRequired: true });
     return NextResponse.json({ error: 'Failed to fetch challenges' }, { status: 500 });
   }
 
@@ -193,6 +210,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ challenge, badge });
   } catch (error) {
     console.error('Failed to create challenge:', error);
+    // The one failure an admin can actually act on: the table this writes into
+    // does not exist yet. `message` is what the form shows, so it names the
+    // migration instead of "Failed to create challenge".
+    if (isMissingTable(error)) {
+      return NextResponse.json(
+        {
+          error: 'challenges table missing',
+          message: 'The challenges table does not exist yet — apply supabase/migrations/062_challenges.sql in the Supabase SQL editor.',
+        },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: 'Failed to create challenge' }, { status: 500 });
   }
 }

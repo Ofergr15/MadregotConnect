@@ -63,13 +63,28 @@ export function ChallengeManager() {
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Challenge | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [setupRequired, setSetupRequired] = useState(false);
 
+  /**
+   * The list, plus a reason when there isn't one.
+   *
+   * This used to swallow every failure into an empty array, which made three
+   * different situations render as "no challenges yet": nothing created, no
+   * staff access, and the `challenges` table not existing because migration 062
+   * was never run by hand. Only the first of those is fixed by using the form.
+   */
   const fetchChallenges = () => {
     setLoading(true);
+    setLoadError(null);
     authedFetch('/api/admin/challenges')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setChallenges(d?.challenges || []))
-      .catch(() => {})
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.message || data.error || t('loadError'));
+        setChallenges(data.challenges || []);
+        setSetupRequired(!!data.setupRequired);
+      })
+      .catch((err: unknown) => setLoadError((err as Error).message || t('loadError')))
       .finally(() => setLoading(false));
   };
 
@@ -185,6 +200,16 @@ export function ChallengeManager() {
 
       {deleteError && (
         <div className="mb-3 p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red-ink text-xs">{deleteError}</div>
+      )}
+
+      {loadError && (
+        <div className="mb-3 p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red-ink text-xs" dir="auto">{loadError}</div>
+      )}
+
+      {/* Not an error — the table simply isn't in the database yet. Amber, not
+          red, and it says what to do about it. */}
+      {setupRequired && (
+        <div className="mb-3 p-3 rounded-xl bg-band-3/10 border border-band-3/20 text-band-3-ink text-xs" dir="auto">{t('setupRequired')}</div>
       )}
 
       {loading ? (

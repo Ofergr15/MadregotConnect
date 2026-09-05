@@ -22,8 +22,24 @@
     "bpm": "פעימות/דקה",
     "language": "שפה",
     "all": "הכל",
-    "dayNames": ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"],
-    "dayNamesShort": ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"]
+    "dayNames": [
+      "ראשון",
+      "שני",
+      "שלישי",
+      "רביעי",
+      "חמישי",
+      "שישי",
+      "שבת"
+    ],
+    "dayNamesShort": [
+      "א׳",
+      "ב׳",
+      "ג׳",
+      "ד׳",
+      "ה׳",
+      "ו׳",
+      "ש׳"
+    ]
   },
   "nav": {
     "dashboard": "לוח בקרה",
@@ -161,6 +177,7 @@
   "dashboard": {
     "valenciaMarathon": "מרתון ולנסיה",
     "weeklyVolume": "נפח שבועי",
+    "weekGoalRange": "יעד {min}–{max} {unit}",
     "trainingDays": "ימי אימון",
     "thisWeek": "השבוע",
     "expectedWeeklyKm": "צפויים לשבוע",
@@ -342,20 +359,20 @@
     "wholeWeek": "כל השבוע",
     "sendingWorkouts": "שולח {count} אימון(ים) לכל ספורטאי",
     "selectAtLeastOneDay": "— בחר יום אחד לפחות",
-    "activeAthletesCount": "{count} ספורטאי(ים) פעיל(ים)",
+    "activeAthletesCount": "{count} ספורטאים פעילים",
     "garminWillReceive": "{ready} מחוברים ל-Garmin · יקבלו {count} אימון(ים)",
     "noGroupsFound": "לא נמצאו קבוצות",
     "readyOfTotal": "{ready}/{total} מוכנים",
     "noAthletesInGroup": "אין ספורטאים בקבוצה זו",
     "garmin": "Garmin",
     "notConnected": "לא מחובר",
-    "withoutGroupNote": "{count} ספורטאי(ים) ללא קבוצה (יקבלו כברירת מחדל את תוכנית קבוצה 1)",
-    "athleteCount": "{count} ספורטאי(ים)",
+    "withoutGroupNote": "{count} ספורטאים ללא קבוצה (יקבלו כברירת מחדל את תוכנית קבוצה 1)",
+    "athleteCount": "{count} ספורטאים",
     "noAthletesFound": "לא נמצאו ספורטאים",
     "noGarminTag": "אין Garmin",
     "noGarminTitle": "אין Garmin מחובר — לא ניתן לשלוח",
-    "athletesSelected": "{count} ספורטאי(ים) נבחרו",
-    "pushingTo": "שולח ל-{count} ספורטאי(ים)...",
+    "athletesSelected": "{count} ספורטאים נבחרו",
+    "pushingTo": "שולח ל-{count} ספורטאים...",
     "pushDaysBtn": "שלח {count} יום(ים)",
     "errors": {
       "parsingTimedOut": "הפענוח נתקע בזמן. התוכנית עלולה להיות גדולה או מורכבת מדי — נסה תמונה ברורה יותר או הדבק את הטקסט.",
@@ -663,7 +680,9 @@
     "endDate": "תאריך סיום",
     "createChallenge": "צור אתגר",
     "creating": "יוצר...",
-    "createError": "יצירת האתגר נכשלה"
+    "createError": "יצירת האתגר נכשלה",
+    "loadError": "טעינת האתגרים נכשלה",
+    "setupRequired": "טבלת האתגרים עדיין לא קיימת במסד הנתונים. יש להריץ את supabase/migrations/062_challenges.sql בעורך ה-SQL של Supabase, ואז לרענן."
   },
   "storeManager": {
     "productsTab": "מוצרים",
@@ -707,10 +726,11 @@
   "groups": {
     "title": "קבוצות אימון",
     "athletesAcross": "ספורטאים ב-",
+    "athletesAcrossGroups": "{athletes} ספורטאים ב-{groups} קבוצות",
     "groups": "קבוצות",
     "runners": "רצים",
     "paceOffset": "הפרש קצב",
-    "athletes": "ספורטאי(ם)",
+    "athletes": "ספורטאים",
     "goal": "יעד",
     "editGroup": "עריכת קבוצה",
     "noAthletesYet": "אין עדיין ספורטאים בקבוצה",
@@ -735,7 +755,7 @@
     "kmTotal": "ק\"מ סה\"כ",
     "runs": "ריצות",
     "km": "ק\"מ",
-    "garminConnected": "Garmin",
+    "garminConnected": "מחובר",
     "notConnected": "לא מחובר",
     "leaderboardWillPopulate": "טבלת המובילים תתעדכן לאחר סנכרון פעילויות מגרמין",
     "paceOffsetPreview": "קצב בסיס 4:00/ק\"מ ← הקבוצה הזו: {pace}"
@@ -1108,6 +1128,7 @@
     "noBadgesYet": "עדיין אין לך תגים",
     "noBadgesYetBody": "צאו לרוץ כדי לזכות בתג הראשון שלכם!",
     "earnedOn": "זכית ב-",
+    "earnedOnDate": "זכית ב-{date}",
     "locked": "נעול",
     "challenges": "אתגרים",
     "noChallengesActive": "אין אתגרים פעילים",
@@ -1735,6 +1756,9 @@
     "challengeFinished": "סיימת את האתגר",
     "lastDay": "יום אחרון",
     "daysLeft": "נותרו {count} ימים",
+    "daysLeftShort": "{count} ימים",
+    "oneDayLeft": "עוד יום",
+    "challengeEyebrow": "אתגר פעיל",
     "dismiss": "הסתרת הכרטיס"
   },
   "photos": {

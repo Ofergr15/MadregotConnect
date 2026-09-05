@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   groupFeedItems,
   routeOverlap,
+  mutualOverlap,
   optedOutOfGrouping,
   MIN_OVERLAP,
   PROXIMITY_M,
@@ -110,6 +111,20 @@ describe('routeOverlap', () => {
     expect(routeOverlap(TEL_AVIV, joiner)).toBeLessThan(MIN_OVERLAP);
   });
 
+  it('mutualOverlap takes the smaller share, so a subset does not score 100%', () => {
+    const joiner = TEL_AVIV.slice(-4);
+    expect(mutualOverlap(TEL_AVIV, TEL_AVIV)).toBe(1);
+    // 4/4 one way, 6/20 the other (two of ofer's points sit within PROXIMITY_M of
+    // the joiner's start). The smaller one is what "together" means.
+    expect(mutualOverlap(joiner, TEL_AVIV)).toBeLessThan(MIN_OVERLAP);
+    expect(mutualOverlap(joiner, TEL_AVIV)).toBe(mutualOverlap(TEL_AVIV, joiner));
+    expect(mutualOverlap(TEL_AVIV, HAIFA)).toBe(0);
+  });
+
+  it('the threshold is 80% of each run, not half of the shorter one', () => {
+    expect(MIN_OVERLAP).toBe(0.8);
+  });
+
   it('counts a point as near within PROXIMITY_M', () => {
     // ~111 m north of the first point: inside the radius. ~333 m: outside.
     expect(routeOverlap([{ lat: 32.081, lng: 34.78 }], [TEL_AVIV[0]])).toBe(1);
@@ -135,7 +150,9 @@ describe('groupFeedItems', () => {
     expect(group!.items[0].author.athleteId).toBe('asaf');
   });
 
-  it('groups the joiner too — overlap is measured against the shorter route', () => {
+  it('does NOT group someone who only joined for the tail — 80% has to hold both ways', () => {
+    // asaf's 4 points are all on ofer's route (100% one way), but they cover a
+    // fifth of it (20% the other way). Not the same run, two cards.
     const items = [
       run({ id: 'long', athleteId: 'ofer', startTime: '2026-09-01T07:50:00', distance: 20_000 }),
       run({
@@ -147,8 +164,28 @@ describe('groupFeedItems', () => {
       }),
     ];
     const entries = groupFeedItems(items, null);
+    expect(entries.map((e) => e.kind)).toEqual(['item', 'item']);
+  });
+
+  it('still groups a run with a short solo tail, and reports the shared share', () => {
+    // ofer ran on for 6 more points alone. Two of them are still within
+    // PROXIMITY_M of asaf's finish, so 22 of his 26 count as shared (85%) and all
+    // 20 of asaf's do (100%). Over the threshold both ways.
+    const items = [
+      run({
+        id: 'long',
+        athleteId: 'ofer',
+        startTime: '2026-09-01T07:50:00',
+        route: line(32.08, 26),
+        distance: 12_000,
+      }),
+      run({ id: 'short', athleteId: 'asaf', startTime: '2026-09-01T07:52:00', distance: 10_000 }),
+    ];
+    const entries = groupFeedItems(items, null);
     expect(entries).toHaveLength(1);
     const group = entries[0].kind === 'group' ? entries[0].group : null;
+    // The smaller of the two shares, not the flattering one.
+    expect(group!.overlapPct).toBe(85);
     // The longest route wins the shared map: it never crops part of what happened.
     expect(group!.mapItem.id).toBe('long');
   });

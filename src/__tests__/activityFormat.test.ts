@@ -1,47 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ageOnDay,
-  estimatedMaxHR,
   getHRZone,
   resolveRunTypeBadge,
   DEFAULT_MAX_HR,
 } from '@/components/activity/format';
 
-describe('ageOnDay', () => {
-  it('counts whole years and waits for the birthday', () => {
-    expect(ageOnDay('1990-09-05', '2026-09-05')).toBe(36);
-    expect(ageOnDay('1990-09-06', '2026-09-05')).toBe(35);
-    expect(ageOnDay('1990-01-01', '2026-12-31')).toBe(36);
-    expect(ageOnDay('1990-12-31', '2026-01-01')).toBe(35);
+describe('getHRZone', () => {
+  // One ceiling for the whole club, on purpose: an age-derived 220 − age version
+  // was built and then removed, because rendering a card should not require
+  // reading the athlete's birth date.
+  it('splits the zones at 60/70/80/90% of the ceiling', () => {
+    expect(DEFAULT_MAX_HR).toBe(190);
+    expect(getHRZone(100).zone).toBe(1); // 53%
+    expect(getHRZone(120).zone).toBe(2); // 63%
+    expect(getHRZone(140).zone).toBe(3); // 74%
+    expect(getHRZone(160).zone).toBe(4); // 84%
+    expect(getHRZone(180).zone).toBe(5); // 95%
   });
 
-  it('tolerates a full timestamp on either side', () => {
-    expect(ageOnDay('1990-09-05T00:00:00.000Z', '2026-09-05T07:50:00')).toBe(36);
-  });
-
-  it('rejects an age no club member has', () => {
-    expect(ageOnDay('2026-09-05', '2026-09-05')).toBeNull();
-    expect(ageOnDay('1850-01-01', '2026-09-05')).toBeNull();
-    expect(ageOnDay('not-a-date', '2026-09-05')).toBeNull();
-  });
-});
-
-describe('estimatedMaxHR', () => {
-  it('is 220 minus age', () => {
-    expect(estimatedMaxHR('1990-09-05', '2026-09-05')).toBe(184);
-    expect(estimatedMaxHR('1971-03-01', '2026-09-05')).toBe(165);
-  });
-
-  it('falls back to 190 with no usable birth date, which is most of the roster', () => {
-    expect(estimatedMaxHR(null, '2026-09-05')).toBe(DEFAULT_MAX_HR);
-    expect(estimatedMaxHR('', '2026-09-05')).toBe(DEFAULT_MAX_HR);
-    expect(estimatedMaxHR('garbage', '2026-09-05')).toBe(DEFAULT_MAX_HR);
-  });
-
-  it('is the fix a 55-year-old needed: 130 bpm is zone 3 for them, not zone 2', () => {
-    const birthDate = '1971-03-01';
-    expect(getHRZone(130).zone).toBe(2);
-    expect(getHRZone(130, estimatedMaxHR(birthDate, '2026-09-05')).zone).toBe(3);
+  it('scales when the caller raises the ceiling to what the run recorded', () => {
+    // 180 bpm is zone 5 against 190 and only zone 4 for someone who has been
+    // measured at 205 — which is what the callers pass.
+    expect(getHRZone(180, 205).zone).toBe(4);
   });
 });
 

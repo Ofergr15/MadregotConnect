@@ -34,7 +34,17 @@ export interface PlateTile {
 }
 
 export interface RoutePlate {
+  /**
+   * The integer zoom the *tiles* were requested at. The view itself is drawn at a
+   * fractional scale between `zoom - 1` and `zoom` (see `planRoutePlate`), so this
+   * is which tiles were fetched, not how far the view is zoomed in.
+   */
   zoom: number;
+  /**
+   * How much of a native 256px tile one tile occupies on screen, 0.5–1. Always
+   * ≤ 1: tiles are downscaled, never stretched.
+   */
+  tileScale: number;
   tiles: PlateTile[];
   /** The route, projected into view coordinates (same space as the tiles). */
   points: Array<{ x: number; y: number }>;
@@ -45,9 +55,9 @@ export const TILE_SIZE = 256;
 /**
  * Deepest zoom we'll ever ask for — as deep as the basemap's raster cache goes
  * (see `BASEMAP_MAX_ZOOM`), because asking for more returns a grey placeholder
- * rather than a map. Only very short routes reach it: `planRoutePlate` picks the
- * deepest zoom at which the whole route still fits the box, so a 5 km run lands
- * far shallower and the ceiling never enters into it.
+ * rather than a map. Only a route with no extent at all reaches it: `planRoutePlate`
+ * scales the view so the route just fills the box, so a 5 km run lands far
+ * shallower and the ceiling never enters into it.
  */
 const MAX_ZOOM = BASEMAP_MAX_ZOOM;
 
@@ -85,6 +95,20 @@ function tileUrl(zoom: number, x: number, y: number): string {
  *
  * `padding` is the margin the route keeps from the edge of the box, so a loop
  * that finishes where it started doesn't graze the border.
+ *
+ * ── Why the scale is fractional ─────────────────────────────────────────────
+ * This used to pick the deepest **whole** zoom at which the route still fit, and
+ * draw everything at that zoom's native resolution. Whole zoom levels are a factor
+ * of two apart, so a route that just missed the next level down was drawn at half
+ * the size it had room for. Measured over square loops from 0.6 to 5 km in a
+ * 392×208 card, the route filled between 51% and 100% of the padded box — averaging
+ * about 73%, and looking uniformly too far out.
+ *
+ * So the view is now scaled to fit exactly, and the *tiles* are fetched at the
+ * whole zoom just above that scale and drawn slightly smaller (`tileScale`, always
+ * between 0.5 and 1). Downscaling a sharp tile is invisible; upscaling is what
+ * looks blurry, and rounding the other way would do that. This is what Leaflet
+ * does with `zoomSnap: 0`, and it is the same reason the detail map now sets it.
  */
 export function planRoutePlate(
   points: LatLng[],
@@ -108,27 +132,36 @@ export function planRoutePlate(
   const boxW = Math.max(width - padding * 2, 1);
   const boxH = Math.max(height - padding * 2, 1);
 
-  // Deepest zoom at which the whole route still fits. A route that won't fit
-  // even at z0 (nothing real) falls through to z0 and gets clipped.
-  let zoom = 0;
-  for (let z = MAX_ZOOM; z >= 0; z--) {
-    const world = TILE_SIZE * 2 ** z;
-    if ((maxX - minX) * world <= boxW && (maxY - minY) * world <= boxH) {
-      zoom = z;
-      break;
-    }
-  }
+  // The exact size, in pixels, at which the whole Mercator square would have to be
+  // drawn for the route's own extent to just fill the padded box. Whichever axis
+  // is the tighter fit wins; the other keeps its slack, which is unavoidable when a
+  // near-square route goes in a wide box.
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  const ceiling = TILE_SIZE * 2 ** MAX_ZOOM;
+  const world = Math.min(
+    ceiling,
+    // Both spans zero means every fix landed on the same spot — a treadmill run
+    // with GPS on, or a watch that recorded one point twice. There is no extent to
+    // fit, so it goes to the deepest zoom the basemap has and shows the street.
+    Math.min(spanX > 0 ? boxW / spanX : Infinity, spanY > 0 ? boxH / spanY : Infinity),
+  );
 
-  const world = TILE_SIZE * 2 ** zoom;
+  // Tiles come from the whole zoom at or above this scale, so they are downscaled
+  // into place rather than stretched. `tileScale` is therefore always in (0.5, 1].
+  const zoom = Math.min(MAX_ZOOM, Math.max(0, Math.ceil(Math.log2(world / TILE_SIZE))));
+  const tileScale = world / (TILE_SIZE * 2 ** zoom);
+  const tilePx = TILE_SIZE * tileScale;
+
   const originX = ((minX + maxX) / 2) * world - width / 2;
   const originY = ((minY + maxY) / 2) * world - height / 2;
 
   const tiles: PlateTile[] = [];
   const count = 2 ** zoom;
-  const firstX = Math.floor(originX / TILE_SIZE);
-  const lastX = Math.floor((originX + width) / TILE_SIZE);
-  const firstY = Math.floor(originY / TILE_SIZE);
-  const lastY = Math.floor((originY + height) / TILE_SIZE);
+  const firstX = Math.floor(originX / tilePx);
+  const lastX = Math.floor((originX + width) / tilePx);
+  const firstY = Math.floor(originY / tilePx);
+  const lastY = Math.floor((originY + height) / tilePx);
 
   for (let ty = firstY; ty <= lastY; ty++) {
     // Latitude doesn't wrap — off the top or bottom of the world is just blank.
@@ -138,15 +171,20 @@ export function planRoutePlate(
       tiles.push({
         key: `${zoom}/${tx}/${ty}`,
         url: tileUrl(zoom, wrapped, ty),
-        x: tx * TILE_SIZE - originX,
-        y: ty * TILE_SIZE - originY,
-        size: TILE_SIZE,
+        x: tx * tilePx - originX,
+        y: ty * tilePx - originY,
+        // A hair over the lattice step. At a fractional scale the neighbouring
+        // tile's left edge lands on a subpixel boundary, and without the overlap
+        // the browser leaves a visible hairline of the grey backdrop between
+        // every pair of tiles. 0.5px of stretch on a 256px image is invisible.
+        size: tilePx + 0.5,
       });
     }
   }
 
   return {
     zoom,
+    tileScale,
     tiles,
     points: merc.map((p) => ({ x: p.x * world - originX, y: p.y * world - originY })),
   };

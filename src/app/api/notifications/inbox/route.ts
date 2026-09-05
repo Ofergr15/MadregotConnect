@@ -9,6 +9,7 @@ import {
   rsvpKey,
   type RawItem,
 } from '@/lib/notifications/inbox';
+import { likedActivityIds } from '@/lib/feed/likes';
 import { localeFromPrefs } from '@/lib/notifications/locale';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
@@ -32,15 +33,10 @@ async function withRowActions(
   const { activityIds, weekStarts } = rowActionTargets(items);
   if (activityIds.length === 0 && weekStarts.length === 0) return items;
 
-  const [kudos, rsvps] = await Promise.all([
-    activityIds.length
-      ? supabase
-          .from('activity_kudos')
-          .select('activity_id')
-          .eq('athlete_id', athleteId)
-          .in('activity_id', activityIds)
-          .returns<{ activity_id: string }[]>()
-      : null,
+  const [kudosGiven, rsvps] = await Promise.all([
+    // Kudos live in `feed_likes`, keyed by feed item — this resolves them back
+    // to the activity ids the inbox rows are keyed on.
+    activityIds.length ? likedActivityIds(supabase, athleteId, activityIds) : null,
     weekStarts.length
       ? supabase
           .from('workout_attendance')
@@ -50,11 +46,6 @@ async function withRowActions(
           .returns<{ week_start_date: string; day_of_week: number; attending: boolean }[]>()
       : null,
   ]);
-
-  let kudosGiven: Set<string> | null = null;
-  if (kudos && !kudos.error) {
-    kudosGiven = new Set((kudos.data || []).map((r) => r.activity_id));
-  }
 
   let rsvpByKey: Map<string, boolean> | null = null;
   if (rsvps && !rsvps.error) {

@@ -54,6 +54,9 @@ export async function POST(request: Request) {
         actorAthleteId: athleteId,
         actorName: auth.user.name,
         kind: 'like',
+        // A ❤️ on a run is the same thing as a 👍 from the notification, so it
+        // gets announced as a kudos rather than as a like on a "post".
+        itemType: meta.type,
       });
     }
 

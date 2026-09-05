@@ -8,8 +8,7 @@ import {
 import { PlannedKmPoint } from '@/lib/academy/segments';
 import { cn } from '@/lib/utils';
 import { ElevationChart, HRChart, PaceChart } from './charts';
-import { formatDuration, formatPace, getHRZone } from './format';
-import { useAthleteMaxHR } from './useAthleteMaxHR';
+import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone } from './format';
 import { RouteMap } from './RouteMap';
 import { SplitsTable } from './SplitsTable';
 import type { ActivityDetailsData, ActivityEntry } from './types';
@@ -67,12 +66,10 @@ export function ActivityDetailBody({
   const durationStr = formatDuration(act.duration);
   const movingStr = act.moving_duration ? formatDuration(act.moving_duration) : null;
 
-  // Zones against this athlete's own 220 − age where their birth date is
-  // readable, and against 190 otherwise — see useAthleteMaxHR. A heart rate the
-  // run itself recorded above that estimate is proof the estimate is low, so it
-  // raises the ceiling rather than being clipped into zone 5.
-  const maxHRAt = useAthleteMaxHR(act.athlete_id);
-  const maxHR = Math.max(maxHRAt(act.start_time), act.max_hr ?? 0);
+  // Zones against the club-wide 190, but never below what the run itself
+  // recorded: a max of 196 is proof the ceiling is low for this athlete, so it
+  // lifts the top of the scale instead of pinning the whole run into zone 5.
+  const maxHR = Math.max(DEFAULT_MAX_HR, act.max_hr ?? 0);
   const hrZone = act.average_hr ? getHRZone(act.average_hr, maxHR) : null;
 
   const splits = details?.splits || act.splits || [];

@@ -22,8 +22,24 @@
     "bpm": "bpm",
     "language": "Language",
     "all": "All",
-    "dayNames": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-    "dayNamesShort": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    "dayNames": [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ],
+    "dayNamesShort": [
+      "Sun",
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat"
+    ]
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -161,6 +177,7 @@
   "dashboard": {
     "valenciaMarathon": "Valencia Marathon",
     "weeklyVolume": "Weekly Volume",
+    "weekGoalRange": "Goal {min}–{max} {unit}",
     "trainingDays": "Training Days",
     "thisWeek": "this week",
     "expectedWeeklyKm": "expected per week",
@@ -663,7 +680,9 @@
     "endDate": "End date",
     "createChallenge": "Create Challenge",
     "creating": "Creating...",
-    "createError": "Failed to create challenge"
+    "createError": "Failed to create challenge",
+    "loadError": "Failed to load challenges",
+    "setupRequired": "The challenges table does not exist in the database yet. Run supabase/migrations/062_challenges.sql in the Supabase SQL editor, then reload."
   },
   "storeManager": {
     "productsTab": "Products",
@@ -707,6 +726,7 @@
   "groups": {
     "title": "Training Groups",
     "athletesAcross": "athletes across",
+    "athletesAcrossGroups": "{athletes} athletes across {groups} groups",
     "groups": "groups",
     "runners": "runners",
     "paceOffset": "Pace offset",
@@ -735,7 +755,7 @@
     "kmTotal": "km total",
     "runs": "runs",
     "km": "km",
-    "garminConnected": "Garmin",
+    "garminConnected": "Connected",
     "notConnected": "Not connected",
     "leaderboardWillPopulate": "Leaderboard will populate once activities sync from Garmin",
     "paceOffsetPreview": "Base 4:00/km → This group: {pace}"
@@ -1108,6 +1128,7 @@
     "noBadgesYet": "No badges yet",
     "noBadgesYetBody": "Go for a run to earn your first badge!",
     "earnedOn": "Earned",
+    "earnedOnDate": "Earned {date}",
     "locked": "Locked",
     "challenges": "Challenges",
     "noChallengesActive": "No active challenges",
@@ -1735,6 +1756,9 @@
     "challengeFinished": "Challenge complete",
     "lastDay": "Last day",
     "daysLeft": "{count} days left",
+    "daysLeftShort": "{count} days",
+    "oneDayLeft": "1 day left",
+    "challengeEyebrow": "Active challenge",
     "dismiss": "Hide this card"
   },
   "photos": {

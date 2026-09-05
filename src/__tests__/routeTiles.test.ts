@@ -99,19 +99,77 @@ describe('planRoutePlate', () => {
     expect(Math.max(...ys)).toBeLessThanOrEqual(height - padding + 0.001);
   });
 
-  it('picks the deepest zoom that still fits — one deeper would overflow', () => {
-    const width = 300;
-    const height = 100;
-    const padding = 12;
-    const plate = planRoutePlate(route, width, height, padding)!;
-    const merc = route.map(toMercator);
-    const spanX = Math.max(...merc.map((p) => p.x)) - Math.min(...merc.map((p) => p.x));
-    const spanY = Math.max(...merc.map((p) => p.y)) - Math.min(...merc.map((p) => p.y));
-    const fitsAt = (z: number) =>
-      spanX * TILE_SIZE * 2 ** z <= width - padding * 2 &&
-      spanY * TILE_SIZE * 2 ** z <= height - padding * 2;
-    expect(fitsAt(plate.zoom)).toBe(true);
-    expect(fitsAt(plate.zoom + 1)).toBe(false);
+  /**
+   * The framing regression this whole group exists for.
+   *
+   * This used to pick the deepest WHOLE zoom that fit. Whole zooms are a factor of
+   * two apart, so a route that just missed the next one was drawn at as little as
+   * 51% of the space it had — measured across square loops from 0.6 to 5 km, the
+   * fill ranged 51–100% and averaged ~73%. It read as "the map is zoomed out too
+   * far", and no amount of adjusting the padding could fix it, because the cause was
+   * the rounding and not the margin.
+   */
+  describe('framing', () => {
+    /** Square loops with a side of `km`, near Tel Aviv. */
+    const squareLoop = (km: number) => {
+      const dLat = km / 111;
+      const dLng = km / (111 * Math.cos((32.07 * Math.PI) / 180));
+      return [
+        { lat: 32.07, lng: 34.79 },
+        { lat: 32.07 + dLat, lng: 34.79 },
+        { lat: 32.07 + dLat, lng: 34.79 + dLng },
+        { lat: 32.07, lng: 34.79 + dLng },
+        { lat: 32.07, lng: 34.79 },
+      ];
+    };
+
+    it('fills the tighter axis of the padded box, whatever size the route is', () => {
+      const [W, H, pad] = [392, 208, 12];
+      for (const km of [0.6, 0.9, 1.2, 1.8, 2.5, 3.5, 5, 8]) {
+        const plate = planRoutePlate(squareLoop(km), W, H, pad)!;
+        const ys = plate.points.map((p) => p.y);
+        const spread = Math.max(...ys) - Math.min(...ys);
+        // A square loop in a wide box is height-bound, so it fills the padded
+        // height essentially exactly. Under the old whole-zoom rounding half of
+        // these sat near 0.51 of it.
+        expect(spread / (H - pad * 2)).toBeGreaterThan(0.999);
+      }
+    });
+
+    it('never spills outside the padded box on either axis', () => {
+      const [W, H, pad] = [392, 208, 12];
+      for (const km of [0.4, 1, 2.7, 6]) {
+        for (const pts of [squareLoop(km), route]) {
+          const plate = planRoutePlate(pts, W, H, pad)!;
+          const xs = plate.points.map((p) => p.x);
+          const ys = plate.points.map((p) => p.y);
+          expect(Math.min(...xs)).toBeGreaterThanOrEqual(pad - 0.001);
+          expect(Math.max(...xs)).toBeLessThanOrEqual(W - pad + 0.001);
+          expect(Math.min(...ys)).toBeGreaterThanOrEqual(pad - 0.001);
+          expect(Math.max(...ys)).toBeLessThanOrEqual(H - pad + 0.001);
+        }
+      }
+    });
+
+    it('downscales tiles and never stretches them, so the plate stays sharp', () => {
+      for (const km of [0.6, 0.9, 1.2, 1.8, 2.5, 3.5, 5]) {
+        const plate = planRoutePlate(squareLoop(km), 392, 208, 12)!;
+        // Rounding the tile zoom the other way would upscale, which is the one
+        // thing that actually looks bad.
+        expect(plate.tileScale).toBeGreaterThan(0.5);
+        expect(plate.tileScale).toBeLessThanOrEqual(1);
+      }
+    });
+
+    it('keeps a route with no extent at all inside the basemap ceiling', () => {
+      // Same fix twice over: a treadmill run with GPS on records one spot, so
+      // there is no span to divide by.
+      const still = [{ lat: 32.07, lng: 34.79 }, { lat: 32.07, lng: 34.79 }];
+      const plate = planRoutePlate(still, 392, 208)!;
+      expect(plate.zoom).toBe(BASEMAP_MAX_ZOOM);
+      expect(plate.tileScale).toBe(1);
+      expect(plate.points.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
+    });
   });
 
   it('covers the whole box with tiles and no gaps', () => {
@@ -119,8 +177,11 @@ describe('planRoutePlate', () => {
     const height = 100;
     const plate = planRoutePlate(route, width, height)!;
     expect(plate.tiles.length).toBeGreaterThan(0);
-    // Every tile is TILE_SIZE, aligned to a lattice, and the union spans the box.
-    expect(plate.tiles.every((t) => t.size === TILE_SIZE)).toBe(true);
+    // Tiles are on a lattice at the view's scale and the union spans the box. Each
+    // one carries a half-pixel of overlap — at a fractional scale, exact widths
+    // leave a hairline of the grey backdrop showing between them.
+    const step = TILE_SIZE * plate.tileScale;
+    expect(plate.tiles.every((t) => t.size > step && t.size <= step + 0.5)).toBe(true);
     expect(Math.min(...plate.tiles.map((t) => t.x))).toBeLessThanOrEqual(0);
     expect(Math.min(...plate.tiles.map((t) => t.y))).toBeLessThanOrEqual(0);
     expect(Math.max(...plate.tiles.map((t) => t.x + t.size))).toBeGreaterThanOrEqual(width);

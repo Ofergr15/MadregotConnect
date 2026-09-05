@@ -20,6 +20,10 @@ interface Athlete {
   hasStrava?: boolean;
 }
 
+// `status` arrives as a bare string, so translate only the four we have words
+// for and print anything else as-is rather than rendering a missing key path.
+const ATHLETE_STATUSES = ['active', 'invited', 'paused', 'disconnected'];
+
 interface Group {
   id: string;
   name: string;
@@ -55,6 +59,9 @@ function getGroupColors(index: number) {
 
 export default function GroupsPage() {
   const t = useTranslations('groups');
+  // The four athlete statuses are already written in Hebrew under `athletes`;
+  // this page was printing the raw DB enum instead.
+  const ta = useTranslations('athletes');
   const tm = useTranslations('momentum'); // reuse the weekStreak/weekStreakOne wording from the momentum card
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,8 +147,11 @@ export default function GroupsPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">{t('title')}</h1>
+        {/* One interpolated string, not four glued children: JSX inserts a space
+            between each, so the Hebrew read "ספורטאים ב- 3 קבוצות" — a prefix
+            severed from the number it attaches to. */}
         <p className="text-ink-400 mt-1">
-          {totalAthletes} {t('athletesAcross')} {groups.length} {t('groups')}
+          {t('athletesAcrossGroups', { athletes: totalAthletes, groups: groups.length })}
         </p>
       </div>
 
@@ -282,7 +292,9 @@ export default function GroupsPage() {
                                   ? 'bg-accent-600/20 text-accent-900'
                                   : 'bg-ink-300/30 text-ink-400'
                               )}>
-                                {athlete.status}
+                                {ATHLETE_STATUSES.includes(athlete.status)
+                                  ? ta(athlete.status as 'active')
+                                  : athlete.status}
                               </span>
                             </div>
                           }

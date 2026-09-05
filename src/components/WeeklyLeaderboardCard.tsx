@@ -134,7 +134,9 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
             </div>
             <div className="flex items-center gap-2">
               {weekTarget && (
-                <span className="text-xs font-semibold text-ink-500">Goal: {weekTarget.min}–{weekTarget.max} {tc('km')}</span>
+                <span className="text-xs font-semibold text-ink-500 tabular-nums">
+                  {t('weekGoalRange', { min: weekTarget.min, max: weekTarget.max, unit: tc('km') })}
+                </span>
               )}
               {trend !== 0 && (
                 <span className={cn('text-3xs font-bold px-1.5 py-0.5 rounded-md', trend > 0 ? 'bg-accent-600/10 text-accent-900' : 'bg-band-3/10 text-band-3-ink')}>
