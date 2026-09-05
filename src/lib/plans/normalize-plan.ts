@@ -65,11 +65,29 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
     perDay.set(workout.dayOfWeek, list);
   }
 
+  // Part indices are resolved per DAY rather than per workout, because a supplied
+  // index that clashes with a sibling's is worse than no index at all: partIndex
+  // goes straight into `workoutKey`, so two workouts on the same day would answer
+  // to the same key and each other's persisted matches. The supplied numbers come
+  // from the model (lib/ai/prompt.ts asks it for "sequential partIndex starting at
+  // 1"), so "2, 2" or "2, 3" for a two-part day is a plausible output, not a
+  // hypothetical. Honour the day's numbering only when every part of that day
+  // carries a positive index AND they are all distinct; otherwise fall back to
+  // list order for the whole day. Still deterministic, which is what lets this run
+  // on read as well as on write.
+  const resolvedIndex = new Map<ParsedWorkout, number>();
+  for (const siblings of perDay.values()) {
+    const supplied = siblings.map((w) => w.partIndex);
+    const usable =
+      supplied.every((i) => typeof i === 'number' && i > 0) &&
+      new Set(supplied).size === siblings.length;
+    siblings.forEach((w, i) => resolvedIndex.set(w, usable ? (w.partIndex as number) : i + 1));
+  }
+
   return {
     workouts: plan.workouts.map((workout) => {
       const siblings = perDay.get(workout.dayOfWeek) || [workout];
-      const inferredIndex = siblings.indexOf(workout) + 1;
-      const partIndex = workout.partIndex || inferredIndex;
+      const partIndex = resolvedIndex.get(workout) || siblings.indexOf(workout) + 1;
       const partCount = siblings.length;
       const partKind = inferPartKind(workout, partCount);
       const measuredDistance = workoutDistanceMeters(workout);
