@@ -65,7 +65,10 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label
       {value && (
         <span className={cn(
           'text-[15px] shrink-0 tabular-nums',
-          valueMuted ? 'italic text-ink-300' : valueSuccess ? 'font-medium text-accent-600' : 'text-ink-400',
+          // A muted value ("not set yet") is carried by the italic alone. It used
+          // to also be a lighter grey, but that grey is a border value at 1.92:1
+          // and this is real text the athlete has to read to know a field is empty.
+          valueMuted ? 'italic text-ink-400' : valueSuccess ? 'font-medium text-accent-600' : 'text-ink-400',
         )}>{value}</span>
       )}
       {trailing ? trailing : interactive && <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />}

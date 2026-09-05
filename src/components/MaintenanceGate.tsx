@@ -109,8 +109,10 @@ export function MaintenanceGate() {
         ) : (
           <>
             <h1 className="text-2xl font-bold leading-snug text-ink-900" dir="rtl">בונים מחדש את המדרגות 🚧</h1>
-            {/* ink-500, not ink-400: #969696 is only ~2.2:1 on the page grey — it
-                was tuned to sit on the old navy. */}
+            {/* ink-500, not ink-400: ink-400 was #969696 here, only ~2.2:1 on the
+                page grey, because it was tuned to sit on the old navy. It has since
+                been darkened to #757575, but ink-500 stays — this copy is the only
+                thing on the screen and reads over the page grey, not white. */}
             <p className="mt-3 max-w-[250px] mx-auto text-[15px] leading-relaxed text-ink-500" dir="rtl">הצוות שלנו עובד על שדרוג. נחזור בקרוב!</p>
             <p className="mt-4 text-xs tracking-wide text-ink-500" dir="ltr">We&apos;re rebuilding the stairs — back soon.</p>
           </>

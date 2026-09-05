@@ -380,7 +380,7 @@ export default function FeedPage() {
       )}
 
       {!hasMore && items.length > 0 && (
-        <p className="text-center text-xs text-ink-300 py-6">{t('allLoaded')} ✓</p>
+        <p className="text-center text-xs text-ink-400 py-6">{t('allLoaded')} ✓</p>
       )}
 
       {commentItem && (

@@ -76,12 +76,25 @@ const config: Config = {
         // Text ramp. `ink` is body copy, descending to the hairline used for
         // outline pills. Numbered high→low like a Tailwind ramp so the darker
         // the number, the darker the ink.
+        //
+        // Everything down to 400 is used as text on #FFF or #DFDFDF and must
+        // clear WCAG AA (4.5:1). 300 is a border value and deliberately does
+        // not — contrast rules do not apply to hairlines. Anything added below
+        // 400 should be a border, not text.
         ink: {
           900: '#1D1E26', // darkest swatch in the palette strip
           700: '#2D2E38', // body text — the frames' default foreground
-          500: '#656565', // muted (the "אוגוסט 2026" caption)
-          400: '#969696', // secondary labels, placeholder copy
-          300: '#BBBBBB', // outline-pill border, hairlines
+          500: '#656565', // muted (the "אוגוסט 2026" caption) — 5.83:1
+          // Secondary labels, placeholder copy, stat captions: 903 uses across
+          // 115 files, so this one value decides whether most of the small text
+          // in the app is legible. Was the design's #969696, which measures
+          // 2.96:1 on white and fails AA even at large sizes — unreadable in
+          // sunlight and at low brightness, which is exactly when the club reads
+          // it (outdoors, right after a run). #757575 is the lightest grey that
+          // clears 4.5:1, chosen over collapsing into ink-500 so the gap between
+          // primary and secondary text survives.
+          400: '#757575', // 4.60:1
+          300: '#BBBBBB', // outline-pill border, hairlines — 1.92:1, borders only
         },
         page: '#DFDFDF', // page background AND the inner stat tiles on a card
         card: '#FFFFFF', // every raised surface

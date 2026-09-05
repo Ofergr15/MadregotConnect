@@ -369,7 +369,7 @@ function ActivityCard({
                 <span className="flex items-center gap-1">
                   <Heart className="h-3 w-3 text-accent-red" />
                   {act.averageHr} bpm
-                  {act.maxHr ? <span className="text-ink-300">· {t('statMaxHr')} {act.maxHr}</span> : null}
+                  {act.maxHr ? <span className="text-ink-400">· {t('statMaxHr')} {act.maxHr}</span> : null}
                 </span>
               )}
               {act.calories ? (
