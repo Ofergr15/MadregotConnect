@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PenSquare, MessageSquare, AlertCircle, LogIn, X } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
+import { cn, dayKeyRelation, dayKeyToDate, feedDayKey } from '@/lib/utils';
 import { fetchFeed, deletePost, fetchFeedItemByActivity } from '@/lib/feed-client';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
@@ -15,8 +16,53 @@ import { SquadStandings } from '@/components/SquadStandings';
 import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
+import type { FeedComment } from '@/lib/feed/comments';
 
 const PAGE_SIZE = 20;
+
+/**
+ * The filter chips above the list. `types` is empty for "everything"; the rest
+ * map onto GET /api/feed's whitelisted `types` param so the narrowing happens in
+ * the query. Filtering an already-fetched page client-side would show nothing
+ * whenever the newest 20 items are all runs — which on an active club is most
+ * days.
+ */
+const FILTERS = [
+  { key: 'all', labelKey: 'filterAll', types: [] },
+  { key: 'runs', labelKey: 'filterRuns', types: ['activity'] },
+  { key: 'social', labelKey: 'filterSocial', types: ['post', 'achievement', 'announcement', 'new_plan'] },
+] as const satisfies ReadonlyArray<{ key: string; labelKey: string; types: readonly string[] }>;
+
+type FilterKey = (typeof FILTERS)[number]['key'];
+
+/**
+ * A date rule between days, so a long scroll reads as "Today / Yesterday /
+ * Tuesday 2 September" instead of one undifferentiated stack of cards. The label
+ * goes through the locale formatter rather than the hardcoded en-US of
+ * `formatActivityDate`, so a Hebrew reader gets Hebrew weekdays.
+ */
+function DayHeading({ dayKey }: { dayKey: string }) {
+  const t = useTranslations('feed');
+  const format = useFormatter();
+  const relation = dayKeyRelation(dayKey);
+  const label =
+    relation === 'today'
+      ? t('dayToday')
+      : relation === 'yesterday'
+        ? t('dayYesterday')
+        // The key is a bare calendar day; read it back in UTC or a browser west
+        // of Greenwich lands on the day before.
+        : format.dateTime(dayKeyToDate(dayKey), {
+            weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+          });
+
+  return (
+    <div className="flex items-center gap-3 pt-1">
+      <span className="text-xs font-semibold text-ink-400">{label}</span>
+      <span className="h-px flex-1 bg-ink-300/40" />
+    </div>
+  );
+}
 
 // Last successfully loaded first page, kept in module scope (survives
 // client-side navigation away and back, unlike component state). Feed's own
@@ -38,6 +84,7 @@ export default function FeedPage() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [commentItem, setCommentItem] = useState<FeedItem | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterKey>('all');
 
   const [myName, setMyName] = useState('');
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
@@ -163,34 +210,41 @@ export default function FeedPage() {
     });
   }, []);
 
+  const activeTypes = FILTERS.find(f => f.key === filter)!.types;
+
   const loadInitial = useCallback(async () => {
     // Skip the loading gate when a cached page is already on screen — pull-to-
     // refresh/retry then just swap fresh content in behind the existing list
-    // instead of flashing back to a blank skeleton.
-    if (!lastFeedPage) setLoading(true);
+    // instead of flashing back to a blank skeleton. A filter switch is the one
+    // case that does want the skeleton: the cache only ever holds the unfiltered
+    // feed, so leaving the old cards up would show runs under "posts".
+    if (!lastFeedPage || filter !== 'all') setLoading(true);
     setError(null);
     try {
-      const { items: page, nextCursor } = await fetchFeed(null, PAGE_SIZE);
+      const { items: page, nextCursor } = await fetchFeed(null, PAGE_SIZE, activeTypes);
       setItems(page);
       setCursor(nextCursor);
-      lastFeedPage = { items: page, cursor: nextCursor };
+      if (activeTypes.length === 0) lastFeedPage = { items: page, cursor: nextCursor };
     } catch (err: unknown) {
       setError((err as Error).message || t('loadError'));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+    // activeTypes is derived from `filter` and stable per value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, filter]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !cursor) return;
     setLoadingMore(true);
     try {
-      const { items: page, nextCursor } = await fetchFeed(cursor, PAGE_SIZE);
+      const { items: page, nextCursor } = await fetchFeed(cursor, PAGE_SIZE, activeTypes);
       setItems(prev => [...prev, ...page]);
       setCursor(nextCursor);
     } catch { /* silent — user can scroll again */ }
     finally { setLoadingMore(false); }
-  }, [loadingMore, cursor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingMore, cursor, filter]);
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
 
@@ -223,14 +277,20 @@ export default function FeedPage() {
     }
   };
 
-  const handleCommentClose = (itemId: string, newCount: number) => {
+  // The sheet hands back the tail of the thread as well as the count, so the
+  // card's inline preview updates with it — write a comment, close the sheet, and
+  // it's there on the card.
+  const handleCommentClose = (itemId: string, newCount: number, latest: FeedComment[]) => {
     setItems(prev => {
       const next = prev.map(item => (
-        item.id === itemId ? { ...item, commentCount: newCount } : item
+        item.id === itemId ? { ...item, commentCount: newCount, commentPreview: latest } : item
       ));
       if (lastFeedPage) lastFeedPage = { ...lastFeedPage, items: next };
       return next;
     });
+    setFocusItem(prev => (
+      prev?.id === itemId ? { ...prev, commentCount: newCount, commentPreview: latest } : prev
+    ));
     setCommentItem(null);
   };
 
@@ -319,6 +379,28 @@ export default function FeedPage() {
         <PenSquare className="h-4 w-4 text-ink-300" />
       </div>
 
+      {/* ═══ What's in the feed — runs, or everything else ═══
+          "I just want to see the runs" and "did I miss an announcement?" are the
+          two ways people actually read this screen, and both used to mean
+          scrolling past the other one. */}
+      <div className="mb-3 flex items-center gap-2">
+        {FILTERS.map(f => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            aria-pressed={filter === f.key}
+            className={cn(
+              'px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors',
+              filter === f.key
+                ? 'bg-ink-700 text-card'
+                : 'bg-card border border-page text-ink-400 hover:text-ink-500',
+            )}
+          >
+            {t(f.labelKey)}
+          </button>
+        ))}
+      </div>
+
       {deleteError && (
         <div className="mb-3 bg-accent-red/20 border border-accent-red/30 rounded-2xl px-4 py-3 text-center">
           <p className="text-sm text-accent-red">{deleteError}</p>
@@ -350,24 +432,44 @@ export default function FeedPage() {
       )}
 
       {!loading && !error && items.length === 0 && (
-        <EmptyState icon={MessageSquare} title={t('emptyTitle')} description={t('emptyBody')} />
+        <EmptyState
+          icon={MessageSquare}
+          title={t('emptyTitle')}
+          description={t('emptyBody')}
+          // A filtered feed that comes back empty is otherwise a dead end.
+          action={filter !== 'all'
+            ? <Button onClick={() => setFilter('all')}>{t('filterAll')}</Button>
+            : undefined}
+        />
       )}
 
       {!loading && items.length > 0 && (
         <div className="space-y-3">
           {/* The pinned card above is the same feed item, so skip it here
-              rather than showing the run twice. */}
-          {items.filter(item => item.id !== focusItem?.id).map(item => (
-            <FeedCard
-              key={item.id}
-              item={item}
-              commentCount={item.commentCount}
-              myAthleteId={myAthleteId}
-              isStaff={isStaff}
-              onComment={i => setCommentItem(i)}
-              onDelete={handleDelete}
-            />
-          ))}
+              rather than showing the run twice. Day headings are inserted on the
+              way through: a card gets one when it opens a new calendar day. */}
+          {(() => {
+            const visible = items.filter(item => item.id !== focusItem?.id);
+            let lastDay = '';
+            return visible.map(item => {
+              const day = feedDayKey(item.occurredAt, item.activity?.startTime);
+              const opensDay = day !== lastDay;
+              lastDay = day;
+              return (
+                <Fragment key={item.id}>
+                  {opensDay && <DayHeading dayKey={day} />}
+                  <FeedCard
+                    item={item}
+                    commentCount={item.commentCount}
+                    myAthleteId={myAthleteId}
+                    isStaff={isStaff}
+                    onComment={i => setCommentItem(i)}
+                    onDelete={handleDelete}
+                  />
+                </Fragment>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -387,7 +489,7 @@ export default function FeedPage() {
         <FeedCommentSheet
           item={commentItem}
           myAthleteId={myAthleteId}
-          onClose={count => handleCommentClose(commentItem.id, count)}
+          onClose={(count, latest) => handleCommentClose(commentItem.id, count, latest)}
         />
       )}
 

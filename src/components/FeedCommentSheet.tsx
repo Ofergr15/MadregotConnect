@@ -9,13 +9,19 @@ import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import { MentionTextarea } from '@/components/MentionTextarea';
 import { Sheet } from '@/components/ui/Sheet';
+import { COMMENT_PREVIEW_COUNT } from '@/lib/feed/comments';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed-client';
 
 interface Props {
   item: FeedItem;
   myAthleteId: string | null;
-  onClose: (newCommentCount: number) => void;
+  /**
+   * Hands back both the new count and the tail of the thread, so the card
+   * underneath can refresh its inline preview too — otherwise you'd write a
+   * comment, close the sheet, and not see it on your own card until a reload.
+   */
+  onClose: (newCommentCount: number, latest: FeedComment[]) => void;
 }
 
 export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
@@ -79,7 +85,10 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
     }
   };
 
-  const handleClose = () => onClose(commentCount);
+  // Only report the tail once the thread has actually loaded — closing the sheet
+  // mid-load would otherwise hand back [] and blank a preview that was correct.
+  const handleClose = () =>
+    onClose(commentCount, loading ? item.commentPreview : comments.slice(-COMMENT_PREVIEW_COUNT));
 
   return (
     <Sheet

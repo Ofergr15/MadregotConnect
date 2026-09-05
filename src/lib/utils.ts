@@ -199,12 +199,42 @@ export function activityDayRelation(
   startTime: string,
   now: Date = new Date(),
 ): 'today' | 'yesterday' | 'older' {
-  const day = activityLocalDateStr(startTime);
+  return dayKeyRelation(activityLocalDateStr(startTime), now);
+}
+
+/**
+ * Same question as `activityDayRelation`, asked about a calendar day key
+ * (YYYY-MM-DD) that has already been resolved — e.g. by `feedDayKey` below,
+ * which has to fold activities and posts onto one axis first.
+ */
+export function dayKeyRelation(
+  dayKey: string,
+  now: Date = new Date(),
+): 'today' | 'yesterday' | 'older' {
   const today = israelToday(now);
-  if (day === today) return 'today';
+  if (dayKey === today) return 'today';
   const yesterday = new Date(`${today}T12:00:00Z`);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  return day === yesterday.toISOString().split('T')[0] ? 'yesterday' : 'older';
+  return dayKey === yesterday.toISOString().split('T')[0] ? 'yesterday' : 'older';
+}
+
+/**
+ * Which calendar day a feed item belongs under, as an Israel-local YYYY-MM-DD.
+ *
+ * The feed is the one screen that stacks both timestamp conventions in a single
+ * list, so grouping it needs both readings: an activity's `start_time` is
+ * Convention A (the athlete's wall clock stored as if UTC, read via UTC parts),
+ * while a post/achievement/announcement's `occurred_at` is a genuine instant and
+ * has to be converted to the Israeli calendar date. Reading either one the
+ * other's way puts a late-evening item under the wrong heading.
+ */
+export function feedDayKey(occurredAt: string, activityStartTime?: string | null): string {
+  return activityStartTime ? activityLocalDateStr(activityStartTime) : israelToday(new Date(occurredAt));
+}
+
+/** Noon anchor for a YYYY-MM-DD key, safe to hand to a UTC-timezone formatter. */
+export function dayKeyToDate(dayKey: string): Date {
+  return new Date(`${dayKey}T12:00:00Z`);
 }
 
 export type GroupLevel = 'fast' | 'medium' | 'slow';

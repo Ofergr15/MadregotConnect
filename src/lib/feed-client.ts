@@ -34,9 +34,16 @@ async function parse<T>(res: Response): Promise<T> {
   return json as T;
 }
 
-export async function fetchFeed(cursor?: string | null, limit = 15) {
+/**
+ * One page of the club feed. `types` narrows it to a subset of feed_item types
+ * (the filter chips on the feed, the Profile screen's announcements deck) — the
+ * filter has to be applied server-side, or a page of 20 that happens to be all
+ * runs comes back empty after client-side filtering.
+ */
+export async function fetchFeed(cursor?: string | null, limit = 15, types?: readonly string[]) {
   const qs = new URLSearchParams({ limit: String(limit) });
   if (cursor) qs.set('cursor', cursor);
+  if (types && types.length > 0) qs.set('types', types.join(','));
   const res = await fetch(`/api/feed?${qs}`, { headers: await authHeaders() });
   return parse<{ items: FeedItem[]; nextCursor: string | null }>(res);
 }

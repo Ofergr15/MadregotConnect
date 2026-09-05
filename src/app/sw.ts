@@ -197,7 +197,11 @@ self.addEventListener('push', (event: PushEvent) => {
           // has no page/localStorage to read from.
           actions: data.actions,
           data: {
-            url: data.url || '/dashboard',
+            // Landing fallback for a push that names no url. /feed, not
+            // /dashboard: the feed is the app's front door (manifest start_url),
+            // and a notification with nothing specific to open should drop you
+            // where the app normally opens.
+            url: data.url || '/feed',
             athleteId: data.athleteId,
             rsvp: data.rsvp,
             kudosActivityId: data.kudosActivityId,
@@ -321,7 +325,7 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
     return;
   }
 
-  const url = notifData.url || '/dashboard';
+  const url = notifData.url || '/feed';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {

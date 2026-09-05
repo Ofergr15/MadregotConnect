@@ -14,6 +14,7 @@ import { RouteMinimap } from '@/components/RouteMinimap';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import { toAchievementPayload } from '@/lib/feed/project';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
+import type { FeedComment } from '@/lib/feed/comments';
 
 function formatPace(secPerKm: number): string {
   const min = Math.floor(secPerKm / 60);
@@ -123,6 +124,58 @@ function LikerStack({ likers }: { likers: FeedLiker[] }) {
           className={cn('w-5 h-5 bg-brand-600/10 ring-2 ring-page', i > 0 && '-ms-1.5')}
           textClassName="text-[8px] text-brand-600"
         />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The tail of the conversation, right on the card.
+ *
+ * The card used to show comments as a bare number next to a speech bubble, which
+ * tells you a thread exists but nothing about whether it's worth opening — so
+ * threads stayed unopened and died. Two comments of context is what makes people
+ * join in.
+ *
+ * The lines are deliberately NOT one big tap target: `FeedBodyText` renders
+ * @mentions as real links, and an <a> inside a <button> is invalid markup that
+ * also double-fires (navigate to the profile *and* open the sheet). The "all N
+ * comments" button above them, plus the existing bubble in the action row, are
+ * the ways in.
+ */
+function CommentPreview({
+  comments,
+  commentCount,
+  onOpen,
+}: {
+  comments: FeedComment[];
+  commentCount: number;
+  onOpen: () => void;
+}) {
+  const t = useTranslations('feed');
+  if (comments.length === 0) return null;
+
+  return (
+    <div className="pt-1.5 space-y-1">
+      {commentCount > comments.length && (
+        <button
+          onClick={onOpen}
+          className="block text-xs font-medium text-ink-400 hover:text-ink-500 transition-colors"
+        >
+          {t('viewAllComments', { count: commentCount })}
+        </button>
+      )}
+      {comments.map(c => (
+        <p key={c.id} className="text-xs text-ink-500 leading-relaxed line-clamp-2">
+          <Link
+            href={`/dashboard/teammate/${c.author.athleteId}`}
+            className="font-semibold text-ink-700 hover:underline"
+          >
+            {(c.author.name || '').split(' ')[0]}
+          </Link>
+          {' '}
+          <FeedBodyText body={c.body} />
+        </p>
       ))}
     </div>
   );
@@ -260,6 +313,12 @@ function ActionRow({
           </button>
         )}
       </div>
+
+      <CommentPreview
+        comments={item.commentPreview}
+        commentCount={commentCount}
+        onOpen={onCommentPress}
+      />
 
       {sheetOpen && (
         <FeedLikesSheet
@@ -404,7 +463,10 @@ function ActivityCard({
 
           {act.routePreview && act.routePreview.length > 2 && (
             <div className="mb-3">
-              <RouteMinimap points={act.routePreview} />
+              {/* paceBands is null for runs with no cached splits, which just
+                  means the plain line — the reader's colour-by-pace setting
+                  applies wherever the data exists. */}
+              <RouteMinimap points={act.routePreview} paces={act.paceBands} />
             </div>
           )}
 

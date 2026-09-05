@@ -45,6 +45,48 @@ export function projectComment(
   };
 }
 
+/**
+ * Columns every comment query selects. Shared by /api/feed/comments (the full
+ * thread) and /api/feed (the inline preview) so the two can't drift — the same
+ * arrangement `LIKER_SELECT` has in project.ts.
+ */
+export const COMMENT_SELECT = `
+  id, feed_item_id, athlete_id, body, created_at,
+  athletes ( id, name, avatar_url )
+`;
+
+/** How many comments ride along on a feed card; the rest load on tap. */
+export const COMMENT_PREVIEW_COUNT = 2;
+
+/**
+ * The newest `previewCap` comments per item, from one page-wide query — the
+ * comment-side twin of `buildLikeIndex`.
+ *
+ * Takes rows sorted NEWEST-first (so a 60-comment thread doesn't have to be read
+ * in full to find its tail) and returns each bucket flipped back to
+ * oldest-first, because a comment preview has to read as a conversation.
+ */
+export function buildCommentPreviewIndex(
+  rawComments: unknown[],
+  viewerAthleteId: string | null,
+  viewerIsStaff: boolean,
+  previewCap: number,
+): Map<string, FeedComment[]> {
+  const byItem = new Map<string, FeedComment[]>();
+
+  if (previewCap < 1) return byItem;
+
+  for (const raw of rawComments) {
+    const comment = projectComment(raw, viewerAthleteId, viewerIsStaff);
+    const bucket = byItem.get(comment.itemId);
+    if (!bucket) byItem.set(comment.itemId, [comment]);
+    else if (bucket.length < previewCap) bucket.push(comment);
+  }
+
+  for (const bucket of byItem.values()) bucket.reverse();
+  return byItem;
+}
+
 export type CommentValidation = { ok: true; body: string } | { ok: false; error: string };
 
 /** Trims and validates a raw comment body — empty and over-length both rejected. */

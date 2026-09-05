@@ -7,10 +7,14 @@
  * hide home addresses, honouring a per-athlete opt-out — is an edit to this file
  * rather than a hunt through every route and component.
  *
- * Full-resolution GPS and splits are deliberately NOT here: the feed ships
- * `route_preview` (~60 points) and the client loads full detail on expand via
- * /api/garmin/activity-details.
+ * Full-resolution GPS and the splits table are deliberately NOT here: the feed
+ * ships `route_preview` (~60 points) and the client loads full detail on expand
+ * via /api/garmin/activity-details. The one thing taken from `splits` is
+ * `paceBands` — the per-km average paces as bare numbers, so a card's thumbnail
+ * can draw the pace heat map — and it is masked alongside `averagePace`.
  */
+
+import type { FeedComment } from '@/lib/feed/comments';
 
 export interface FeedAuthor {
   athleteId: string | null;
@@ -39,6 +43,12 @@ export interface FeedActivity {
   perceivedFeel: number | null;
   routePreview: Array<{ lat: number; lng: number }> | null;
   hasRoute: boolean;
+  /**
+   * Average pace per kilometre, seconds/km, for the thumbnail's pace heat map.
+   * Null when the run has no cached splits. Blanked with `averagePace` when the
+   * athlete has hidden their pace.
+   */
+  paceBands: number[] | null;
 }
 
 /** A member who liked an item. Same shape whether inlined or fetched in full. */
@@ -72,6 +82,12 @@ export interface FeedItem {
    * card with 200 likes still costs the same to render.
    */
   likePreview: FeedLiker[];
+  /**
+   * The last couple of comments, so a card shows the conversation instead of
+   * just a number that has to be tapped to mean anything. Capped at
+   * COMMENT_PREVIEW_COUNT — the full thread comes from /api/feed/comments.
+   */
+  commentPreview: FeedComment[];
   canDelete: boolean;
   activity: FeedActivity | null;
 }
@@ -159,6 +175,7 @@ interface RawActivityRow {
   perceived_feel: number | null;
   route_preview: unknown;
   has_polyline: boolean | null;
+  splits: unknown;
 }
 
 function toNumber(v: unknown): number | null {
@@ -178,6 +195,26 @@ function toRoute(v: unknown): Array<{ lat: number; lng: number }> | null {
     })
     .filter((p): p is { lat: number; lng: number } => p !== null);
   return pts.length > 1 ? pts : null;
+}
+
+/**
+ * Per-kilometre average paces, in seconds per km, from the cached `splits` — the
+ * only thing the feed needs to draw a pace heat map on a card's thumbnail.
+ *
+ * Just the paces: distance, duration and HR per split stay off the wire. Two
+ * splits minimum, because a single number is not a heat map.
+ *
+ * Often `null`, and that's expected — `splits` is populated when a run is synced
+ * from Strava or the first time someone opens its detail page, so older runs
+ * nobody has opened have none. A card with no bands just draws its usual single
+ * colour.
+ */
+function toPaceBands(v: unknown): number[] | null {
+  if (!Array.isArray(v) || v.length < 2) return null;
+  const paces = v
+    .map((s) => toNumber((s as { averagePace?: unknown })?.averagePace))
+    .filter((p): p is number => p !== null && p > 0);
+  return paces.length === v.length && paces.length > 1 ? paces : null;
 }
 
 function toMedia(v: unknown): FeedMedia[] {
@@ -218,6 +255,56 @@ function projectActivity(row: RawActivityRow): FeedActivity {
     perceivedFeel: toNumber(row.perceived_feel),
     routePreview: route,
     hasRoute: !!route || !!row.has_polyline,
+    paceBands: toPaceBands(row.splits),
+  };
+}
+
+/**
+ * Stats an athlete can hide from their own card in the share sheet
+ * (`ActivitySyncEditor`'s hidden-details toggles, stored as
+ * `payload.hiddenFields` by PATCH /api/feed/items/[id]).
+ *
+ * Kept identical to `HIDDEN_FIELDS` there and to `FeedHiddenField` in
+ * feed-client.ts. Until now the flag was written and honoured nowhere, so a stat
+ * the athlete explicitly chose to hide still went out on the card — the gap
+ * flagged in CLAUDE.md. It is enforced HERE rather than in FeedCard on purpose:
+ * this is the chokepoint every feed consumer goes through (the card, the share
+ * sheet's story image, /api/feed/items/[id]), and a value that never leaves the
+ * server can't be read out of the network response either.
+ */
+const HIDDEN_FIELD_KEYS = ['calories', 'heart_rate', 'pace', 'power'] as const;
+type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
+
+function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {
+  const raw = payload?.hiddenFields;
+  if (!Array.isArray(raw)) return new Set();
+  return new Set(
+    raw.filter((v): v is HiddenFieldKey => (HIDDEN_FIELD_KEYS as readonly unknown[]).includes(v)),
+  );
+}
+
+/**
+ * Blanks the hidden stats, for everyone including the athlete themselves — the
+ * card they see is then exactly the card the club sees, which is the whole point
+ * of the toggle. Their own full numbers are still one tap away on the activity
+ * detail page, and the share sheet drives its toggles off `payload.hiddenFields`
+ * (which still ships) rather than off these values.
+ *
+ * `power` has no column in FeedActivity yet; it stays in the key list so the
+ * toggle keeps round-tripping and this starts working the day the column lands.
+ */
+function maskHiddenStats(activity: FeedActivity, hidden: Set<HiddenFieldKey>): FeedActivity {
+  if (hidden.size === 0) return activity;
+  return {
+    ...activity,
+    calories: hidden.has('calories') ? null : activity.calories,
+    averageHr: hidden.has('heart_rate') ? null : activity.averageHr,
+    maxHr: hidden.has('heart_rate') ? null : activity.maxHr,
+    averagePace: hidden.has('pace') ? null : activity.averagePace,
+    // Per-km paces are finer-grained pace, not a different stat: leaving them in
+    // would let anyone read off a hidden average from the card's own heat map
+    // (and, colours aside, straight out of the JSON).
+    paceBands: hidden.has('pace') ? null : activity.paceBands,
   };
 }
 
@@ -234,6 +321,12 @@ export interface ProjectContext {
    * likes yet) don't have to build an empty map.
    */
   likersByItem?: Map<string, FeedLiker[]>;
+  /**
+   * feed_item_id -> newest few comments, oldest-first, from the same one query.
+   * Optional for the same reason as likersByItem: a freshly-created item has no
+   * comments, so single-item callers needn't build an empty map.
+   */
+  commentsByItem?: Map<string, FeedComment[]>;
 }
 
 /** How many likers ride along in the feed payload; the rest load on demand. */
@@ -242,7 +335,10 @@ export const LIKE_PREVIEW_COUNT = 3;
 export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
   const row = value as RawFeedRow;
   const isOwn = !!row.author_athlete_id && row.author_athlete_id === ctx.viewerAthleteId;
-  const activity = row.athlete_activities ? projectActivity(row.athlete_activities) : null;
+  const payload = (row.payload as Record<string, unknown> | null) ?? null;
+  const activity = row.athlete_activities
+    ? maskHiddenStats(projectActivity(row.athlete_activities), readHiddenFields(payload))
+    : null;
 
   return {
     id: row.id,
@@ -255,12 +351,13 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
     },
     body: row.body,
     media: toMedia(row.media),
-    payload: (row.payload as Record<string, unknown> | null) ?? null,
+    payload,
     occurredAt: row.occurred_at,
     likeCount: row.like_count ?? 0,
     commentCount: row.comment_count ?? 0,
     likedByMe: ctx.likedItemIds.has(row.id),
     likePreview: ctx.likersByItem?.get(row.id) ?? [],
+    commentPreview: ctx.commentsByItem?.get(row.id) ?? [],
     canDelete: row.type === 'post' && (ctx.viewerIsStaff || isOwn),
     activity,
   };
@@ -303,6 +400,6 @@ export const FEED_SELECT = `
     id, athlete_id, garmin_activity_id, activity_name, activity_type, start_time,
     distance, duration, moving_duration, average_pace, average_hr, max_hr,
     calories, elevation_gain, location_name, perceived_rpe, perceived_feel,
-    route_preview, has_polyline
+    route_preview, has_polyline, splits
   )
 `;

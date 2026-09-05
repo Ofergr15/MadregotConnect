@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { projectComment, validateCommentBody, MAX_COMMENT_LENGTH } from '@/lib/feed/comments';
+import {
+  buildCommentPreviewIndex,
+  projectComment,
+  validateCommentBody,
+  MAX_COMMENT_LENGTH,
+} from '@/lib/feed/comments';
 
 describe('projectComment', () => {
   const row = {
@@ -62,5 +67,58 @@ describe('validateCommentBody', () => {
     const result = validateCommentBody(body);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain(String(MAX_COMMENT_LENGTH));
+  });
+});
+
+// The feed card's inline comment preview. The query behind it asks for the
+// page's comments newest-first (so a long thread needn't be read in full) and
+// this is what turns that flat list into per-item, conversation-ordered tails.
+describe('buildCommentPreviewIndex', () => {
+  const row = (id: string, itemId: string, body: string, athleteId = 'author-1') => ({
+    id, feed_item_id: itemId, athlete_id: athleteId, body,
+    created_at: `2026-01-01T00:00:0${id.slice(-1)}Z`,
+    athletes: { id: athleteId, name: 'Alice', avatar_url: null },
+  });
+
+  it('buckets comments by feed item', () => {
+    const index = buildCommentPreviewIndex(
+      [row('c1', 'item-1', 'a'), row('c2', 'item-2', 'b')],
+      'viewer', false, 2,
+    );
+    expect([...index.keys()].sort()).toEqual(['item-1', 'item-2']);
+    expect(index.get('item-1')!.map(c => c.body)).toEqual(['a']);
+  });
+
+  it('keeps only the newest `previewCap` comments per item', () => {
+    // Input is newest-first, so the first two rows are the ones to keep.
+    const index = buildCommentPreviewIndex(
+      [row('c4', 'item-1', 'newest'), row('c3', 'item-1', 'middle'), row('c1', 'item-1', 'oldest')],
+      'viewer', false, 2,
+    );
+    expect(index.get('item-1')!.map(c => c.body)).toEqual(['middle', 'newest']);
+  });
+
+  it('flips each bucket back to oldest-first — a preview has to read as a conversation', () => {
+    const index = buildCommentPreviewIndex(
+      [row('c2', 'item-1', 'second'), row('c1', 'item-1', 'first')],
+      'viewer', false, 2,
+    );
+    expect(index.get('item-1')!.map(c => c.body)).toEqual(['first', 'second']);
+  });
+
+  it('carries canDelete through, so the preview agrees with the full thread', () => {
+    const index = buildCommentPreviewIndex([row('c1', 'item-1', 'a', 'me')], 'me', false, 2);
+    expect(index.get('item-1')![0].canDelete).toBe(true);
+
+    const asOther = buildCommentPreviewIndex([row('c1', 'item-1', 'a', 'me')], 'someone-else', false, 2);
+    expect(asOther.get('item-1')![0].canDelete).toBe(false);
+  });
+
+  it('returns an empty map for no comments (items then fall back to [])', () => {
+    expect(buildCommentPreviewIndex([], 'viewer', false, 2).size).toBe(0);
+  });
+
+  it('a cap below 1 yields nothing rather than one comment per item', () => {
+    expect(buildCommentPreviewIndex([row('c1', 'item-1', 'a')], 'viewer', false, 0).size).toBe(0);
   });
 });

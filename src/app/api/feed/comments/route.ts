@@ -2,14 +2,9 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, requireAthlete, authError } from '@/lib/auth-session';
 import { notifyFeedInteraction, notifyMentions, loadFeedItemMeta } from '@/lib/feed/notify';
-import { projectComment, validateCommentBody } from '@/lib/feed/comments';
+import { COMMENT_SELECT, projectComment, validateCommentBody } from '@/lib/feed/comments';
 
 export const dynamic = 'force-dynamic';
-
-const COMMENT_SELECT = `
-  id, feed_item_id, athlete_id, body, created_at,
-  athletes ( id, name, avatar_url )
-`;
 
 /** GET /api/feed/comments?itemId=… — flat, oldest first (reads like a conversation). */
 export async function GET(request: Request) {

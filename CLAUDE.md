@@ -172,9 +172,23 @@ Recorded exposure change, **2026-09-03**: `GET /api/activities/details` moved fr
 self-or-staff to `requireMember`, so tapping a teammate's run in the feed opens the
 same detail the runner sees. The response is a full GPS trace — where someone lives
 and when they were out — and that is now club-visible by product decision. It must
-never become public. Related gap: `feed_items.payload.hiddenFields` (set in the share
-sheet) is stored but honoured nowhere, so a stat an athlete chose to hide is still
-rendered.
+never become public.
+
+**That related gap is now closed (2026-09-05):** `feed_items.payload.hiddenFields` (set
+in the share sheet) is enforced in `maskHiddenStats` inside `src/lib/feed/project.ts` —
+`calories` / `heart_rate` (both avg and max) / `pace` are blanked before the item leaves
+the server, for every viewer including the athlete themselves. `power` is in the key
+list but has no column yet, so it's a no-op until one lands. The masking lives in the
+projection, not in `FeedCard`, so the share sheet's story image and
+`/api/feed/items/[id]` get it too and no client can read the value out of the network
+response. Covered by `src/__tests__/feedProject.test.ts`.
+
+The feed now also ships `paceBands` — the per-km average paces from the cached
+`splits` jsonb, as bare numbers — so a card's thumbnail can draw the pace heat map.
+It is masked by the same `pace` key: hiding pace nulls the bands too, because per-km
+paces are pace at a finer grain and would hand back the average the athlete just hid,
+visibly in the colours and exactly in the JSON. If you add anything else derived from
+`splits` to the feed, mask it the same way.
 
 ## The AI parser — the accuracy-critical path
 

@@ -10,9 +10,9 @@ const MAX_BODY_LENGTH = 5000;
 const MAX_IMAGES = 4;
 
 // What the "Hidden Details" chips in the activity sync editor can toggle. Stored
-// as payload.hiddenFields — display-only today (no card currently reads it back
-// out), but the shape is settled now so a future feed-card render pass is a
-// straight read, not a schema change.
+// as payload.hiddenFields and enforced in lib/feed/project.ts's maskHiddenStats,
+// which blanks the matching FeedActivity fields so a hidden stat never leaves the
+// server. Keep this list and that one identical.
 const HIDDEN_FIELDS = ['calories', 'heart_rate', 'pace', 'power'] as const;
 type HiddenField = (typeof HIDDEN_FIELDS)[number];
 function isHiddenField(v: unknown): v is HiddenField {

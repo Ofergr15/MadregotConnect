@@ -11,6 +11,12 @@ import {
 } from '@/lib/feed/project';
 import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
 import { buildLikeIndex } from '@/lib/feed/likes';
+import {
+  COMMENT_SELECT,
+  COMMENT_PREVIEW_COUNT,
+  buildCommentPreviewIndex,
+  type FeedComment,
+} from '@/lib/feed/comments';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,20 +93,45 @@ export async function GET(request: Request) {
     // names match what the like sheet shows at the top.
     let likedItemIds = new Set<string>();
     let likersByItem = new Map<string, FeedLiker[]>();
+    let commentsByItem = new Map<string, FeedComment[]>();
     if (page.length > 0) {
-      const { data: likes, error: likesError } = await supabase
-        .from('feed_likes')
-        .select(LIKER_SELECT)
-        .in(
-          'feed_item_id',
-          page.map((r: { id: string }) => r.id),
-        )
-        .order('created_at', { ascending: false });
-      if (likesError) throw likesError;
+      const pageIds = page.map((r: { id: string }) => r.id);
 
-      const index = buildLikeIndex(likes || [], auth.user.athleteId, LIKE_PREVIEW_COUNT);
+      // Likes and comment previews are independent queries against different
+      // tables, so they go out together rather than one after the other — the
+      // feed is the app's landing page and this is on its critical path.
+      const [likesRes, commentsRes] = await Promise.all([
+        supabase
+          .from('feed_likes')
+          .select(LIKER_SELECT)
+          .in('feed_item_id', pageIds)
+          .order('created_at', { ascending: false }),
+        // Newest-first, then trimmed per item in buildCommentPreviewIndex. The
+        // row cap is a safety valve against one runaway thread, not a per-item
+        // guarantee: Postgres has no cheap "last N per group" here, and at club
+        // scale a page's worth of comments is a couple of dozen rows. If a
+        // single item ever eats the whole budget the card just shows fewer
+        // comments than it could — the count and the full thread stay correct.
+        supabase
+          .from('feed_comments')
+          .select(COMMENT_SELECT)
+          .in('feed_item_id', pageIds)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(pageIds.length * COMMENT_PREVIEW_COUNT * 10),
+      ]);
+      if (likesRes.error) throw likesRes.error;
+      if (commentsRes.error) throw commentsRes.error;
+
+      const index = buildLikeIndex(likesRes.data || [], auth.user.athleteId, LIKE_PREVIEW_COUNT);
       likedItemIds = index.likedItemIds;
       likersByItem = index.likersByItem;
+      commentsByItem = buildCommentPreviewIndex(
+        commentsRes.data || [],
+        auth.user.athleteId,
+        auth.user.isStaff,
+        COMMENT_PREVIEW_COUNT,
+      );
     }
 
     const ctx = {
@@ -108,6 +139,7 @@ export async function GET(request: Request) {
       viewerIsStaff: auth.user.isStaff,
       likedItemIds,
       likersByItem,
+      commentsByItem,
     };
 
     const items: FeedItem[] = page.map((row) => projectFeedItem(row, ctx));

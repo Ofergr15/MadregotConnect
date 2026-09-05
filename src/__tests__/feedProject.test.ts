@@ -166,6 +166,158 @@ describe('feed projection', () => {
   });
 });
 
+// The share sheet's "hidden details" toggles were written to
+// payload.hiddenFields and then honoured nowhere, so a stat the athlete
+// explicitly hid still went out on the card. These lock the masking to the
+// projection, which is the only layer a client can't go around.
+describe('feed projection — payload.hiddenFields', () => {
+  const activityRow = {
+    id: 'act-1',
+    athlete_id: 'athlete-1',
+    garmin_activity_id: 555,
+    activity_name: 'Morning run',
+    activity_type: 'running',
+    start_time: '2026-08-09T06:00:00.000Z',
+    distance: 10000,
+    duration: 3000,
+    moving_duration: 2980,
+    average_pace: 300,
+    average_hr: 152,
+    max_hr: 178,
+    calories: 640,
+    elevation_gain: 40,
+    location_name: 'Tel Aviv',
+    perceived_rpe: 6,
+    perceived_feel: 3,
+    route_preview: null,
+    has_polyline: true,
+    splits: [{ averagePace: 280 }, { averagePace: 300 }, { averagePace: 330 }],
+  };
+
+  const project = (hiddenFields: unknown) =>
+    projectFeedItem(
+      { ...baseRow, type: 'activity', payload: { hiddenFields }, athlete_activities: activityRow },
+      context,
+    ).activity!;
+
+  it('ships every stat when nothing is hidden', () => {
+    const activity = project([]);
+    expect(activity).toMatchObject({ calories: 640, averageHr: 152, maxHr: 178, averagePace: 300 });
+  });
+
+  it('blanks calories when hidden, leaving the others alone', () => {
+    const activity = project(['calories']);
+    expect(activity.calories).toBeNull();
+    expect(activity).toMatchObject({ averageHr: 152, maxHr: 178, averagePace: 300 });
+  });
+
+  it('heart_rate hides BOTH average and max — a max HR alone still leaks the effort', () => {
+    const activity = project(['heart_rate']);
+    expect(activity.averageHr).toBeNull();
+    expect(activity.maxHr).toBeNull();
+  });
+
+  it('blanks pace when hidden', () => {
+    expect(project(['pace']).averagePace).toBeNull();
+  });
+
+  // The thumbnail's pace heat map is drawn from these. They are pace at a finer
+  // grain than the average, so hiding "pace" and shipping them would hand back
+  // the number the athlete just hid — visibly in the colours, exactly in the JSON.
+  it('per-km paceBands ship with pace, and go when pace is hidden', () => {
+    expect(project([]).paceBands).toEqual([280, 300, 330]);
+    expect(project(['pace']).paceBands).toBeNull();
+  });
+
+  it('hides everything asked for at once', () => {
+    expect(project(['calories', 'heart_rate', 'pace'])).toMatchObject({
+      calories: null, averageHr: null, maxHr: null, averagePace: null,
+    });
+  });
+
+  it('masks the athlete\'s own card too — what they see is what the club sees', () => {
+    const item = projectFeedItem(
+      {
+        ...baseRow,
+        type: 'activity',
+        author_athlete_id: 'athlete-1',
+        payload: { hiddenFields: ['pace'] },
+        athlete_activities: activityRow,
+      },
+      { ...context, viewerAthleteId: 'athlete-1' },
+    );
+    expect(item.activity!.averagePace).toBeNull();
+  });
+
+  it('still ships payload.hiddenFields, which is what the share sheet reads its toggles from', () => {
+    const item = projectFeedItem(
+      { ...baseRow, type: 'activity', payload: { hiddenFields: ['pace'] }, athlete_activities: activityRow },
+      context,
+    );
+    expect(item.payload).toEqual({ hiddenFields: ['pace'] });
+  });
+
+  it('ignores unknown field names rather than blanking something arbitrary', () => {
+    expect(project(['location', 'distance'])).toMatchObject({ calories: 640, averagePace: 300 });
+  });
+
+  // payload is opaque JSONB with no DB-level shape guarantee.
+  it('tolerates a malformed hiddenFields (not an array, or mixed junk)', () => {
+    expect(project('pace')).toMatchObject({ averagePace: 300 });
+    expect(project([null, 42, 'pace'])).toMatchObject({ averagePace: null, calories: 640 });
+  });
+
+  it('distance and duration are never maskable — the card would have nothing left', () => {
+    expect(project(['calories', 'heart_rate', 'pace'])).toMatchObject({ distance: 10000, duration: 3000 });
+  });
+});
+
+// `splits` is JSONB cached opportunistically (Strava sync, or the first time
+// anyone opens the run's detail), so "no bands" is the normal case for older
+// runs and must never be an error — a card with none just draws a plain line.
+describe('feed projection — paceBands', () => {
+  const row = (splits: unknown) => ({
+    ...baseRow,
+    type: 'activity' as const,
+    athlete_activities: {
+      id: 'act-1', athlete_id: 'athlete-1', garmin_activity_id: null,
+      activity_name: null, activity_type: null, start_time: '2026-08-09T06:00:00.000Z',
+      distance: 5000, duration: 1500, moving_duration: null, average_pace: 300,
+      average_hr: null, max_hr: null, calories: null, elevation_gain: null,
+      location_name: null, perceived_rpe: null, perceived_feel: null,
+      route_preview: null, has_polyline: false, splits,
+    },
+  });
+  const bands = (splits: unknown) => projectFeedItem(row(splits), context).activity!.paceBands;
+
+  it('is null when the run has no cached splits at all', () => {
+    expect(bands(null)).toBeNull();
+    expect(bands([])).toBeNull();
+  });
+
+  it('is null for a single split — one number is not a heat map', () => {
+    expect(bands([{ averagePace: 300 }])).toBeNull();
+  });
+
+  it('carries only the paces, not the rest of each split', () => {
+    expect(bands([
+      { averagePace: 290, distance: 1000, duration: 290, averageHR: 150 },
+      { averagePace: 310, distance: 1000, duration: 310, averageHR: 158 },
+    ])).toEqual([290, 310]);
+  });
+
+  it('drops the whole set if any split is missing a usable pace, rather than mis-colouring the rest', () => {
+    expect(bands([{ averagePace: 290 }, { averagePace: null }, { averagePace: 310 }])).toBeNull();
+    expect(bands([{ averagePace: 290 }, { averagePace: 0 }])).toBeNull();
+    expect(bands(['not-a-split', { averagePace: 310 }])).toBeNull();
+  });
+
+  it('tolerates a splits value that is not an array', () => {
+    expect(bands('splits')).toBeNull();
+    expect(bands({ averagePace: 300 })).toBeNull();
+  });
+});
+
 describe('toAchievementPayload', () => {
   it('narrows a well-formed achievement payload', () => {
     const payload = { badgeCode: 'first_run', badgeIcon: '🏃', badgeNameHe: 'ריצה ראשונה', badgeNameEn: 'First Run' };
