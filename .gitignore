@@ -40,6 +40,8 @@ supabase/.temp/
 public/sw.js
 public/sw.js.map
 public/swe-worker-*.js
+# copied out of node_modules by scripts/copy-pdf-worker.mjs on predev/prebuild
+public/pdf.worker.min.mjs
 
 # typescript
 *.tsbuildinfo

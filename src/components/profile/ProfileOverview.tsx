@@ -99,38 +99,39 @@ export function ProfileOverview({
   const weekKmGoal = weekly?.weekTotalMax || 0;
   const weekKmDone = summary?.thisWeek?.km ?? 0;
 
-  // Which workout does the card show? The next TEAM day inside the coming week
-  // that actually has a plan behind it — the frame's card is a team workout (it
-  // carries the RSVP), and a card that only appeared on Mondays/Tuesdays and
-  // Thursdays/Fridays would leave the screen's centrepiece missing most of the
-  // week. Falls back to the next planned day of any kind so an athlete whose
-  // club has no team days still gets the card.
+  // Which workout does the card show? Simply the SOONEST planned day — today
+  // first, then tomorrow, and so on.
+  //
+  // It used to prefer the next TEAM day (teamDays, by default Tue + Fri) and
+  // only fall back to the nearest planned day if no team day had a plan at all.
+  // That is not what "the upcoming workout" means: on a Saturday it skipped
+  // Sunday's session and showed Tuesday's, four days out, while Sunday sat
+  // right there in the same week's plan. The heading promises the next one.
+  //
+  // The card's RSVP is unaffected — that still only appears on a team day, and
+  // only for today or tomorrow (see showRsvp below). It just no longer decides
+  // which workout the whole card is about.
   const upcoming = (() => {
     if (days.length === 0) return null;
     const todayDow = new Date().getDay();
-    let fallback: { workout: DailyDistance; date: Date; isTeamDay: boolean } | null = null;
     for (let offset = 0; offset < 7; offset++) {
       const dow = (todayDow + offset) % 7;
       const workout = days.find((d) => d.dayOfWeek === dow && d.max > 0);
       if (!workout) continue;
       const date = new Date();
       date.setDate(date.getDate() + offset);
-      const isTeamDay = teamDays.includes(dow);
-      if (isTeamDay) return { workout, date, isTeamDay };
-      if (!fallback) fallback = { workout, date, isTeamDay };
+      return { workout, date, isTeamDay: teamDays.includes(dow), offset };
     }
-    return fallback;
+    return null;
   })();
 
-  // RSVP only for today's or tomorrow's workout. Answering for a session five
-  // days out would be a new flow — the reminders, the coach roster and
+  // RSVP only for today's or tomorrow's TEAM workout. Answering for a session
+  // five days out would be a new flow — the reminders, the coach roster and
   // AttendanceRSVP's own hideIfAnswered rule are all built around the
   // day-before ask — so the card renders without pills until then rather than
   // quietly widening attendance semantics.
-  const rsvpOffset = upcoming?.isTeamDay
-    ? Math.round((startOfDay(upcoming.date).getTime() - startOfDay(new Date()).getTime()) / 86_400_000)
-    : -1;
-  const showRsvp = rsvpOffset === 0 || rsvpOffset === 1;
+  const rsvpOffset = upcoming?.offset ?? -1;
+  const showRsvp = !!upcoming?.isTeamDay && (rsvpOffset === 0 || rsvpOffset === 1);
 
   const race = goalRaceProgress();
   const raceDate = GOAL_RACE.date.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
@@ -371,12 +372,6 @@ function DayTile({
       {isTeamDay && <span className="absolute bottom-2 h-1.5 w-1.5 rounded-full bg-brand-600" />}
     </div>
   );
-}
-
-function startOfDay(d: Date) {
-  const copy = new Date(d);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
 }
 
 function dayOfWeekDate(weekStart: string, dayOfWeek: number) {
