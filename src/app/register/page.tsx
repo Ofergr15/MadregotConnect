@@ -171,7 +171,7 @@ function HeroHeading() {
       <img
         src="/images/logo-white.png"
         alt="מדרגות — After 2KM Running Club"
-        className="h-[78px] short:h-[54px] w-auto object-contain"
+        className="h-[102px] short:h-[68px] w-auto object-contain"
       />
 
       {/* Says what the thing being launched IS, and that this is the launch. A

@@ -1,8 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { getSupabase } from '@/lib/supabase/client';
+
+// How long the spinner is allowed to be the whole screen before we admit
+// something is wrong. Every path off this page is a redirect, so under normal
+// conditions nobody is here for even a second — but a Supabase token refresh
+// that never resolves has no timeout of its own, and that showed up in the field
+// as a 26-second blank spinner with no text, no error and no way out.
+const STALL_MS = 12_000;
 
 async function verifyEmailOtp(tokenHash: string) {
   return getSupabase().auth.verifyOtp({
@@ -17,10 +25,16 @@ const otpVerificationPromises = new Map<string, ReturnType<typeof verifyEmailOtp
 
 export default function AuthResolvePage() {
   const router = useRouter();
+  const t = useTranslations('onboarding');
+  const [stalled, setStalled] = useState(false);
 
   useEffect(() => {
     const supabase = getSupabase();
     let cancelled = false;
+    // Deliberately does NOT abort the sign-in — a slow login that still works is
+    // better than one we cancelled out from under the user. It only stops the
+    // screen from lying about being busy, and offers a way out.
+    const stallTimer = setTimeout(() => setStalled(true), STALL_MS);
 
     const authLog = (
       debugId: string,
@@ -28,6 +42,12 @@ export default function AuthResolvePage() {
       details: Record<string, unknown> = {},
     ) => {
       console.info(`[auth-debug:${debugId}] ${event}`, details);
+      // The mirror-to-terminal half only works in dev — the route 403s in
+      // production by design. Firing it there anyway meant nine POSTs, all of
+      // them rejected, on the single most latency-sensitive path in the app: the
+      // one the user is staring at a spinner through. The console line above is
+      // the part that survives to production, and it costs nothing.
+      if (process.env.NODE_ENV === 'production') return;
       void fetch('/api/dev/auth-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -149,6 +169,7 @@ export default function AuthResolvePage() {
 
     return () => {
       cancelled = true;
+      clearTimeout(stallTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -240,16 +261,36 @@ export default function AuthResolvePage() {
 
   return (
     <div className="min-h-screen bg-page flex items-center justify-center">
-      <div className="text-center" role="status">
+      <div className="text-center px-6" role="status" dir="rtl">
         {/* Hidden because there is nothing to show — this screen always redirects,
             and visually it is one spinner. But it had no heading at all, so a
             screen reader arriving mid-sign-in got a page it could not name.
             `role="status"` above makes the spinner's caption announce itself. */}
-        <h1 className="sr-only" dir="rtl">מתחבר...</h1>
+        <h1 className="sr-only">{t('resolveConnecting')}</h1>
         {/* Monochrome, like AppSplash and the auth gate — this screen is part of
             the same cold-open sequence. */}
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink-900 mx-auto mb-4"></div>
-        <p className="text-ink-400 text-sm" dir="rtl" aria-hidden="true">מתחבר...</p>
+        {stalled ? (
+          <>
+            <p className="text-ink-700 text-sm font-bold">{t('resolveStalledTitle')}</p>
+            <p className="text-ink-400 text-13 mt-2 max-w-[280px] mx-auto leading-relaxed">
+              {t('resolveStalledBody')}
+            </p>
+            {/* A full document load rather than a <Link>, which is why it is a
+                button and not one: whatever state the client-side Supabase client
+                has got itself into is exactly what we want to leave behind, and a
+                soft navigation would carry it along. */}
+            <button
+              type="button"
+              onClick={() => window.location.assign('/')}
+              className="mt-5 inline-flex min-h-11 items-center justify-center rounded-pill bg-brand-600 px-6 text-[15px] font-bold text-white active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+            >
+              {t('resolveRetry')}
+            </button>
+          </>
+        ) : (
+          <p className="text-ink-400 text-sm" aria-hidden="true">{t('resolveConnecting')}</p>
+        )}
       </div>
     </div>
   );

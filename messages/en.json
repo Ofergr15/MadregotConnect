@@ -1034,7 +1034,11 @@
     "garminConnecting": "Connecting to Garmin...",
     "garminWindowCloses": "This window will close automatically",
     "garminNoTicket": "No ticket received from Garmin",
-    "garminTryAgain": "Please try again"
+    "garminTryAgain": "Please try again",
+    "resolveConnecting": "Connecting...",
+    "resolveStalledTitle": "Signing in is taking longer than usual",
+    "resolveStalledBody": "We are still trying. If it does not come through, you can start signing in again.",
+    "resolveRetry": "Sign in again"
   },
   "join": {
     "joinYourTeam": "Join Your Team",

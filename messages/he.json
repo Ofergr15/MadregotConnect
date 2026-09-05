@@ -1034,7 +1034,11 @@
     "garminConnecting": "מתחבר לגרמין...",
     "garminWindowCloses": "החלון ייסגר אוטומטית",
     "garminNoTicket": "לא התקבל אישור מגרמין",
-    "garminTryAgain": "נסו שוב"
+    "garminTryAgain": "נסו שוב",
+    "resolveConnecting": "מתחבר...",
+    "resolveStalledTitle": "ההתחברות לוקחת יותר מהרגיל",
+    "resolveStalledBody": "אנחנו ממשיכים לנסות. אם זה לא מסתדר, אפשר להתחיל את ההתחברות מחדש.",
+    "resolveRetry": "התחברות מחדש"
   },
   "join": {
     "joinYourTeam": "הצטרף לקבוצה שלך",
