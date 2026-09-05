@@ -1762,7 +1762,7 @@
     "daysLeftShort": "{count} ימים",
     "oneDayLeft": "עוד יום",
     "challengeEyebrow": "אתגר פעיל",
-    "dismiss": "הסתרת הכרטיס"
+    "dismissChallenge": "הסתרת האתגר"
   },
   "photos": {
     "title": "תמונות",

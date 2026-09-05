@@ -1762,7 +1762,7 @@
     "daysLeftShort": "{count} days",
     "oneDayLeft": "1 day left",
     "challengeEyebrow": "Active challenge",
-    "dismiss": "Hide this card"
+    "dismissChallenge": "Hide this challenge"
   },
   "photos": {
     "title": "Photos",

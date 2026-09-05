@@ -30,22 +30,31 @@ import {
  * which is worse than the card arriving a beat late.
  */
 
-/** Where the hidden-until-the-context-changes flag lives. */
-const DISMISS_KEY = 'madregot.feedHighlight.dismissed';
+/**
+ * Where the hidden-until-the-challenge-changes flag lives.
+ *
+ * A new key, not the old `…feedHighlight.dismissed`: that one keyed the whole card,
+ * so anyone who had already tapped the X would have stayed hidden under the new
+ * meaning without ever having asked for it.
+ */
+const DISMISS_KEY = 'madregot.feedHighlight.challengeDismissed';
 
 /**
- * What "this card" means for the purposes of the X.
+ * What the X hides, and for how long.
  *
- * Dismissal is scoped, not permanent. Tapping X hides the card you are looking at;
- * a new week, a different challenge, or finishing the one you're on brings it back.
- * A permanent hide with no way to undo it is a trap in an app with no settings
- * screen for it — and "I don't want to see this right now" is almost always what
- * the tap means. `localStorage`, not the server: no migration, and it is a
- * per-device display preference, not data.
+ * The X used to sit on the week block and take the whole card with it. The week's
+ * kilometres are the one number the feed exists to put in front of you — offering a
+ * button that throws them away is the wrong affordance for it. So the X moved onto
+ * the challenge, and hides nothing but the challenge.
+ *
+ * Dismissal is scoped, not permanent: a different challenge, or finishing the one
+ * you're on, brings the section back. A permanent hide with no way to undo it is a
+ * trap in an app with no settings screen for it, and "not right now" is almost
+ * always what the tap means. `localStorage`, not the server — no migration, and it
+ * is a per-device display preference, not data.
  */
-function contextKey(h: FeedHighlight): string {
-  const c = h.challenge;
-  return `${h.week.weekStart}|${c ? `${c.id}:${c.done ? 'done' : 'open'}` : 'none'}`;
+function challengeKey(c: HighlightChallenge): string {
+  return `${c.id}:${c.done ? 'done' : 'open'}`;
 }
 
 /** The status pill's colour. `behind` is deliberately not red — see below. */
@@ -108,7 +117,7 @@ function WeekBars({ week, label }: { week: HighlightWeek; label: (i: number) => 
  * accent green once it's done, so "finished" is legible at arm's length without
  * reading a word of it.
  */
-function ChallengeRow({ challenge }: { challenge: HighlightChallenge }) {
+function ChallengeRow({ challenge, onHide }: { challenge: HighlightChallenge; onHide: () => void }) {
   const t = useTranslations('feedHighlight');
   const locale = useLocale();
   const name = locale === 'he' ? challenge.nameHe : challenge.nameEn;
@@ -126,62 +135,80 @@ function ChallengeRow({ challenge }: { challenge: HighlightChallenge }) {
     : { panel: 'bg-band-3/[0.07]', press: 'active:bg-band-3/15', ink: 'text-band-3-ink', fill: 'bg-band-3' };
 
   return (
-    <Link
-      href="/dashboard/profile?tab=challenges"
-      className={`block px-4 py-3.5 transition-colors ${look.panel} ${look.press}`}
-    >
-      <div className="flex items-center gap-3">
-        <span
-          className={`shrink-0 grid place-items-center w-11 h-11 rounded-tile bg-card text-xl ${
-            done ? 'border border-accent-600/25' : 'border border-band-3/25'
-          }`}
-        >
-          {challenge.iconUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={challenge.iconUrl} alt="" className="w-6 h-6 object-contain" />
-          ) : (
-            challenge.icon
-          )}
-        </span>
+    <div className={`relative ${look.panel}`}>
+      {/* A sibling of the Link, not a child of it: a button nested inside an anchor
+          is a tap you have to cancel to make work, and cancelling it is how you end
+          up on the challenges screen when you meant to close the section. Declared
+          after the Link so it paints above without needing a z-index. */}
+      <button
+        type="button"
+        onClick={onHide}
+        aria-label={t('dismissChallenge')}
+        // Generous hit area on a small glyph — a missed tap opens the challenges
+        // screen instead.
+        className="absolute top-1 end-1 grid place-items-center w-9 h-9 text-ink-300 active:text-ink-500"
+      >
+        <X className="h-4 w-4" />
+      </button>
 
-        <div className="min-w-0 flex-1">
-          <p className={`text-4xs font-bold ${look.ink}`}>{t('challengeEyebrow')}</p>
-          <p className="mt-0.5 truncate text-sm font-black leading-tight text-ink-900">{name}</p>
+      <Link
+        href="/dashboard/profile?tab=challenges"
+        className={`block px-4 py-3.5 transition-colors ${look.press}`}
+      >
+        {/* pe-7 keeps the days-left pill and the chevron clear of the X. */}
+        <div className="flex items-center gap-3 pe-7">
+          <span
+            className={`shrink-0 grid place-items-center w-11 h-11 rounded-tile bg-card text-xl ${
+              done ? 'border border-accent-600/25' : 'border border-band-3/25'
+            }`}
+          >
+            {challenge.iconUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={challenge.iconUrl} alt="" className="w-6 h-6 object-contain" />
+            ) : (
+              challenge.icon
+            )}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <p className={`text-4xs font-bold ${look.ink}`}>{t('challengeEyebrow')}</p>
+            <p className="mt-0.5 truncate text-sm font-black leading-tight text-ink-900">{name}</p>
+          </div>
+
+          {done ? (
+            <span className="shrink-0 inline-flex items-center gap-1 rounded-pill bg-accent-600/15 px-2 py-1 text-4xs font-bold text-accent-900">
+              <Check className="h-3 w-3" />
+              {t('challengeDone')}
+            </span>
+          ) : (
+            <span className="shrink-0 rounded-pill bg-card px-2 py-1 text-4xs font-bold text-ink-500 tabular-nums">
+              {challenge.daysLeft === 0
+                ? t('lastDay')
+                : challenge.daysLeft === 1
+                  ? t('oneDayLeft')
+                  : t('daysLeftShort', { count: challenge.daysLeft })}
+            </span>
+          )}
+
+          <ChevronRight className="shrink-0 h-4 w-4 text-ink-300 rtl:rotate-180" />
         </div>
 
-        {done ? (
-          <span className="shrink-0 inline-flex items-center gap-1 rounded-pill bg-accent-600/15 px-2 py-1 text-4xs font-bold text-accent-900">
-            <Check className="h-3 w-3" />
-            {t('challengeDone')}
+        <div className="mt-3 h-2 rounded-pill bg-card overflow-hidden">
+          <div className={`h-full rounded-pill ${look.fill}`} style={{ width: `${pct}%` }} />
+        </div>
+
+        <div className="mt-1.5 flex items-baseline justify-between gap-2">
+          <p className="min-w-0 truncate text-2xs text-ink-500 tabular-nums">
+            {done
+              ? t('challengeFinished')
+              : t('challengeProgress', { current: challenge.current, target: challenge.target, unit })}
+          </p>
+          <span className={`shrink-0 text-2xs font-bold tabular-nums ${look.ink}`}>
+            {Math.round(pct)}%
           </span>
-        ) : (
-          <span className="shrink-0 rounded-pill bg-card px-2 py-1 text-4xs font-bold text-ink-500 tabular-nums">
-            {challenge.daysLeft === 0
-              ? t('lastDay')
-              : challenge.daysLeft === 1
-                ? t('oneDayLeft')
-                : t('daysLeftShort', { count: challenge.daysLeft })}
-          </span>
-        )}
-
-        <ChevronRight className="shrink-0 h-4 w-4 text-ink-300 rtl:rotate-180" />
-      </div>
-
-      <div className="mt-3 h-2 rounded-pill bg-card overflow-hidden">
-        <div className={`h-full rounded-pill ${look.fill}`} style={{ width: `${pct}%` }} />
-      </div>
-
-      <div className="mt-1.5 flex items-baseline justify-between gap-2">
-        <p className="min-w-0 truncate text-2xs text-ink-500 tabular-nums">
-          {done
-            ? t('challengeFinished')
-            : t('challengeProgress', { current: challenge.current, target: challenge.target, unit })}
-        </p>
-        <span className={`shrink-0 text-2xs font-bold tabular-nums ${look.ink}`}>
-          {Math.round(pct)}%
-        </span>
-      </div>
-    </Link>
+        </div>
+      </Link>
+    </div>
   );
 }
 
@@ -208,19 +235,22 @@ export function FeedHighlightCard() {
 
   if (!highlight) return null;
 
-  const key = contextKey(highlight);
-  if (dismissed === key) return null;
+  const { week, challenge } = highlight;
+  // The week half has no X at all. Only the challenge section can be hidden, and
+  // only until the challenge itself changes.
+  const chKey = challenge ? challengeKey(challenge) : null;
+  const showChallenge = !!challenge && dismissed !== chKey;
 
-  const hide = () => {
+  const hideChallenge = () => {
+    if (!chKey) return;
     try {
-      window.localStorage.setItem(DISMISS_KEY, key);
+      window.localStorage.setItem(DISMISS_KEY, chKey);
     } catch {
       // Can't persist it — still hide it for this session.
     }
-    setDismissed(key);
+    setDismissed(chKey);
   };
 
-  const { week, challenge } = highlight;
   const status = weekStatus(week);
   const bar = week.targetMin > 0 ? week.targetMin : week.targetMax;
   const pct = bar > 0 ? Math.min(100, Math.max(0, (week.km / bar) * 100)) : 0;
@@ -240,59 +270,46 @@ export function FeedHighlightCard() {
 
   return (
     <div className="bg-card rounded-card border border-page overflow-hidden">
-      <div className="relative">
-        <button
-          type="button"
-          onClick={hide}
-          aria-label={t('dismiss')}
-          // Generous hit area on a small glyph — this sits under the thumb at the
-          // top of the feed and a missed tap opens the Statistics screen instead.
-          className="absolute top-1 end-1 grid place-items-center w-9 h-9 text-ink-300 active:text-ink-500"
-        >
-          <X className="h-4 w-4" />
-        </button>
+      <Link href="/dashboard/profile?tab=statistics" className="block px-4 pt-3.5 pb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-2xs font-bold text-ink-400">{t('weekEyebrow')}</span>
+          <span
+            className={`rounded-pill px-2 py-[2px] text-4xs font-bold ${STATUS_LOOK[status]}`}
+          >
+            {t(`weekStatus_${status}` as 'weekStatus_met')}
+          </span>
+        </div>
 
-        <Link href="/dashboard/profile?tab=statistics" className="block px-4 pt-3.5 pb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-2xs font-bold text-ink-400">{t('weekEyebrow')}</span>
-            <span
-              className={`rounded-pill px-2 py-[2px] text-4xs font-bold ${STATUS_LOOK[status]}`}
-            >
-              {t(`weekStatus_${status}` as 'weekStatus_met')}
-            </span>
-          </div>
-
-          <p className="mt-1 flex items-baseline gap-1 text-ink-900 tabular-nums">
-            <span className="text-28 font-black leading-none">{week.km}</span>
-            {bar > 0 && (
-              <span className="text-13 font-bold text-ink-400">
-                {t('outOfTarget', { target: bar })}
-              </span>
-            )}
-            <span className="text-13 font-bold text-ink-500">{t('unit_distance_km')}</span>
-          </p>
-
+        <p className="mt-1 flex items-baseline gap-1 text-ink-900 tabular-nums">
+          <span className="text-28 font-black leading-none">{week.km}</span>
           {bar > 0 && (
-            <div className="mt-2.5 h-1.5 rounded-pill bg-page overflow-hidden">
-              <div
-                className={`h-full rounded-pill ${status === 'met' ? 'bg-accent-600' : 'bg-brand-600'}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+            <span className="text-13 font-bold text-ink-400">
+              {t('outOfTarget', { target: bar })}
+            </span>
           )}
+          <span className="text-13 font-bold text-ink-500">{t('unit_distance_km')}</span>
+        </p>
 
-          <p className="mt-2 text-2xs text-ink-500">{explain}</p>
+        {bar > 0 && (
+          <div className="mt-2.5 h-1.5 rounded-pill bg-page overflow-hidden">
+            <div
+              className={`h-full rounded-pill ${status === 'met' ? 'bg-accent-600' : 'bg-brand-600'}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        )}
 
-          <WeekBars week={week} label={(i) => t(`day_${DAY_KEYS[i]}` as 'day_sun')} />
-        </Link>
-      </div>
+        <p className="mt-2 text-2xs text-ink-500">{explain}</p>
 
-      {challenge && (
+        <WeekBars week={week} label={(i) => t(`day_${DAY_KEYS[i]}` as 'day_sun')} />
+      </Link>
+
+      {showChallenge && challenge && (
         <>
           {/* Full-bleed, not inset: the challenge is a section of the card now,
               not a row appended to the week. */}
           <div className="border-t border-page" />
-          <ChallengeRow challenge={challenge} />
+          <ChallengeRow challenge={challenge} onHide={hideChallenge} />
         </>
       )}
     </div>
