@@ -14,10 +14,11 @@
  *    through `ensureMatchedWorkout`, which computes and persists a match when
  *    none exists, so a run synced before the matcher last ran still gets graded.
  *
- * Laps are read from `athlete_activities.laps` and never fetched from Garmin
- * here. They're cached the first time anyone opens the run
- * (api/garmin/activity-details) and by the Strava sync, so this stays a pure read
- * and the feed and the detail screen agree on the same stored data.
+ * Laps follow the same split. The batch path reads only what's already stored
+ * (the Strava sync writes them, and any earlier open of the run cached them). The
+ * single-run path will fetch them from Garmin once and write them back — see
+ * `ensureLaps`, and why a paced session with no laps is otherwise graded on
+ * distance alone.
  */
 
 import type { createServerClient } from '@/lib/supabase/server';
@@ -25,9 +26,11 @@ import type { ParsedWorkout } from '@/lib/ai/types';
 import type { ActualActivity, AdherenceTolerances } from '@/lib/academy/adherence';
 import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import { flattenPlannedSteps, matchLapsToSteps, type Lap, type SegmentReport } from '@/lib/academy/segments';
+import { GarminClient } from '@/lib/garmin/client';
 import { ensureMatchedWorkout } from '@/lib/plans/matched-workout';
 import { isMissingMatchesTable, workoutPlanForGroup } from '@/lib/plans/match-athlete-activities';
 import { activityLocalDateStr } from '@/lib/utils';
+import { hasStoredLaps, toLaps } from './laps';
 import {
   buildVerdict,
   toExecutionSummary,
@@ -39,13 +42,14 @@ type SupabaseServer = ReturnType<typeof createServerClient>;
 
 /** Columns a verdict needs off the activity row. */
 const ACTIVITY_SELECT = `
-  id, athlete_id, start_time, distance, duration, moving_duration,
+  id, athlete_id, garmin_activity_id, start_time, distance, duration, moving_duration,
   average_pace, activity_type, laps
 `;
 
 interface ActivityRow {
   id: string;
   athlete_id: string;
+  garmin_activity_id: number | null;
   start_time: string;
   distance: number | null;
   duration: number | null;
@@ -67,42 +71,76 @@ function toActual(row: ActivityRow): ActualActivity {
   };
 }
 
-/**
- * Stored laps, normalised to what `matchLapsToSteps` wants.
- *
- * Two writers with slightly different shapes feed this column (the Garmin detail
- * fetch and the Strava backfill), and an empty array is a real value there — it
- * means "checked, this run has no useful laps" — so it degrades to no reps rather
- * than being treated as missing.
- */
-function toLaps(value: unknown): Lap[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((raw): Lap | null => {
-      const lap = raw as { distance?: unknown; duration?: unknown; averagePace?: unknown };
-      const distance = Number(lap?.distance);
-      const duration = Number(lap?.duration);
-      if (!Number.isFinite(distance) || !Number.isFinite(duration)) return null;
-      const pace = Number(lap?.averagePace);
-      return {
-        distance,
-        duration,
-        averagePace: Number.isFinite(pace) && pace > 0 ? pace : null,
-      };
-    })
-    .filter((lap): lap is Lap => lap !== null);
-}
-
 function segmentReportFor(workout: ParsedWorkout, laps: Lap[], paceSec: number): SegmentReport | null {
   if (laps.length === 0) return null;
   return matchLapsToSteps(flattenPlannedSteps(workout), laps, paceSec);
 }
 
-/** The one place a (run, planned workout) pair becomes a verdict. */
+/** Did the coach actually prescribe paces here? Only then are laps worth a call. */
+function prescribesPace(workout: ParsedWorkout): boolean {
+  return flattenPlannedSteps(workout).some((segment) => !!segment.paceMin);
+}
+
+/**
+ * The laps for one run, fetching them from Garmin the first time if need be.
+ *
+ * Without this the rep-by-rep breakdown only ever appeared on runs that some
+ * OTHER screen had already enriched, and a paced session with no cached laps got
+ * graded on distance alone — which is ~100% for anyone who finished the session,
+ * however wrong their paces were. `api/academy/segments` has fetched laps
+ * on demand for exactly this reason since it shipped; this mirrors it, including
+ * the write-back, so the cost is paid once per run and every later reader (the
+ * feed rings, the push) gets the reps for free.
+ *
+ * Deliberately narrow: only for a plan that prescribes paces, only when nobody
+ * has looked yet, and any failure just means no reps. It never blocks a verdict.
+ */
+async function ensureLaps(
+  supabase: SupabaseServer,
+  row: ActivityRow,
+  workout: ParsedWorkout,
+): Promise<Lap[]> {
+  if (hasStoredLaps(row.laps)) return toLaps(row.laps);
+  if (!row.garmin_activity_id || !prescribesPace(workout)) return [];
+
+  try {
+    const { data: athlete } = await supabase
+      .from('athletes')
+      .select('garmin_auth')
+      .eq('id', row.athlete_id)
+      .maybeSingle();
+    if (!athlete?.garmin_auth) return [];
+
+    const client = new GarminClient(athlete.garmin_auth as never);
+    const raw = await client.getActivitySplits(Number(row.garmin_activity_id));
+    // One lap is the whole run relabelled — no more use than no laps at all.
+    const laps = Array.isArray(raw) && raw.length > 1 ? toLaps(raw) : [];
+
+    // Write back either way. `[]` is the "already asked" marker that stops every
+    // future open of this run from paying for the same empty answer.
+    await supabase
+      .from('athlete_activities')
+      .update({ laps })
+      .eq('id', row.id)
+      .then(() => {}, () => {});
+
+    return laps;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The one place a (run, planned workout) pair becomes a verdict.
+ *
+ * Laps are passed in rather than read off the row: the batch path uses only what
+ * is already stored, while the single-run path may have just fetched them.
+ */
 function verdictFor(
   row: ActivityRow,
   workout: ParsedWorkout | null,
   tolerances: AdherenceTolerances,
+  laps: Lap[],
 ): ExecutionVerdict {
   if (!workout) {
     return buildVerdict({
@@ -117,7 +155,7 @@ function verdictFor(
   const actual = toActual(row);
   const planned = buildPlannedWorkout(workout, actual.date);
   const adherence = assessWorkout(planned, actual, tolerances);
-  const segments = segmentReportFor(workout, toLaps(row.laps), tolerances.paceSec);
+  const segments = segmentReportFor(workout, laps, tolerances.paceSec);
 
   return buildVerdict({
     activityId: row.id,
@@ -195,7 +233,7 @@ export async function resolveExecutionSummaries(
       ? workoutsFor(match.weekly_plan_id, match.group_number)
         .find((candidate) => candidate.workoutKey === match.workout_key) ?? null
       : null;
-    return toExecutionSummary(verdictFor(row, workout, tolerances));
+    return toExecutionSummary(verdictFor(row, workout, tolerances, toLaps(row.laps)));
   });
 }
 
@@ -221,5 +259,7 @@ export async function resolveExecutionVerdict(
 
   const row = data as unknown as ActivityRow;
   const matched = await ensureMatchedWorkout(supabase, row.id, row.athlete_id);
-  return verdictFor(row, matched?.workout ?? null, tolerances);
+  const workout = matched?.workout ?? null;
+  const laps = workout ? await ensureLaps(supabase, row, workout) : [];
+  return verdictFor(row, workout, tolerances, laps);
 }

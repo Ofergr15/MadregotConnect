@@ -25,6 +25,7 @@ import {
   useState,
 } from 'react';
 import { apiHeaders } from '@/lib/api';
+import { toExecutionSummary } from '@/lib/plan-execution/verdict';
 import type { ExecutionSummary, ExecutionVerdict } from '@/lib/plan-execution/verdict';
 
 /** `null` = asked, and the server has no score for this run (or wouldn't say). */
@@ -33,6 +34,8 @@ type Entry = ExecutionSummary | null;
 interface ExecutionContextValue {
   summaries: Map<string, Entry>;
   request: (activityId: string) => void;
+  /** Overwrite one cached entry with a freshly computed, better answer. */
+  publish: (summary: ExecutionSummary) => void;
 }
 
 const ExecutionContext = createContext<ExecutionContextValue | null>(null);
@@ -89,11 +92,33 @@ export function ExecutionScoreProvider({ children }: { children: React.ReactNode
     }, BATCH_DELAY_MS);
   }, [flush]);
 
+  /**
+   * The batch path grades from stored laps only; opening a run fetches the laps
+   * it was missing and can come back with a materially different answer (the
+   * whole reason the ring is per-rep). Without this the feed would keep showing
+   * the older number after you'd been shown the better one on the same run.
+   */
+  const publish = useCallback((summary: ExecutionSummary) => {
+    asked.current.add(summary.activityId);
+    setSummaries((prev) => {
+      const current = prev.get(summary.activityId);
+      if (current
+        && current.score === summary.score
+        && current.direction === summary.direction
+        && current.status === summary.status) {
+        return prev;
+      }
+      const next = new Map(prev);
+      next.set(summary.activityId, summary);
+      return next;
+    });
+  }, []);
+
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  const value = useMemo(() => ({ summaries, request }), [summaries, request]);
+  const value = useMemo(() => ({ summaries, request, publish }), [summaries, request, publish]);
   return <ExecutionContext.Provider value={value}>{children}</ExecutionContext.Provider>;
 }
 
@@ -131,6 +156,9 @@ export function useExecutionVerdict(
   const [verdict, setVerdict] = useState<ExecutionVerdict | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Optional: the feedback screen renders this outside the app shell's provider.
+  const ctx = useContext(ExecutionContext);
+  const publish = ctx?.publish;
 
   useEffect(() => {
     if (!enabled || !activityId) {
@@ -150,6 +178,8 @@ export function useExecutionVerdict(
         if (cancelled) return;
         setVerdict(data.verdict ?? null);
         setError(null);
+        // Hand the better answer back to the feed's cache.
+        if (data.verdict && publish) publish(toExecutionSummary(data.verdict));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'failed');
       } finally {
@@ -157,7 +187,7 @@ export function useExecutionVerdict(
       }
     })();
     return () => { cancelled = true; };
-  }, [activityId, enabled, revision]);
+  }, [activityId, enabled, revision, publish]);
 
   return { verdict, loading, error };
 }

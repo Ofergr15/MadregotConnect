@@ -16,6 +16,7 @@ import {
   type ActualActivity,
 } from '@/lib/academy/adherence';
 import { flattenPlannedSteps, matchLapsToSteps, type Lap } from '@/lib/academy/segments';
+import { hasStoredLaps, toLaps } from '@/lib/plan-execution/laps';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 
 /**
@@ -230,8 +231,11 @@ describe('buildVerdict — runs it refuses to grade on pace', () => {
       segments: null,
     });
     expect(verdict.direction).toBe('too_short');
-    expect(verdict.basis).toBe('metrics');
     expect(verdict.reps).toEqual([]);
+    // But it does NOT put a percentage on it: this is a paced session and not one
+    // of its paces was checked. See the `ungraded` block below.
+    expect(verdict.basis).toBeNull();
+    expect(verdict.score).toBeNull();
   });
 
   it('gives no rep verdicts at all when the laps did not line up', () => {
@@ -250,9 +254,11 @@ describe('buildVerdict — runs it refuses to grade on pace', () => {
     });
     expect(verdict.repsAligned).toBe(false);
     expect(verdict.repCounts.onTarget).toBe(0);
-    // Never a wrong colour: unaligned laps produce no graded reps, so the score
-    // can only come from the metrics.
-    expect(verdict.basis).toBe('metrics');
+    // Never a wrong colour, and never a wrong number either: unaligned laps
+    // produce no graded reps, and on a paced session the metrics that remain
+    // cannot stand in for them.
+    expect(verdict.basis).toBeNull();
+    expect(verdict.score).toBeNull();
   });
 
   it('treats a run with no planned workout as unplanned, not as a zero', () => {
@@ -262,6 +268,73 @@ describe('buildVerdict — runs it refuses to grade on pace', () => {
     expect(verdict.status).toBe('unplanned');
     expect(verdict.score).toBeNull();
     expect(verdict.direction).toBe('unknown');
+  });
+});
+
+describe('toLaps — the two shapes stored in athlete_activities.laps', () => {
+  it('passes Garmin laps through', () => {
+    expect(toLaps([{ distance: 2000, duration: 410, averagePace: 205 }]))
+      .toEqual([{ distance: 2000, duration: 410, averagePace: 205 }]);
+  });
+
+  it('reads a raw Strava lap, which has neither `duration` nor `averagePace`', () => {
+    // The defect: these were dropped entirely, so a Strava athlete's interval
+    // session had no reps and got scored on distance alone.
+    const laps = toLaps([
+      { name: 'Lap 1', lap_index: 1, distance: 2000, moving_time: 410, elapsed_time: 415, average_speed: 4.878 },
+    ]);
+    expect(laps).toHaveLength(1);
+    expect(laps[0].duration).toBe(410);
+    // 1000 / 4.878 m/s ≈ 205 s/km.
+    expect(laps[0].averagePace).toBe(205);
+  });
+
+  it('derives pace from distance and time when neither provider gave one', () => {
+    expect(toLaps([{ distance: 2000, moving_time: 410 }])[0].averagePace).toBe(205);
+  });
+
+  it('falls back to elapsed time when a lap has no moving time', () => {
+    expect(toLaps([{ distance: 400, elapsed_time: 120, average_speed: 0 }])[0])
+      .toEqual({ distance: 400, duration: 120, averagePace: 300 });
+  });
+
+  it('drops laps it cannot use rather than inventing a pace for them', () => {
+    // A zero-distance lap would otherwise divide by zero; a lap with no time at
+    // all can't be paced. Both are silently useless, never NaN.
+    expect(toLaps([{ distance: 0, duration: 30 }, { distance: 1000 }, null, 'x'])).toEqual([]);
+    expect(toLaps(null)).toEqual([]);
+    expect(toLaps({ laps: [] })).toEqual([]);
+  });
+
+  it('tells "nobody asked" apart from "asked, and there were none"', () => {
+    // `[]` is written back deliberately so the Garmin fetch happens once per run.
+    expect(hasStoredLaps([])).toBe(true);
+    expect(hasStoredLaps(null)).toBe(false);
+    expect(hasStoredLaps(undefined)).toBe(false);
+  });
+
+  it('grades a Strava-shaped 4x2000 exactly like the Garmin-shaped one', () => {
+    // The end-to-end point of the fix: same run, same verdict, either provider.
+    const workout = fourByTwoK();
+    const planned = buildPlannedWorkout(workout, DATE);
+    const stravaShaped = lapsAt(187).map((lap) => ({
+      name: 'Lap', distance: lap.distance, moving_time: lap.duration,
+      average_speed: 1000 / (lap.averagePace as number),
+    }));
+    const verdict = buildVerdict({
+      activityId: 'act-1',
+      athleteId: 'ath-1',
+      adherence: assessWorkout(planned, run({ duration: 3300, movingDuration: 3300 }), DEFAULT_TOLERANCES),
+      segments: matchLapsToSteps(
+        flattenPlannedSteps(workout),
+        toLaps(stravaShaped),
+        DEFAULT_TOLERANCES.paceSec,
+      ),
+      workoutName: workout.name,
+    });
+    expect(verdict.direction).toBe('too_fast');
+    expect(verdict.repCounts).toMatchObject({ onTarget: 0, faster: 4, slower: 0 });
+    expect(verdict.score).toBe(verdictFor(187, run({ duration: 3300, movingDuration: 3300 })).score);
   });
 });
 
@@ -275,5 +348,78 @@ describe('toExecutionSummary', () => {
       direction: 'too_fast',
       workoutName: '4x2000',
     });
+  });
+});
+
+describe('buildVerdict — a paced session whose reps could not be read', () => {
+  /**
+   * The defect this guards: laps missing (or in a shape the reader dropped) on a
+   * 4×2000 leaves distance as the only gradeable metric — and anyone who
+   * finished the session covered the distance. The engine used to answer 100%
+   * "executed as planned", in the ring and in the push notification, for a
+   * session that may have been run entirely at the wrong pace.
+   */
+  function blindVerdict() {
+    const workout = fourByTwoK();
+    const planned = buildPlannedWorkout(workout, DATE);
+    return buildVerdict({
+      activityId: 'act-1',
+      athleteId: 'ath-1',
+      adherence: assessWorkout(planned, run({ distance: 13600 }), DEFAULT_TOLERANCES),
+      segments: null,
+    });
+  }
+
+  it('refuses to score it at all', () => {
+    const verdict = blindVerdict();
+    expect(verdict.status).toBe('ungraded');
+    expect(verdict.score).toBeNull();
+    expect(verdict.basis).toBeNull();
+  });
+
+  it('does not claim "on target" on the strength of the distance alone', () => {
+    // The distance WAS in band, and that is exactly the trap.
+    const verdict = blindVerdict();
+    expect(verdict.metrics.find((m) => m.key === 'distance')?.deviation).toBe(0);
+    expect(verdict.direction).toBe('unknown');
+  });
+
+  it('still says so when the run also went short', () => {
+    // Running 8 km of a 13.6 km session is true and worth saying without a score.
+    const workout = fourByTwoK();
+    const planned = buildPlannedWorkout(workout, DATE);
+    const verdict = buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1',
+      adherence: assessWorkout(planned, run({ distance: 8000 }), DEFAULT_TOLERANCES),
+      segments: null,
+    });
+    expect(verdict.direction).toBe('too_short');
+    expect(verdict.score).toBeNull();
+  });
+
+  it('scores normally again as soon as one rep can be graded', () => {
+    const verdict = verdictFor(205, run());
+    expect(verdict.status).toBe('graded');
+    expect(verdict.score).toBe(100);
+  });
+
+  it('leaves a continuous run alone — there the average pace IS the workout', () => {
+    // No pace band prescribed per rep, so `structured_session` never applies and
+    // a distance/duration score is the honest whole answer.
+    const easy = {
+      dayOfWeek: 1, name: 'Easy 10k',
+      steps: [{ order: 1, type: 'active', durationType: 'distance', durationValue: 10000, targetType: 'no_target' }],
+    } as ParsedWorkout;
+    const verdict = buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1',
+      adherence: assessWorkout(
+        buildPlannedWorkout(easy, DATE),
+        run({ distance: 10000, duration: 3000, movingDuration: 3000 }),
+        DEFAULT_TOLERANCES,
+      ),
+      segments: null,
+    });
+    expect(verdict.status).toBe('graded');
+    expect(verdict.score).not.toBeNull();
   });
 });

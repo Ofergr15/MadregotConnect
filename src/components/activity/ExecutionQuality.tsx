@@ -405,6 +405,27 @@ export function ExecutionQuality({
     );
   }
 
+  // A structured session whose reps couldn't be read, with nothing else worth
+  // reporting. Says so plainly instead of showing an empty ring and three grey
+  // rows — a percentage withheld without a reason reads as a broken feature.
+  // (A run that also went long or short keeps the full section below: the ring
+  // dashes out, but "you ran 8 of 13.6 km" is still true and worth saying.)
+  if (verdict.status === 'ungraded' && verdict.direction === 'unknown') {
+    return (
+      <div className={cn('rounded-card border border-page bg-card p-4', className)}>
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-page">
+            <AlertCircle className="h-4 w-4 text-ink-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-ink-700">{t('ungradedTitle')}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-ink-400">{t('ungradedBody')}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // A run with no planned workout behind it. Its own answer, not a 0% — the
   // academy screens used to drop these, which made an athlete's extra easy run
   // read as a missed session.

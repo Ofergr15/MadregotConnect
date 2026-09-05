@@ -388,14 +388,37 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
     .map((metric) => metric.closeness)
     .filter((value): value is number => value != null);
 
+  const paceMetric = metrics.find((metric) => metric.key === 'pace');
+
+  /**
+   * A structured session whose reps could not be read is UNGRADED, not a 94%.
+   *
+   * The plan's entire content was per-rep paces. When none of them can be
+   * checked, the only metric left is usually distance — and anyone who finished
+   * the session covered the distance. Scoring that produced this feature's worst
+   * possible output: a confident high accuracy for a session run at completely
+   * the wrong pace, in the ring AND in the push notification.
+   *
+   * `structured_session` is precisely the signal for it: `adherence.ts` sets it
+   * when a pace band was prescribed but no band covers enough of the run to grade
+   * the average against, i.e. "this is an interval session, look at the reps".
+   * With no reps to look at, the honest answer is no number.
+   */
+  const paceWasPrescribedButUnchecked =
+    paceMetric?.reason === 'structured_session' && repCloseness.length === 0;
+
   const repPart = mean(repCloseness);
   const metricPart = mean(metricCloseness);
-  const score01 = repPart != null && metricPart != null
-    ? REPS_WEIGHT * repPart + (1 - REPS_WEIGHT) * metricPart
-    : repPart ?? metricPart;
-  const basis: ExecutionBasis | null = repPart != null && metricPart != null
-    ? 'reps_and_metrics'
-    : repPart != null ? 'reps' : metricPart != null ? 'metrics' : null;
+  const score01 = paceWasPrescribedButUnchecked
+    ? null
+    : repPart != null && metricPart != null
+      ? REPS_WEIGHT * repPart + (1 - REPS_WEIGHT) * metricPart
+      : repPart ?? metricPart;
+  const basis: ExecutionBasis | null = score01 == null
+    ? null
+    : repPart != null && metricPart != null
+      ? 'reps_and_metrics'
+      : repPart != null ? 'reps' : metricPart != null ? 'metrics' : null;
 
   // Direction reads the reps when there are any — that IS the session. Only a
   // run with no per-rep verdicts falls back to its whole-run average pace, and
@@ -403,7 +426,6 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
   const repDeviations = reps
     .filter((rep) => rep.graded && rep.deviation != null)
     .map((rep) => rep.deviation as number);
-  const paceMetric = metrics.find((metric) => metric.key === 'pace');
   const paceDeviations = repDeviations.length
     ? repDeviations
     : paceMetric?.deviation != null ? [paceMetric.deviation] : [];
@@ -412,7 +434,15 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
   if (!direction) {
     const distance = metrics.find((metric) => metric.key === 'distance');
     if (distance?.deviation != null) {
-      direction = distance.deviation === 0 ? 'on_target' : distance.deviation > 0 ? 'too_long' : 'too_short';
+      if (distance.deviation !== 0) {
+        direction = distance.deviation > 0 ? 'too_long' : 'too_short';
+      } else if (!paceWasPrescribedButUnchecked) {
+        // Running long or short is worth saying either way. "Executed as
+        // planned", though, is only earned when the distance was the whole plan —
+        // saying it about an interval session whose paces we never read claims
+        // the workout went right because the athlete covered the ground.
+        direction = 'on_target';
+      }
     }
   }
 

@@ -2031,6 +2031,8 @@
     "basis_reps_and_metrics": "Score from the reps (70%) plus the metrics that were measured (30%).",
     "basis_reps": "Score from the reps only.",
     "basis_metrics": "Score from the metrics that were measured, with no rep breakdown.",
+    "ungradedTitle": "No score for this one yet",
+    "ungradedBody": "We could not read the laps from the watch. On a structured session there is no honest way to judge the pace without them, so we are not inventing a percentage.",
     "unplannedTitle": "Outside the plan",
     "unplannedBody": "No workout from the weekly plan was matched to this run, so there is no accuracy score. That's fine — not every run is a planned workout.",
     "unitKm": "km",
