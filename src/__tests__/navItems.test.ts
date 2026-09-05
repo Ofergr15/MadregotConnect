@@ -21,7 +21,7 @@ const PROD: Record<string, string[]> = {
   academy_coach: ['academy', 'activities', 'calendar', 'dashboard', 'feed', 'photos', 'practice', 'program', 'races', 'team-volume'],
   academy_user: ['activities', 'calendar', 'dashboard', 'feed', 'photos', 'practice', 'program', 'races', 'review'],
   admin: ['academy', 'activities', 'athletes', 'calendar', 'dashboard', 'feed', 'groups', 'history', 'photos', 'plan/new', 'practice-attendance', 'program', 'races', 'review', 'settings', 'team-volume', 'workout-feedback'],
-  coach: ['academy', 'activities', 'athletes', 'calendar', 'dashboard', 'feed', 'groups', 'history', 'photos', 'plan/new', 'program', 'races', 'review', 'settings', 'team-volume'],
+  coach: ['academy', 'activities', 'athletes', 'calendar', 'dashboard', 'feed', 'groups', 'history', 'photos', 'plan/new', 'practice-attendance', 'program', 'races', 'review', 'settings', 'team-volume', 'workout-feedback'],
   core_runner: ['activities', 'calendar', 'dashboard', 'feed', 'photos', 'plan/new', 'program', 'races', 'review'],
   runner: ['activities', 'calendar', 'dashboard', 'feed', 'photos', 'program', 'races', 'review'],
   viewer: ['activities', 'dashboard', 'program'],
@@ -77,13 +77,34 @@ describe('staff', () => {
     ]);
   });
 
-  it('a coach cannot reach the workout-feedback triage list', () => {
-    // Not a bug in this function — it's a missing production permission row, and
-    // it matters because the bar makes workout-feedback a primary staff tab and
-    // coaches are the ones who'd act on a pain report. Pinned so the day the row
-    // is added, this test says so out loud.
-    expect(staff('coach')).not.toContain('workout-feedback');
-    expect(staff('coach')).not.toContain('practice-attendance');
+  it('a coach reaches feedback triage and attendance', () => {
+    // Both rows were added 2026-09-05. The previous version of this test pinned
+    // their ABSENCE and said "the day the row is added, this test says so out
+    // loud" — this is that edit.
+    //
+    // Neither granted anything new: `requireStaffCaller` on
+    // /api/workout-feedback and the isStaff branch on /api/attendance already
+    // passed coach, so a coach could reach both by typing the URL and had no tab
+    // to either. Attendance was the sharper of the two — the bar renders the
+    // נוכחות staff slot unconditionally, so a coach saw the tab while the
+    // permission row denied it, and the row was the thing out of step with both
+    // the bar and the API.
+    expect(staff('coach')).toContain('workout-feedback');
+    expect(staff('coach')).toContain('practice-attendance');
+  });
+
+  it('leaves a coach with exactly an admin nav, which is worth knowing', () => {
+    // Not the intended outcome of adding the two rows, but the actual one: those
+    // were the last two tabs admin held and coach did not, so the two roles are
+    // now nav-identical. Written as a set difference and asserted empty so the
+    // fact is stated rather than buried in two long literal lists.
+    //
+    // Nav is visibility only, so this is not itself a privilege change — but
+    // `settings` is in that shared set, and it hosts the tab-permission editor
+    // and the maintenance toggle. Coach already held `settings` before these two
+    // rows, so that predates this change; recorded here because "coach ≡ admin"
+    // is the kind of thing that should be a decision, not a side effect.
+    expect(staff('admin').filter((t) => !staff('coach').includes(t))).toEqual([]);
   });
 
   it('every staff role gets the coach-tools hub without a permission row', () => {

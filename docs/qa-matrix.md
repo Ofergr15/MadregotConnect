@@ -26,7 +26,7 @@ scope* — don't test them, don't file bugs against them.
 | 0.2 | Launch from the home-screen icon, not Safari | Same reason. |
 | 0.3 | Maintenance mode is **ON** — confirm your address is on the allowlist (`/api/maintenance?email=<you>`) | Everyone else sees the maintenance screen. If you get it too, you're not on the list. |
 | 0.4 | Sign in as yourself | You're a super-user, so your effective role is `admin` regardless of your DB role. |
-| 0.5 | Check the version in Settings | Should be **2.39.17** once `perf/app-speed` is merged. Anything else and you're testing a different build. |
+| 0.5 | Check the version in Settings | Should be **2.39.26** or later. Anything older and you're testing a stale build. |
 | 0.6 | Have a second non-admin account, or use **view-as** | Most of this matrix is about what a *runner* sees, which is not what you see. |
 
 **View-as** (`getViewMode()`) overrides your role for navigation only. It changes
@@ -71,11 +71,10 @@ still finds it under the old word.)
 
 Identical to runner, **plus מתכנן in More**: סקירה · מתכנן · פעילויות · יומן.
 
-- [ ] ⚠️ Decide whether that's intended. `/dashboard/plan/new` is the coach's
-      plan-authoring screen — it writes the club's weekly plan and can push
-      workouts to Garmin. A `core_runner` holding it reads like a mis-seeded
-      permission row rather than a feature. Open it as that role, see what the
-      API actually lets you save, and tell me.
+- [ ] ⚠️ Still yours to decide, but the security half is settled: `/api/plans`
+      and `/api/program-weeks` are both `isStaff`-gated and `core_runner` is not
+      staff, so **every save 403s**. Not a privilege leak — a dead end that shows
+      the coach's authoring screen and refuses to save. Cost is confusion only.
 
 ### admin — this is you
 
@@ -97,16 +96,21 @@ Identical to runner, **plus מתכנן in More**: סקירה · מתכנן · פ
 
 **Bar:** פיד · לוח בקרה · [נוכחות] · ספורטאים · כלי מאמן · עוד
 
-- [ ] ⚠️ **The 4th tab is כלי מאמן, not משוב אימונים.** `workout-feedback` is
-      enabled for `admin` only, so a coach has no route at all to the feedback
-      triage list — even though it's 4th in the staff primary order and coach
-      tools then slides up into the slot. If coaches are meant to triage pain
-      reports (they're the ones who'd act on them), that permission row needs
-      adding. **This is the most consequential finding in this document.**
-- [ ] ⚠️ A coach gets the **נוכחות** slot even though `practice-attendance` is
-      not enabled for `coach` — the staff slot renders unconditionally. Tap it
-      and see whether the page works or the API refuses. Either way the two
-      should agree.
+**Bar (2026-09-05 onward):** פיד · לוח בקרה · [נוכחות] · ספורטאים · משוב אימונים · עוד
+— i.e. the same bar as admin. Both missing rows were added, so כלי מאמן moves
+back into More.
+
+- [ ] משוב אימונים is now the 4th tab, not כלי מאמן. It was `admin`-only, which
+      left a coach with no route to the feedback triage list at all; the API
+      (`requireStaffCaller`) already passed coach, so the row was the only thing
+      missing.
+- [ ] נוכחות now has a permission row to match the slot the bar was already
+      rendering unconditionally. Tap it — page and API should agree now.
+- [ ] ⚠️ Side effect worth your eye: those were the last two tabs admin held and
+      coach did not, so **coach and admin now see an identical nav**. Nav is
+      visibility only, and the sharp controls inside הגדרות (granting admin) are
+      separately gated on the email allowlist, not on role — but coach already
+      held `settings` before this change. Say if you want coach narrowed.
 - [ ] No אימון for coach either (see admin).
 
 ### academy_coach
@@ -155,8 +159,8 @@ the one the routes import).
 
 | Flagged | Live rows | API gate | So it is |
 |---|---|---|---|
-| coach has no משוב אימונים | `workout-feedback`: **admin only** | `requireStaffCaller` → **coach passes** | A **nav gap**. The API already intends coaches to triage feedback; only the permission row is missing. Adding it grants nothing the API doesn't already allow. |
-| נוכחות slot renders for coach unconditionally | `practice-attendance`: **admin only** | `resolveVerifiedCaller` + `isStaff` → **coach passes** | The **slot is right, the row is wrong**. Tab bar and API already agree in behaviour; the row is stale metadata that contradicts both. |
+| coach has no משוב אימונים | `workout-feedback`: **admin only** → **row added 2026-09-05** | `requireStaffCaller` → **coach passes** | Was a **nav gap**. **Fixed** — the API already intended coaches to triage feedback, so the row grants nothing new. |
+| נוכחות slot renders for coach unconditionally | `practice-attendance`: **admin only** → **row added 2026-09-05** | `resolveVerifiedCaller` + `isStaff` → **coach passes** | The slot was right and the row was wrong. **Fixed** — bar, row and API now agree. |
 | core_runner gets מתכנן | `plan/new`: **enabled** | `/api/plans` and `/api/program-weeks` are `isStaff` → **core_runner is refused** | **Not a privilege leak** — a dead end. They reach the coach's authoring screen and every save 403s. Cost is confusion, not exposure. |
 | admin has no אימון | `practice`: **academy_coach, academy_user** | No `/api/practice` route exists at all | A **pure product call**, no security dimension. Note `PUT /api/practice-videos` is gated on `requireApprover` (an email allowlist), so it is unusable by a Strava-login account regardless of role — same root cause as the super-user issue. |
 
