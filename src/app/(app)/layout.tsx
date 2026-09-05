@@ -11,6 +11,7 @@ import { BottomTabBar } from '@/components/BottomTabBar';
 import { PageTransition } from '@/components/PageTransition';
 import { FirstRunTour } from '@/components/onboarding/FirstRunTour';
 import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider';
+import { ExecutionScoreProvider } from '@/components/activity/execution-context';
 import { Spinner } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
@@ -132,7 +133,12 @@ export default function AppLayout({
               : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-[calc(72px+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 lg:px-8',
           )}
         >
-          {isRunChat ? children : <PageTransition>{children}</PageTransition>}
+          {/* One accuracy-ring cache for every signed-in screen. Mounted here, in
+              the shell that survives a feed ↔ dashboard hop, so a page of cards
+              fetches its scores in ONE request and keeps them across navigation. */}
+          <ExecutionScoreProvider>
+            {isRunChat ? children : <PageTransition>{children}</PageTransition>}
+          </ExecutionScoreProvider>
         </main>
         {!isRunChat && <BottomTabBar />}
       </div>

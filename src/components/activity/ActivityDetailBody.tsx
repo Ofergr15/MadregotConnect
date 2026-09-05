@@ -8,6 +8,8 @@ import {
 import { PlannedKmPoint } from '@/lib/academy/segments';
 import { cn } from '@/lib/utils';
 import { ElevationChart, HRChart, PaceChart } from './charts';
+import { useExecutionVerdict } from './execution-context';
+import { ExecutionQuality } from './ExecutionQuality';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone } from './format';
 import { RouteMap } from './RouteMap';
 import { SplitsTable } from './SplitsTable';
@@ -47,15 +49,30 @@ export function ActivityDetailBody({
   details,
   loading = false,
   planned,
+  canSeeExecution = false,
   className,
 }: {
   activity: ActivityEntry;
   details: ActivityDetailsData | null;
   loading?: boolean;
   planned?: (PlannedKmPoint | null)[] | null;
+  /**
+   * Whether to show the plan-vs-execution grade: the athlete themselves, or
+   * staff. The caller decides because only the caller knows who's looking; the
+   * API enforces the same rule, so a false here costs a fetch, not a leak.
+   */
+  canSeeExecution?: boolean;
   className?: string;
 }) {
   const t = useTranslations('activities');
+
+  const { verdict, loading: loadingVerdict } = useExecutionVerdict(activity.id, {
+    enabled: canSeeExecution,
+    // Per-rep verdicts need the watch's laps, which THIS screen's details fetch
+    // is what caches. So ask again once it lands and the rep-by-rep breakdown
+    // fills in on this visit instead of the next one.
+    revision: details ? 1 : 0,
+  });
 
   // The row the fetch returned is the same row, only wider (perceived effort,
   // shoe, cadence) — let it fill in whatever the caller's copy lacks.
@@ -96,6 +113,10 @@ export function ActivityDetailBody({
 
   return (
     <div className={cn('space-y-5', className)}>
+      {/* First, before the map and the numbers: was this the workout that was
+          asked for? Everything below is the evidence for that answer. */}
+      <ExecutionQuality verdict={verdict} loading={loadingVerdict} />
+
       {loading && !details && (
         <div className="flex items-center justify-center py-8">
           <RefreshCw className="h-5 w-5 text-ink-400 animate-spin" />

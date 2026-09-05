@@ -127,6 +127,7 @@ export default function ActivityDetailPage() {
         details={details}
         loading={loading}
         planned={planned}
+        canSeeExecution={isMyActivity || isStaff}
       />
 
       {showShare && (

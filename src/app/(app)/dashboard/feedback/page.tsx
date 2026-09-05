@@ -7,6 +7,8 @@ import { Loader2, CheckCircle2, Gauge, MessageCircle, Pencil } from 'lucide-reac
 import { cn } from '@/lib/utils';
 import { requestPushOptInPrompt } from '@/components/PushOptIn';
 import { FeedbackThread } from '@/components/FeedbackThread';
+import { ExecutionQuality } from '@/components/activity/ExecutionQuality';
+import { useExecutionVerdict } from '@/components/activity/execution-context';
 import { apiHeaders } from '@/lib/api';
 
 const FEEL_FACES = ['😣', '😕', '😐', '🙂', '😄'];
@@ -56,6 +58,9 @@ function FeedbackForm() {
   const [athleteId, setAthleteId] = useState('');
   const [loading, setLoading] = useState(true);
   const [activityName, setActivityName] = useState('');
+  // The URL carries the GARMIN id (that's what the push was built with); the
+  // grade is keyed by the internal uuid, which the GET below returns.
+  const [activityUuid, setActivityUuid] = useState('');
   const [watchRpe, setWatchRpe] = useState<number | null>(null);
   const [watchFeel, setWatchFeel] = useState<number | null>(null);
 
@@ -83,6 +88,7 @@ function FeedbackForm() {
         if (data.activity) {
           const km = data.activity.distance ? (data.activity.distance / 1000).toFixed(1) : '';
           setActivityName([data.activity.activity_name, km && `${km} ק"מ`].filter(Boolean).join(' · '));
+          setActivityUuid(data.activity.id || '');
         }
         setWatchRpe(data.watchRpe);
         setWatchFeel(data.watchFeel);
@@ -109,6 +115,12 @@ function FeedbackForm() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [activityId]);
+
+  // Always the athlete's own run — the form is reached from their own push and
+  // the API it reads is scoped to them.
+  const { verdict, loading: loadingVerdict } = useExecutionVerdict(activityUuid, {
+    enabled: !!activityUuid,
+  });
 
   const submit = async () => {
     if (!athleteId) return;
@@ -159,6 +171,12 @@ function FeedbackForm() {
     <div className="max-w-md mx-auto px-4 py-6" dir="rtl">
       <h1 className="text-xl font-black text-ink-700">{t('title')} 🏃</h1>
       {activityName && <p className="text-sm text-ink-400 mt-1">{activityName}</p>}
+
+      {/* The push that opened this screen quoted a percentage. Here is what that
+          percentage was — first thing, above the form, because the answer to
+          "how did it go?" reads differently once you can see how the run
+          compared to the plan. */}
+      <ExecutionQuality verdict={verdict} loading={loadingVerdict} className="mt-4" />
 
       {/* Thread with the coach — reachable as soon as a feedback row exists
           (the athlete can start it too, not just receive a reply). */}

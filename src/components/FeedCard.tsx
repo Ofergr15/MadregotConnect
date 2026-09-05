@@ -12,6 +12,8 @@ import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedShareSheet } from '@/components/FeedShareSheet';
 import { RouteMinimap } from '@/components/RouteMinimap';
 import { FeedBodyText } from '@/components/FeedBodyText';
+import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
+import { useExecutionSummary } from '@/components/activity/execution-context';
 import { toAchievementPayload } from '@/lib/feed/project';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -479,6 +481,13 @@ function ActivityCard({
   // run-chat button in the action row.
   const openDetail = () => router.push(`/dashboard/activities/${act.id}`);
 
+  // Your grade is yours. Staff see everyone's because that's the job; a teammate
+  // sees your route and your splits (they always have) but not your score.
+  // /api/plan-execution enforces the same rule, so this flag is what to fetch,
+  // not what may be seen.
+  const isMine = !!myAthleteId && act.athleteId === myAthleteId;
+  const execution = useExecutionSummary(act.id, isMine || isStaff);
+
   return (
     <div className="bg-card rounded-card border border-page overflow-hidden">
       <div className="p-4">
@@ -511,6 +520,11 @@ function ActivityCard({
           )}
 
           <ActivityStatTiles act={act} />
+
+          {/* Right under the stats, because it's the same question one level up:
+              those are the numbers, this is whether they were the numbers asked
+              for. Silent on runs with no planned workout behind them. */}
+          <ExecutionBadge summary={execution} showChevron />
 
           {/* The rest of what the projection already ships — max HR, calories and
               the athlete's own effort rating were being fetched and thrown away. */}

@@ -9,6 +9,8 @@ import {
 import { cn, formatActivityTime, formatActivityDate, activityLocalDay } from '@/lib/utils';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { ActivityDetailBody } from '@/components/activity/ActivityDetailBody';
+import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
+import { useExecutionSummary } from '@/components/activity/execution-context';
 import {
   DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone, getTimeLabel, resolveRunTypeBadge,
 } from '@/components/activity/format';
@@ -38,6 +40,9 @@ function ActivityCard({
   const [expanded, setExpanded] = useState(false);
   const isMyActivity = !!myAthleteId && activity.athlete_id === myAthleteId;
   const runChatLabel = isStaff && !isMyActivity ? 'שוחח עם הרץ' : 'שוחח עם המאמן';
+  // Same rule as the feed: your own grade, or staff seeing everyone's.
+  const canSeeExecution = isMyActivity || isStaff;
+  const execution = useExecutionSummary(activity.id, canSeeExecution);
   // Manual re-open of the same customize-before-posting sheet the background
   // sync shows automatically once — this lets an athlete share (or edit the
   // sharing of) any past run, not just the one that was just synced.
@@ -184,6 +189,10 @@ function ActivityCard({
           ) : null}
         </div>
 
+        {/* Under the numbers, answering the next question about them: were these
+            the numbers the plan asked for? */}
+        <ExecutionBadge summary={execution} className="mt-3 mb-0" />
+
       </div>
 
       {/* Expanded detail */}
@@ -193,6 +202,7 @@ function ActivityCard({
           details={details}
           loading={loadingDetails}
           planned={planned}
+          canSeeExecution={canSeeExecution}
           className="border-t border-page/50 px-4 sm:px-5 py-5"
         />
       )}
