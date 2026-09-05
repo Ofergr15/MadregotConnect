@@ -431,35 +431,50 @@ export default function RegisterPage() {
         <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-5 pt-6 pb-5 short:pt-3 short:pb-2">
           <HeroHeading />
 
+          {/* ── TYPE SIZES ARE MATCHED TO THE FORM SCREEN ─────────────────────
+              This screen was set a whole step smaller than the one it replaces —
+              an 18px heading over an 11px line, where the form's headline is 30px
+              and its fields are 14px. On a page with no card, small type on a
+              photograph is also the hardest thing to read, so it was smallest
+              exactly where it mattered most.
+
+              Now aligned to the same scale: the heading matches HeroHeading's
+              subordinate weight and the body matches the form's field text at
+              15px. This is the only screen in the flow with nothing to do on it,
+              so it can afford the size — there is no button competing for the
+              eye. */}
           <div className={cn('text-center', TEXT_ON_PHOTO)}>
             {/* Solid white disc: the one filled shape on a page of outlines, so
                 the outcome is legible before a word of it is read. */}
-            <span className="w-11 h-11 rounded-full bg-white flex items-center justify-center mx-auto">
-              <CheckCircle2 className="h-5 w-5 text-ink-900" strokeWidth={2.5} />
+            <span className="w-12 h-12 short:w-11 short:h-11 rounded-full bg-white flex items-center justify-center mx-auto">
+              <CheckCircle2 className="h-6 w-6 short:h-5 short:w-5 text-ink-900" strokeWidth={2.5} />
             </span>
 
             {/* A different heading per outcome: someone resubmitting is asking
                 "did the first one work?", and "ההרשמה נשלחה" a second time does not
                 answer that — which is why the same address got sent twice. */}
-            <h2 className="mt-3.5 short:mt-2.5 text-lg font-bold text-white">{copy.title}</h2>
-            <p className="mt-2 short:mt-1.5 text-2xs text-white/90 leading-relaxed">{copy.line}</p>
+            <h2 className="mt-4 short:mt-2.5 text-[24px] short:text-xl font-bold leading-tight text-white">{copy.title}</h2>
+            <p className="mt-2.5 short:mt-1.5 text-[15px] short:text-13 text-white/90 leading-relaxed">{copy.line}</p>
 
             {/* The NORMALISED address, not what was typed. Someone who typed
                 "Dana.Levi92@Gmail.com" is registered as lowercase, and showing
                 them the capitals back invites them to wonder whether the two are
                 the same record. They are. */}
-            <p className={cn('mt-4 short:mt-2.5 inline-flex items-center border-white/25 px-3 py-1.5 text-3xs text-white/90', FIELD)}>
+            <p className={cn('mt-4 short:mt-2.5 inline-flex items-center border-white/25 px-3.5 py-2 short:py-1.5 text-2xs text-white/90', FIELD)}>
               הכתובת:
-              <span dir="ltr" className="me-1.5 text-2xs font-semibold text-white">{sentEmail}</span>
+              <span dir="ltr" className="me-2 text-13 font-semibold text-white">{sentEmail}</span>
             </p>
           </div>
 
           <div className="flex-1 min-h-0" />
 
-          <p className={cn('px-2 text-center text-2xs short:text-3xs leading-relaxed', TEXT_ON_PHOTO)}>
-            <span className="text-white/90">לא הגיע מייל? כדאי לבדוק גם בספאם.</span>
-            <br />
-            <span className="font-semibold text-white">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</span>
+          {/* Same treatment as the form screen's footnotes: own paragraphs, uneven
+              rhythm, the weightier line first. See the note there. */}
+          <p className={cn('px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
+            ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.
+          </p>
+          <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
+            לא הגיע מייל? כדאי לבדוק גם בספאם.
           </p>
 
           <PoweredBy />
