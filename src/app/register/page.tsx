@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Mail } from 'lucide-react';
+import { Check, CheckCircle2, Mail } from 'lucide-react';
 import { Button, LoadingBlock } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
@@ -128,11 +128,17 @@ export function countdownUnits(ms: number): CountdownUnit[] {
  * it gets an `alt`, it gets `fetchPriority`, and it fails to a solid dark plate
  * instead of a white page with black text on it.
  *
- * ⚠️ The scrim is not decoration. Over the bright sky in the top third of this
- * photo, white type measures under 2:1 unscrimmed. Two stops, darker at the
- * bottom, because the bottom is where the card's own shadow has to read as depth
- * rather than as a smudge. If the photo is ever swapped, re-check the headline
- * against the new sky before touching these values.
+ * ⚠️ The scrim is not decoration, and it is doing MORE work than it used to.
+ * There is no card on this page any more — every piece of type, down to the 10px
+ * footnotes, sits directly on the photograph, so the scrim is the only thing
+ * standing between the copy and a bright patch of sky or sunlit concrete. White
+ * type measures under 2:1 on this photo unscrimmed.
+ *
+ * Three stops, not two: the middle of the frame is where the runners are and is
+ * already dark, but the top (sky, pale concrete) and the bottom (the footnotes,
+ * at 10px the most fragile type here) both need more. Anything that lightens
+ * these values has to be checked against the brightest pixel in the photo, not
+ * against the average. If the photo is ever swapped, re-measure before adjusting.
  */
 function HeroBackdrop() {
   return (
@@ -147,7 +153,7 @@ function HeroBackdrop() {
         decoding="async"
         className="absolute inset-0 h-full w-full object-cover object-center"
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/50 to-black/85" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/55 to-black/85" />
     </div>
   );
 }
@@ -171,10 +177,14 @@ function HeroHeading() {
       {/* Says what the thing being launched IS, and that this is the launch. A
           countdown with no subject is a puzzle — especially for the people this
           link is sent to, who have never seen the app. */}
-      <h1 className="mt-3 short:mt-2 text-[30px] short:text-[24px] font-bold leading-[1.08] text-white">
+      {/* TEXT_ON_PHOTO: the scrim alone leaves the headline sitting on whatever
+          happens to be behind it. A soft shadow is what keeps the letterforms
+          separated from a bright patch — cheaper and less destructive than
+          darkening the scrim until the photo stops being a photo. */}
+      <h1 className={cn('mt-3 short:mt-2 text-[30px] short:text-[24px] font-bold leading-[1.08] text-white', TEXT_ON_PHOTO)}>
         אפליקציית המדרגות
       </h1>
-      <p className="mt-2 short:mt-1 text-13 short:text-2xs font-semibold tracking-[0.22em] text-white/75">
+      <p className={cn('mt-2 short:mt-1 text-13 short:text-2xs font-semibold tracking-[0.22em] text-white/90', TEXT_ON_PHOTO)}>
         ההשקה
       </p>
       {/* The one piece of colour on the page. Squad-3 orange (#FF5315) is already
@@ -216,10 +226,10 @@ function CountdownRow() {
     // every second in the last day, and that is exactly where a layout that
     // breathes with the digits gets noticed. The height is the same in both modes
     // so nothing moves when the third unit changes.
-    <div className="h-[52px] short:h-[44px] flex items-center justify-center">
+    <div className={cn('h-[52px] short:h-[44px] flex items-center justify-center', TEXT_ON_PHOTO)}>
       {units.map((u, i) => (
         <div key={u.label} className="flex-1 flex items-stretch">
-          {i > 0 && <div className="w-px bg-white/15 my-0.5" aria-hidden="true" />}
+          {i > 0 && <div className="w-px bg-white/25 my-0.5" aria-hidden="true" />}
           <div className="flex-1 text-center">
             <div className="text-[26px] short:text-[22px] leading-[1.05] font-bold text-white tabular-nums" dir="ltr">
               {left === null ? '·' : u.pad ? String(u.value).padStart(2, '0') : u.value}
@@ -228,7 +238,7 @@ function CountdownRow() {
                 its own number rather than in one sentence below: "4 · 8" alone
                 reads as a time of day, and in RTL nobody can tell which half is
                 which. */}
-            <div className="mt-0.5 text-3xs font-medium text-white/80">{u.label}</div>
+            <div className="mt-0.5 text-3xs font-medium text-white/90">{u.label}</div>
           </div>
         </div>
       ))}
@@ -237,33 +247,62 @@ function CountdownRow() {
 }
 
 /**
- * The small caption at the top of the glass panel — the iOS section-header idiom.
+ * The sponsor line that closes the page — a rule, the wordmark, a rule.
  *
- * white/80, not a grey: the panel is a dark tint of the photo behind it, and
- * anything lighter than 80% fails AA at this size against the brightest patch of
- * that photo. See the note on GLASS below.
+ * Letterspaced small caps rather than a logo file: there is no HOKA asset in this
+ * repo, and inventing one from a web image would put someone else's trademark
+ * into the build at whatever resolution happened to be lying around. Type the
+ * club can set itself is the honest version, and it is what the reference design
+ * does with its own wordmark in this slot.
+ *
+ * The rules are flex-1 and the label is not, so the pair always centres on the
+ * wordmark whatever the screen width — no magic widths to re-tune at 320px.
+ * ⚠️ `ms-*`/`me-*` on the label, not `gap-*`: Safari only got flexbox gap in
+ * 14.1 and this page has to lay out on an iPhone 6.
  */
-function SectionCaption({ children }: { children: React.ReactNode }) {
-  return <p className="px-2 mb-2 short:mb-1 text-3xs font-semibold uppercase tracking-[0.09em] text-white/80">{children}</p>;
+function PoweredBy() {
+  return (
+    <div className="mt-3 short:mt-2 flex items-center justify-center" aria-label="Powered by HOKA">
+      <span className="h-px flex-1 max-w-[52px] bg-white/25" aria-hidden="true" />
+      <span className="ms-3 me-3 text-4xs font-semibold uppercase tracking-[0.3em] text-white/80">
+        Powered by HOKA
+      </span>
+      <span className="h-px flex-1 max-w-[52px] bg-white/25" aria-hidden="true" />
+    </div>
+  );
 }
 
 /**
- * The panel everything is asked for inside — the photo's own colour, not white.
+ * A soft shadow for white type sitting directly on the photograph.
  *
- * ⚠️ `bg-ink-900/80` is a CONTRAST floor, not a taste setting. The panel takes its
- * colour from the photo showing through it, so its own luminance moves with
- * whatever pixel is behind it, and the brightest patch of hero-running.jpg (the
- * sunlit track) is the binding case. Measured over that patch:
- *   /55 → white body text 4.3:1, white/80 captions 2.7:1  — captions fail AA
- *   /70 → 5.7:1 / 3.7:1                                    — captions still fail
- *   /80 → 7.3:1 / 4.7:1                                    — both clear AA
- * So the tint cannot be lightened to show more of the photo without also
- * darkening the secondary text. `backdrop-blur-xl` is doing real work here too:
- * it averages the sunlit patch away instead of leaving a bright band under one
- * corner of the type.
+ * ⚠️ Every piece of copy on this page is on the photo — there is no card. The
+ * scrim in HeroBackdrop gets the average luminance down, but a photo has local
+ * highlights (a shoulder, a patch of sky, the sunlit track) and the scrim cannot
+ * see them. This is what stops a letterform dissolving into one. Applied to the
+ * headline, the countdown and the footnotes; NOT to the fields and pills, which
+ * carry their own tinted backgrounds instead.
+ *
+ * Cheap in the right way: darkening the scrim until the type is safe everywhere
+ * would mean darkening it until the photograph stops reading as a photograph,
+ * which is the whole point of the page.
  */
-const GLASS =
-  'rounded-card bg-ink-900/80 backdrop-blur-xl border border-white/15 shadow-[0_18px_50px_rgba(0,0,0,0.45)]';
+const TEXT_ON_PHOTO = '[text-shadow:0_1px_8px_rgba(0,0,0,0.65)]';
+
+/**
+ * The shared skin for the two interactive surfaces on the photo — the email
+ * field and the דבוקה pills.
+ *
+ * A tint plus a blur, not a solid fill: the photo has to keep showing through or
+ * the page is back to being cards on a background, which is what this design
+ * replaced. `bg-white/10` over the scrim is enough to hold 15px white type at
+ * 7:1 while still reading as glass. `backdrop-blur-sm` is what handles the case
+ * the tint can't — a hard bright edge (a white singlet) crossing behind a row.
+ *
+ * ⚠️ `-webkit-backdrop-filter` is what iOS actually implements, and Tailwind
+ * emits both spellings for `backdrop-blur-*`. Do not hand-roll this in a style
+ * attribute or it silently does nothing on every iPhone.
+ */
+const FIELD = 'rounded-pill border bg-white/10 backdrop-blur-sm';
 
 /**
  * Addresses this BROWSER has already sent. Not a server check on purpose.
@@ -384,16 +423,17 @@ export default function RegisterPage() {
     }[state];
 
     return (
-      // Same photo and same panel as the form screen. This was a white card on
-      // page grey, and before that a black one; either way, landing on a
+      // Same photo, same type on it, no card here either. Landing on a
       // different-looking screen half a second after submitting reads as a
-      // different app. Nothing about the surface changes — only the contents.
+      // different app, which is what the white card this replaced used to do.
       <div className="relative min-h-screen min-h-[100dvh]" dir="rtl">
         <HeroBackdrop />
-        <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-4 pt-6 pb-5 short:pt-3 short:pb-2">
+        <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-5 pt-6 pb-5 short:pt-3 short:pb-2">
           <HeroHeading />
 
-          <div className={cn(GLASS, 'mt-4 short:mt-2 px-5 pt-5 pb-5 short:pt-3.5 short:pb-3.5 text-center')}>
+          <div className={cn('text-center', TEXT_ON_PHOTO)}>
+            {/* Solid white disc: the one filled shape on a page of outlines, so
+                the outcome is legible before a word of it is read. */}
             <span className="w-11 h-11 rounded-full bg-white flex items-center justify-center mx-auto">
               <CheckCircle2 className="h-5 w-5 text-ink-900" strokeWidth={2.5} />
             </span>
@@ -402,23 +442,27 @@ export default function RegisterPage() {
                 "did the first one work?", and "ההרשמה נשלחה" a second time does not
                 answer that — which is why the same address got sent twice. */}
             <h2 className="mt-3.5 short:mt-2.5 text-lg font-bold text-white">{copy.title}</h2>
-            <p className="mt-2 short:mt-1.5 px-1 text-2xs text-white/80 leading-relaxed">{copy.line}</p>
+            <p className="mt-2 short:mt-1.5 text-2xs text-white/90 leading-relaxed">{copy.line}</p>
 
             {/* The NORMALISED address, not what was typed. Someone who typed
                 "Dana.Levi92@Gmail.com" is registered as lowercase, and showing
                 them the capitals back invites them to wonder whether the two are
                 the same record. They are. */}
-            <p className="mt-4 short:mt-2.5 inline-flex items-center rounded-pill bg-white/10 px-3 py-1.5 text-3xs text-white/80">
+            <p className={cn('mt-4 short:mt-2.5 inline-flex items-center border-white/25 px-3 py-1.5 text-3xs text-white/90', FIELD)}>
               הכתובת:
               <span dir="ltr" className="me-1.5 text-2xs font-semibold text-white">{sentEmail}</span>
             </p>
           </div>
 
-          <p className="mt-3.5 short:mt-2 px-4 text-center text-2xs short:text-3xs text-white/80 leading-relaxed">
-            לא הגיע מייל? כדאי לבדוק גם בספאם.
+          <div className="flex-1 min-h-0" />
+
+          <p className={cn('px-2 text-center text-2xs short:text-3xs leading-relaxed', TEXT_ON_PHOTO)}>
+            <span className="text-white/90">לא הגיע מייל? כדאי לבדוק גם בספאם.</span>
             <br />
             <span className="font-semibold text-white">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</span>
           </p>
+
+          <PoweredBy />
         </div>
       </div>
     );
@@ -428,21 +472,18 @@ export default function RegisterPage() {
     <div className="relative min-h-screen min-h-[100dvh]" dir="rtl">
       <HeroBackdrop />
 
-      {/* Not justify-center: the hero takes the slack (it is `flex-1`) and the
-          panel sits at the bottom where a thumb is. Centring the whole column
-          instead left a hole under it that read as a rendering fault. */}
-      <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-4 pt-6 pb-5 short:pt-3 short:pb-2">
+      {/* px-5, and nothing between the fields and the photo. The card that used to
+          hold all of this is gone: the form IS the page now, which is why the
+          hero above it is `flex-1` and takes every pixel of slack. */}
+      <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-5 pt-6 pb-5 short:pt-3 short:pb-2">
         <HeroHeading />
 
-        <form onSubmit={submit} className={cn(GLASS, 'mt-4 short:mt-2 px-4 pt-4 pb-4 short:pt-3 short:pb-3')}>
-          <SectionCaption>פרטי הרשמה</SectionCaption>
-
-          {/* An outlined pill, not a borderless row: there is one field on this
-              panel, and a bare line of text with no box around it does not read as
-              somewhere to type. */}
+        <form onSubmit={submit}>
+          {/* No visible label — the placeholder and the envelope say what this is,
+              and on a page with one field a label above it is a row of type that
+              buys nothing. The <label> is still here for screen readers. */}
           <label htmlFor="reg-email" className="sr-only">אימייל</label>
-          <div className="flex items-center h-[46px] short:h-[42px] rounded-pill border border-white/30 bg-white/5 px-4 focus-within:border-white">
-            <Mail className="h-4 w-4 shrink-0 text-white/70" aria-hidden="true" />
+          <div className={cn('flex items-center h-[52px] short:h-[46px] border-white/25 px-4 focus-within:border-white', FIELD)}>
             <input
               id="reg-email"
               type="email"
@@ -453,31 +494,34 @@ export default function RegisterPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
-              // ⚠️ `me-`, not `ms-`. This element carries its own dir="ltr" inside
-              // an RTL parent, so margin-inline-START resolves to its LEFT — the
-              // far side from the icon — and the gap lands in the wrong place.
-              className="me-2.5 flex-1 min-w-0 bg-transparent border-0 p-0 text-sm text-white placeholder-white/50 text-left focus:outline-none focus:ring-0"
+              className="flex-1 min-w-0 bg-transparent border-0 p-0 text-sm text-white placeholder-white/60 text-left focus:outline-none focus:ring-0"
             />
+            {/* Last in the DOM, so in RTL it lands on the LEFT — the far end from
+                where Hebrew starts, and the end the LTR address runs toward.
+                ⚠️ `ms-`, not `me-`: this icon has no dir of its own, so it follows
+                the RTL parent and margin-inline-START is its RIGHT side, which is
+                the side the input is on. */}
+            <Mail className="ms-3 h-4 w-4 shrink-0 text-white/70" aria-hidden="true" />
           </div>
 
-          {/* "(לא חובה)" is not decoration: the picker used to carry a
+          {/* "מועדפת" is carrying real weight: the picker used to have a
               "לא בטוח/ה — שהמאמן יחליט" row, which was both the escape hatch AND
               the thing that made the question look answerable-by-skipping. With
-              that row gone, three pills and nothing else read as required, and an
-              unsure runner would guess a דבוקה rather than leave it. group_id is
-              nullable and the coach assigns it at approval either way, so saying
-              so in the label is what keeps the honest answer available. */}
-          <p className="mt-3 short:mt-2 mb-2 short:mb-1.5 px-1 text-3xs text-white/80">
-            לאיזו דבוקה את/ה משתייך? <span className="text-white/60">(לא חובה)</span>
+              that row gone, "לאיזו דבוקה את/ה משתייך?" over three pills reads as
+              required, and an unsure runner would guess rather than leave it. A
+              PREFERENCE is obviously optional, and group_id is nullable — the
+              coach assigns it at approval either way. */}
+          <p className={cn('mt-4 short:mt-2.5 mb-2 text-center text-2xs short:text-3xs text-white/90', TEXT_ON_PHOTO)}>
+            בחרו דבוקה מועדפת
           </p>
 
-          {/* Three pills abreast. The radio input is visually hidden and the
-              selected pill fills solid white — the same idiom as a segmented
-              control, which is what this is.
+          {/* Three abreast, each with a dial. The radio input itself is visually
+              hidden and the dial stands in for it — but unlike the old list, the
+              dial is DRAWN: with no card behind these, "selected" had to be
+              readable from the pill alone, and a fill change on glass is too
+              subtle on a photo that is already busy.
               ⚠️ `ms-2` for the inter-pill gap, not `gap-2`: Safari only got
-              flexbox gap in 14.1, and this page has to lay out on an iPhone 6.
-              These pills have no dir of their own, so they follow the RTL parent
-              and margin-inline-start is the RIGHT side — toward the previous pill. */}
+              flexbox gap in 14.1, and this page has to lay out on an iPhone 6. */}
           <div className="flex">
             {groups.map((g, i) => {
               const selected = groupId === g.id;
@@ -485,64 +529,77 @@ export default function RegisterPage() {
                 <label
                   key={g.id}
                   className={cn(
-                    'flex-1 min-w-0 flex flex-col items-center justify-center h-[46px] short:h-[42px] rounded-pill border cursor-pointer',
+                    'flex-1 min-w-0 flex items-center justify-center h-[54px] short:h-[46px] cursor-pointer px-2',
+                    FIELD,
                     i > 0 && 'ms-2',
-                    selected ? 'border-white bg-white' : 'border-white/30 bg-white/5',
+                    // Orange, the page's one accent — the same token as the rule
+                    // under the headline and the button below.
+                    selected ? 'border-band-3 bg-band-3/25' : 'border-white/25',
                   )}
                 >
                   <input type="radio" name="group" checked={selected} onChange={() => setGroupId(g.id)} className="sr-only" />
-                  {/* Deliberately NOT the app's band colours: the one accent on
-                      this page is the orange CTA, and three coloured pills next to
-                      it would leave nothing looking like the thing to press. */}
-                  <span className={cn('text-2xs font-semibold leading-tight', selected ? 'text-ink-900' : 'text-white')}>
-                    {groupLabel(g)}
-                  </span>
-                  {g.marathonGoal && (
-                    <span dir="ltr" className={cn('text-4xs leading-tight', selected ? 'text-ink-500' : 'text-white/70')}>
-                      {g.marathonGoal}
+                  <span className="min-w-0 text-center">
+                    <span className={cn('block text-2xs font-semibold leading-tight', selected ? 'text-band-3' : 'text-white')}>
+                      {groupLabel(g)}
                     </span>
-                  )}
+                    {g.marathonGoal && (
+                      <span dir="ltr" className="block text-4xs leading-tight text-white/80">{g.marathonGoal}</span>
+                    )}
+                  </span>
+                  {/* The dial, last so RTL puts it on the left of the label. A
+                      filled orange disc when chosen, an empty ring when not. */}
+                  <span
+                    className={cn(
+                      'ms-2 h-[18px] w-[18px] shrink-0 rounded-full flex items-center justify-center',
+                      selected ? 'bg-band-3' : 'border-[1.5px] border-white/50',
+                    )}
+                    aria-hidden="true"
+                  >
+                    {selected && <Check className="h-3 w-3 text-white" strokeWidth={3.5} />}
+                  </span>
                 </label>
               );
             })}
           </div>
 
           {/* Solid red fill rather than red text: `accent-red` is tuned for AA on
-              the app's light surfaces and measures under 2:1 on this dark panel,
-              so the error would have been the least readable thing on screen. */}
+              the app's light surfaces and measures under 2:1 on a dark photo, so
+              the error would have been the least readable thing on screen. */}
           {error && (
-            <p className="mt-2.5 rounded-pill bg-accent-red px-3 py-1.5 text-center text-2xs font-semibold text-white">{error}</p>
+            <p className="mt-3 rounded-pill bg-accent-red px-3 py-1.5 text-center text-2xs font-semibold text-white">{error}</p>
           )}
 
-          {/* Squad-3 orange, the page's one accent — see HeroHeading.
-              ⚠️ 19px BOLD is a contrast requirement, not a style choice: white on
+          {/* ⚠️ 19px BOLD is a contrast requirement, not a style choice: white on
               #FF5315 measures 3.22:1, which passes WCAG AA only as large text
               (≥18.66px bold). Shrinking or unbolding this label fails AA. */}
           <Button
             type="submit"
             size="lg"
             disabled={submitting}
-            className="mt-3 short:mt-2 w-full h-[50px] short:h-[46px] rounded-pill bg-band-3 text-white hover:bg-band-3/90 text-[19px] font-bold shadow-[0_4px_16px_rgba(255,83,21,0.35)]"
+            className="mt-3.5 short:mt-2.5 w-full h-[54px] short:h-[48px] rounded-pill bg-band-3 text-white hover:bg-band-3/90 text-[19px] font-bold shadow-[0_6px_22px_rgba(255,83,21,0.45)]"
           >
             {submitting && <LoadingBlock size={20} className="py-0" />}
             {submitting ? 'שולח…' : 'שליחה'}
           </Button>
-
-          <div className="h-px bg-white/15 mt-3.5 mb-1.5 short:mt-2 short:mb-0.5" aria-hidden="true" />
-
-          <CountdownRow />
         </form>
 
-        {/* Both footnotes live on the photo, below the panel — the panel holds only
-            what is being asked for. The academy line is the weightier of the two:
-            it corrects an assumption (that this form is the academy sign-up and the
-            countdown is counting to it), where the approval line only confirms what
-            pressing the button does. */}
-        <p className="mt-3.5 short:mt-2 px-3 text-center text-2xs short:text-3xs leading-relaxed">
+        <div className="mt-4 short:mt-2.5 h-px bg-white/20" aria-hidden="true" />
+
+        <div className="mt-2 short:mt-1">
+          <CountdownRow />
+        </div>
+
+        {/* Both footnotes sit on the photo under the clock. The academy line is the
+            weightier of the two: it corrects an assumption (that this form is the
+            academy sign-up and the countdown is counting to it), where the approval
+            line only confirms what pressing the button does. */}
+        <p className={cn('mt-2 short:mt-1 px-2 text-center text-2xs short:text-3xs leading-relaxed', TEXT_ON_PHOTO)}>
           <span className="font-semibold text-white">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</span>
           <br />
-          <span className="text-white/80">ההרשמה טעונה אישור של מנהלי המדרגות. עד אז אין גישה לאפליקציה.</span>
+          <span className="text-white/90">ההרשמה טעונה אישור של מנהלי המדרגות. עד אז אין גישה לאפליקציה.</span>
         </p>
+
+        <PoweredBy />
       </div>
     </div>
   );
