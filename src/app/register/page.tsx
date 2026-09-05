@@ -211,7 +211,11 @@ function LaunchCountdown() {
           obvious wrong assumption: that this one form is the academy sign-up and
           Wednesday is the date for it. It is a separate registration, and it is
           NOT what the countdown is counting. */}
-      <p className="mt-1 text-3xs text-ink-400">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</p>
+      {/* Weightier than a footnote and darker than the line above it: it is the
+          one piece of information on this card that corrects an assumption, so
+          being skimmable is the whole job. Still not bold — the countdown
+          sentence has to stay the loudest thing in the card. */}
+      <p className="mt-2 text-2xs font-semibold text-ink-700">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</p>
     </div>
   );
 }
@@ -286,7 +290,9 @@ export default function RegisterPage() {
           <p className="mt-5 px-6 text-center text-2xs text-ink-400 leading-relaxed">
             עד לאישור המאמן אין גישה לאפליקציה. שווה לבדוק גם בספאם.
             <br />
-            ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.
+            {/* Matched to the same weight it has on the form, so it doesn't look
+                like an afterthought on the screen people actually stop and read. */}
+            <span className="font-semibold text-ink-700">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</span>
           </p>
         </div>
       </div>
