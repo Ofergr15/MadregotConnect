@@ -454,7 +454,12 @@ export default function RegisterPage() {
                 "did the first one work?", and "ההרשמה נשלחה" a second time does not
                 answer that — which is why the same address got sent twice. */}
             <h2 className="mt-4 short:mt-2.5 text-[24px] short:text-xl font-bold leading-tight text-white">{copy.title}</h2>
-            <p className="mt-2.5 short:mt-1.5 text-[15px] short:text-13 text-white/90 leading-relaxed">{copy.line}</p>
+            {/* 17px, a step ABOVE the form's fields. This line is the only place
+                the page says what actually happens next — and on the "כבר נרשמת"
+                outcome it is also the only place that says the first submission
+                worked. It carries more than the heading does, so it is not sized
+                as a caption under it. */}
+            <p className="mt-2.5 short:mt-1.5 text-[17px] short:text-[15px] text-white/95 leading-relaxed">{copy.line}</p>
 
             {/* The NORMALISED address, not what was typed. Someone who typed
                 "Dana.Levi92@Gmail.com" is registered as lowercase, and showing
