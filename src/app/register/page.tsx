@@ -262,7 +262,7 @@ function CountdownRow() {
  */
 function PoweredBy() {
   return (
-    <div className="mt-3 short:mt-2 flex items-center justify-center" aria-label="Powered by HOKA">
+    <div className="mt-6 short:mt-3.5 flex items-center justify-center" aria-label="Powered by HOKA">
       <span className="h-px flex-1 max-w-[52px] bg-white/25" aria-hidden="true" />
       <span className="ms-3 me-3 text-4xs font-semibold uppercase tracking-[0.3em] text-white/80">
         Powered by HOKA
@@ -583,20 +583,35 @@ export default function RegisterPage() {
           </Button>
         </form>
 
-        <div className="mt-4 short:mt-2.5 h-px bg-white/20" aria-hidden="true" />
+        <div className="mt-6 short:mt-3.5 h-px bg-white/20" aria-hidden="true" />
 
-        <div className="mt-2 short:mt-1">
+        <div className="mt-3.5 short:mt-2">
           <CountdownRow />
         </div>
 
-        {/* Both footnotes sit on the photo under the clock. The academy line is the
-            weightier of the two: it corrects an assumption (that this form is the
-            academy sign-up and the countdown is counting to it), where the approval
-            line only confirms what pressing the button does. */}
-        <p className={cn('mt-2 short:mt-1 px-2 text-center text-2xs short:text-3xs leading-relaxed', TEXT_ON_PHOTO)}>
-          <span className="font-semibold text-white">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</span>
-          <br />
-          <span className="text-white/90">ההרשמה טעונה אישור של מנהלי המדרגות. עד אז אין גישה לאפליקציה.</span>
+        {/* ── THE BOTTOM THIRD IS SPACING-SENSITIVE ──────────────────────────
+            Four separate things stack below the button — clock, two footnotes and
+            the sponsor rule — and when they were set tight they read as one grey
+            paragraph of small print that nobody separates into its parts.
+
+            Two fixes, and they work together. The footnotes are now their OWN
+            paragraphs with real space between them rather than two spans joined by
+            a <br>, so each is a statement instead of a second line. And the second
+            one lost a sentence: it was "ההרשמה טעונה אישור של מנהלי המדרגות. עד אז
+            אין גישה לאפליקציה." — the second half only restated the first, since
+            "טעונה אישור" already means there is no access until it is given.
+
+            The vertical rhythm is deliberately UNEVEN: the gap above the academy
+            line is bigger than the gap between the two footnotes, which is what
+            groups them as a pair and separates the pair from the clock. Setting
+            all of these to the same value is what made this area look crowded in
+            the first place. Every pixel added here comes out of the hero, which is
+            `flex-1` — so it costs nothing else and cannot cause a scroll. */}
+        <p className={cn('mt-5 short:mt-3 px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
+          ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.
+        </p>
+        <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
+          ההרשמה טעונה אישור של מנהלי המדרגות.
         </p>
 
         <PoweredBy />
