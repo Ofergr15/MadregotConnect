@@ -7,6 +7,7 @@ import {
   BASEMAP_ATTRIBUTION,
   BASEMAP_MAX_ZOOM,
   BASEMAP_QUIET_FILTER,
+  BASEMAP_QUIET_SVG,
   BASEMAP_URL_TEMPLATE,
   fillTileTemplate,
 } from '@/lib/basemap';
@@ -256,10 +257,38 @@ describe('basemap provider', () => {
       expect(offenders).toEqual([]);
     });
 
-    it('is applied by both map surfaces', () => {
-      for (const file of ['components/RouteMinimap.tsx', 'components/activity/RouteMap.tsx']) {
-        expect(readFileSync(join(SRC, file), 'utf8')).toMatch(/BASEMAP_QUIET_FILTER/);
-      }
+    it('is applied by both map surfaces, each in the form its surface honours', () => {
+      // The Leaflet tile pane is an HTML div, so it takes the CSS filter.
+      expect(readFileSync(join(SRC, 'components/activity/RouteMap.tsx'), 'utf8')).toMatch(
+        /BASEMAP_QUIET_FILTER/,
+      );
+      // The feed thumbnail is an SVG, so it MUST take the filter-primitive form.
+      expect(readFileSync(join(SRC, 'components/RouteMinimap.tsx'), 'utf8')).toMatch(
+        /BASEMAP_QUIET_SVG/,
+      );
+    });
+
+    // The bug this whole pair of constants exists to prevent: a CSS `filter` on
+    // an inner SVG element is silently IGNORED by Safari, so the feed thumbnail
+    // rendered the full-strength navigation plate on every iPhone while looking
+    // correct in desktop Chrome. Measured, one real Esri tile, mean saturation:
+    // raw 0.171 / CSS-in-SVG 0.171 (no effect) / SVG filter 0.026.
+    it('never re-applies the CSS filter inside the SVG thumbnail', () => {
+      const src = readFileSync(join(SRC, 'components/RouteMinimap.tsx'), 'utf8');
+      expect(src).not.toMatch(/filter:\s*BASEMAP_QUIET_FILTER/);
+      expect(src).not.toMatch(/style=\{\{\s*filter:/);
+    });
+
+    it('keeps the SVG form numerically equal to the CSS one', () => {
+      // grayscale(x) leaves (1 - x) of the saturation.
+      const grayscale = Number(BASEMAP_QUIET_FILTER.match(/grayscale\(([\d.]+)\)/)![1]);
+      expect(BASEMAP_QUIET_SVG.saturate).toBeCloseTo(1 - grayscale, 4);
+
+      // brightness(b) then contrast(c) composes to slope b*c, intercept (1-c)/2.
+      const b = Number(BASEMAP_QUIET_FILTER.match(/brightness\(([\d.]+)\)/)![1]);
+      const c = Number(BASEMAP_QUIET_FILTER.match(/contrast\(([\d.]+)\)/)![1]);
+      expect(BASEMAP_QUIET_SVG.slope).toBeCloseTo(b * c, 3);
+      expect(BASEMAP_QUIET_SVG.intercept).toBeCloseTo((1 - c) / 2, 3);
     });
   });
 });

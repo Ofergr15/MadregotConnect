@@ -84,6 +84,40 @@ export const BASEMAP_URL_TEMPLATE_DARK = `${ESRI}/Canvas/World_Dark_Gray_Base/Ma
 export const BASEMAP_QUIET_FILTER = 'grayscale(.85) brightness(1.06) contrast(.93)';
 
 /**
+ * The same recipe as an SVG filter, for the feed thumbnail.
+ *
+ * ⚠️ NOT a stylistic alternative — it is the only version that works inside an
+ * SVG. `BASEMAP_QUIET_FILTER` above is a CSS filter, and Safari silently ignores
+ * CSS `filter` on an inner SVG element: measured mean saturation of one real
+ * Esri street tile, rendered and screenshotted in both engines —
+ *
+ *            raw     CSS filter        SVG filter
+ *   Chromium 0.171   0.022  works      0.024  works
+ *   WebKit   0.171   0.171  IGNORED    0.026  works
+ *
+ * So every feed thumbnail on every iPhone was drawing the navigation plate at
+ * full strength — orange motorway casings, tan landuse, highway shields — while
+ * looking correct on a desktop Chrome. The detail map is unaffected because
+ * there the filter goes on a Leaflet <div>, where CSS filters are honoured.
+ *
+ * The numbers are `grayscale(.85) brightness(1.06) contrast(.93)` rewritten as
+ * filter primitives:
+ *   grayscale(.85)  -> feColorMatrix type="saturate" values="0.15"
+ *   brightness(1.06)-> out = in * 1.06
+ *   contrast(.93)   -> out = in * 0.93 + (1 - 0.93) / 2
+ *   composed        -> out = in * (1.06 * 0.93) + 0.035
+ *                        = in * 0.9858 + 0.035
+ * `color-interpolation-filters="sRGB"` is not optional: SVG filters default to
+ * linearRGB, which would darken the midtones and give a visibly different result
+ * from the CSS version on the detail map.
+ */
+export const BASEMAP_QUIET_SVG = {
+  saturate: 0.15,
+  slope: 0.9858,
+  intercept: 0.035,
+} as const;
+
+/**
  * Deepest zoom the street plate actually has tiles for. Service metadata
  * advertises levels 0–23, but the raster cache stops at 19 — past that you get a
  * grey "Map data not yet available" tile, which is indistinguishable from a
