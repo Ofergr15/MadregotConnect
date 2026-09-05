@@ -237,9 +237,11 @@ function HeroHeading() {
           link is sent to, who have never seen the app. It reads AFTER the numerals
           rather than before ("5 ימים 3 שעות 14 דקות → להשקת האפליקציה"), which is
           what freed the space for them to clear the banner artwork.
-          ⚠️ text-right, not centred: centred puts this straight onto the white
-          SAYSKY star. Right is also where Hebrew starts, so it costs nothing. */}
-      <p className={cn('mt-1 w-full pe-1.5 text-right text-[14px] short:text-13 font-semibold text-white/90', TEXT_ON_PHOTO)}>
+          Centred, under the centred row of numerals it belongs to. It was pinned to
+          the right edge for a while to dodge the banner's white star; measured, the
+          star sits far enough left that a centred line of this length clears it, and
+          hanging off one edge under a centred row read as a mistake. */}
+      <p className={cn('mt-1 w-full text-center text-[14px] short:text-13 font-semibold text-white/90', TEXT_ON_PHOTO)}>
         להשקת האפליקציה
       </p>
     </div>
