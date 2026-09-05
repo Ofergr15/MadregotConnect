@@ -4,6 +4,14 @@ const config: Config = {
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
+      // A HEIGHT breakpoint, not a width one. Every other screen in the app
+      // scrolls, so only /register needs this: it is specified to fit on one
+      // screen, and a 667px iPhone 6 is 177px shorter than the 844px it was drawn
+      // at, which put the submit button below the fold. `short:` shrinks the
+      // spacing there instead of letting the page start scrolling.
+      screens: {
+        short: { raw: '(max-height: 720px)' },
+      },
       fontFamily: {
         sans: ['var(--font-heebo)', 'var(--font-inter)', 'sans-serif'],
       },

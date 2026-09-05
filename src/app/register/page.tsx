@@ -28,6 +28,16 @@ import { cn } from '@/lib/utils';
  * WhatsApp decides whether to bother in the first second; a fold hiding the
  * submit button is the one thing that costs sign-ups here. If you add a field,
  * take the height from somewhere — do not let this page start scrolling.
+ *
+ * `short:` (max-height 720px, defined in tailwind.config) is the same layout
+ * scaled down for phones that are not 844px tall. An iPhone 6 is 667px and put the
+ * submit button 169px below the fold; every `short:` on this page exists to buy
+ * that back. Test any height change at BOTH 390×844 and 375×667.
+ *
+ * Two things this page must keep working on an iPhone 6, which tops out at iOS 12:
+ * no `dvh` (hence `min-h-screen` before every `min-h-[100dvh]`, as the fallback
+ * an unsupported unit falls back to) and no flexbox `gap` (hence `ms-*` margins
+ * where a gap would be idiomatic — Safari only got gap in 14.1).
  */
 
 interface Group {
@@ -165,15 +175,15 @@ function LaunchCountdown() {
   const units = countdownUnits(left ?? 0);
 
   return (
-    <div className="rounded-card bg-card shadow-[0_4px_18px_rgba(0,0,0,0.07)] px-5 pt-6 pb-6 text-center">
+    <div className="rounded-card bg-card shadow-[0_4px_18px_rgba(0,0,0,0.07)] px-5 pt-6 pb-6 short:pt-3 short:pb-3 text-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/images/logo.png"
         alt="מדרגות — After 2KM Running Club"
-        className="h-[54px] w-auto mx-auto object-contain"
+        className="h-[54px] short:h-8 w-auto mx-auto object-contain"
       />
 
-      <div className="h-px bg-ink-900/[0.07] mx-4 mt-5 mb-5" aria-hidden="true" />
+      <div className="h-px bg-ink-900/[0.07] mx-4 mt-5 mb-5 short:mt-2 short:mb-2" aria-hidden="true" />
 
       {/* Each numeral is labelled under itself. The label has to sit with its own
           number rather than in one sentence below: "4 · 8" alone reads as a time of
@@ -182,7 +192,7 @@ function LaunchCountdown() {
           re-renders every second in the last day, and that is exactly where a
           layout that breathes with the digits gets noticed. The height is the same
           in both modes so nothing below it moves when the third unit appears. */}
-      <div className="h-[70px] flex items-center justify-center">
+      <div className="h-[70px] short:h-[46px] flex items-center justify-center">
         {units.map((u, i) => (
           <div key={u.label} className="flex-1 flex items-stretch">
             {i > 0 && <div className="w-px bg-ink-900/[0.08] my-1" aria-hidden="true" />}
@@ -191,10 +201,10 @@ function LaunchCountdown() {
                   screen. tabular-nums plus the zero padding below keeps the block
                   the same width digit to digit, which is the whole reason a
                   once-a-second clock doesn't visibly twitch. */}
-              <div className="text-[44px] leading-[0.92] font-semibold text-ink-900 tabular-nums" dir="ltr">
+              <div className="text-[44px] short:text-[28px] leading-[0.92] font-semibold text-ink-900 tabular-nums" dir="ltr">
                 {left === null ? '·' : u.pad ? String(u.value).padStart(2, '0') : u.value}
               </div>
-              <div className="mt-1.5 text-xs font-medium text-ink-500">{u.label}</div>
+              <div className="mt-1.5 short:mt-1 text-xs short:text-3xs font-medium text-ink-500">{u.label}</div>
             </div>
           </div>
         ))}
@@ -203,10 +213,10 @@ function LaunchCountdown() {
       {/* Two lines' worth of height, always. The three-unit sentence wraps and the
           shorter ones don't, so without this the card grows and shrinks as the
           wording changes — once a minute, pushing the whole form down and back. */}
-      <p className="mt-4 min-h-[45px] text-[15px] font-bold text-ink-900">
+      <p className="mt-4 short:mt-2 min-h-[45px] short:min-h-[32px] text-[15px] short:text-[13px] font-bold text-ink-900">
         {left === null ? 'להשקת האפליקציה' : launchSentence(left)}
       </p>
-      <p className="mt-1.5 text-xs text-ink-500">יום רביעי, 20:00 — האפליקציה נפתחת.</p>
+      <p className="mt-1.5 short:mt-1 text-xs short:text-3xs text-ink-500">יום רביעי, 20:00 — האפליקציה נפתחת.</p>
       {/* The academy opens later than the app, and saying so here stops the
           obvious wrong assumption: that this one form is the academy sign-up and
           Wednesday is the date for it. It is a separate registration, and it is
@@ -215,14 +225,14 @@ function LaunchCountdown() {
           one piece of information on this card that corrects an assumption, so
           being skimmable is the whole job. Still not bold — the countdown
           sentence has to stay the loudest thing in the card. */}
-      <p className="mt-2 text-2xs font-semibold text-ink-700">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</p>
+      <p className="mt-2 short:mt-1 text-2xs short:text-3xs font-semibold text-ink-700">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</p>
     </div>
   );
 }
 
 /** The small grey caption above a grouped card — the iOS section-header idiom. */
 function SectionCaption({ children }: { children: React.ReactNode }) {
-  return <p className="px-2 mb-2 text-3xs font-semibold uppercase tracking-[0.09em] text-ink-400">{children}</p>;
+  return <p className="px-2 mb-2 short:mb-1 text-3xs font-semibold uppercase tracking-[0.09em] text-ink-400">{children}</p>;
 }
 
 /**
@@ -348,7 +358,7 @@ export default function RegisterPage() {
       // card, meant to mark the end of the flow, and it just read as a different
       // app: the mark inverted, the type inverted, nothing carried over from the
       // screen half a second earlier.
-      <div className="min-h-[100dvh] bg-page flex items-center justify-center px-4 py-6" dir="rtl">
+      <div className="min-h-screen min-h-[100dvh] bg-page flex items-center justify-center px-4 py-6 short:py-2" dir="rtl">
         <div className="w-full max-w-md">
           <div className="rounded-card bg-card px-5 pt-6 pb-6 text-center shadow-[0_4px_18px_rgba(0,0,0,0.07)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -374,9 +384,9 @@ export default function RegisterPage() {
                 "Dana.Levi92@Gmail.com" is registered as lowercase, and showing
                 them the capitals back invites them to wonder whether the two are
                 the same record. They are. */}
-            <p className="mt-4 inline-flex items-center gap-1.5 rounded-pill bg-page px-3 py-1.5 text-3xs text-ink-500">
+            <p className="mt-4 inline-flex items-center rounded-pill bg-page px-3 py-1.5 text-3xs text-ink-500">
               הכתובת:
-              <span dir="ltr" className="text-2xs font-semibold text-ink-900">{sentEmail}</span>
+              <span dir="ltr" className="me-1.5 text-2xs font-semibold text-ink-900">{sentEmail}</span>
             </p>
 
           </div>
@@ -396,20 +406,20 @@ export default function RegisterPage() {
   return (
     // Page grey, not white: the cards are white and unbordered, so the grey behind
     // them is the only thing separating them from the canvas.
-    <div className="min-h-[100dvh] bg-page" dir="rtl">
+    <div className="min-h-screen min-h-[100dvh] bg-page" dir="rtl">
       {/* justify-center, NOT a bottom-pinned button: on a 390×844 phone there are
           ~130px of slack, and anchoring the button to the bottom collected all of
           it into one hole between the form and the button, which read as a
           rendering fault. Centred, the same slack splits above and below and looks
           like margin. */}
-      <div className="max-w-md mx-auto min-h-[100dvh] flex flex-col justify-center px-4 py-6">
+      <div className="max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col justify-center px-4 py-6 short:py-2">
         <LaunchCountdown />
 
         <form onSubmit={submit} className="flex flex-col">
-          <div className="mt-6">
+          <div className="mt-6 short:mt-2">
             <SectionCaption>פרטי הרשמה</SectionCaption>
             <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-              <div className="px-4 py-3.5 border-b border-page">
+              <div className="px-4 py-3.5 short:py-2 border-b border-page">
                 <label htmlFor="reg-email" className="block text-3xs text-ink-400">
                   אימייל <span className="text-accent-red">*</span>
                 </label>
@@ -430,7 +440,7 @@ export default function RegisterPage() {
                 />
               </div>
 
-              <p className="px-4 pt-3.5 pb-2 text-3xs text-ink-400">לאיזו דבוקה את/ה משתייך?</p>
+              <p className="px-4 pt-3.5 pb-2 short:pt-1.5 short:pb-0.5 text-3xs text-ink-400">לאיזו דבוקה את/ה משתייך?</p>
 
               {/* One row per choice, "not sure" last. The radio input is visually
                   hidden and a trailing check mark stands in for it — an iOS
@@ -452,7 +462,7 @@ export default function RegisterPage() {
                   <label
                     key={opt.id || 'unsure'}
                     className={cn(
-                      'flex items-center gap-3 h-[56px] px-4 cursor-pointer',
+                      'flex items-center h-[56px] short:h-[42px] px-4 cursor-pointer',
                       // Hairlines stop short of the card edge and the last row has
                       // none — inset dividers, not a table.
                       i < all.length - 1 && 'border-b border-page mx-0',
@@ -465,16 +475,16 @@ export default function RegisterPage() {
                       onChange={() => setGroupId(opt.id)}
                       className="sr-only"
                     />
-                    <span className="flex-1 flex items-baseline gap-2">
+                    <span className="flex-1 flex items-baseline">
                       {/* Deliberately NOT the app's band colours (green/blue/orange):
                           this page is black-and-white, so the groups are told apart
                           by their number, which is what the club says out loud. */}
                       <span className={cn('text-sm', selected ? 'font-semibold text-ink-900' : 'text-ink-700')}>
                         {opt.label}
                       </span>
-                      {opt.hint && <span dir="ltr" className="text-3xs text-ink-400">{opt.hint}</span>}
+                      {opt.hint && <span dir="ltr" className="me-2 text-3xs text-ink-400">{opt.hint}</span>}
                     </span>
-                    {selected && <Check className="h-4 w-4 shrink-0 text-ink-900" strokeWidth={3} />}
+                    {selected && <Check className="ms-3 h-4 w-4 shrink-0 text-ink-900" strokeWidth={3} />}
                   </label>
                 );
               })}
@@ -483,7 +493,7 @@ export default function RegisterPage() {
 
           {error && <p className="mt-3 text-sm text-accent-red text-center">{error}</p>}
 
-          <div className="h-5" />
+          <div className="h-5 short:h-1.5" />
 
           {/* Black, not the brand blue this Button defaults to — the whole page is
               mono, and cn()'s tailwind-merge lets the later class win. */}
@@ -491,13 +501,13 @@ export default function RegisterPage() {
             type="submit"
             size="lg"
             disabled={submitting}
-            className="w-full h-[52px] rounded-pill bg-ink-900 text-white hover:bg-ink-700 text-[15px] font-semibold shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
+            className="w-full h-[52px] short:h-[44px] rounded-pill bg-ink-900 text-white hover:bg-ink-700 text-[15px] font-semibold shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
           >
             {submitting && <LoadingBlock size={20} className="py-0" />}
             {submitting ? 'שולח…' : 'שליחה'}
           </Button>
 
-          <p className="mt-2.5 px-3 text-center text-2xs text-ink-400 leading-relaxed">
+          <p className="mt-2.5 short:mt-1 px-3 text-center text-2xs short:text-3xs text-ink-400 leading-relaxed">
             ההרשמה טעונה אישור של המאמן. עד אז אין גישה לאפליקציה.
           </p>
         </form>
