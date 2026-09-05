@@ -8,7 +8,7 @@ import { ActivityFeed } from '@/components/ActivityFeed';
 // One shared row shape (this page had its own near-identical copy) — the feed
 // card and the [activityId] detail page read the same fields off it.
 import type { ActivityEntry } from '@/components/activity/types';
-import { cn, israelToday } from '@/lib/utils';
+import { cn, israelToday, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
 import { Spinner, BigStat } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -21,11 +21,7 @@ const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function getCurrentWeekSunday(offset: number): string {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() - dayOfWeek + offset * 7);
-  return iso(sunday);
+  return shiftWeekStart(planWeekStartOf(), offset);
 }
 
 function getWeekLabel(dateStr: string, locale: string): string {

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus, ListChecks, ClipboardCheck } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
 import { useApi, apiHeaders } from '@/lib/api';
 import { Spinner, LoadingBlock, EmptyState } from '@/components/ui';
@@ -48,18 +48,6 @@ interface AthleteAdherence {
 
 const DAY_LABELS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 
-function sundayOf(date: Date): string {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12));
-  const day = d.getUTCDay();
-  d.setUTCDate(d.getUTCDate() - day);
-  return d.toISOString().split('T')[0];
-}
-
-function shiftWeek(weekStart: string, weeks: number): string {
-  const d = new Date(`${weekStart}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + weeks * 7);
-  return d.toISOString().split('T')[0];
-}
 
 function fmtWeekLabel(weekStart: string): string {
   const start = new Date(`${weekStart}T12:00:00Z`);
@@ -109,7 +97,7 @@ const metricLabel: Record<MetricStatus | PaceStatus, string> = {
 };
 
 export function AcademyCompliance() {
-  const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
+  const [weekStart, setWeekStart] = useState(() => planWeekStartOf());
   const [expanded, setExpanded] = useState<string | null>(null);
   const { data: adherence, isLoading } = useApi<{ athletes: AthleteAdherence[] }>(
     `/api/academy/adherence?weekStart=${weekStart}`,
@@ -117,14 +105,14 @@ export function AcademyCompliance() {
 
   const data = adherence?.athletes ?? [];
 
-  const isCurrentWeek = weekStart === sundayOf(new Date());
+  const isCurrentWeek = weekStart === planWeekStartOf();
 
   return (
     <div dir="rtl">
       {/* Week selector */}
       <div className="flex items-center justify-center gap-3 mb-6">
         <button
-          onClick={() => setWeekStart(w => shiftWeek(w, -1))}
+          onClick={() => setWeekStart(w => shiftWeekStart(w, -1))}
           className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
           aria-label="השבוע הקודם"
         >
@@ -135,7 +123,7 @@ export function AcademyCompliance() {
           <div className="text-xs text-ink-400">{isCurrentWeek ? 'השבוע' : ''}</div>
         </div>
         <button
-          onClick={() => setWeekStart(w => shiftWeek(w, 1))}
+          onClick={() => setWeekStart(w => shiftWeekStart(w, 1))}
           disabled={isCurrentWeek}
           className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label="השבוע הבא"

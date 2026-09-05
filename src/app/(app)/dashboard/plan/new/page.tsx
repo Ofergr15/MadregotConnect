@@ -39,7 +39,7 @@ import { WeekView } from '@/components/WeekView';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
-import { cn, toISODate, activityLocalDay, formatActivityTime } from '@/lib/utils';
+import { cn, activityLocalDay, formatActivityTime, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
@@ -122,12 +122,12 @@ function matchCandidates(workouts: ParsedWorkout[], startTime: string): ParsedWo
     .sort((a, b) => Math.abs(a.dayOfWeek - day) - Math.abs(b.dayOfWeek - day));
 }
 
+// One shared definition rather than a local one (there were two identical copies
+// of this and five more `sundayOf`s). Also pins the week to Israel's calendar day
+// instead of the device's, so a phone left on another timezone can't put the coach
+// and the athlete on different weeks.
 function getCurrentWeekSunday(offset: number = 0): string {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() - dayOfWeek + offset * 7);
-  return toISODate(sunday);
+  return shiftWeekStart(planWeekStartOf(), offset);
 }
 
 function isSaturday(): boolean {

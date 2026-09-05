@@ -101,6 +101,53 @@ export function israelDateAnchor(date: Date = new Date()): Date {
 }
 
 /**
+ * The plan week (Sunday, YYYY-MM-DD) that a date falls in — the one helper every
+ * "which week is this?" call should use.
+ *
+ * There were SEVEN hand-rolled versions of this before it existed: five named
+ * `sundayOf` (lib/academy/report, api/academy/segments, AcademyPlanComposer,
+ * AcademyCompliance, components/academy/types) and two `getCurrentWeekSunday`
+ * (dashboard/plan/new, dashboard/activities). The two families disagreed. The
+ * `sundayOf` copies anchored on `Date.UTC(...getUTCFullYear(), ...)` and
+ * subtracted `getUTCDay()`, i.e. they answered for the UTC calendar date — which
+ * between 00:00 and 03:00 in Israel is still YESTERDAY, and when yesterday was a
+ * Saturday that is a whole week off. So an athlete opening the app at 00:30 saw
+ * the academy screens on last week while the planner and the activities page
+ * (local-date based) were on this one. `israelDateAnchor` and `toISODate` above
+ * were written to prevent exactly this and the copies simply predate them.
+ *
+ * Argument forms: omitted/null for "now"; a bare `YYYY-MM-DD`, which is already a
+ * calendar date and so is pinned to local noon rather than re-resolved through a
+ * timezone; a longer ISO string or a `Date`, both instants, resolved in Israel.
+ */
+export function planWeekStartOf(date?: string | Date | null): string {
+  const anchor =
+    date instanceof Date ? israelDateAnchor(date)
+    : typeof date === 'string' && date.length >= 10
+      ? (date.length === 10 ? new Date(`${date}T12:00:00`) : israelDateAnchor(new Date(date)))
+      : israelDateAnchor();
+  return getPlanWeekStart(anchor);
+}
+
+/** `weeks` whole weeks after (or before) a YYYY-MM-DD week start. */
+export function shiftWeekStart(weekStart: string, weeks: number): string {
+  return addDaysToDateStr(weekStart, weeks * 7);
+}
+
+/**
+ * `days` days after (or before) a YYYY-MM-DD date, as YYYY-MM-DD.
+ *
+ * Local noon in, local date parts out, so a DST switch inside the span moves the
+ * clock by an hour and never the date — which `toISOString().split('T')[0]` on a
+ * midnight anchor would.
+ */
+export function addDaysToDateStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr.slice(0, 10)}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
+
+/**
  * Israel wall-clock parts (Asia/Jerusalem, DST-aware via Intl). weekday 0=Sun..6=Sat.
  * Used by the reminder scheduler so 'Mon 08:00' etc. resolve in Israel local time
  * regardless of the server's UTC clock or the IDT/IST switch.

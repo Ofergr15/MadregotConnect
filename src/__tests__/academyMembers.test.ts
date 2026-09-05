@@ -561,7 +561,12 @@ describe('week helpers', () => {
     expect(sundayOf(new Date('2026-08-26T09:00:00Z'))).toBe('2026-08-23');
     expect(sundayOf(new Date('2026-08-23T09:00:00Z'))).toBe('2026-08-23');
     // Saturday is the last day of the same week, not the first of the next.
-    expect(sundayOf(new Date('2026-08-29T21:00:00Z'))).toBe('2026-08-23');
+    // 18:00Z, not 21:00Z as this used to say: 2026-08-29T21:00Z is already Sunday
+    // 00:00 in Israel, so it was asserting the UTC answer while describing the
+    // Israeli one — and pinning the very off-by-a-week the helper now avoids.
+    expect(sundayOf(new Date('2026-08-29T18:00:00Z'))).toBe('2026-08-23');
+    // The small hours of Sunday in Israel belong to the week that is starting.
+    expect(sundayOf(new Date('2026-08-29T21:00:00Z'))).toBe('2026-08-30');
   });
 
   it('shifts whole weeks in both directions across a month boundary', () => {

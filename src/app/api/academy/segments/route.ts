@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { GarminClient } from '@/lib/garmin/client';
-import { activityLocalDateStr } from '@/lib/utils';
+import { activityLocalDateStr, planWeekStartOf } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { requireCallerForAthlete, requireMember } from '@/lib/auth/self-or-staff';
@@ -11,12 +11,6 @@ import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 
 export const dynamic = 'force-dynamic';
-function sundayOf(dateStr: string): string {
-  const d = new Date(`${dateStr}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-  return d.toISOString().split('T')[0];
-}
-
 /**
  * GET /api/academy/segments?athleteId=&date=YYYY-MM-DD
  * Per-segment planned-vs-actual verdicts for one athlete's workout on a date.
@@ -43,7 +37,7 @@ export async function GET(request: Request) {
     }
 
     const supabase = createServerClient();
-    const weekStart = sundayOf(date);
+    const weekStart = planWeekStartOf(date);
     const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
     const { paceSec } = (await loadAcademySettings()).tolerances;
 
