@@ -109,47 +109,6 @@ export function countdownUnits(ms: number): CountdownUnit[] {
   ];
 }
 
-/**
- * The supporting sentence, which has to stay grammatical the whole way down.
- *
- * It always names the same units the numerals above it are showing, with their
- * values. It used to read "4 ימים ושעות" in the far case — the word שעות with no
- * number next to it, while an 8 sat in the block directly above — and that reads
- * as a bug, not as prose.
- *
- * Each unit is dropped as it hits zero: "עוד 0 שעות ו-0 דקות" in the last minute
- * is the kind of copy that makes a countdown look unfinished.
- */
-export function launchSentence(ms: number): string {
-  const [a, b, c] = countdownUnits(ms);
-  const parts = ms >= DAY_MS
-    ? [
-        // "1 ימים" is not Hebrew. The numeral block above still shows a digit,
-        // because a column of numerals wants to stay a column — the sentence is
-        // the only place this has to read like a person wrote it.
-        a.value === 1 ? 'יום' : `${a.value} ימים`,
-        // Hidden rather than shown as a zero: at exactly four days the sentence
-        // should say "עוד 4 ימים ו-3 דקות", not "…ו-0 שעות ו-3 דקות".
-        b.value > 0 ? `${b.value} שעות` : '',
-        c.value > 0 ? `${c.value} דקות` : '',
-      ]
-    : [
-        a.value > 0 ? `${a.value} שעות` : '',
-        b.value > 0 ? `${b.value} דקות` : '',
-        // Seconds only get their own clause once they're the biggest thing left;
-        // "עוד 3 שעות, 12 דקות ו-8 שניות" is more precision than anyone reads.
-        // `c.value > 0` as well, or the last tick before launch reads
-        // "עוד 0 שניות" instead of falling through to the "עוד רגע" line below.
-        a.value === 0 && b.value === 0 && c.value > 0 ? `${c.value} שניות` : '',
-      ];
-  const named = parts.filter(Boolean);
-  if (named.length === 0) return 'עוד רגע — האפליקציה נפתחת';
-  // "עוד A ו-B" for two, "עוד A, B ו-C" for three — the ו- goes on the last one only.
-  const last = named[named.length - 1];
-  const head = named.slice(0, -1);
-  const joined = head.length === 0 ? last : `${head.join(', ')} ו-${last}`;
-  return `עוד ${joined} להשקת האפליקציה`;
-}
 
 /**
  * The countdown: the club's mark, then how long until the app opens.
@@ -218,13 +177,17 @@ function LaunchCountdown() {
         ))}
       </div>
 
-      {/* Two lines' worth of height, always. The three-unit sentence wraps and the
-          shorter ones don't, so without this the card grows and shrinks as the
-          wording changes — once a minute, pushing the whole form down and back. */}
-      <p className="mt-3 short:mt-1 min-h-[40px] short:min-h-[28px] text-[15px] short:text-[13px] font-bold text-ink-900">
-        {left === null ? 'להשקת האפליקציה' : launchSentence(left)}
+      {/* The one line under the clock, and the only one there needs to be.
+          There used to be a generated sentence here as well — "עוד 4 ימים, 4 שעות
+          ו-11 דקות להשקת האפליקציה" — directly beneath numerals already reading
+          4 · 4 · 11 with those exact captions. It restated the block above it in
+          words and nothing more, so it is gone; what it was carrying that the
+          numerals are not is the DATE, which is now said here, once.
+          Weighted as the card's second voice after the title: this is the fact
+          somebody has to remember after closing the page. */}
+      <p className="mt-3 short:mt-1.5 text-[17px] short:text-[15px] font-bold leading-snug text-ink-900">
+        יום רביעי, 20:00 — האפליקציה נפתחת.
       </p>
-      <p className="mt-1.5 short:mt-1 text-xs short:text-3xs text-ink-500">יום רביעי, 20:00 — האפליקציה נפתחת.</p>
       {/* The academy opens later than the app, and saying so here stops the
           obvious wrong assumption: that this one form is the academy sign-up and
           Wednesday is the date for it. It is a separate registration, and it is
@@ -516,7 +479,7 @@ export default function RegisterPage() {
           </Button>
 
           <p className="mt-2.5 short:mt-1 px-3 text-center text-2xs short:text-3xs text-ink-400 leading-relaxed">
-            ההרשמה טעונה אישור של המאמן. עד אז אין גישה לאפליקציה.
+            ההרשמה טעונה אישור של מנהלי המדרגות. עד אז אין גישה לאפליקציה.
           </p>
         </form>
       </div>

@@ -1,6 +1,6 @@
 {
   "name": "madregot-connect",
-  "version": "2.39.47",
+  "version": "2.39.48",
   "private": true,
   "scripts": {
     "dev": "next dev",
