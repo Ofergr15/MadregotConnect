@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runSyncRequest as garminSync } from '../../garmin/sync-activities/route';
 import { snapshotWeeklyKm } from '@/lib/weekly-snapshots';
+import { backfillStravaLaps } from '@/lib/strava/backfill-laps';
 import { backfillStravaRoutes } from '@/lib/strava/backfill-routes';
 import { createServerClient } from '@/lib/supabase/server';
 import { israelNow } from '@/lib/utils';
@@ -26,7 +27,8 @@ export function isWithinSyncWindow(hour: number): boolean {
 }
 
 /**
- * Scheduled server-side activity sync — Garmin, plus a Strava route repair.
+ * Scheduled server-side activity sync — Garmin, plus two Strava repair passes
+ * (routes, and laps on a per-tick budget).
  *
  * The Strava *poll* stays dropped (2026-08-28), for its original reasons: Garmin
  * is the richer source — polyline, cadence, VO2max, stride length, laps and RPE,
@@ -102,6 +104,23 @@ async function runSync(request: Request) {
     stravaRoutes = { error: String(e?.message || e) };
   }
 
+  // Same reachability gap as the routes above, but laps cost 2-3 Strava requests
+  // per row and cannot be batched, so this one takes a few rows a tick instead of
+  // the whole backlog — ~170 rows drained over about five hours of the window,
+  // then silent. Isolated for the same reason: a bonus pass over history must not
+  // cost the club its Garmin sync.
+  let stravaLaps: any = null;
+  try {
+    const result = await backfillStravaLaps(createServerClient());
+    // Silent on the drained case, so a non-null value in the logs always means
+    // the pass did something. `pending` is the number worth watching: it should
+    // fall by roughly the budget every tick, and a flat `pending` with a rising
+    // `failed` means the queue is stuck rather than draining.
+    stravaLaps = result.attempted > 0 ? result : null;
+  } catch (e: any) {
+    stravaLaps = { error: String(e?.message || e) };
+  }
+
   let snapshot: any = null;
   try {
     snapshot = await snapshotWeeklyKm(1);
@@ -109,9 +128,9 @@ async function runSync(request: Request) {
     snapshot = { error: String(e?.message || e) };
   }
 
-  console.log('[cron/sync] done', { totalSynced, garmin, stravaRoutes, snapshot });
+  console.log('[cron/sync] done', { totalSynced, garmin, stravaRoutes, stravaLaps, snapshot });
 
-  return NextResponse.json({ ok: true, totalSynced, garmin, stravaRoutes, snapshot });
+  return NextResponse.json({ ok: true, totalSynced, garmin, stravaRoutes, stravaLaps, snapshot });
 }
 
 export async function GET(request: Request) {

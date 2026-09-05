@@ -146,6 +146,31 @@ export function tokenNeedsRefresh(expiresAt: number): boolean {
   return Date.now() / 1000 > expiresAt - 300;
 }
 
+/**
+ * A non-2xx from Strava, carrying the status.
+ *
+ * The status is the difference between three outcomes that a plain Error makes
+ * indistinguishable: 404 means the activity is gone and no amount of retrying
+ * will bring it back, 429 means stop asking right now, and anything else is
+ * worth one more attempt later. A backfill that cannot tell them apart either
+ * retries a deleted activity forever or gives up on a rate limit — see
+ * lib/strava/backfill-laps.ts.
+ */
+export class StravaApiError extends Error {
+  constructor(
+    readonly status: number,
+    body: string,
+  ) {
+    super(`Strava API error: ${status} - ${body}`);
+    this.name = 'StravaApiError';
+  }
+}
+
+/** The status of a Strava failure, if that is what this is. */
+export function stravaErrorStatus(error: unknown): number | null {
+  return error instanceof StravaApiError ? error.status : null;
+}
+
 export class StravaClient {
   constructor(private accessToken: string) {}
 
@@ -160,8 +185,9 @@ export class StravaClient {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Strava API error: ${response.status} - ${error}`);
+      // Message kept byte-identical to the string this used to throw, so any log
+      // grep or test matching on it still matches.
+      throw new StravaApiError(response.status, await response.text());
     }
     return response.json();
   }

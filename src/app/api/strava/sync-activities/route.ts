@@ -21,6 +21,7 @@ import {
   isMissingColumnError,
 } from '@/lib/strava/enrich';
 import { routeFromSummaryPolyline } from '@/lib/strava/polyline';
+import { backfillStravaLaps } from '@/lib/strava/backfill-laps';
 import { backfillStravaRoutes } from '@/lib/strava/backfill-routes';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
@@ -451,16 +452,22 @@ export async function POST(request: Request) {
 }
 
 /**
- * PATCH /api/strava/sync-activities[?athleteId=…][&maxPages=…]
+ * PATCH /api/strava/sync-activities[?job=routes|laps][?athleteId=…][&maxPages=…][&budget=…]
  *
- * Staff-only manual trigger for the route repair — the counterpart the Garmin
- * backfill's own comment asks for ("Those rows need Strava's own polyline, not
- * this endpoint"). No `mode` param, unlike the Garmin one: there is only the one
- * job here. `athleteId` scopes it to a single athlete, which is what you want
- * for a first cautious run; omitting it repairs everyone's rows.
+ * Staff-only manual trigger for the two repair passes — the counterpart the
+ * Garmin backfill's own comment asks for ("Those rows need Strava's own
+ * polyline, not this endpoint"). `athleteId` scopes either job to a single
+ * athlete, which is what you want for a first cautious run; omitting it repairs
+ * everyone's rows.
  *
- * See backfillStravaRoutes for what it does and why it is cheap enough to be
- * safe to re-run.
+ * `job` defaults to `routes`, which is what this endpoint did when it was the
+ * only job — so an existing call keeps working unchanged. `job=laps` is the
+ * budgeted pass; `budget` raises it above the cron's 3 (capped in
+ * backfillStravaLaps) for when you want to drain faster than the schedule will
+ * and are watching the rate limit yourself.
+ *
+ * See backfillStravaRoutes and backfillStravaLaps for what each does and what
+ * each costs — they are not comparable, which is why only one has a budget.
  */
 export async function PATCH(request: Request) {
   try {
@@ -473,6 +480,19 @@ export async function PATCH(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
+
+    if (searchParams.get('job') === 'laps') {
+      const laps = await backfillStravaLaps(createServerClient(), {
+        athleteId: searchParams.get('athleteId'),
+        budget: Number(searchParams.get('budget')) || undefined,
+      });
+      return NextResponse.json(
+        laps.attempted === 0
+          ? { ...laps, message: 'No Strava runs are missing laps' }
+          : laps,
+      );
+    }
+
     const result = await backfillStravaRoutes(createServerClient(), {
       athleteId: searchParams.get('athleteId'),
       maxPages: Number(searchParams.get('maxPages')) || undefined,
