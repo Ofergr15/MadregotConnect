@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
-import { COACH_ID, isProtectedEmail } from '@/lib/constants';
+import { APP_URL, COACH_ID, isProtectedEmail } from '@/lib/constants';
 import { groupDisplayName, israelToday } from '@/lib/utils';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { authError, requireSession, type SessionUser } from '@/lib/auth-session';
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
 
       if (error) throw error;
 
-      const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://madregot-connect.vercel.app'}/join/${inviteToken}`;
+      const inviteLink = `${APP_URL}/join/${inviteToken}`;
       return NextResponse.json({ inviteLink });
     }
 
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     if (error) throw error;
 
     // Generate invite link
-    const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://madregot-connect.vercel.app'}/join/${inviteToken}`;
+    const inviteLink = `${APP_URL}/join/${inviteToken}`;
 
     return NextResponse.json({
       athlete,

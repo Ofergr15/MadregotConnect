@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { APPROVER_EMAILS } from '@/lib/constants';
+import { APP_URL, APPROVER_EMAILS } from '@/lib/constants';
 
 // Colours here are literal hex because email clients don't run Tailwind, but they
 // are the design system's tokens, not free choices: brand-600 #1525FF for
@@ -9,7 +9,6 @@ import { APPROVER_EMAILS } from '@/lib/constants';
 // — these emails are the club's only other branded surface.
 const FROM = process.env.RESEND_FROM_EMAIL || 'Madregot <onboarding@resend.dev>';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'madregot.club@gmail.com';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://madregot-connect.vercel.app';
 
 function isConfigured() {
   return !!process.env.RESEND_API_KEY;

@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireSession, authError } from '@/lib/auth-session';
+import { APP_URL } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://madregot-connect.vercel.app';
 
 /**
  * One-time setup route: registers this app's Strava webhook subscription.
