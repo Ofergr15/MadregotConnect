@@ -3,6 +3,8 @@ import { defaultCache, PAGES_CACHE_NAME } from '@serwist/turbopack/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { ExpirationPlugin, NetworkFirst, NetworkOnly, Serwist } from 'serwist';
 import { BASEMAP_HOSTNAME } from '@/lib/basemap';
+import { PAGE_CACHE_MAX_AGE_S, pageCacheName, staleCacheKeys } from '@/lib/sw-caches';
+import { APP_VERSION } from '@/lib/version';
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -12,6 +14,35 @@ declare global {
 }
 
 declare const self: ServiceWorkerGlobalScope;
+
+/** Substituted by esbuild `define` in src/app/serwist/[path]/route.ts. */
+declare const __SW_BUILD_ID__: string;
+
+// Which deploy this worker belongs to, used to scope the page caches (see
+// src/lib/sw-caches.ts for why that matters).
+//
+// `typeof` rather than a bare read: if the define above ever stops being applied,
+// a bare read is a ReferenceError at worker startup — the service worker fails to
+// install and takes the whole PWA's offline behaviour with it. `typeof` on an
+// undeclared identifier is the one form JavaScript guarantees won't throw, so the
+// failure mode is "falls back to APP_VERSION", not "app has no service worker".
+const BUILD_ID = (typeof __SW_BUILD_ID__ === 'string' && __SW_BUILD_ID__) || APP_VERSION;
+
+/** A NetworkFirst page cache for this build: fresh when online, bounded when not. */
+const pageCache = (base: string) =>
+  new NetworkFirst({
+    cacheName: pageCacheName(base, BUILD_ID),
+    // Without a timeout, Workbox's NetworkFirst waits indefinitely for the
+    // network before falling back to cache, so a repeat visit on a flaky
+    // connection stalls exactly like a cold load instead of feeling instant.
+    networkTimeoutSeconds: 4,
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 32,
+        maxAgeSeconds: PAGE_CACHE_MAX_AGE_S,
+      }),
+    ],
+  });
 
 const serwist = new Serwist({
   // Precache the build's app shell + hashed static assets. `/offline.html`
@@ -70,61 +101,46 @@ const serwist = new Serwist({
         url.hostname === 'unpkg.com' || url.hostname === BASEMAP_HOSTNAME,
       handler: new NetworkOnly(),
     },
-    // 5) Navigations/documents/RSC payloads, same as defaultCache's own
-    //    NetworkFirst entries for these (same cacheNames, so we reuse rather
-    //    than orphan those Cache Storage buckets) -- but with a timeout.
-    //    defaultCache (@serwist/turbopack) doesn't expose a way to configure
-    //    networkTimeoutSeconds on its built-in entries, and without one,
-    //    Workbox's NetworkFirst waits indefinitely for the network before
-    //    falling back to cache. That makes a *repeat* visit on a slow/flaky
-    //    connection stall exactly like a cold load instead of feeling instant
-    //    from cache. These duplicate the matchers below only so we can add
-    //    the timeout; first match wins, so they take priority over
-    //    defaultCache's equivalents.
+    // 5) Navigations/documents/RSC payloads. These take the same three
+    //    cacheNames defaultCache uses (so we reuse those Cache Storage buckets
+    //    rather than orphan them) but add two things it can't express: a network
+    //    timeout, and the BUILD ID in the name.
+    //
+    //    The build id is the fix for "I navigate and briefly get the previous
+    //    version". Both the document and the RSC payload are served no-store, but
+    //    NetworkFirst stores them regardless, and these runtime buckets outlive a
+    //    deploy — so a navigation whose network leg exceeded the timeout was being
+    //    answered from the last build. Scoping the name means a new deploy starts
+    //    from an empty bucket. See src/lib/sw-caches.ts.
+    //
+    //    maxAgeSeconds is 30 minutes rather than defaultCache's 24 hours: within a
+    //    single build these entries only ever get served when the network failed
+    //    or timed out, and a day-old feed presented as current is worse than the
+    //    offline page. Reopening the app offline still works inside the window.
     {
       matcher: ({ request, url: { pathname }, sameOrigin }) =>
         request.headers.get('RSC') === '1' &&
         request.headers.get('Next-Router-Prefetch') === '1' &&
         sameOrigin &&
         !pathname.startsWith('/api/'),
-      handler: new NetworkFirst({
-        cacheName: PAGES_CACHE_NAME.rscPrefetch,
-        networkTimeoutSeconds: 4,
-        plugins: [
-          new ExpirationPlugin({
-            maxEntries: 32,
-            maxAgeSeconds: 24 * 60 * 60, // 24 hours
-          }),
-        ],
-      }),
+      handler: pageCache(PAGES_CACHE_NAME.rscPrefetch),
     },
     {
       matcher: ({ request, url: { pathname }, sameOrigin }) =>
         request.headers.get('RSC') === '1' && sameOrigin && !pathname.startsWith('/api/'),
-      handler: new NetworkFirst({
-        cacheName: PAGES_CACHE_NAME.rsc,
-        networkTimeoutSeconds: 4,
-        plugins: [
-          new ExpirationPlugin({
-            maxEntries: 32,
-            maxAgeSeconds: 24 * 60 * 60, // 24 hours
-          }),
-        ],
-      }),
+      handler: pageCache(PAGES_CACHE_NAME.rsc),
     },
+    //    `request.mode === 'navigate'`, NOT a Content-Type test. defaultCache
+    //    matches documents with `request.headers.get('Content-Type')?.includes('text/html')`
+    //    (@serwist/turbopack/src/index.worker.ts:233) and this file copied it
+    //    faithfully — but a GET navigation carries no Content-Type at all;
+    //    browsers send `Accept: text/html`. So that matcher never fired for a
+    //    single page load: full document loads fell through to defaultCache's
+    //    catch-all `others` bucket, which is 24h AND has no network timeout.
     {
       matcher: ({ request, url: { pathname }, sameOrigin }) =>
-        !!request.headers.get('Content-Type')?.includes('text/html') && sameOrigin && !pathname.startsWith('/api/'),
-      handler: new NetworkFirst({
-        cacheName: PAGES_CACHE_NAME.html,
-        networkTimeoutSeconds: 4,
-        plugins: [
-          new ExpirationPlugin({
-            maxEntries: 32,
-            maxAgeSeconds: 24 * 60 * 60, // 24 hours
-          }),
-        ],
-      }),
+        request.mode === 'navigate' && sameOrigin && !pathname.startsWith('/api/'),
+      handler: pageCache(PAGES_CACHE_NAME.html),
     },
     // 6) Everything else -> Next-tuned defaults (handles _next/static,
     //    next-image, fonts, and NetworkFirst navigations). First match wins,
@@ -143,6 +159,30 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// Drop the page caches that belong to an older build (and the unversioned ones
+// written before those names carried a build id at all). Serwist's own cleanup
+// only prunes the precache, so without this the previous deploy's pages would sit
+// in Cache Storage until their 30 minutes expired — on a phone that installed
+// this worker precisely because a new version shipped.
+//
+// A separate `activate` listener rather than a change to serwist's: addEventListener
+// stacks, and `skipWaiting` + `clientsClaim` mean this runs before the new worker
+// starts answering fetches. Best-effort — a failure here leaves a stale bucket,
+// which the build-scoped names already make unreadable, so it must not reject and
+// abort activation.
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(staleCacheKeys(keys, BUILD_ID).map((key) => caches.delete(key)));
+      } catch {
+        /* Cache Storage unavailable — nothing to clean up that we can reach. */
+      }
+    })(),
+  );
+});
 
 // --- Web Push (Notification Center) ---
 // Serwist's addEventListeners() wires install/activate/fetch/message only, so we
