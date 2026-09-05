@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, CheckCircle2 } from 'lucide-react';
+import { Check, CheckCircle2, Mail } from 'lucide-react';
 import { Button, LoadingBlock } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
@@ -21,13 +21,22 @@ import { cn } from '@/lib/utils';
  * a member, already applied, or brand new. See the API route: telling those apart
  * would make a public form into a "is this person in the club?" lookup.
  *
- * ── LAYOUT: EVERYTHING ON ONE SCREEN ────────────────────────────────────────
- * The whole form is sized to fit a 390×844 phone without scrolling, which is why
- * the countdown is a compact card rather than a full-bleed hero and the choice
- * rows are 52px instead of the app's usual 64px. Someone opening a link from
- * WhatsApp decides whether to bother in the first second; a fold hiding the
+ * ── LAYOUT: A PHOTO HERO WITH ONE CARD ON IT ────────────────────────────────
+ * Full-bleed club photo, the mark and the headline on it, and everything that is
+ * asked for inside a single white card floating at the bottom. This is a landing
+ * page, not a settings screen: it is sent cold over WhatsApp to people who have
+ * never seen the app, and the photo is what says what the club is before anyone
+ * reads a word.
+ *
+ * ── EVERYTHING ON ONE SCREEN ────────────────────────────────────────────────
+ * Still sized to fit a 390×844 phone without scrolling. Someone opening a link
+ * from WhatsApp decides whether to bother in the first second; a fold hiding the
  * submit button is the one thing that costs sign-ups here. If you add a field,
  * take the height from somewhere — do not let this page start scrolling.
+ *
+ * The דבוקה picker is a two-row pill grid, not the four stacked 52px rows it used
+ * to be. That is what paid for the photo: 208px of list became 92px of pills, and
+ * the hero got the difference. Going back to stacked rows means dropping the hero.
  *
  * `short:` (max-height 720px, defined in tailwind.config) is the same layout
  * scaled down for phones that are not 844px tall. An iPhone 6 is 667px and put the
@@ -111,13 +120,82 @@ export function countdownUnits(ms: number): CountdownUnit[] {
 
 
 /**
- * The countdown: the club's mark, then how long until the app opens.
+ * The photo the whole page sits on, plus the scrim that makes white type legible
+ * over it.
  *
- * Strictly black and white, no brand blue anywhere on this page: it is the first
- * thing anyone outside the club ever sees, and the mark itself is a black
- * line-drawing — colour behind it only fights it.
+ * `absolute inset-0` on a plain <img> rather than a CSS `background-image`: the
+ * photo is content here (it is the only thing on screen for the first beat), so
+ * it gets an `alt`, it gets `fetchPriority`, and it fails to a solid dark plate
+ * instead of a white page with black text on it.
+ *
+ * ⚠️ The scrim is not decoration. Over the bright sky in the top third of this
+ * photo, white type measures under 2:1 unscrimmed. Two stops, darker at the
+ * bottom, because the bottom is where the card's own shadow has to read as depth
+ * rather than as a smudge. If the photo is ever swapped, re-check the headline
+ * against the new sky before touching these values.
  */
-function LaunchCountdown() {
+function HeroBackdrop() {
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-ink-900" aria-hidden="true">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/images/hero-running.jpg"
+        alt=""
+        // Above the fold and the largest paint on the page — this is the LCP
+        // element, so it must not be lazy.
+        fetchPriority="high"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover object-center"
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/50 to-black/85" />
+    </div>
+  );
+}
+
+/**
+ * The club's mark and what is being launched, white on the photo.
+ *
+ * `logo-white.png`, not the black `logo.png` the card used to show: the mark is a
+ * line drawing, and the black one disappears into a dark photo.
+ */
+function HeroHeading() {
+  return (
+    <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/images/logo-white.png"
+        alt="מדרגות — After 2KM Running Club"
+        className="h-[78px] short:h-[54px] w-auto object-contain"
+      />
+
+      {/* Says what the thing being launched IS, and that this is the launch. A
+          countdown with no subject is a puzzle — especially for the people this
+          link is sent to, who have never seen the app. */}
+      <h1 className="mt-3 short:mt-2 text-[30px] short:text-[24px] font-bold leading-[1.08] text-white">
+        אפליקציית המדרגות
+      </h1>
+      <p className="mt-2 short:mt-1 text-13 short:text-2xs font-semibold tracking-[0.22em] text-white/75">
+        ההשקה
+      </p>
+      {/* The one piece of colour on the page. Squad-3 orange (#FF5315) is already
+          in the palette, so the accent here and the CTA below are the same token
+          the app uses elsewhere rather than a colour invented for this page. */}
+      <div className="mt-3.5 short:mt-2 h-[3px] w-11 rounded-pill bg-band-3" />
+    </div>
+  );
+}
+
+/**
+ * How long until the app opens — the LAST thing in the card, under the button.
+ *
+ * ⚠️ Nothing else about the time goes on this page. Two lines have already been
+ * tried and removed from next to this clock: a generated sentence ("עוד 4 ימים,
+ * 4 שעות ו-11 דקות להשקת האפליקציה") that restated the three numerals word for
+ * word, and then a bold date line ("יום רביעי, 20:00 — האפליקציה נפתחת"), which
+ * was a second way of saying the same thing to somebody already looking at a
+ * live clock. The countdown says it once. That is the design, not an oversight.
+ */
+function CountdownRow() {
   // null on the first render so the server and client markup agree — a live clock
   // in SSR output is a hydration mismatch waiting to happen.
   const [left, setLeft] = useState<number | null>(null);
@@ -134,66 +212,26 @@ function LaunchCountdown() {
   const units = countdownUnits(left ?? 0);
 
   return (
-    <div className="rounded-card bg-card shadow-[0_4px_18px_rgba(0,0,0,0.07)] px-5 pt-5 pb-5 short:pt-2 short:pb-2 text-center">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/images/logo.png"
-        alt="מדרגות — After 2KM Running Club"
-        className="h-[104px] short:h-[64px] w-auto mx-auto object-contain"
-      />
-
-      {/* Says what the thing being launched IS, and that this is the launch.
-          Without it the card opened on a badge and a bare clock, and a countdown
-          with no subject is a puzzle — especially for the people this link is
-          sent to, who have never seen the app. Sits above the clock so it is
-          read first. */}
-      <h1 className="mt-2.5 short:mt-1 text-[19px] short:text-[16px] font-bold leading-tight text-ink-900">
-        אפליקציית המדרגות — ההשקה
-      </h1>
-
-      <div className="h-px bg-ink-900/[0.07] mx-4 mt-4 mb-4 short:mt-1.5 short:mb-1.5" aria-hidden="true" />
-
-      {/* Each numeral is labelled under itself. The label has to sit with its own
-          number rather than in one sentence below: "4 · 8" alone reads as a time of
-          day, and in RTL nobody can tell which half is which.
-          Fixed height, tabular numerals and a zero-padded seconds pair: this box
-          re-renders every second in the last day, and that is exactly where a
-          layout that breathes with the digits gets noticed. The height is the same
-          in both modes so nothing below it moves when the third unit appears. */}
-      <div className="h-[64px] short:h-[40px] flex items-center justify-center">
-        {units.map((u, i) => (
-          <div key={u.label} className="flex-1 flex items-stretch">
-            {i > 0 && <div className="w-px bg-ink-900/[0.08] my-1" aria-hidden="true" />}
-            <div className="flex-1 text-center">
-              {/* 44px is what three two-digit numerals fit at inside a 390px
-                  screen. tabular-nums plus the zero padding below keeps the block
-                  the same width digit to digit, which is the whole reason a
-                  once-a-second clock doesn't visibly twitch. */}
-              <div className="text-[44px] short:text-[28px] leading-[0.92] font-semibold text-ink-900 tabular-nums" dir="ltr">
-                {left === null ? '·' : u.pad ? String(u.value).padStart(2, '0') : u.value}
-              </div>
-              <div className="mt-1.5 short:mt-1 text-xs short:text-3xs font-medium text-ink-500">{u.label}</div>
+    // Fixed height, tabular numerals and a zero-padded pair: this box re-renders
+    // every second in the last day, and that is exactly where a layout that
+    // breathes with the digits gets noticed. The height is the same in both modes
+    // so nothing moves when the third unit changes.
+    <div className="h-[52px] short:h-[44px] flex items-center justify-center">
+      {units.map((u, i) => (
+        <div key={u.label} className="flex-1 flex items-stretch">
+          {i > 0 && <div className="w-px bg-ink-900/[0.08] my-0.5" aria-hidden="true" />}
+          <div className="flex-1 text-center">
+            <div className="text-[26px] short:text-[22px] leading-[1.05] font-bold text-ink-900 tabular-nums" dir="ltr">
+              {left === null ? '·' : u.pad ? String(u.value).padStart(2, '0') : u.value}
             </div>
+            {/* Each numeral is labelled under itself. The label has to sit with
+                its own number rather than in one sentence below: "4 · 8" alone
+                reads as a time of day, and in RTL nobody can tell which half is
+                which. */}
+            <div className="mt-0.5 text-3xs font-medium text-ink-500">{u.label}</div>
           </div>
-        ))}
-      </div>
-
-      {/* ⚠️ Nothing else about the time goes in this card. Two lines have already
-          been tried and removed from right below the clock: a generated sentence
-          ("עוד 4 ימים, 4 שעות ו-11 דקות להשקת האפליקציה") that restated the three
-          numerals word for word, and then a bold date line ("יום רביעי, 20:00 —
-          האפליקציה נפתחת"), which was a second way of saying the same thing to
-          somebody already looking at a live clock. The countdown says it once —
-          that is the whole design of the card, not an oversight. */}
-      {/* The academy opens later than the app, and saying so here stops the
-          obvious wrong assumption: that this one form is the academy sign-up and
-          Wednesday is the date for it. It is a separate registration, and it is
-          NOT what the countdown is counting. */}
-      {/* Weightier than a footnote and darker than the line above it: it is the
-          one piece of information on this card that corrects an assumption, so
-          being skimmable is the whole job. Still not bold — the countdown
-          sentence has to stay the loudest thing in the card. */}
-      <p className="mt-2 short:mt-1 text-2xs short:text-3xs font-semibold text-ink-700">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -322,22 +360,16 @@ export default function RegisterPage() {
     }[state];
 
     return (
-      // White card on the page grey, the same as the form screen. This was a black
-      // card, meant to mark the end of the flow, and it just read as a different
-      // app: the mark inverted, the type inverted, nothing carried over from the
-      // screen half a second earlier.
-      <div className="min-h-screen min-h-[100dvh] bg-page flex items-center justify-center px-4 py-4 short:py-1" dir="rtl">
-        <div className="w-full max-w-md">
-          <div className="rounded-card bg-card px-5 pt-5 pb-5 text-center shadow-[0_4px_18px_rgba(0,0,0,0.07)]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/logo.png"
-              alt="מדרגות — After 2KM Running Club"
-              className="h-[74px] w-auto mx-auto object-contain"
-            />
+      // Same photo and same card as the form screen. This was a white card on
+      // page grey, and before that a black one; either way, landing on a
+      // different-looking screen half a second after submitting reads as a
+      // different app. Nothing about the surface changes — only the contents.
+      <div className="relative min-h-screen min-h-[100dvh]" dir="rtl">
+        <HeroBackdrop />
+        <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-4 pt-6 pb-5 short:pt-3 short:pb-2">
+          <HeroHeading />
 
-            <div className="h-px bg-ink-900/[0.07] mx-4 mt-5 mb-5" aria-hidden="true" />
-
+          <div className="mt-4 short:mt-2 rounded-card bg-card px-5 pt-5 pb-5 short:pt-3.5 short:pb-3.5 text-center shadow-[0_18px_50px_rgba(0,0,0,0.38)]">
             <span className="w-11 h-11 rounded-full bg-ink-900 flex items-center justify-center mx-auto">
               <CheckCircle2 className="h-5 w-5 text-white" strokeWidth={2.5} />
             </span>
@@ -345,140 +377,154 @@ export default function RegisterPage() {
             {/* A different heading per outcome: someone resubmitting is asking
                 "did the first one work?", and "ההרשמה נשלחה" a second time does not
                 answer that — which is why the same address got sent twice. */}
-            <h2 className="mt-3.5 text-lg font-bold text-ink-900">{copy.title}</h2>
-            <p className="mt-2 px-1 text-2xs text-ink-700 leading-relaxed">{copy.line}</p>
+            <h2 className="mt-3.5 short:mt-2.5 text-lg font-bold text-ink-900">{copy.title}</h2>
+            <p className="mt-2 short:mt-1.5 px-1 text-2xs text-ink-700 leading-relaxed">{copy.line}</p>
 
             {/* The NORMALISED address, not what was typed. Someone who typed
                 "Dana.Levi92@Gmail.com" is registered as lowercase, and showing
                 them the capitals back invites them to wonder whether the two are
                 the same record. They are. */}
-            <p className="mt-4 inline-flex items-center rounded-pill bg-page px-3 py-1.5 text-3xs text-ink-500">
+            <p className="mt-4 short:mt-2.5 inline-flex items-center rounded-pill bg-page px-3 py-1.5 text-3xs text-ink-500">
               הכתובת:
               <span dir="ltr" className="me-1.5 text-2xs font-semibold text-ink-900">{sentEmail}</span>
             </p>
-
           </div>
 
-          <p className="mt-4 px-4 text-center text-2xs text-ink-400 leading-relaxed">
+          <p className="mt-3.5 short:mt-2 px-4 text-center text-2xs short:text-3xs text-white/70 leading-relaxed">
             לא הגיע מייל? כדאי לבדוק גם בספאם.
             <br />
             {/* Matched to the same weight it has on the form, so it doesn't look
                 like an afterthought on the screen people actually stop and read. */}
-            <span className="font-semibold text-ink-700">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</span>
+            <span className="font-semibold text-white/90">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</span>
           </p>
         </div>
       </div>
     );
   }
 
+  // The three דבוקות plus "not sure", in the order they are offered. "Not sure" is
+  // a real answer and the commonest one from someone new — group_id is nullable
+  // exactly so it can be given. Without it an unsure runner either guesses or
+  // gives up, and the coach assigns the group at approval anyway.
+  const bands = groups.map(g => ({ id: g.id, label: groupLabel(g), hint: g.marathonGoal || '' }));
+
   return (
-    // Page grey, not white: the cards are white and unbordered, so the grey behind
-    // them is the only thing separating them from the canvas.
-    <div className="min-h-screen min-h-[100dvh] bg-page" dir="rtl">
-      {/* justify-center, NOT a bottom-pinned button: on a 390×844 phone there are
-          ~130px of slack, and anchoring the button to the bottom collected all of
-          it into one hole between the form and the button, which read as a
-          rendering fault. Centred, the same slack splits above and below and looks
-          like margin. */}
-      <div className="max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col justify-center px-4 py-4 short:py-1">
-        <LaunchCountdown />
+    <div className="relative min-h-screen min-h-[100dvh]" dir="rtl">
+      <HeroBackdrop />
 
-        <form onSubmit={submit} className="flex flex-col">
-          <div className="mt-4 short:mt-1">
-            <SectionCaption>פרטי הרשמה</SectionCaption>
-            <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-              <div className="px-4 py-3.5 short:py-2 border-b border-page">
-                <label htmlFor="reg-email" className="block text-3xs text-ink-400">
-                  אימייל <span className="text-accent-red">*</span>
-                </label>
-                <input
-                  id="reg-email"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  dir="ltr"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  // Borderless and transparent: inside a grouped card the row IS
-                  // the field, and a second box drawn inside a card reads as a
-                  // dialog in a dialog.
-                  className="mt-0.5 w-full bg-transparent border-0 p-0 text-sm text-ink-900 placeholder-ink-400 text-left focus:outline-none focus:ring-0"
-                />
-              </div>
+      {/* Not justify-center: the hero takes the slack (it is `flex-1`) and the
+          card sits at the bottom where a thumb is. Centring the whole column
+          instead left a hole under the card that read as a rendering fault. */}
+      <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-4 pt-6 pb-5 short:pt-3 short:pb-2">
+        <HeroHeading />
 
-              <p className="px-4 pt-3.5 pb-2 short:pt-1.5 short:pb-0.5 text-3xs text-ink-400">לאיזו דבוקה את/ה משתייך?</p>
+        <form onSubmit={submit} className="mt-4 short:mt-2 rounded-card bg-card px-4 pt-4 pb-4 short:pt-3 short:pb-3 shadow-[0_18px_50px_rgba(0,0,0,0.38)]">
+          <SectionCaption>פרטי הרשמה</SectionCaption>
 
-              {/* One row per choice, "not sure" last. The radio input is visually
-                  hidden and a trailing check mark stands in for it — an iOS
-                  grouped list marks the selected row, it does not draw a dial. */}
-              {[
-                ...groups.map(g => ({
-                  id: g.id,
-                  label: groupLabel(g),
-                  hint: g.marathonGoal || '',
-                })),
-                // "Not sure" is a real answer, and the commonest one from someone
-                // new — group_id is nullable exactly so it can be given. Without
-                // this row, an unsure runner either guesses or gives up, and the
-                // coach assigns the group at approval anyway.
-                { id: '', label: 'לא בטוח/ה — שהמאמן יחליט', hint: '' },
-              ].map((opt, i, all) => {
-                const selected = groupId === opt.id;
-                return (
-                  <label
-                    key={opt.id || 'unsure'}
-                    className={cn(
-                      'flex items-center h-[52px] short:h-[40px] px-4 cursor-pointer',
-                      // Hairlines stop short of the card edge and the last row has
-                      // none — inset dividers, not a table.
-                      i < all.length - 1 && 'border-b border-page mx-0',
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="group"
-                      checked={selected}
-                      onChange={() => setGroupId(opt.id)}
-                      className="sr-only"
-                    />
-                    <span className="flex-1 flex items-baseline">
-                      {/* Deliberately NOT the app's band colours (green/blue/orange):
-                          this page is black-and-white, so the groups are told apart
-                          by their number, which is what the club says out loud. */}
-                      <span className={cn('text-sm', selected ? 'font-semibold text-ink-900' : 'text-ink-700')}>
-                        {opt.label}
-                      </span>
-                      {opt.hint && <span dir="ltr" className="me-2 text-3xs text-ink-400">{opt.hint}</span>}
-                    </span>
-                    {selected && <Check className="ms-3 h-4 w-4 shrink-0 text-ink-900" strokeWidth={3} />}
-                  </label>
-                );
-              })}
-            </div>
+          {/* An outlined pill, not the borderless row this used to be: there is
+              one field on this card now, and a bare line of text with no box
+              around it does not read as somewhere to type. */}
+          <label htmlFor="reg-email" className="sr-only">אימייל</label>
+          <div className="flex items-center h-[46px] short:h-[42px] rounded-pill border border-ink-300 px-4 focus-within:border-ink-900">
+            <Mail className="h-4 w-4 shrink-0 text-ink-400" aria-hidden="true" />
+            <input
+              id="reg-email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              dir="ltr"
+              required
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              // ⚠️ `me-`, not `ms-`. This element carries its own dir="ltr" inside
+              // an RTL parent, so margin-inline-START resolves to its LEFT — the
+              // far side from the icon — and the gap lands in the wrong place.
+              className="me-2.5 flex-1 min-w-0 bg-transparent border-0 p-0 text-sm text-ink-900 placeholder-ink-400 text-left focus:outline-none focus:ring-0"
+            />
           </div>
 
-          {error && <p className="mt-3 text-sm text-accent-red text-center">{error}</p>}
+          <p className="mt-3 short:mt-2 mb-2 short:mb-1.5 px-1 text-3xs text-ink-400">לאיזו דבוקה את/ה משתייך?</p>
 
-          <div className="h-3 short:h-1" />
+          {/* Three pills abreast, then "not sure" full width. The radio input is
+              visually hidden and the selected pill fills solid — the same idiom as
+              a segmented control, which is what this is.
+              ⚠️ `ms-2` for the inter-pill gap, not `gap-2`: Safari only got
+              flexbox gap in 14.1, and this page has to lay out on an iPhone 6.
+              These pills have no dir of their own, so they follow the RTL parent
+              and margin-inline-start is the RIGHT side — toward the previous pill. */}
+          <div className="flex">
+            {bands.map((opt, i) => {
+              const selected = groupId === opt.id;
+              return (
+                <label
+                  key={opt.id}
+                  className={cn(
+                    'flex-1 min-w-0 flex flex-col items-center justify-center h-[46px] short:h-[42px] rounded-pill border cursor-pointer',
+                    i > 0 && 'ms-2',
+                    selected ? 'border-ink-900 bg-ink-900' : 'border-ink-300 bg-card',
+                  )}
+                >
+                  <input type="radio" name="group" checked={selected} onChange={() => setGroupId(opt.id)} className="sr-only" />
+                  {/* Deliberately NOT the app's band colours: the one accent on
+                      this page is the orange CTA, and three coloured pills next to
+                      it would leave nothing looking like the thing to press. */}
+                  <span className={cn('text-2xs font-semibold leading-tight', selected ? 'text-white' : 'text-ink-700')}>
+                    {opt.label}
+                  </span>
+                  {opt.hint && (
+                    <span dir="ltr" className={cn('text-4xs leading-tight', selected ? 'text-white/70' : 'text-ink-400')}>
+                      {opt.hint}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
 
-          {/* Black, not the brand blue this Button defaults to — the whole page is
-              mono, and cn()'s tailwind-merge lets the later class win. */}
+          <label
+            className={cn(
+              'mt-2 flex items-center justify-center h-[40px] short:h-[36px] rounded-pill border cursor-pointer',
+              groupId === '' ? 'border-ink-900 bg-ink-900' : 'border-ink-300 bg-card',
+            )}
+          >
+            <input type="radio" name="group" checked={groupId === ''} onChange={() => setGroupId('')} className="sr-only" />
+            <span className={cn('text-2xs font-semibold', groupId === '' ? 'text-white' : 'text-ink-700')}>
+              לא בטוח/ה — שהמאמן יחליט
+            </span>
+            {groupId === '' && <Check className="ms-2 h-3.5 w-3.5 shrink-0 text-white" strokeWidth={3} />}
+          </label>
+
+          {error && <p className="mt-2.5 text-2xs text-accent-red text-center">{error}</p>}
+
+          {/* Squad-3 orange, the page's one accent — see HeroHeading.
+              ⚠️ 19px BOLD is a contrast requirement, not a style choice: white on
+              #FF5315 measures 3.22:1, which passes WCAG AA only as large text
+              (≥18.66px bold). Shrinking or unbolding this label fails AA. */}
           <Button
             type="submit"
             size="lg"
             disabled={submitting}
-            className="w-full h-[52px] short:h-[44px] rounded-pill bg-ink-900 text-white hover:bg-ink-700 text-[15px] font-semibold shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
+            className="mt-3 short:mt-2 w-full h-[50px] short:h-[46px] rounded-pill bg-band-3 text-white hover:bg-band-3/90 text-[19px] font-bold shadow-[0_4px_16px_rgba(255,83,21,0.35)]"
           >
             {submitting && <LoadingBlock size={20} className="py-0" />}
             {submitting ? 'שולח…' : 'שליחה'}
           </Button>
 
-          <p className="mt-2.5 short:mt-1 px-3 text-center text-2xs short:text-3xs text-ink-400 leading-relaxed">
-            ההרשמה טעונה אישור של מנהלי המדרגות. עד אז אין גישה לאפליקציה.
-          </p>
+          <div className="h-px bg-ink-900/[0.07] mt-3.5 mb-1.5 short:mt-2 short:mb-0.5" aria-hidden="true" />
+
+          <CountdownRow />
+
+          {/* The academy opens later than the app, and saying so here stops the
+              obvious wrong assumption: that this one form is the academy sign-up
+              and the countdown is counting down to it. It is a separate
+              registration. */}
+          <p className="mt-1 text-center text-3xs font-semibold text-ink-700">ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.</p>
         </form>
+
+        <p className="mt-3 short:mt-1.5 px-3 text-center text-2xs short:text-3xs text-white/70 leading-relaxed">
+          ההרשמה טעונה אישור של מנהלי המדרגות. עד אז אין גישה לאפליקציה.
+        </p>
       </div>
     </div>
   );
