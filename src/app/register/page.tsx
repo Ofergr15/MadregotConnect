@@ -166,10 +166,34 @@ function HeroBackdrop() {
 }
 
 /**
- * The club's mark and what is being launched, white on the photo.
+ * The club's mark and the clock, white on the photo.
  *
  * `logo-white.png`, not the black `logo.png` the card used to show: the mark is a
  * line drawing, and the black one disappears into a dark photo.
+ *
+ * ── WHY THE COUNTDOWN LIVES UP HERE, AND WHY IT IS PLACED TO THE PIXEL ──────
+ * The clock used to sit at the very bottom, under the submit button. It is now
+ * directly under the mark, which is the first thing read.
+ *
+ * ⚠️ Its vertical position is CONSTRAINED BY THE PHOTOGRAPH, not chosen. Behind
+ * this area is the black SAYSKY teardrop banner, and the banner carries a white
+ * star and a white wordmark. White numerals crossing that white artwork is
+ * unreadable mush — it is legible on the banner's plain black, and only there.
+ * Measured off the rendered 390×844 page:
+ *
+ *     flag's clean black band   y 176 – 248
+ *     white star begins         y 250
+ *     this countdown occupies   y 192 – 248   ← fits, with nothing to spare
+ *
+ * That budget is why the "להשקת האפליקציה" label sits BELOW the numbers instead
+ * of above them: moving it down freed the ~30px the numbers needed to clear the
+ * star, and it was the only arrangement that did not require shrinking the mark.
+ * It is also why the label is pushed to the right — centred, it lands on the star.
+ *
+ * So: if the logo height, the top padding, or the hero photo changes, this can
+ * silently land back on the white artwork. Re-measure. Contrast is NOT the
+ * warning sign — white on this scrimmed photo measures 6.5:1 even in the bad
+ * position, so it passes AA while looking broken.
  */
 function HeroHeading() {
   return (
@@ -190,23 +214,23 @@ function HeroHeading() {
         className="h-[132px] short:h-[76px] w-auto object-contain"
       />
 
-      {/* Says what the thing being launched IS, and that this is the launch. A
+      {/* ⚠️ mt-2 (8px) is load-bearing — see the banner measurements above. This is
+          what puts the numerals at y192, on the flag's plain black. Growing this
+          gap walks them down onto the white star. */}
+      <div className="mt-2 short:mt-1.5 w-full">
+        <CountdownRow />
+      </div>
+
+      {/* The subject of the numbers, and the only line of prose left up here. A
           countdown with no subject is a puzzle — especially for the people this
-          link is sent to, who have never seen the app. */}
-      {/* TEXT_ON_PHOTO: the scrim alone leaves the headline sitting on whatever
-          happens to be behind it. A soft shadow is what keeps the letterforms
-          separated from a bright patch — cheaper and less destructive than
-          darkening the scrim until the photo stops being a photo. */}
-      <h1 className={cn('mt-3 short:mt-2 text-[30px] short:text-[24px] font-bold leading-[1.08] text-white', TEXT_ON_PHOTO)}>
-        אפליקציית המדרגות
-      </h1>
-      <p className={cn('mt-2 short:mt-1 text-13 short:text-2xs font-semibold tracking-[0.22em] text-white/90', TEXT_ON_PHOTO)}>
-        ההשקה
+          link is sent to, who have never seen the app. It reads AFTER the numerals
+          rather than before ("5 ימים 3 שעות 14 דקות → להשקת האפליקציה"), which is
+          what freed the space for them to clear the banner artwork.
+          ⚠️ text-right, not centred: centred puts this straight onto the white
+          SAYSKY star. Right is also where Hebrew starts, so it costs nothing. */}
+      <p className={cn('mt-1 w-full pe-1.5 text-right text-[14px] short:text-13 font-semibold text-white/90', TEXT_ON_PHOTO)}>
+        להשקת האפליקציה
       </p>
-      {/* The one piece of colour on the page. Squad-3 orange (#FF5315) is already
-          in the palette, so the accent here and the CTA below are the same token
-          the app uses elsewhere rather than a colour invented for this page. */}
-      <div className="mt-3.5 short:mt-2 h-[3px] w-11 rounded-pill bg-band-3" />
     </div>
   );
 }
@@ -500,7 +524,7 @@ export default function RegisterPage() {
           {/* Same treatment as the form screen's footnotes: own paragraphs, uneven
               rhythm, the weightier line first. See the note there. */}
           <p className={cn('px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
-            ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.
+            ההרשמה לחברי האקדמיה תיפתח מספר ימים לאחר ההשקה.
           </p>
           <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
             לא הגיע מייל? כדאי לבדוק גם בספאם.
@@ -627,15 +651,12 @@ export default function RegisterPage() {
           </Button>
         </form>
 
-        <div className="mt-6 short:mt-3.5 h-px bg-white/20" aria-hidden="true" />
-
-        <div className="mt-3.5 short:mt-2">
-          <CountdownRow />
-        </div>
-
         {/* ── THE BOTTOM THIRD IS SPACING-SENSITIVE ──────────────────────────
-            Four separate things stack below the button — clock, two footnotes and
-            the sponsor rule — and when they were set tight they read as one grey
+            Three things stack below the button now — two footnotes and the
+            wordmark. The clock used to be here too, above a divider; it moved up
+            under the mark, and the divider went with it (with the clock gone there
+            were only footnotes left, and a rule above small print just fences it
+            off). When these were set tight they read as one grey
             paragraph of small print that nobody separates into its parts.
 
             Two fixes, and they work together. The footnotes are now their OWN
@@ -647,12 +668,12 @@ export default function RegisterPage() {
 
             The vertical rhythm is deliberately UNEVEN: the gap above the academy
             line is bigger than the gap between the two footnotes, which is what
-            groups them as a pair and separates the pair from the clock. Setting
+            groups them as a pair and separates the pair from the button. Setting
             all of these to the same value is what made this area look crowded in
             the first place. Every pixel added here comes out of the hero, which is
             `flex-1` — so it costs nothing else and cannot cause a scroll. */}
         <p className={cn('mt-5 short:mt-3 px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
-          ההרשמה לאקדמיה תיפתח מספר ימים לאחר ההשקה.
+          ההרשמה לחברי האקדמיה תיפתח מספר ימים לאחר ההשקה.
         </p>
         <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
           ההרשמה טעונה אישור של מנהלי המדרגות.
