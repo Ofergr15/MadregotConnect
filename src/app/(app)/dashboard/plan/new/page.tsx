@@ -54,7 +54,8 @@ interface SavedPlanSummary {
   status: 'draft' | 'pushed' | 'partial';
   created_at: string;
   parsed_workouts: GroupedWeeklyPlans | ParsedWeeklyPlan;
-  original_input: string;
+  // No `original_input`: /api/plans stopped sending it (nothing here ever read
+  // it), so declaring it would describe a field that is never present.
 }
 
 interface Athlete {
@@ -188,13 +189,16 @@ export default function WeeklyPlannerPage() {
   const weekLabel = getWeekLabel(weekStartDate, locale);
 
   // --- Plans data ---
-  const [allPlans, setAllPlans] = useState<SavedPlanSummary[]>([]);
+  // The displayed week only, not the season: `parsed_workouts` is ~22 KB a week,
+  // and this list's sole reader is the `.find` below. Fetching every week cost
+  // 245 KB on mount and grew with the season, to render one of them.
+  const [weekPlans, setWeekPlans] = useState<SavedPlanSummary[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
 
   // --- Current week plan ---
   const currentPlan = useMemo(
-    () => allPlans.find((p) => p.week_start_date === weekStartDate) || null,
-    [allPlans, weekStartDate]
+    () => weekPlans.find((p) => p.week_start_date === weekStartDate) || null,
+    [weekPlans, weekStartDate]
   );
 
   // --- Create mode (only when no plan exists; auto-open on Saturday for next week) ---
@@ -292,24 +296,34 @@ export default function WeeklyPlannerPage() {
     setError(null);
   }, [weekOffset]);
 
-  // --- Fetch all plans ---
+  // --- Fetch the displayed week's plan ---
+  // Re-runs on week navigation rather than fetching once, which is the trade the
+  // `week_start_date` narrowing buys: one ~22 KB request per week actually looked
+  // at, instead of one 245 KB request for weeks nobody opens. `cancelled` guards
+  // the races that per-week fetching introduces — arrowing through weeks quickly
+  // could otherwise land an older response on top of a newer one.
   useEffect(() => {
+    let cancelled = false;
     const fetchPlans = async () => {
       setLoadingPlans(true);
       try {
-        const res = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`, { headers: await bearerHeaders(false) });
+        const res = await fetch(
+          `/api/plans?coach_id=${HARDCODED_COACH_ID}&week_start_date=${weekStartDate}`,
+          { headers: await bearerHeaders(false) },
+        );
         if (res.ok) {
           const data = await res.json();
-          setAllPlans(data.plans || []);
+          if (!cancelled) setWeekPlans(data.plans || []);
         }
       } catch {
         // silent
       } finally {
-        setLoadingPlans(false);
+        if (!cancelled) setLoadingPlans(false);
       }
     };
     fetchPlans();
-  }, []);
+    return () => { cancelled = true; };
+  }, [weekStartDate]);
 
   // --- Find this week's uploaded training program PDF (Sunday-keyed) ---
   useEffect(() => {
@@ -571,7 +585,11 @@ export default function WeeklyPlannerPage() {
         const saveData = await saveRes.json();
         setSavedPlanId(saveData.plan.id);
         setLastSavedAt(new Date());
-        setAllPlans((prev) => [saveData.plan, ...prev]);
+        // Filter by id first, same as the import path below. POST /api/plans is
+        // check-then-update, so re-saving a week returns the id already in `prev`
+        // — and now that this list holds only the displayed week, a duplicate row
+        // is one `currentPlan` could pick either way.
+        setWeekPlans((prev) => [saveData.plan, ...prev.filter((p) => p.id !== saveData.plan.id)]);
       }
 
       setShowCreate(false);
@@ -646,7 +664,7 @@ export default function WeeklyPlannerPage() {
         });
         if (putRes.ok) {
           setLastSavedAt(new Date());
-          setAllPlans((prev) =>
+          setWeekPlans((prev) =>
             prev.map((p) => (p.id === savedPlanId ? { ...p, parsed_workouts: grouped, status: 'draft' } : p))
           );
         }
@@ -666,7 +684,7 @@ export default function WeeklyPlannerPage() {
           const saveData = await saveRes.json();
           setSavedPlanId(saveData.plan.id);
           setLastSavedAt(new Date());
-          setAllPlans((prev) => [saveData.plan, ...prev.filter((p) => p.id !== saveData.plan.id)]);
+          setWeekPlans((prev) => [saveData.plan, ...prev.filter((p) => p.id !== saveData.plan.id)]);
         }
       }
 
@@ -810,7 +828,7 @@ export default function WeeklyPlannerPage() {
       const published = body.plan.parsed_workouts as GroupedWeeklyPlans;
       setGroupedPlans(published);
       setParsedPlan(published.group1);
-      setAllPlans((prev) =>
+      setWeekPlans((prev) =>
         prev.map((plan) =>
           plan.id === savedPlanId
             ? { ...plan, parsed_workouts: published, status: 'pushed' }
@@ -892,7 +910,7 @@ export default function WeeklyPlannerPage() {
         throw new Error(err.error || t('errors.failedToSaveDraft'));
       }
       setLastSavedAt(new Date());
-      setAllPlans((prev) =>
+      setWeekPlans((prev) =>
         prev.map((p) => (p.id === savedPlanId ? { ...p, parsed_workouts: groupedPlans } : p))
       );
     } catch (err: unknown) {
@@ -912,7 +930,7 @@ export default function WeeklyPlannerPage() {
         body: JSON.stringify({ plan_id: savedPlanId }),
       });
       if (!res.ok) throw new Error(t('errors.failedToDeletePlan'));
-      setAllPlans((prev) => prev.filter((p) => p.id !== savedPlanId));
+      setWeekPlans((prev) => prev.filter((p) => p.id !== savedPlanId));
       setSavedPlanId(null);
       setGroupedPlans(null);
       setParsedPlan(null);
@@ -1010,7 +1028,7 @@ export default function WeeklyPlannerPage() {
         body: JSON.stringify({ plan_id: savedPlanId, status: newStatus }),
       });
 
-      setAllPlans((prev) =>
+      setWeekPlans((prev) =>
         prev.map((p) => (p.id === savedPlanId ? { ...p, status: newStatus as 'draft' | 'pushed' | 'partial' } : p))
       );
     } catch (err: unknown) {
@@ -1191,10 +1209,16 @@ export default function WeeklyPlannerPage() {
                     const res = await fetch('/api/plans/import-program', { method: 'POST', headers: await bearerHeaders() });
                     const data = await res.json();
                     if (data.results?.some((r: any) => r.status === 'imported')) {
-                      const plansRes = await fetch(`/api/plans?coach_id=${HARDCODED_COACH_ID}`, { headers: await bearerHeaders(false) });
+                      // Import writes several weeks at once, but only the one on
+                      // screen needs to be reflected here — navigating to another
+                      // week refetches it.
+                      const plansRes = await fetch(
+                        `/api/plans?coach_id=${HARDCODED_COACH_ID}&week_start_date=${weekStartDate}`,
+                        { headers: await bearerHeaders(false) },
+                      );
                       if (plansRes.ok) {
                         const plansData = await plansRes.json();
-                        setAllPlans(plansData.plans || []);
+                        setWeekPlans(plansData.plans || []);
                       }
                     } else {
                       setError(data.results?.map((r: any) => `${r.week}: ${r.status}`).join(', ') || t('noPlansImported'));

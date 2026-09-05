@@ -8,11 +8,12 @@ import { PlanDetail } from '@/components/PlanDetail';
 import { Card, Button, EmptyState, SkeletonList } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
+// No `original_input` / `parsed_workouts`: the list response deliberately no
+// longer carries them (see /api/plans/history). PlanDetail loads both from the
+// `?planId=` branch when a card is actually opened.
 interface PlanHistory {
   id: string;
   week_start_date: string;
-  original_input: string;
-  parsed_workouts: Record<string, any>;
   status: 'draft' | 'pushed' | 'partial';
   created_at: string;
   delivery_stats: {
@@ -67,21 +68,25 @@ export default function HistoryPage() {
     setExpandedPlanId(expandedPlanId === planId ? null : planId);
   };
 
-  const handleRepush = async (planId: string, athleteIds: string[]) => {
+  // `parsedWorkouts` arrives from PlanDetail rather than from the list row: the
+  // list response no longer carries the workout JSON, and a repush is only
+  // reachable from an expanded card, which has already loaded it.
+  const handleRepush = async (
+    planId: string,
+    athleteIds: string[],
+    parsedWorkouts: Record<string, any>,
+  ) => {
     setRepushError(null);
     try {
-      const plan = plans.find((p) => p.id === planId);
-      if (!plan) return;
-
       // Extract workouts from parsed_workouts. Current plans are grouped by
       // pace group ({group1: {workouts: [...]}, ...}), each workout already
       // carrying its own dayOfWeek — group1 is used here, same simplification
       // executePush's own retryFailed already makes. Legacy flat day-keyed
       // plans (pre-grouping) are supported as a fallback.
-      const group1 = (plan.parsed_workouts as any)?.group1;
+      const group1 = (parsedWorkouts as any)?.group1;
       const workouts = Array.isArray(group1?.workouts)
         ? group1.workouts
-        : Object.entries(plan.parsed_workouts)
+        : Object.entries(parsedWorkouts || {})
             .filter(([_, workout]) => workout && typeof workout === 'object')
             .map(([day, workout]) => ({
               ...(workout as object),
@@ -96,7 +101,9 @@ export default function HistoryPage() {
           planId,
           workouts,
           athleteIds,
-          weekStartDate: plan.week_start_date,
+          // Still a list-row field — only the two heavy JSON/text columns moved
+          // to the detail fetch.
+          weekStartDate: plans.find((p) => p.id === planId)?.week_start_date,
         }),
       });
 
@@ -205,10 +212,8 @@ export default function HistoryPage() {
                 {isExpanded && (
                   <PlanDetail
                     planId={plan.id}
-                    originalInput={plan.original_input}
-                    parsedWorkouts={plan.parsed_workouts}
                     weekStartDate={plan.week_start_date}
-                    onRepush={(athleteIds) => handleRepush(plan.id, athleteIds)}
+                    onRepush={(athleteIds, parsedWorkouts) => handleRepush(plan.id, athleteIds, parsedWorkouts)}
                   />
                 )}
               </Card>

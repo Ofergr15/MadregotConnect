@@ -13,11 +13,18 @@ interface DeliveryStats {
   pending: number;
 }
 
+/**
+ * A row of the history list. Deliberately WITHOUT `original_input` and
+ * `parsed_workouts`: they used to be here, which made this response 439 KB —
+ * every plan's raw coach prompt plus its full workout JSON — for a page that
+ * renders a date, a status pill and a delivery count per row. `workout_count`
+ * below is the only thing the list ever derived from the workout JSON, and it's
+ * computed server-side, so the shipped payload is now a few hundred bytes a row.
+ * The expanded card reads both fields from the `?planId=` branch instead.
+ */
 interface PlanSummary {
   id: string;
   week_start_date: string;
-  original_input: string;
-  parsed_workouts: Record<string, unknown>;
   status: 'draft' | 'pushed' | 'partial';
   created_at: string;
   delivery_stats: DeliveryStats;
@@ -106,10 +113,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Otherwise, return all plans with summary stats
+    // Otherwise, return all plans with summary stats.
+    //
+    // Not `select('*')`: `original_input` is the coach's raw pasted prompt and
+    // is no longer in the response at all, so fetching it from Postgres too was
+    // pure waste. `parsed_workouts` IS still selected — `workout_count` below is
+    // derived from it — but it stays server-side.
     const { data: plans, error: plansError } = await supabase
       .from('weekly_plans')
-      .select('*')
+      .select('id, week_start_date, status, created_at, parsed_workouts')
       .eq('coach_id', COACH_ID)
       .order('week_start_date', { ascending: false });
 
@@ -183,8 +195,6 @@ export async function GET(req: NextRequest) {
       return {
         id: plan.id,
         week_start_date: plan.week_start_date,
-        original_input: plan.original_input || '',
-        parsed_workouts: plan.parsed_workouts,
         status: plan.status as 'draft' | 'pushed' | 'partial',
         created_at: plan.created_at,
         delivery_stats: stats,

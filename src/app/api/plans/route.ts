@@ -97,6 +97,14 @@ export async function POST(req: NextRequest) {
  * GET /api/plans - List plans for a coach
  * Query: ?coach_id=xxx            → group-wide plans (athlete_id IS NULL)
  *        ?coach_id=xxx&athlete_id=yyy → an individual academy athlete's plans
+ *        &week_start_date=YYYY-MM-DD  → just that week
+ *
+ * `week_start_date` is a narrowing-only filter and every caller passes it.
+ * `parsed_workouts` is ~22 KB per week, so the unfiltered list was a 245 KB
+ * response that grew with every week of the season — and all four call sites
+ * did the same thing with it: `.find(p => p.week_start_date === weekStart)`,
+ * i.e. threw away all but one row. Left optional so an old cached client (or a
+ * future consumer that genuinely wants the season) still gets the full list.
  */
 export async function GET(req: NextRequest) {
   const auth = await requireSession(req);
@@ -109,6 +117,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const coach_id = searchParams.get('coach_id');
     const athlete_id = searchParams.get('athlete_id');
+    const week_start_date = searchParams.get('week_start_date');
 
     if (!coach_id) {
       return NextResponse.json(
@@ -119,12 +128,27 @@ export async function GET(req: NextRequest) {
 
     const supabase = createServerClient();
 
+    // Explicit columns, not `select('*')`. `parsed_workouts` has to stay — the
+    // planner picks the current week out of this list and AcademyPlanComposer
+    // imports the group lane from it — but `original_input` is the coach's raw
+    // pasted prompt, and no consumer of this list has ever read it: it's
+    // declared on `SavedPlanSummary` and never referenced. On a season's worth
+    // of weeks that was the bulk of a ~439 KB response, downloaded every time
+    // the planner mounts.
     const runQuery = (scoped: boolean) => {
       let q = supabase
         .from('weekly_plans')
-        .select('*')
+        // `athlete_id` is filtered on below but NOT projected, on purpose: the
+        // fallback under this exists for a database where that column hasn't
+        // been migrated yet, and naming it in the select list would make the
+        // fallback query fail for the same reason as the scoped one — taking the
+        // planner down entirely instead of degrading to the unscoped list.
+        .select('id, coach_id, week_start_date, status, created_at, parsed_workouts')
         .eq('coach_id', coach_id)
         .order('week_start_date', { ascending: false });
+      // Applied outside the `scoped` branch: this column predates athlete_id, so
+      // narrowing by week must survive the unmigrated-DB fallback too.
+      if (week_start_date) q = q.eq('week_start_date', week_start_date);
       if (scoped) {
         // Individual-athlete plans, or the group list (excludes per-athlete rows).
         q = athlete_id ? q.eq('athlete_id', athlete_id) : q.is('athlete_id', null);

@@ -18,10 +18,15 @@ interface DeliveryDetail {
 
 interface PlanDetailProps {
   planId: string;
-  originalInput: string;
-  parsedWorkouts: Record<string, any>;
   weekStartDate: string;
-  onRepush?: (athleteIds: string[]) => void;
+  /**
+   * Hands the plan's workout JSON back along with the athletes to retry. The
+   * caller used to read it off its own list row, but the list no longer carries
+   * it — and this component can only reach a repush from an expanded state where
+   * the detail fetch has already resolved, so it is the one place that reliably
+   * has it without asking the server twice.
+   */
+  onRepush?: (athleteIds: string[], parsedWorkouts: Record<string, any>) => void;
 }
 
 const DAYS_OF_WEEK = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -50,15 +55,28 @@ const statusConfig = {
   failed: { icon: XCircle, color: 'text-accent-red', bg: 'bg-accent-red/10', label: 'Failed' },
 };
 
-export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDate, onRepush }: PlanDetailProps) {
+export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps) {
   const [deliveries, setDeliveries] = useState<DeliveryDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [selectedFailedAthletes, setSelectedFailedAthletes] = useState<Set<string>>(new Set());
+  // `original_input` and `parsed_workouts` used to arrive as props, which meant
+  // /api/plans/history had to put EVERY plan's raw coach prompt and full workout
+  // JSON in the list response — 439 KB on a page that shows a handful of
+  // one-line summaries, of which at most one card is ever open. They come off
+  // the detail fetch below instead. That fetch already existed, already selects
+  // `*`, and already fires at exactly the moment this content becomes visible,
+  // so nothing new is requested and nothing renders later than it used to.
+  const [originalInput, setOriginalInput] = useState('');
+  const [parsedWorkouts, setParsedWorkouts] = useState<Record<string, any>>({});
+  const [loaded, setLoaded] = useState(false);
 
-  // Fetch delivery details when expanded
+  // Fetch the plan body and its delivery details when expanded.
   const loadDeliveries = async () => {
-    if (deliveries.length > 0) return; // Already loaded
+    // Not `deliveries.length > 0`: a plan with no deliveries yet would retry on
+    // every toggle, and now that the plan body rides along on this response,
+    // a re-fetch would also re-render content that is already on screen.
+    if (loaded) return;
 
     try {
       const response = await fetch(`/api/plans/history?planId=${planId}`, {
@@ -68,6 +86,9 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
 
       const data = await response.json();
       setDeliveries(data.deliveries || []);
+      setOriginalInput(data.plan?.original_input || '');
+      setParsedWorkouts(data.plan?.parsed_workouts || {});
+      setLoaded(true);
     } catch (error) {
       console.error('Error fetching deliveries:', error);
     } finally {
@@ -94,7 +115,7 @@ export function PlanDetail({ planId, originalInput, parsedWorkouts, weekStartDat
 
   const handleRepush = () => {
     if (onRepush && selectedFailedAthletes.size > 0) {
-      onRepush(Array.from(selectedFailedAthletes));
+      onRepush(Array.from(selectedFailedAthletes), parsedWorkouts);
       setSelectedFailedAthletes(new Set());
     }
   };

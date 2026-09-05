@@ -136,19 +136,23 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
 
   useEffect(() => { fetchLibrary(); }, [fetchLibrary]);
 
-  // The club's group plans (athlete_id IS NULL — that's what an unscoped list
-  // returns), so a trainee's week can be seeded from the session the club is
-  // actually doing instead of being retyped. Fetched once; the week is picked out
-  // of the list rather than refetched per navigation.
+  // The club's group plan for the displayed week (athlete_id IS NULL — that's what
+  // an unscoped list returns), so a trainee's week can be seeded from the session
+  // the club is actually doing instead of being retyped.
+  //
+  // This used to fetch the whole season once and pick the week out of it, which
+  // meant 245 KB of `parsed_workouts` for the ~22 KB actually rendered. Narrowed
+  // to the week and refetched on navigation instead; `cancelled` already guarded
+  // the race, it just now also covers week changes.
   useEffect(() => {
     let cancelled = false;
     bearerHeaders(false)
-      .then(headers => fetch(`/api/plans?coach_id=${COACH_ID}`, { headers }))
+      .then(headers => fetch(`/api/plans?coach_id=${COACH_ID}&week_start_date=${weekStart}`, { headers }))
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!cancelled) setGroupPlans(d?.plans || []); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [weekStart]);
 
   const groupPlan = useMemo(
     () => groupPlans.find((p: any) => p.week_start_date === weekStart) || null,
@@ -168,7 +172,9 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
     let cancelled = false;
     setSlots({});
     bearerHeaders(false)
-      .then(headers => fetch(`/api/plans?coach_id=${COACH_ID}&athlete_id=${primary.id}`, { headers }))
+      // Already per-week by nature (this effect re-runs on weekStart), so the
+      // narrowing costs nothing and saves the rest of the athlete's season.
+      .then(headers => fetch(`/api/plans?coach_id=${COACH_ID}&athlete_id=${primary.id}&week_start_date=${weekStart}`, { headers }))
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (cancelled) return;
