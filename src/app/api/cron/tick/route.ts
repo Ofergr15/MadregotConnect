@@ -48,6 +48,7 @@ async function run(request: Request) {
 
   const supabase = createServerClient();
   const now = new Date();
+  const startedAt = now.getTime();
 
   // Atomic overlap guard (migration 074) — Vercel Cron doesn't guarantee
   // mutual exclusion between invocations, so if one tick runs long (more
@@ -486,7 +487,24 @@ async function run(request: Request) {
     })).then(r => r.json()).catch(() => null);
   } catch { /* scanner optional */ }
 
-  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, scanned });
+  // How close this tick ran to the 60s ceiling. Nothing measured this before, so
+  // the timeout risk the weekly-recap comment above worries about was pure
+  // speculation — and it matters, because a tick that dies at 60s never reaches
+  // markFired, so it re-attempts a partial send on the next few ticks. Vercel's
+  // own request duration would cover the whole invocation, but only this number
+  // is greppable next to `fired`, which is what says whether a slow tick was slow
+  // because it actually sent something or slow for no reason.
+  //
+  // Almost every tick fires nothing and should be milliseconds; the expensive
+  // ones are the Mon/Thu reminder hours and the Sunday recap. Logged always,
+  // escalated past 60% so a trend shows up while there is still headroom to act,
+  // rather than only once ticks start timing out.
+  const durationMs = Date.now() - startedAt;
+  const line = { durationMs, israel: { weekday, hour }, fired: fired.length };
+  if (durationMs > 0.6 * 60_000) console.warn('[cron/tick] approaching maxDuration', line);
+  else console.log('[cron/tick] done', line);
+
+  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, scanned, durationMs });
 }
 
 export async function GET(request: Request) { return run(request); }
