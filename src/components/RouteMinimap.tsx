@@ -2,6 +2,9 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { planRoutePlate, toSvgPath, type LatLng } from '@/lib/activity/tiles';
+import { BASEMAP_QUIET_FILTER } from '@/lib/basemap';
+import { paceSegments } from '@/components/activity/format';
+import { useMapPrefs } from '@/lib/mapPrefs';
 
 export type RoutePoint = LatLng;
 
@@ -17,18 +20,29 @@ export type RoutePoint = LatLng;
  * Tiles are only requested once the thumbnail is near the viewport. The line
  * renders immediately, so a card that is scrolled past never asks the network
  * for anything.
+ *
+ * It honours the same "colour by pace" preference as the full detail map, so the
+ * feed and the screen a card opens agree — one setting, every map.
  */
 export function RouteMinimap({
   points,
+  paces,
   className = '',
   width = 300,
   height = 100,
 }: {
   points: RoutePoint[];
+  /**
+   * Average pace per kilometre (seconds/km) for the pace heat map. `FeedActivity`
+   * ships this as `paceBands`; callers with no split data leave it out and get
+   * the plain line.
+   */
+  paces?: number[] | null;
   className?: string;
   width?: number;
   height?: number;
 }) {
+  const [{ paceColors }] = useMapPrefs();
   const plate = planRoutePlate(points, width, height);
   const clipId = useId();
   const hostRef = useRef<SVGSVGElement>(null);
@@ -59,9 +73,12 @@ export function RouteMinimap({
 
   if (!plate) return null;
 
-  const path = toSvgPath(plate.points);
   const start = plate.points[0];
   const end = plate.points[plate.points.length - 1];
+  const segments =
+    paceColors && paces && paces.length > 1
+      ? paceSegments(plate.points.length, paces)
+      : null;
 
   return (
     <svg
@@ -81,29 +98,54 @@ export function RouteMinimap({
         {/* Page grey shows through until the tiles land, and stays as the
             backdrop for an indoor run with a stray fix or two. */}
         <rect width={width} height={height} fill="#DFDFDF" />
-        {tilesVisible &&
-          plate.tiles.map((tile) => (
-            <image
-              key={tile.key}
-              href={tile.url}
-              x={tile.x}
-              y={tile.y}
-              width={tile.size}
-              height={tile.size}
-              preserveAspectRatio="none"
-            />
-          ))}
+        {/* The filter goes on the tiles' own group, not on the SVG or the clip
+            group, so the route line and the start/end dots keep their full
+            colour over quieted streets — same split Leaflet gets for free from
+            its separate tile pane. See `BASEMAP_QUIET_FILTER`. */}
+        {tilesVisible && (
+          <g style={{ filter: BASEMAP_QUIET_FILTER }}>
+            {plate.tiles.map((tile) => (
+              <image
+                key={tile.key}
+                href={tile.url}
+                x={tile.x}
+                y={tile.y}
+                width={tile.size}
+                height={tile.size}
+                preserveAspectRatio="none"
+              />
+            ))}
+          </g>
+        )}
         {/* Route = band 3 (within a hair of the Strava orange it used to be),
             start/end = the accent green and red, ringed in white so they stay
-            legible over streets and parks alike. */}
-        <path
-          d={path}
-          fill="none"
-          stroke="#FF5315"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+            legible over streets and parks alike.
+
+            With pace colours on it becomes one path per kilometre. The bands
+            overlap by a point (see `paceSegments`) so no hairline gap opens up
+            where two colours meet. */}
+        {segments ? (
+          segments.map((seg) => (
+            <path
+              key={seg.start}
+              d={toSvgPath(plate.points.slice(seg.start, seg.end))}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))
+        ) : (
+          <path
+            d={toSvgPath(plate.points)}
+            fill="none"
+            stroke="#FF5315"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
         <circle
           cx={start.x.toFixed(1)}
           cy={start.y.toFixed(1)}

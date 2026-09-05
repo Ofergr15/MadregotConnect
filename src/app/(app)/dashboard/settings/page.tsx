@@ -14,6 +14,7 @@ import { PerksManager } from '@/components/PerksManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
+import { MapPrefsRow } from '@/components/MapPrefsRow';
 import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -863,6 +864,7 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('notifprefs')}
               trailing={<ChevronRight className="h-4 w-4 text-ink-400 shrink-0 rotate-180" />}
             />
+            <MapPrefsRow />
           </InsetSection>
 
           {/* Allowlist editor — only appears while maintenance is on. */}

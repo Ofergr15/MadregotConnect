@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 import {
   BASEMAP_ATTRIBUTION,
-  BASEMAP_MAX_ZOOM,
+  BASEMAP_MAX_ZOOM_DARK,
   BASEMAP_URL_TEMPLATE_DARK,
 } from '@/lib/basemap';
 import { useApi } from '@/lib/api';
@@ -355,7 +355,9 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
       // stamped across every tile — this map had been quietly watermarked. Kept
       // dark to leave the page looking as intended; provider lives in lib/basemap.
       L.tileLayer(BASEMAP_URL_TEMPLATE_DARK, {
-        maxZoom: BASEMAP_MAX_ZOOM,
+        // The dark canvas cache stops at 16 — three levels shallower than the
+        // street plate the route maps use, hence its own constant.
+        maxZoom: BASEMAP_MAX_ZOOM_DARK,
         attribution: BASEMAP_ATTRIBUTION,
       }).addTo(map);
       setTimeout(() => map.invalidateSize(), 200);

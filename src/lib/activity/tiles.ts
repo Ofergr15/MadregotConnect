@@ -43,10 +43,11 @@ export interface RoutePlate {
 export const TILE_SIZE = 256;
 
 /**
- * Deepest zoom we'll ever ask for. 16 is street level — deep enough to read
- * which road a run was on, and it's also as deep as the basemap's raster cache
- * goes (see `BASEMAP_MAX_ZOOM`), so asking for more returns a placeholder rather
- * than a map.
+ * Deepest zoom we'll ever ask for — as deep as the basemap's raster cache goes
+ * (see `BASEMAP_MAX_ZOOM`), because asking for more returns a grey placeholder
+ * rather than a map. Only very short routes reach it: `planRoutePlate` picks the
+ * deepest zoom at which the whole route still fits the box, so a 5 km run lands
+ * far shallower and the ceiling never enters into it.
  */
 const MAX_ZOOM = BASEMAP_MAX_ZOOM;
 
@@ -71,8 +72,10 @@ export function toMercator({ lat, lng }: LatLng): { x: number; y: number } {
 }
 
 function tileUrl(zoom: number, x: number, y: number): string {
-  // Light, not dark: a dark map plate inside a white card was the single dark
-  // rectangle on screen. Provider and path order live in `lib/basemap.ts`.
+  // The same light street plate the detail map uses, not the dark one: a dark
+  // map plate inside a white card was the single dark rectangle on screen, and
+  // sharing the plate means tapping a card doesn't change what the map looks
+  // like. Provider and path order live in `lib/basemap.ts`.
   return fillTileTemplate(BASEMAP_URL_TEMPLATE, zoom, x, y);
 }
 

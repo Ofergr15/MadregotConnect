@@ -60,13 +60,91 @@ export function getHRZone(
   return { zone: 5, label: 'VO2max', color: 'text-accent-red', bgColor: '#D74E4E' };
 }
 
+/**
+ * The pace ramp, fast → slow: green, teal, sky, blue.
+ *
+ * It started as green → yellow → orange → red, which is the obvious choice and
+ * the wrong one here:
+ *  - **Red/green is the one pair ~8% of men cannot separate**, and this is a
+ *    running club. A green-to-blue ramp stays readable under both common forms of
+ *    colour blindness, because it varies in hue *and* in lightness.
+ *  - **Red already means something in this app** — the end-of-route marker, zone 5,
+ *    the bad side of every stat. Painting the slowest kilometre in it passes a
+ *    judgement the app has no business passing: a recovery kilometre is *supposed*
+ *    to be slow, and so is the last one of a long run.
+ *
+ * Also the direction of travel matters more than the exact hues: what a reader
+ * needs from the line is "this part was faster than that part", and a single-family
+ * ramp reads as an ordered scale rather than four unrelated states.
+ */
+export const PACE_COLOR_RAMP = ['#22c55e', '#14b8a6', '#0ea5e9', '#2563eb'] as const;
+
+/**
+ * A pace's colour, normalised against the fastest and slowest split of the *same*
+ * run — so an interval session and a recovery jog both use the whole ramp.
+ *
+ * Derived from `PACE_COLOR_RAMP` rather than repeating its hexes, so the legend
+ * and the line can't drift apart.
+ */
 export function getPaceColor(pace: number, minPace: number, maxPace: number): string {
   const range = maxPace - minPace || 1;
   const ratio = (pace - minPace) / range;
-  if (ratio < 0.25) return '#22c55e';
-  if (ratio < 0.5) return '#eab308';
-  if (ratio < 0.75) return '#f97316';
-  return '#ef4444';
+  // The slowest split lands exactly on 1.0, which would index one past the end.
+  const step = Math.min(
+    PACE_COLOR_RAMP.length - 1,
+    Math.floor(ratio * PACE_COLOR_RAMP.length),
+  );
+  return PACE_COLOR_RAMP[step];
+}
+
+/** One stretch of a route, and the colour its pace earns it. */
+export interface PaceSegment {
+  /** Inclusive start index into the route's points. */
+  start: number;
+  /** Exclusive end index — use `points.slice(start, end)`. */
+  end: number;
+  color: string;
+}
+
+/**
+ * Cuts a route into one coloured stretch per split, for a Garmin-style pace heat
+ * map. Shared by the interactive detail map and the feed thumbnail so the two
+ * can't disagree about which kilometre is which colour.
+ *
+ * The route's points carry no timing of their own (`gps_points` is lat/lng only),
+ * so the only way to place a split on the line is by fraction of the point
+ * count — every split gets the same share of the geometry. That is an
+ * approximation: a walked kilometre has fewer metres and roughly the same number
+ * of samples, so its band is drawn slightly long. It's the same approximation
+ * Garmin's own colour-by-pace makes, and it's invisible at any zoom a phone
+ * shows.
+ *
+ * Boundaries are rounded rather than floored, and each segment reaches one point
+ * into the next, so bands join without a hairline gap and the last split doesn't
+ * inherit the whole rounding remainder (the previous inline version divided with
+ * `Math.floor` and handed the leftover — up to a full split's worth of line — to
+ * the final kilometre).
+ *
+ * `null` when there's nothing meaningful to colour: fewer than two splits, or a
+ * line too short to cut.
+ */
+export function paceSegments(pointCount: number, paces: number[]): PaceSegment[] | null {
+  const valid = paces.filter((p) => Number.isFinite(p) && p > 0);
+  if (valid.length !== paces.length || paces.length < 2) return null;
+  if (pointCount < paces.length + 1) return null;
+
+  const minPace = Math.min(...paces);
+  const maxPace = Math.max(...paces);
+
+  const segments: PaceSegment[] = [];
+  for (let i = 0; i < paces.length; i++) {
+    const start = Math.round((i * pointCount) / paces.length);
+    const boundary = Math.round(((i + 1) * pointCount) / paces.length);
+    const end = Math.min(pointCount, boundary + 1);
+    if (end - start < 2) continue;
+    segments.push({ start, end, color: getPaceColor(paces[i], minPace, maxPace) });
+  }
+  return segments.length > 1 ? segments : null;
 }
 
 export function catmullRom(points: Array<{ x: number; y: number }>): string {

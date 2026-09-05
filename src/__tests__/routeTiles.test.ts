@@ -6,6 +6,7 @@ import { TILE_SIZE, planRoutePlate, toMercator, toSvgPath } from '@/lib/activity
 import {
   BASEMAP_ATTRIBUTION,
   BASEMAP_MAX_ZOOM,
+  BASEMAP_QUIET_FILTER,
   BASEMAP_URL_TEMPLATE,
   fillTileTemplate,
 } from '@/lib/basemap';
@@ -130,7 +131,7 @@ describe('planRoutePlate', () => {
     expect(new Set(plate.tiles.map((t) => t.key)).size).toBe(plate.tiles.length);
     for (const tile of plate.tiles) {
       expect(tile.url).toMatch(
-        new RegExp(`/World_Light_Gray_Base/MapServer/tile/${plate.zoom}/\\d+/\\d+$`),
+        new RegExp(`/World_Street_Map/MapServer/tile/${plate.zoom}/\\d+/\\d+$`),
       );
     }
   });
@@ -229,6 +230,37 @@ describe('basemap provider', () => {
 
   it('orders the template y before x', () => {
     expect(fillTileTemplate(BASEMAP_URL_TEMPLATE, 12, 2443, 1662)).toMatch(/\/12\/1662\/2443$/);
+  });
+
+  // The street plate is quieted so the route reads first. Two things can rot
+  // here: someone re-adds the recipe inline in one of the two map surfaces and
+  // they drift apart, or someone rounds `.85` up to a clean `1` and silently
+  // turns the Mediterranean grey.
+  describe('quiet filter', () => {
+    it('keeps some colour, so the sea and the parks survive', () => {
+      const grayscale = BASEMAP_QUIET_FILTER.match(/grayscale\(([\d.]+)\)/);
+      expect(grayscale).not.toBeNull();
+      const amount = Number(grayscale![1]);
+      expect(amount).toBeGreaterThan(0.5); // quiet enough to stop competing
+      expect(amount).toBeLessThan(1); // but not mono
+    });
+
+    it('lifts the paper back up after desaturating it', () => {
+      expect(BASEMAP_QUIET_FILTER).toMatch(/brightness\([\d.]+\)/);
+    });
+
+    it('is written out in exactly one module', () => {
+      const offenders = sourceFiles(SRC).filter(
+        (f) => !isProviderModule(f) && /grayscale\(|saturate\(/.test(readFileSync(f, 'utf8')),
+      );
+      expect(offenders).toEqual([]);
+    });
+
+    it('is applied by both map surfaces', () => {
+      for (const file of ['components/RouteMinimap.tsx', 'components/activity/RouteMap.tsx']) {
+        expect(readFileSync(join(SRC, file), 'utf8')).toMatch(/BASEMAP_QUIET_FILTER/);
+      }
+    });
   });
 });
 
