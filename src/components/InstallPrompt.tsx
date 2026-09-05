@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Share, Plus, PartyPopper } from 'lucide-react';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
@@ -26,6 +27,23 @@ export function InstallPrompt() {
   const t = useTranslations('install');
   const { offer, dismissForever, skipForSession } = useInstallStep();
 
+  // Escape closes it, the one keyboard gesture every dialog is expected to answer.
+  // On the document rather than the backdrop div: the div isn't focusable (a
+  // click-to-dismiss surface has no business in the tab order), so a handler there
+  // would only fire once the user had already tabbed into the dialog. Soft skip,
+  // matching a backdrop tap — Escape is "not now", not "never ask again".
+  //
+  // The hook has to sit above the `!offer` early return, or React sees a different
+  // hook count on the render where the offer arrives.
+  useEffect(() => {
+    if (!offer) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') skipForSession();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [offer, skipForSession]);
+
   if (!offer) return null;
 
   const install = async () => {
@@ -38,10 +56,17 @@ export function InstallPrompt() {
   };
 
   return (
+    // The backdrop is a click-to-dismiss surface, not a control — WCAG doesn't want
+    // it in the tab order, and it has two labelled buttons inside doing the same
+    // job. What it was missing is Escape, the one keyboard gesture every dialog is
+    // expected to answer: with no X in the corner (see above) a keyboard user's only
+    // way out was to tab to "not now". `aria-labelledby` gives the dialog the name
+    // it never had, so it announces as more than "dialog".
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="install-prompt-title"
       onClick={skipForSession}
     >
       <div
@@ -53,7 +78,7 @@ export function InstallPrompt() {
           <Image src="/images/icon-192.png" alt="" width={40} height={40} className="rounded-xl" />
         </div>
 
-        <h2 className="mt-3.5 text-center text-lg font-bold leading-snug text-ink-700">{t('title')}</h2>
+        <h2 id="install-prompt-title" className="mt-3.5 text-center text-lg font-bold leading-snug text-ink-700">{t('title')}</h2>
         <p className="mx-auto mt-2 max-w-[300px] text-center text-13 font-light leading-relaxed text-ink-400">
           {t('description')}
         </p>

@@ -77,8 +77,25 @@ function ActivityCard({
   return (
     <>
     <div className="bg-card/50 rounded-card border border-page/30 overflow-hidden">
-      {/* Collapsed card */}
-      <div className="p-4 sm:p-5 cursor-pointer hover:bg-page/70 transition-colors" onClick={handleExpand}>
+      {/* Collapsed card. A div rather than a <button> because it contains its own
+          buttons and links (open the full run, the teammate's name), and a button
+          inside a button is invalid markup that double-fires. So it carries the
+          role and the keys by hand — it was a plain onClick, i.e. mouse-only, and
+          expanding a run was the whole point of the card. `aria-expanded` is what
+          tells a screen reader this is a disclosure and which way it's pointing. */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        onClick={handleExpand}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleExpand();
+          }
+        }}
+        className="p-4 sm:p-5 cursor-pointer hover:bg-page/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-600"
+      >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-brand-600/15 flex items-center justify-center">

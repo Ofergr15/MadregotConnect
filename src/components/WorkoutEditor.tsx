@@ -425,9 +425,22 @@ function StepRow({
 
   return (
     <div className={cn('border-s-3 rounded-md', stepColors[step.type] || 'border-s-ink-300')}>
+      {/* The step's summary row, and the handle that opens it. Not a <button>
+          because it holds the delete and reorder buttons; keys are wired by hand
+          for the same reason the feed card does it. Was mouse-only: a coach on a
+          keyboard could not open a single step of a workout. */}
       <div
-        className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-page/30 transition-colors"
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-page/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-600"
         onClick={() => setExpanded(!expanded)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
       >
         <span className="text-[10px] text-ink-400 w-4 text-end">{index + 1}</span>
         <span className={cn(

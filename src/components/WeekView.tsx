@@ -296,7 +296,11 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     <button
                       onClick={() => setNewWorkoutDay(dayIndex)}
                       title={tp('addWorkoutTooltip', { day })}
-                      className="flex items-center justify-center w-7 h-7 rounded-lg text-ink-400 hover:bg-page hover:text-ink-900 transition-colors touch-target"
+                      /* `title` alone is a weak accessible name — it is not read at
+                         all by some screen readers and never on touch. This is an
+                         icon-only button, so it needs the real thing. */
+                      aria-label={tp('addWorkoutTooltip', { day })}
+                      className="flex items-center justify-center w-7 h-7 rounded-lg text-ink-400 hover:bg-page hover:text-ink-900 transition-colors touch-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -308,11 +312,23 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
               <div className="flex-1 flex flex-col gap-1.5">
                 {dayWorkouts.length > 0 ? (
                   <>
-                    {/* Primary workout — single click edits in edit mode, else opens view */}
+                    {/* Primary workout — single click edits in edit mode, else opens view.
+                        The role and the tab stop are conditional on `editable` for the
+                        same reason the cursor is: when the week is read-only this div
+                        does nothing, and announcing it as a button or handing it a tab
+                        stop would be a lie. When it IS editable it was mouse-only. */}
                     <div
+                      role={editable ? 'button' : undefined}
+                      tabIndex={editable ? 0 : undefined}
                       onClick={() => { if (editable) setEditingIdx(workouts.indexOf(dayWorkouts[0])); }}
+                      onKeyDown={(event) => {
+                        if (editable && (event.key === 'Enter' || event.key === ' ')) {
+                          event.preventDefault();
+                          setEditingIdx(workouts.indexOf(dayWorkouts[0]));
+                        }
+                      }}
                       onDoubleClick={() => handleCardDoubleTap(workouts.indexOf(dayWorkouts[0]))}
-                      className="flex-1 cursor-pointer transition-all"
+                      className="flex-1 cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 rounded-b-xl"
                     >
                       <WorkoutPreview
                         workout={dayWorkouts[0]}
@@ -327,9 +343,17 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                         return (
                           <div
                             key={globalIdx}
+                            role={editable ? 'button' : undefined}
+                            tabIndex={editable ? 0 : undefined}
                             onClick={() => { if (editable) setEditingIdx(globalIdx); }}
+                            onKeyDown={(event) => {
+                              if (editable && (event.key === 'Enter' || event.key === ' ')) {
+                                event.preventDefault();
+                                setEditingIdx(globalIdx);
+                              }
+                            }}
                             onDoubleClick={() => handleCardDoubleTap(globalIdx)}
-                            className="cursor-pointer hover:ring-1 hover:ring-brand-600/50 rounded-lg transition-all"
+                            className="cursor-pointer hover:ring-1 hover:ring-brand-600/50 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
                           >
                             <WorkoutPreview workout={workout} compact />
                           </div>
@@ -346,11 +370,24 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                   </>
                 ) : (
                   <div
+                    role={canEdit ? 'button' : undefined}
+                    tabIndex={canEdit ? 0 : undefined}
+                    /* The empty cell reads "rest day", so on its own it says nothing
+                       about being the way to ADD a workout — obvious enough with a
+                       mouse (the dashed border lights up on hover), invisible without
+                       one. Only labelled when it is actually actionable. */
+                    aria-label={canEdit ? tp('addWorkoutTooltip', { day }) : undefined}
                     onClick={() => { if (canEdit) setNewWorkoutDay(dayIndex); }}
+                    onKeyDown={(event) => {
+                      if (canEdit && (event.key === 'Enter' || event.key === ' ')) {
+                        event.preventDefault();
+                        setNewWorkoutDay(dayIndex);
+                      }
+                    }}
                     className={cn(
                       'flex-1 min-h-[64px] lg:min-h-[100px] border border-t-0 border-dashed rounded-b-xl flex items-center justify-center',
                       isToday ? 'border-brand-600/30' : 'border-page/40',
-                      canEdit && 'cursor-pointer hover:border-brand-600/40 hover:bg-brand-600/5 transition-colors'
+                      canEdit && 'cursor-pointer hover:border-brand-600/40 hover:bg-brand-600/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600'
                     )}
                   >
                     <p className="text-xs text-ink-400">{tp('restDay')}</p>
