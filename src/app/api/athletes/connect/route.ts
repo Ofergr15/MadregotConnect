@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     if (inviteToken) {
       const { data: athlete, error: findError } = await supabase
         .from('athletes')
-        .select('id, approved')
+        .select('id, approved, garmin_auth')
         .eq('invite_token', inviteToken)
         .single();
 
@@ -75,8 +75,14 @@ export async function POST(req: NextRequest) {
       // AFTER approval (approved=true) so they stay active here; a not-yet-
       // approved invite waits in the pending queue. Gate on explicit false so
       // legacy rows with a null 'approved' keep working.
+      // Not `encryptedAuth ? … : 'google_authed'`: an athlete whose watch is
+      // ALREADY connected walks through this same flow (the join screen shows
+      // Garmin as connected and posts no credentials), and writing
+      // 'google_authed' over their 'garmin_authed' would report them as
+      // watch-less in User Manager's Garmin filter while the credential is
+      // still sitting on the row. Onboarding status only ever moves forward.
       const updateData: Record<string, any> = {
-        onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
+        onboarding_status: encryptedAuth || athlete.garmin_auth ? 'garmin_authed' : 'google_authed',
       };
       if (athlete.approved !== false) updateData.status = 'active';
       if (encryptedAuth) {
@@ -118,7 +124,7 @@ export async function POST(req: NextRequest) {
     // Check if athlete already exists by email
     const { data: existing } = await supabase
       .from('athletes')
-      .select('id, group_id, approved, status')
+      .select('id, group_id, approved, status, garmin_auth')
       .eq('email', email.toLowerCase())
       .maybeSingle();
 
@@ -133,7 +139,9 @@ export async function POST(req: NextRequest) {
 
       const updatePayload: Record<string, any> = {
         name,
-        onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
+        // Same forward-only rule as the invite branch above: a returning member
+        // signing in again must not be demoted to 'google_authed'.
+        onboarding_status: encryptedAuth || existing.garmin_auth ? 'garmin_authed' : 'google_authed',
         ...(groupId ? { group_id: groupId } : {}),
       };
       // Self-onboarding must not activate an unapproved user — coach approval

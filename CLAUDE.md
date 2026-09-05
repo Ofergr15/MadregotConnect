@@ -174,6 +174,15 @@ same detail the runner sees. The response is a full GPS trace — where someone 
 and when they were out — and that is now club-visible by product decision. It must
 never become public.
 
+Recorded exposure change, **2026-09-05**: `GET /api/join/groups?token=…` now also
+returns that invite's own athlete (`name`, `email`, `groupId`, `garminConnected`) so
+`/join/{token}` can stop asking an already-connected member for their Garmin password.
+The invite token is the credential — unguessable, one row, delivered to that person's
+inbox, and the same route already let its holder overwrite those fields. No new caller
+gains anything, but it is the first read of athlete PII on that endpoint: keep it
+token-scoped, and `garminConnected` stays a boolean (the credential is encrypted at
+rest and must never be serialised).
+
 **That related gap is now closed (2026-09-05):** `feed_items.payload.hiddenFields` (set
 in the share sheet) is enforced in `maskHiddenStats` inside `src/lib/feed/project.ts` —
 `calories` / `heart_rate` (both avg and max) / `pace` are blanked before the item leaves

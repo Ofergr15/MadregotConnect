@@ -45,6 +45,15 @@ export default function JoinPage() {
   const [mfaCode, setMfaCode] = useState('');
   const [mfaSessionId, setMfaSessionId] = useState('');
   const [skippedGarmin, setSkippedGarmin] = useState(false);
+  // The invite's athlete row already has a watch connected. Most people this
+  // link goes to are NOT new: the club has been running for a while, their
+  // Garmin credentials are on file and syncing. Asking them for that password
+  // again is both pointless and the step most likely to make them give up — so
+  // they still walk the whole flow, but the Garmin step shows "connected".
+  const [garminConnected, setGarminConnected] = useState(false);
+  // …unless they say otherwise. Someone who changed their Garmin account needs
+  // the credential form back, which this reveals.
+  const [reconnect, setReconnect] = useState(false);
   const [step, setStep] = useState<'auth' | 'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('auth');
   const [error, setError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -60,7 +69,17 @@ export default function JoinPage() {
       .then(data => {
         const fetchedGroups = data.groups || [];
         setGroups(fetchedGroups);
-        if (fetchedGroups.length === 1) {
+        // What the athlete already has on file, so the form asks only for what
+        // is genuinely missing. `name` comes back empty when it is still the
+        // placeholder derived from their address (see /api/join/groups).
+        const me = data.athlete;
+        if (me) {
+          if (me.name) setName(me.name);
+          if (me.email) setEmail(me.email);
+          if (me.groupId) setSelectedGroup(me.groupId);
+          setGarminConnected(!!me.garminConnected);
+        }
+        if (fetchedGroups.length === 1 && !me?.groupId) {
           setSelectedGroup(fetchedGroups[0].id);
         }
       })
@@ -95,6 +114,46 @@ export default function JoinPage() {
     }
 
     setStep('done');
+  };
+
+  /**
+   * Finish the join without posting Garmin credentials. Two callers, and the
+   * only difference is what the done screen says: `skipped` means "I'll do it
+   * later" (nothing is connected), while the already-connected athlete gets the
+   * full "you're connected" screen. /api/athletes/connect leaves an existing
+   * garmin_auth alone when the request carries none, so this is safe for both.
+   */
+  const finishWithoutCredentials = async (skipped: boolean) => {
+    setStep('connecting');
+    setError(null);
+    try {
+      const saveRes = await fetch('/api/athletes/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inviteToken: token,
+          name,
+          email,
+          groupId: selectedGroup || undefined,
+        }),
+      });
+      if (!saveRes.ok) {
+        const err = await saveRes.json().catch(() => ({}));
+        throw new Error(err.message || err.error || to('failedToSave'));
+      }
+      const data = await saveRes.json();
+      if (data.athlete) {
+        localStorage.setItem('athlete_id', data.athlete.id);
+        localStorage.setItem('athlete_name', data.athlete.name || name);
+        localStorage.setItem('athlete_email', data.athlete.email || email);
+        if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
+      }
+      setSkippedGarmin(skipped);
+      setStep('done');
+    } catch (err: any) {
+      setError(err.message);
+      setStep('garmin');
+    }
   };
 
   const handleInfoSubmit = (e: React.FormEvent) => {
@@ -244,8 +303,11 @@ export default function JoinPage() {
         {/* Header */}
         <div className="text-center mb-6">
           <h1 className="text-xl font-bold text-ink-700">{t('joinYourTeam')}</h1>
+          {/* "Connect your Garmin to get workouts" is the wrong promise for
+              someone whose watch has been connected for months — they are here
+              to finish an account, not to set one up. */}
           <p className="text-ink-400 mt-2 text-sm">
-            {t('connectGarminDesc')}
+            {garminConnected && !reconnect ? t('resumeDesc') : t('connectGarminDesc')}
           </p>
         </div>
 
@@ -332,8 +394,63 @@ export default function JoinPage() {
           </form>
         )}
 
+        {/* Step 3a: the watch is already connected — no password, just confirm.
+            The club's existing members all land here; only a genuinely new
+            runner (or someone switching Garmin accounts) sees the form below. */}
+        {(step === 'garmin' || step === 'connecting') && garminConnected && !reconnect && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="bg-accent-600/10 border border-accent-600/30 rounded-2xl p-4 flex items-start gap-3">
+              <span className="bg-accent-600/20 w-9 h-9 rounded-full flex items-center justify-center shrink-0">
+                <Watch className="h-4 w-4 text-accent-600" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-ink-700">{t('garminAlreadyConnected')}</p>
+                <p className="text-xs text-ink-400 mt-1 leading-relaxed">{t('garminAlreadyConnectedDesc')}</p>
+              </div>
+              <CheckCircle2 className="h-5 w-5 text-accent-600 shrink-0" />
+            </div>
+
+            {error && (
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red text-sm">
+                {error}
+              </div>
+            )}
+
+            <Button
+              type="button"
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={() => finishWithoutCredentials(false)}
+              disabled={step === 'connecting'}
+            >
+              {step === 'connecting' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {tc('loading')}
+                </>
+              ) : (
+                t('useExistingGarmin')
+              )}
+            </Button>
+
+            <Button type="button" variant="ghost" className="w-full" onClick={() => setStep('info')} disabled={step === 'connecting'}>
+              {tc('back')}
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => { setReconnect(true); setError(null); }}
+              disabled={step === 'connecting'}
+              className="w-full min-h-[44px] text-xs font-medium text-ink-400 hover:text-ink-700 transition-colors disabled:opacity-50"
+            >
+              {t('connectDifferentGarmin')}
+            </button>
+          </div>
+        )}
+
         {/* Step 3: Garmin credentials (one-time special logic) */}
-        {(step === 'garmin' || step === 'connecting') && (
+        {(step === 'garmin' || step === 'connecting') && !(garminConnected && !reconnect) && (
           <form onSubmit={handleGarminSubmit} className="space-y-4 animate-fade-in">
             <div className="bg-page/50 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-brand-600 mt-0.5 shrink-0" />
@@ -398,7 +515,12 @@ export default function JoinPage() {
               )}
             </Button>
 
-            <Button type="button" variant="ghost" className="w-full" onClick={() => setStep('info')}>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => { setStep('info'); setReconnect(false); }}
+            >
               {tc('back')}
             </Button>
 
@@ -406,37 +528,10 @@ export default function JoinPage() {
               type="button"
               variant="secondary"
               className="w-full"
-              onClick={async () => {
-                setStep('connecting');
-                try {
-                  const saveRes = await fetch('/api/athletes/connect', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      inviteToken: token,
-                      name,
-                      email,
-                      groupId: selectedGroup || undefined,
-                    }),
-                  });
-                  if (!saveRes.ok) {
-                    const err = await saveRes.json();
-                    throw new Error(err.message || err.error || to('failedToSave'));
-                  }
-                  const data = await saveRes.json();
-                  if (data.athlete) {
-                    localStorage.setItem('athlete_id', data.athlete.id);
-                    localStorage.setItem('athlete_name', data.athlete.name || name);
-                    localStorage.setItem('athlete_email', data.athlete.email || email);
-                    if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
-                  }
-                  setSkippedGarmin(true);
-                  setStep('done');
-                } catch (err: any) {
-                  setError(err.message);
-                  setStep('garmin');
-                }
-              }}
+              // `false` when a watch is already on the row: they backed out of
+              // switching accounts, so the done screen must not tell them
+              // nothing is connected.
+              onClick={() => finishWithoutCredentials(!garminConnected)}
               disabled={step === 'connecting'}
             >
               {to('connectLater')}
