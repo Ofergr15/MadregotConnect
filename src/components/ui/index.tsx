@@ -377,6 +377,13 @@ export function BigStat({
 // iOS-style segmented control: a track with equal segments and a highlighted
 // selected pill. Replaces the ad-hoc `flex bg-… rounded-xl p-1` toggles.
 // RTL-safe (uses flex order, no absolute thumb math). Generic over the value.
+//
+// ⚠️ `min-w-0` on the segments is load-bearing, not tidying. A flex item defaults
+// to min-width:auto, so `flex-1` alone can grow a segment but can never shrink it
+// below its text — five segments of long labels made the whole track wider than
+// the phone and pushed the screen sideways (the feedback inbox's category filter
+// did exactly that). With min-w-0 + truncate the track always fits and a label
+// that can't is clipped instead.
 export function SegmentedControl<T extends string>({
   value,
   onChange,
@@ -388,7 +395,18 @@ export function SegmentedControl<T extends string>({
   // tapping it does nothing (its onClick short-circuits on already-active).
   value: T | null;
   onChange: (v: T) => void;
-  options: Array<{ value: T; label: string; icon?: React.ComponentType<{ className?: string }>; activeBg?: string }>;
+  options: Array<{
+    value: T;
+    label: string;
+    icon?: React.ComponentType<{ className?: string }>;
+    activeBg?: string;
+    /**
+     * Show the icon only, and use `label` as the accessible name. For a control
+     * with too many segments to label on a phone — an icon nobody can read the
+     * name of still beats a track that runs off the screen.
+     */
+    iconOnly?: boolean;
+  }>;
   className?: string;
 }) {
   return (
@@ -400,15 +418,18 @@ export function SegmentedControl<T extends string>({
           <button
             key={opt.value}
             onClick={() => { if (!active) { try { navigator.vibrate?.(6); } catch { /* no-op */ } onChange(opt.value); } }}
+            aria-label={opt.iconOnly ? opt.label : undefined}
+            title={opt.iconOnly ? opt.label : undefined}
+            aria-pressed={active}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 rounded-pill px-2 py-2 text-sm font-bold transition-colors min-h-[40px]',
+              'min-w-0 flex-1 flex items-center justify-center gap-1.5 rounded-pill px-2 py-2 text-sm font-bold transition-colors min-h-[40px]',
               active
                 ? cn(opt.activeBg || 'bg-brand-600', 'text-white shadow-sm')
                 : 'text-ink-400 hover:text-ink-700',
             )}
           >
-            {Icon && <Icon className="h-4 w-4" />}
-            {opt.label}
+            {Icon && <Icon className="h-4 w-4 shrink-0" />}
+            {!opt.iconOnly && <span className="truncate">{opt.label}</span>}
           </button>
         );
       })}
