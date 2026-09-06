@@ -9,7 +9,6 @@ import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
 import { WORKOUT_TYPE_TEXT_COLORS, WORKOUT_TYPE_LABELS, planDayKey } from '@/lib/plans/workout-parsing';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import CoreRunnerBadge from '@/components/CoreRunnerBadge';
-import { CORE_RUNNER_LABEL_PLURAL } from '@/lib/core-runner';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import type { FeedItem } from '@/lib/feed/project';
 
@@ -88,11 +87,10 @@ export function ProfileOverview({
   // with the nav and Settings, so it costs no extra request.
   const { data: me } = useApi<{ isCoreRunner?: boolean }>('/api/auth/me');
   const isCore = me?.isCoreRunner === true;
-  // Only for core runners, and only to count: the badge below promises "N
-  // הטבות", and a promise with no number on it is the kind of row nobody taps.
-  // Same key the Benefits screen uses, so opening it is already warm.
-  const { data: perks } = useApi<{ perks?: Array<{ tier?: string }> }>(isCore ? '/api/perks' : null);
-  const corePerkCount = (perks?.perks || []).filter(p => p.tier === 'core_runner').length;
+  // Used for the mark beside the name and nothing else. There is deliberately no
+  // perks row on this screen: the entitlement explains itself where the perks
+  // actually are (Partnerships names the tier on the exclusive ones), so a
+  // second entry point here was a signpost to a place the user was already going.
 
   const { data: weekly } = useApi<WeeklyData>('/api/dashboard/weekly');
   const { data: reminder } = useApi<{ config?: ReminderCfg }>('/api/reminder-config');
@@ -218,29 +216,6 @@ export function ProfileOverview({
           </div>
         </div>
       </div>
-
-      {/* ═══ הגרעין — only for core runners ═══
-          The badge alone says "you are in"; this row says what that is WORTH,
-          which is the whole point of the tier (a free LIFT membership, a HOKA
-          allocation, a ₪200 monthly Podium credit). It is a link because those
-          perks live one screen away and nobody would guess that from an emoji. */}
-      {isCore && (
-        <Link
-          href="/dashboard/benefits"
-          className="flex items-center gap-3 rounded-card bg-card p-4 active:opacity-90"
-        >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600/10 text-base">
-            <CoreRunnerBadge />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xl font-bold text-ink-700">{CORE_RUNNER_LABEL_PLURAL}</p>
-            <p className="text-xs font-light text-ink-400">
-              {corePerkCount > 0 ? `${corePerkCount} הטבות מיוחדות שלך` : 'ההטבות המיוחדות שלך'}
-            </p>
-          </div>
-          <ChevronLeft className="h-4 w-4 shrink-0 text-ink-400" />
-        </Link>
-      )}
 
       {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
       <SetupProgressCard onOpen={onOpenSetup} />

@@ -1995,7 +1995,9 @@
     "noPerks": "No partnerships yet",
     "discountCode": "Discount Code",
     "goToSponsor": "Go to Sponsor",
-    "coreRunnerBadge": "Core Runner Exclusive"
+    "coreRunnerBadge": "Core Runner Exclusive",
+    "coreMemberTitle": "You are a Core Runner",
+    "coreMemberNote": "{count} of these partnerships are open to Core Runners only, and are tagged below."
   },
   "surveys": {
     "title": "Survey",

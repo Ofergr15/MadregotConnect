@@ -6,6 +6,7 @@ import { Gift, Copy, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { Card, Button, EmptyState, SkeletonCard, Sheet } from '@/components/ui';
+import CoreRunnerBadge from '@/components/CoreRunnerBadge';
 
 interface Perk {
   id: string;
@@ -40,6 +41,19 @@ function BenefitsPageContent() {
   const { data, isLoading } = useApi<{ perks: Perk[] }>('/api/perks');
   const perks = data?.perks || [];
 
+  // הגרעין (migration 091). This is the screen that EXPLAINS the tier, which is
+  // why the flag is read here rather than signposted from the profile: the
+  // exclusive perks are already tagged below, and this banner is what turns those
+  // tags from a restriction into an entitlement — "these are tagged because you
+  // are in" instead of "some of these might not be for you".
+  //
+  // Staff and the super user see the core-tier perks too (see /api/perks), but
+  // they are not IN the גרעין, so the banner is gated on the flag alone. Claiming
+  // membership to an admin reviewing the catalogue would simply be wrong.
+  const { data: me } = useApi<{ isCoreRunner?: boolean }>('/api/auth/me');
+  const corePerks = perks.filter((p) => p.tier === 'core_runner');
+  const showCoreBanner = me?.isCoreRunner === true && corePerks.length > 0;
+
   const title = (p: Perk) => (locale === 'he' ? p.titleHe : p.titleEn);
   const description = (p: Perk) => (locale === 'he' ? p.descriptionHe : p.descriptionEn);
 
@@ -66,6 +80,20 @@ function BenefitsPageContent() {
       <h1 className="text-2xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
       <p className="text-sm text-ink-400" dir="rtl">{t('subtitle')}</p>
 
+      {showCoreBanner && (
+        <div className="flex items-center gap-3 rounded-card bg-card p-3.5" dir="rtl">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-600/15 text-base">
+            <CoreRunnerBadge />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-ink-700">{t('coreMemberTitle')}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-ink-400">
+              {t('coreMemberNote', { count: corePerks.length })}
+            </p>
+          </div>
+        </div>
+      )}
+
       {isLoading && !data ? (
         <div className="grid grid-cols-2 gap-3">
           {Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} className="h-44" />)}
@@ -89,7 +117,10 @@ function BenefitsPageContent() {
                   <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{title(p)}</p>
                   <p className="text-xs text-ink-400 truncate mt-0.5" dir="auto">{p.sponsorName}</p>
                   {p.tier === 'core_runner' && (
-                    <span className="inline-block self-start mt-1.5 text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
+                    <span className="inline-flex items-center gap-1 self-start mt-1.5 text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
+                      {/* The same 🌰 as the banner above and the profile name, so
+                          the tag reads as "yours" at a glance rather than as a lock. */}
+                      <CoreRunnerBadge />
                       {t('coreRunnerBadge')}
                     </span>
                   )}
@@ -114,7 +145,8 @@ function BenefitsPageContent() {
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-brand-600" dir="auto">{perk.sponsorName}</p>
               {perk.tier === 'core_runner' && (
-                <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
+                <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
+                  <CoreRunnerBadge />
                   {t('coreRunnerBadge')}
                 </span>
               )}
