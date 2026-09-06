@@ -153,6 +153,46 @@ describe('the two force-adds no permission row can express', () => {
   }
 });
 
+describe('the גרעין adds tabs instead of replacing them', () => {
+  // Same shape as the academy flag, and for the same reason: membership is
+  // `athletes.is_core_runner` (migration 091), so no role row can express it.
+  const core = (role: string) =>
+    tabsFor({ permissions, effectiveRole: role, isAthlete: true, isCoreRunner: true });
+
+  it('grants a plain runner the core squad extras', () => {
+    // `plan/new` is the one tab the production core_runner row adds over runner,
+    // so it is the observable difference.
+    expect(tabsFor({ permissions, effectiveRole: 'runner', isAthlete: true })).not.toContain('plan/new');
+    expect(core('runner')).toContain('plan/new');
+  });
+
+  it('keeps a coach a coach — the whole point of splitting the flag off the role', () => {
+    // Before 091 this was unrepresentable: marking a coach as core rewrote their
+    // role and demoted them out of staff.
+    const coach = core('coach');
+    for (const staffOnly of ['athletes', 'groups', 'settings', 'workout-feedback']) {
+      expect(coach, `core coach lost ${staffOnly}`).toContain(staffOnly);
+    }
+  });
+
+  it('does not duplicate a tab the role already grants', () => {
+    expect(core('runner').filter((t) => t === 'program')).toHaveLength(1);
+  });
+
+  it('changes nothing for someone not in the גרעין', () => {
+    expect(core('runner')).not.toEqual(tabsFor({ permissions, effectiveRole: 'runner', isAthlete: true }));
+    expect(tabsFor({ permissions, effectiveRole: 'runner', isAthlete: true, isCoreRunner: false }))
+      .toEqual(tabsFor({ permissions, effectiveRole: 'runner', isAthlete: true }));
+  });
+
+  it('is ignored while previewing another role', () => {
+    // A view-as preview must show what the PREVIEWED member sees, and the
+    // previewer's own membership is not theirs.
+    expect(tabsFor({ permissions, effectiveRole: 'runner', previewRole: 'runner', isCoreRunner: true }))
+      .not.toContain('plan/new');
+  });
+});
+
 describe('view-as previews', () => {
   it('gives a previewed athlete role the profile tab even from a staff account', () => {
     // The super-user has no athlete row in this case; previewing `runner` should

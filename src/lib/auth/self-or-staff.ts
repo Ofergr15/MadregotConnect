@@ -50,6 +50,13 @@ export interface VerifiedCaller {
    * `requireSession` already selected it.
    */
   role: string;
+  /**
+   * In the club's core squad (הגרעין) — the premium perk tier. A FLAG, not a
+   * role: a coach can be in the גרעין, which `role` alone cannot express. See
+   * src/lib/core-runner.ts and migration 091. It already accounts for the legacy
+   * `role = 'core_runner'`, so callers should ask this and not compare the role.
+   */
+  isCoreRunner: boolean;
 }
 
 /**
@@ -81,7 +88,7 @@ export async function resolveVerifiedCaller(
   if (!auth.ok) {
     return {
       denied: authError(auth),
-      caller: { email: '', isSuperUser: false, canApprove: false, isStaff: false, athleteId: null, role: '' },
+      caller: { email: '', isSuperUser: false, canApprove: false, isStaff: false, athleteId: null, role: '', isCoreRunner: false },
     };
   }
   return {
@@ -96,6 +103,7 @@ export async function resolveVerifiedCaller(
       isStaff: auth.user.isStaff,
       athleteId: auth.user.athleteId,
       role: auth.user.role,
+      isCoreRunner: auth.user.isCoreRunner,
     },
   };
 }

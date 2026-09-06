@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { isCoreRunner } from '@/lib/core-runner';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -22,8 +23,17 @@ export async function GET(request: Request) {
     if (denied) return denied;
     // Staff review the full catalogue (there's an admin screen behind it), and
     // the super user sees everything by convention.
-    const isCoreRunner =
-      caller.role === 'core_runner' || caller.isStaff || caller.isSuperUser;
+    //
+    // The membership half no longer compares
+    // `role === 'core_runner'`: the גרעין is a flag as of migration 091, so a
+    // coach who is also a core runner is finally expressible — and comparing the
+    // role would have kept saying "no" for exactly those people. The helper still
+    // honours the legacy role value, so this is not a behaviour change for anyone
+    // tagged the old way.
+    // isCoreRunner(caller) rather than caller.isCoreRunner: the predicate also
+    // reads the legacy `role = 'core_runner'`, so the entitlement survives any
+    // caller shape that carries the role but not the flag.
+    const seesCoreTier = isCoreRunner(caller) || caller.isStaff || caller.isSuperUser;
 
     const supabase = createServerClient();
 
@@ -32,7 +42,7 @@ export async function GET(request: Request) {
       .select('id, sponsor_name, title_he, title_en, description_he, description_en, discount_code, redeem_url, image_url, tier')
       .eq('active', true)
       .order('sort_order', { ascending: true });
-    if (!isCoreRunner) query = query.eq('tier', 'all');
+    if (!seesCoreTier) query = query.eq('tier', 'all');
     const { data, error } = await query;
     if (error) {
       if ((error as { code?: string }).code === 'PGRST205') return NextResponse.json({ perks: [] });

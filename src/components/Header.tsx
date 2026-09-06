@@ -56,7 +56,7 @@ export function Header() {
   const permissions = permsData?.permissions || [];
   const permissionsLoaded = !permsLoading;
 
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean }>(
+  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
     userEmail ? '/api/auth/me' : null,
   );
   const userRole = meData?.role || null;
@@ -65,6 +65,7 @@ export function Header() {
   // entry that no permission row can express. The bar has always read it; this
   // header didn't, which is the drift the shared resolver closes.
   const isAcademyMember = !!meData?.isAcademy;
+  const isCoreRunner = !!meData?.isCoreRunner;
 
   // Also shared — NotificationCenter and the profile page ask for it too.
   const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>>(
@@ -156,6 +157,7 @@ export function Header() {
         previewRole,
         isAthlete,
         isAcademyMember,
+        isCoreRunner,
         // An empty header nav would leave a signed-in user with nowhere to go.
         fallback: true,
       })

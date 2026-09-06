@@ -71,6 +71,20 @@ export interface NavResolutionInput {
   /** The `is_academy` flag from /api/auth/me. */
   isAcademyMember?: boolean;
   /**
+   * The `isCoreRunner` flag from /api/auth/me (migration 091).
+   *
+   * ADDITIVE, exactly like `isAcademyMember` below and for the same reason: the
+   * גרעין is a flag, not a role, so no single permission row can describe "a
+   * coach who is also a core runner". Whatever `role_tab_permissions` grants the
+   * legacy `core_runner` role is UNIONED onto what this account's own role
+   * grants. It can never take a tab away.
+   *
+   * That reuse is the point: the capabilities of the גרעין stay editable in the
+   * Settings → permissions matrix that already has a `core_runner` column, so
+   * granting the squad a new page is one toggle and no code.
+   */
+  isCoreRunner?: boolean;
+  /**
    * When true, a role that resolves to nothing gets [dashboard, profile] rather
    * than an empty list. The two nav CHROMES want that (an empty bar or header
    * would strand the user with no way out); Search does not — it just has no
@@ -89,10 +103,20 @@ export function resolveNavItems({
   previewRole = null,
   isAthlete = false,
   isAcademyMember = false,
+  isCoreRunner = false,
   fallback = false,
 }: NavResolutionInput): NavItem[] {
   if (!effectiveRole) return [];
   const enabled = permissions.filter(p => p.role === effectiveRole && p.enabled).map(p => p.tab);
+
+  // הגרעין's own grants, unioned in. Skipped while previewing another role —
+  // "view as runner" has to show what a runner sees, and the previewer's own
+  // squad membership is not part of that.
+  if (isCoreRunner && !previewRole) {
+    for (const p of permissions) {
+      if (p.role === 'core_runner' && p.enabled && !enabled.includes(p.tab)) enabled.push(p.tab);
+    }
+  }
   // Admin can always reach settings — otherwise revoking that one row locks the
   // only account that can grant it back out of the permissions editor.
   if (effectiveRole === 'admin' && !enabled.includes('settings')) enabled.push('settings');
@@ -143,7 +167,7 @@ export function useNavIdentity() {
   );
   const permissions = permsData?.permissions || [];
 
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean }>(
+  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
     hasEmail ? '/api/auth/me' : null,
   );
   const isSuper = localSuper || !!meData?.isSuper;
@@ -183,6 +207,7 @@ export function useNavIdentity() {
     isSuper,
     isAthlete,
     isAcademyMember: !!meData?.isAcademy,
+    isCoreRunner: !!meData?.isCoreRunner,
     ready: !permsLoading && !!effectiveRole,
     isStaffView: effectiveRole ? STAFF_ROLES.includes(effectiveRole) : false,
   };

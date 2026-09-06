@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { isCoreRunner } from '@/lib/core-runner';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { containsPattern, quoteFilterValue } from '@/lib/db/like';
 
@@ -39,9 +40,13 @@ export async function GET(request: Request) {
 
     // Mirrors GET /api/perks's tier gate exactly — a core_runner-tier perk must
     // stay invisible to everyone else, including via search. Same fix, too: the
-    // tier is the CALLER's own, not that of whatever id they sent.
-    const isCoreRunner =
-      caller.role === 'core_runner' || caller.isStaff || caller.isSuperUser;
+    // tier is the CALLER's own, not that of whatever id they sent. Reads the
+    // גרעין FLAG (migration 091), so it agrees with /api/perks for a coach who is
+    // also a core runner; if you change one of these gates, change both.
+    // isCoreRunner(caller) rather than caller.isCoreRunner: the predicate also
+    // reads the legacy `role = 'core_runner'`, so the entitlement survives any
+    // caller shape that carries the role but not the flag.
+    const seesCoreTier = isCoreRunner(caller) || caller.isStaff || caller.isSuperUser;
 
     let perksQuery = supabase
       .from('club_perks')
@@ -49,7 +54,7 @@ export async function GET(request: Request) {
       .eq('active', true)
       .or(`title_he.ilike.${filterPattern},title_en.ilike.${filterPattern},sponsor_name.ilike.${filterPattern}`)
       .limit(RESULT_LIMIT);
-    if (!isCoreRunner) perksQuery = perksQuery.eq('tier', 'all');
+    if (!seesCoreTier) perksQuery = perksQuery.eq('tier', 'all');
 
     const [membersRes, eventsRes, productsRes, perksRes] = await Promise.all([
       supabase

@@ -98,6 +98,8 @@ describe('requireSession — duplicate emails must not lock anyone out', () => {
       // future field can't appear on the session unnoticed.
       isSuperUser: false,
       canApprove: false,
+      // Migration 091: הגרעין is a flag too, and a plain runner is not in it.
+      isCoreRunner: false,
     });
     // No coaches fallback when an athlete row was found.
     expect(reads.map(r => r.table)).toEqual(['athletes']);
