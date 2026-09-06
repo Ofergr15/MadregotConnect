@@ -117,23 +117,38 @@ export function getHRZone(
 }
 
 /**
- * The pace ramp, fast → slow: green, teal, sky, blue.
+ * The pace ramp, fast → slow: one hue, light → dark.
  *
  * It started as green → yellow → orange → red, which is the obvious choice and
  * the wrong one here:
  *  - **Red/green is the one pair ~8% of men cannot separate**, and this is a
- *    running club. A green-to-blue ramp stays readable under both common forms of
- *    colour blindness, because it varies in hue *and* in lightness.
+ *    running club.
  *  - **Red already means something in this app** — the end-of-route marker, zone 5,
  *    the bad side of every stat. Painting the slowest kilometre in it passes a
  *    judgement the app has no business passing: a recovery kilometre is *supposed*
  *    to be slow, and so is the last one of a long run.
  *
- * Also the direction of travel matters more than the exact hues: what a reader
- * needs from the line is "this part was faster than that part", and a single-family
- * ramp reads as an ordered scale rather than four unrelated states.
+ * It then became green → teal → sky → blue on the theory that varying hue *and*
+ * lightness is safe. Measured, it varied hue and almost nothing else: adjacent
+ * OKLCH ΔL of **0.019** across the first three steps against a 113° hue spread, so
+ * every bit of the information lived in hue. Green↔teal came out at ΔE 11.3 for
+ * **normal** vision (the floor is 15, i.e. full-colour readers couldn't separate
+ * it either), 10.4 deutan, and 2.0 tritan — a total collapse. And three of the
+ * four steps sat under 3:1 against a light basemap, which is the floor for a mark.
+ * The practical effect: on a steady run most kilometres bucket into steps 0–1,
+ * which are exactly the pair that collapses, so the colouring showed nothing.
+ *
+ * So: one hue, monotone lightness, which is what an ordered magnitude scale is
+ * supposed to be. Fast is the light end and slow is the dark end (more minutes per
+ * km = more ink), step 2 is the brand blue, and nothing lighter than `#60a5fa` is
+ * available because that is where the 2:1 light-end contrast floor lands. Hue is
+ * no longer load-bearing, so CVD can't take the scale away.
+ *
+ * The direction of travel is still the point: what a reader needs from the line is
+ * "this part was faster than that part", and a single-hue ramp reads as an ordered
+ * scale rather than four unrelated states.
  */
-export const PACE_COLOR_RAMP = ['#22c55e', '#14b8a6', '#0ea5e9', '#2563eb'] as const;
+export const PACE_COLOR_RAMP = ['#60a5fa', '#3b82f6', '#1525FF', '#111a99'] as const;
 
 /**
  * A pace's colour, normalised against the fastest and slowest split of the *same*

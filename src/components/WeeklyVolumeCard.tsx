@@ -140,6 +140,7 @@ export function WeeklyVolumeCard({ athleteId }: Props) {
   if (volumes.length <= 1) return null;
 
   const maxKm = Math.max(...volumes.map(w => w.km), 1);
+  const peakIdx = volumes.reduce((best, w, i) => (w.km > volumes[best].km ? i : best), 0);
 
   return (
     <section className="bg-card rounded-card border border-page p-4 sm:p-5">
@@ -198,9 +199,20 @@ export function WeeklyVolumeCard({ athleteId }: Props) {
           const barH = Math.max(10, Math.round((w.km / maxKm) * 65));
           return (
             <div key={i} className="flex flex-col items-center justify-end flex-1 min-w-0" style={{ height: '100px' }}>
-              <span className={cn('text-3xs font-bold mb-1 tabular-nums', isLast ? 'text-[#fc5200]' : 'text-ink-700/70')}>{w.km}</span>
+              {/* Values on the peak and the current week only, and in ink rather
+                  than the mark's own colour — a number wears a text token, the bar
+                  beside it carries the identity. */}
+              <span className={cn('text-3xs font-bold mb-1 tabular-nums', isLast ? 'text-ink-700' : 'text-ink-500')}>
+                {isLast || i === peakIdx ? w.km : ' '}
+              </span>
+              {/* Was #fc5200 for the current week on bg-ink-300 bars. That orange is
+                  the "behind target" status on the progress bar right above, so the
+                  same colour meant two things in one card; and VolumeHistory marked
+                  the current period a third colour. One rule now, in both places:
+                  the series is brand at /55 and the current period is full brand,
+                  i.e. the emphasised bar is the darkest rather than a second hue. */}
               <div
-                className={cn('rounded-full w-3', isLast ? 'bg-[#fc5200]' : 'bg-ink-300')}
+                className={cn('rounded-full w-3', isLast ? 'bg-brand-600' : 'bg-brand-600/55')}
                 style={{ height: `${barH}px` }}
               />
               <span className={cn('text-3xs mt-1 tabular-nums', isLast ? 'text-ink-700' : 'text-ink-400')}>{w.week}</span>
