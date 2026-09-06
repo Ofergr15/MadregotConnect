@@ -5,6 +5,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { StoredPaceProfile } from '@/lib/garmin/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
+import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
+import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { notifyAthlete } from '@/lib/push';
 import { planPushedCopy } from '@/lib/notifications/copy';
 import { authError, requireSession } from '@/lib/auth-session';
@@ -81,6 +83,14 @@ export async function POST(req: NextRequest) {
 
     const results: PushResult[] = [];
 
+    // Normalized here so every delivery can record which published part it was.
+    // `workoutKey` is what an activity carrying a Garmin workout id resolves to
+    // (migration 092), and the planner UI posts whatever it happens to hold — for
+    // a plan saved before the write paths normalized, that's no key at all. The
+    // keys are deterministic, so normalizing again is a no-op on anything that
+    // already has them. See lib/plans/normalize-plan.ts.
+    const plannedWorkouts = normalizeWorkoutParts({ workouts: workouts as ParsedWorkout[] }).workouts;
+
     // Academy pace-zone alerts are on by default but coach-toggleable in settings.
     const { paceAlerts } = await loadAcademySettings();
 
@@ -116,7 +126,7 @@ export async function POST(req: NextRequest) {
         const deliveredWorkoutIds: string[] = [];
         const deliveryRowIds: string[] = [];
 
-        for (const workout of workouts as ParsedWorkout[]) {
+        for (const workout of plannedWorkouts) {
           const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget });
 
           // Calculate the actual date for this workout
@@ -167,18 +177,34 @@ export async function POST(req: NextRequest) {
           // on the account. The promotion below is the only thing that writes
           // 'success'.
           if (planId) {
-            const { data: row, error: rowError } = await supabase
+            const delivery = {
+              plan_id: planId,
+              athlete_id: athlete.id,
+              workout_date: dateStr,
+              workout_data: garminWorkout,
+              garmin_workout_id: workoutId,
+              // Which published part this is, so an activity Garmin stamps with
+              // `workoutId` resolves to an exact plan slot instead of being
+              // re-derived from the date — ambiguous on a double day.
+              workout_key: workout.workoutKey || null,
+              status: 'pending',
+            };
+            let { data: row, error: rowError } = await supabase
               .from('workout_deliveries')
-              .insert({
-                plan_id: planId,
-                athlete_id: athlete.id,
-                workout_date: dateStr,
-                workout_data: garminWorkout,
-                garmin_workout_id: workoutId,
-                status: 'pending',
-              })
+              .insert(delivery)
               .select('id')
               .single();
+            if (isMissingColumn(rowError, 'workout_key')) {
+              // Migration 092 not applied yet: record the delivery without it.
+              // Exact attribution needs the column, but a push must not fail over
+              // a column that only makes matching better.
+              const { workout_key: _unmigrated, ...withoutKey } = delivery;
+              ({ data: row, error: rowError } = await supabase
+                .from('workout_deliveries')
+                .insert(withoutKey)
+                .select('id')
+                .single());
+            }
             if (rowError) {
               throw new Error(`Pushed to Garmin but could not record the delivery: ${rowError.message}`);
             }

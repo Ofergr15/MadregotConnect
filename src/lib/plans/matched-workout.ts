@@ -9,6 +9,7 @@ import {
   findComputedActivityMatch,
   isMissingMatchesTable,
   matchAthleteActivities,
+  type MatchMethod,
 } from '@/lib/plans/match-athlete-activities';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
@@ -17,7 +18,7 @@ export interface MatchedWorkout {
   weeklyPlanId: string;
   workoutKey: string;
   groupNumber: number;
-  matchMethod: 'auto' | 'manual';
+  matchMethod: MatchMethod;
   score: number | null;
   workout: ParsedWorkout;
   plannedText: string;
@@ -92,7 +93,9 @@ function toMatchedWorkout(
     weeklyPlanId: computed.weeklyPlanId,
     workoutKey: computed.workoutKey,
     groupNumber: computed.groupNumber,
-    matchMethod: 'auto',
+    // Whatever the computation actually was — 'garmin_workout' when the watch
+    // named the workout itself. Hardcoding 'auto' here reported a fact as a guess.
+    matchMethod: computed.matchMethod,
     score: computed.score,
     workout: computed.workout,
     plannedText,
@@ -102,7 +105,7 @@ function toMatchedWorkout(
         weeklyPlanId: computed.weeklyPlanId,
         workoutKey: computed.workoutKey,
         groupNumber: computed.groupNumber,
-        matchMethod: 'auto',
+        matchMethod: computed.matchMethod,
         matchScore: computed.score,
       },
       structured: computed.workout,

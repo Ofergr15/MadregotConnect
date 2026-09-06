@@ -32,8 +32,17 @@ function summarize(response: unknown): string {
   return text.length > 160 ? `${text.slice(0, 160)}…` : text;
 }
 
-/** Garmin ids are large positive integers; everything falsy-shaped is a failure. */
-function readId(value: unknown): string | null {
+/**
+ * Garmin ids are large positive integers; everything falsy-shaped is absent.
+ *
+ * Exported because the same rule applies wherever a Garmin id is read out of an
+ * untyped response — notably the `workoutId` an activity carries when it was run
+ * from a scheduled workout (`lib/garmin/activity-detail.ts`), which arrives as a
+ * number, a string, or `null` depending on which of Garmin's endpoints answered.
+ * Ids are kept as strings so they round-trip through TEXT columns without a
+ * float-precision hazard.
+ */
+export function readGarminId(value: unknown): string | null {
   if (value == null || typeof value === 'boolean') return null;
   const str = String(value).trim();
   // '0' is not an id Garmin issues — it's what a coerced null/false looks like.
@@ -54,7 +63,7 @@ function readDate(value: unknown): string | null {
  * from this has a workout id Garmin issued.
  */
 export function readCreatedWorkoutId(response: unknown): string {
-  const id = readId((response as { workoutId?: unknown } | null | undefined)?.workoutId);
+  const id = readGarminId((response as { workoutId?: unknown } | null | undefined)?.workoutId);
   if (!id) {
     throw new Error(
       `Garmin accepted the request but returned no workout id, so nothing was created ` +
@@ -88,7 +97,7 @@ export function readScheduleConfirmation(response: unknown, expectedDate: string
   const body = (response ?? {}) as Record<string, unknown>;
   const nested = (body.workoutSchedule ?? {}) as Record<string, unknown>;
 
-  const scheduleId = readId(body.workoutScheduleId ?? body.scheduleId ?? nested.workoutScheduleId ?? body.id);
+  const scheduleId = readGarminId(body.workoutScheduleId ?? body.scheduleId ?? nested.workoutScheduleId ?? body.id);
   const calendarDate = readDate(body.calendarDate ?? body.date ?? nested.calendarDate);
 
   if (calendarDate && calendarDate !== expectedDate) {
@@ -105,7 +114,7 @@ export function readScheduleConfirmation(response: unknown, expectedDate: string
  * Throws if Garmin returns nothing, or returns a different workout.
  */
 export function assertWorkoutOnAccount(detail: unknown, workoutId: string): void {
-  const found = readId((detail as { workoutId?: unknown } | null | undefined)?.workoutId);
+  const found = readGarminId((detail as { workoutId?: unknown } | null | undefined)?.workoutId);
   if (!found) {
     throw new Error(
       `Garmin has no workout ${workoutId} on the athlete's account — the push did not stick ` +

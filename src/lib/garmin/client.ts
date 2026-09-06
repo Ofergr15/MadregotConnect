@@ -3,6 +3,7 @@ import { GarminAuth, GarminWorkout, GarminActivity } from './types';
 import {
   assertWorkoutOnAccount,
   readCreatedWorkoutId,
+  readGarminId,
   readScheduleConfirmation,
   type ScheduleConfirmation,
 } from './delivery';
@@ -139,6 +140,7 @@ export class GarminClient {
       endLongitude: a.endLongitude || null,
       hasPolyline: a.hasPolyline || false,
       steps: a.steps || null,
+      workoutId: readGarminId(a.workoutId),
     }));
   }
 

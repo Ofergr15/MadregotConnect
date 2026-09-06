@@ -97,7 +97,9 @@ interface MatchReviewData {
   matches: Array<{
     activity_id: string;
     workout_key: string;
-    match_method: 'auto' | 'manual';
+    // 'garmin_workout' = the activity carried the id of the workout we pushed,
+    // so this pairing is the watch's own answer rather than a scored guess.
+    match_method: 'auto' | 'manual' | 'garmin_workout';
     score: number | null;
   }>;
   athletes: Array<{ id: string; name: string }>;
@@ -1853,10 +1855,22 @@ export default function WeeklyPlannerPage() {
                                 'rounded-full px-2 py-0.5 text-[9px] font-bold uppercase',
                                 match.match_method === 'manual'
                                   ? 'bg-purple-500/15 text-purple-800'
-                                  : 'bg-accent-600/15 text-accent-900',
+                                  : match.match_method === 'garmin_workout'
+                                    ? 'bg-emerald-500/15 text-emerald-800'
+                                    : 'bg-accent-600/15 text-accent-900',
                               )}>
-                                {match.match_method === 'manual' ? t('matchManual') : t('matchAuto')}
-                                {match.score != null ? ` ${Math.round(match.score)}` : ''}
+                                {match.match_method === 'manual'
+                                  ? t('matchManual')
+                                  : match.match_method === 'garmin_workout'
+                                    ? t('matchGarmin')
+                                    : t('matchAuto')}
+                                {/* Only the scored guess shows its score. A
+                                    garmin_workout match carries a flat 100 that
+                                    would read as a confidence rating for
+                                    something that was never estimated. */}
+                                {match.match_method === 'auto' && match.score != null
+                                  ? ` ${Math.round(match.score)}`
+                                  : ''}
                               </span>
                             )}
                           </div>

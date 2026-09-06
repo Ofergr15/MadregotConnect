@@ -334,6 +334,7 @@
     "refreshMatches": "רענן התאמות",
     "noMatchedWorkout": "אין אימון מותאם",
     "matchAuto": "אוטומטי",
+    "matchGarmin": "מהשעון",
     "matchManual": "ידני",
     "partLabel": "חלק {index}/{count}",
     "runFallback": "ריצה",
@@ -427,7 +428,8 @@
     "colError": "שגיאה",
     "statusPending": "ממתין",
     "statusSuccess": "נשלח",
-    "statusFailed": "נכשל"
+    "statusFailed": "נכשל",
+    "ranOnWatchOn": "בוצע מהשעון {date}"
   },
   "workoutEditor": {
     "stepWarmup": "חימום",

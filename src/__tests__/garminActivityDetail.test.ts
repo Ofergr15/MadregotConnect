@@ -128,4 +128,37 @@ describe('mapActivityDetail', () => {
     expect(out.perceived_rpe).toBeNull();
     expect(out.perceived_feel).toBeNull();
   });
+
+  // The proof a pushed workout reached the watch: Garmin stamps the resulting
+  // activity with the id of the structured workout it was started from, and files
+  // it under a different name in each response shape.
+  describe('garmin_workout_id', () => {
+    it('reads the id from summaryDTO, the detail root, metadataDTO, or the list row', () => {
+      expect(mapActivityDetail({ summaryDTO: { workoutId: 1234567 } }, LIST).garmin_workout_id).toBe('1234567');
+      expect(mapActivityDetail({ workoutId: '987', summaryDTO: {} }, LIST).garmin_workout_id).toBe('987');
+      expect(
+        mapActivityDetail({ summaryDTO: {}, metadataDTO: { associatedWorkoutId: 555 } }, LIST).garmin_workout_id,
+      ).toBe('555');
+      expect(
+        mapActivityDetail({ summaryDTO: {} }, { ...LIST, workoutId: 42 }).garmin_workout_id,
+      ).toBe('42');
+    });
+
+    // A free run has no workout behind it, and 0 is what a coerced null looks
+    // like. Either one becoming an id would attribute the run to whichever plan
+    // slot happened to collide with it.
+    it('is null for a run that was not started from a workout', () => {
+      expect(mapActivityDetail({ summaryDTO: {} }, LIST).garmin_workout_id).toBeNull();
+      expect(mapActivityDetail({ workoutId: null, summaryDTO: {} }, LIST).garmin_workout_id).toBeNull();
+      expect(mapActivityDetail({ workoutId: 0, summaryDTO: {} }, LIST).garmin_workout_id).toBeNull();
+      expect(mapActivityDetail(null, {}, []).garmin_workout_id).toBeNull();
+    });
+
+    // Kept as a string, not a number: Garmin's ids are big enough that a float
+    // round-trip could change one, and workout_deliveries stores text.
+    it('keeps a large id exact', () => {
+      const out = mapActivityDetail({ summaryDTO: { workoutId: '1234567890123456789' } }, LIST);
+      expect(out.garmin_workout_id).toBe('1234567890123456789');
+    });
+  });
 });
