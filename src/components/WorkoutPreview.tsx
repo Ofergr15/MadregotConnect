@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
-import { groupPaceTokens, joinGroupPaces } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronUp, Timer, Route, Sunrise, Moon } from 'lucide-react';
 import { workoutDistanceMeters } from '@/lib/workout-distance';
 import { sessionKind } from '@/lib/plans/session-label';
+import { splitRepeatSteps } from '@/lib/plans/repeat-block';
+import { StepPace } from './PaceTokens';
 
 const stepColors: Record<string, { dot: string; bg: string }> = {
   warmup: { dot: 'bg-band-3', bg: 'bg-band-3/10' },
@@ -50,21 +51,10 @@ function fmtDuration(step: WorkoutStep, lapLabel: string): string {
   return lapLabel;
 }
 
-// Group ❶ plain, (❷) single brackets, ((❸)) double brackets — the same
-// notation the coach writes the plan in, now shown directly in the unified
-// editor instead of requiring a tab switch to see another group's pace.
-function fmtTarget(step: WorkoutStep): string {
-  if (step.targetType === 'no_target') return '';
-  if (step.targetPaceMinPerKm) {
-    const tokens = groupPaceTokens(
-      { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm ?? step.targetPaceMinPerKm },
-      step.group2Pace,
-      step.group3Pace,
-    );
-    return joinGroupPaces(tokens);
-  }
-  if (step.targetZone) return step.targetZone;
-  return '';
+/** A zone name ("Z3") for the rare step that targets a zone instead of a pace. */
+function fmtZone(step: WorkoutStep): string {
+  if (step.targetType === 'no_target' || step.targetPaceMinPerKm) return '';
+  return step.targetZone || '';
 }
 
 function estimateDistance(steps: WorkoutStep[]): number {
@@ -115,36 +105,49 @@ export function inferWorkoutType(workout: ParsedWorkout): string {
 function StepLine({ step, lapLabel }: { step: WorkoutStep; lapLabel: string }) {
   const colors = stepColors[step.type] || { dot: 'bg-ink-300', bg: 'bg-ink-300/10' };
 
+  // A repeat block used to render as the bare word "6x" — no repeat distance, no
+  // pace, no recovery. On an intervals workout, which is most of what the club
+  // runs, that meant the card showed everything EXCEPT the numbers the session
+  // is built on. Lead with the work interval and its pace; the recovery and any
+  // further legs of a pyramid follow underneath, each with its own pace.
   if (step.repeatCount && step.repeatSteps) {
+    const { lead, rest } = splitRepeatSteps(step.repeatSteps);
     return (
-      <div className="flex items-center gap-2 py-1 px-2 rounded bg-accent-red/8 min-w-0">
-        <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', stepColors['interval'].dot)} />
-        <span className="text-[11px] text-ink-700 font-bold">
-          {step.repeatCount}x
-        </span>
+      <div className="rounded border border-brand-600/20 bg-brand-600/5 px-2 py-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-x-1.5 min-w-0">
+          <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', stepColors['interval'].dot)} />
+          <span dir="ltr" className="text-[11px] text-brand-600 font-bold">{step.repeatCount}x</span>
+          {lead && (
+            <span className="text-[11px] text-ink-700 font-medium">{fmtDuration(lead, lapLabel)}</span>
+          )}
+          {lead && <StepPace step={lead} className="ms-auto" />}
+        </div>
+        {rest.map((sub, j) => (
+          <div key={j} className="flex flex-wrap items-center gap-x-1.5 ps-3 min-w-0">
+            <span className="text-[10px] text-ink-400 truncate">
+              {sub.notes || fmtDuration(sub, lapLabel)}
+            </span>
+            <StepPace step={sub} className="ms-auto" />
+          </div>
+        ))}
       </div>
     );
   }
 
-  const target = fmtTarget(step);
-  // A multi-group bracket target ("4:20 (4:25) ((4:30))") is real content,
-  // not a short label — squeezing it onto the same row as duration+type
-  // fought for space and clipped. Give it its own row only when it's
-  // actually multi-group; the common single-pace case stays inline.
-  const isMultiGroup = !!(step.group2Pace || step.group3Pace);
+  const zone = fmtZone(step);
 
+  // Distance first, pace at the end of the SAME row (`ms-auto`), so the pace
+  // lines up in a column down the card. `flex-wrap` is what lets the pace drop
+  // to its own line — whole, never mid-token — in the narrow 7-column desktop
+  // week; on a phone, where the day cards are full width, it stays inline.
   return (
-    <div className={cn('py-1 px-2 rounded min-w-0', colors.bg)}>
-      <div className="flex items-center gap-1.5 min-w-0">
-        <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', colors.dot)} />
-        <span className="text-[11px] text-ink-700 truncate flex-1 min-w-0 font-medium">
-          {fmtDuration(step, lapLabel)}
-        </span>
-        {target && !isMultiGroup && <span className="text-[10px] text-ink-400 shrink-0">{target}</span>}
-      </div>
-      {target && isMultiGroup && (
-        <p dir="ltr" className="text-[10px] text-ink-400 ps-3 tabular-nums">{target}</p>
-      )}
+    <div className={cn('flex flex-wrap items-center gap-x-1.5 py-1 px-2 rounded min-w-0', colors.bg)}>
+      <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', colors.dot)} />
+      <span className="text-[11px] text-ink-700 truncate min-w-0 font-medium">
+        {fmtDuration(step, lapLabel)}
+      </span>
+      {zone && <span className="text-[10px] text-ink-400 shrink-0">{zone}</span>}
+      <StepPace step={step} className="ms-auto" />
     </div>
   );
 }

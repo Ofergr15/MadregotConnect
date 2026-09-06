@@ -4,6 +4,7 @@ import { X, Repeat } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { groupPaceTokens } from '@/lib/garmin/pace';
+import { PaceTokens } from './PaceTokens';
 import { Sheet } from '@/components/ui';
 
 /**
@@ -124,38 +125,18 @@ function formatStepPace(step: any): string {
   return '';
 }
 
-// Renders a step's pace for all three groups: Group 1 plain, Group 2 in single
-// brackets, Group 3 in double brackets — "3:30 (3:40) ((3:50))" — with the
-// athlete's own group highlighted. Falls back to the step's single pace when a
-// plan has no per-group data. Returns null when the step has no pace at all.
+// The athlete-side pace: this screen's own data shape (`step.groupPaces`, an
+// array) adapted onto the shared renderer, so the coach's planner and the
+// athlete's sheet cannot drift on how the club's notation looks. The athlete's
+// own group is the highlighted one. Falls back to the step's single pace when a
+// plan has no per-group data; renders nothing when the step has no pace at all.
 function GroupPaces({ step, viewGroup }: { step: any; viewGroup: number }) {
   if (isEffortBased(step)) return null;
   const gp = step.groupPaces as Array<{ min: number; max: number } | null> | undefined;
   const tokens: [string, string, string] = gp
     ? groupPaceTokens(gp[0], gp[1], gp[2])
     : [formatStepPace(step), '', ''];
-  if (!tokens.some(Boolean)) return null;
-
-  return (
-    <span dir="ltr" className="inline-flex items-center gap-1 tabular-nums">
-      {tokens.map((tok, g) => {
-        if (!tok) return null;
-        const text = g === 0 ? tok : g === 1 ? `(${tok})` : `((${tok}))`;
-        const mine = g === viewGroup;
-        return (
-          <span
-            key={g}
-            className={cn(
-              'text-xs',
-              mine ? 'text-brand-600 font-bold' : 'text-ink-400'
-            )}
-          >
-            {text}
-          </span>
-        );
-      })}
-    </span>
-  );
+  return <PaceTokens tokens={tokens} highlight={viewGroup} size="sm" />;
 }
 
 export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {

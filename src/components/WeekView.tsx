@@ -8,8 +8,8 @@ import { WorkoutEditorPanel } from './WorkoutEditor';
 import { Sheet } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { Route, Timer, Zap, Pencil, Plus } from 'lucide-react';
-import { groupPaceTokens, joinGroupPaces } from '@/lib/garmin/pace';
 import { workoutDistanceMeters, totalDistanceMeters } from '@/lib/workout-distance';
+import { StepPace } from './PaceTokens';
 
 interface WeekViewProps {
   workouts: ParsedWorkout[];
@@ -80,17 +80,6 @@ function fmtStepDuration(step: WorkoutStep, lapLabel: string): string {
   return lapLabel;
 }
 
-// Group ❶ plain, (❷) single brackets, ((❸)) double brackets.
-function fmtStepPace(step: WorkoutStep): string {
-  if (!step.targetPaceMinPerKm) return '';
-  const tokens = groupPaceTokens(
-    { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm ?? step.targetPaceMinPerKm },
-    step.group2Pace,
-    step.group3Pace,
-  );
-  return joinGroupPaces(tokens);
-}
-
 function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: ParsedWorkout | null; dayName: string; open: boolean; onClose: () => void }) {
   const t = useTranslations('workoutEditor');
   const tp = useTranslations('planner');
@@ -130,20 +119,19 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
                 return (
                   <div key={i} className="rounded-lg border border-brand-600/20 bg-brand-600/5 px-3 py-2.5">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-bold text-ink-700">{step.repeatCount}x</span>
+                      <span dir="ltr" className="text-sm font-bold text-brand-600">{step.repeatCount}x</span>
                       {step.notes && <span className="text-xs text-ink-400">{step.notes}</span>}
                     </div>
                     <div className="space-y-1">
                       {step.repeatSteps.map((sub, j) => {
                         const dur = fmtStepDuration(sub, t('lap'));
-                        const pace = fmtStepPace(sub);
                         const isRest = sub.type === 'rest' || sub.type === 'recovery';
                         return (
                           <div key={j} className="flex items-center gap-2 text-sm">
                             <div className="w-1 h-4 rounded-full shrink-0" style={{ background: stepTypeColors[sub.type] || '#969696' }} />
                             <span className={cn("font-medium shrink-0", isRest ? "text-ink-400" : "text-ink-700")}>{dur}</span>
                             {sub.notes && <span className="text-ink-400 truncate flex-1 text-xs">{sub.notes}</span>}
-                            {pace && <span className="text-xs text-ink-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
+                            <StepPace step={sub} size="sm" className="shrink-0 ms-auto" />
                           </div>
                         );
                       })}
@@ -153,14 +141,13 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
               }
 
               const dur = fmtStepDuration(step, t('lap'));
-              const pace = fmtStepPace(step);
               const label = step.notes || stepTypeLabel(step.type, t);
               return (
                 <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-card/40 text-sm">
                   <div className="w-1 h-5 rounded-full shrink-0" style={{ background: stepTypeColors[step.type] || '#969696' }} />
                   <span className="font-medium text-ink-700 shrink-0">{dur}</span>
                   <span className="text-ink-400 truncate flex-1 text-xs">{label}</span>
-                  {pace && <span className="text-xs text-ink-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
+                  <StepPace step={step} size="sm" className="shrink-0 ms-auto" />
                 </div>
               );
             })}
