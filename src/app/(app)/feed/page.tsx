@@ -19,6 +19,7 @@ import { SquadStandings } from '@/components/SquadStandings';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
+import { appScrollTop } from '@/lib/app-scroll';
 
 const PAGE_SIZE = 20;
 
@@ -143,12 +144,12 @@ export default function FeedPage() {
   const PULL_MAX = 96;
 
   const handlePullStart = (e: React.TouchEvent) => {
-    if (refreshing || window.scrollY > 0) return;
+    if (refreshing || appScrollTop() > 0) return;
     pullStartYRef.current = e.touches[0].clientY;
   };
   const handlePullMove = (e: React.TouchEvent) => {
     if (pullStartYRef.current == null) return;
-    if (window.scrollY > 0) { pullStartYRef.current = null; setPullDistance(0); return; }
+    if (appScrollTop() > 0) { pullStartYRef.current = null; setPullDistance(0); return; }
     const delta = e.touches[0].clientY - pullStartYRef.current;
     setPullDistance(delta > 0 ? Math.min(delta * 0.5, PULL_MAX) : 0);
   };

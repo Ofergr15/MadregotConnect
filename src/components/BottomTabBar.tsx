@@ -141,35 +141,27 @@ export function BottomTabBar() {
         // Anchor for the first-run tour's "these are your tabs" step (see
         // FirstRunTour). md:hidden, so the step self-skips on desktop.
         data-tour="tabbar"
-        // ── STICKY, NOT FIXED. This is the third and final fix for the bar
-        // drifting up the page mid-scroll on iOS.
+        // ── NOT POSITIONED AT ALL. Fourth attempt, and the first one that isn't
+        // a CSS trick on this element.
         //
-        // The two earlier attempts both treated a symptom: first removing
-        // `backdrop-filter`, then removing `transform-gpu`. Both are real
-        // triggers — either one promotes a `fixed` element into its own layer
-        // that WebKit then repaints late — but removing them only made the drift
-        // rarer, because the root cause is `position: fixed` itself. On iOS a
-        // fixed layer is pinned to the viewport by the compositor, and during a
-        // momentum scroll the compositor can be a frame or more behind, so the
-        // bar is painted wherever the viewport WAS. Nothing inside this component
-        // can fix that; it is not a CSS mistake.
+        // The history: remove `backdrop-filter`, remove `transform-gpu`, then
+        // `fixed` → `sticky bottom-0`. Each made the drift rarer and none stopped
+        // it, because all three kept asking the browser to align this element
+        // with the VISIBLE BOTTOM of a scrolling viewport, and on iOS that edge
+        // genuinely moves — the toolbar collapses, the keyboard opens, and during
+        // momentum scroll it is wherever the compositor last committed.
         //
-        // `sticky bottom-0` is not affected, because a sticky element is laid out
-        // inside the SCROLLED content — it moves with the page by construction,
-        // so there is no separate layer to fall behind. The Header has been
-        // `sticky top-0` all along and has never drifted, which is the in-app
-        // proof.
+        // So the shell stopped scrolling instead. <main> is the scroll container
+        // now (see lib/app-scroll.ts) and this bar is its flex sibling: the
+        // bottom row of a box that is exactly one viewport tall and cannot move.
+        // There is no viewport edge to track and no layer to fall behind.
         //
-        // It works here because the nav is the last child of the shell's
-        // `min-h-[100dvh] flex flex-col` column: that containing block spans the
-        // whole document, so the bar stays stuck to the viewport bottom for the
-        // entire scroll, and on a short page `flex-1` on <main> pushes it down to
-        // the bottom anyway. It now occupies real layout space at the end of the
-        // document, which is why <main> no longer needs to reserve room for it.
+        // `shrink-0` so a tall screen can never squeeze the bar; the safe-area
+        // padding stays here because the bar is what touches the bottom edge.
         //
         // Keep the fill opaque. A translucent bar needs a separate
         // absolutely-positioned child to carry the blur — never this element.
-        className="md:hidden sticky bottom-0 z-40 flex items-stretch border-t border-page bg-card"
+        className="md:hidden shrink-0 z-40 flex items-stretch border-t border-page bg-card"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
