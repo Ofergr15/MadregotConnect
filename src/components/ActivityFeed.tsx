@@ -98,20 +98,32 @@ function ActivityCard({
         }}
         className="p-4 sm:p-5 cursor-pointer hover:bg-page/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-600"
       >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-brand-600/15 flex items-center justify-center">
+        {/* The card is overflow-hidden, so anything this header cannot fit is cut
+            off silently rather than scrolling. The action row alone is 199px — three
+            icon buttons, the run type badge and the chevron — against a 240px card
+            on a 320px phone, which left the badge sliced in half and the chevron
+            gone entirely (and clipped on a 402px iPhone too). There is no width to
+            share at that size, so below sm each half takes a full line of its own;
+            from sm up they sit side by side as designed. */}
+        <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+          <div className="flex w-full min-w-0 items-center gap-3 sm:w-auto sm:flex-1">
+            <div className="w-9 h-9 shrink-0 rounded-full bg-brand-600/15 flex items-center justify-center">
               <Route className="h-4 w-4 text-brand-600" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-ink-700">{activity.athlete_name || 'Unknown'}</span>
-                <span className="text-xs text-ink-400">{dateStr} · {timeStr}</span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2">
+                {/* truncate on the name and nowrap on the date, because without them
+                    the leftover width in this block is so narrow that the name runs
+                    out under the buttons and the date breaks one word per line
+                    ("יום א׳ / 6 / בספט׳ / 18:34" stacked vertically). Wrapping the
+                    date whole onto its own line is the readable failure mode. */}
+                <span className="min-w-0 truncate text-sm font-bold text-ink-700">{activity.athlete_name || 'Unknown'}</span>
+                <span className="whitespace-nowrap text-xs text-ink-400">{dateStr} · {timeStr}</span>
               </div>
-              <p className="text-xs text-ink-400">{timeLabel}{activity.location_name ? ` · ${activity.location_name}` : ''}</p>
+              <p className="truncate text-xs text-ink-400">{timeLabel}{activity.location_name ? ` · ${activity.location_name}` : ''}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
             {isMyActivity && (
               <button
                 onClick={(event) => {

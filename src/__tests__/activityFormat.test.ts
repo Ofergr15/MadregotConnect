@@ -4,6 +4,8 @@ import {
   resolveRunTypeBadge,
   DEFAULT_MAX_HR,
 } from '@/components/activity/format';
+import he from '../../messages/he.json';
+import en from '../../messages/en.json';
 
 describe('getHRZone', () => {
   // One ceiling for the whole club, on purpose: an age-derived 220 − age version
@@ -40,5 +42,31 @@ describe('resolveRunTypeBadge', () => {
     expect(resolveRunTypeBadge('running', 10, 260).type).toBe('tempo');
     expect(resolveRunTypeBadge(null, 5, 400).type).toBe('recovery');
     expect(resolveRunTypeBadge(undefined, 8, 320).type).toBe('easy');
+  });
+
+  // The feed renders the badge as t(`runType_${type}`), and next-intl prints the
+  // key itself when it is missing — so every sport added here has to be added to
+  // both locale files in the same change. The four sport badges shipped without
+  // their keys, and "activities.runType_treadmill_running" showed up in the feed
+  // as a 180px-wide label that pushed the whole row off a 402px screen. The
+  // locale-parity test could not catch it: both files were missing it equally.
+  it('has a translation for every badge type it can return, in both locales', () => {
+    const sports = ['trail_running', 'treadmill_running', 'indoor_running', 'track_running', 'virtual_run'];
+    const guessed = [
+      resolveRunTypeBadge('running', 20, 330),
+      resolveRunTypeBadge('running', 10, 260),
+      resolveRunTypeBadge('running', 8, 280),
+      resolveRunTypeBadge(null, 5, 400),
+      resolveRunTypeBadge(undefined, 8, 320),
+    ];
+    const types = new Set([
+      ...sports.map((s) => resolveRunTypeBadge(s, 10, 260).type),
+      ...guessed.map((b) => b.type),
+    ]);
+    for (const [name, messages] of [['he', he], ['en', en]] as const) {
+      for (const type of types) {
+        expect(Object.keys(messages.activities), `${name}: runType_${type}`).toContain(`runType_${type}`);
+      }
+    }
   });
 });
