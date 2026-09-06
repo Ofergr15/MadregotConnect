@@ -77,8 +77,8 @@ describe('lane-aware planned paces — the group-3 athlete is graded on group 3'
   });
 
   it('is the verdict the old group-1 read got wrong', () => {
-    // The regression, pinned: the same lap against lane 1 is 15s/km outside the
-    // ±5s tolerance, which is the "slower than target" this route used to report.
+    // The regression, pinned: the same lap against lane 1 is 10s/km outside the
+    // ±10s tolerance, which is the "slower than target" this route used to report.
     expect(gradeAsLane(1).report.segments[0].status).toBe('slower');
   });
 
@@ -108,11 +108,11 @@ describe('matchLapsToSteps — alignment + verdicts', () => {
     { type: 'interval', durationType: 'distance', durationValue: 1000, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 300 },
   ]));
 
-  it('grades each interval when laps line up (±5s)', () => {
+  it('grades each interval when laps line up (±10s)', () => {
     const laps: Lap[] = [
       { distance: 1000, duration: 302, averagePace: 302 }, // on target
       { distance: 200, duration: 60, averagePace: 300 },   // recovery, not graded
-      { distance: 1000, duration: 315, averagePace: 315 }, // slower (>305)
+      { distance: 1000, duration: 315, averagePace: 315 }, // slower (>310)
     ];
     const r = matchLapsToSteps(planned, laps);
     expect(r.aligned).toBe(true);
@@ -125,7 +125,7 @@ describe('matchLapsToSteps — alignment + verdicts', () => {
 
   it('flags a too-fast interval', () => {
     const laps: Lap[] = [
-      { distance: 1000, duration: 290, averagePace: 290 }, // faster (<295)
+      { distance: 1000, duration: 285, averagePace: 285 }, // faster (<290)
       { distance: 200, duration: 60, averagePace: 300 },
       { distance: 1000, duration: 300, averagePace: 300 },
     ];

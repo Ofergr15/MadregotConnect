@@ -14,13 +14,18 @@ export type PaceStatus = 'on_target' | 'faster' | 'slower' | 'unknown';
 export interface AdherenceTolerances {
   distance: number; // fraction, e.g. 0.15 = ±15%
   duration: number; // fraction
-  paceSec: number;  // ± SECONDS per km, e.g. 5 → a 5:00 target is good from 4:55 to 5:05
+  paceSec: number;  // ± SECONDS per km, e.g. 10 → a 5:00 target is good from 4:50 to 5:10
 }
 
+// paceSec was 5; widened to 10 by coach decision on 2026-09-06. ±5 s/km is inside the
+// noise of the evidence it is applied to — GPS distance error alone moves a 20 km block
+// by a few seconds per km — so it was failing athletes for less than the measurement can
+// resolve. The academy settings screen overrides this per club; nothing is stored there
+// today, so this constant is what every verdict in the app actually uses.
 export const DEFAULT_TOLERANCES: AdherenceTolerances = {
   distance: 0.15,
   duration: 0.15,
-  paceSec: 5,
+  paceSec: 10,
 };
 
 // What the athlete was supposed to do on a given day (derived from a ParsedWorkout).
@@ -351,7 +356,7 @@ function assessRange(actual: number | null, min: number, max: number, tol: numbe
 }
 
 // Pace tolerance is ± SECONDS per km around the planned band. e.g. a 5:00 target
-// with paceSec=5 is good from 4:55 (295s) to 5:05 (305s); 4:50 is too fast, 5:06 too slow.
+// with paceSec=10 is good from 4:50 (290s) to 5:10 (310s); 4:49 is too fast, 5:11 too slow.
 export function assessPace(actual: number | null, min?: number, max?: number, paceSec = DEFAULT_TOLERANCES.paceSec): PaceStatus {
   if (actual == null || min == null || max == null) return 'unknown';
   const lower = min - paceSec; // faster bound (smaller number)

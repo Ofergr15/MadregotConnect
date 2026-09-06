@@ -312,13 +312,17 @@ describe('loadFeedPlanVerdicts', () => {
    * note — while the club plan for the day is a 2 km warm-up plus a 20 km block. Every
    * lap index still lands inside the plan's step count, so nothing looks amiss; the
    * search lays the plan's blocks over her run and reports the wrong band.
+   *
+   * The production row this is built from had her own band 5 s/km off the plan's, which
+   * the ±10 s/km tolerance now absorbs; her target here is moved out to 4:15–4:25 so the
+   * two bands genuinely disagree. Nothing else about the shape changed.
    */
   describe('the watch\'s own step list', () => {
     const ownWorkout = {
       name: 'EZ + intervals',
       createdAt: '2026-09-08T19:00:00.0',
       steps: [
-        { stepIndex: 0, intensity: 'ACTIVE', durationType: 'OPEN', notes: '22km - 4:45-4:55' },
+        { stepIndex: 0, intensity: 'ACTIVE', durationType: 'OPEN', notes: '22km - 4:15-4:25' },
         { stepIndex: 1, intensity: 'ACTIVE', durationType: 'TIME', durationSec: 15 },
         { stepIndex: 2, intensity: 'RECOVERY', durationType: 'TIME', durationSec: 45 },
         {
@@ -327,10 +331,10 @@ describe('loadFeedPlanVerdicts', () => {
         },
       ],
     };
-    /** 22 km at 4:52 stamped step 0, then eight strides. */
+    /** 22 km at 4:22 stamped step 0, then eight strides. */
     const ownLaps = [
       ...Array.from({ length: 22 }, () => ({
-        distance: 1000, duration: 292, averagePace: 292, averageHR: null, maxHR: null,
+        distance: 1000, duration: 262, averagePace: 262, averageHR: null, maxHR: null,
         wktStepIndex: 0,
       })),
       ...Array.from({ length: 8 }, () => [
@@ -351,23 +355,23 @@ describe('loadFeedPlanVerdicts', () => {
         : club(op);
     };
 
-    const ownRun = () => run('act-own', FAST, 292, {
-      distance: 22000, duration: 6424, moving_duration: 6424, laps: ownLaps,
+    const ownRun = () => run('act-own', FAST, 262, {
+      distance: 22000, duration: 5764, moving_duration: 5764, laps: ownLaps,
     });
 
     it('grades the step the watch ran, not the block the plan expected', async () => {
       stubWithWorkout(ownWorkout);
       const out = await loadFeedPlanVerdicts(supabase, [ownRun()]);
-      // 4:52 against the 4:45–4:55 she wrote herself, in the step's own note.
+      // 4:22 against the 4:15–4:25 she wrote herself, in the step's own note.
       expect(out.get('act-own')?.paceStatus).toBe('on_target');
     });
 
     it('falls back to the search when the run was not driven by a workout', async () => {
       stubWithWorkout(null);
       const out = await loadFeedPlanVerdicts(supabase, [ownRun()]);
-      // The plan's 4:40–4:45 block, searched for inside a 22 km run at 4:52 — the
+      // The plan's 4:40–4:45 block, searched for inside a 22 km run at 4:22 — the
       // wrong band, because it is a workout she did not run.
-      expect(out.get('act-own')?.paceStatus).toBe('slower');
+      expect(out.get('act-own')?.paceStatus).toBe('faster');
     });
 
     // Migration 095 is applied by hand, so the column may simply not be there yet.
@@ -384,7 +388,7 @@ describe('loadFeedPlanVerdicts', () => {
         : club(op);
 
       const out = await loadFeedPlanVerdicts(supabase, [ownRun()]);
-      expect(out.get('act-own')?.paceStatus).toBe('slower');
+      expect(out.get('act-own')?.paceStatus).toBe('faster');
     });
   });
 

@@ -301,7 +301,10 @@ describe('gradeWorkoutBlocks', () => {
 
     // What the athlete was told. `computeGradedPaceBand` grades an average only when
     // one band covers ≥90% of the plan, and 20 km of 22 km is 90.9% — so the guard
-    // let this session through and then judged 4:34 against 4:25.
+    // let this session through and then judged 4:34 against 4:25. Graded here at the
+    // ±5 s/km that was in force the day this was found, so the case keeps stating the
+    // bug: the average is wrong about the run whatever the tolerance is, and only the
+    // size of the deviation it takes to misfire moved when the default widened to ±10.
     const average = assessWorkout(buildPlannedWorkout(workout([
       step({ type: 'warmup', durationValue: 2000, targetPaceMinPerKm: 300, targetPaceMaxPerKm: 330 }),
       step({ durationValue: 20000, targetPaceMinPerKm: 265, targetPaceMaxPerKm: 265 }),
@@ -311,7 +314,7 @@ describe('gradeWorkoutBlocks', () => {
       distance: 23160,
       duration: 6340,
       averagePace: 274,
-    });
+    }, { distance: 0.15, duration: 0.15, paceSec: 5 });
     expect(average.pace.comparedMin).toBe(265);
     expect(average.pace.status).toBe('slower');
 
@@ -326,13 +329,23 @@ describe('gradeWorkoutBlocks', () => {
   });
 
   it('still says slower when the block itself was slower', () => {
-    // Guy Joselson's run: same session, block at 4:33.
-    const slow = traceFromLaps([
+    // Guy Joselson's run: same session, block at 4:33. Eight seconds per km off a
+    // 4:25 band is inside the ±10 s/km tolerance, so his block is a pass…
+    const guy = traceFromLaps([
       ...Array.from({ length: 2 }, () => lap(1000, 310)),
       ...Array.from({ length: 20 }, () => lap(1000, 273)),
     ])!;
+    const guyReport = gradeWorkoutBlocks(SUNDAY, guy);
+    expect(guyReport.blocks[1].actualPace).toBe(273);
+    expect(guyReport.blocks[1].status).toBe('on_target');
+
+    // …but a block genuinely off the band still reads slower: 4:45 against 4:25.
+    const slow = traceFromLaps([
+      ...Array.from({ length: 2 }, () => lap(1000, 310)),
+      ...Array.from({ length: 20 }, () => lap(1000, 285)),
+    ])!;
     const report = gradeWorkoutBlocks(SUNDAY, slow);
-    expect(report.blocks[1].actualPace).toBe(273);
+    expect(report.blocks[1].actualPace).toBe(285);
     expect(report.blocks[1].status).toBe('slower');
     expect(report.onTargetCount).toBe(1);
   });
@@ -490,7 +503,7 @@ describe('dominantBlock', () => {
       ] }),
     ]);
     const trace = traceFromLaps([
-      ...Array.from({ length: 3 }, () => lap(1000, 330)),   // warm-up at 5:30
+      ...Array.from({ length: 3 }, () => lap(1000, 350)),   // warm-up at 5:50
       ...Array.from({ length: 5 }, () => [lap(1450, 300), lap(400, 120)]).flat(),
     ])!;
     const report = gradeWorkoutBlocks(plan, trace);
