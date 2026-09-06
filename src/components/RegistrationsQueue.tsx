@@ -32,7 +32,9 @@ interface Registration {
   email: string;
   groupId: string | null;
   groupName: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  /** 'member' = submitted the public form but already had an account. A record,
+   *  never a task: it has no approver, no rejecter and no action (migration 089). */
+  status: 'pending' | 'approved' | 'rejected' | 'member';
   createdAt: string;
   approvedAt: string | null;
   approvedBy: string | null;
@@ -608,16 +610,22 @@ function QueueRow({
           </div>
         ) : (
           <div className="mt-1 flex items-center gap-1.5">
+            {/* Three faces, not two. 'member' is deliberately the quiet one — a
+                flat grey chip rather than the black "אושר" or the red "נדחה":
+                nobody did anything and nobody has to. It reads as a note in the
+                margin, which is what it is. */}
             <span
               className={cn(
                 'text-3xs font-bold px-1.5 py-0.5 rounded',
-                r.status === 'approved' ? 'bg-ink-900 text-white' : 'bg-accent-red/15 text-accent-red-ink',
+                r.status === 'approved' && 'bg-ink-900 text-white',
+                r.status === 'rejected' && 'bg-accent-red/15 text-accent-red-ink',
+                r.status === 'member' && 'bg-page text-ink-400',
               )}
             >
-              {r.status === 'approved' ? 'אושר' : 'נדחה'}
+              {r.status === 'approved' ? 'אושר' : r.status === 'rejected' ? 'נדחה' : 'כבר חבר'}
             </span>
             <span className="text-3xs text-ink-400 truncate">
-              {r.groupName || 'ללא דבוקה'}
+              {r.status === 'member' ? 'נרשם מהקישור, יש לו כבר חשבון' : r.groupName || 'ללא דבוקה'}
               {r.status === 'approved' && r.approvedBy && ` · ${r.approvedBy}`}
               {r.status === 'rejected' && r.rejectedBy && ` · ${r.rejectedBy}`}
             </span>
