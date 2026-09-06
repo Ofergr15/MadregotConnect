@@ -11,6 +11,7 @@ import { BottomTabBar } from '@/components/BottomTabBar';
 import { PageTransition } from '@/components/PageTransition';
 import { FirstRunTour } from '@/components/onboarding/FirstRunTour';
 import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider';
+import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { Spinner } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
@@ -121,6 +122,13 @@ export default function AppLayout({
           <Header />
         </div>
         {popupsAllowed && <InstallPrompt />}
+        {/* Step 3 of the first run. Ordered after InstallPrompt for the same
+            reason it checks `installAnswered` itself: on iOS a subscription made
+            from a Safari tab is page-origin forever. It can't collide with
+            PushOptIn below — that banner additionally requires the
+            `push_optin_trigger` flag, which only the feedback page sets, long
+            after onboarding. */}
+        {popupsAllowed && <NotificationsStep />}
         {popupsAllowed && <PushOptIn />}
         {popupsAllowed && <ConnectDataSourcePopup />}
         {!isRunChat && <FirstRunTour onActiveChange={setTourActive} />}

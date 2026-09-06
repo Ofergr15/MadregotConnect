@@ -1511,6 +1511,19 @@
     "approvalTitle": "Get notified when you're approved",
     "approvalDescription": "Turn on notifications so you know the moment your coach approves your registration — no need to sign back in to check."
   },
+  "pushStep": {
+    "title": "Now — turn notifications on",
+    "description": "This is how Madregot reaches you when the app is closed. One tap, once.",
+    "benefitKudos": "Kudos and comments on your runs",
+    "benefitCoach": "Your coach's replies to your feedback",
+    "benefitPlan": "Changes to your weekly plan",
+    "enable": "Enable notifications",
+    "enabling": "Enabling…",
+    "retry": "Try again",
+    "failed": "That didn't work. Check your connection and try again.",
+    "skip": "Not now",
+    "dontAskAgain": "Don't ask again"
+  },
   "notifications": {
     "title": "Notifications",
     "empty": "No notifications yet",

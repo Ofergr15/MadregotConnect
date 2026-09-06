@@ -4,21 +4,28 @@ import {
   INSTALL_MAX_OFFERS,
   INSTALL_OFFER_COUNT_KEY,
   INSTALL_SESSION_SKIP_KEY,
+  PUSH_STEP_DISMISS_KEY,
+  PUSH_STEP_MAX_OFFERS,
+  PUSH_STEP_OFFER_COUNT_KEY,
+  PUSH_STEP_SESSION_SKIP_KEY,
   TOUR_HOME,
+  canShowNotificationsStep,
   canStartTour,
   isInstallStepAnswered,
+  pushStepOfferCount,
   recordInstallOfferSkipped,
+  recordPushStepSkipped,
   tourExitTarget,
 } from '@/lib/onboarding/first-run-order';
 import { isIosSafari } from '@/lib/pwa';
 import type { OnboardingState } from '@/lib/onboarding/use-onboarding';
 
-// The first run has an ORDER — install, then the tour, then the setup checklist
-// — and its two failure modes are opposites. Ask too early and an iOS athlete
-// subscribes to push from a Safari tab, which permanently tags that
-// subscription as page-origin (the reason install comes first at all). Ask too
-// late, or wait for an answer that can never arrive, and the tour never starts
-// for anyone on a browser that can't install — a silent, total loss of
+// The first run has an ORDER — install, then the tour, then notifications, then
+// the setup checklist — and its two failure modes are opposites. Ask too early
+// and an iOS athlete subscribes to push from a Safari tab, which permanently
+// tags that subscription as page-origin (the reason install comes first at all).
+// Ask too late, or wait for an answer that can never arrive, and the tour never
+// starts for anyone on a browser that can't install — a silent, total loss of
 // onboarding. Both are covered below.
 
 const IPHONE_SAFARI =
@@ -201,5 +208,128 @@ describe('tourExitTarget', () => {
 
   it('survives an out-of-range index instead of throwing at the athlete', () => {
     expect(tourExitTarget([], 0)).toBeNull();
+  });
+});
+
+const ANDROID_CHROME =
+  'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36';
+
+describe('canShowNotificationsStep', () => {
+  // An athlete who has installed the app and finished the tour: the one state
+  // the step is FOR. Every test below turns exactly one thing off from here.
+  const ready = { applicable: true, migrated: true, tourSeen: true } as OnboardingState;
+
+  it('asks an installed athlete who has finished the tour', () => {
+    browser({ standalone: true });
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(true);
+  });
+
+  it('waits for the install step', () => {
+    browser({ standalone: true });
+    expect(canShowNotificationsStep(ready, false, 'default')).toBe(false);
+  });
+
+  it('waits for the tour, so two first-run screens never stack', () => {
+    browser({ standalone: true });
+    const midTour = { applicable: true, migrated: true, tourSeen: false } as OnboardingState;
+    expect(canShowNotificationsStep(midTour, true, 'default')).toBe(false);
+  });
+
+  it('does NOT wait for the tour when the database has no column to record it', () => {
+    // Migration 078 not applied: `tourSeen` is a guess, and blocking on a guess
+    // would mean nobody is ever asked for push permission at all. The layout's
+    // popupsAllowed still keeps this sheet off a running tour.
+    browser({ standalone: true });
+    const unmigrated = { applicable: true, migrated: false, tourSeen: false } as OnboardingState;
+    expect(canShowNotificationsStep(unmigrated, true, 'default')).toBe(true);
+  });
+
+  it('stays silent while the onboarding read is still in flight', () => {
+    browser({ standalone: true });
+    expect(canShowNotificationsStep(undefined, true, 'default')).toBe(false);
+  });
+
+  it('stays silent for staff with no athlete row', () => {
+    browser({ standalone: true });
+    expect(canShowNotificationsStep({ applicable: false }, true, 'default')).toBe(false);
+  });
+
+  // ── The reason the whole step exists where it does ────────────────────────
+  it('never asks on iOS from a Safari tab, however ready everything else is', () => {
+    // Subscribing here tags the subscription page-origin PERMANENTLY, even if
+    // the icon is added afterwards. Asking early doesn't win notifications
+    // sooner — it costs this device app-native notifications for good.
+    browser({ standalone: false });
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(false);
+  });
+
+  it('asks on iOS as soon as the app is launched from the icon', () => {
+    browser({ standalone: true });
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(true);
+  });
+
+  it('asks in a plain Android tab, which has nothing to taint', () => {
+    browser({ ua: ANDROID_CHROME });
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(true);
+  });
+
+  // ── Permission states ─────────────────────────────────────────────────────
+  it('has nothing to ask once permission is granted', () => {
+    browser({ standalone: true });
+    expect(canShowNotificationsStep(ready, true, 'granted')).toBe(false);
+  });
+
+  it('never shows on a denial, because that prompt cannot be asked again', () => {
+    // requestPermission() is one-shot per origin and iOS offers no in-app way
+    // back. A sheet whose button provably cannot work only teaches the athlete
+    // that the app is broken; the settings screen holds the recovery steps.
+    browser({ standalone: true });
+    expect(canShowNotificationsStep(ready, true, 'denied')).toBe(false);
+  });
+
+  it('never shows on a browser with no push support at all', () => {
+    browser({ standalone: true });
+    expect(canShowNotificationsStep(ready, true, 'unsupported')).toBe(false);
+  });
+
+  // ── The two ways out, which must stay distinguishable ─────────────────────
+  it('is gone for good after "don\'t ask again"', () => {
+    browser({ standalone: true, local: { [PUSH_STEP_DISMISS_KEY]: '1' } });
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(false);
+  });
+
+  it('is gone for this visit after a soft skip', () => {
+    browser({ standalone: true, session: { [PUSH_STEP_SESSION_SKIP_KEY]: '1' } });
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(false);
+  });
+
+  it('reads the soft skip from sessionStorage only, so it returns next visit', () => {
+    // Same distinction the install step draws: a soft skip in localStorage
+    // would be indistinguishable from "never ask again", collapsing the two
+    // buttons into one.
+    browser({ standalone: true, local: { [PUSH_STEP_SESSION_SKIP_KEY]: '1' } });
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(true);
+  });
+
+  it('retires itself once it has come back enough times to have made its point', () => {
+    browser({ standalone: true, local: { [PUSH_STEP_OFFER_COUNT_KEY]: String(PUSH_STEP_MAX_OFFERS - 1) } });
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(true);
+    browser({ standalone: true, local: { [PUSH_STEP_OFFER_COUNT_KEY]: String(PUSH_STEP_MAX_OFFERS) } });
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(false);
+  });
+
+  it('counts a skip, so the step can count its own way out', () => {
+    const { local } = browser({ standalone: true });
+    expect(pushStepOfferCount()).toBe(0);
+    recordPushStepSkipped();
+    expect(local[PUSH_STEP_OFFER_COUNT_KEY]).toBe('1');
+    recordPushStepSkipped();
+    expect(pushStepOfferCount()).toBe(2);
+  });
+
+  it('treats a corrupt offer count as zero rather than retiring the step', () => {
+    browser({ standalone: true, local: { [PUSH_STEP_OFFER_COUNT_KEY]: 'not-a-number' } });
+    expect(pushStepOfferCount()).toBe(0);
+    expect(canShowNotificationsStep(ready, true, 'default')).toBe(true);
   });
 });
