@@ -7,7 +7,18 @@ import { useApi } from '@/lib/api';
 interface HeatmapDay { date: string; km: number }
 
 const HE_MONTHS_SHORT = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ'];
-const CELL_COLORS = ['bg-card/60', 'bg-brand-600/60', 'bg-brand-600/70', 'bg-brand-600/85', 'bg-brand-600'];
+// Bucket 0 is a day that HAPPENED with no run in it, so it has to be visible —
+// `bg-card/60` over this card (`bg-card/80` over page, i.e. #F9F9F9) composites
+// to #FDFDFD, which is 1.03:1 against its own surface. A whole year of rest days
+// was rendering as blank card, indistinguishable from the `bg-transparent` we use
+// for future days. `bg-page` is the ground instead, at 1.27:1 — a visible tint.
+//
+// Buckets 1-4 are a magnitude ramp, so they need monotone LIGHTNESS and not just
+// rising opacity: at /60 /70 /85 /100 the adjacent OKLCH ΔL was 0.054 and 0.049,
+// under the 0.06 floor, so the middle of the scale read as one flat slab. Re-stepped
+// to /40 /55 /75 /100, which measures ΔL >= 0.06 at every step and keeps the light
+// end at 2.18:1 against the card. Same token, same idiom, just spaced properly.
+const CELL_COLORS = ['bg-page', 'bg-brand-600/40', 'bg-brand-600/55', 'bg-brand-600/75', 'bg-brand-600'];
 const WEEKS_BACK = 53;
 
 function isoDay(d: Date): string {

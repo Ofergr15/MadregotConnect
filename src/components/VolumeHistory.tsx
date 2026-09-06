@@ -75,6 +75,10 @@ export function VolumeHistory({ athleteId }: { athleteId: string }) {
   };
   // Label density: every period if ≤8, else every other.
   const labelEvery = n <= 8 ? 1 : 2;
+  // A value on EVERY bar goes unread and turns twelve periods into a wall of
+  // digits. Label the two that carry the story instead — the peak and the period
+  // we're in — and let the peak/average line above and the axis carry the rest.
+  const peakIdx = series.reduce((best, w, i) => (w.km > series[best].km ? i : best), 0);
 
   return (
     <div className="rounded-card bg-card/80 border border-page/50 p-5" dir="rtl">
@@ -115,17 +119,13 @@ export function VolumeHistory({ athleteId }: { athleteId: string }) {
 
       <div dir="ltr">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: '220px' }}>
-        <defs>
-          <linearGradient id="volBar" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1525FF" stopOpacity={0.95} />
-            <stop offset="100%" stopColor="#1525FF" stopOpacity={0.5} />
-          </linearGradient>
-        </defs>
+        {/* Solid hairlines. Dashing a gridline reads as "threshold" or "projected"
+            when it is only a grid, and at 0.5px the dashes are mostly noise. */}
         {gridVals.map((v, i) => {
           const y = toY(v);
           return (
             <g key={i}>
-              <line x1={pad.left} x2={W - pad.right} y1={y} y2={y} stroke="#DFDFDF" strokeWidth="0.5" strokeDasharray="4 4" />
+              <line x1={pad.left} x2={W - pad.right} y1={y} y2={y} stroke="#DFDFDF" strokeWidth="0.5" />
               <text x={pad.left - 6} y={y + 4} textAnchor="end" className="fill-ink-400" fontSize="11">{v}</text>
             </g>
           );
@@ -135,21 +135,41 @@ export function VolumeHistory({ athleteId }: { athleteId: string }) {
           const y = toY(w.km);
           const h = pad.top + chartH - y;
           const isLast = i === n - 1;
+          // A rest period is a NOUGHT, not a gap. Skipping the rect entirely made a
+          // zero week look like a week we have no data for, which is a different and
+          // much worse claim — so every period draws, with a 2px floor so the zero
+          // still reads as a mark sitting on the baseline.
+          const isZero = w.km <= 0;
           return (
             <g key={w.weekStart}>
-              {w.km > 0 && (
-                <rect
-                  x={cx - barW / 2} y={y} width={barW} height={Math.max(h, 1)} rx="3"
-                  fill={isLast ? '#159AFF' : 'url(#volBar)'}
-                />
-              )}
-              {w.km > 0 && (
+              <rect
+                x={cx - barW / 2} y={isZero ? pad.top + chartH - 2 : y} width={barW}
+                height={isZero ? 2 : Math.max(h, 2)} rx="3"
+                // The emphasised bar is the DARKEST one. It used to be #159AFF, which
+                // is lighter than the bars it was meant to stand out from (2.88:1 on
+                // this card, under the 3:1 mark floor) and is also band-2's identity
+                // colour, so the current period read as a דבוקה marker. Now: brand at
+                // /55 for the series (3.04:1) and full brand for the current period
+                // (7.28:1). The bold axis label below carries the same emphasis, so
+                // it is never colour-alone.
+                fill={isLast ? '#1525FF' : 'rgba(21, 37, 255, 0.55)'}
+              />
+              {(isLast || i === peakIdx) && w.km > 0 && (
                 <text x={cx} y={y - 5} textAnchor="middle" className="fill-ink-500" fontSize="10" fontWeight="700">
                   {w.km}
                 </text>
               )}
-              {i % labelEvery === 0 && (
-                <text x={cx} y={H - 22} textAnchor="middle" className="fill-ink-400" fontSize="10">{fmtPeriod(w.weekStart)}</text>
+              {/* `|| isLast` because with 12 periods labelEvery is 2 and the last
+                  index is odd, so the current period — the one the emphasis is
+                  about — was the one label that never rendered. */}
+              {(i % labelEvery === 0 || isLast) && (
+                <text
+                  x={cx} y={H - 22} textAnchor="middle" fontSize="10"
+                  className={isLast ? 'fill-ink-700' : 'fill-ink-400'}
+                  fontWeight={isLast ? 700 : undefined}
+                >
+                  {fmtPeriod(w.weekStart)}
+                </text>
               )}
             </g>
           );
