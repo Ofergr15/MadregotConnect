@@ -66,6 +66,10 @@ interface Pr {
   seconds: number | null;
   date: string | null;
   activityName: string | null;
+  /** Measured inside a longer run rather than being the whole run. */
+  fromSegment?: boolean;
+  /** How long that run was, in metres. */
+  sourceMeters?: number | null;
 }
 
 interface StatsData {
@@ -294,6 +298,21 @@ export function AthleteProfileBody({
                     <p dir="ltr" className="text-xl font-bold tabular-nums text-ink-700">
                       {formatTime(p.seconds as number)}
                     </p>
+                    {/* Where it came from. A 5K best pulled out of a 31 km long
+                        run is a number the reader will not recognise from any
+                        run they remember doing, and the first question is always
+                        "when, and out of what?". */}
+                    {p.date && (
+                      <p className="mt-0.5 text-3xs font-light text-ink-400">
+                        <bdi dir="ltr">{new Date(p.date).toLocaleDateString('he-IL')}</bdi>
+                        {p.fromSegment && p.sourceMeters ? (
+                          <>
+                            {' · '}
+                            {t('prInsideRun', { km: Math.round(p.sourceMeters / 100) / 10 })}
+                          </>
+                        ) : null}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

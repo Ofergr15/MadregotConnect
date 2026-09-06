@@ -18,7 +18,8 @@ import { ReminderConfig } from '@/components/ReminderConfig';
 import { MapPrefsRow } from '@/components/MapPrefsRow';
 import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
-import { reviewContextRows, type ReviewContext } from '@/lib/review-context';
+import { FeedbackAdmin } from '@/components/FeedbackAdmin';
+import { CORE_RUNNER_LABEL, CORE_RUNNER_MARK } from '@/lib/core-runner';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
@@ -37,9 +38,16 @@ interface User {
   approved?: boolean;
   approvedAt?: string | null;
   lastSeenAt?: string | null;
+  /** In the גרעין — the flag (migration 091) OR the legacy role. See lib/core-runner. */
+  isCoreRunner?: boolean;
 }
 
 type Role = 'admin' | 'coach' | 'academy_coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
+
+interface GroupOption {
+  id: string;
+  name: string;
+}
 
 // Single source of truth for a role's display label — 'core_runner' has its
 // own settings-namespace key; 'academy_coach'/'academy_user' have none (they
@@ -63,6 +71,70 @@ const roleConfig = {
   academy_user: { label: 'Academy', bg: 'bg-brand-600/15', text: 'text-brand-600', border: 'border-brand-600/30', dot: 'bg-brand-600' },
   viewer: { label: 'Viewer', bg: 'bg-ink-300/15', text: 'text-ink-400', border: 'border-ink-300/30', dot: 'bg-ink-300' },
 };
+
+/**
+ * The דבוקה picker, sitting next to the role picker on the same member row.
+ *
+ * Both facts about a member — what they may do (role) and which squad's paces
+ * they are prescribed (דבוקה) — are now edited in one place. Before this, moving
+ * somebody between squads meant leaving the roster entirely: the only staff path
+ * was /api/athletes PUT, reachable from the athletes list, so the roster could
+ * show a member's group (it already grouped rows by it) without being able to
+ * fix it. `null` is a real choice, not an empty state: a brand-new member has no
+ * squad yet and un-assigning one is how you park them.
+ */
+function GroupDropdown({ value, groups, onChange, disabled, t }: {
+  value: string | null | undefined;
+  groups: GroupOption[];
+  onChange: (groupId: string | null) => void;
+  disabled: boolean;
+  t: TFunc;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = groups.find(g => g.id === value);
+  const resolved = current ? resolveGroup(current.name) : null;
+
+  return (
+    <>
+      <button
+        onClick={() => !disabled && setOpen(true)}
+        disabled={disabled}
+        className={cn(
+          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-page text-xs font-semibold text-ink-500 bg-page/60 transition-colors',
+          disabled ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-95 cursor-pointer'
+        )}
+      >
+        <span
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ backgroundColor: resolved ? resolved.hex : '#969696' }}
+        />
+        {resolved ? resolved.displayName : t('noGroup')}
+        <ChevronDown className="h-3 w-3" />
+      </button>
+
+      <Sheet open={open} onOpenChange={setOpen} title={t('changeGroup')}>
+        <div className="rounded-2xl bg-page/40 overflow-hidden divide-y divide-page/50">
+          {groups.map(g => {
+            const r = resolveGroup(g.name);
+            return (
+              <InsetRow
+                key={g.id}
+                label={r.displayName}
+                onClick={() => { onChange(g.id); setOpen(false); }}
+                trailing={g.id === value ? <CheckCircle2 className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
+              />
+            );
+          })}
+          <InsetRow
+            label={t('noGroup')}
+            onClick={() => { onChange(null); setOpen(false); }}
+            trailing={!value ? <CheckCircle2 className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
+          />
+        </div>
+      </Sheet>
+    </>
+  );
+}
 
 function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: Role; onChange: (role: Role) => void; disabled: boolean; canGrantAdmin: boolean; t: TFunc }) {
   const [open, setOpen] = useState(false);
@@ -237,41 +309,6 @@ const settingsTabs = [
   { key: 'perks' as SettingsTab, label: 'Perks Manager', icon: Gift, iconBg: 'bg-pink-600' },
 ];
 
-type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
-type FeedbackStatus = 'new' | 'idea' | 'sprint' | 'denied' | 'done';
-type FeedbackPriority = 'low' | 'medium' | 'high';
-
-interface FeedbackItem {
-  id: string;
-  athlete_name: string;
-  athlete_email: string | null;
-  group_name: string | null;
-  message: string;
-  category: FeedbackCategory;
-  status: FeedbackStatus;
-  priority: FeedbackPriority;
-  admin_notes: string | null;
-  sort_order: number | null;
-  image_url: string | null;
-  created_at: string;
-  /** Auto-collected diagnostics (migration 093) — see src/lib/review-context.ts.
-   *  Null on every report filed before that shipped, so it renders conditionally. */
-  context: ReviewContext | null;
-}
-
-const categoryConfig = {
-  feature_request: { label: 'Feature Request', icon: Lightbulb, color: 'text-purple-800', bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
-  bug_report: { label: 'Bug Report', icon: Bug, color: 'text-accent-red-ink', bg: 'bg-accent-red/15', border: 'border-accent-red/30' },
-  training_feedback: { label: 'Training Feedback', icon: Dumbbell, color: 'text-band-2-ink', bg: 'bg-band-2/15', border: 'border-band-2/30' },
-  general: { label: 'General', icon: MessageCircle, color: 'text-teal-600', bg: 'bg-teal-500/15', border: 'border-teal-500/30' },
-};
-
-const priorityConfig = {
-  low: { label: 'Low', bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/30' },
-  medium: { label: 'Medium', bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/30' },
-  high: { label: 'High', bg: 'bg-accent-red/15', text: 'text-accent-red-ink', border: 'border-accent-red/30' },
-};
-
 function getOnboardingStep(status: string | undefined, approved: boolean | undefined): { step: number; label: string; color: string } {
   if (approved === true) return { step: 3, label: 'Active', color: 'text-accent-600' };
   if (status === 'garmin_authed') return { step: 2, label: 'Awaiting approval', color: 'text-band-3' };
@@ -282,14 +319,6 @@ function getOnboardingStep(status: string | undefined, approved: boolean | undef
 export default function SettingsPage() {
   const t = useTranslations('settings');
   const tc = useTranslations('common');
-
-  const getStatusLabel = (status: FeedbackStatus) => {
-    return t(status);
-  };
-
-  const getPriorityLabel = (priority: FeedbackPriority) => {
-    return t(priority);
-  };
 
   // null = the Settings landing (iOS-style list); a value = a detail screen
   // open. The 8 "ניהול" rows now live in Coach Tools and link here with
@@ -344,15 +373,6 @@ export default function SettingsPage() {
   const [savedMobilePermissions, setSavedMobilePermissions] = useState<TabPermission[]>([]);
   const [mobilePermissionsLoading, setMobilePermissionsLoading] = useState(true);
   const [savingMobilePermissions, setSavingMobilePermissions] = useState(false);
-  const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
-  const [feedbackLoading, setFeedbackLoading] = useState(true);
-  const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
-  const [filterCategory, setFilterCategory] = useState<FeedbackCategory | 'all'>('all');
-  const [filterStatus, setFilterStatus] = useState<FeedbackStatus | 'all'>('all');
-  const [filterPriority, setFilterPriority] = useState<FeedbackPriority | 'all'>('all');
-  const [updatingFeedback, setUpdatingFeedback] = useState<string | null>(null);
-  const [adminNotes, setAdminNotes] = useState<string>('');
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   // Group names, to label the group sub-sections in User Manager. Same SWR key
   // the Header holds on every screen, so this is a cache read; keyed on the tab
   // so the landing still doesn't ask for it.
@@ -361,6 +381,12 @@ export default function SettingsPage() {
   );
   const groupsById: Record<string, string> = {};
   (groupsData?.groups || []).forEach(g => { groupsById[g.id] = g.name; });
+  // Squads in the order the club thinks of them (1, 2, 3) rather than however
+  // /api/groups happened to return them, so the picker reads the same as the
+  // filter bar above it and the section headers below.
+  const groupOptions: GroupOption[] = [...(groupsData?.groups || [])].sort(
+    (a, b) => resolveGroup(a.name).index - resolveGroup(b.name).index,
+  );
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [uSearch, setUSearch] = useState('');
   const [uRole, setURole] = useState<'all' | Role>('all');
@@ -412,8 +438,6 @@ export default function SettingsPage() {
     } else if (activeTab === 'tabs') {
       loadOnce('permissions', fetchPermissions);
       loadOnce('mobilePermissions', fetchMobilePermissions);
-    } else if (activeTab === 'feedback') {
-      loadOnce('feedback', fetchFeedback);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -440,12 +464,13 @@ export default function SettingsPage() {
       <div
         key={user.id}
         className={cn(
-          'flex items-center gap-3 p-3.5 rounded-xl transition-all',
+          'p-3.5 rounded-xl transition-all',
           isAdmin
             ? 'bg-purple-500/5 border border-purple-500/20'
             : 'bg-page/40 border border-transparent hover:border-page/50 hover:bg-page/60'
         )}
       >
+      <div className="flex items-center gap-3">
         <div className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0', isAdmin ? 'bg-purple-500/20' : 'bg-page/50')}>
           {isAdmin ? (
             <Shield className="w-4.5 h-4.5 text-purple-600" />
@@ -457,6 +482,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-ink-700 truncate">{user.name}</p>
             {isAdmin && <span className="text-3xs font-bold text-purple-800 bg-purple-500/15 px-1.5 py-0.5 rounded">{t('admin').toUpperCase()}</span>}
+            {user.isCoreRunner && <span className="text-xs" title={CORE_RUNNER_LABEL}>{CORE_RUNNER_MARK}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-ink-400 truncate">{user.email}</span>
@@ -478,19 +504,58 @@ export default function SettingsPage() {
           {savedUsers.has(user.id) && <CheckCircle2 className="w-4 h-4 text-accent-600" />}
           {updatingUsers.has(user.id) && <Loader2 className="w-4 h-4 text-ink-400 animate-spin" />}
           {!isAdmin && (
-            <>
-              <RoleDropdown value={user.role} onChange={(role) => handleRoleSelect(user, role)} disabled={updatingUsers.has(user.id)} canGrantAdmin={canGrantAdminHere} t={t} />
-              <button
-                onClick={() => setPendingDelete(user)}
-                disabled={updatingUsers.has(user.id)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
-                title={t('deleteUser')}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </>
+            <button
+              onClick={() => setPendingDelete(user)}
+              disabled={updatingUsers.has(user.id)}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
+              title={t('deleteUser')}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
+      </div>
+
+      {/* The three things a member actually gets managed on, on one line.
+          Own row rather than trailing the name, because at 402px three controls
+          plus a name and an address do not fit side by side — the pickers were
+          what got squeezed, and they are the point of this screen.
+          Role is admin-protected (as before); the דבוקה and the גרעין are not,
+          because both are orthogonal to the role — a coach can be in the גרעין,
+          and the club admin still runs with a squad. */}
+      {/* ps-[52px] = the 40px avatar + its 12px gap, so the controls line up
+          under the name rather than under the avatar. */}
+      <div className="mt-2.5 flex items-center gap-2 flex-wrap ps-[52px]">
+        {isAdmin ? (
+          <span className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold', roleConfig.admin.bg, roleConfig.admin.text, roleConfig.admin.border)}>
+            <span className={cn('w-1.5 h-1.5 rounded-full', roleConfig.admin.dot)} />
+            {getRoleLabel('admin', t)}
+          </span>
+        ) : (
+          <RoleDropdown value={user.role} onChange={(role) => handleRoleSelect(user, role)} disabled={updatingUsers.has(user.id)} canGrantAdmin={canGrantAdminHere} t={t} />
+        )}
+        <GroupDropdown
+          value={user.groupId}
+          groups={groupOptions}
+          onChange={(groupId) => handleGroupSelect(user, groupId)}
+          disabled={updatingUsers.has(user.id)}
+          t={t}
+        />
+        <button
+          onClick={() => handleCoreToggle(user)}
+          disabled={updatingUsers.has(user.id)}
+          aria-pressed={!!user.isCoreRunner}
+          className={cn(
+            'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50',
+            user.isCoreRunner
+              ? 'bg-accent-600/15 text-accent-900 border-accent-600/30'
+              : 'bg-page/60 text-ink-400 border-page'
+          )}
+        >
+          <span>{CORE_RUNNER_MARK}</span>
+          {t('coreRunner')}
+        </button>
+      </div>
       </div>
     );
   };
@@ -575,62 +640,6 @@ export default function SettingsPage() {
     const perm = mobilePermissions.find(p => p.role === role && p.tab === tab);
     return perm?.enabled ?? false;
   };
-
-  const fetchFeedback = async () => {
-    try {
-      setFeedbackLoading(true);
-      const res = await fetch('/api/feedback', { headers: await apiHeaders() });
-      if (!res.ok) return;
-      const data = await res.json();
-      setFeedbackItems(data.feedback || []);
-    } catch {
-    } finally {
-      setFeedbackLoading(false);
-    }
-  };
-
-  const updateFeedbackStatus = async (id: string, status: FeedbackStatus, priority: FeedbackPriority, notes?: string) => {
-    setFeedbackItems(prev => prev.map(f => f.id === id ? { ...f, status, priority, admin_notes: notes ?? f.admin_notes } : f));
-    if (selectedFeedback && selectedFeedback.id === id) {
-      setSelectedFeedback({ ...selectedFeedback, status, priority, admin_notes: notes ?? selectedFeedback.admin_notes });
-    }
-    try {
-      const body: any = { id, status, priority };
-      if (notes !== undefined) body.admin_notes = notes;
-      await fetch('/api/feedback', {
-        method: 'PATCH',
-        headers: await apiHeaders(true),
-        body: JSON.stringify(body),
-      });
-    } catch {
-      await fetchFeedback();
-    }
-  };
-
-  const deleteFeedback = async (id: string) => {
-    setUpdatingFeedback(id);
-    try {
-      const res = await fetch('/api/feedback', {
-        method: 'DELETE',
-        headers: await apiHeaders(true),
-        body: JSON.stringify({ id }),
-      });
-      if (res.ok) {
-        setSelectedFeedback(null);
-        await fetchFeedback();
-      }
-    } catch {
-    } finally {
-      setUpdatingFeedback(null);
-    }
-  };
-
-  const filteredFeedback = feedbackItems.filter(item => {
-    if (filterCategory !== 'all' && (item.category || 'general') !== filterCategory) return false;
-    if (filterStatus !== 'all' && (item.status || 'new') !== filterStatus) return false;
-    if (filterPriority !== 'all' && (item.priority || 'medium') !== filterPriority) return false;
-    return true;
-  });
 
   const togglePermission = (role: string, tab: string, currentEnabled: boolean) => {
     setPermissions(prev =>
@@ -735,6 +744,65 @@ export default function SettingsPage() {
     if (newRole === user.role) return;
     setPendingChange({ user, newRole });
   };
+
+  /**
+   * One saving wrapper for the two non-role edits, so both get the spinner, the
+   * green tick and the same failure behaviour (surface the message AND refetch,
+   * because a half-applied write must not be left on screen as if it took).
+   * Deliberately no confirmation step, unlike the role change: moving somebody
+   * between squads or in and out of the גרעין is reversible in one more tap,
+   * whereas a role change can hand out or revoke staff access.
+   */
+  const saveUserEdit = async (user: User, run: () => Promise<Response>, fallback: string) => {
+    setUpdatingUsers(prev => new Set(prev).add(user.id));
+    setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+    try {
+      const response = await run();
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || data.message || data.error || fallback);
+      }
+      await fetchUsers();
+      setSavedUsers(prev => new Set(prev).add(user.id));
+      setTimeout(() => {
+        setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : fallback);
+      fetchUsers();
+    } finally {
+      setUpdatingUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+    }
+  };
+
+  // Staff group changes go through /api/athletes PUT — the same handler the
+  // athletes list uses — not /api/athletes/update-group, which is the ungated
+  // sign-up path and would reject an already-active member anyway.
+  const handleGroupSelect = (user: User, groupId: string | null) =>
+    groupId === (user.groupId || null)
+      ? undefined
+      : saveUserEdit(
+          user,
+          async () => fetch('/api/athletes', {
+            method: 'PUT',
+            headers: await apiHeaders(true),
+            body: JSON.stringify({ id: user.id, groupId }),
+          }),
+          t('failedToUpdateGroup'),
+        );
+
+  // The גרעין keeps its own route on purpose: /api/admin/users PUT writes `role`,
+  // and migration 091 exists precisely to stop membership from being a role.
+  const handleCoreToggle = (user: User) =>
+    saveUserEdit(
+      user,
+      async () => fetch('/api/admin/core-runners', {
+        method: 'PUT',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ athleteId: user.id, isCoreRunner: !user.isCoreRunner }),
+      }),
+      t('failedToUpdateCoreRunner'),
+    );
 
   const confirmRoleChange = async () => {
     if (!pendingChange) return;
@@ -1155,222 +1223,11 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Feedback Tab */}
-      {activeTab === 'feedback' && (
-        <>
-          {selectedFeedback && (
-            <Sheet open onOpenChange={(o) => { if (!o) { setSelectedFeedback(null); setConfirmDeleteOpen(false); } }}>
-              <div className="pb-4 mb-1 border-b border-page/50 flex items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-brand-600/15 flex items-center justify-center">
-                    <span className="text-sm font-bold text-brand-600">
-                      {selectedFeedback.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-base font-bold text-ink-700">{selectedFeedback.athlete_name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {selectedFeedback.athlete_email && <span className="text-xs text-ink-400">{selectedFeedback.athlete_email}</span>}
-                      {selectedFeedback.group_name && <span className="text-xs text-ink-400">· {selectedFeedback.group_name}</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-                <div className="pt-4">
-                  <div className="flex items-center gap-2 mb-4">
-                    {(() => {
-                      const catConfig = categoryConfig[selectedFeedback.category || 'general'];
-                      const CatIcon = catConfig.icon;
-                      return (
-                        <span className={cn('flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border', catConfig.bg, catConfig.border, catConfig.color)}>
-                          <CatIcon className="w-3.5 h-3.5" />
-                          {catConfig.label}
-                        </span>
-                      );
-                    })()}
-                    <span className="text-xs text-ink-400">
-                      {new Date(selectedFeedback.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <p className="text-base text-ink-700 leading-relaxed whitespace-pre-wrap mb-4">{selectedFeedback.message}</p>
-                  {selectedFeedback.image_url && (
-                    <img src={selectedFeedback.image_url} alt="Attached" className="max-h-48 rounded-lg border border-page/50 mb-5" />
-                  )}
-
-                  {/* The reporter's device, app version and the screen it happened
-                      on. Same rows, from the same function, that the athlete saw
-                      before they sent it — the point of showing it to them is that
-                      it is exactly what lands here. */}
-                  {(() => {
-                    const rows = reviewContextRows(selectedFeedback.context, {
-                      page: 'Screen', version: 'Version', device: 'Device', screen: 'Viewport', mode: 'Running as',
-                    });
-                    if (rows.length === 0) return null;
-                    return (
-                      <dl className="mb-5 rounded-xl bg-page/50 px-3.5 py-3 space-y-1.5">
-                        {rows.map(r => (
-                          <div key={r.label} className="flex items-baseline gap-2 text-2xs">
-                            <dt className="w-20 shrink-0 text-ink-400">{r.label}</dt>
-                            <dd className="min-w-0 flex-1 font-medium text-ink-700" dir="auto">{r.value}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    );
-                  })()}
-
-                  <div className="border-t border-page/50 pt-4 space-y-4">
-                    <div className={cn(updatingFeedback === selectedFeedback.id && 'opacity-50 pointer-events-none')}>
-                      <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('status')}</label>
-                      <SegmentedControl<FeedbackStatus>
-                        value={selectedFeedback.status || 'new'}
-                        onChange={(status) => updateFeedbackStatus(selectedFeedback.id, status, selectedFeedback.priority || 'medium')}
-                        options={(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => ({ value: status, label: getStatusLabel(status) }))}
-                      />
-                    </div>
-                    <div className={cn(updatingFeedback === selectedFeedback.id && 'opacity-50 pointer-events-none')}>
-                      <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('priority')}</label>
-                      <SegmentedControl<FeedbackPriority>
-                        value={selectedFeedback.priority || 'medium'}
-                        onChange={(priority) => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status || 'new', priority)}
-                        options={(['low', 'medium', 'high'] as FeedbackPriority[]).map(priority => ({ value: priority, label: getPriorityLabel(priority) }))}
-                      />
-                    </div>
-                    {updatingFeedback === selectedFeedback.id && (
-                      <div className="flex items-center gap-2 text-xs text-ink-400">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        {t('updating')}
-                      </div>
-                    )}
-
-                    <div className="pt-3 border-t border-page/50">
-                      <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('adminNotes')}</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={adminNotes}
-                          onChange={e => setAdminNotes(e.target.value)}
-                          placeholder={t('addTagOrNote')}
-                          className="flex-1 bg-page/50 border border-page/50 rounded-lg px-3 py-2 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-1 focus:ring-brand-600/50"
-                        />
-                        <button
-                          onClick={() => updateFeedbackStatus(selectedFeedback.id, selectedFeedback.status || 'new', selectedFeedback.priority || 'medium', adminNotes)}
-                          disabled={updatingFeedback === selectedFeedback.id}
-                          className="px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-colors disabled:opacity-50"
-                        >
-                          {tc('save')}
-                        </button>
-                      </div>
-                      {selectedFeedback.admin_notes && adminNotes !== selectedFeedback.admin_notes && (
-                        <p className="text-3xs text-ink-400 mt-1.5">{t('currentNote', { note: selectedFeedback.admin_notes })}</p>
-                      )}
-                    </div>
-
-                    <div className="pt-3 border-t border-page/50 flex justify-end">
-                      <button
-                        onClick={() => setConfirmDeleteOpen(true)}
-                        disabled={updatingFeedback === selectedFeedback.id}
-                        className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 border border-accent-red/20 hover:border-accent-red/40 transition-all disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        {tc('delete')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-            </Sheet>
-          )}
-
-          {/* Delete confirmation — a native ConfirmSheet, replacing the browser
-              `confirm()` dialog (unstyleable, unlocalizable, not RTL-safe, and
-              renders as a jarring native alert box on iOS). */}
-          <ConfirmSheet
-            open={confirmDeleteOpen}
-            onOpenChange={setConfirmDeleteOpen}
-            title={tc('delete')}
-            description={t('deleteFeedbackConfirm')}
-            confirmLabel={tc('delete')}
-            cancelLabel={tc('cancel')}
-            onConfirm={() => { if (selectedFeedback) deleteFeedback(selectedFeedback.id); }}
-          />
-
-          {/* Category filter */}
-          <div className="mb-4">
-            <SegmentedControl<FeedbackCategory | 'all'>
-              value={filterCategory}
-              onChange={setFilterCategory}
-              options={[
-                { value: 'all', label: t('all') },
-                ...(['feature_request', 'bug_report', 'training_feedback', 'general'] as FeedbackCategory[]).map(cat => ({
-                  value: cat, label: categoryConfig[cat].label, icon: categoryConfig[cat].icon,
-                })),
-              ]}
-            />
-          </div>
-
-          {/* Feedback list — grouped by status. The drag-and-drop Kanban board
-              was removed: native HTML5 dragstart/drop events don't fire from
-              touch input on iOS Safari, so the board was effectively undraggable
-              on a real phone. Status now changes from the detail sheet's
-              segmented control above. */}
-          {feedbackLoading ? (
-            <LoadingBlock />
-          ) : feedbackItems.length === 0 ? (
-            <EmptyState icon={MessageSquare} title={t('noFeedback')} />
-          ) : (
-            <div className="space-y-4">
-              {(['new', 'idea', 'sprint', 'denied', 'done'] as FeedbackStatus[]).map(status => {
-                const colItems = feedbackItems.filter(item => {
-                  if ((item.status || 'new') !== status) return false;
-                  if (filterCategory !== 'all' && (item.category || 'general') !== filterCategory) return false;
-                  return true;
-                });
-                if (colItems.length === 0) return null;
-                return (
-                  <InsetSection key={status} header={`${getStatusLabel(status)} (${colItems.length})`}>
-                    {colItems.map(item => {
-                      const catCfg = categoryConfig[item.category || 'general'];
-                      const CatIcon = catCfg.icon;
-                      const priCfg = priorityConfig[item.priority || 'medium'];
-                      const date = new Date(item.created_at);
-                      const timeAgo = (() => {
-                        const h = (Date.now() - date.getTime()) / 3600000;
-                        if (h < 1) return t('justNow');
-                        if (h < 24) return t('hoursAgo', { hours: Math.floor(h) });
-                        if (h < 48) return t('yesterday');
-                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                      })();
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => { setSelectedFeedback(item); setAdminNotes(item.admin_notes || ''); }}
-                          className="w-full text-start px-4 py-3 active:bg-page/40 transition-colors"
-                        >
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <span className={cn('flex items-center gap-1 text-3xs font-semibold px-1.5 py-0.5 rounded border', catCfg.bg, catCfg.border, catCfg.color)}>
-                              <CatIcon className="w-2.5 h-2.5" />{catCfg.label}
-                            </span>
-                            <span className={cn('text-3xs font-semibold px-1.5 py-0.5 rounded border', priCfg.bg, priCfg.border, priCfg.text)}>
-                              {getPriorityLabel(item.priority || 'medium')}
-                            </span>
-                          </div>
-                          <p className="text-sm text-ink-700 leading-relaxed line-clamp-2 mb-1.5">{item.message}</p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-3xs text-ink-400 font-medium">{item.athlete_name.split(' ')[0]}</span>
-                            <span className="text-3xs text-ink-400">{timeAgo}</span>
-                          </div>
-                          {item.admin_notes && (
-                            <p className="text-3xs text-ink-400 italic mt-1 border-t border-page/30 pt-1">{item.admin_notes}</p>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </InsetSection>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
+      {/* Feedback Tab — the same component the dedicated inbox at
+          /dashboard/review/all renders. It used to be ~215 lines inline here,
+          which meant the only way to give reports a real destination was a
+          second copy of the triage logic. */}
+      {activeTab === 'feedback' && <FeedbackAdmin />}
 
       {/* Tab Manager Tab */}
       {activeTab === 'tabs' && (

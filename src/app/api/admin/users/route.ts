@@ -2,11 +2,15 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { canGrantAdmin } from '@/lib/constants';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isCoreRunner } from '@/lib/core-runner';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type UserRole = 'admin' | 'coach' | 'runner' | 'core_runner' | 'viewer';
+
+/** Postgres "column does not exist" — migration 091 not pasted in yet. */
+const UNDEFINED_COLUMN = '42703';
 
 /**
  * Staff gate on a VERIFIED session. This route used to resolve its caller from
@@ -37,7 +41,11 @@ interface User {
   approved?: boolean;
   approvedAt?: string | null;
   lastSeenAt?: string | null;
+  /** In the גרעין. Read through isCoreRunner(), so the legacy role counts too. */
+  isCoreRunner?: boolean;
 }
+
+const BASE_COLUMNS = 'id, email, name, role, group_id, onboarding_status, approved, approved_at, last_seen_at';
 
 export async function GET(request: Request) {
   try {
@@ -46,14 +54,24 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
 
-    const { data: athletes, error } = await supabase
+    // is_core_runner is asked for so the roster can show and edit גרעין
+    // membership in the same place as the role and the דבוקה. Migrations here are
+    // applied by hand, so "091 isn't pasted in yet" is a state a reader can hit —
+    // fall back to the base columns rather than 500ing the whole roster. The
+    // legacy role value still reads as in, so the list stays correct either way.
+    const withFlag = await supabase
       .from('athletes')
-      .select('id, email, name, role, group_id, onboarding_status, approved, approved_at, last_seen_at')
+      .select(`${BASE_COLUMNS}, is_core_runner`)
       .order('email');
+
+    const { data: athletes, error } =
+      withFlag.error?.code === UNDEFINED_COLUMN
+        ? await supabase.from('athletes').select(BASE_COLUMNS).order('email')
+        : withFlag;
 
     if (error) throw error;
 
-    const users: User[] = (athletes || []).map((a: any) => ({
+    const users: User[] = ((athletes || []) as any[]).map((a: any) => ({
       id: a.id,
       email: a.email,
       name: a.name,
@@ -63,6 +81,7 @@ export async function GET(request: Request) {
       approved: a.approved ?? true,
       approvedAt: a.approved_at,
       lastSeenAt: a.last_seen_at,
+      isCoreRunner: isCoreRunner(a),
     }));
 
     return NextResponse.json({ users });

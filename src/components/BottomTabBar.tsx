@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, MessageSquareWarning } from 'lucide-react';
+import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, Bug } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
@@ -220,7 +220,7 @@ export function BottomTabBar() {
                   gated by a permission row that might itself be the thing that's
                   wrong. Also lives beside the logo in the Header now; this card
                   keeps the place the club already knows. */}
-              <MoreCard icon={MessageSquareWarning} label={t('review' as any)} href="/dashboard/review" active={isActive('/dashboard/review')} onClick={() => setMoreOpen(false)} />
+              <MoreCard icon={Bug} label={t('review' as any)} href="/dashboard/review" active={isActive('/dashboard/review')} onClick={() => setMoreOpen(false)} />
               {/* Photos is still being built — card and route disabled for now.
                   Restore with the Header nav entry and the page (re-add the
                   lucide Camera import too). */}

@@ -2,14 +2,16 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { filterQualifyingRuns, computeDistanceBests } from '@/lib/prs/pr-buckets';
+import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/athletes/prs?athleteId=…
 // Auto-detected Personal Records from the athlete's FULL run history in
 // athlete_activities (Garmin + Strava write the same table/units: distance in
-// meters, duration in seconds). Whole-activity distance-time bests only — no new
-// data capture. Scoped like the activities API: a caller may fetch their own
+// meters, duration in seconds). Bests are the fastest continuous stretch of each
+// bucket distance, taken from the laps already stored on the row when they are
+// there and from the whole activity otherwise — no new data capture. Scoped like the activities API: a caller may fetch their own
 // PRs; staff (coach/admin/academy_coach) may fetch any. Identity comes from the
 // Supabase session, not from a header the caller writes themselves.
 //
@@ -38,12 +40,12 @@ export async function GET(request: Request) {
     // Full run history for this athlete (no 200-row feed cap here).
     const { data: acts, error } = await supabase
       .from('athlete_activities')
-      .select('activity_name, activity_type, start_time, distance, duration')
+      .select('id, activity_name, activity_type, start_time, distance, duration')
       .eq('athlete_id', athleteId)
       .order('start_time', { ascending: false });
     if (error) throw error;
 
-    const runs = filterQualifyingRuns((acts || []) as any[]);
+    const runs = await attachLapsForPrs(supabase, athleteId, filterQualifyingRuns((acts || []) as any[]));
 
     // Distance-time bests: fastest qualifying run per bucket (shared w/ the
     // badge award engine's pr_bucket rule_type — see pr-buckets.ts).
