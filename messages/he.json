@@ -2002,7 +2002,9 @@
     "noPerks": "אין עדיין שותפויות",
     "discountCode": "קוד הנחה",
     "goToSponsor": "מעבר לספונסר",
-    "coreRunnerBadge": "בלעדי לרצי גרעין"
+    "coreRunnerBadge": "בלעדי לרצי גרעין",
+    "coreMemberTitle": "את/ה ברצי הגרעין",
+    "coreMemberNote": "{count} מהשותפויות כאן פתוחות רק לרצי הגרעין, ומסומנות בתג."
   },
   "surveys": {
     "title": "סקר",
