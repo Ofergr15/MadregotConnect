@@ -23,6 +23,8 @@
  * empty point array is a fact.
  */
 
+import { readGarminId } from './delivery';
+
 /** The subset of an activity LIST row this mapper falls back to. */
 export interface ActivityListFallback {
   startLatitude?: number | null;
@@ -35,6 +37,7 @@ export interface ActivityListFallback {
   lapCount?: number | null;
   locationName?: string | null;
   movingDuration?: number | null;
+  workoutId?: string | number | null;
 }
 
 export interface GpsPoint {
@@ -55,6 +58,13 @@ export interface ActivityEnrichment {
   moving_duration: number | null;
   perceived_rpe: number | null;
   perceived_feel: number | null;
+  /**
+   * The structured workout this run was started from, when it was one. This is
+   * the whole basis of exact plan attribution — see migration 092 — and Garmin
+   * files it in a different place in each response, hence the four candidates
+   * below rather than one field read.
+   */
+  garmin_workout_id: string | null;
   gps_points: GpsPoint[];
   has_polyline: boolean;
 }
@@ -112,6 +122,12 @@ export function mapActivityDetail(
     // the scales the UI shows, not Garmin's internal 0-100.
     perceived_rpe: summ.directWorkoutRpe != null ? summ.directWorkoutRpe / 10 : null,
     perceived_feel: summ.directWorkoutFeel != null ? summ.directWorkoutFeel / 25 : null,
+    // metadataDTO.associatedWorkoutId is the detail response's name for it; the
+    // activity LIST row calls it workoutId. Not via pickNum: these ids are big
+    // enough to be worth keeping as strings, and pickNum would hand back a float.
+    garmin_workout_id: readGarminId(
+      summ.workoutId ?? d.workoutId ?? d.metadataDTO?.associatedWorkoutId ?? list.workoutId,
+    ),
     gps_points: gpsPoints,
     // >1 point, not >0: a single fix can't draw a route, and both RouteMinimap
     // and lib/feed/project.ts's toRoute() already use that same threshold.

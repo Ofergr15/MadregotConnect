@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
+import { Check, ChevronDown, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
 import { Card, LoadingBlock, ConfirmSheet, SegmentedControl } from '@/components/ui';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
@@ -32,12 +32,20 @@ interface Registration {
   email: string;
   groupId: string | null;
   groupName: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  /** 'member' = submitted the public form but already had an account. A record,
+   *  never a task: it has no approver, no rejecter and no action (migration 089). */
+  status: 'pending' | 'approved' | 'rejected' | 'member';
   createdAt: string;
   approvedAt: string | null;
   approvedBy: string | null;
   rejectedAt: string | null;
   rejectedBy: string | null;
+  /** Set when the address already has an athlete row — either because approval
+   *  created one, or because they were already in the app before they ever reached
+   *  this queue (the pre-launch backfill, and the public form's member branch).
+   *  On a PENDING row it changes what approving means: no member is created, the
+   *  existing row is adopted and the /join onboarding link is mailed. */
+  athleteId: string | null;
 }
 
 interface GroupOption {
@@ -146,6 +154,49 @@ export default function RegistrationsQueue() {
   const pending = visible.filter(r => r.status === 'pending');
   const pendingCount = requests.filter(r => r.status === 'pending').length;
   const missingGroupCount = requests.filter(r => r.status === 'pending' && !effectiveGroup(r)).length;
+
+  /**
+   * The pending list, split by דבוקה, with the ones that still need one first.
+   *
+   * ⚠️ This is the readability fix, and the reason it is sections and not sorting:
+   * the backfill (migration 090) put the whole club in here at once, and 25 rows of
+   * identical grey — each carrying a truncated address, a timestamp, a status chip
+   * and three group buttons — was unreadable. Ofer's words: "מאוד קשה להבין מה
+   * קורה". Grouping is what makes the screen answer a question ("nine in דבוקה 2,
+   * four still unassigned") rather than present a wall.
+   *
+   * 'none' leads because it is the only actionable section: approval is blocked
+   * without a group, so those rows are the ones holding up a bulk run.
+   */
+  const pendingSections = useMemo(() => {
+    const byGroup = new Map<string, Registration[]>();
+    for (const r of pending) {
+      const key = effectiveGroup(r) || 'none';
+      const list = byGroup.get(key);
+      if (list) list.push(r); else byGroup.set(key, [r]);
+    }
+    const sections: Array<{
+      key: string; label: string; band: number | null; hex: string | null;
+      chip: { bg: string; text: string; border: string } | null; rows: Registration[];
+    }> = [];
+    const none = byGroup.get('none');
+    if (none?.length) sections.push({ key: 'none', label: 'בלי דבוקה', band: null, hex: null, chip: null, rows: none });
+    for (const g of groups) {
+      const rows = byGroup.get(g.id);
+      if (rows?.length) {
+        const resolved = resolveGroup(g.name);
+        sections.push({ key: g.id, label: `דבוקה ${g.band}`, band: g.band, hex: resolved.hex, chip: resolved.colors.chip, rows });
+      }
+    }
+    // A group that is no longer in /api/groups — a stale id on an old row. Kept
+    // visible rather than silently dropped from a list of people.
+    for (const [key, rows] of byGroup) {
+      if (key !== 'none' && !groups.some(g => g.id === key)) {
+        sections.push({ key, label: 'דבוקה לא מזוהה', band: null, hex: null, chip: null, rows });
+      }
+    }
+    return sections;
+  }, [pending, groups, override]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedRows = pending.filter(r => selected.has(r.id));
   const blockedRows = selectedRows.filter(r => !effectiveGroup(r));
@@ -387,18 +438,82 @@ export default function RegistrationsQueue() {
         </div>
       )}
 
-      {visible.length > 0 && (
+      {/* THE PENDING TAB — one card per דבוקה. See pendingSections above for why. */}
+      {tab === 'pending' && pending.length > 0 && (
+        <div className="mt-4 space-y-4">
+          {pendingSections.map(s => (
+            <div key={s.key}>
+              {/* The header is deliberately BIG — 13px bold ink, not the 3xs grey
+                  uppercase caption used elsewhere on this screen. It is the thing
+                  that has to be legible while scrolling past twenty-five rows, and
+                  as a caption it was quieter than the rows it was labelling. */}
+              <div className="flex items-center justify-between gap-2 px-2 mb-1.5">
+                <span className="flex items-center gap-2 min-w-0">
+                  {/* The colour, once, at the head of the section — the same band
+                      hue the rest of the app uses for that דבוקה (resolveGroup, so
+                      it cannot drift). */}
+                  <span
+                    className={cn('w-2.5 h-2.5 rounded-full shrink-0', !s.hex && 'bg-ink-300')}
+                    style={s.hex ? { backgroundColor: s.hex } : undefined}
+                    aria-hidden="true"
+                  />
+                  <span className="text-13 font-bold text-ink-900 truncate">{s.label}</span>
+                  {/* The count in the band's own chip colours rather than grey text:
+                      "nine in דבוקה 2" is the fact this screen exists to show, and
+                      the -ink text tones are the ones picked for small bold type on
+                      a tint (getGroupColors), so this stays readable. */}
+                  <span
+                    className={cn(
+                      'text-3xs font-bold px-1.5 py-0.5 rounded-md border shrink-0',
+                      s.chip ? [s.chip.bg, s.chip.text, s.chip.border] : 'bg-page text-ink-500 border-page',
+                    )}
+                  >
+                    {s.rows.length}
+                  </span>
+                </span>
+                {/* Said on the section that it applies to, instead of once at the
+                    top of a list where the blocked rows were 20 rows further down. */}
+                {!s.band && <span className="text-3xs font-semibold text-ink-900 shrink-0">האישור חסום</span>}
+              </div>
+              {/* A 3px stripe down the card's leading edge in the band colour, so
+                  the colour survives past the header once the header has scrolled
+                  off. Colour sections only: the "בלי דבוקה" card marks its rows
+                  individually in black, and stacking both would read as 6px. */}
+              <div
+                className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
+                style={s.hex ? { borderInlineStartWidth: 3, borderInlineStartStyle: 'solid', borderInlineStartColor: s.hex } : undefined}
+              >
+                {s.rows.map((r, i) => (
+                  <QueueRow
+                    key={r.id}
+                    r={r}
+                    groups={groups}
+                    last={i === s.rows.length - 1}
+                    selected={selected.has(r.id)}
+                    busy={busyId === r.id || !!bulk}
+                    groupId={effectiveGroup(r)}
+                    onToggle={() => toggle(r.id)}
+                    onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
+                    onApprove={() => act(r, 'approve')}
+                    onReject={() => setConfirmReject(r)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+          <p className="px-2 text-3xs text-ink-400 leading-relaxed">
+            אישור שולח מייל עם קישור להשלמת ההרשמה. עד שלוחצים על הקישור אף אחד לא נכנס לאפליקציה.
+          </p>
+        </div>
+      )}
+
+      {/* THE "הכל" TAB — one flat card, because it is a history and not a worklist:
+          it mixes statuses, so splitting it by דבוקה would group things that are not
+          comparable. */}
+      {tab === 'all' && visible.length > 0 && (
         <div className="mt-4">
-          <div className="flex items-baseline justify-between">
-            <SectionCaption className="mb-0">
-              {tab === 'pending' ? `ממתינות לאישור · ${pending.length}` : `כל ההרשמות · ${visible.length}`}
-            </SectionCaption>
-            {pending.length > 0 && <span className="px-2 text-3xs text-ink-400">אין אישור בלי דבוקה</span>}
-          </div>
-          {/* One grouped card for the whole list, hairlines between rows — thirty
-              separate cards is thirty shadows and thirty gaps, which is what made
-              this unreadable. */}
-          <div className="mt-1.5 rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+          <SectionCaption>כל ההרשמות · {visible.length}</SectionCaption>
+          <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
             {visible.map((r, i) => (
               <QueueRow
                 key={r.id}
@@ -415,12 +530,6 @@ export default function RegistrationsQueue() {
               />
             ))}
           </div>
-          {pending.length > 0 && (
-            <p className="mt-2.5 px-2 text-3xs text-ink-400 leading-relaxed">
-              אישור יוצר את המשתמש ושולח לו מייל עם קישור להשלמת ההרשמה. שורות עם פס שחור ממתינות
-              לשיוך דבוקה — האישור בהן חסום.
-            </p>
-          )}
         </div>
       )}
 
@@ -538,11 +647,39 @@ function QueueRow({
 }) {
   const isPending = r.status === 'pending';
   const needsGroup = isPending && !groupId;
+  /** The row's דבוקה, resolved to its number and its brand colours. null when the
+   *  row has no group, or an id that /api/groups no longer knows. */
+  const band = useMemo(() => {
+    const g = groups.find(x => x.id === groupId);
+    if (!g) return null;
+    return { number: g.band, chip: resolveGroup(g.name).colors.chip };
+  }, [groups, groupId]);
+
+  /**
+   * Whether this row is showing the picker for a group it ALREADY has.
+   *
+   * Requested directly ("אני רוצה שיהיה אופציה במסך של הpending לשנות דבוקה
+   * לאתלט"). It reverses an earlier call of mine to show the picker only where a
+   * group was missing — which did clean up the list, and also made the one number
+   * that matters here unchangeable. Behind a tap rather than always-on, so the
+   * twenty-five rows stay scannable and a mis-tap while scrolling cannot silently
+   * re-band somebody: opening the picker is one deliberate tap, and the change is
+   * still only local state until Approve commits it.
+   *
+   * ⚠️ For a backfilled row the athlete ALREADY has a group and approving
+   * OVERWRITES it (see migration 090) — so this control is the real thing, not a
+   * queue-only annotation.
+   */
+  const [editing, setEditing] = useState(false);
+  const showPicker = isPending && (needsGroup || editing);
 
   return (
     <div
       className={cn(
-        'flex items-center gap-2.5 px-3.5 min-h-[62px]',
+        // Taller than the 62px it was: the address moved up to 14px and the badge
+        // sits under it, and cramming both into 62 is what made the old row read as
+        // a single grey smudge.
+        'flex items-center gap-2.5 px-3.5 py-2.5 min-h-[70px]',
         !last && 'border-b border-page',
         selected && 'bg-page/40',
         // A black edge on the row's leading side. Eight of these down the list is
@@ -560,64 +697,116 @@ function QueueRow({
       )}
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span dir="ltr" className="text-13 font-medium text-ink-900 truncate text-left select-all">
-            {r.email}
-          </span>
-          <span className="text-3xs text-ink-300 shrink-0" aria-hidden="true">·</span>
-          <span className="text-3xs text-ink-400 shrink-0">{waitingFor(r.createdAt)}</span>
-        </div>
+        {/* THE ADDRESS IS THE ROW. It is the only thing here that identifies a
+            person, and it was the thing being squeezed: at 13px with a timestamp,
+            a status chip and three buttons on the same line, every address was
+            truncated mid-domain ("grosfeldofe…"), which is unreadable and, worse,
+            ambiguous between two people. It now owns line one at 14px, with
+            everything else demoted to line two. */}
+        <span dir="ltr" title={r.email} className="block text-sm font-semibold text-ink-900 truncate text-left select-all">
+          {r.email}
+        </span>
 
+        {/* dir=ltr on the SECOND line too, and it matters: the address above is an
+            LTR block, so it sits hard against the left edge, while an RTL line
+            underneath starts hard against the RIGHT. That split the row into two
+            unrelated columns — the badge for a person was 250px away from their
+            address. Both lines now begin at the same left edge, so a row reads as
+            one thing. The Hebrew inside each chip still renders RTL by itself. */}
         {isPending ? (
-          <div className="mt-1 flex items-center gap-1.5">
-            {/* The prompt replaces the "דבוקה" caption rather than sitting next to
-                it: the row has to say what is missing, not just fail to say what
-                is set. */}
-            <span className={cn('shrink-0 whitespace-nowrap', needsGroup ? 'text-3xs font-bold text-ink-900' : 'text-3xs text-ink-400')}>
-              {needsGroup ? 'בחר דבוקה' : 'דבוקה'}
-            </span>
-            {/* Three chips instead of a <select>: at this density a native picker
-                is two taps and a modal per person, and the whole point is to get
-                through thirty of them. */}
-            <span className="flex gap-[3px] shrink-0">
-              {groups.map(g => {
-                const on = groupId === g.id;
-                return (
+          <div dir="ltr" className="mt-1 flex items-center gap-1.5">
+            {/* The band badge Ofer asked for, in that דבוקה's own colour (via
+                resolveGroup, so it matches the league table and the athletes list
+                and cannot drift). On a row that HAS a group this replaces the three
+                buttons entirely — which is most rows after the backfill, and the
+                other half of why this list was so hard to read. */}
+            {band && !editing && (
+              <button
+                onClick={() => setEditing(true)}
+                disabled={busy}
+                aria-label={`דבוקה ${band.number} — החלפת דבוקה`}
+                className={cn(
+                  'flex items-center gap-1 text-3xs font-bold px-2 py-0.5 rounded-md border shrink-0 whitespace-nowrap',
+                  band.chip.bg, band.chip.text, band.chip.border,
+                  'disabled:opacity-50',
+                )}
+              >
+                דבוקה {band.number}
+                {/* A tiny caret is the whole affordance. Anything more (a pencil, a
+                    "שינוי" label) is 25 copies of a control nobody uses on most
+                    rows, which is what made this list unreadable in the first place. */}
+                <ChevronDown className="h-2.5 w-2.5 opacity-60" strokeWidth={3} aria-hidden="true" />
+              </button>
+            )}
+            {showPicker && (
+              <>
+                {needsGroup && (
+                  <span className="text-3xs font-bold text-ink-900 shrink-0 whitespace-nowrap">בחר דבוקה</span>
+                )}
+                {/* Three chips instead of a <select>: at this density a native
+                    picker is two taps and a modal per person, and the whole point
+                    is to get through thirty of them. The one currently set is
+                    filled in its own band colour, so the row still answers "which
+                    דבוקה is this?" while the picker is open. */}
+                <span className="flex gap-1 shrink-0">
+                  {groups.map(g => {
+                    const on = g.id === groupId;
+                    const chip = resolveGroup(g.name).colors.chip;
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => { onPickGroup(g.id); setEditing(false); }}
+                        disabled={busy}
+                        aria-label={`דבוקה ${g.band}`}
+                        aria-pressed={on}
+                        className={cn(
+                          'w-[26px] h-[26px] rounded-lg text-3xs font-bold flex items-center justify-center border',
+                          on ? [chip.bg, chip.text, 'border-current'] : 'bg-page text-ink-500 border-transparent active:bg-ink-300/40',
+                        )}
+                      >
+                        {g.band}
+                      </button>
+                    );
+                  })}
+                </span>
+                {/* Only when a group already existed: closing an empty picker would
+                    hide the one control the row needs. */}
+                {editing && !needsGroup && (
                   <button
-                    key={g.id}
-                    onClick={() => onPickGroup(g.id)}
-                    disabled={busy}
-                    aria-pressed={on}
-                    aria-label={`דבוקה ${g.band}`}
-                    className={cn(
-                      'w-[19px] h-[19px] rounded-[7px] text-3xs font-semibold flex items-center justify-center transition-colors',
-                      on ? 'bg-ink-900 text-white' : 'bg-page text-ink-400',
-                    )}
+                    onClick={() => setEditing(false)}
+                    aria-label="סגירה"
+                    className="w-[26px] h-[26px] rounded-lg text-ink-400 flex items-center justify-center shrink-0 active:bg-page"
                   >
-                    {g.band}
+                    <X className="h-3 w-3" />
                   </button>
-                );
-              })}
-            </span>
-            {needsGroup && (
+                )}
+              </>
+            )}
+            {!showPicker && (
               <>
                 <span className="text-3xs text-ink-300 shrink-0" aria-hidden="true">·</span>
-                <span className="text-3xs text-ink-400 shrink-0 whitespace-nowrap">לא בטוח/ה</span>
+                <span className="text-3xs text-ink-400 shrink-0 truncate">{waitingFor(r.createdAt)}</span>
               </>
             )}
           </div>
         ) : (
-          <div className="mt-1 flex items-center gap-1.5">
+          <div dir="ltr" className="mt-1 flex items-center gap-1.5">
+            {/* Three faces, not two. 'member' is deliberately the quiet one — a
+                flat grey chip rather than the black "אושר" or the red "נדחה":
+                nobody did anything and nobody has to. It reads as a note in the
+                margin, which is what it is. */}
             <span
               className={cn(
                 'text-3xs font-bold px-1.5 py-0.5 rounded',
-                r.status === 'approved' ? 'bg-ink-900 text-white' : 'bg-accent-red/15 text-accent-red-ink',
+                r.status === 'approved' && 'bg-ink-900 text-white',
+                r.status === 'rejected' && 'bg-accent-red/15 text-accent-red-ink',
+                r.status === 'member' && 'bg-page text-ink-400',
               )}
             >
-              {r.status === 'approved' ? 'אושר' : 'נדחה'}
+              {r.status === 'approved' ? 'אושר' : r.status === 'rejected' ? 'נדחה' : 'כבר חבר'}
             </span>
             <span className="text-3xs text-ink-400 truncate">
-              {r.groupName || 'ללא דבוקה'}
+              {r.status === 'member' ? 'נרשם מהקישור, יש לו כבר חשבון' : r.groupName || 'ללא דבוקה'}
               {r.status === 'approved' && r.approvedBy && ` · ${r.approvedBy}`}
               {r.status === 'rejected' && r.rejectedBy && ` · ${r.rejectedBy}`}
             </span>

@@ -62,8 +62,14 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label
         <span className={cn('block text-[15px] font-medium truncate', danger ? 'text-accent-red' : 'text-ink-700')} dir="auto">{label}</span>
         {sublabel && <span className="block text-xs truncate text-ink-400" dir="auto">{sublabel}</span>}
       </span>
+      {/* dir="auto" so a value made only of digits and punctuation isn't
+          bidi-reordered by the RTL page around it. A date range ("06.09 –
+          12.09") has no strongly-directional character at all, so the two number
+          runs and the dash between them were being laid out right-to-left —
+          rendering this week as "12.09 – 06.09". Hebrew values still resolve to
+          RTL, since dir="auto" reads the first strong character. */}
       {value && (
-        <span className={cn(
+        <span dir="auto" className={cn(
           'text-[15px] shrink-0 tabular-nums',
           // A muted value ("not set yet") is carried by the italic alone. It used
           // to also be a lighter grey, but that grey is a border value at 1.92:1

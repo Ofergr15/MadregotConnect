@@ -14,14 +14,64 @@ export const dynamic = 'force-dynamic';
  * Answers { ok: true, state: 'member' | 'pending' | 'new' } so the form can say
  * plainly that an address is already registered — see the note on that below.
  *
- * Writes a row to `signup_requests` (migration 083) and mails the approvers. It
- * creates NOTHING else: no auth user, no athlete row, no group membership. A
+ * Writes a row to `signup_requests` (migration 083) and mails the approvers. Every
+ * submission is recorded, including one from somebody who already has an account —
+ * that one lands as status 'member' and mails nobody (migration 089). It creates
+ * NOTHING else: no auth user, no athlete row, no group membership. A
  * request is not a member until somebody approves it, and approval is what
  * creates the athlete (see /api/admin/registrations/approve).
  *
  * DELIBERATELY NOT SESSION-GATED — it runs before the person has any account at
  * all. What keeps it safe is that it can only ever insert into this one table.
  */
+
+/**
+ * Log that an existing member submitted the public form (status 'member').
+ *
+ * Idempotent by email: one row per address, mirroring the pending branch, because
+ * a member who opens the link twice is one fact and not two. A later submission
+ * with a group picked updates it — that is the only thing they can change here.
+ *
+ * ⚠️ Every failure is swallowed and logged. This is bookkeeping hung off a public
+ * response that is already correct: the person IS a member, they need to be told so,
+ * and neither a missing migration 089 (42P01 on the index / 23514 on the status
+ * CHECK, if the SQL has not been pasted in yet) nor a race on the unique index is a
+ * reason to hand them a 500 instead.
+ */
+async function recordMemberSubmission(
+  supabase: ReturnType<typeof createServerClient>,
+  { email, athleteId, groupId }: { email: string; athleteId: string; groupId: string | null },
+): Promise<void> {
+  try {
+    const { data: existing } = await supabase
+      .from('signup_requests')
+      .select('id')
+      .eq('email', email)
+      .eq('status', 'member')
+      .maybeSingle();
+
+    if (existing) {
+      if (groupId) await supabase.from('signup_requests').update({ group_id: groupId }).eq('id', existing.id);
+      return;
+    }
+
+    const { error } = await supabase.from('signup_requests').insert({
+      email,
+      group_id: groupId,
+      status: 'member',
+      source: 'public-form',
+      // The account they already have, so the admin row can point at a real person
+      // rather than just an address. Filled here and NOT at approval — nothing is
+      // being approved, and approved_at/approved_by stay null on purpose.
+      athlete_id: athleteId,
+    });
+    // 23505 = unique_violation: two submissions raced on the partial index. The row
+    // that won is the row we wanted.
+    if (error && error.code !== '23505') throw error;
+  } catch (err) {
+    console.error('Failed to record an existing member’s signup submission:', err);
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -67,7 +117,39 @@ export async function POST(request: Request) {
     //
     // `state` is advisory for the copy only. It never changes what gets written.
 
-    // 1. Already a member (an athlete row exists). Nothing to queue.
+    // 1. Already in the queue. Update the chosen group (they may have come back to
+    //    correct it) and do not mail the approvers a second time.
+    //
+    //    ⚠️ CHECKED BEFORE THE ATHLETE LOOKUP, and the order is the point. The
+    //    pre-launch backfill (migration 090) puts every existing member in this
+    //    queue as pending, so from launch week onwards a club member submitting this
+    //    form matches BOTH branches. "ההרשמה שלך ממתינה לאישור" is the true and
+    //    useful answer for them; "יש לך כבר חשבון, אין צורך להירשם שוב" would be
+    //    literally true and actively misleading, because there IS something waiting
+    //    to happen to them — the approval that mails their onboarding link.
+    const { data: pending } = await supabase
+      .from('signup_requests')
+      .select('id')
+      .eq('email', email)
+      .eq('status', 'pending')
+      .maybeSingle();
+    if (pending) {
+      if (resolvedGroupId) {
+        await supabase.from('signup_requests').update({ group_id: resolvedGroupId }).eq('id', pending.id);
+      }
+      return NextResponse.json({ ok: true, state: 'pending' });
+    }
+
+    // 2. Already a member, and NOT in the queue. Nothing to approve — but it is
+    //    still recorded, as status 'member' (migration 089).
+    //
+    //    This case used to write nothing at all, on the reasoning that there is
+    //    nothing to queue. True of the queue, false of the record: the person was
+    //    told their address is already registered and then vanished from the admin
+    //    screen entirely, so the coach could not see that they had responded to the
+    //    link. Ofer hit it with his own friends. NOT written as 'approved' — nobody
+    //    approved anything and no athlete row was created here, so approved_by
+    //    stays empty and the audit trail keeps meaning what it says.
     //
     // Matched on email ALONE, deliberately not also on coach_id. This check had
     // `.eq('coach_id', COACH_ID)` and it let real members through: 4 of the 26
@@ -81,22 +163,12 @@ export async function POST(request: Request) {
       .eq('email', email)
       .maybeSingle();
     if (existingAthlete) {
+      await recordMemberSubmission(supabase, {
+        email,
+        athleteId: existingAthlete.id,
+        groupId: resolvedGroupId,
+      });
       return NextResponse.json({ ok: true, state: 'member' });
-    }
-
-    // 2. Already pending. Update the chosen group (they may have come back to
-    //    correct it) and do not mail the approvers a second time.
-    const { data: pending } = await supabase
-      .from('signup_requests')
-      .select('id')
-      .eq('email', email)
-      .eq('status', 'pending')
-      .maybeSingle();
-    if (pending) {
-      if (resolvedGroupId) {
-        await supabase.from('signup_requests').update({ group_id: resolvedGroupId }).eq('id', pending.id);
-      }
-      return NextResponse.json({ ok: true, state: 'pending' });
     }
 
     // 3. New request.

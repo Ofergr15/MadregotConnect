@@ -7,7 +7,7 @@ import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronL
 import { cn, isRecentlyPublished, toISODate } from '@/lib/utils';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useApi } from '@/lib/api';
-import { getDisplayWeekStart } from '@/lib/plans/workout-parsing';
+import { getDisplayWeekStart, formatPlanWeekRange } from '@/lib/plans/workout-parsing';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
 import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
 import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
@@ -174,7 +174,7 @@ export default function ProgramPage() {
       .map(ws => ({
         id: `wp-${ws}`,
         week_number: 0, // unknown for synthetic entries — label falls back to the date range
-        date_range: deriveDateRange(ws),
+        date_range: formatPlanWeekRange(ws),
         week_start_date: ws,
         training_pdf_url: null,
         nutrition_pdf_url: null,
@@ -191,7 +191,7 @@ export default function ProgramPage() {
       data.push({
         id: `current-${thisWeekStart}`,
         week_number: 0,
-        date_range: deriveDateRange(thisWeekStart),
+        date_range: formatPlanWeekRange(thisWeekStart),
         week_start_date: thisWeekStart,
         training_pdf_url: null,
         nutrition_pdf_url: null,
@@ -669,15 +669,6 @@ export default function ProgramPage() {
   );
 }
 
-// Given a Sunday ISO date, return the "DD.MM – DD.MM" Sunday→Saturday range.
-function deriveDateRange(sundayISO: string): string {
-  const sunday = new Date(sundayISO + 'T00:00:00');
-  const saturday = new Date(sunday);
-  saturday.setDate(sunday.getDate() + 6);
-  const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
-  return `${fmt(sunday)} – ${fmt(saturday)}`;
-}
-
 function getPdfUrl(week: ProgramWeek, view: 'training' | 'nutrition' | 'workout'): string | null {
   if (view === 'workout') return null;
   return view === 'training' ? week.training_pdf_url : week.nutrition_pdf_url;
@@ -836,7 +827,7 @@ function UploadForm({
   // The program runs Sunday → Saturday. The user only picks the Sunday; the
   // date range is always derived from it (Sun→Sat) so it can never be reversed
   // or mismatched — which is what created a bad, duplicate week row before.
-  const dateRange = weekStartDate ? deriveDateRange(weekStartDate) : '';
+  const dateRange = weekStartDate ? formatPlanWeekRange(weekStartDate) : '';
 
   useEffect(() => {
     // Default to the upcoming Sunday.

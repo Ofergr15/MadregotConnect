@@ -53,32 +53,60 @@ describe('isStaleBundleError', () => {
 describe('hardReload', () => {
   const replace = vi.fn();
   const reload = vi.fn();
+  let store: Record<string, string>;
 
   beforeEach(() => {
     replace.mockReset();
     reload.mockReset();
+    store = { push_sub_healed_on: '2026-09-06' };
     vi.stubGlobal('window', { location: { href: 'https://www.madregot.app/feed', replace, reload } });
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+    });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('drops every cache and service worker, then reloads past the HTTP cache', async () => {
+  it('drops every cache and updates the worker, then reloads past the HTTP cache', async () => {
     const del = vi.fn().mockResolvedValue(true);
+    const update = vi.fn().mockResolvedValue(undefined);
     const unregister = vi.fn().mockResolvedValue(true);
     vi.stubGlobal('caches', { keys: async () => ['html', 'assets'], delete: del });
-    vi.stubGlobal('navigator', { serviceWorker: { getRegistrations: async () => [{ unregister }] } });
+    vi.stubGlobal('navigator', { serviceWorker: { getRegistrations: async () => [{ update, unregister }] } });
 
     await hardReload();
 
     expect(del.mock.calls.map((c) => c[0])).toEqual(['html', 'assets']);
-    expect(unregister).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    // ⚠️ NOT unregister(), which this called until 2026-09-06. Unregistering the
+    // worker destroys that device's PushManager subscription and nothing
+    // re-subscribes it, so the phone goes silent while the dead endpoint stays
+    // in push_subscriptions absorbing 201s. This function fires automatically on
+    // the stale-bundle family — i.e. potentially for everyone after a deploy —
+    // so it was manufacturing the exact ghosts the prune has to clean up.
+    // Emptying the caches is what cures a stale bundle; the worker can stay.
+    expect(unregister).not.toHaveBeenCalled();
     // ⚠️ Not location.reload(): on iOS Safari a reload is frequently served from
     // the HTTP cache, which hands back the very stale document being escaped.
     expect(replace).toHaveBeenCalledTimes(1);
     expect(replace.mock.calls[0][0]).toMatch(/[?&]_r=\d+/);
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('clears the heal stamp so the next load re-verifies the subscription', async () => {
+    // The heal runs once a day and only stamps on success. Without this, a
+    // device whose subscription broke after today's heal stays unreachable until
+    // tomorrow — on the one path where the user has explicitly asked for a reset.
+    vi.stubGlobal('caches', { keys: async () => [], delete: vi.fn() });
+    vi.stubGlobal('navigator', { serviceWorker: { getRegistrations: async () => [] } });
+
+    await hardReload();
+
+    expect(store.push_sub_healed_on).toBeUndefined();
   });
 
   it('still reloads when clearing the caches throws', async () => {
@@ -92,9 +120,39 @@ describe('hardReload', () => {
     expect(replace).toHaveBeenCalledTimes(1);
   });
 
+  it('still reloads when one registration refuses to update', async () => {
+    // Guarded per registration: a single rejecting update must not skip the
+    // others, and must not cost the reload that is the actual cure.
+    const good = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('caches', { keys: async () => [], delete: vi.fn() });
+    vi.stubGlobal('navigator', {
+      serviceWorker: {
+        getRegistrations: async () => [
+          { update: () => Promise.reject(new Error('InvalidStateError')) },
+          { update: good },
+        ],
+      },
+    });
+
+    await expect(hardReload()).resolves.toBeUndefined();
+    expect(good).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledTimes(1);
+  });
+
   it('works on a browser with neither Cache Storage nor a service worker', async () => {
     vi.stubGlobal('caches', undefined);
     vi.stubGlobal('navigator', {});
+
+    await expect(hardReload()).resolves.toBeUndefined();
+    expect(replace).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads even when localStorage is blocked', async () => {
+    vi.stubGlobal('caches', undefined);
+    vi.stubGlobal('navigator', {});
+    vi.stubGlobal('localStorage', {
+      removeItem: () => { throw new Error('SecurityError'); },
+    });
 
     await expect(hardReload()).resolves.toBeUndefined();
     expect(replace).toHaveBeenCalledTimes(1);

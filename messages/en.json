@@ -334,6 +334,7 @@
     "refreshMatches": "Refresh matches",
     "noMatchedWorkout": "No matched workout",
     "matchAuto": "auto",
+    "matchGarmin": "from watch",
     "matchManual": "manual",
     "partLabel": "Part {index}/{count}",
     "sessionMorning": "Morning",
@@ -432,7 +433,8 @@
     "colError": "Error",
     "statusPending": "Pending",
     "statusSuccess": "Sent",
-    "statusFailed": "Failed"
+    "statusFailed": "Failed",
+    "ranOnWatchOn": "Ran on watch {date}"
   },
   "workoutEditor": {
     "stepWarmup": "Warmup",

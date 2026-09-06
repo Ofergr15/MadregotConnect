@@ -11,6 +11,7 @@ import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
 import { mapActivityDetail } from '@/lib/garmin/activity-detail';
+import { isMissingColumn, withoutColumns } from '@/lib/supabase/schema-drift';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 /**
@@ -155,24 +156,38 @@ export async function runSyncRequest(request: Request) {
           // snapshot; a plain insert would throw a unique_violation on the
           // second one and fail this whole batch, unlike Strava's per-
           // activity upsert, which already guards exactly this race.
-          let { data: insertedRows, error: insertError } = await supabase
-            .from('athlete_activities')
-            .upsert(rows, { onConflict: 'athlete_id,garmin_activity_id', ignoreDuplicates: true })
-            .select('id, garmin_activity_id');
-
-          if (insertError?.code === '42703' || insertError?.code === 'PGRST204' || insertError?.code === '23503') {
-            // 42703/PGRST204: shoe_id not migrated yet. 23503: active_shoe_id
-            // was read once at the top of this request and the athlete
-            // deleted that shoe mid-sync (this loop makes sequential Garmin
-            // detail/GPS calls per activity, so the window can be seconds
-            // long) — the stale reference fails the FK constraint. Either
-            // way, retry without shoe_id rather than losing this whole
-            // batch's activities (badges/streaks/teammate notify/feedback
-            // prompt all depend on the insert succeeding).
-            ({ data: insertedRows, error: insertError } = await supabase
+          const upsertActivities = (payload: Record<string, any>[]) =>
+            supabase
               .from('athlete_activities')
-              .upsert(rows.map(({ shoe_id, ...rest }) => rest), { onConflict: 'athlete_id,garmin_activity_id', ignoreDuplicates: true })
-              .select('id, garmin_activity_id'));
+              .upsert(payload, { onConflict: 'athlete_id,garmin_activity_id', ignoreDuplicates: true })
+              .select('id, garmin_activity_id');
+
+          let payload: Record<string, any>[] = rows;
+          let { data: insertedRows, error: insertError } = await upsertActivities(payload);
+
+          // Columns an unapplied migration can leave missing, newest first. Each
+          // retry drops only the column the error actually NAMES, one at a time:
+          // a database without garmin_workout_id (migration 092) must not also
+          // lose shoe attribution, which is what stripping both at once costs.
+          const optionalColumns = ['garmin_workout_id', 'shoe_id'];
+          const dropped: string[] = [];
+          while (insertError && dropped.length < optionalColumns.length) {
+            const failure = insertError;
+            // 42703/PGRST204: that column isn't there yet. 23503: active_shoe_id
+            // was read once at the top of this request and the athlete deleted
+            // that shoe mid-sync (this loop makes sequential Garmin detail/GPS
+            // calls per activity, so the window can be seconds long) — the stale
+            // reference fails the FK constraint. Either way, retry without the
+            // column rather than losing this whole batch's activities
+            // (badges/streaks/teammate notify/feedback prompt all depend on the
+            // insert succeeding).
+            const drop =
+              optionalColumns.find(c => !dropped.includes(c) && isMissingColumn(failure, c)) ||
+              (failure.code === '23503' && !dropped.includes('shoe_id') ? 'shoe_id' : null);
+            if (!drop) break;
+            dropped.push(drop);
+            payload = withoutColumns(payload, [drop]) as Record<string, any>[];
+            ({ data: insertedRows, error: insertError } = await upsertActivities(payload));
           }
           if (insertError) throw insertError;
           totalSynced += newActivities.length;
@@ -447,7 +462,15 @@ export async function PATCH(request: Request) {
         }
 
         if (Object.keys(update).length > 0) {
-          const { error: updateError } = await supabase.from('athlete_activities').update(update).eq('id', act.id);
+          let { error: updateError } = await supabase.from('athlete_activities').update(update).eq('id', act.id);
+          // This is the backfill that gives historical runs their Garmin workout
+          // id — so it's also the path that runs first if migration 092 hasn't
+          // been applied. Retry without the column rather than reporting every
+          // row as an error and repairing no routes.
+          if (isMissingColumn(updateError, 'garmin_workout_id')) {
+            const { garmin_workout_id: _unmigrated, ...rest } = update;
+            ({ error: updateError } = await supabase.from('athlete_activities').update(rest).eq('id', act.id));
+          }
           if (updateError) throw updateError;
           enriched++;
         }

@@ -194,7 +194,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
     selected = { is_academy: true };
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', isAcademy: true, isSuper: false, canApprove: false });
+    expect(await res.json()).toEqual({ role: 'coach', isAcademy: true, isSuper: false, canApprove: false, isCoreRunner: false });
 
     const update = ops.find((o) => o.op === 'update');
     expect(update?.table).toBe('athletes');
@@ -206,7 +206,7 @@ describe('GET /api/auth/me', () => {
   it('serves a legacy coaches-only account, which has no athletes row to read', async () => {
     requireSession.mockResolvedValue(session({ athleteId: null, role: 'coach', isStaff: true }));
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', isSuper: false, canApprove: false });
+    expect(await res.json()).toEqual({ role: 'coach', isSuper: false, canApprove: false, isCoreRunner: false });
     // Nothing to select or stamp — and stamping by a null id would touch rows.
     expect(ops).toHaveLength(0);
   });
@@ -216,7 +216,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session());
     selected = null;
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'runner', isAcademy: false, isSuper: false, canApprove: false });
+    expect(await res.json()).toEqual({ role: 'runner', isAcademy: false, isSuper: false, canApprove: false, isCoreRunner: false });
   });
 
   // The view-as control was deciding "is this the super user" client-side, off

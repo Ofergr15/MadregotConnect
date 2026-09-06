@@ -99,4 +99,11 @@ export interface GarminActivity {
   endLongitude: number | null;
   hasPolyline: boolean;
   steps: number | null;
+  /**
+   * Garmin's id for the structured workout this activity was run from — the same
+   * id `push-workouts` recorded on the delivery. Null for a run that wasn't
+   * started from a scheduled workout, which is most of them. See
+   * migration 092 and lib/plans/garmin-workout-matches.ts.
+   */
+  workoutId: string | null;
 }

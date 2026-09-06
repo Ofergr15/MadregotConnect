@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { canApprove, isSuperUser } from '@/lib/constants';
+import { isCoreRunner } from '@/lib/core-runner';
 import {
   entryExpiry,
   isTokenExpired,
@@ -29,6 +30,12 @@ export interface SessionUser {
   isSuperUser: boolean;
   /** May approve registrations and broadcast to the club. Same two sources. */
   canApprove: boolean;
+  /**
+   * In the club's core squad (הגרעין) — which gates the richer sponsor perks.
+   * `athletes.is_core_runner` OR the legacy `role = 'core_runner'`; see
+   * src/lib/core-runner.ts for why both, and migration 091.
+   */
+  isCoreRunner: boolean;
 }
 
 export type AuthResult =
@@ -37,9 +44,11 @@ export type AuthResult =
 
 const STAFF_ROLES = ['admin', 'coach', 'academy_coach'];
 
-/** Columns of `athletes` this resolver needs, minus the two added by migration 084. */
+/** Columns of `athletes` this resolver needs, minus the optional flag columns. */
 const ATHLETE_BASE_COLUMNS = 'id, name, role, group_id, status';
-/** Postgres "column does not exist" — i.e. migration 084 has not been applied here. */
+/** Added by migrations 084 and 091, both applied by hand — so both are optional. */
+const ATHLETE_FLAG_COLUMNS = 'is_super_user, is_approver, is_core_runner';
+/** Postgres "column does not exist" — i.e. 084/091 not applied here yet. */
 const UNDEFINED_COLUMN = '42703';
 
 interface AthleteRow {
@@ -50,6 +59,7 @@ interface AthleteRow {
   status: string | null;
   is_super_user?: boolean | null;
   is_approver?: boolean | null;
+  is_core_runner?: boolean | null;
 }
 
 /**
@@ -81,11 +91,14 @@ async function fetchAthleteRows(
     return { rows: (data || []) as unknown as AthleteRow[], error };
   };
 
-  const first = await query(`${ATHLETE_BASE_COLUMNS}, is_super_user, is_approver`);
+  const first = await query(`${ATHLETE_BASE_COLUMNS}, ${ATHLETE_FLAG_COLUMNS}`);
   if (!first.error) return first.rows;
   if (first.error.code !== UNDEFINED_COLUMN) return [];
 
-  console.warn('[auth] migration 084 not applied; privilege flags unavailable');
+  // One retry covers both migrations, and it must: asking for a column that is
+  // not there fails the WHOLE select, so an unapplied 091 would take the 084
+  // flags down with it and drop the super user's own privileges.
+  console.warn('[auth] migration 084/091 not applied; athlete flag columns unavailable');
   return (await query(ATHLETE_BASE_COLUMNS)).rows;
 }
 
@@ -198,6 +211,8 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
         // is purely additive and nobody loses access if a flag is unset.
         isSuperUser: athlete.is_super_user === true || isSuperUser(email),
         canApprove: athlete.is_approver === true || canApprove(email),
+        // Reads the legacy role too, so this is right before 091 is applied.
+        isCoreRunner: isCoreRunner(athlete),
       },
     };
   }
@@ -225,6 +240,10 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
         groupId: null,
         athleteStatus: null,
         isStaff: true,
+        // No athlete row means no גרעין membership to read. The flag lives on
+        // `athletes`, and a coaches-only record is not a club member — they get
+        // the full perk catalogue below via isStaff, not via the tier.
+        isCoreRunner: false,
         // No athlete row means no flag to read, so a legacy `coaches`-only
         // account is still governed by the literals alone. Those accounts all
         // have real addresses — the synthetic-email problem arrives with Strava

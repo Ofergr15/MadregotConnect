@@ -7,7 +7,7 @@ import { mutate as globalMutate } from 'swr';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
 import { ChallengesGrid } from '@/components/ChallengesGrid';
@@ -24,6 +24,7 @@ import { SetupChecklist } from '@/components/onboarding/SetupChecklist';
 import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
 import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
 import { shareTextForDay } from '@/lib/workout-share';
+import { getDisplayWeekStart, formatPlanWeekRange } from '@/lib/plans/workout-parsing';
 import { fetchActivities } from '@/lib/activities-client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { APP_VERSION } from '@/lib/version';
@@ -42,22 +43,11 @@ interface Group {
   marathonGoal?: string;
 }
 
-// The trailing value on the Program row: the week the loaded plan is actually
-// for, e.g. "6 ספט׳ – 12 ספט׳".
-//
-// This row used to read `WEEKS[0].weekLabel` from a hardcoded five-entry list of
-// June PDFs, so from July onwards it told every athlete their current program was
-// "Week 5 · 28.06 – 04.07" — in September, next to a week strip showing September
-// dates. The list is gone rather than extended: /api/public/current-plan already
-// knows which week is published, and a constant can only go stale again.
-function weekRangeLabel(weekStartDate: string, locale: string): string {
-  const start = new Date(`${weekStartDate}T00:00:00`);
-  if (Number.isNaN(start.getTime())) return '';
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  const fmt = new Intl.DateTimeFormat(locale === 'he' ? 'he-IL' : 'en-US', { month: 'short', day: 'numeric' });
-  return `${fmt.format(start)} – ${fmt.format(end)}`;
-}
+// The five hardcoded WEEKS that used to live here are gone. They were a static
+// list of June 2026 PDFs whose only surviving reader was the "This week's
+// program" row's trailing value — so that row said "Week 5" forever, months
+// after week 5 was over, and the number meant nothing to an athlete anyway.
+// The row now shows the real date range of the week it opens; see programWeekLabel.
 
 // iOS-Settings-style drill-down tabs. null = the Profile landing (avatar/name +
 // row list); a value = a detail screen open. Mirrors the mechanism in
@@ -86,7 +76,6 @@ export default function ProfilePage() {
 function ProfileContent() {
   const t = useTranslations('profile');
   const tCommon = useTranslations('common');
-  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   // null = landing (iOS-style list); a value = a detail screen open. Reads
@@ -378,9 +367,13 @@ function ProfileContent() {
   }
 
   const currentGroup = groups.find(g => g.id === currentGroupId);
-  // Empty until the plan loads, which is right: an empty trailing value renders
-  // nothing, where a placeholder would be one more thing to disbelieve.
-  const programWeekLabel = planWeekStart ? weekRangeLabel(planWeekStart, locale) : '';
+  // The date range of the week this row opens. Prefer the week the loaded plan is
+  // actually for — an athlete whose latest published plan is last week's should
+  // read that week, not today's — and fall back to `getDisplayWeekStart`, the same
+  // "current week" the Program page lands on (Saturday-20:00 rollover included),
+  // so before the plan loads the row still can't name a week the Program page
+  // wouldn't open.
+  const programWeekLabel = formatPlanWeekRange(planWeekStart || getDisplayWeekStart(new Date()));
 
   // Days (0=Sun..6=Sat) that actually have a workout in the loaded plan.
   const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -544,7 +537,7 @@ function ProfileContent() {
               value={programWeekLabel}
               // The plan on file isn't for this week — say which, rather than
               // letting the row imply the athlete is looking at the current one.
-              sublabel={!planIsCurrent && programWeekLabel ? t('latestPublishedWeek') : undefined}
+              sublabel={!planIsCurrent && planWeekStart ? t('latestPublishedWeek') : undefined}
               href="/dashboard/program"
             />
           </InsetSection>

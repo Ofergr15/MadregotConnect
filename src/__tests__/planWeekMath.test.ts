@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   planDayKey,
+  formatPlanWeekRange,
   dedupeWorkoutsByDay,
   computeStepDistance,
   buildWeekBreakdown,
@@ -30,6 +31,22 @@ describe('planDayKey', () => {
     // same on a UTC server and in any viewer's browser — a local-Date version of
     // this returned 2026-10-30 for the last day of that week.
     expect(planDayKey('2026-10-25', 6)).toBe('2026-10-31');
+  });
+});
+
+describe('formatPlanWeekRange', () => {
+  it('renders the Sunday→Saturday range, zero-padded', () => {
+    expect(formatPlanWeekRange('2026-09-06')).toBe('06.09 – 12.09');
+  });
+
+  it('carries across a month and a year boundary', () => {
+    expect(formatPlanWeekRange('2026-08-30')).toBe('30.08 – 05.09');
+    expect(formatPlanWeekRange('2026-12-27')).toBe('27.12 – 02.01');
+  });
+
+  it('is timezone-independent across a DST change', () => {
+    // Same reason as planDayKey above: local-Date arithmetic drifted a day here.
+    expect(formatPlanWeekRange('2026-10-25')).toBe('25.10 – 31.10');
   });
 });
 

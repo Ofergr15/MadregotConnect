@@ -139,7 +139,7 @@ export function ActivityDetailBody({
           {act.average_hr && (
             <div>
               <p className="text-xs text-ink-400 mb-1">{t('avgHrShort')}</p>
-              <p className={cn('text-3xl font-black tabular-nums', hrZone?.color)}>{act.average_hr}</p>
+              <p className={cn('text-3xl font-black tabular-nums', hrZone?.color)}>{Math.round(act.average_hr)}</p>
               {hrZone && <p className="text-3xs text-ink-400 mt-0.5">{t('zone')} {hrZone.zone} · {t(`hrZone${hrZone.zone}` as 'hrZone1')}</p>}
             </div>
           )}
@@ -180,7 +180,7 @@ export function ActivityDetailBody({
         ) : null}
         {act.max_hr ? (
           <StatTile icon={<Heart className="h-3.5 w-3.5 text-accent-red" />} label={t('maxHr')}>
-            <p className="text-2xl font-black text-ink-700 tabular-nums">{act.max_hr}</p>
+            <p className="text-2xl font-black text-ink-700 tabular-nums">{Math.round(act.max_hr)}</p>
             <p className="text-3xs text-ink-400 mt-0.5">{t('bpm')}</p>
           </StatTile>
         ) : null}

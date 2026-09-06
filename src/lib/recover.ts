@@ -1,5 +1,7 @@
 'use client';
 
+import { PUSH_HEAL_DAY_KEY } from '@/lib/push-storage';
+
 /**
  * Recovery for a client-side crash, shared by the app's error boundaries.
  *
@@ -34,7 +36,21 @@ export function isStaleBundleError(error: unknown): boolean {
 }
 
 /**
- * Drops every cache and service worker this origin holds, then reloads.
+ * Drops every cache this origin holds, forces a service-worker update, then
+ * reloads.
+ *
+ * ⚠️ It deliberately does NOT unregister the service worker, which is what this
+ * did until 2026-09-06. Unregistering destroys that device's PushManager
+ * subscription as a side effect, and nothing re-subscribed it: the endpoint
+ * stayed in `push_subscriptions` and Apple kept answering 201 for it, so the
+ * phone silently stopped receiving anything while the server counted every send
+ * as delivered. Since this function fires automatically on the whole
+ * stale-bundle family — i.e. potentially for every athlete after any deploy —
+ * it was a ghost factory pointed at the exact failure it looks unrelated to.
+ *
+ * Purging the caches is what actually cures a stale bundle (the dead chunk URLs
+ * live there); `update()` gets the fresh worker script without taking the
+ * subscription down with it.
  *
  * Best-effort by contract: each step is separately guarded, because a browser
  * that is refusing to serve a chunk is not a browser to trust with a happy path,
@@ -54,10 +70,22 @@ export async function hardReload(): Promise<void> {
     const sw = navigator.serviceWorker;
     if (sw) {
       const regs = await sw.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
+      // Per registration, so one rejecting can't skip the others. A failed
+      // update just means the current worker stays — with empty caches it has
+      // to go to the network anyway.
+      await Promise.all(regs.map((r) => Promise.resolve(r.update()).catch(() => {})));
     }
   } catch {
     // Ignore: the reload below still fetches fresh HTML from the network.
+  }
+  try {
+    // This is the app's "reset this device" button, so let the next load
+    // re-verify the push subscription instead of trusting today's stamp. The
+    // heal is once-a-day and stamped on success, so without this a device whose
+    // subscription broke after today's heal stays unreachable until tomorrow.
+    localStorage.removeItem(PUSH_HEAL_DAY_KEY);
+  } catch {
+    // Ignore: a blocked localStorage costs a delayed re-check, nothing more.
   }
   try {
     // A cache-busted URL rather than location.reload(): reload can be served from

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 // /api/push/subscribe now DELETES rows, so the exact filter set matters more
 // than the happy path: too broad and it unsubscribes a device that was working
@@ -7,12 +7,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 // had accumulated four), and Apple answers 201 for those ghosts — so they
 // inflate delivery counts instead of 410-ing themselves out.
 //
-// It is driven by the client naming the endpoint it discarded, never inferred.
-// Two inferences were tried and rejected: athlete + user_agent alone deletes a
-// genuine second device with an identical UA string, and gating that on a stale
-// last_success_at is inert exactly because Apple's 201 keeps a ghost's
-// timestamp fresh forever. Verified live: all four of one athlete's endpoints —
-// three of them ghosts — returned 201 to 52 consecutive sends.
+// There are two deletions, and they cover opposite cases. The named one is
+// driven by the client reporting the endpoint it discarded, never inferred. The
+// prune covers the ghosts no client can name — iOS drops the subscription
+// underneath the app, so by the time the athlete re-enables there is no
+// reference to the dead row anywhere. Verified live: all four of one athlete's
+// endpoints — three of them ghosts — returned 201 to 52 consecutive sends.
+//
+// The prune leans entirely on `last_success_at` meaning "a device confirmed a
+// display", which is true only because /api/push/receipt is its sole writer. The
+// upsert here stamped it too until 2026-09-06, and that is pinned below: with
+// the stamp, a row that never delivered anything looks as fresh as a working
+// one and the prune deletes by coin flip.
 
 type Filter = { fn: string; args: unknown[] };
 let ops: Array<{ table: string; op: string; filters: Filter[] }>;
@@ -49,6 +55,7 @@ vi.mock('@/lib/supabase/server', () => ({
         eq: track('eq'),
         neq: track('neq'),
         lt: track('lt'),
+        or: track('or'),
         then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data: null, error: null }).then(resolve),
       };
       return chain;
@@ -69,7 +76,11 @@ const body = (over: Record<string, unknown> = {}) => ({
 const post = (payload: unknown) =>
   POST(new Request('https://example.test/api/push/subscribe', { method: 'POST', body: JSON.stringify(payload) }));
 
-const reap = () => ops.find((o) => o.op === 'delete');
+const deletes = () => ops.filter((o) => o.op === 'delete');
+/** The precise deletion: the endpoint the client said it just discarded. */
+const reap = () => deletes().find((o) => o.filters.some((f) => f.fn === 'eq' && f.args[0] === 'endpoint'));
+/** The sweep: rows with no confirmed display in a month. */
+const prune = () => deletes().find((o) => o.filters.some((f) => f.fn === 'or'));
 
 beforeEach(() => { ops = []; upsertError = null; gateDenied = null; gatedFor = []; });
 
@@ -120,13 +131,95 @@ describe('POST /api/push/subscribe — retiring a superseded endpoint', () => {
     upsertError = { message: 'insert failed' };
     const res = await post(body());
     expect(res.status).toBe(500);
-    expect(reap()).toBeUndefined();
+    expect(deletes()).toHaveLength(0);
   });
 
   it('rejects a malformed subscription before touching the table', async () => {
     const res = await post({ athleteId: 'a1', subscription: { endpoint: 'x' } }); // no keys
     expect(res.status).toBe(400);
     expect(ops).toHaveLength(0);
+  });
+});
+
+describe('POST /api/push/subscribe — the receipt column it all rests on', () => {
+  it('never stamps last_success_at when registering an endpoint', async () => {
+    // The regression that made the prune below unsafe to write for a month.
+    // Registering proves a subscription EXISTS; only /api/push/receipt proves
+    // one displayed something. While this route stamped the column, an endpoint
+    // created on Aug 3 that never delivered a single push carried a receipt
+    // equal to its own created_at — indistinguishable from a working device, to
+    // this prune and to /api/push/test alike.
+    await post(body());
+    const stored = ops.find((o) => o.op === 'upsert')?.filters[0].args[0] as Record<string, unknown>;
+    expect(stored).not.toHaveProperty('last_success_at');
+    // And still records what it is actually for.
+    expect(Object.keys(stored).sort()).toEqual(
+      ['athlete_id', 'auth', 'endpoint', 'p256dh', 'user_agent'],
+    );
+  });
+});
+
+describe('POST /api/push/subscribe — pruning ghosts no client can name', () => {
+  // 2026-09-06 was the day the ghosts were measured; the cutoff below is the
+  // GHOST_STALE_DAYS=30 window back from it, spelled out rather than recomputed
+  // so a change to the constant has to be a deliberate edit here too.
+  const NOW = '2026-09-06T12:00:00.000Z';
+  const CUTOFF = '2026-08-07T12:00:00.000Z';
+
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(NOW)); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('sweeps this athlete\'s rows with no confirmed display in the window', async () => {
+    await post(body());
+
+    const del = prune();
+    expect(del?.table).toBe('push_subscriptions');
+    expect(del?.filters).toEqual([
+      // Never anyone else's devices, however dead the row looks.
+      { fn: 'eq', args: ['athlete_id', 'a1'] },
+      // Never the row just stored — it has no receipt yet by definition.
+      { fn: 'neq', args: ['endpoint', 'https://web.push.apple.com/new'] },
+      // Old enough to have had a month to prove itself.
+      { fn: 'lt', args: ['created_at', CUTOFF] },
+      // A NULL receipt counts as stale: post-fix, that is a row that has
+      // genuinely never delivered anything.
+      { fn: 'or', args: [`last_success_at.is.null,last_success_at.lt.${CUTOFF}`] },
+    ]);
+  });
+
+  it('runs even when the client names no predecessor — that is the whole point', async () => {
+    // The way ghosts are actually made: iOS drops the subscription underneath
+    // the app, so the client has nothing to name and the dead row is orphaned
+    // with no reference to it anywhere. If the prune only ran alongside a named
+    // reap it would never fire on a single real ghost.
+    await post(body({ replacesEndpoint: undefined }));
+    expect(reap()).toBeUndefined();
+    expect(prune()).toBeDefined();
+  });
+
+  it('does not key on user_agent, which drifts away from its own target', async () => {
+    // Rejected twice over: it deletes a genuine second same-model iPhone, and
+    // it aims away from ghosts — the UA carries the iOS version, ghosts are old,
+    // so the Aug 3 ghost read Version/26.5.2 where the live row on the same
+    // phone read Version/26.6.1. A UA match skips exactly the row it is for.
+    await post(body());
+    expect(prune()?.filters.map((f) => f.args[0])).not.toContain('user_agent');
+  });
+
+  it('uses one cutoff for both the age gate and the receipt gate', async () => {
+    // Two clocks here would leave a window where a row is old enough to prune
+    // but its receipt is compared against a different instant.
+    await post(body());
+    const filters = prune()?.filters ?? [];
+    const age = filters.find((f) => f.fn === 'lt')?.args[1] as string;
+    const receipt = filters.find((f) => f.fn === 'or')?.args[0] as string;
+    expect(receipt).toContain(age);
+  });
+
+  it('prunes nothing when the gate denies', async () => {
+    gateDenied = new Response(null, { status: 403 });
+    expect((await post(body())).status).toBe(403);
+    expect(deletes()).toHaveLength(0);
   });
 });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { Calendar, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, RefreshCw, Watch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
 import { useLocale, useTranslations } from 'next-intl';
@@ -13,6 +13,14 @@ interface DeliveryDetail {
   workout_date: string;
   status: 'pending' | 'success' | 'failed';
   garmin_workout_id: string | null;
+  /**
+   * The device's own answer: set once an activity carrying this workout's Garmin
+   * id synced back, which is the only thing that proves the watch really had it.
+   * `status` above is about the push reaching Garmin's servers. Null while the
+   * workout is still ahead of the athlete — and for anything pushed before
+   * migration 092, which is why its absence is silent rather than a warning.
+   */
+  device_confirmed_at?: string | null;
   error_message: string | null;
   created_at: string;
 }
@@ -274,6 +282,21 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
                                 <StatusIcon className="h-3 w-3" />
                                 {t(config.labelKey)}
                               </div>
+                              {/* The question a coach actually has after a push —
+                                  did it get to the watch — and the only evidence
+                                  that answers it: an activity came back carrying
+                                  this workout's Garmin id. */}
+                              {delivery.device_confirmed_at && (
+                                <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-accent-600/10 px-2 py-1 text-[10px] text-accent-900">
+                                  <Watch className="h-3 w-3" />
+                                  {t('ranOnWatchOn', {
+                                    date: new Date(delivery.device_confirmed_at).toLocaleDateString(locale, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    }),
+                                  })}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-sm text-ink-400 font-mono">
                               {delivery.garmin_workout_id || '-'}

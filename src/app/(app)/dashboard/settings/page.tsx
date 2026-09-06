@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
@@ -11,6 +11,7 @@ import { BadgeManager } from '@/components/BadgeManager';
 import { ChallengeManager } from '@/components/ChallengeManager';
 import { StoreManager } from '@/components/StoreManager';
 import { PerksManager } from '@/components/PerksManager';
+import CoreRunnersManager from '@/components/CoreRunnersManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
@@ -216,12 +217,16 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations' | 'coreRunners';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
   { key: 'registrations' as SettingsTab, label: 'Registrations', icon: UserPlus, iconBg: 'bg-accent-600' },
   { key: 'users' as SettingsTab, label: 'User Manager', icon: Users, iconBg: 'bg-indigo-500' },
+  // Directly under User Manager, because that is where somebody looking to tag a
+  // person goes first — and the גרעין is no longer something the role dropdown there
+  // can express (migration 091).
+  { key: 'coreRunners' as SettingsTab, label: 'הגרעין', icon: Sprout, iconBg: 'bg-lime-600' },
   { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout, iconBg: 'bg-band-3' },
   { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare, iconBg: 'bg-teal-500' },
   { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell, iconBg: 'bg-accent-red' },
@@ -1467,6 +1472,9 @@ export default function SettingsPage() {
 
       {/* Perks Manager detail (roadmap #5) */}
       {activeTab === 'perks' && <PerksManager />}
+
+      {/* הגרעין — the core squad list (migration 091) */}
+      {activeTab === 'coreRunners' && <CoreRunnersManager />}
     </div>
   );
 }

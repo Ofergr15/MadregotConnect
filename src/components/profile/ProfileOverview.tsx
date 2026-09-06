@@ -8,6 +8,8 @@ import { cn, getPlanWeekStart, israelDateAnchor, israelNow, israelToday } from '
 import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
 import { WORKOUT_TYPE_TEXT_COLORS, WORKOUT_TYPE_LABELS, planDayKey } from '@/lib/plans/workout-parsing';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
+import CoreRunnerBadge from '@/components/CoreRunnerBadge';
+import { CORE_RUNNER_LABEL_PLURAL } from '@/lib/core-runner';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import type { FeedItem } from '@/lib/feed/project';
 
@@ -80,6 +82,17 @@ export function ProfileOverview({
   const td = useTranslations('dashboard');
   const tc = useTranslations('common');
   const locale = useLocale();
+
+  // הגרעין — a flag, not a role (migration 091), so it has to be asked for; it
+  // cannot be derived from anything already on this screen. Shares the SWR key
+  // with the nav and Settings, so it costs no extra request.
+  const { data: me } = useApi<{ isCoreRunner?: boolean }>('/api/auth/me');
+  const isCore = me?.isCoreRunner === true;
+  // Only for core runners, and only to count: the badge below promises "N
+  // הטבות", and a promise with no number on it is the kind of row nobody taps.
+  // Same key the Benefits screen uses, so opening it is already warm.
+  const { data: perks } = useApi<{ perks?: Array<{ tier?: string }> }>(isCore ? '/api/perks' : null);
+  const corePerkCount = (perks?.perks || []).filter(p => p.tier === 'core_runner').length;
 
   const { data: weekly } = useApi<WeeklyData>('/api/dashboard/weekly');
   const { data: reminder } = useApi<{ config?: ReminderCfg }>('/api/reminder-config');
@@ -195,9 +208,39 @@ export function ProfileOverview({
         </button>
         <div className="min-w-0 flex-1 text-start">
           <p className="text-sm font-bold text-ink-700">{greeting},</p>
-          <h1 className="truncate text-28 font-bold text-brand-600">{athleteName}</h1>
+          {/* The 🌰 goes NEXT to the name, not inside the <h1>'s truncate: a long
+              name would otherwise eat the badge, and the badge is the thing this
+              header gained. The name keeps the truncation; the mark keeps its
+              width. */}
+          <div className="flex items-baseline gap-1.5">
+            <h1 className="truncate text-28 font-bold text-brand-600">{athleteName}</h1>
+            {isCore && <CoreRunnerBadge className="text-lg" />}
+          </div>
         </div>
       </div>
+
+      {/* ═══ הגרעין — only for core runners ═══
+          The badge alone says "you are in"; this row says what that is WORTH,
+          which is the whole point of the tier (a free LIFT membership, a HOKA
+          allocation, a ₪200 monthly Podium credit). It is a link because those
+          perks live one screen away and nobody would guess that from an emoji. */}
+      {isCore && (
+        <Link
+          href="/dashboard/benefits"
+          className="flex items-center gap-3 rounded-card bg-card p-4 active:opacity-90"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600/10 text-base">
+            <CoreRunnerBadge />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xl font-bold text-ink-700">{CORE_RUNNER_LABEL_PLURAL}</p>
+            <p className="text-xs font-light text-ink-400">
+              {corePerkCount > 0 ? `${corePerkCount} הטבות מיוחדות שלך` : 'ההטבות המיוחדות שלך'}
+            </p>
+          </div>
+          <ChevronLeft className="h-4 w-4 shrink-0 text-ink-400" />
+        </Link>
+      )}
 
       {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
       <SetupProgressCard onOpen={onOpenSetup} />

@@ -314,8 +314,13 @@ export async function runStravaSyncRequest(request: Request) {
             distance: Math.round(distanceM),
             duration: Math.round(durationSec),
             average_pace: distanceM > 0 ? Math.round(durationSec / (distanceM / 1000)) : null,
-            average_hr: a.average_heartrate || null,
-            max_hr: a.max_heartrate || null,
+            // Rounded on the way in: Strava reports HR as a float
+            // (136.13351431391905), Garmin as an integer. A bpm is only ever
+            // meaningful to the whole beat, and every reader of these columns
+            // would otherwise have to round for itself — which is how the feed
+            // card ended up printing all 17 digits.
+            average_hr: a.average_heartrate ? Math.round(a.average_heartrate) : null,
+            max_hr: a.max_heartrate ? Math.round(a.max_heartrate) : null,
             // Almost always null: Strava returns calories on the *detail*
             // endpoint, not on the list this pages through. enrichStravaActivity
             // fills it in from the detail it fetches. Kept as a cheap best case in

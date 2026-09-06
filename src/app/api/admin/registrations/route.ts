@@ -9,7 +9,12 @@ export const revalidate = 0;
 
 /**
  * GET /api/admin/registrations — the approval queue behind /dashboard/registrations.
- * `?status=pending|approved|rejected|all` (default: pending).
+ * `?status=pending|approved|rejected|member|all` (default: pending).
+ *
+ * 'member' is a submission from somebody who already had an account (migration 089).
+ * It is a record, not a task: it never has approved_by/rejected_by set and there is
+ * nothing to do to it. It shows up under `all`, which is what the screen's second
+ * tab asks for, so no filtering change was needed here.
  *
  * Gated on canApprove(), not merely on having a session. This returns a list of
  * strangers' email addresses; any signed-in member could otherwise read it, and

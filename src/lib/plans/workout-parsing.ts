@@ -68,6 +68,27 @@ export function planDayKey(weekStart: string, dayOfWeek: number): string {
   return d.toISOString().split('T')[0];
 }
 
+/**
+ * A plan week rendered as its "DD.MM – DD.MM" Sunday→Saturday date range.
+ *
+ * Lives here next to `getDisplayWeekStart` because the range is only ever the
+ * label for a week start this module produced. It used to be a private helper
+ * in the Program page, which left the Profile page's "This week's program" row
+ * with no way to say which week it meant — that row shipped a hardcoded
+ * `Week 5` list instead, and was still claiming week 5 of June months later.
+ *
+ * Pure UTC arithmetic on the date string, same as `planDayKey`, so it answers
+ * the same on a UTC server and in any viewer's timezone.
+ */
+export function formatPlanWeekRange(sundayISO: string): string {
+  const sunday = new Date(`${sundayISO}T00:00:00Z`);
+  const saturday = new Date(sunday);
+  saturday.setUTCDate(sunday.getUTCDate() + 6);
+  const fmt = (d: Date) =>
+    `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  return `${fmt(sunday)} – ${fmt(saturday)}`;
+}
+
 export function extractWorkouts(parsedWorkouts: any): ParsedWorkout[] {
   if (!parsedWorkouts) return [];
 

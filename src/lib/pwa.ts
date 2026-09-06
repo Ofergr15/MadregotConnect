@@ -49,7 +49,9 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 /**
  * Hand a subscription to the server. Shared by every path below so they all
- * record `user_agent` and refresh `last_success_at` identically.
+ * record `user_agent` identically. Note what it does NOT do: registering an
+ * endpoint never stamps `last_success_at`, which means "a device confirmed it
+ * displayed a push" and nothing else (see /api/push/receipt).
  *
  * `replacesEndpoint` is the endpoint this one supersedes on this same device,
  * when the caller just discarded one to mint this. The server deletes exactly
@@ -122,9 +124,10 @@ export async function ensurePushSubscription(
     const reg = await navigator.serviceWorker.ready;
     const existing = await reg.pushManager.getSubscription();
     if (existing) {
-      // Still subscribed — re-post it so the server's copy of the keys is
-      // current and `last_success_at` moves, which is what marks this endpoint
-      // as live and lets the stale ones be reaped.
+      // Still subscribed — re-post it so the server's copy of the keys stays
+      // current. It also names this endpoint as the live one for this athlete,
+      // which is what the prune in /api/push/subscribe measures its candidates
+      // against, so the stale rows go and this one can't.
       return { ...(await saveSubscription(athleteId, existing)), action: 'refreshed' };
     }
 
