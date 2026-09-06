@@ -176,6 +176,22 @@ function ComplianceLegend({ tolerances }: { tolerances: AdherenceTolerances }) {
           </div>
 
           <div className="border-t border-page/50 pt-3 space-y-1.5 text-ink-500">
+            <div className="font-semibold text-ink-700">פירוט לפי מקטע</div>
+            <div>
+              אם האימון בוצע כאימון מובנה מהשעון — כל מקטע מדורג בנפרד מול היעד שלו.
+            </div>
+            <div>
+              אם לא — הבדיקה מחפשת את החזרות המתוכננות בין המקטעים שהשעון רשם, בלי תלות בסדר
+              (למשל: האם יש 6 מקטעים של 400 מ׳ בתוך טווח הקצב), ומציגה{' '}
+              <span className="font-semibold">כמה מתוך כמה</span> נמצאו.
+            </div>
+            <div>
+              כשהשעון רשם רק ק״מ שלמים אי אפשר לראות בהם חזרות של 400 מ׳ — במקרה כזה כתוב שאי
+              אפשר לבדוק, ולא שהאימון לא בוצע.
+            </div>
+          </div>
+
+          <div className="border-t border-page/50 pt-3 space-y-1.5 text-ink-500">
             <div className="font-semibold text-ink-700">האחוז והנקודות</div>
             <div>האחוז ליד השם: אימונים שבוצעו מתוך המתוכננים לשבוע.</div>
             <div>
@@ -376,12 +392,50 @@ interface SegmentVerdict {
   actualPace: number | null; status: PaceStatus; graded: boolean;
 }
 
-// Per-segment planned-vs-actual verdicts (lazy — fetched when opened). Reliable only
-// when the athlete ran the pushed structured workout on-watch (per-step laps).
+// The order-free "did they do the work" verdict from lib/academy/segments.ts —
+// what's left when the run wasn't the pushed structured workout.
+interface EffortRequirement {
+  label: string; distanceM: number; paceMin: number; paceMax: number;
+  needed: number; found: number; foundPaces: number[]; verifiable: boolean;
+}
+interface EffortReport {
+  verdict: 'confirmed' | 'partial' | 'missed' | 'unverifiable';
+  requirements: EffortRequirement[];
+  neededTotal: number; foundTotal: number;
+  lapCount: number; medianLapM: number | null;
+  reason?: 'no_paced_plan' | 'no_laps' | 'laps_too_coarse';
+}
+
+const effortHeadline: Record<Exclude<EffortReport['verdict'], 'unverifiable'>, { text: string; style: string }> = {
+  confirmed: { text: 'העבודה בוצעה — כל החזרות נמצאו בקצב היעד', style: 'text-accent-600' },
+  partial: { text: 'בוצע חלקית', style: 'text-band-3' },
+  missed: { text: 'לא נמצאה אף חזרה בקצב היעד', style: 'text-accent-red' },
+};
+
+// Why the laps can't answer. Kept apart from "didn't do it" on purpose: an athlete
+// who never presses the lap button gets automatic 1 km laps, and no 400 m rep is
+// visible in those at any pace.
+function effortReasonText(report: EffortReport): string {
+  switch (report.reason) {
+    case 'no_paced_plan':
+      return 'לאימון הזה אין יעד קצב שאפשר לבדוק מול המקטעים.';
+    case 'no_laps':
+      return 'השעון רשם את הריצה כמקטע אחד, אין מה להשוות.';
+    case 'laps_too_coarse':
+      return `המקטעים שנרשמו (${report.medianLapM ?? '—'} מ׳ בערך) ארוכים מהחזרות המתוכננות, ולכן אי אפשר לזהות אותן — זה לא אומר שהאימון לא בוצע.`;
+    default:
+      return 'אין נתוני מקטעים לריצה הזו.';
+  }
+}
+
+// Per-segment planned-vs-actual verdicts (lazy — fetched when opened). The
+// positional grading needs per-step laps, i.e. the pushed structured workout run
+// on-watch; for every other run the effort report below is the answer.
 function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [segments, setSegments] = useState<SegmentVerdict[] | null>(null);
+  const [efforts, setEfforts] = useState<EffortReport | null>(null);
   const [reason, setReason] = useState<string | null>(null);
 
   const load = async () => {
@@ -393,6 +447,7 @@ function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string })
       });
       const data = await res.json();
       setSegments(data.segments || []);
+      setEfforts(data.efforts || null);
       if (!data.aligned) setReason(data.reason || 'נתוני מקטעים לא זמינים');
     } catch {
       setReason('טעינת המקטעים נכשלה');
@@ -403,6 +458,7 @@ function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string })
 
   const toggle = () => { const next = !open; setOpen(next); if (next) load(); };
   const graded = (segments || []).filter(s => s.graded);
+  const effortRows = (efforts?.requirements || []).filter(r => r.verifiable);
 
   return (
     <div className="mt-2">
@@ -413,8 +469,42 @@ function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string })
         <div className="mt-2">
           {loading ? (
             <div className="flex items-center gap-2 text-xs text-ink-400 py-2"><Spinner size={14} /> טוען מקטעים…</div>
+          ) : graded.length === 0 && efforts && efforts.verdict !== 'unverifiable' ? (
+            /* The run wasn't the structured workout, so grade it as a set of
+               efforts instead of step by step. */
+            <div className="space-y-1.5 text-xs">
+              <div className={cn('font-semibold', effortHeadline[efforts.verdict].style)}>
+                {efforts.verdict === 'partial'
+                  ? `בוצע חלקית — ${efforts.foundTotal} מתוך ${efforts.neededTotal} חזרות בקצב היעד`
+                  : effortHeadline[efforts.verdict].text}
+              </div>
+              {effortRows.map((r, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg bg-page/50 px-2.5 py-1.5">
+                  <span className="text-ink-400 flex-1 min-w-0 truncate" dir="auto">
+                    {r.needed}×{Math.round(r.distanceM)} מ׳ ב-{paceBandLabel(r.paceMin, r.paceMax)}
+                  </span>
+                  <span className="text-ink-500 tabular-nums" dir="ltr">
+                    {r.foundPaces.map(p => formatPace(p)).join(' · ') || '—'}
+                  </span>
+                  <span className={cn('font-semibold w-14 text-end',
+                    r.found >= r.needed ? 'text-accent-600' : r.found > 0 ? 'text-band-3' : 'text-accent-red')}>
+                    {r.found}/{r.needed}
+                  </span>
+                </div>
+              ))}
+              {efforts.requirements.some(r => !r.verifiable) && (
+                <p className="text-[11px] text-ink-400">
+                  חלק מהחזרות לא נראות במקטעים שנרשמו ולכן לא נבדקו.
+                </p>
+              )}
+              <p className="text-[11px] text-ink-400">
+                הריצה לא בוצעה כאימון מובנה מהשעון — הבדיקה מחפשת את החזרות בין המקטעים שנרשמו, בלי תלות בסדר.
+              </p>
+            </div>
           ) : graded.length === 0 ? (
-            <p className="text-[11px] text-ink-400 py-1">{reason || 'אין מקטעים מדורגים.'}</p>
+            <p className="text-[11px] text-ink-400 py-1">
+              {efforts ? effortReasonText(efforts) : reason || 'אין מקטעים מדורגים.'}
+            </p>
           ) : (
             <div className="space-y-1">
               {segments!.map((s, i) => (

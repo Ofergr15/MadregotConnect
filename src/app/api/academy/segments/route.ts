@@ -6,7 +6,13 @@ import { activityLocalDateStr, planWeekStartOf } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { requireCallerForAthlete, requireMember } from '@/lib/auth/self-or-staff';
-import { flattenPlannedSteps, matchLapsToSteps, buildPlannedBands, Lap } from '@/lib/academy/segments';
+import {
+  flattenPlannedSteps,
+  matchLapsToSteps,
+  buildPlannedBands,
+  findPlannedEfforts,
+  Lap,
+} from '@/lib/academy/segments';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 
@@ -137,7 +143,12 @@ export async function GET(request: Request) {
     // 4) Flatten + match + grade.
     const flat = flattenPlannedSteps(planned);
     const report = matchLapsToSteps(flat, laps, paceSec);
-    return NextResponse.json(report);
+    // Plus the order-free verdict, which is the only one an athlete who ran the
+    // session off the watch (no per-step laps) can get. Always returned: when the
+    // positional alignment succeeded it's a cheap cross-check, and when it failed
+    // it's the answer to "did they do the workout" the caller actually wanted.
+    const efforts = findPlannedEfforts(flat, laps, paceSec);
+    return NextResponse.json({ ...report, efforts });
   } catch (error: any) {
     console.error('Academy segments error:', error);
     return NextResponse.json({ error: error.message || 'Failed to compute segments' }, { status: 500 });

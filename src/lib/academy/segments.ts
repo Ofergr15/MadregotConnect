@@ -175,6 +175,176 @@ export function projectBandsToBins(bands: PlannedBand[], binMeters: number[]): (
   return out;
 }
 
+// ── "Did they do the workout?" without the watch ────────────────────────────
+// matchLapsToSteps below can only answer for a run that WAS the pushed structured
+// workout: it needs one lap per planned step, which is what the watch produces
+// when it drives the session. Most athletes don't run that way — they read the
+// plan and press start — and for them every quality session came back
+// `aligned: false`, i.e. "no idea", even when the laps plainly contain the work.
+//
+// So instead of aligning by position, look for the efforts. A planned set of
+// 6×400 m at 3:55–4:05 is a question about the laps as a SET: are there six laps
+// about 400 m long, run inside that band? Order doesn't matter, lap count doesn't
+// matter, and the warmup, the jog home and a forgotten lap press don't break it.
+//
+// The one thing this must never do is confuse "didn't do the work" with "the laps
+// can't show the work". An athlete who never touches the lap button gets Garmin's
+// automatic 1 km laps, and no 400 m effort is visible in those at any pace — so a
+// requirement with no distance-plausible lap is reported unverifiable, not missed.
+
+export interface EffortRequirement {
+  label: string;
+  /** Target length of one rep in meters (time-based reps converted via target pace). */
+  distanceM: number;
+  paceMin: number;
+  paceMax: number;
+  needed: number;
+  found: number;
+  /** sec/km of the laps that satisfied it, in the order they were run. */
+  foundPaces: number[];
+  /** False when no lap is even close to `distanceM` — the laps can't answer this. */
+  verifiable: boolean;
+}
+
+export type EffortVerdict = 'confirmed' | 'partial' | 'missed' | 'unverifiable';
+
+export interface EffortReport {
+  verdict: EffortVerdict;
+  requirements: EffortRequirement[];
+  /** Reps asked for and reps found, counting only verifiable requirements. */
+  neededTotal: number;
+  foundTotal: number;
+  lapCount: number;
+  /** Typical lap length, for explaining an unverifiable verdict. */
+  medianLapM: number | null;
+  reason?: 'no_paced_plan' | 'no_laps' | 'laps_too_coarse';
+}
+
+/** How far a lap's length may be off the planned rep and still count as that rep. */
+const EFFORT_DISTANCE_TOL = 0.2;
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+/**
+ * The paced work the plan asks for, as a set of requirements: one entry per
+ * distinct (length, pace band) with how many times it's repeated.
+ *
+ * Time-based reps ("4 min at 3:40") are converted to meters through their own
+ * target pace, so a time interval is looked for the same way — the athlete's watch
+ * recorded a distance either way.
+ */
+export function effortRequirements(planned: PlannedSegment[]): EffortRequirement[] {
+  const out: EffortRequirement[] = [];
+  const byKey = new Map<string, EffortRequirement>();
+
+  for (const seg of planned) {
+    if (!seg.graded || !seg.paceMin) continue;
+    const paceMin = seg.paceMin;
+    const paceMax = seg.paceMax || seg.paceMin;
+    const mid = (paceMin + paceMax) / 2;
+    const meters =
+      seg.distanceM && seg.distanceM > 0
+        ? seg.distanceM
+        : seg.durationSec && seg.durationSec > 0 && mid > 0
+          ? Math.round((seg.durationSec * 1000) / mid)
+          : 0;
+    if (meters <= 0) continue;
+
+    // Round the length for grouping so 400 and 402 are one requirement of two,
+    // not two of one.
+    const key = `${Math.round(meters / 10)}-${paceMin}-${paceMax}`;
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.needed++;
+      continue;
+    }
+    const requirement: EffortRequirement = {
+      label: seg.label,
+      distanceM: meters,
+      paceMin,
+      paceMax,
+      needed: 1,
+      found: 0,
+      foundPaces: [],
+      verifiable: false,
+    };
+    byKey.set(key, requirement);
+    out.push(requirement);
+  }
+  return out;
+}
+
+/**
+ * Look for the planned efforts among the laps, whatever order they came in.
+ *
+ * Each lap is spent at most once, on the requirement it fits best, so a single
+ * fast kilometre can't satisfy six planned reps. Longest reps are claimed first:
+ * a 1000 m lap is a plausible 800 m rep at ±20%, and letting the 800s take it
+ * would leave the real 1000 unmatched.
+ */
+export function findPlannedEfforts(
+  planned: PlannedSegment[],
+  laps: Lap[],
+  paceSec = DEFAULT_TOLERANCES.paceSec,
+): EffortReport {
+  const requirements = effortRequirements(planned);
+  const usable = laps.filter(l => l.distance > 0 && lapPace(l) != null);
+  const medianLapM = median(usable.map(l => l.distance));
+  const base: EffortReport = {
+    verdict: 'unverifiable',
+    requirements,
+    neededTotal: 0,
+    foundTotal: 0,
+    lapCount: laps.length,
+    medianLapM,
+  };
+
+  if (requirements.length === 0) return { ...base, reason: 'no_paced_plan' };
+  // One lap is the whole run — the watch recorded no structure at all.
+  if (usable.length < 2) return { ...base, reason: 'no_laps' };
+
+  const spent = new Set<number>();
+  for (const requirement of [...requirements].sort((a, b) => b.distanceM - a.distanceM)) {
+    const tolerance = requirement.distanceM * EFFORT_DISTANCE_TOL;
+    const candidates = usable
+      .map((lap, index) => ({ lap, index, pace: lapPace(lap)! }))
+      .filter(c => !spent.has(c.index) && Math.abs(c.lap.distance - requirement.distanceM) <= tolerance);
+    requirement.verifiable = candidates.length > 0;
+
+    const fastEnough = candidates
+      .filter(c => c.pace >= requirement.paceMin - paceSec && c.pace <= requirement.paceMax + paceSec)
+      // Closest to the middle of the band first: the best evidence for this rep.
+      .sort((a, b) => {
+        const target = (requirement.paceMin + requirement.paceMax) / 2;
+        return Math.abs(a.pace - target) - Math.abs(b.pace - target);
+      })
+      .slice(0, requirement.needed)
+      // Report them in the order they were actually run.
+      .sort((a, b) => a.index - b.index);
+
+    for (const c of fastEnough) spent.add(c.index);
+    requirement.found = fastEnough.length;
+    requirement.foundPaces = fastEnough.map(c => c.pace);
+  }
+
+  const verifiable = requirements.filter(r => r.verifiable);
+  if (verifiable.length === 0) return { ...base, reason: 'laps_too_coarse' };
+
+  const neededTotal = verifiable.reduce((sum, r) => sum + r.needed, 0);
+  const foundTotal = verifiable.reduce((sum, r) => sum + r.found, 0);
+  return {
+    ...base,
+    verdict: foundTotal === 0 ? 'missed' : foundTotal >= neededTotal ? 'confirmed' : 'partial',
+    neededTotal,
+    foundTotal,
+  };
+}
+
 /**
  * Align laps to planned steps positionally and grade each. Requires the lap count
  * to match the planned step count (Garmin auto-laps per step). If they don't line
