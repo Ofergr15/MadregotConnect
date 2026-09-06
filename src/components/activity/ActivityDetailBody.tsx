@@ -6,9 +6,11 @@ import {
   RefreshCw, Sparkles, TrendingUp, Zap,
 } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
+import type { PlanVerdict } from '@/lib/academy/verdict';
 import { cn } from '@/lib/utils';
 import { ElevationChart, HRChart, PaceChart } from './charts';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone } from './format';
+import { PlanVerdictCard } from './PlanVerdictCard';
 import { RouteMap } from './RouteMap';
 import { SplitsTable } from './SplitsTable';
 import type { ActivityDetailsData, ActivityEntry } from './types';
@@ -47,12 +49,15 @@ export function ActivityDetailBody({
   details,
   loading = false,
   planned,
+  verdict,
   className,
 }: {
   activity: ActivityEntry;
   details: ActivityDetailsData | null;
   loading?: boolean;
   planned?: (PlannedKmPoint | null)[] | null;
+  /** The day's plan, graded against this run. Absent → the card renders nothing. */
+  verdict?: PlanVerdict | null;
   className?: string;
 }) {
   const t = useTranslations('activities');
@@ -151,6 +156,10 @@ export function ActivityDetailBody({
           ) : null}
         </div>
       </div>
+
+      {/* Did this run match the day's plan — the first question an athlete who was
+          given a plan actually has, so it sits above the derived stats. */}
+      <PlanVerdictCard verdict={verdict ?? null} />
 
       {/* Performance Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">

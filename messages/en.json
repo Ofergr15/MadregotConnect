@@ -1349,7 +1349,26 @@
     "runType_tempo": "Tempo",
     "runType_intervals": "Intervals",
     "runType_easy": "Easy",
-    "runType_recovery": "Recovery"
+    "runType_recovery": "Recovery",
+    "planTitle": "Planned workout",
+    "planLevelOnPlan": "Followed the plan",
+    "planLevelPartly": "Partly followed",
+    "planLevelOffPlan": "Off plan",
+    "planLevelUnknown": "Nothing to compare",
+    "planStatusOnTarget": "On target",
+    "planStatusUnder": "Short",
+    "planStatusOver": "Over",
+    "planStatusFaster": "Faster",
+    "planStatusSlower": "Slower",
+    "planEstimated": "estimated",
+    "planReps": "Intervals",
+    "planRepsConfirmed": "Every planned rep was run at target pace",
+    "planRepsPartial": "{found} of {needed} reps at target pace",
+    "planRepsMissed": "None of the planned reps were found in the laps",
+    "planRepsRun": "{attempted} of {needed} reps were run, {found} of them at target pace",
+    "planRepsNoLaps": "The watch recorded the run as a single lap, so the individual reps can't be identified.",
+    "planRepsCoarse": "The laps the watch recorded (about {meters} m) don't line up with the planned reps, so they can't be identified — this doesn't mean the workout wasn't done.",
+    "planLevelAbove": "Above plan"
   },
   "connectPrompt": {
     "title": "Connect Your Training Data",
@@ -1764,7 +1783,11 @@
     "groupRunRunners": "{count} runners",
     "groupRunShared": "{pct}% shared route",
     "groupRunLongest": "Longest: {km} km",
-    "groupRunShowAll": "Show {count} more runners"
+    "groupRunShowAll": "Show {count} more runners",
+    "planBadgeOnPlan": "On plan",
+    "planBadgeAbove": "Above plan",
+    "planBadgePartly": "Partly on plan",
+    "planBadgeOffPlan": "Off plan"
   },
   "feedHighlight": {
     "unit_distance_km": "km",

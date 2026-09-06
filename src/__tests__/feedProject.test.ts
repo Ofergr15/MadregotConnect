@@ -229,6 +229,32 @@ describe('feed projection — payload.hiddenFields', () => {
     expect(project(['pace']).paceBands).toBeNull();
   });
 
+  // The plan badge says things like "slower than the target band" — pace at a
+  // coarser grain, but pace. An athlete who hid their pace hid this too; their own
+  // verdict is still on the run's detail page.
+  it('the plan verdict ships with pace, and goes when pace is hidden', () => {
+    const withVerdict = (hiddenFields: unknown) =>
+      projectFeedItem(
+        { ...baseRow, type: 'activity', payload: { hiddenFields }, athlete_activities: activityRow },
+        {
+          ...context,
+          planVerdictsByActivity: new Map([['act-1', {
+            level: 'partly' as const,
+            workoutName: '6x400',
+            distanceStatus: 'on_target' as const,
+            paceStatus: 'slower' as const,
+          }]]),
+        },
+      ).activity!;
+
+    expect(withVerdict([])?.planVerdict).toMatchObject({ level: 'partly', workoutName: '6x400' });
+    expect(withVerdict(['pace']).planVerdict).toBeNull();
+  });
+
+  it('has no plan verdict when the caller resolved none', () => {
+    expect(project([]).planVerdict).toBeNull();
+  });
+
   it('hides everything asked for at once', () => {
     expect(project(['calories', 'heart_rate', 'pace'])).toMatchObject({
       calories: null, averageHr: null, maxHr: null, averagePace: null,

@@ -1349,7 +1349,26 @@
     "runType_tempo": "טמפו",
     "runType_intervals": "אינטרוולים",
     "runType_easy": "קל",
-    "runType_recovery": "התאוששות"
+    "runType_recovery": "התאוששות",
+    "planTitle": "האימון המתוכנן",
+    "planLevelOnPlan": "בוצע לפי התוכנית",
+    "planLevelPartly": "בוצע חלקית",
+    "planLevelOffPlan": "לא לפי התוכנית",
+    "planLevelUnknown": "אין מה להשוות",
+    "planStatusOnTarget": "בטווח",
+    "planStatusUnder": "פחות מהמתוכנן",
+    "planStatusOver": "יותר מהמתוכנן",
+    "planStatusFaster": "מהר מהיעד",
+    "planStatusSlower": "אט מהיעד",
+    "planEstimated": "אומדן",
+    "planReps": "חזרות",
+    "planRepsConfirmed": "כל החזרות המתוכננות בוצעו בקצב היעד",
+    "planRepsPartial": "{found} מתוך {needed} חזרות בקצב היעד",
+    "planRepsMissed": "לא נמצאה אף חזרה מהמתוכננות",
+    "planRepsRun": "{attempted} מתוך {needed} החזרות בוצעו, {found} מהן בקצב שנקבע",
+    "planRepsNoLaps": "השעון רשם את הריצה כמקטע אחד, ולכן אי אפשר לזהות את החזרות.",
+    "planRepsCoarse": "אורך המקטעים שהשעון רשם (כ-{meters} מ׳) לא מתאים לחזרות המתוכננות, ולכן אי אפשר לזהות אותן — זה לא אומר שהאימון לא בוצע.",
+    "planLevelAbove": "מעל התוכנית"
   },
   "connectPrompt": {
     "title": "חברו את נתוני האימונים שלכם",
@@ -1764,7 +1783,11 @@
     "groupRunRunners": "{count} רצים",
     "groupRunShared": "מסלול משותף {pct}%",
     "groupRunLongest": "הארוכה: {km} ק״מ",
-    "groupRunShowAll": "הצגת {count} הרצים הנוספים"
+    "groupRunShowAll": "הצגת {count} הרצים הנוספים",
+    "planBadgeOnPlan": "לפי התוכנית",
+    "planBadgeAbove": "מעל התוכנית",
+    "planBadgePartly": "חלקית לפי התוכנית",
+    "planBadgeOffPlan": "לא לפי התוכנית"
   },
   "feedHighlight": {
     "unit_distance_km": "ק״מ",

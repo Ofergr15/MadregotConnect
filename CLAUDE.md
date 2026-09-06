@@ -61,7 +61,7 @@ src/
     supabase/           Clients + hand-written DB types
     utils.ts            cn(), week-start + activity-time helpers, group identity
   i18n/                 next-intl cookie-based locale
-messages/{en,he}.json   1716 keys each, currently at parity
+messages/{en,he}.json   1891 keys each, currently at parity
 supabase/
   schema.sql            ⚠️ ORIGINAL schema only — stale
   migrations/0NN_*.sql  ⚠️ The real schema. Applied MANUALLY in the Supabase SQL editor.
@@ -210,6 +210,27 @@ paces are pace at a finer grain and would hand back the average the athlete just
 visibly in the colours and exactly in the JSON. If you add anything else derived from
 `splits` to the feed, mask it the same way.
 
+Recorded exposure change, **2026-09-06**: the plan verdict — "did this run match the
+day's plan" — is now member-visible on two surfaces, because the academy compliance
+table only ever answered it for the one athlete flagged `is_academy` while the other
+25 got a plan pushed to their watch and no feedback.
+
+- `GET /api/academy/segments?verdict=1` (and `?bands=1`) is **member-visible**;
+  the per-segment default mode stays self-or-staff. Labelling the comparison publishes
+  no new class of data: the planned band and the actual pace line already sit on the
+  same chart for any member. The one thing it *would* have added — a rep-by-rep pace
+  readout of someone else's intervals — is trimmed to `paces: []` for anyone but the
+  athlete and staff. The counts (`found`/`needed`) stay, because "did they do the
+  session" is the same grain as the badge. Pinned by
+  `src/__tests__/academySegmentsVerdictRoute.test.ts`.
+- The feed card's plan badge is resolved server-side in `src/lib/feed/plan-verdicts.ts`
+  and masked under the existing `pace` hidden-field key — hiding pace drops the badge
+  outright rather than shipping a version computed from distance alone, since "slower
+  than the target band" is a pace disclosure at a coarser grain. The athlete's own
+  verdict is still on their run's detail page.
+
+If you add a new plan-derived label to the feed, mask it under `pace` too.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:
@@ -274,7 +295,7 @@ via `Promise.allSettled` so one provider failing doesn't block the other, then w
 ## i18n
 
 `next-intl`, cookie-based (`NEXT_LOCALE`), **Hebrew default**, no locale in the URL.
-`messages/en.json` and `messages/he.json` are at 1716 keys each — keep them in sync;
+`messages/en.json` and `messages/he.json` are at 1891 keys each — keep them in sync;
 adding a key to one and not the other is the common mistake.
 
 Adoption is partial: 14 of 44 components use `useTranslations`. Several (notably the

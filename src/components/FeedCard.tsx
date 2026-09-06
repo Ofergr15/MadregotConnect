@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge, ChevronRight } from 'lucide-react';
+import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge, ChevronRight, Target } from 'lucide-react';
 import { activityDayRelation, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
@@ -13,6 +13,7 @@ import { FeedShareSheet } from '@/components/FeedShareSheet';
 import { RouteMinimap } from '@/components/RouteMinimap';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import { toAchievementPayload } from '@/lib/feed/project';
+import { exceededPlan } from '@/lib/academy/verdict';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 
@@ -361,6 +362,46 @@ export function ActionRow({
 }
 
 /**
+ * "Followed the plan" on a card, when the day had one.
+ *
+ * The whole-run answer only — the per-rep check needs laps the feed can't fetch,
+ * so it lives on the run's detail, one tap away. See `loadFeedPlanVerdicts`.
+ *
+ * Renders nothing when the day had no plan, when nothing in it was gradeable, or
+ * when the athlete hid their pace (`maskHiddenStats` nulls the verdict, since
+ * "slower than the target band" is a pace disclosure in coarser clothing).
+ */
+const PLAN_CHIP: Record<'on_plan' | 'above' | 'partly' | 'off_plan', { key: string; cls: string }> = {
+  on_plan: { key: 'planBadgeOnPlan', cls: 'bg-accent-600/15 text-accent-900' },
+  // Further/faster than asked is not a failure to report in red — see exceededPlan.
+  above: { key: 'planBadgeAbove', cls: 'bg-band-2/15 text-band-2-ink' },
+  partly: { key: 'planBadgePartly', cls: 'bg-band-3/15 text-band-3-ink' },
+  off_plan: { key: 'planBadgeOffPlan', cls: 'bg-accent-red/15 text-accent-red-ink' },
+};
+
+export function PlanVerdictChip({ act }: { act: NonNullable<FeedItem['activity']> }) {
+  const t = useTranslations('feed');
+  const verdict = act.planVerdict;
+  if (!verdict || verdict.level === 'unknown') return null;
+  const tone = verdict.level !== 'on_plan' && exceededPlan(verdict.distanceStatus, verdict.paceStatus)
+    ? 'above'
+    : verdict.level;
+  const chip = PLAN_CHIP[tone];
+
+  return (
+    <div className="flex mb-3">
+      <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold max-w-full', chip.cls)}>
+        <Target className="h-3 w-3 shrink-0" />
+        <span className="shrink-0">{t(chip.key as 'planBadgeOnPlan')}</span>
+        {verdict.workoutName && (
+          <span className="font-medium opacity-75 truncate">· {verdict.workoutName}</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/**
  * Distance / pace / time, the three numbers every card leads with.
  *
  * Exported so a runner's block inside a group run card renders the identical
@@ -514,6 +555,10 @@ function ActivityCard({
           {act.activityName && (
             <p className="text-sm text-ink-700 font-semibold mb-3">{act.activityName}</p>
           )}
+
+          {/* Did this run match the day's plan — the question an athlete who was
+              given one actually has, above the numbers it was answered from. */}
+          <PlanVerdictChip act={act} />
 
           <ActivityStatTiles act={act} />
 

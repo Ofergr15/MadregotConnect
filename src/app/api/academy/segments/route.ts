@@ -5,7 +5,8 @@ import { GarminClient } from '@/lib/garmin/client';
 import { activityLocalDateStr, planWeekStartOf } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
-import { requireCallerForAthlete, requireMember } from '@/lib/auth/self-or-staff';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import {
   flattenPlannedSteps,
   matchLapsToSteps,
@@ -14,12 +15,22 @@ import {
   Lap,
 } from '@/lib/academy/segments';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
+import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 
 export const dynamic = 'force-dynamic';
 /**
  * GET /api/academy/segments?athleteId=&date=YYYY-MM-DD
- * Per-segment planned-vs-actual verdicts for one athlete's workout on a date.
+ *
+ * Three modes over one plan lookup, because resolving WHICH plan and which pace
+ * lane an athlete is graded against is the part that must not drift:
+ *   (default)   per-segment planned-vs-actual verdicts, from that day's laps
+ *   ?bands=1    the day's planned pace bands, for the chart overlay
+ *   ?verdict=1  did this run match the plan — whole-run metrics + the effort check
+ *
+ * `bands` and `verdict` may be asked for together and answer in one response.
+ * `?activityId=` pins which of the day's runs to grade; without it the one
+ * closest to planned distance is used, matching the adherence engine.
  */
 export async function GET(request: Request) {
   try {
@@ -29,23 +40,31 @@ export async function GET(request: Request) {
     if (!athleteId || !date) {
       return NextResponse.json({ error: 'athleteId and date are required' }, { status: 400 });
     }
+    const wantsBands = !!searchParams.get('bands');
+    const wantsVerdict = !!searchParams.get('verdict');
 
-    // Two different trust levels behind one route. `bands` returns only the
-    // day's PLANNED paces — club training content, and the feed requests it for
-    // whoever's activity is being expanded, so any member may. The default mode
-    // returns that athlete's own laps and per-segment verdicts: self-or-staff.
-    if (searchParams.get('bands')) {
-      const denied = await requireMember(request);
-      if (denied) return denied;
-    } else {
-      const { denied } = await requireCallerForAthlete(request, athleteId);
-      if (denied) return denied;
+    // Three trust levels behind one route.
+    //
+    // `bands` returns only the day's PLANNED paces — club training content, and
+    // the feed requests it for whoever's activity is being expanded, so any
+    // member may. `verdict` is member-visible too: on the activity detail the
+    // planned band and the actual pace line already sit on the same chart for any
+    // member, so labelling that comparison publishes no new class of data — but
+    // the per-rep paces inside it are trimmed below for anyone but the athlete
+    // and staff. The default mode returns the athlete's own laps step by step,
+    // and stays self-or-staff.
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    const isOwnOrStaff = mayActFor(caller, athleteId);
+    if (!wantsBands && !wantsVerdict && !isOwnOrStaff) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
     const supabase = createServerClient();
     const weekStart = planWeekStartOf(date);
     const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
-    const { paceSec } = (await loadAcademySettings()).tolerances;
+    const { tolerances } = await loadAcademySettings();
+    const { paceSec } = tolerances;
 
     // Which of the three pace lanes this athlete runs. It has to be resolved
     // before any plan is read: grading a group-3 athlete's laps against group 1's
@@ -88,33 +107,64 @@ export async function GET(request: Request) {
     }
     const planned = workouts.find(w => w.dayOfWeek === dayOfWeek);
     if (!planned) {
-      if (searchParams.get('bands')) return NextResponse.json({ bands: null, reason: 'no planned workout for this day' });
-      return NextResponse.json({ segments: [], aligned: false, reason: 'no planned workout for this day' });
+      const reason = 'no planned workout for this day';
+      if (wantsBands || wantsVerdict) {
+        return NextResponse.json({
+          ...(wantsBands ? { bands: null } : {}),
+          ...(wantsVerdict ? { verdict: null } : {}),
+          reason,
+        });
+      }
+      return NextResponse.json({ segments: [], aligned: false, reason });
     }
 
-    // Chart-overlay mode: return the planned pace BANDS on a meter timeline. The
-    // client projects them onto the activity's actual split distances (splits are
-    // not always 1km). No lap fetch needed. bands:null → the day has no paced plan.
-    if (searchParams.get('bands')) {
-      const bands = buildPlannedBands(planned);
-      return NextResponse.json({ bands: bands.length ? bands : null, workoutName: planned.name });
-    }
+    // Chart-overlay mode: the planned pace BANDS on a meter timeline. The client
+    // projects them onto the activity's actual split distances (splits are not
+    // always 1km). bands:null → the day has no paced plan.
+    //
+    // No lap fetch needed, so `?bands=1` alone answers here. Asked for alongside
+    // `?verdict=1` it rides along on the plan lookup both modes share, which is
+    // what the activity detail wants: one request for the overlay and the verdict.
+    const bandsPayload = wantsBands
+      ? (() => {
+        const bands = buildPlannedBands(planned);
+        return { bands: bands.length ? bands : null, workoutName: planned.name };
+      })()
+      : {};
+    if (wantsBands && !wantsVerdict) return NextResponse.json(bandsPayload);
 
     // 2) The matched activity for that date, with its stored laps.
     const { data: acts } = await supabase
       .from('athlete_activities')
-      .select('id, garmin_activity_id, start_time, distance, laps')
+      .select('id, garmin_activity_id, start_time, distance, duration, moving_duration, average_pace, activity_type, laps')
       .eq('athlete_id', athleteId)
       .gte('start_time', `${date}T00:00:00Z`)
       .lte('start_time', `${date}T23:59:59Z`);
     const dayActs = (acts || []).filter((a: any) => activityLocalDateStr(a.start_time) === date);
+    // A running plan grades runs. A ride or a swim on a plan day isn't a worse
+    // version of the workout, it isn't the workout — and "closest to planned
+    // distance" below would happily pick a 40 km ride over the 20 km run.
+    const runActs = dayActs.filter(
+      (a: any) => !a.activity_type || PR_RUN_TYPES.includes(a.activity_type));
+    // A named activity wins: the detail page is asking about the run on screen,
+    // and "closest to planned distance" would happily grade the other one.
+    const pinnedId = searchParams.get('activityId');
     // Pick the activity closest to planned distance (mirrors adherence matching).
     const plannedDist = (planned.distanceMinKm || 0) * 1000;
-    const activity = dayActs.sort((a: any, b: any) =>
-      Math.abs((a.distance || 0) - plannedDist) - Math.abs((b.distance || 0) - plannedDist))[0] || null;
+    const activity = pinnedId
+      ? runActs.find((a: any) => a.id === pinnedId) || null
+      : runActs.sort((a: any, b: any) =>
+        Math.abs((a.distance || 0) - plannedDist) - Math.abs((b.distance || 0) - plannedDist))[0] || null;
 
     if (!activity) {
-      return NextResponse.json({ segments: [], aligned: false, reason: 'no completed activity on this day' });
+      // Say which it was: the caller pinned an activity that exists but isn't a run.
+      const reason = pinnedId && dayActs.some((a: any) => a.id === pinnedId)
+        ? 'activity is not a run'
+        : 'no completed activity on this day';
+      // Still hand back the bands: the plan is real even when this route can't find
+      // the run, and the caller's chart has an activity on screen either way.
+      if (wantsVerdict) return NextResponse.json({ ...bandsPayload, verdict: null, reason });
+      return NextResponse.json({ segments: [], aligned: false, reason });
     }
 
     // 3) Ensure laps — fetch on-demand from Garmin if not cached.
@@ -148,6 +198,47 @@ export async function GET(request: Request) {
     // positional alignment succeeded it's a cheap cross-check, and when it failed
     // it's the answer to "did they do the workout" the caller actually wanted.
     const efforts = findPlannedEfforts(flat, laps, paceSec);
+
+    // Verdict mode: the same two answers the academy compliance table gives, for
+    // ONE run — the whole-run metrics from the adherence engine (so a coach can't
+    // get two different verdicts for the same run out of two screens) plus the
+    // effort check for the reps inside it.
+    if (wantsVerdict) {
+      const graded = assessWorkout(
+        buildPlannedWorkout(planned, date),
+        {
+          id: activity.id,
+          date,
+          distance: Number(activity.distance) || 0,
+          duration: Number(activity.duration) || 0,
+          movingDuration: activity.moving_duration != null ? Number(activity.moving_duration) : null,
+          averagePace: activity.average_pace != null ? Number(activity.average_pace) : null,
+          activityType: activity.activity_type,
+        },
+        tolerances,
+      );
+      return NextResponse.json({
+        ...bandsPayload,
+        verdict: {
+          workoutName: planned.name,
+          date,
+          activityId: activity.id,
+          distance: graded.distance,
+          duration: graded.duration,
+          pace: graded.pace,
+          score: graded.score,
+          // Which rep paces a teammate may read is the one thing this mode trims:
+          // aggregate counts answer "did they do the session" without handing the
+          // club a rep-by-rep readout of someone else's intervals.
+          efforts: isOwnOrStaff
+            ? efforts
+            : { ...efforts, requirements: efforts.requirements.map(r => ({ ...r, paces: [] })) },
+          alignedToWatch: report.aligned,
+        },
+        tolerances,
+      });
+    }
+
     return NextResponse.json({ ...report, efforts });
   } catch (error: any) {
     console.error('Academy segments error:', error);

@@ -13,6 +13,7 @@ import {
   ActionRow,
   ActivityChips,
   ActivityStatTiles,
+  PlanVerdictChip,
   formatDuration,
   formatPace,
 } from '@/components/FeedCard';
@@ -138,6 +139,7 @@ function ExpandedRunner({
         aria-label={t('viewDetails')}
         className="mt-3 -mx-2 px-2 py-1 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
       >
+        <PlanVerdictChip act={act} />
         <ActivityStatTiles act={act} />
         <ActivityChips act={act} />
       </div>

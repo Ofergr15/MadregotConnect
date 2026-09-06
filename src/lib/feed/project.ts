@@ -15,6 +15,7 @@
  */
 
 import type { FeedComment } from '@/lib/feed/comments';
+import type { FeedPlanVerdict } from '@/lib/feed/plan-verdicts';
 
 export interface FeedAuthor {
   athleteId: string | null;
@@ -49,6 +50,12 @@ export interface FeedActivity {
    * athlete has hidden their pace.
    */
   paceBands: number[] | null;
+  /**
+   * Whether this run matched the day's plan — the whole-run answer, resolved by
+   * the route (see `loadFeedPlanVerdicts`). Null when the day had no plan, when
+   * nothing in it was gradeable, or when the athlete has hidden their pace.
+   */
+  planVerdict: FeedPlanVerdict | null;
 }
 
 /** A member who liked an item. Same shape whether inlined or fetched in full. */
@@ -233,7 +240,7 @@ function toMedia(v: unknown): FeedMedia[] {
     .filter((m): m is FeedMedia => m !== null);
 }
 
-function projectActivity(row: RawActivityRow): FeedActivity {
+function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | null): FeedActivity {
   const route = toRoute(row.route_preview);
   return {
     id: row.id,
@@ -256,6 +263,7 @@ function projectActivity(row: RawActivityRow): FeedActivity {
     routePreview: route,
     hasRoute: !!route || !!row.has_polyline,
     paceBands: toPaceBands(row.splits),
+    planVerdict,
   };
 }
 
@@ -305,6 +313,12 @@ function maskHiddenStats(activity: FeedActivity, hidden: Set<HiddenFieldKey>): F
     // would let anyone read off a hidden average from the card's own heat map
     // (and, colours aside, straight out of the JSON).
     paceBands: hidden.has('pace') ? null : activity.paceBands,
+    // The plan badge is a statement about pace among other things — "slower than
+    // the target band" is a pace disclosure, coarser but the same kind. Hiding
+    // pace hides the badge outright rather than shipping a version of it computed
+    // from distance alone: the athlete asked for their pace not to be discussed
+    // on the card, and the verdict on their run is still on the run's own detail.
+    planVerdict: hidden.has('pace') ? null : activity.planVerdict,
   };
 }
 
@@ -327,6 +341,12 @@ export interface ProjectContext {
    * comments, so single-item callers needn't build an empty map.
    */
   commentsByItem?: Map<string, FeedComment[]>;
+  /**
+   * activity_id -> plan verdict, resolved for the whole page in a fixed number of
+   * queries by `loadFeedPlanVerdicts`. Optional: a caller that doesn't resolve
+   * plans simply ships no badge.
+   */
+  planVerdictsByActivity?: Map<string, FeedPlanVerdict>;
 }
 
 /** How many likers ride along in the feed payload; the rest load on demand. */
@@ -337,7 +357,13 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
   const isOwn = !!row.author_athlete_id && row.author_athlete_id === ctx.viewerAthleteId;
   const payload = (row.payload as Record<string, unknown> | null) ?? null;
   const activity = row.athlete_activities
-    ? maskHiddenStats(projectActivity(row.athlete_activities), readHiddenFields(payload))
+    ? maskHiddenStats(
+      projectActivity(
+        row.athlete_activities,
+        ctx.planVerdictsByActivity?.get(row.athlete_activities.id) ?? null,
+      ),
+      readHiddenFields(payload),
+    )
     : null;
 
   return {
