@@ -13,7 +13,8 @@ Return ONLY valid JSON matching this schema:
       "workoutKey": "day-2-part-1-warmup",
       "partIndex": 1,
       "partCount": 1,
-      "partKind": "single|warmup|test|main|cooldown",
+      "partKind": "single|warmup|test|main|cooldown|morning|evening",
+      "optional": false,
       "expectedDistanceM": 12000,
       "expectedDurationSec": null,
       "distanceToleranceM": 800,
@@ -123,12 +124,44 @@ All parts use the same dayOfWeek and MUST have:
 - the same partCount
 - sequential partIndex starting at 1
 - a deterministic workoutKey: "day-{dayOfWeek}-part-{partIndex}-{short-kind}"
-- partKind: warmup, test, main, cooldown, or single
+- partKind: morning, evening, warmup, test, main, cooldown, or single
 - expectedDistanceM/expectedDurationSec when the document gives enough information
 - distanceToleranceM (about 5-10%, minimum 150m)
 - concise activityNameTokens in Hebrew and/or English
 
 Each part contains ONLY its own steps. Do not repeat warmup/cooldown across parts.
+
+### Two sessions in one day (morning + evening) — MANDATORY split
+
+A day that carries two session headings — most often "בוקר" and "ערב", sometimes
+"אימון ראשון"/"אימון שני", "AM"/"PM" — is TWO workout objects. This is not
+optional and it is not a judgement call: never merge them, never keep only the
+first, never demote the second one to a note or a description.
+
+For such a day:
+- partCount 2, partIndex 1 = the morning session, partIndex 2 = the evening one
+- partKind "morning" and "evening" respectively
+- each object carries ONLY the steps written under its own heading
+- each object gets its OWN distanceMinKm/distanceMaxKm and expectedDistanceM.
+  A day-total km range printed once for the whole day (e.g. "24-41 ק״מ") belongs
+  on NEITHER part alone: split it the way the sessions split, and if the document
+  does not say how, leave distanceMinKm/distanceMaxKm null on both and let the
+  steps speak. Do not copy the day total onto a part that is only half the day.
+- name each one after its session, e.g. "אינטרוולים - בוקר" / "ריצה קלה - ערב"
+
+An optional session — "ערב - אופציה", "אופציונלי", "מי שרוצה" — is STILL its own
+workout object with its own steps. Set "optional": true on it and keep the word
+in the name. It is never merged into the prescribed session and its distance is
+never added to the day's required volume.
+
+Worked example — Tuesday printed as:
+  בוקר: 8 ק״מ קל + 1 ק״מ 4:00 + x5 300 מ׳
+  ערב - אופציה: 6 ק״מ קל + x20 500 מ׳
+→ exactly two objects, both dayOfWeek 2, partCount 2:
+1. partIndex 1, partKind "morning", workoutKey "day-2-part-1-morning",
+   steps = the 8 km, the 1 km at 4:00, and the x5 300 m repeat — nothing else
+2. partIndex 2, partKind "evening", optional true,
+   workoutKey "day-2-part-2-evening", steps = the 6 km and the x20 500 m repeat
 
 Example — Tuesday says warmup, "מבחן 3000", then the rest of the workout:
 1. Tuesday part 1: warmup only, partKind "warmup"
@@ -150,6 +183,9 @@ then use target/group2/group3 pace or heart-rate fields on each step.
 - קולדאון / צינון = cooldown
 - ארוכה = long run
 - טמפו = tempo
+- בוקר = morning session → its own part, partKind "morning"
+- ערב = evening session → its own part, partKind "evening"
+- אופציה / אופציונלי / מי שרוצה = optional session → "optional": true, still its own part
 - גומי = rubber band exercises (add as note, not a running step)
 - ג׳ל / לשתות = nutrition (ignore for workout structure)
 - קמ / ק"מ / קילומטר = kilometer

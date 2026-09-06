@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { parseWorkoutPlan } from '@/lib/ai/parser';
 import { COACH_ID } from '@/lib/constants';
 import * as fs from 'fs';
@@ -74,5 +75,6 @@ export async function POST(request: Request) {
     }
   }
 
+  revalidateWeeklyPlans();
   return NextResponse.json({ results });
 }

@@ -181,7 +181,7 @@ export function AcademyResults() {
               </div>
               <div className="text-base font-bold text-ink-700 tabular-nums shrink-0">{formatTime(r.time_seconds)}</div>
               <button onClick={() => openEdit(r)} className="p-2.5 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page min-h-[44px] min-w-[44px]"><Pencil className="h-4 w-4" /></button>
-              <button onClick={() => setDeleteTarget(r.id)} className="p-2.5 rounded-lg text-ink-400 hover:text-accent-red hover:bg-accent-red/10 min-h-[44px] min-w-[44px]"><Trash2 className="h-4 w-4" /></button>
+              <button onClick={() => setDeleteTarget(r.id)} className="p-2.5 rounded-lg text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 min-h-[44px] min-w-[44px]"><Trash2 className="h-4 w-4" /></button>
             </div>
           ))}
         </div>

@@ -441,8 +441,23 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
     : paceMetric?.deviation != null ? [paceMetric.deviation] : [];
 
   let direction = directionFromDeviations(paceDeviations);
+  const distanceMetric = metrics.find((metric) => metric.key === 'distance');
+
+  // Pace tells the direction, because on a paced session the pace IS the content:
+  // four reps run too fast is "too fast" even if the totals landed on the nose.
+  //
+  // But pace on target does not by itself earn "as planned". Fourteen kilometres
+  // of a ten-kilometre session, run at exactly the pace asked for, is not the
+  // session — and a green ring over a score in the seventies reads as a bug in the
+  // score rather than as the honest thing it is. Only a run that held the pace AND
+  // stayed in the distance band gets the word.
+  if (direction === 'on_target'
+    && distanceMetric?.deviation != null && distanceMetric.deviation !== 0) {
+    direction = distanceMetric.deviation > 0 ? 'too_long' : 'too_short';
+  }
+
   if (!direction) {
-    const distance = metrics.find((metric) => metric.key === 'distance');
+    const distance = distanceMetric;
     if (distance?.deviation != null) {
       if (distance.deviation !== 0) {
         direction = distance.deviation > 0 ? 'too_long' : 'too_short';
@@ -502,13 +517,17 @@ export function toExecutionSummary(verdict: ExecutionVerdict): ExecutionSummary 
 // the feedback screen's green for on target, accent-red for a session that swung
 // both ways, ink-300 for nothing to say.
 
+// The distance pair follows the pace pair, and it had them backwards: doing MORE
+// than was asked was orange while doing LESS was blue, so on one board a runner
+// who cut the session short read calmer than one who overshot it. Over is the
+// blue, under is the orange, matching too_fast/too_slow one line up.
 export const DIRECTION_COLOR: Record<ExecutionDirection, string> = {
   on_target: '#16a34a',
   too_fast: '#1525FF',
   too_slow: '#FF5315',
   mixed: '#AD3838',
-  too_long: '#FF5315',
-  too_short: '#159AFF',
+  too_long: '#159AFF',
+  too_short: '#FF5315',
   unknown: '#B9B9B9',
 };
 

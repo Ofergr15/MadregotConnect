@@ -208,7 +208,7 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
                   {run.average_hr && (
                     <span className="flex items-center gap-1.5">
                       <Heart className="h-4 w-4 text-rose-400" />
-                      {run.average_hr} bpm
+                      {Math.round(run.average_hr)} bpm
                     </span>
                   )}
                   {run.elevation_gain_m != null && (

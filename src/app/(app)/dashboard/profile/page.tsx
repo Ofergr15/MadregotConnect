@@ -16,7 +16,7 @@ import { MemberDiscovery } from '@/components/MemberDiscovery';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
 import { ShoeManager } from '@/components/ShoeManager';
-import { WeeklyVolumeCard } from '@/components/WeeklyVolumeCard';
+import { AthleteProfileBody } from '@/components/profile/AthleteProfileBody';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { ProfileOverview } from '@/components/profile/ProfileOverview';
@@ -24,6 +24,7 @@ import { SetupChecklist } from '@/components/onboarding/SetupChecklist';
 import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
 import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
 import { shareTextForDay } from '@/lib/workout-share';
+import { getDisplayWeekStart, formatPlanWeekRange } from '@/lib/plans/workout-parsing';
 import { fetchActivities } from '@/lib/activities-client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { APP_VERSION } from '@/lib/version';
@@ -42,45 +43,11 @@ interface Group {
   marathonGoal?: string;
 }
 
-interface WeekProgram {
-  weekLabel: string;
-  dateRange: string;
-  training: string;
-  nutrition: string;
-}
-
-const WEEKS: WeekProgram[] = [
-  {
-    weekLabel: 'Week 5',
-    dateRange: '28.06 – 04.07',
-    training: '/plans/training-program/week-28-06-04-07-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-28-06-04-07-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 4',
-    dateRange: '21.06 – 27.06',
-    training: '/plans/training-program/week-21-27-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-21-27-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 3',
-    dateRange: '14.06 – 20.06',
-    training: '/plans/training-program/week-14-20-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-14-20-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 2',
-    dateRange: '07.06 – 13.06',
-    training: '/plans/training-program/week-07-13-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-07-13-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 1',
-    dateRange: '31.05 – 06.06',
-    training: '/plans/training-program/week-31-05-06-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-31-05-06-06-2026.pdf',
-  },
-];
+// The five hardcoded WEEKS that used to live here are gone. They were a static
+// list of June 2026 PDFs whose only surviving reader was the "This week's
+// program" row's trailing value — so that row said "Week 5" forever, months
+// after week 5 was over, and the number meant nothing to an athlete anyway.
+// The row now shows the real date range of the week it opens; see programWeekLabel.
 
 // iOS-Settings-style drill-down tabs. null = the Profile landing (avatar/name +
 // row list); a value = a detail screen open. Mirrors the mechanism in
@@ -400,7 +367,13 @@ function ProfileContent() {
   }
 
   const currentGroup = groups.find(g => g.id === currentGroupId);
-  const currentWeek = WEEKS[0];
+  // The date range of the week this row opens. Prefer the week the loaded plan is
+  // actually for — an athlete whose latest published plan is last week's should
+  // read that week, not today's — and fall back to `getDisplayWeekStart`, the same
+  // "current week" the Program page lands on (Saturday-20:00 rollover included),
+  // so before the plan loads the row still can't name a week the Program page
+  // wouldn't open.
+  const programWeekLabel = formatPlanWeekRange(planWeekStart || getDisplayWeekStart(new Date()));
 
   // Days (0=Sun..6=Sat) that actually have a workout in the loaded plan.
   const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -533,14 +506,25 @@ function ProfileContent() {
             onOpenSetup={() => setActiveTab('setup')}
           />
 
-          {/* This week against the plan's target, then the last ten weeks as
-              bars. It used to sit on the feed beside the club top-3, which was
-              the wrong room for it: the feed is everyone, and a chart of
-              nothing but my own weekly totals is the most personal view in the
-              app. Directly under the header because it is the profile's
-              headline number — hides itself when there is only one week of
-              history to draw. */}
-          <WeeklyVolumeCard athleteId={athleteId} />
+          {/* ═══ THE PROFILE PROPER — the SAME component a teammate sees ═══
+              Stat trio, the דבוקה card, this week against the plan's target, the
+              last ten weeks as bars, the runs list, the km table and the PRs.
+
+              This replaced WeeklyVolumeCard, which drew the week + the ten bars
+              for the owner only (it read the activities endpoint with
+              `selfOnly`, so it could never serve a peer). Everything it showed
+              is here, and the same code now renders on
+              /dashboard/teammate/[id] — which is the point: your profile and the
+              profile someone else sees of you are one implementation, so the
+              peer view cannot fall behind the way it had. */}
+          <AthleteProfileBody
+            athleteId={athleteId}
+            variant="owner"
+            // No viewerId: on your OWN profile there is no follow state to
+            // resolve, and omitting it keeps the SWR key byte-identical to the
+            // one this page already fetches above, so the trio is free.
+            onFollowingClick={() => setShowFollowingSheet(true)}
+          />
 
           {/* Email, join date, pace-group goal and the Garmin/Strava chips are
               no longer on the landing — the frame's header is greeting + name +
@@ -561,7 +545,10 @@ function ProfileContent() {
               icon={Dumbbell}
               iconBg="bg-brand-600"
               label={t('thisWeeksProgram')}
-              value={currentWeek.weekLabel}
+              value={programWeekLabel}
+              // The plan on file isn't for this week — say which, rather than
+              // letting the row imply the athlete is looking at the current one.
+              sublabel={!planIsCurrent && planWeekStart ? t('latestPublishedWeek') : undefined}
               href="/dashboard/program"
             />
           </InsetSection>

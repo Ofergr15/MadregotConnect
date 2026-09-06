@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'weekStart (YYYY-MM-DD) is required' }, { status: 400 });
     }
 
-    const supabase = createServerClient({ revalidateSeconds: 300 });
+    const supabase = createServerClient({ revalidateSeconds: 300, cacheTags: [WEEKLY_PLANS_TAG] });
     // A week can have more than one row (e.g. a draft + a pushed version) —
     // prefer 'pushed', same precedence as /api/dashboard/weekly.
     const { data: rows } = await supabase

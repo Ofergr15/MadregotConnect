@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut } from 'lucide-react';
+import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, MessageSquareWarning } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
@@ -72,14 +72,22 @@ export function BottomTabBar() {
   for (const item of navItems) {
     if (primary.length >= 4) break;
     if (isStaffView && item.tab === 'practice-attendance') continue;
+    // Review has two permanent homes of its own now — the button beside the logo
+    // in the Header and the static card in the sheet below — so it must never be
+    // promoted into a flat tab, which would spend one of four daily-use slots on
+    // a screen you visit when something breaks.
+    if (item.tab === 'review') continue;
     if (byTab.has(item.tab)) { primary.push(item); byTab.delete(item.tab); }
   }
-  const overflow = navItems.filter(i => byTab.has(i.tab));
+  // Same reason review is skipped above: it's a static card in the sheet for
+  // every role, so leaving it in the permission-gated overflow would print it
+  // twice for anyone whose `review` tab is enabled.
+  const overflow = navItems.filter(i => byTab.has(i.tab) && i.tab !== 'review');
   const isActive = (href: string) => pathname === href;
   const overflowActive = overflow.some(i => isActive(i.href));
   // The static quick-action pages are reachable from the "More" sheet only, so
   // they light its slot up exactly like an overflow page does.
-  const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits'];
+  const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits', '/dashboard/review'];
   const moreActive = MORE_SHEET_HREFS.some(isActive);
 
   // STAFF ONLY: one "do something now" destination, additive to the 4 primary
@@ -133,14 +141,35 @@ export function BottomTabBar() {
         // Anchor for the first-run tour's "these are your tabs" step (see
         // FirstRunTour). md:hidden, so the step self-skips on desktop.
         data-tour="tabbar"
-        // transform-gpu forces its own GPU compositing layer — iOS Safari has a
-        // long-standing bug where a `fixed` element that also has
-        // `backdrop-filter` (backdrop-blur-xl) can visually drift with scroll
-        // momentum instead of staying pinned to the viewport, especially in
-        // standalone PWA mode. This is the standard workaround.
-        // The frames' bar: near-white and translucent over the page grey, with a
-        // page-grey hairline instead of a shadow.
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-page bg-card/95 backdrop-blur-xl transform-gpu"
+        // ── STICKY, NOT FIXED. This is the third and final fix for the bar
+        // drifting up the page mid-scroll on iOS.
+        //
+        // The two earlier attempts both treated a symptom: first removing
+        // `backdrop-filter`, then removing `transform-gpu`. Both are real
+        // triggers — either one promotes a `fixed` element into its own layer
+        // that WebKit then repaints late — but removing them only made the drift
+        // rarer, because the root cause is `position: fixed` itself. On iOS a
+        // fixed layer is pinned to the viewport by the compositor, and during a
+        // momentum scroll the compositor can be a frame or more behind, so the
+        // bar is painted wherever the viewport WAS. Nothing inside this component
+        // can fix that; it is not a CSS mistake.
+        //
+        // `sticky bottom-0` is not affected, because a sticky element is laid out
+        // inside the SCROLLED content — it moves with the page by construction,
+        // so there is no separate layer to fall behind. The Header has been
+        // `sticky top-0` all along and has never drifted, which is the in-app
+        // proof.
+        //
+        // It works here because the nav is the last child of the shell's
+        // `min-h-[100dvh] flex flex-col` column: that containing block spans the
+        // whole document, so the bar stays stuck to the viewport bottom for the
+        // entire scroll, and on a short page `flex-1` on <main> pushes it down to
+        // the bottom anyway. It now occupies real layout space at the end of the
+        // document, which is why <main> no longer needs to reserve room for it.
+        //
+        // Keep the fill opaque. A translucent bar needs a separate
+        // absolutely-positioned child to carry the blur — never this element.
+        className="md:hidden sticky bottom-0 z-40 flex items-stretch border-t border-page bg-card"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
@@ -186,6 +215,12 @@ export function BottomTabBar() {
               <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={Gift} label={t('benefits' as any)} href="/dashboard/benefits" active={isActive('/dashboard/benefits')} onClick={() => setMoreOpen(false)} />
+              {/* Review — static, like the three above, and for a stronger
+                  reason: it's the "something is broken" channel, so it cannot be
+                  gated by a permission row that might itself be the thing that's
+                  wrong. Also lives beside the logo in the Header now; this card
+                  keeps the place the club already knows. */}
+              <MoreCard icon={MessageSquareWarning} label={t('review' as any)} href="/dashboard/review" active={isActive('/dashboard/review')} onClick={() => setMoreOpen(false)} />
               {/* Photos is still being built — card and route disabled for now.
                   Restore with the Header nav entry and the page (re-add the
                   lucide Camera import too). */}

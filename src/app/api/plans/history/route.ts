@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/auth/self-or-staff';
+import { isMissingColumn } from '@/lib/supabase/schema-drift';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,14 @@ interface DeliveryDetail {
   workout_date: string;
   status: 'pending' | 'success' | 'failed';
   garmin_workout_id: string | null;
+  /**
+   * When an activity carrying this workout's Garmin id first showed up — i.e. the
+   * watch demonstrably had it and the athlete ran it. `status` only ever meant
+   * "the push landed on the Garmin account"; this is the device answering. Null
+   * for a workout that hasn't been run, and for every delivery made before
+   * migration 092.
+   */
+  device_confirmed_at: string | null;
   error_message: string | null;
   created_at: string;
 }
@@ -71,9 +80,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Fetch delivery details with athlete names
-      const { data: deliveries, error: deliveriesError } = await supabase
-        .from('workout_deliveries')
-        .select(`
+      const deliveryColumns = `
           id,
           athlete_id,
           workout_date,
@@ -84,10 +91,24 @@ export async function GET(req: NextRequest) {
           athletes (
             name
           )
-        `)
-        .eq('plan_id', planId)
-        .order('workout_date', { ascending: true })
-        .order('created_at', { ascending: true });
+        `;
+      const fetchDeliveries = (columns: string) =>
+        supabase
+          .from('workout_deliveries')
+          .select(columns)
+          .eq('plan_id', planId)
+          .order('workout_date', { ascending: true })
+          .order('created_at', { ascending: true });
+
+      let { data: deliveries, error: deliveriesError } = await fetchDeliveries(
+        `${deliveryColumns}, device_confirmed_at`,
+      );
+      // Selecting a column the database doesn't have fails the WHOLE select, so
+      // an unapplied migration 092 would take this coach-facing table down with
+      // it. Retry without the confirmation stamp instead.
+      if (isMissingColumn(deliveriesError, 'device_confirmed_at')) {
+        ({ data: deliveries, error: deliveriesError } = await fetchDeliveries(deliveryColumns));
+      }
 
       if (deliveriesError) {
         return NextResponse.json(
@@ -103,6 +124,7 @@ export async function GET(req: NextRequest) {
         workout_date: d.workout_date,
         status: d.status,
         garmin_workout_id: d.garmin_workout_id,
+        device_confirmed_at: d.device_confirmed_at ?? null,
         error_message: d.error_message,
         created_at: d.created_at,
       }));

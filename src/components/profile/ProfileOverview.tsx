@@ -4,10 +4,13 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { Camera, ChevronLeft, Loader2, Trophy } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { cn, getPlanWeekStart } from '@/lib/utils';
+import { cn, getPlanWeekStart, israelDateAnchor, israelNow, israelToday } from '@/lib/utils';
 import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
-import { WORKOUT_TYPE_TEXT_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
+import { WORKOUT_TYPE_TEXT_COLORS, WORKOUT_TYPE_LABELS, planDayKey } from '@/lib/plans/workout-parsing';
+import { weekTargetRange, dayTargetLabel, type WeekPlanTotals } from '@/lib/plans/week-target';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
+import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
+import CoreRunnerBadge from '@/components/CoreRunnerBadge';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import type { FeedItem } from '@/lib/feed/project';
 
@@ -35,14 +38,19 @@ interface DailyDistance {
   dayOfWeek: number;
   min: number;
   max: number;
+  /** Prescribed only — the day with its offered "ערב אופציה" left out. */
+  requiredMin?: number;
+  requiredMax?: number;
   type: string;
-  sessions?: Array<{ min: number; max: number; type: string; name: string }>;
+  sessions?: Array<{ min: number; max: number; type: string; name: string; optional?: boolean }>;
 }
 
 interface WeeklyData {
   dailyDistances: DailyDistance[];
   weekTotalMax: number;
   currentWeekStart: string;
+  /** False when no plan exists for `currentWeekStart` — the rest is then empty. */
+  hasPlan?: boolean;
   trainingDays: number;
 }
 
@@ -79,6 +87,16 @@ export function ProfileOverview({
   const tc = useTranslations('common');
   const locale = useLocale();
 
+  // הגרעין — a flag, not a role (migration 091), so it has to be asked for; it
+  // cannot be derived from anything already on this screen. Shares the SWR key
+  // with the nav and Settings, so it costs no extra request.
+  const { data: me } = useApi<{ isCoreRunner?: boolean }>('/api/auth/me');
+  const isCore = me?.isCoreRunner === true;
+  // Used for the mark beside the name and nothing else. There is deliberately no
+  // perks row on this screen: the entitlement explains itself where the perks
+  // actually are (Partnerships names the tier on the exclusive ones), so a
+  // second entry point here was a signpost to a place the user was already going.
+
   const { data: weekly } = useApi<WeeklyData>('/api/dashboard/weekly');
   const { data: reminder } = useApi<{ config?: ReminderCfg }>('/api/reminder-config');
   const { data: summary } = useApi<{ thisWeek?: { km: number; runs: number } }>(
@@ -88,7 +106,7 @@ export function ProfileOverview({
   // card behind it only when there IS a second one.
   const { data: updates } = useApi<{ items: FeedItem[] }>('/api/feed?types=announcement&limit=2');
 
-  const greetHour = new Date().getHours();
+  const greetHour = israelNow().hour;
   const greeting = greetHour < 12 ? td('goodMorning') : greetHour < 18 ? td('goodAfternoon') : td('goodEvening');
 
   const teamDays = reminder?.config?.teamDays ?? [2, 5];
@@ -96,41 +114,71 @@ export function ProfileOverview({
   const location = reminder?.config?.location?.trim() || '';
 
   const days = weekly?.dailyDistances || [];
-  const weekKmGoal = weekly?.weekTotalMax || 0;
   const weekKmDone = summary?.thisWeek?.km ?? 0;
 
-  // Which workout does the card show? The next TEAM day inside the coming week
-  // that actually has a plan behind it — the frame's card is a team workout (it
-  // carries the RSVP), and a card that only appeared on Mondays/Tuesdays and
-  // Thursdays/Fridays would leave the screen's centrepiece missing most of the
-  // week. Falls back to the next planned day of any kind so an athlete whose
-  // club has no team days still gets the card.
+  // The goal comes from the plan for the week the athlete is STANDING IN, which
+  // is not always the week `/api/dashboard/weekly` returns: that one rolls to the
+  // next week after Saturday 20:00 so the card above can preview it. Taking the
+  // goal from there divided this week's kilometres by next week's target every
+  // Saturday evening. `/api/plans/week` answers for one explicit week and reports
+  // `hasPlan: false` rather than substituting another, so the bar hides instead of
+  // measuring against a week that was never planned.
+  const { data: thisWeekPlan } = useApi<WeekPlanTotals>(
+    `/api/plans/week?weekStart=${getPlanWeekStart(israelDateAnchor())}`,
+  );
+  // A RANGE, not one number: the floor is every prescribed session at the short
+  // end of its span, the ceiling is every session including the offered evenings
+  // at the long end, and anywhere between the two is on plan. The single figure
+  // this replaced was the midpoint of the whole menu — 146.3 km for a week whose
+  // prescribed sessions add up to about 115 — so the bar could not be finished.
+  const weekTarget = weekTargetRange(thisWeekPlan);
+
+  // Which workout does the card show? Simply the SOONEST planned day — today
+  // first, then tomorrow, and so on.
+  //
+  // It used to prefer the next TEAM day (teamDays, by default Tue + Fri) and
+  // only fall back to the nearest planned day if no team day had a plan at all.
+  // That is not what "the upcoming workout" means: on a Saturday it skipped
+  // Sunday's session and showed Tuesday's, four days out, while Sunday sat
+  // right there in the same week's plan. The heading promises the next one.
+  //
+  // The card's RSVP is unaffected — that still only appears on a team day, and
+  // only for today or tomorrow (see showRsvp below). It just no longer decides
+  // which workout the whole card is about.
+  //
+  // Walks the plan week's own DATES rather than counting weekdays forward from
+  // today. `dayOfWeek` means nothing without the week it belongs to, and the week
+  // this endpoint returns is not always the week the browser is in — it rolls to
+  // the next one after Saturday 20:00 Israel so athletes can preview. Stepping
+  // `offset` days from today onto that data mislabelled a session up to seven days
+  // out as tomorrow's, and handed `getPlanWeekStart` a date from the wrong week,
+  // which filed the RSVP under a week the workout isn't in.
   const upcoming = (() => {
-    if (days.length === 0) return null;
-    const todayDow = new Date().getDay();
-    let fallback: { workout: DailyDistance; date: Date; isTeamDay: boolean } | null = null;
-    for (let offset = 0; offset < 7; offset++) {
-      const dow = (todayDow + offset) % 7;
-      const workout = days.find((d) => d.dayOfWeek === dow && d.max > 0);
-      if (!workout) continue;
-      const date = new Date();
-      date.setDate(date.getDate() + offset);
-      const isTeamDay = teamDays.includes(dow);
-      if (isTeamDay) return { workout, date, isTeamDay };
-      if (!fallback) fallback = { workout, date, isTeamDay };
-    }
-    return fallback;
+    if (!weekly?.hasPlan || !weekly.currentWeekStart) return null;
+    const todayKey = israelToday();
+    return days
+      .filter((d) => d.max > 0)
+      .map((d) => {
+        const key = planDayKey(weekly.currentWeekStart, d.dayOfWeek);
+        return {
+          workout: d,
+          date: new Date(`${key}T12:00:00`),
+          isTeamDay: teamDays.includes(d.dayOfWeek),
+          // Whole days from today to that date, so 0 = today and 1 = tomorrow.
+          offset: Math.round((Date.parse(`${key}T12:00:00Z`) - Date.parse(`${todayKey}T12:00:00Z`)) / 86_400_000),
+        };
+      })
+      .filter((c) => c.offset >= 0)
+      .sort((a, b) => a.offset - b.offset)[0] ?? null;
   })();
 
-  // RSVP only for today's or tomorrow's workout. Answering for a session five
-  // days out would be a new flow — the reminders, the coach roster and
+  // RSVP only for today's or tomorrow's TEAM workout. Answering for a session
+  // five days out would be a new flow — the reminders, the coach roster and
   // AttendanceRSVP's own hideIfAnswered rule are all built around the
   // day-before ask — so the card renders without pills until then rather than
   // quietly widening attendance semantics.
-  const rsvpOffset = upcoming?.isTeamDay
-    ? Math.round((startOfDay(upcoming.date).getTime() - startOfDay(new Date()).getTime()) / 86_400_000)
-    : -1;
-  const showRsvp = rsvpOffset === 0 || rsvpOffset === 1;
+  const rsvpOffset = upcoming?.offset ?? -1;
+  const showRsvp = !!upcoming?.isTeamDay && (rsvpOffset === 0 || rsvpOffset === 1);
 
   const race = goalRaceProgress();
   const raceDate = GOAL_RACE.date.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
@@ -161,32 +209,22 @@ export function ProfileOverview({
         </button>
         <div className="min-w-0 flex-1 text-start">
           <p className="text-sm font-bold text-ink-700">{greeting},</p>
-          <h1 className="truncate text-28 font-bold text-brand-600">{athleteName}</h1>
+          {/* The 🌰 goes NEXT to the name, not inside the <h1>'s truncate: a long
+              name would otherwise eat the badge, and the badge is the thing this
+              header gained. The name keeps the truncation; the mark keeps its
+              width. */}
+          <div className="flex items-baseline gap-1.5">
+            <h1 className="truncate text-28 font-bold text-brand-600">{athleteName}</h1>
+            {isCore && <CoreRunnerBadge className="text-lg" />}
+          </div>
         </div>
       </div>
 
       {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
       <SetupProgressCard onOpen={onOpenSetup} />
 
-      {/* ═══ WEEKLY KM — actual against the plan's own weekly total ═══ */}
-      {weekKmGoal > 0 && (
-        <div>
-          <div className="mb-2 flex items-end justify-between">
-            <h2 className="text-xl font-bold text-ink-700">{t('weeklyKm')}</h2>
-            <p className="text-2xl font-bold text-brand-600 tabular-nums">
-              {round1(weekKmDone)}<span className="text-ink-400">/</span>{round1(weekKmGoal)}
-            </p>
-          </div>
-          {/* Fill is a plain block inside an RTL track, so it grows from the
-              right in Hebrew and from the left in English without two rules. */}
-          <div className="h-3 w-full overflow-hidden rounded-pill bg-card">
-            <div
-              className="h-full rounded-pill bg-brand-600 transition-[width] duration-500"
-              style={{ width: `${Math.min(100, Math.round((weekKmDone / weekKmGoal) * 100))}%` }}
-            />
-          </div>
-        </div>
-      )}
+      {/* ═══ WEEKLY KM — actual against the plan's target band ═══ */}
+      {weekTarget && <WeekTargetBar title={t('weeklyKm')} doneKm={weekKmDone} target={weekTarget} />}
 
       {/* ═══ UPDATES — the club's announcements, newest first ═══ */}
       {updates?.items && updates.items.length > 0 && (
@@ -229,11 +267,11 @@ export function ProfileOverview({
           <div className="flex items-start justify-between">
             <h2 className="text-xl font-bold text-ink-700">{t('upcomingWorkout')}</h2>
             <p className="shrink-0">
-              <span className="text-2xl font-bold text-brand-600 tabular-nums">
-                {upcoming.workout.min === upcoming.workout.max
-                  ? upcoming.workout.max
-                  : `${upcoming.workout.min}–${upcoming.workout.max}`}
-              </span>{' '}
+              {/* dir="ltr": in the Hebrew line bidi swapped the ends and Sunday's
+                  23–24 read "24–23", a range that counts down. */}
+              <bdi dir="ltr" className="text-2xl font-bold text-brand-600 tabular-nums">
+                {dayTargetLabel(upcoming.workout).km}
+              </bdi>{' '}
               <span className="text-xs font-light text-ink-400">{tc('km')}</span>
             </p>
           </div>
@@ -294,6 +332,15 @@ export function ProfileOverview({
                 : ''}
             </p>
           </div>
+          {/* Says why the tiles are empty. `/api/dashboard/weekly` deliberately
+              stopped falling back to the newest plan, so a week with nothing
+              published renders seven "—" tiles — correct, and unreadable: it
+              looks identical to the app having lost the plan. Only on an
+              explicit `false`; while the request is in flight `hasPlan` is
+              undefined and there is nothing to claim yet. */}
+          {weekly?.hasPlan === false && (
+            <p className="mb-2 text-sm font-light text-ink-400">{t('noPlanThisWeekYet')}</p>
+          )}
           {/* Seven 74px tiles don't fit 402px, so the strip scrolls — the frame
               shows five and clips the rest. `-mx-4 px-4` lets it bleed to the
               screen edge inside the page's padded main. */}
@@ -303,9 +350,17 @@ export function ProfileOverview({
                 key={d.dayOfWeek}
                 letter={(tc.raw('dayNamesShort') as string[])[d.dayOfWeek]}
                 date={weekly?.currentWeekStart ? dayOfWeekDate(weekly.currentWeekStart, d.dayOfWeek) : null}
-                km={d.max}
+                // Prescribed kilometres only, rounded on the way in — same rule
+                // as the week's band above, so the strip cannot contradict it.
+                // (Rounding matters here too: a Tuesday of 11 + 2.4 arrives as
+                // 13.400000000000006 and overflowed the tile's own width.)
+                km={dayTargetLabel(d).km}
+                hasOptional={dayTargetLabel(d).hasOptional}
+                hasKm={d.max > 0}
                 locale={locale}
-                isToday={d.dayOfWeek === new Date().getDay()}
+                // By date, not by weekday: on Saturday evening the strip shows the
+                // NEXT week, where matching on weekday ringed next Saturday as today.
+                isToday={!!weekly?.currentWeekStart && planDayKey(weekly.currentWeekStart, d.dayOfWeek) === israelToday()}
                 isTeamDay={teamDays.includes(d.dayOfWeek)}
                 kmUnit={tc('km')}
               />
@@ -340,11 +395,16 @@ function Field({ label, value, color }: { label: string; value: string; color?: 
 }
 
 function DayTile({
-  letter, date, km, locale, isToday, isTeamDay, kmUnit,
+  letter, date, km, hasOptional, hasKm, locale, isToday, isTeamDay, kmUnit,
 }: {
   letter: string;
   date: Date | null;
-  km: number;
+  /** Pre-formatted, so a day whose plan is a RANGE reads the same here as on the
+   *  card above it — the strip used to print only the top of it. */
+  km: string;
+  /** The day also carries an offered session, which the range excludes. */
+  hasOptional: boolean;
+  hasKm: boolean;
   locale: string;
   isToday: boolean;
   isTeamDay: boolean;
@@ -366,17 +426,31 @@ function DayTile({
           {date.getDate()} {date.toLocaleDateString(locale, { month: 'short' })}
         </span>
       )}
-      <span className="text-sm font-light text-ink-500">{km > 0 ? `${km} ${kmUnit}` : '—'}</span>
+      {/* A parsed day can read "23.6–24.5", which wraps inside a 74px tile and
+          pushed the team-day dot off its own line. One line always, a size down
+          when the range is long enough to need it. */}
+      <span
+        className={cn(
+          'whitespace-nowrap font-light text-ink-500',
+          km.length > 6 ? 'text-2xs' : 'text-sm',
+        )}
+      >
+        {hasKm ? (
+          <>
+            {/* dir="ltr" or bidi prints "24–23" for a 23–24 day. */}
+            <bdi dir="ltr">{km}</bdi>
+            {/* The offered evening is not in the range, but the day is not
+                silent about it either — a bare "+" is the whole hint. */}
+            {hasOptional && <span className="text-brand-600">+</span>} {kmUnit}
+          </>
+        ) : (
+          '—'
+        )}
+      </span>
       {/* The frame's blue dots mark the club's team-workout days. */}
       {isTeamDay && <span className="absolute bottom-2 h-1.5 w-1.5 rounded-full bg-brand-600" />}
     </div>
   );
-}
-
-function startOfDay(d: Date) {
-  const copy = new Date(d);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
 }
 
 function dayOfWeekDate(weekStart: string, dayOfWeek: number) {

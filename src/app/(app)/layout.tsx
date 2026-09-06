@@ -12,9 +12,11 @@ import { PageTransition } from '@/components/PageTransition';
 import { FirstRunTour } from '@/components/onboarding/FirstRunTour';
 import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider';
 import { ExecutionScoreProvider } from '@/components/activity/execution-context';
+import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { Spinner } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
+import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import { cn } from '@/lib/utils';
 
 // Shared shell for every signed-in surface — /dashboard/* and /feed — via the
@@ -78,6 +80,17 @@ export default function AppLayout({
     };
   }, []);
 
+  // Breadcrumb for the review screen ("where did it happen?"). Every screen
+  // except /dashboard/review itself, so what's stored is always the last screen
+  // the user was actually LOOKING at when they decided to report something — by
+  // the time the review page mounts, that pathname is gone, and asking somebody
+  // to remember which screen broke is exactly the friction that turns a bug
+  // report into "something is broken somewhere".
+  useEffect(() => {
+    if (pathname === '/dashboard/review') return;
+    try { sessionStorage.setItem(REVIEW_LAST_PATH_KEY, pathname); } catch { /* private mode */ }
+  }, [pathname]);
+
   useEffect(() => {
     const supabase = getSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -122,6 +135,13 @@ export default function AppLayout({
           <Header />
         </div>
         {popupsAllowed && <InstallPrompt />}
+        {/* Step 3 of the first run. Ordered after InstallPrompt for the same
+            reason it checks `installAnswered` itself: on iOS a subscription made
+            from a Safari tab is page-origin forever. It can't collide with
+            PushOptIn below — that banner additionally requires the
+            `push_optin_trigger` flag, which only the feedback page sets, long
+            after onboarding. */}
+        {popupsAllowed && <NotificationsStep />}
         {popupsAllowed && <PushOptIn />}
         {popupsAllowed && <ConnectDataSourcePopup />}
         {!isRunChat && <FirstRunTour onActiveChange={setTourActive} />}
@@ -130,7 +150,12 @@ export default function AppLayout({
             'w-full',
             isRunChat
               ? 'h-full min-h-0 overflow-hidden p-0 md:mx-auto md:h-auto md:max-w-7xl md:flex-1 md:px-6 md:pt-5 md:pb-8 lg:px-8'
-              : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-[calc(72px+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 lg:px-8',
+              // No 72px bottom reservation any more: BottomTabBar is `sticky`
+              // rather than `fixed` (see the comment there), so it occupies real
+              // layout space at the end of the column and carries the safe-area
+              // padding itself. Keeping both put a bar's height of dead space
+              // under the last card on every screen.
+              : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-4 sm:px-6 md:pb-8 lg:px-8',
           )}
         >
           {/* One accuracy-ring cache for every signed-in screen. Mounted here, in

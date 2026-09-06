@@ -13,7 +13,6 @@ import { FeedShareSheet } from '@/components/FeedShareSheet';
 import { RouteMinimap } from '@/components/RouteMinimap';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
-import { useExecutionSummary } from '@/components/activity/execution-context';
 import { toAchievementPayload } from '@/lib/feed/project';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -331,7 +330,10 @@ export function ActionRow({
         {onDelete && (
           <button
             onClick={onDelete}
-            className="ms-auto flex items-center justify-center min-h-11 min-w-11 rounded-full text-ink-300 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+            // ink-400, not ink-300: the icon is the whole control here — no
+            // label beside it — so it has to clear 3:1, and ink-300 is the
+            // hairline value at 1.92:1 (see the ramp in tailwind.config.ts).
+            className="ms-auto flex items-center justify-center min-h-11 min-w-11 rounded-full text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 transition-all"
             aria-label={t('deletePost')}
           >
             <Trash2 className="h-4 w-4" />
@@ -422,8 +424,10 @@ export function ActivityChips({ act }: { act: NonNullable<FeedItem['activity']> 
       {act.averageHr && (
         <span className="flex items-center gap-1">
           <Heart className="h-3 w-3 text-accent-red" />
-          {act.averageHr} bpm
-          {act.maxHr ? <span className="text-ink-400">· {t('statMaxHr')} {act.maxHr}</span> : null}
+          {/* Rounded here as well as at ingest: rows synced from Strava before
+              that fix still hold the raw float. */}
+          {Math.round(act.averageHr)} bpm
+          {act.maxHr ? <span className="text-ink-400">· {t('statMaxHr')} {Math.round(act.maxHr)}</span> : null}
         </span>
       )}
       {act.calories ? (
@@ -481,13 +485,6 @@ function ActivityCard({
   // run-chat button in the action row.
   const openDetail = () => router.push(`/dashboard/activities/${act.id}`);
 
-  // Your grade is yours. Staff see everyone's because that's the job; a teammate
-  // sees your route and your splits (they always have) but not your score.
-  // /api/plan-execution enforces the same rule, so this flag is what to fetch,
-  // not what may be seen.
-  const isMine = !!myAthleteId && act.athleteId === myAthleteId;
-  const execution = useExecutionSummary(act.id, isMine || isStaff);
-
   return (
     <div className="bg-card rounded-card border border-page overflow-hidden">
       <div className="p-4">
@@ -523,8 +520,13 @@ function ActivityCard({
 
           {/* Right under the stats, because it's the same question one level up:
               those are the numbers, this is whether they were the numbers asked
-              for. Silent on runs with no planned workout behind them. */}
-          <ExecutionBadge summary={execution} showChevron />
+              for. Silent on runs with no planned workout behind them.
+
+              Your grade is yours: the score arrives on the feed payload already
+              graded for the person looking (staff see everyone's, because that is
+              the job), so a teammate's card carries no score to render rather than
+              one that gets hidden here. See `loadFeedPlanVerdicts`. */}
+          <ExecutionBadge summary={act.planVerdict} showChevron />
 
           {/* The rest of what the projection already ships — max HR, calories and
               the athlete's own effort rating were being fetched and thrown away. */}

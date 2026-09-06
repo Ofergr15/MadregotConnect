@@ -34,6 +34,11 @@ import { cn } from '@/lib/utils';
  * submit button is the one thing that costs sign-ups here. If you add a field,
  * take the height from somewhere — do not let this page start scrolling.
  *
+ * The form's own heights (60px field, 62px pills, 60px button) are deliberately
+ * generous rather than minimal: on a page whose whole job is one submission, spare
+ * height is better spent making the targets easier to hit than left as empty
+ * photograph. The `short:` variants stay small — a 667px phone has none to spend.
+ *
  * The דבוקה picker is three pills abreast, not the four stacked 52px rows it used
  * to be. That is what paid for the photo: 208px of list became 46px of pills, and
  * the hero got the difference. Going back to stacked rows means dropping the hero.
@@ -43,10 +48,16 @@ import { cn } from '@/lib/utils';
  * submit button 169px below the fold; every `short:` on this page exists to buy
  * that back. Test any height change at BOTH 390×844 and 375×667.
  *
+ * The full-height class is `min-h-viewport` (globals.css), NOT `min-h-screen` and
+ * NOT `min-h-[100dvh]`. Read the comment there before changing it: those two as
+ * separate classes let stylesheet order pick the winner, 100vh won, and on iOS
+ * Safari 100vh is the viewport WITHOUT the toolbars — so the bottom of this page
+ * lived under Safari's chrome and the submit button was unreachable.
+ *
  * Two things this page must keep working on an iPhone 6, which tops out at iOS 12:
- * no `dvh` (hence `min-h-screen` before every `min-h-[100dvh]`, as the fallback
- * an unsupported unit falls back to) and no flexbox `gap` (hence `ms-*` margins
- * where a gap would be idiomatic — Safari only got gap in 14.1).
+ * no `dvh`/`svh` (hence the stacked `min-height` fallbacks in that one rule) and no
+ * flexbox `gap` (hence `ms-*` margins where a gap would be idiomatic — Safari only
+ * got gap in 14.1).
  */
 
 interface Group {
@@ -179,21 +190,27 @@ function HeroBackdrop() {
  * this area is the black SAYSKY teardrop banner, and the banner carries a white
  * star and a white wordmark. White numerals crossing that white artwork is
  * unreadable mush — it is legible on the banner's plain black, and only there.
- * Measured off the rendered 390×844 page:
  *
- *     flag's clean black band   y 176 – 248
- *     white star begins         y 250
- *     this countdown occupies   y 192 – 248   ← fits, with nothing to spare
+ * The trap: the star does not sit still. The photo is `object-cover object-center`,
+ * so it is rescaled per viewport, and the star's top edge measured out anywhere
+ * from y136 (320×480) to y240 (390×844). A single mark height therefore CANNOT be
+ * right everywhere — and the previous one was not. 132px was measured at 390×844
+ * and correct there, while quietly putting the numerals 7px onto the star at
+ * 390×734 and 1.5px at 320×480.
  *
- * That budget is why the "להשקת האפליקציה" label sits BELOW the numbers instead
- * of above them: moving it down freed the ~30px the numbers needed to clear the
- * star, and it was the only arrangement that did not require shrinking the mark.
- * It is also why the label is pushed to the right — centred, it lands on the star.
+ * So the mark's height is banded by viewport height, in `.hero-mark` in
+ * globals.css — the table of star positions and clearances lives there, next to
+ * the numbers it explains. Read it before changing any of this.
  *
- * So: if the logo height, the top padding, or the hero photo changes, this can
- * silently land back on the white artwork. Re-measure. Contrast is NOT the
- * warning sign — white on this scrimmed photo measures 6.5:1 even in the bad
- * position, so it passes AA while looking broken.
+ * That budget is also why the "להשקת האפליקציה" label sits BELOW the numbers
+ * instead of above them: moving it down freed the ~30px the numbers needed to
+ * clear the star, and it was the only arrangement that did not require shrinking
+ * the mark.
+ *
+ * ⚠️ Contrast is NOT the warning sign here, which is exactly how the 390×734 case
+ * survived: white on this scrimmed photo measures 6.5:1 even sitting on the star,
+ * so it passes AA while looking broken. The only reliable check is to project the
+ * star's position in the source JPEG through object-cover and compare rectangles.
  */
 function HeroHeading() {
   return (
@@ -203,33 +220,49 @@ function HeroHeading() {
     // upper half, and the mark was sitting on their backs. Anchored to the top
     // instead, so it reads as a masthead and the growing/shrinking happens below
     // it rather than under it.
-    <div className="flex-1 min-h-0 flex flex-col items-center justify-start text-center">
+    <div className="flex-[2] min-h-0 flex flex-col items-center justify-start text-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {/* ⚠️ The `short:` height is the height-constrained one, and 84px overflowed
-          320x480 by 7px. 76px is what fits with the countdown, both footnotes and
-          the wordmark all still on screen — measured, not guessed. */}
+      {/* ⚠️ No height here on purpose. `.hero-mark` (globals.css) sets it in five
+          height bands, because the white artwork it has to clear moves with the
+          viewport — see the table there. A literal `h-[...]` is only ever correct
+          at one screen size. */}
       <img
         src="/images/logo-white.png"
         alt="מדרגות — After 2KM Running Club"
-        className="h-[132px] short:h-[76px] w-auto object-contain"
+        className="hero-mark w-auto object-contain"
       />
 
-      {/* ⚠️ mt-2 (8px) is load-bearing — see the banner measurements above. This is
-          what puts the numerals at y192, on the flag's plain black. Growing this
-          gap walks them down onto the white star. */}
-      <div className="mt-2 short:mt-1.5 w-full">
+      {/* ⚠️ `.hero-mark-gap`, also banded. This gap is load-bearing twice over: it
+          is what separates the numerals from the mark, and it is the last 10–12px
+          before they reach the banner's white star. Growing it walks them onto it. */}
+      <div className="hero-mark-gap w-full">
         <CountdownRow />
       </div>
 
-      {/* The subject of the numbers, and the only line of prose left up here. A
+      {/* The subject of the numbers, and the first of the two lines of prose up here. A
           countdown with no subject is a puzzle — especially for the people this
           link is sent to, who have never seen the app. It reads AFTER the numerals
           rather than before ("5 ימים 3 שעות 14 דקות → להשקת האפליקציה"), which is
           what freed the space for them to clear the banner artwork.
-          ⚠️ text-right, not centred: centred puts this straight onto the white
-          SAYSKY star. Right is also where Hebrew starts, so it costs nothing. */}
-      <p className={cn('mt-1 w-full pe-1.5 text-right text-[14px] short:text-13 font-semibold text-white/90', TEXT_ON_PHOTO)}>
+          Centred, under the centred row of numerals it belongs to. It was pinned to
+          the right edge for a while to dodge the banner's white star; measured, the
+          star sits far enough left that a centred line of this length clears it, and
+          hanging off one edge under a centred row read as a mistake. */}
+      <p className={cn('mt-1 w-full text-center text-[14px] short:text-13 font-semibold text-white/90', TEXT_ON_PHOTO)}>
         להשקת האפליקציה
+      </p>
+
+      {/* The date in words, under the clock. A countdown alone answers "how long"
+          but never "when" — somebody opening this link on Tuesday cannot turn
+          "3 ימים 4 שעות" into a plan without doing the arithmetic, and the people
+          it is sent to are being asked to be somewhere at a particular hour.
+          Explicitly requested on 2026-09-06, replacing an earlier decision to let
+          the numerals speak alone.
+          Kept to its own line, BELOW the label, so it grows the block downwards
+          into the flex slack rather than upwards into the banner's white star —
+          the numerals' clearance is 8–12px and must not be spent here. */}
+      <p className={cn('mt-0.5 w-full text-center text-13 short:text-[12px] font-medium text-white/80', TEXT_ON_PHOTO)}>
+        יום חמישי ב-20:00 בערב
       </p>
     </div>
   );
@@ -238,12 +271,12 @@ function HeroHeading() {
 /**
  * How long until the app opens — the LAST thing in the card, under the button.
  *
- * ⚠️ Nothing else about the time goes on this page. Two lines have already been
- * tried and removed from next to this clock: a generated sentence ("עוד 4 ימים,
- * 4 שעות ו-11 דקות להשקת האפליקציה") that restated the three numerals word for
- * word, and then a bold date line ("יום רביעי, 20:00 — האפליקציה נפתחת"), which
- * was a second way of saying the same thing to somebody already looking at a
- * live clock. The countdown says it once. That is the design, not an oversight.
+ * ⚠️ Exactly ONE line of prose about the time goes with this clock, and it is the
+ * static one in HeroHeading ("יום חמישי ב-20:00 בערב"). A generated sentence
+ * ("עוד 4 ימים, 4 שעות ו-11 דקות להשקת האפליקציה") was tried here and removed: it
+ * restated these three numerals word for word. The named day and hour is a
+ * different fact from the numerals — it answers "when", which a countdown never
+ * does — which is why that one stayed and the generated one did not.
  */
 function CountdownRow() {
   // null on the first render so the server and client markup agree — a live clock
@@ -456,17 +489,17 @@ export default function RegisterPage() {
     const copy = {
       new: {
         title: 'ההרשמה נשלחה',
-        line: 'ביום רביעי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
+        line: 'ביום חמישי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
       },
       pending: {
         title: 'כבר נרשמת',
-        line: 'הכתובת הזאת כבר בהרשמה. ביום רביעי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
+        line: 'הכתובת הזאת כבר בהרשמה. ביום חמישי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
       },
       // Not "you already applied" — this address has an account. Saying so is what
       // stops a member re-registering and waiting for a mail that isn't coming.
       member: {
         title: 'הכתובת הזאת כבר רשומה',
-        line: 'יש לך כבר חשבון במדרגות, אין צורך להירשם שוב. ביום רביעי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
+        line: 'יש לך כבר חשבון במדרגות, אין צורך להירשם שוב. ביום חמישי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
       },
     }[state];
 
@@ -474,9 +507,9 @@ export default function RegisterPage() {
       // Same photo, same type on it, no card here either. Landing on a
       // different-looking screen half a second after submitting reads as a
       // different app, which is what the white card this replaced used to do.
-      <div className="relative min-h-screen min-h-[100dvh]" dir="rtl">
+      <div className="relative min-h-viewport" dir="rtl">
         <HeroBackdrop />
-        <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-5 pt-6 pb-5 short:pt-3 short:pb-2">
+        <div className="relative max-w-md mx-auto min-h-viewport flex flex-col px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <HeroHeading />
 
           {/* ── TYPE SIZES ARE MATCHED TO THE FORM SCREEN ─────────────────────
@@ -524,7 +557,7 @@ export default function RegisterPage() {
           {/* Same treatment as the form screen's footnotes: own paragraphs, uneven
               rhythm, the weightier line first. See the note there. */}
           <p className={cn('px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
-            ההרשמה לחברי האקדמיה תיפתח מספר ימים לאחר ההשקה.
+            ההרשמה לרצי האקדמיה תיפתח מספר ימים לאחר ההשקה.
           </p>
           <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
             לא הגיע מייל? כדאי לבדוק גם בספאם.
@@ -537,13 +570,13 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative min-h-screen min-h-[100dvh]" dir="rtl">
+    <div className="relative min-h-viewport" dir="rtl">
       <HeroBackdrop />
 
       {/* px-5, and nothing between the fields and the photo. The card that used to
           hold all of this is gone: the form IS the page now, which is why the
           hero above it is `flex-1` and takes every pixel of slack. */}
-      <div className="relative max-w-md mx-auto min-h-screen min-h-[100dvh] flex flex-col px-5 pt-6 pb-5 short:pt-3 short:pb-2">
+      <div className="relative max-w-md mx-auto min-h-viewport flex flex-col px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         <HeroHeading />
 
         <form onSubmit={submit}>
@@ -551,7 +584,7 @@ export default function RegisterPage() {
               and on a page with one field a label above it is a row of type that
               buys nothing. The <label> is still here for screen readers. */}
           <label htmlFor="reg-email" className="sr-only">אימייל</label>
-          <div className={cn('flex items-center h-[52px] short:h-[46px] border-white/25 px-4 focus-within:border-white', FIELD)}>
+          <div className={cn('flex items-center h-[60px] short:h-[54px] border-white/25 px-4 focus-within:border-white', FIELD)}>
             <input
               id="reg-email"
               type="email"
@@ -579,7 +612,7 @@ export default function RegisterPage() {
               required, and an unsure runner would guess rather than leave it. A
               PREFERENCE is obviously optional, and group_id is nullable — the
               coach assigns it at approval either way. */}
-          <p className={cn('mt-4 short:mt-2.5 mb-2 text-center text-2xs short:text-3xs text-white/90', TEXT_ON_PHOTO)}>
+          <p className={cn('mt-6 short:mt-2.5 mb-3.5 short:mb-2 text-center text-2xs short:text-3xs text-white/90', TEXT_ON_PHOTO)}>
             בחרו דבוקה מועדפת
           </p>
 
@@ -597,7 +630,7 @@ export default function RegisterPage() {
                 <label
                   key={g.id}
                   className={cn(
-                    'flex-1 min-w-0 flex items-center justify-center h-[54px] short:h-[46px] cursor-pointer px-2',
+                    'flex-1 min-w-0 flex items-center justify-center h-[62px] short:h-[54px] cursor-pointer px-2',
                     FIELD,
                     i > 0 && 'ms-2',
                     // Orange, the page's one accent — the same token as the rule
@@ -644,12 +677,21 @@ export default function RegisterPage() {
             type="submit"
             size="lg"
             disabled={submitting}
-            className="mt-3.5 short:mt-2.5 w-full h-[54px] short:h-[48px] rounded-pill bg-band-3 text-white hover:bg-band-3/90 text-[19px] font-bold shadow-[0_6px_22px_rgba(255,83,21,0.45)]"
+            className="mt-5 short:mt-2.5 w-full h-[60px] short:h-[54px] rounded-pill bg-band-3 text-white hover:bg-band-3/90 text-[19px] font-bold shadow-[0_6px_22px_rgba(255,83,21,0.45)]"
           >
             {submitting && <LoadingBlock size={20} className="py-0" />}
             {submitting ? 'שולח…' : 'שליחה'}
           </Button>
         </form>
+
+        {/* ⚠️ THE SECOND SPACER, and the reason the hero above is `flex-[2]` and not
+            `flex-1`. With only one spacer every spare pixel on the screen piled up in
+            a single place — 217px of empty photograph between the countdown and the
+            email field, with the form welded to the bottom edge. Two spacers in a 2:1
+            ratio split it instead, at whatever height the phone happens to be, so the
+            form floats in the lower middle. Deleting this puts the gap back in one
+            lump. */}
+        <div className="flex-1 min-h-0" aria-hidden="true" />
 
         {/* ── THE BOTTOM THIRD IS SPACING-SENSITIVE ──────────────────────────
             Three things stack below the button now — two footnotes and the
@@ -673,7 +715,7 @@ export default function RegisterPage() {
             the first place. Every pixel added here comes out of the hero, which is
             `flex-1` — so it costs nothing else and cannot cause a scroll. */}
         <p className={cn('mt-5 short:mt-3 px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
-          ההרשמה לחברי האקדמיה תיפתח מספר ימים לאחר ההשקה.
+          ההרשמה לרצי האקדמיה תיפתח מספר ימים לאחר ההשקה.
         </p>
         <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
           ההרשמה טעונה אישור של מנהלי המדרגות.

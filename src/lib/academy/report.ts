@@ -1,11 +1,12 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { activityLocalDateStr, resolveGroup } from '@/lib/utils';
+import { activityLocalDateStr, addDaysToDateStr, planWeekStartOf, resolveGroup } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import {
   assessWeek,
   buildPlannedWorkout,
   ActualActivity,
+  AdherenceTolerances,
   PlannedWorkout,
   WeekAdherence,
   WorkoutAdherence,
@@ -52,20 +53,27 @@ export interface AcademyWeekReport {
   weekStart: string;
   weekEnd: string;
   athletes: AthleteAdherence[];
+  /**
+   * The tolerances this report was graded with, from academy settings. Returned so
+   * a reader can say what "on target" meant here instead of restating the defaults
+   * and being wrong the moment a coach edits them in AcademySettings.
+   */
+  tolerances: AdherenceTolerances;
 }
 
-// Sunday-based week start, matching how plans are saved (getCurrentWeekSunday) and
+// Sunday-based week start, matching how plans are saved (`planWeekStartOf`) and
 // how the push route dates workouts (week_start_date + dayOfWeek, dayOfWeek 0=Sun).
+//
+// Thin wrappers over the shared helpers now: the no-argument form used to be
+// `new Date()` plus `getUTCDay()`, which on Vercel's UTC clock resolves to the UTC
+// calendar date — still yesterday between 00:00 and 03:00 in Israel. The cron that
+// calls `addDaysStr(sundayOf(null), -7)` would then report the week before last.
 export function sundayOf(dateStr?: string | null): string {
-  const base = dateStr ? new Date(`${dateStr}T12:00:00Z`) : new Date();
-  base.setUTCDate(base.getUTCDate() - base.getUTCDay());
-  return base.toISOString().split('T')[0];
+  return planWeekStartOf(dateStr);
 }
 
 export function addDaysStr(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().split('T')[0];
+  return addDaysToDateStr(dateStr, days);
 }
 
 /**
@@ -128,7 +136,7 @@ export async function computeAcademyWeekAdherence(opts: {
   let athletes: any[] = athRes.error ? [] : (athRes.data || []).filter((a: any) => a.is_academy);
   if (opts.onlyAthleteId) athletes = athletes.filter(a => a.id === opts.onlyAthleteId);
 
-  if (!athletes.length) return { weekStart, weekEnd, athletes: [] };
+  if (!athletes.length) return { weekStart, weekEnd, athletes: [], tolerances };
 
   const athleteIds = athletes.map(a => a.id);
 
@@ -319,5 +327,5 @@ export async function computeAcademyWeekAdherence(opts: {
     };
   }
 
-  return { weekStart, weekEnd, athletes: result };
+  return { weekStart, weekEnd, athletes: result, tolerances };
 }

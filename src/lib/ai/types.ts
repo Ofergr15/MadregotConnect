@@ -11,7 +11,19 @@ export interface ParsedWorkout {
   /** 1-based position when a day contains separately recorded workout parts. */
   partIndex?: number;
   partCount?: number;
-  partKind?: 'single' | 'warmup' | 'test' | 'main' | 'cooldown';
+  /**
+   * What kind of part this is. `morning`/`evening` are the two-a-day case the
+   * program writes as separate בוקר / ערב blocks — they used to have no value to
+   * land on, so the parser folded both sessions into one `single` workout and
+   * silently dropped the second one's steps.
+   */
+  partKind?: 'single' | 'warmup' | 'test' | 'main' | 'cooldown' | 'morning' | 'evening';
+  /**
+   * The session is offered, not prescribed ("ערב - אופציה"). Kept as its own
+   * part rather than flattened into a note or dropped, and labelled as optional
+   * wherever the day is rendered.
+   */
+  optional?: boolean;
   /** Matcher hints derived by the parser and normalized server-side. */
   expectedDistanceM?: number;
   expectedDurationSec?: number;

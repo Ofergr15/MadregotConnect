@@ -14,6 +14,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { escapeLike } from '@/lib/db/like';
 
 export interface VerifiedUser {
   email: string;
@@ -54,7 +55,10 @@ export async function verifyRequest(req: NextRequest): Promise<VerifiedUser | nu
     const { data: athlete, error: athleteErr } = await supabase
       .from('athletes')
       .select('id, role')
-      .ilike('email', email)
+      // escapeLike, not the raw address: `_` is a LIKE wildcard AND a legal
+      // character in an email, so `first_last@x.com` also matched
+      // `firstXlast@x.com` — a cross-account resolution, silently.
+      .ilike('email', escapeLike(email))
       .maybeSingle();
 
     if (athleteErr || !athlete) return null;

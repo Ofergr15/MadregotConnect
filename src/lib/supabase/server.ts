@@ -45,6 +45,12 @@ export interface ServerClientOptions {
    * Next's fetch cache does not apply to non-GET requests (insert/update/etc).
    */
   revalidateSeconds?: number;
+  /**
+   * Next Data Cache tags for those same GET queries, so a write path can purge
+   * them the moment the data changes instead of leaving readers on a stale copy
+   * for the whole `revalidateSeconds` window. Only meaningful alongside it.
+   */
+  cacheTags?: string[];
 }
 
 export function createServerClient(options?: ServerClientOptions) {
@@ -59,7 +65,13 @@ export function createServerClient(options?: ServerClientOptions) {
       global: {
         fetch: (url, fetchOptions = {}) => {
           if (options?.revalidateSeconds !== undefined) {
-            return fetch(url, { ...fetchOptions, next: { revalidate: options.revalidateSeconds } });
+            return fetch(url, {
+              ...fetchOptions,
+              next: {
+                revalidate: options.revalidateSeconds,
+                ...(options.cacheTags?.length ? { tags: options.cacheTags } : {}),
+              },
+            });
           }
           return fetch(url, { ...fetchOptions, cache: 'no-store' });
         },

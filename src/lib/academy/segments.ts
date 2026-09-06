@@ -188,7 +188,12 @@ export function projectBandsToBins(bands: PlannedBand[], binMeters: number[]): (
       const overlap = oe - os;
       if (overlap > 0) { covered += overlap; wMin += b.min * overlap; wMax += b.max * overlap; }
     }
-    if (covered >= width * 0.5) {
+    // `covered > 0` as well as the half-width rule: a zero-width bin satisfies
+    // `covered >= 0` with nothing covered at all, and the averages below would
+    // then divide 0 by 0 and put NaN into the overlay. Today's only caller
+    // coerces a 0-distance split to 1000 m so it can't happen from there, but
+    // this is exported as a pure utility for any chart to call.
+    if (covered > 0 && covered >= width * 0.5) {
       const min = Math.round(wMin / covered);
       const max = Math.round(wMax / covered);
       out.push({ pace: Math.round((min + max) / 2), min, max });
@@ -198,6 +203,222 @@ export function projectBandsToBins(bands: PlannedBand[], binMeters: number[]): (
     lo = hi;
   }
   return out;
+}
+
+// ── "Did they do the workout?" without the watch ────────────────────────────
+// matchLapsToSteps below can only answer for a run that WAS the pushed structured
+// workout: it needs one lap per planned step, which is what the watch produces
+// when it drives the session. Most athletes don't run that way — they read the
+// plan and press start — and for them every quality session came back
+// `aligned: false`, i.e. "no idea", even when the laps plainly contain the work.
+//
+// So instead of aligning by position, look for the efforts. A planned set of
+// 6×400 m at 3:55–4:05 is a question about the laps as a SET: are there six laps
+// about 400 m long, run inside that band? Order doesn't matter, lap count doesn't
+// matter, and the warmup, the jog home and a forgotten lap press don't break it.
+//
+// Two things this must never do. It must not confuse "didn't do the work" with
+// "the laps can't show the work": an athlete who never touches the lap button gets
+// Garmin's automatic 1 km laps, and no 400 m effort is visible in those at any
+// pace, so a requirement with no distance-plausible lap is reported unverifiable
+// rather than missed. And it must not confuse "didn't do the rep" with "didn't hit
+// the pace" — a rep run fast, or 10 s/km slow, was still run. So each requirement
+// reports `attempted` (laps of the right length at a plausible rep pace) beside
+// `found` (of those, the ones inside the band), and only zero attempts is a miss.
+
+export interface EffortRequirement {
+  label: string;
+  /** Target length of one rep in meters (time-based reps converted via target pace). */
+  distanceM: number;
+  paceMin: number;
+  paceMax: number;
+  needed: number;
+  /** Laps credited as this rep — right length, run at a plausible rep pace. */
+  attempted: number;
+  /** Of those, how many were inside the pace band. `attempted - found` ran off pace. */
+  found: number;
+  /** sec/km of the credited laps, in the order they were run. */
+  paces: number[];
+  /** False when no lap is even close to `distanceM` — the laps can't answer this. */
+  verifiable: boolean;
+}
+
+export type EffortVerdict = 'confirmed' | 'partial' | 'missed' | 'unverifiable';
+
+export interface EffortReport {
+  verdict: EffortVerdict;
+  requirements: EffortRequirement[];
+  /**
+   * Over the verifiable requirements only: reps asked for, reps run, and reps run
+   * at target pace. `attemptedTotal > foundTotal` is "did the session, off pace".
+   */
+  neededTotal: number;
+  attemptedTotal: number;
+  foundTotal: number;
+  lapCount: number;
+  /** Typical lap length, for explaining an unverifiable verdict. */
+  medianLapM: number | null;
+  reason?: 'no_paced_plan' | 'no_laps' | 'laps_too_coarse';
+}
+
+/** How far a lap's length may be off the planned rep and still count as that rep. */
+const EFFORT_DISTANCE_TOL = 0.2;
+
+/**
+ * Longest TIMED block still treated as a rep. Beyond this it's a steady run, not
+ * an effort to go looking for: "60 min at 4:40" converts to a 12,973 m
+ * requirement that no lap will ever match, and the whole-run pace the adherence
+ * engine already grades answers it properly. A rep written in METERS is kept at
+ * any length — a 5 km tempo inside a longer run really is one effort — because
+ * its length is the plan's number rather than an estimate off an assumed pace.
+ */
+const MAX_TIMED_REP_SEC = 20 * 60;
+
+/**
+ * How much slower than the band's slow edge a lap may be and still be credited as
+ * an attempt at that rep. Needed because "did the rep" and "hit the pace" are two
+ * different questions — a rep run 15 s/km slow was still run — but crediting by
+ * length alone would count the recovery jogs, which in a 10×200 session are laps
+ * of exactly 200 m. A recovery is typically 50–100% slower than the rep pace; 25%
+ * separates the two without calling a bad rep a rest.
+ */
+const SLOW_REP_LIMIT = 1.25;
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+/**
+ * The paced work the plan asks for, as a set of requirements: one entry per
+ * distinct (length, pace band) with how many times it's repeated.
+ *
+ * Time-based reps ("4 min at 3:40") are converted to meters through their own
+ * target pace, so a time interval is looked for the same way — the athlete's watch
+ * recorded a distance either way.
+ */
+export function effortRequirements(planned: PlannedSegment[]): EffortRequirement[] {
+  const out: EffortRequirement[] = [];
+  const byKey = new Map<string, EffortRequirement>();
+
+  for (const seg of planned) {
+    if (!seg.graded || !seg.paceMin) continue;
+    const paceMin = seg.paceMin;
+    const paceMax = seg.paceMax || seg.paceMin;
+    const mid = (paceMin + paceMax) / 2;
+    const timed = seg.durationSec && seg.durationSec > 0 && seg.durationSec <= MAX_TIMED_REP_SEC;
+    const meters =
+      seg.distanceM && seg.distanceM > 0
+        ? seg.distanceM
+        : timed && mid > 0
+          ? Math.round((seg.durationSec! * 1000) / mid)
+          : 0;
+    if (meters <= 0) continue;
+
+    // Round the length for grouping so 400 and 402 are one requirement of two,
+    // not two of one.
+    const key = `${Math.round(meters / 10)}-${paceMin}-${paceMax}`;
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.needed++;
+      continue;
+    }
+    const requirement: EffortRequirement = {
+      label: seg.label,
+      distanceM: meters,
+      paceMin,
+      paceMax,
+      needed: 1,
+      attempted: 0,
+      found: 0,
+      paces: [],
+      verifiable: false,
+    };
+    byKey.set(key, requirement);
+    out.push(requirement);
+  }
+  return out;
+}
+
+/**
+ * Look for the planned efforts among the laps, whatever order they came in.
+ *
+ * Each lap is spent at most once, on the requirement it fits best, so a single
+ * fast kilometre can't satisfy six planned reps. Longest reps are claimed first:
+ * a 1000 m lap is a plausible 800 m rep at ±20%, and letting the 800s take it
+ * would leave the real 1000 unmatched.
+ */
+export function findPlannedEfforts(
+  planned: PlannedSegment[],
+  laps: Lap[],
+  paceSec = DEFAULT_TOLERANCES.paceSec,
+): EffortReport {
+  const requirements = effortRequirements(planned);
+  const usable = laps.filter(l => l.distance > 0 && lapPace(l) != null);
+  const medianLapM = median(usable.map(l => l.distance));
+  const base: EffortReport = {
+    verdict: 'unverifiable',
+    requirements,
+    neededTotal: 0,
+    attemptedTotal: 0,
+    foundTotal: 0,
+    lapCount: laps.length,
+    medianLapM,
+  };
+
+  if (requirements.length === 0) return { ...base, reason: 'no_paced_plan' };
+  // One lap is the whole run — the watch recorded no structure at all.
+  if (usable.length < 2) return { ...base, reason: 'no_laps' };
+
+  const spent = new Set<number>();
+  for (const requirement of [...requirements].sort((a, b) => b.distanceM - a.distanceM)) {
+    const tolerance = requirement.distanceM * EFFORT_DISTANCE_TOL;
+    const candidates = usable
+      .map((lap, index) => ({ lap, index, pace: lapPace(lap)! }))
+      .filter(c => !spent.has(c.index) && Math.abs(c.lap.distance - requirement.distanceM) <= tolerance);
+    // Verifiability is about LENGTH alone: if no lap is anywhere near this long,
+    // the laps can't show the rep at any pace, and that's not the athlete's fault.
+    requirement.verifiable = candidates.length > 0;
+
+    const inBand = (pace: number) =>
+      pace >= requirement.paceMin - paceSec && pace <= requirement.paceMax + paceSec;
+    const target = (requirement.paceMin + requirement.paceMax) / 2;
+
+    const credited = candidates
+      // Too slow to be this rep at all — that's the recovery jog, not a bad rep.
+      .filter(c => c.pace <= requirement.paceMax * SLOW_REP_LIMIT)
+      // Band first, then closest to its middle: the best evidence for the rep.
+      .sort((a, b) => {
+        const band = Number(inBand(b.pace)) - Number(inBand(a.pace));
+        return band !== 0 ? band : Math.abs(a.pace - target) - Math.abs(b.pace - target);
+      })
+      .slice(0, requirement.needed)
+      // Report them in the order they were actually run.
+      .sort((a, b) => a.index - b.index);
+
+    for (const c of credited) spent.add(c.index);
+    requirement.attempted = credited.length;
+    requirement.found = credited.filter(c => inBand(c.pace)).length;
+    requirement.paces = credited.map(c => c.pace);
+  }
+
+  const verifiable = requirements.filter(r => r.verifiable);
+  if (verifiable.length === 0) return { ...base, reason: 'laps_too_coarse' };
+
+  const neededTotal = verifiable.reduce((sum, r) => sum + r.needed, 0);
+  const attemptedTotal = verifiable.reduce((sum, r) => sum + r.attempted, 0);
+  const foundTotal = verifiable.reduce((sum, r) => sum + r.found, 0);
+  return {
+    ...base,
+    // 'missed' means no rep was run at all. Reps run off pace are 'partial' — the
+    // work happened, and that's a different conversation from skipping it.
+    verdict: attemptedTotal === 0 ? 'missed' : foundTotal >= neededTotal ? 'confirmed' : 'partial',
+    neededTotal,
+    attemptedTotal,
+    foundTotal,
+  };
 }
 
 /**

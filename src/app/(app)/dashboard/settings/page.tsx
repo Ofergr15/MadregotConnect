@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
@@ -11,12 +11,14 @@ import { BadgeManager } from '@/components/BadgeManager';
 import { ChallengeManager } from '@/components/ChallengeManager';
 import { StoreManager } from '@/components/StoreManager';
 import { PerksManager } from '@/components/PerksManager';
+import CoreRunnersManager from '@/components/CoreRunnersManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { MapPrefsRow } from '@/components/MapPrefsRow';
 import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
+import { reviewContextRows, type ReviewContext } from '@/lib/review-context';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
@@ -216,12 +218,16 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations' | 'coreRunners';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
   { key: 'registrations' as SettingsTab, label: 'Registrations', icon: UserPlus, iconBg: 'bg-accent-600' },
   { key: 'users' as SettingsTab, label: 'User Manager', icon: Users, iconBg: 'bg-indigo-500' },
+  // Directly under User Manager, because that is where somebody looking to tag a
+  // person goes first — and the גרעין is no longer something the role dropdown there
+  // can express (migration 091).
+  { key: 'coreRunners' as SettingsTab, label: 'הגרעין', icon: Sprout, iconBg: 'bg-lime-600' },
   { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout, iconBg: 'bg-band-3' },
   { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare, iconBg: 'bg-teal-500' },
   { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell, iconBg: 'bg-accent-red' },
@@ -248,6 +254,9 @@ interface FeedbackItem {
   sort_order: number | null;
   image_url: string | null;
   created_at: string;
+  /** Auto-collected diagnostics (migration 093) — see src/lib/review-context.ts.
+   *  Null on every report filed before that shipped, so it renders conditionally. */
+  context: ReviewContext | null;
 }
 
 const categoryConfig = {
@@ -474,7 +483,7 @@ export default function SettingsPage() {
               <button
                 onClick={() => setPendingDelete(user)}
                 disabled={updatingUsers.has(user.id)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
                 title={t('deleteUser')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -996,7 +1005,7 @@ export default function SettingsPage() {
                       <button
                         onClick={() => setPendingDelete(user)}
                         disabled={updatingUsers.has(user.id)}
-                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50 shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1188,6 +1197,27 @@ export default function SettingsPage() {
                     <img src={selectedFeedback.image_url} alt="Attached" className="max-h-48 rounded-lg border border-page/50 mb-5" />
                   )}
 
+                  {/* The reporter's device, app version and the screen it happened
+                      on. Same rows, from the same function, that the athlete saw
+                      before they sent it — the point of showing it to them is that
+                      it is exactly what lands here. */}
+                  {(() => {
+                    const rows = reviewContextRows(selectedFeedback.context, {
+                      page: 'Screen', version: 'Version', device: 'Device', screen: 'Viewport', mode: 'Running as',
+                    });
+                    if (rows.length === 0) return null;
+                    return (
+                      <dl className="mb-5 rounded-xl bg-page/50 px-3.5 py-3 space-y-1.5">
+                        {rows.map(r => (
+                          <div key={r.label} className="flex items-baseline gap-2 text-2xs">
+                            <dt className="w-20 shrink-0 text-ink-400">{r.label}</dt>
+                            <dd className="min-w-0 flex-1 font-medium text-ink-700" dir="auto">{r.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    );
+                  })()}
+
                   <div className="border-t border-page/50 pt-4 space-y-4">
                     <div className={cn(updatingFeedback === selectedFeedback.id && 'opacity-50 pointer-events-none')}>
                       <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('status')}</label>
@@ -1239,7 +1269,7 @@ export default function SettingsPage() {
                       <button
                         onClick={() => setConfirmDeleteOpen(true)}
                         disabled={updatingFeedback === selectedFeedback.id}
-                        className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-accent-red hover:bg-accent-red/10 border border-accent-red/20 hover:border-accent-red/40 transition-all disabled:opacity-50"
+                        className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 border border-accent-red/20 hover:border-accent-red/40 transition-all disabled:opacity-50"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         {tc('delete')}
@@ -1467,6 +1497,9 @@ export default function SettingsPage() {
 
       {/* Perks Manager detail (roadmap #5) */}
       {activeTab === 'perks' && <PerksManager />}
+
+      {/* הגרעין — the core squad list (migration 091) */}
+      {activeTab === 'coreRunners' && <CoreRunnersManager />}
     </div>
   );
 }

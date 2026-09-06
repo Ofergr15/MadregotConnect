@@ -48,7 +48,7 @@ function ActivityCard({
   // sharing of) any past run, not just the one that was just synced.
   const [showShare, setShowShare] = useState(false);
 
-  const { details, loading: loadingDetails, planned, plannedContinuous, load } = useActivityDetails({
+  const { details, loading: loadingDetails, planned, plannedContinuous, verdict, load } = useActivityDetails({
     activityId: activity.id,
     athleteId: activity.athlete_id,
     startTime: activity.start_time,
@@ -175,7 +175,7 @@ function ActivityCard({
             <div className="hidden lg:block">
               <p className="text-3xs text-ink-400 font-medium">{t('avgHrShort')}</p>
               <p className={cn("text-lg font-black tabular-nums flex items-center gap-1", hrZone?.color)}>
-                <Heart className="h-3.5 w-3.5" />{activity.average_hr}
+                <Heart className="h-3.5 w-3.5" />{Math.round(activity.average_hr)}
               </p>
             </div>
           )}
@@ -203,7 +203,8 @@ function ActivityCard({
           loading={loadingDetails}
           planned={planned}
           plannedContinuous={plannedContinuous}
-          canSeeExecution={canSeeExecution}
+          verdict={verdict}
+          loadingVerdict={loadingDetails}
           className="border-t border-page/50 px-4 sm:px-5 py-5"
         />
       )}

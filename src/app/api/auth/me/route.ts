@@ -41,9 +41,13 @@ export async function GET(request: Request) {
     // would silently omit the keys instead of answering false.
     const isSuper = auth.user.isSuperUser === true;
     const canApproveHere = auth.user.canApprove === true;
+    // הגרעין rides out the same way, and for the same reason `is_academy` does
+    // below: it is a FLAG, not a role, so the client cannot derive the 🌰 badge
+    // from `role` alone (migration 091). Free here — requireSession resolved it.
+    const isCore = auth.user.isCoreRunner === true;
 
     if (!auth.user.athleteId) {
-      return NextResponse.json({ role: auth.user.role || 'coach', isSuper, canApprove: canApproveHere });
+      return NextResponse.json({ role: auth.user.role || 'coach', isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
     }
 
     const supabase = createServerClient();
@@ -65,7 +69,7 @@ export async function GET(request: Request) {
       .update({ last_seen_at: new Date().toISOString() })
       .eq('id', auth.user.athleteId);
 
-    return NextResponse.json({ role: auth.user.role || 'runner', isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere });
+    return NextResponse.json({ role: auth.user.role || 'runner', isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

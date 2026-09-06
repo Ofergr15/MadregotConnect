@@ -8,37 +8,15 @@ import { WorkoutEditorPanel } from './WorkoutEditor';
 import { Sheet } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { Route, Timer, Zap, Pencil, Plus } from 'lucide-react';
-import { groupPaceTokens, joinGroupPaces } from '@/lib/garmin/pace';
 import { workoutDistanceMeters, totalDistanceMeters } from '@/lib/workout-distance';
+import { workoutDurationSec, totalDurationSec, formatDurationShort, stepDurationSec } from '@/lib/workout-duration';
+import { isRestStep, stepMetric, stepQualifier, type StepUnits } from '@/lib/plans/step-display';
+import { StepPace } from './PaceTokens';
 
 interface WeekViewProps {
   workouts: ParsedWorkout[];
   editable?: boolean;
   onWorkoutChange?: (index: number, workout: ParsedWorkout) => void;
-}
-
-function estimateWorkoutDistance(steps: WorkoutStep[]): number {
-  let total = 0;
-  for (const step of steps) {
-    if (step.repeatCount && step.repeatSteps) {
-      total += estimateWorkoutDistance(step.repeatSteps) * step.repeatCount;
-    } else if (step.durationType === 'distance' && step.durationValue) {
-      total += step.durationValue;
-    }
-  }
-  return total;
-}
-
-function estimateWorkoutTime(steps: WorkoutStep[]): number {
-  let total = 0;
-  for (const step of steps) {
-    if (step.repeatCount && step.repeatSteps) {
-      total += estimateWorkoutTime(step.repeatSteps) * step.repeatCount;
-    } else if (step.durationType === 'time' && step.durationValue) {
-      total += step.durationValue;
-    }
-  }
-  return total;
 }
 
 const stepTypeColors: Record<string, string> = {
@@ -58,44 +36,53 @@ function stepTypeLabel(type: string, t: (key: string) => string): string {
   }
 }
 
-function fmtStepDuration(step: WorkoutStep, lapLabel: string): string {
-  if (step.durationType === 'distance' && step.durationValue) {
-    return step.durationValue >= 1000
-      ? `${(step.durationValue / 1000).toFixed(step.durationValue % 1000 === 0 ? 0 : 1)} km`
-      : `${step.durationValue}m`;
-  }
-  if (step.durationType === 'time' && step.durationValue) {
-    if (step.durationValue >= 3600) {
-      const h = Math.floor(step.durationValue / 3600);
-      const m = Math.floor((step.durationValue % 3600) / 60);
-      return m > 0 ? `${h}h${m}m` : `${h}h`;
-    }
-    if (step.durationValue >= 60) {
-      const mins = Math.floor(step.durationValue / 60);
-      const secs = step.durationValue % 60;
-      return secs > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `${mins} min`;
-    }
-    return `${step.durationValue}s`;
-  }
-  return lapLabel;
-}
+/**
+ * One step, or one leg of a repeat block: colour bar · metric · qualifier · pace.
+ *
+ * The metric is never replaced by the note. That substitution (`notes || dur`) is
+ * how a 45-second walk recovery came out as just "הליכה", with the 45 seconds —
+ * the part that decides whether the set is hard — nowhere on the screen.
+ */
+function DetailStepRow({ step, units, t }: { step: WorkoutStep; units: StepUnits; t: (key: string) => string }) {
+  const metric = stepMetric(step, units);
+  const qualifier = stepQualifier(step);
+  const rest = isRestStep(step);
 
-// Group ❶ plain, (❷) single brackets, ((❸)) double brackets.
-function fmtStepPace(step: WorkoutStep): string {
-  if (!step.targetPaceMinPerKm) return '';
-  const tokens = groupPaceTokens(
-    { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm ?? step.targetPaceMinPerKm },
-    step.group2Pace,
-    step.group3Pace,
+  return (
+    <div className="flex items-center gap-2 text-sm min-w-0">
+      <div
+        className="w-1 h-5 rounded-full shrink-0"
+        style={{ background: stepTypeColors[step.type] || '#969696', opacity: rest ? 0.5 : 1 }}
+      />
+      {metric && (
+        <span className={cn('font-medium shrink-0', rest ? 'text-ink-400' : 'text-ink-700')}>{metric}</span>
+      )}
+      {/* With no metric the note IS the prescription — Wednesday is "70-80 דק׳
+          ריצת שחרור קלה" and nothing else — so it takes the metric's weight
+          instead of the word "סבב" that used to stand in for it. */}
+      {qualifier ? (
+        <span className={cn('min-w-0 flex-1', metric ? 'text-xs text-ink-400' : 'font-medium text-ink-700')}>
+          {qualifier}
+        </span>
+      ) : !metric ? (
+        <span className="text-xs text-ink-400 flex-1">{stepTypeLabel(step.type, t)}</span>
+      ) : null}
+      <StepPace step={step} size="sm" className="shrink-0 ms-auto" />
+    </div>
   );
-  return joinGroupPaces(tokens);
 }
 
 function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: ParsedWorkout | null; dayName: string; open: boolean; onClose: () => void }) {
   const t = useTranslations('workoutEditor');
+  const tc = useTranslations('common');
   const tp = useTranslations('planner');
-  const totalDist = workout ? estimateWorkoutDistance(workout.steps) : 0;
-  const totalTime = workout ? estimateWorkoutTime(workout.steps) : 0;
+  const units: StepUnits = {
+    km: tc('km'), m: tc('meters'), sec: tc('seconds'), min: tc('minutes'),
+  };
+  const totalDist = workout ? workoutDistanceMeters(workout) : 0;
+  // Pace-aware, so a 23.5 km Sunday no longer reports the 8 minutes of strides
+  // that were its only `time` steps.
+  const totalTime = workout ? workoutDurationSec(workout) : 0;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()} className="max-h-[85vh]">
@@ -117,7 +104,7 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
               {totalTime > 0 && (
                 <span className="flex items-center gap-1 text-sm text-ink-500 font-medium">
                   <Timer className="h-3.5 w-3.5 text-ink-400" />
-                  {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
+                  {formatDurationShort(totalTime)}
                 </span>
               )}
               <span className="text-xs text-ink-400">{tp('stepsCount', { count: workout.steps.length })}</span>
@@ -126,41 +113,33 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
 
           <div className="space-y-1.5 scrollbar-thin">
             {workout.steps.map((step, i) => {
+              // A set is drawn as a set: ×N and its own total on top, then every
+              // leg inside a bracket. This is the one screen with room for it, and
+              // the block was previously the least legible thing on it.
               if (step.repeatCount && step.repeatSteps) {
+                const blockTotal = formatDurationShort(stepDurationSec(step));
+                const blockNote = stepQualifier(step);
                 return (
                   <div key={i} className="rounded-lg border border-brand-600/20 bg-brand-600/5 px-3 py-2.5">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-bold text-ink-700">{step.repeatCount}x</span>
-                      {step.notes && <span className="text-xs text-ink-400">{step.notes}</span>}
+                      <span dir="ltr" className="text-sm font-bold text-brand-600">{step.repeatCount} ×</span>
+                      {blockNote && <span className="text-xs text-ink-400 min-w-0">{blockNote}</span>}
+                      {blockTotal && (
+                        <span className="ms-auto text-xs text-ink-400 tabular-nums shrink-0">{blockTotal}</span>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      {step.repeatSteps.map((sub, j) => {
-                        const dur = fmtStepDuration(sub, t('lap'));
-                        const pace = fmtStepPace(sub);
-                        const isRest = sub.type === 'rest' || sub.type === 'recovery';
-                        return (
-                          <div key={j} className="flex items-center gap-2 text-sm">
-                            <div className="w-1 h-4 rounded-full shrink-0" style={{ background: stepTypeColors[sub.type] || '#969696' }} />
-                            <span className={cn("font-medium shrink-0", isRest ? "text-ink-400" : "text-ink-700")}>{dur}</span>
-                            {sub.notes && <span className="text-ink-400 truncate flex-1 text-xs">{sub.notes}</span>}
-                            {pace && <span className="text-xs text-ink-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
-                          </div>
-                        );
-                      })}
+                    <div className="space-y-1 border-s-2 border-brand-600/25 ps-2.5">
+                      {step.repeatSteps.map((sub, j) => (
+                        <DetailStepRow key={j} step={sub} units={units} t={t} />
+                      ))}
                     </div>
                   </div>
                 );
               }
 
-              const dur = fmtStepDuration(step, t('lap'));
-              const pace = fmtStepPace(step);
-              const label = step.notes || stepTypeLabel(step.type, t);
               return (
-                <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-card/40 text-sm">
-                  <div className="w-1 h-5 rounded-full shrink-0" style={{ background: stepTypeColors[step.type] || '#969696' }} />
-                  <span className="font-medium text-ink-700 shrink-0">{dur}</span>
-                  <span className="text-ink-400 truncate flex-1 text-xs">{label}</span>
-                  {pace && <span className="text-xs text-ink-400 tabular-nums shrink-0 ms-auto">{pace}</span>}
+                <div key={i} className="py-2 px-3 rounded-lg bg-card/40">
+                  <DetailStepRow step={step} units={units} t={t} />
                 </div>
               );
             })}
@@ -178,7 +157,6 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
   const dayNamesShort = t.raw('dayNamesShort') as string[];
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [viewingIdx, setViewingIdx] = useState<number | null>(null);
-  const [expandedDay, setExpandedDay] = useState<number | null>(null);
   // A brand-new, not-yet-saved workout for a specific day (e.g. "tomorrow
   // needs something different") — distinct from editingIdx, which always
   // indexes an existing entry in `workouts`. Kept as just the day number so
@@ -198,7 +176,9 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
   // Use the shared, coach-aware distance so the planner total matches the
   // athlete dashboard (prefers distanceMinKm/Max, falls back to time+pace).
   const totalDist = totalDistanceMeters(workouts);
-  const totalTime = workouts.reduce((s, w) => s + estimateWorkoutTime(w.steps), 0);
+  // Same pace-aware sum as every card, so the header can't disagree with the days
+  // under it — this line is where "3h59m" for a 120 km week came from.
+  const totalTime = totalDurationSec(workouts);
   const trainingDays = new Set(workouts.map(w => w.dayOfWeek)).size;
 
   const handleCardDoubleTap = (globalIdx: number) => {
@@ -225,9 +205,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
         {totalTime > 0 && (
           <div className="flex items-center gap-1.5">
             <Timer className="h-3.5 w-3.5 text-accent-600" />
-            <span className="font-bold text-ink-700 tabular-nums">
-              {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
-            </span>
+            <span className="font-bold text-ink-700 tabular-nums">{formatDurationShort(totalTime)}</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
@@ -248,7 +226,6 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
           const dayWorkouts = workouts.filter((w) => w.dayOfWeek === dayIndex);
           const isToday = dayIndex === todayIdx;
           const hasMultiple = dayWorkouts.length > 1;
-          const isExpanded = expandedDay === dayIndex;
 
           return (
             <div key={day} className="flex flex-col min-w-0">
@@ -268,21 +245,27 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     <span className="lg:hidden">{dayNamesShort[dayIndex]}</span>
                     <span className="hidden lg:inline">{day}</span>
                   </h4>
+                  {/* A two-a-day is a fact about the week, not a problem with
+                      it. This was a red circle you had to press to reveal the
+                      second session, which read as an error badge and hid the
+                      thing it was counting; now it just says how many, and
+                      both sessions are on screen. */}
                   {hasMultiple && (
-                    <button
-                      onClick={() => setExpandedDay(isExpanded ? null : dayIndex)}
-                      className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-red text-white text-[10px] font-black shrink-0"
-                    >
-                      {dayWorkouts.length}
-                    </button>
+                    <span className="rounded-full bg-brand-600/12 px-2 py-0.5 text-[10px] font-bold text-brand-600 shrink-0">
+                      {tp('sessionCount', { count: dayWorkouts.length })}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
-                  {/* Per-day edit pencil — always available when editing is possible */}
-                  {canEdit && dayWorkouts.length > 0 && (
+                  {/* Per-day edit pencil — only for a day with a single session.
+                      On a two-a-day it always opened `dayWorkouts[0]`, so it
+                      silently edited the morning while you were looking at the
+                      evening; those days get a pencil per card instead. */}
+                  {canEdit && dayWorkouts.length === 1 && (
                     <button
                       onClick={() => setEditingIdx(workouts.indexOf(dayWorkouts[0]))}
                       title={tp('editDayTooltip', { day })}
+                      aria-label={tp('editDayTooltip', { day })}
                       className="flex items-center justify-center w-7 h-7 rounded-lg text-brand-600 hover:bg-brand-600/15 transition-colors touch-target"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -308,66 +291,67 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                 </div>
               </div>
 
-              {/* Workout Card(s) */}
+              {/* Session card(s) — every session of the day, always. A second
+                  session used to sit behind a "+1 more" button, so the one
+                  case where the week view most needed to be explicit (Tuesday
+                  is a morning AND an evening run) was the one it hid. */}
               <div className="flex-1 flex flex-col gap-1.5">
                 {dayWorkouts.length > 0 ? (
-                  <>
-                    {/* Primary workout — single click edits in edit mode, else opens view.
-                        The role and the tab stop are conditional on `editable` for the
-                        same reason the cursor is: when the week is read-only this div
-                        does nothing, and announcing it as a button or handing it a tab
-                        stop would be a lie. When it IS editable it was mouse-only. */}
-                    <div
-                      role={editable ? 'button' : undefined}
-                      tabIndex={editable ? 0 : undefined}
-                      onClick={() => { if (editable) setEditingIdx(workouts.indexOf(dayWorkouts[0])); }}
-                      onKeyDown={(event) => {
-                        if (editable && (event.key === 'Enter' || event.key === ' ')) {
-                          event.preventDefault();
-                          setEditingIdx(workouts.indexOf(dayWorkouts[0]));
-                        }
-                      }}
-                      onDoubleClick={() => handleCardDoubleTap(workouts.indexOf(dayWorkouts[0]))}
-                      className="flex-1 cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 rounded-b-xl"
-                    >
-                      <WorkoutPreview
-                        workout={dayWorkouts[0]}
-                        className={cn('rounded-t-none border-t-0 hover:ring-1 hover:ring-brand-600/50', isToday && 'border-brand-600/30')}
-                      />
-                    </div>
-
-                    {/* Additional workouts */}
-                    {hasMultiple && (isExpanded ? (
-                      dayWorkouts.slice(1).map((workout) => {
-                        const globalIdx = workouts.indexOf(workout);
-                        return (
-                          <div
-                            key={globalIdx}
-                            role={editable ? 'button' : undefined}
-                            tabIndex={editable ? 0 : undefined}
-                            onClick={() => { if (editable) setEditingIdx(globalIdx); }}
-                            onKeyDown={(event) => {
-                              if (editable && (event.key === 'Enter' || event.key === ' ')) {
-                                event.preventDefault();
-                                setEditingIdx(globalIdx);
-                              }
-                            }}
-                            onDoubleClick={() => handleCardDoubleTap(globalIdx)}
-                            className="cursor-pointer hover:ring-1 hover:ring-brand-600/50 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+                  dayWorkouts.map((workout, sessionIdx) => {
+                    const globalIdx = workouts.indexOf(workout);
+                    const isFirst = sessionIdx === 0;
+                    // Single click does the one thing this card can do: open the
+                    // editor when the week is editable, open the read-only detail
+                    // otherwise. Read mode used to need a double click, which
+                    // nothing on the screen said and no touch device suggests.
+                    const activate = () => {
+                      if (editable) setEditingIdx(globalIdx);
+                      else setViewingIdx(globalIdx);
+                    };
+                    return (
+                      <div key={globalIdx} className={cn('relative', isFirst && 'flex-1 flex flex-col')}>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-label={editable ? tp('editDayTooltip', { day }) : tp('viewDayTooltip', { day })}
+                          onClick={activate}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              activate();
+                            }
+                          }}
+                          onDoubleClick={() => handleCardDoubleTap(globalIdx)}
+                          className={cn(
+                            'cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600',
+                            isFirst ? 'flex-1 rounded-b-xl' : 'rounded-lg',
+                          )}
+                        >
+                          <WorkoutPreview
+                            workout={workout}
+                            className={cn(
+                              'hover:ring-1 hover:ring-brand-600/50',
+                              // Only the first card is welded to the day header.
+                              isFirst && 'rounded-t-none border-t-0',
+                              isToday && 'border-brand-600/30',
+                            )}
+                          />
+                        </div>
+                        {/* This session's own pencil, so a two-a-day can be
+                            edited session by session. */}
+                        {canEdit && hasMultiple && (
+                          <button
+                            onClick={(event) => { event.stopPropagation(); setEditingIdx(globalIdx); }}
+                            title={tp('editDayTooltip', { day })}
+                            aria-label={tp('editDayTooltip', { day })}
+                            className="absolute top-1.5 end-1.5 flex items-center justify-center w-7 h-7 rounded-lg bg-card/80 text-brand-600 hover:bg-brand-600/15 transition-colors touch-target"
                           >
-                            <WorkoutPreview workout={workout} compact />
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <button
-                        onClick={() => setExpandedDay(dayIndex)}
-                        className="text-xs font-bold text-accent-red-ink bg-accent-red/10 border border-accent-red/20 rounded-lg py-2 px-3 text-center hover:bg-accent-red/15 transition-colors min-h-[36px]"
-                      >
-                        {tp('moreCount', { count: dayWorkouts.length - 1 })}
-                      </button>
-                    ))}
-                  </>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
                 ) : (
                   <div
                     role={canEdit ? 'button' : undefined}

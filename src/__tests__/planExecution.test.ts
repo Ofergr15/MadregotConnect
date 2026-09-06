@@ -410,7 +410,10 @@ describe('buildVerdict — a paced session whose reps could not be read', () => 
   });
 
   it('does not claim "on target" on the strength of the distance alone', () => {
-    // The distance WAS in band, and that is exactly the trap.
+    // The distance WAS in band, and that is exactly the trap. A scorer that falls
+    // back to "every gradeable whole-run metric is on target" puts a green "on
+    // plan" on a 4×2000 run at entirely the wrong pace — on the club feed, where
+    // it is the first thing the athlete and their coach read. One did.
     const verdict = blindVerdict();
     expect(verdict.metrics.find((m) => m.key === 'distance')?.deviation).toBe(0);
     expect(verdict.direction).toBe('unknown');

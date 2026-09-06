@@ -188,7 +188,7 @@ export function AcademyRegistrations() {
                 {!r.approved && (
                   <div className="border-t border-page/50 p-3 flex items-center justify-end gap-2">
                     <button onClick={() => setRejectTarget(r.id)} disabled={busy === r.id}
-                      className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-accent-red hover:bg-accent-red/10 text-sm font-semibold disabled:opacity-50">
+                      className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 text-sm font-semibold disabled:opacity-50">
                       <Trash2 className="h-4 w-4" /> דחייה
                     </button>
                     {canApproveHere ? (

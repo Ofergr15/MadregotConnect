@@ -6,9 +6,9 @@ import {
   RefreshCw, Sparkles, TrendingUp, Zap,
 } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
+import type { ExecutionVerdict } from '@/lib/plan-execution/verdict';
 import { cn } from '@/lib/utils';
 import { ElevationChart, HRChart, PaceChart } from './charts';
-import { useExecutionVerdict } from './execution-context';
 import { ExecutionQuality, executionTakesPaceChart } from './ExecutionQuality';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone } from './format';
 import { RouteMap } from './RouteMap';
@@ -50,7 +50,8 @@ export function ActivityDetailBody({
   loading = false,
   planned,
   plannedContinuous = false,
-  canSeeExecution = false,
+  verdict = null,
+  loadingVerdict = false,
   className,
 }: {
   activity: ActivityEntry;
@@ -60,22 +61,18 @@ export function ActivityDetailBody({
   /** Whether that plan is one unbroken stretch — see `executionTakesPaceChart`. */
   plannedContinuous?: boolean;
   /**
-   * Whether to show the plan-vs-execution grade: the athlete themselves, or
-   * staff. The caller decides because only the caller knows who's looking; the
-   * API enforces the same rule, so a false here costs a fetch, not a leak.
+   * The day's plan graded against this run. Passed in rather than fetched here:
+   * it arrives on the same request as `planned` (`?bands=1&verdict=1`), because
+   * the bands and the score are two readings of one plan lookup and asking twice
+   * was two round trips to render one card. Null → the card renders nothing,
+   * which is also what a viewer who may not read this person's score gets.
    */
-  canSeeExecution?: boolean;
+  verdict?: ExecutionVerdict | null;
+  /** That request still in flight — the card holds its height instead of popping in. */
+  loadingVerdict?: boolean;
   className?: string;
 }) {
   const t = useTranslations('activities');
-
-  const { verdict, loading: loadingVerdict } = useExecutionVerdict(activity.id, {
-    enabled: canSeeExecution,
-    // Per-rep verdicts need the watch's laps, which THIS screen's details fetch
-    // is what caches. So ask again once it lands and the rep-by-rep breakdown
-    // fills in on this visit instead of the next one.
-    revision: details ? 1 : 0,
-  });
 
   // The row the fetch returned is the same row, only wider (perceived effort,
   // shoe, cadence) — let it fill in whatever the caller's copy lacks.
@@ -171,7 +168,7 @@ export function ActivityDetailBody({
           {act.average_hr && (
             <div>
               <p className="text-xs text-ink-400 mb-1">{t('avgHrShort')}</p>
-              <p className={cn('text-3xl font-black tabular-nums', hrZone?.color)}>{act.average_hr}</p>
+              <p className={cn('text-3xl font-black tabular-nums', hrZone?.color)}>{Math.round(act.average_hr)}</p>
               {hrZone && <p className="text-3xs text-ink-400 mt-0.5">{t('zone')} {hrZone.zone} · {t(`hrZone${hrZone.zone}` as 'hrZone1')}</p>}
             </div>
           )}
@@ -212,7 +209,7 @@ export function ActivityDetailBody({
         ) : null}
         {act.max_hr ? (
           <StatTile icon={<Heart className="h-3.5 w-3.5 text-accent-red" />} label={t('maxHr')}>
-            <p className="text-2xl font-black text-ink-700 tabular-nums">{act.max_hr}</p>
+            <p className="text-2xl font-black text-ink-700 tabular-nums">{Math.round(act.max_hr)}</p>
             <p className="text-3xs text-ink-400 mt-0.5">{t('bpm')}</p>
           </StatTile>
         ) : null}

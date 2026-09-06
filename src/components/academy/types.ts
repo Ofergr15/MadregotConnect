@@ -21,6 +21,7 @@ export type {
 export type { AcademyBand, BandPaceProfile } from '@/lib/academy/bands';
 
 import type { AttentionReason } from '@/lib/academy/members';
+import { planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 
 // Badge = a tint of the reason's colour behind that same colour's text, which is
 // how the light system does status chips on a white card (the old dark palette
@@ -75,17 +76,20 @@ export function rateColor(rate: number | null): string {
   return 'text-accent-red';
 }
 
-/** Sunday-of, as a YYYY-MM-DD string, from a real Date. */
+/**
+ * Sunday-of, as a YYYY-MM-DD string, from a real Date.
+ *
+ * Both of these used to be hand-rolled here on `getUTCDay()`, which answers for
+ * the UTC calendar date — still yesterday between 00:00 and 03:00 in Israel, and
+ * a whole week off when that yesterday was a Saturday. They now delegate to the
+ * shared, DST-aware helpers; the names stay because five components import them.
+ */
 export function sundayOf(date: Date): string {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12));
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-  return d.toISOString().split('T')[0];
+  return planWeekStartOf(date);
 }
 
 export function shiftWeek(weekStart: string, weeks: number): string {
-  const d = new Date(`${weekStart}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + weeks * 7);
-  return d.toISOString().split('T')[0];
+  return shiftWeekStart(weekStart, weeks);
 }
 
 export function fmtWeekRange(weekStart: string, locale: string): string {

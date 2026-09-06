@@ -426,6 +426,88 @@
 .safe-inline-start { padding-inline-start: env(safe-area-inset-left); }
 .safe-inline-end { padding-inline-end: env(safe-area-inset-right); }
 
+/* One viewport height, for a page that must never scroll (/register).
+ *
+ * ⚠️ Do NOT go back to `min-h-screen min-h-[100dvh]` in the markup. Those are two
+ * separate rules of equal specificity, so the winner is decided by their order in
+ * the compiled stylesheet, not by the order you type the classes — and Tailwind
+ * emits arbitrary values BEFORE core utilities, so `.min-h-screen` (100vh) landed
+ * after `.min-h-[100dvh]` and silently won everywhere. On iOS Safari 100vh is the
+ * LARGE viewport: it ignores the URL bar and the bottom toolbar, so ~120px of the
+ * page sat underneath Safari's own chrome. On a real iPhone that hid the submit
+ * button, both footnotes and the wordmark.
+ *
+ * Three declarations in ONE rule instead: a browser drops the units it does not
+ * understand and the last surviving one wins, whatever the file order.
+ *   100vh  — iOS 12 / the iPhone 6 this page still supports.
+ *   100dvh — correct, but it RESIZES as Safari's toolbars collapse, which makes a
+ *            fixed layout jump while you read it.
+ *   100svh — the small viewport: toolbars always counted as present, never
+ *            changes. For a page specified to fit exactly once, that is the one.
+ */
+.min-h-viewport {
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: 100svh;
+}
+
+/* The מדרגות mark and the gap under it, on /register only.
+ *
+ * These are here rather than in the markup for the same reason min-h-viewport is:
+ * they need five height bands, and writing them as `short:` mixed with
+ * `[@media(min-height:...)]` Tailwind variants would put the winner back in the
+ * hands of stylesheet emission order. Plain media queries in one place, smallest
+ * first, so each larger band overrides the one before it and nothing is implicit.
+ *
+ * ⚠️ WHY BANDS AND NOT ONE NUMBER. The countdown that sits under this mark has to
+ * land on the plain black of the SAYSKY banner in the photo and stay off the
+ * banner's white star. But the photo is `object-cover object-center`, so it is
+ * rescaled per viewport and the star does NOT stay put: measured, its top edge
+ * ranges from y136 (320×480) to y240 (390×844) — a 104px spread. The countdown's
+ * y is set by this mark's height, so a single height can only be correct at one
+ * viewport. It was: the shipped 132px was measured at 390×844 and landed the
+ * numerals 7px onto the star at 390×734 and 1.5px at 320×480 without anyone
+ * noticing, because the scrim keeps contrast at 6.5:1 even when it looks wrong.
+ *
+ * Each band is the largest mark that still leaves the countdown ≥6px clear of the
+ * star at that height, measured by projecting the star's position in the source
+ * JPEG through object-cover:
+ *
+ *     viewport    star top   mark   countdown    clearance
+ *     390×844      y240      152    y176–228       12px
+ *     430×790      y225      138    y162–214       11px
+ *     390×734      y209      124    y148–200        9px
+ *     375×667      y190      112    y134–178       12px
+ *     320×480      y136       62     y84–128        8px
+ *
+ * Note 375×667 goes UP from 76px to 112px — the old value was one `short:` bucket
+ * shared with 320×480, and an iPhone 6 was paying the 320×480 price for nothing.
+ * 320×480 is the one band that had to SHRINK: at that height the star is so high
+ * that 76px was already on it.
+ *
+ * If the hero photo, its object-position, or the countdown's own height changes,
+ * every number above is void. Re-measure; do not nudge.
+ */
+.hero-mark {
+  height: 62px;
+}
+.hero-mark-gap {
+  margin-top: 10px;
+}
+@media (min-height: 601px) {
+  .hero-mark { height: 112px; }
+}
+@media (min-height: 721px) {
+  .hero-mark { height: 124px; }
+  .hero-mark-gap { margin-top: 12px; }
+}
+@media (min-height: 760px) {
+  .hero-mark { height: 138px; }
+}
+@media (min-height: 800px) {
+  .hero-mark { height: 152px; }
+}
+
 /* Touch-friendly minimum sizes */
 .touch-target { min-height: 44px; min-width: 44px; }
 

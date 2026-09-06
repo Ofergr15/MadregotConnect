@@ -1,5 +1,16 @@
 import { createSerwistRoute } from '@serwist/turbopack';
 
+// Identifies this deploy to the service worker, which puts it in its page-cache
+// names so one build can never read the previous build's stored pages
+// (src/lib/sw-caches.ts explains the failure that made this necessary).
+//
+// It has to be injected here. The worker is bundled by esbuild, not by Next, so
+// none of Next's `NEXT_PUBLIC_*` inlining reaches it — but `define` is a supported
+// esbuild option and this file is server code evaluated during the build, where
+// Vercel's git env is available. Empty locally; sw.ts then falls back to
+// APP_VERSION, which is enough to separate one dev session from the next.
+const SW_BUILD_ID = (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 8);
+
 export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } =
   createSerwistRoute({
     // /offline.html lives in public/, so @serwist/turbopack already precaches
@@ -19,7 +30,13 @@ export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } =
     // written against the Cache/Fetch APIs, so nothing about it needs a target
     // older than es2020. The old-iPhone target belongs on the app bundle, which
     // is the code that has to parse on the phone's main thread.
-    esbuildOptions: { target: 'es2020' },
+    esbuildOptions: {
+      target: 'es2020',
+      // JSON.stringify, not a bare value: `define` substitutes text, so the
+      // replacement has to be a valid JS expression — an unquoted commit sha
+      // would compile to an identifier.
+      define: { __SW_BUILD_ID__: JSON.stringify(SW_BUILD_ID) },
+    },
     // Keep the precache manifest to app-shell-sized files. Without this, every
     // visitor's browser downloads the full manifest (incl. rarely-used
     // features) in the background on install, and re-downloads it in full on

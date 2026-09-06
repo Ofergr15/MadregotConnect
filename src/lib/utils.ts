@@ -36,9 +36,17 @@ export function getActivityWeekStart(date: Date): string {
 
 /**
  * The PLAN week start: the Sunday on/before `date`, as YYYY-MM-DD. This matches
- * `weekly_plans.week_start_date` (Sunday–Saturday), so use THIS — not
- * getActivityWeekStart (Monday) — for anything keyed to a scheduled workout
- * (e.g. pre-workout attendance RSVP).
+ * `weekly_plans.week_start_date` (Sunday–Saturday). Use it for anything keyed to
+ * a scheduled workout (e.g. pre-workout attendance RSVP).
+ *
+ * Identical to `getActivityWeekStart` since the 2026-08-21 Monday→Sunday change,
+ * and deliberately still two names: they answer different questions and could
+ * diverge again if the club ever re-splits them. This doc used to say "not
+ * getActivityWeekStart (Monday)", which stopped being true on that date — the two
+ * agree now, so picking the wrong one is a readability problem, not a bug.
+ *
+ * For "which week is it now?" don't call this with a bare `new Date()` on a
+ * server — use `planWeekStartOf`, which anchors on Israel's calendar day.
  */
 export function getPlanWeekStart(date: Date): string {
   const d = new Date(date);
@@ -98,6 +106,53 @@ export function israelToday(date: Date = new Date()): string {
  */
 export function israelDateAnchor(date: Date = new Date()): Date {
   return new Date(`${israelToday(date)}T12:00:00`);
+}
+
+/**
+ * The plan week (Sunday, YYYY-MM-DD) that a date falls in — the one helper every
+ * "which week is this?" call should use.
+ *
+ * There were SEVEN hand-rolled versions of this before it existed: five named
+ * `sundayOf` (lib/academy/report, api/academy/segments, AcademyPlanComposer,
+ * AcademyCompliance, components/academy/types) and two `getCurrentWeekSunday`
+ * (dashboard/plan/new, dashboard/activities). The two families disagreed. The
+ * `sundayOf` copies anchored on `Date.UTC(...getUTCFullYear(), ...)` and
+ * subtracted `getUTCDay()`, i.e. they answered for the UTC calendar date — which
+ * between 00:00 and 03:00 in Israel is still YESTERDAY, and when yesterday was a
+ * Saturday that is a whole week off. So an athlete opening the app at 00:30 saw
+ * the academy screens on last week while the planner and the activities page
+ * (local-date based) were on this one. `israelDateAnchor` and `toISODate` above
+ * were written to prevent exactly this and the copies simply predate them.
+ *
+ * Argument forms: omitted/null for "now"; a bare `YYYY-MM-DD`, which is already a
+ * calendar date and so is pinned to local noon rather than re-resolved through a
+ * timezone; a longer ISO string or a `Date`, both instants, resolved in Israel.
+ */
+export function planWeekStartOf(date?: string | Date | null): string {
+  const anchor =
+    date instanceof Date ? israelDateAnchor(date)
+    : typeof date === 'string' && date.length >= 10
+      ? (date.length === 10 ? new Date(`${date}T12:00:00`) : israelDateAnchor(new Date(date)))
+      : israelDateAnchor();
+  return getPlanWeekStart(anchor);
+}
+
+/** `weeks` whole weeks after (or before) a YYYY-MM-DD week start. */
+export function shiftWeekStart(weekStart: string, weeks: number): string {
+  return addDaysToDateStr(weekStart, weeks * 7);
+}
+
+/**
+ * `days` days after (or before) a YYYY-MM-DD date, as YYYY-MM-DD.
+ *
+ * Local noon in, local date parts out, so a DST switch inside the span moves the
+ * clock by an hour and never the date — which `toISOString().split('T')[0]` on a
+ * midnight anchor would.
+ */
+export function addDaysToDateStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr.slice(0, 10)}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
 }
 
 /**
@@ -269,6 +324,8 @@ const groupColorMap = {
     dot: 'bg-accent-600',
     badge: 'bg-accent-600/20 text-accent-900 border-accent-600/30',
     card: 'border-accent-600/40 bg-accent-600/10 hover:bg-accent-600/20',
+    chip: { bg: 'bg-accent-600/15', text: 'text-accent-900', border: 'border-accent-600/20' },
+    panel: { bg: 'bg-accent-600/10', border: 'border-accent-600/30', text: 'text-accent-900', badge: 'bg-accent-600/20', dot: 'bg-accent-600' },
   },
   medium: {
     bg: 'bg-band-2/20',
@@ -277,6 +334,8 @@ const groupColorMap = {
     dot: 'bg-band-2',
     badge: 'bg-band-2/20 text-band-2-ink border-band-2/30',
     card: 'border-band-2/40 bg-band-2/10 hover:bg-band-2/20',
+    chip: { bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/20' },
+    panel: { bg: 'bg-band-2/10', border: 'border-band-2/30', text: 'text-band-2-ink', badge: 'bg-band-2/20', dot: 'bg-band-2' },
   },
   slow: {
     bg: 'bg-band-3/20',
@@ -285,6 +344,8 @@ const groupColorMap = {
     dot: 'bg-band-3',
     badge: 'bg-band-3/20 text-band-3-ink border-band-3/30',
     card: 'border-band-3/40 bg-band-3/10 hover:bg-band-3/20',
+    chip: { bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/20' },
+    panel: { bg: 'bg-band-3/10', border: 'border-band-3/30', text: 'text-band-3-ink', badge: 'bg-band-3/20', dot: 'bg-band-3' },
   },
 } as const;
 
@@ -295,6 +356,10 @@ const defaultGroupColor = {
   dot: 'bg-ink-300',
   badge: 'bg-ink-300/20 text-ink-500 border-ink-300/40',
   card: 'border-ink-300/50 bg-ink-300/10 hover:bg-ink-300/20',
+  // A squad we don't recognise gets neutral ink, not a fourth hue — the three
+  // above are the only group colours the app means anything by.
+  chip: { bg: 'bg-ink-300/20', text: 'text-ink-500', border: 'border-ink-300/40' },
+  panel: { bg: 'bg-ink-300/10', border: 'border-ink-300/30', text: 'text-ink-500', badge: 'bg-ink-300/20', dot: 'bg-ink-300' },
 };
 
 export function getGroupColors(level?: GroupLevel | null) {
@@ -342,6 +407,32 @@ export function resolveGroup(name?: string | null): ResolvedGroup {
 /** Convenience: canonical display name only. */
 export function groupDisplayName(name?: string | null): string {
   return resolveGroup(name).displayName;
+}
+
+/**
+ * A squad's chip colours, resolved from its NAME.
+ *
+ * Three pages (athletes, academy, groups) each carried their own copy of this
+ * table. Two of them keyed it on the literal string `'Group 1'`, so the moment a
+ * coach renames a squad to anything real the chip fell through to neutral grey —
+ * and the club's squads are in fact named "SUB 2:30" and friends. Going through
+ * resolveGroup means every alias the rest of the app understands works here too.
+ *
+ * Returns null for no name at all, which is the "render no chip" signal those
+ * pages already used.
+ */
+export function getGroupChip(name?: string | null) {
+  if (!name) return null;
+  return resolveGroup(name).colors.chip;
+}
+
+/**
+ * A squad's panel colours by 0-based index, for the callers that already know
+ * which of the three squads they're drawing and have no name to hand.
+ */
+export function getGroupPanel(index: number) {
+  const level = GROUP_LEVELS[index];
+  return (level ? getGroupColors(level) : defaultGroupColor).panel;
 }
 
 /**

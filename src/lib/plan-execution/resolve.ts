@@ -19,6 +19,24 @@
  * single-run path will fetch them from Garmin once and write them back — see
  * `ensureLaps`, and why a paced session with no laps is otherwise graded on
  * distance alone.
+ *
+ * ── One scorer, two ways of finding the plan ────────────────────────────────
+ * Everything here resolves the plan through `activity_plan_matches` — the stored
+ * matcher result. The club feed (`lib/feed/plan-verdicts.ts`) and the activity
+ * detail (`api/academy/segments`) instead resolve it by DATE: the plan for that
+ * calendar week, the workout for that day of the week.
+ *
+ * Both hand the result to the same `buildVerdict`, so neither is a second scoring
+ * implementation and a given (run, workout) pair grades identically either way.
+ * They can still pick DIFFERENT workouts for one run, in exactly one case: the
+ * athlete ran a session on a day other than the one it was planned for. The
+ * matcher is built to follow that; date arithmetic isn't, and reports the day's
+ * own workout as missed.
+ *
+ * Left standing rather than unified because the divergence is narrow and the fix
+ * is a real piece of work — the segments route would have to take the matcher, and
+ * it is also the thing that draws the pace bands, which are per-plan-day. Worth
+ * doing; not worth doing inside a merge.
  */
 
 import type { createServerClient } from '@/lib/supabase/server';

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
 import { requireMember } from '@/lib/auth/self-or-staff';
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     const denied = await requireMember(request);
     if (denied) return denied;
 
-    const supabase = createServerClient({ revalidateSeconds: 300 });
+    const supabase = createServerClient({ revalidateSeconds: 300, cacheTags: [WEEKLY_PLANS_TAG] });
     const { data } = await supabase
       .from('weekly_plans')
       .select('week_start_date')

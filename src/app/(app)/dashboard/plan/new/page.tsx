@@ -39,7 +39,7 @@ import { WeekView } from '@/components/WeekView';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
-import { cn, toISODate, activityLocalDay, formatActivityTime } from '@/lib/utils';
+import { cn, activityLocalDay, formatActivityTime, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
@@ -97,7 +97,9 @@ interface MatchReviewData {
   matches: Array<{
     activity_id: string;
     workout_key: string;
-    match_method: 'auto' | 'manual';
+    // 'garmin_workout' = the activity carried the id of the workout we pushed,
+    // so this pairing is the watch's own answer rather than a scored guess.
+    match_method: 'auto' | 'manual' | 'garmin_workout';
     score: number | null;
   }>;
   athletes: Array<{ id: string; name: string }>;
@@ -122,12 +124,12 @@ function matchCandidates(workouts: ParsedWorkout[], startTime: string): ParsedWo
     .sort((a, b) => Math.abs(a.dayOfWeek - day) - Math.abs(b.dayOfWeek - day));
 }
 
+// One shared definition rather than a local one (there were two identical copies
+// of this and five more `sundayOf`s). Also pins the week to Israel's calendar day
+// instead of the device's, so a phone left on another timezone can't put the coach
+// and the athlete on different weeks.
 function getCurrentWeekSunday(offset: number = 0): string {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() - dayOfWeek + offset * 7);
-  return toISODate(sunday);
+  return shiftWeekStart(planWeekStartOf(), offset);
 }
 
 function isSaturday(): boolean {
@@ -1085,7 +1087,10 @@ export default function WeeklyPlannerPage() {
     }
   };
 
-  const workoutCount = parsedPlan ? new Set(parsedPlan.workouts.map(w => w.dayOfWeek)).size : 0;
+  // Sessions, not training days. Counting distinct days made a 9-session week
+  // (Tuesday and Saturday are two-a-days) read as "7 workouts" — and it is also
+  // the number Garmin will receive, which is per session.
+  const workoutCount = parsedPlan ? parsedPlan.workouts.length : 0;
 
   // Days that actually have a workout (from the base plan) — for the per-day
   // push selector. Sorted Sunday→Saturday.
@@ -1472,11 +1477,12 @@ export default function WeeklyPlannerPage() {
       {/* Plan exists - show it */}
       {!loadingPlans && currentPlan && groupedPlans && parsedPlan && (
         <div className="flex-1 flex flex-col">
-          {/* Status bar — button labels hide below sm (icon + title tooltip
-              only) so 5 elements + a wrapping count don't fight for space on
-              a phone-width screen; full labels return once there's room. */}
+          {/* Status bar. The labels used to hide below `sm`, which on the phone
+              this is actually used on left three unlabelled icons whose only
+              name was a `title` — never shown on touch and never read out. They
+              are always visible now and the row wraps instead. */}
           <div className="px-4 sm:px-6 py-3 border-b border-page/50 bg-card/30">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-sm text-ink-500 shrink-0">
                   {workoutCount} {t('workouts')}
@@ -1500,19 +1506,21 @@ export default function WeeklyPlannerPage() {
                   size="sm"
                   onClick={syncFromProgram}
                   title={t('syncFromProgram')}
+                  aria-label={t('syncFromProgram')}
                 >
                   <RefreshCw className="h-4 w-4" />
-                  <span className="hidden sm:inline">{t('sync')}</span>
+                  {t('sync')}
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => setEditMode(!editMode)}
                   title={editMode ? t('done') : t('edit')}
+                  aria-label={editMode ? t('done') : t('edit')}
                   className={cn(editMode && 'ring-1 ring-brand-600')}
                 >
                   <Edit3 className="h-4 w-4" />
-                  <span className="hidden sm:inline">{editMode ? t('done') : t('edit')}</span>
+                  {editMode ? t('done') : t('edit')}
                 </Button>
                 <Button
                   variant="secondary"
@@ -1520,10 +1528,11 @@ export default function WeeklyPlannerPage() {
                   onClick={() => setConfirmDelete(true)}
                   disabled={deleting}
                   title={t('remove')}
-                  className="text-accent-red hover:text-accent-red"
+                  aria-label={t('remove')}
+                  className="text-accent-red hover:text-accent-red active:text-accent-red"
                 >
                   <Trash2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">{t('remove')}</span>
+                  {t('remove')}
                 </Button>
               </div>
             </div>
@@ -1853,10 +1862,22 @@ export default function WeeklyPlannerPage() {
                                 'rounded-full px-2 py-0.5 text-[9px] font-bold uppercase',
                                 match.match_method === 'manual'
                                   ? 'bg-purple-500/15 text-purple-800'
-                                  : 'bg-accent-600/15 text-accent-900',
+                                  : match.match_method === 'garmin_workout'
+                                    ? 'bg-emerald-500/15 text-emerald-800'
+                                    : 'bg-accent-600/15 text-accent-900',
                               )}>
-                                {match.match_method === 'manual' ? t('matchManual') : t('matchAuto')}
-                                {match.score != null ? ` ${Math.round(match.score)}` : ''}
+                                {match.match_method === 'manual'
+                                  ? t('matchManual')
+                                  : match.match_method === 'garmin_workout'
+                                    ? t('matchGarmin')
+                                    : t('matchAuto')}
+                                {/* Only the scored guess shows its score. A
+                                    garmin_workout match carries a flat 100 that
+                                    would read as a confidence rating for
+                                    something that was never estimated. */}
+                                {match.match_method === 'auto' && match.score != null
+                                  ? ` ${Math.round(match.score)}`
+                                  : ''}
                               </span>
                             )}
                           </div>

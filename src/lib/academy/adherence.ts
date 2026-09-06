@@ -185,6 +185,23 @@ function computeStepDuration(step: WorkoutStep): { sec: number; estimated: boole
   if (step.durationType === 'open') {
     if (step.type === 'warmup' || step.type === 'cooldown') return { sec: 10 * 60, estimated: true };
     if (step.type === 'active' || step.type === 'interval') return { sec: 40 * 60, estimated: true };
+    // rest / recovery, open-ended — the "Lap Button Press" recovery between
+    // intervals, which is how most interval sessions are actually written.
+    //
+    // This used to fall through to the 0/not-estimated return below, and that was
+    // the single worst case in this file: 6×(400 m @ 4:00 + open rest) computed a
+    // planned time of about ten minutes, flagged as EXACT because no individual
+    // step had estimated its own duration, and was then graded at ±15% against a
+    // real session of thirty-plus minutes. Every athlete running a written
+    // interval workout was told they went 'over' on time. Same false negative the
+    // rest of this file exists to prevent, arriving through the one branch nobody
+    // had written a case for.
+    //
+    // 90 s is a plain guess at a rest interval, in the same spirit as the 10 and
+    // 40 minutes above — and, like those, it comes with estimated: true, so it
+    // improves the number the athlete SEES while keeping the metric out of the
+    // score entirely. See assessWorkout.
+    if (step.type === 'rest' || step.type === 'recovery') return { sec: 90, estimated: true };
   }
   return { sec: 0, estimated: false };
 }

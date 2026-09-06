@@ -5,16 +5,27 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { AlertCircle, UserCheck, UserPlus, Users } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
-import { Button, Card, EmptyState, LoadingBlock, BigStat, Skeleton, BackNav } from '@/components/ui';
+import { Button, EmptyState, LoadingBlock, Skeleton, BackNav } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import CoreRunnerBadge from '@/components/CoreRunnerBadge';
+import { AthleteProfileBody } from '@/components/profile/AthleteProfileBody';
 
-// Peer-facing "teammate" profile — any club member can view any other
-// member's profile here. Deliberately a NEW route, distinct from the
-// coach-only admin roster at dashboard/athletes/page.tsx: this page reads
-// GET /api/athletes/[id]/public (privacy-safe projection — no email/
-// onboarding-status/garmin-auth) for identity, and GET
-// /api/athletes/[id]/connections for follower/following counts + the
-// viewer's own follow state.
+// Peer-facing "teammate" profile — any club member can view any other member's
+// profile here. Deliberately a NEW route, distinct from the coach-only admin
+// roster at dashboard/athletes/page.tsx.
+//
+// This page is now the hero only: back-nav, avatar, name, group, and the follow
+// toggle. Everything below it — the stat trio, the דבוקה card, the runs list, the
+// weekly km table, the ten-week chart and the PRs — is AthleteProfileBody, the
+// SAME component the owner's own profile renders. That is what "unify the two
+// profiles" means in practice: one implementation, two heroes, and no way for
+// the peer view to quietly fall behind again. It used to be this page's whole
+// content: a name, a group and two follower counts, with no runs, no band and no
+// kilometres anywhere — a dead end from every feed card that linked here.
+//
+// Reads GET /api/athletes/[id]/public for identity and
+// GET /api/athletes/[id]/connections for the counts + the viewer's follow state;
+// the body shares both of those SWR keys, so adding it cost no extra request.
 
 interface PublicProfile {
   id: string;
@@ -23,6 +34,8 @@ interface PublicProfile {
   groupId: string | null;
   groupName: string | null;
   memberSince: string | null;
+  isCoreRunner: boolean;
+  isAcademy: boolean;
 }
 
 interface ConnectionsSummary {
@@ -134,47 +147,31 @@ export default function TeammateProfilePage() {
     <div className="max-w-lg mx-auto space-y-5 pb-8">
       <BackNav label={tc('back')} onBack={() => router.back()} />
 
-      {/* Hero — same gradient-card recipe as dashboard/profile/page.tsx,
-          minus the owner-only bits (email, data-source badges, photo upload —
-          none of those are safe/relevant on a peer's profile). */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600/15 via-card/90 to-card border border-page/50 p-6">
-        <div className="absolute top-0 end-0 w-32 h-32 bg-brand-600/8 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-        <div className="relative flex items-center gap-4">
-          <FeedAvatar name={profile.name} url={profile.avatarUrl} className="w-16 h-16" textClassName="text-xl" />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-ink-700 truncate">{profile.name}</h1>
-            {profile.memberSince && (
-              <p className="text-xs text-ink-400 mt-1">
-                {tProfile('memberSince')}{' '}
-                {new Date(profile.memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
-              </p>
-            )}
-            {profile.groupName && (
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <Users className="h-3.5 w-3.5 text-brand-600 shrink-0" />
-                <span className="text-sm font-medium text-brand-600">{profile.groupName}</span>
-              </div>
-            )}
+      {/* ═══ HERO ═══ Avatar, name, group, join date — the owner-only bits (email,
+          data-source badges, photo upload) have no place on a peer's profile. */}
+      <div className="flex items-center gap-4">
+        <FeedAvatar name={profile.name} url={profile.avatarUrl} className="w-16 h-16" textClassName="text-xl" />
+        <div className="flex-1 min-w-0">
+          {/* The 🌰 sits NEXT to the name, outside its truncate, so a long name
+              can't eat the mark — same rule as the owner's own header. */}
+          <div className="flex items-baseline gap-1.5">
+            <h1 className="truncate text-xl font-bold text-ink-700" dir="auto">{profile.name}</h1>
+            {profile.isCoreRunner && <CoreRunnerBadge className="text-base" />}
           </div>
-        </div>
-      </div>
-
-      <Card>
-        <div className="flex items-center justify-around">
-          {showConnectionsSkeleton ? (
-            <>
-              <Skeleton className="h-12 w-16" />
-              <Skeleton className="h-12 w-16" />
-            </>
-          ) : (
-            <>
-              <BigStat value={connections?.followerCount ?? 0} label={t('followers')} />
-              <div className="w-px h-10 bg-page/50" />
-              <BigStat value={connections?.followingCount ?? 0} label={t('following')} />
-            </>
+          {profile.groupName && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <Users className="h-3.5 w-3.5 text-brand-600 shrink-0" />
+              <span className="text-sm font-bold text-brand-600">{profile.groupName}</span>
+            </div>
+          )}
+          {profile.memberSince && (
+            <p className="text-xs font-light text-ink-400 mt-1">
+              {tProfile('memberSince')}{' '}
+              {new Date(profile.memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
+            </p>
           )}
         </div>
-      </Card>
+      </div>
 
       {/* Follow/Following toggle — hidden entirely on your own profile. */}
       {!isOwnProfile && viewerLoaded && viewerId && (
@@ -201,6 +198,8 @@ export default function TeammateProfilePage() {
           </Button>
         )
       )}
+
+      <AthleteProfileBody athleteId={id} viewerId={viewerId} variant="peer" />
     </div>
   );
 }

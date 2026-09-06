@@ -5,7 +5,7 @@ import {
   Send, CheckCircle2, XCircle, Calendar, ChevronLeft, ChevronRight,
   Plus, Pencil, Trash2, BookOpen, Users, Check, AlertTriangle, ArrowDownToLine, Search,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { COACH_ID } from '@/lib/constants';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { formatPace } from '@/lib/garmin/pace';
@@ -43,16 +43,6 @@ interface PushOutcome {
 const DAY_LABELS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 const DAY_FULL = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
 
-function sundayOf(date: Date): string {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12));
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-  return d.toISOString().split('T')[0];
-}
-function shiftWeek(weekStart: string, weeks: number): string {
-  const d = new Date(`${weekStart}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + weeks * 7);
-  return d.toISOString().split('T')[0];
-}
 function fmtWeekLabel(weekStart: string): string {
   const start = new Date(`${weekStart}T12:00:00Z`);
   const end = new Date(start);
@@ -98,7 +88,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
   // push a specific workout to one or more athletes". Selection order matters:
   // the first pick is the trainee whose saved week seeds the board.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
+  const [weekStart, setWeekStart] = useState(() => planWeekStartOf());
   // Day-of-week (0=Sun..6=Sat) → the workout planned for that day.
   const [slots, setSlots] = useState<Record<number, ParsedWorkout>>({});
   // Whether the board holds edits that were never saved. Guards the seed-load
@@ -365,13 +355,13 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         <div>
           <label className="block text-xs font-medium text-ink-400 mb-1.5">שבוע</label>
           <div className="flex items-center gap-1 bg-page border border-page rounded-xl h-11 px-1">
-            <button onClick={() => setWeekStart(w => shiftWeek(w, -1))} className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
+            <button onClick={() => setWeekStart(w => shiftWeekStart(w, -1))} className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
               <ChevronRight className="h-4 w-4" />
             </button>
             <span className="text-sm text-ink-700 font-medium px-1 flex items-center gap-1.5 min-w-[150px] justify-center">
               <Calendar className="h-3.5 w-3.5 text-ink-400" /> {fmtWeekLabel(weekStart)}
             </span>
-            <button onClick={() => setWeekStart(w => shiftWeek(w, 1))} className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
+            <button onClick={() => setWeekStart(w => shiftWeekStart(w, 1))} className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
               <ChevronLeft className="h-4 w-4" />
             </button>
           </div>
@@ -407,7 +397,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
                   <button onClick={() => setEditingDay(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page" title="עריכה">
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button onClick={() => clearSlot(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red hover:bg-accent-red/10" title="הסרה">
+                  <button onClick={() => clearSlot(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10" title="הסרה">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </>
@@ -802,7 +792,7 @@ function LibraryPicker({
                   {(item.workout.steps || []).map(stepSummary).join(' · ')}
                 </div>
               </button>
-              <button onClick={() => onDelete(item.id)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red hover:bg-accent-red/10 shrink-0" title="הסרה מהספרייה" aria-label="הסרה מהספרייה">
+              <button onClick={() => onDelete(item.id)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 shrink-0" title="הסרה מהספרייה" aria-label="הסרה מהספרייה">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { requireSession, authError } from '@/lib/auth-session';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 
@@ -83,6 +84,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Athletes read the plan through a 300s-cached query; without this they keep
+    // being told there is no plan for up to five minutes after there is one.
+    revalidateWeeklyPlans();
     return NextResponse.json({ plan: data }, { status: 201 });
   } catch (error: any) {
     console.error('Create plan error:', error);
@@ -220,6 +224,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    revalidateWeeklyPlans();
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Delete plan error:', error);
@@ -281,6 +286,7 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    revalidateWeeklyPlans();
     return NextResponse.json({ plan: data });
   } catch (error: any) {
     console.error('Update plan error:', error);

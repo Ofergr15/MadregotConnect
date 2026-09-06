@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { User, LogOut, X, MessageSquare, Bell, Eye, Search as SearchIcon } from 'lucide-react';
+import { User, LogOut, X, MessageSquareWarning, Bell, Eye, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
@@ -56,7 +56,7 @@ export function Header() {
   const permissions = permsData?.permissions || [];
   const permissionsLoaded = !permsLoading;
 
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean }>(
+  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
     userEmail ? '/api/auth/me' : null,
   );
   const userRole = meData?.role || null;
@@ -65,6 +65,7 @@ export function Header() {
   // entry that no permission row can express. The bar has always read it; this
   // header didn't, which is the drift the shared resolver closes.
   const isAcademyMember = !!meData?.isAcademy;
+  const isCoreRunner = !!meData?.isCoreRunner;
 
   // Also shared — NotificationCenter and the profile page ask for it too.
   const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>>(
@@ -156,6 +157,7 @@ export function Header() {
         previewRole,
         isAthlete,
         isAcademyMember,
+        isCoreRunner,
         // An empty header nav would leave a signed-in user with nowhere to go.
         fallback: true,
       })
@@ -208,7 +210,12 @@ export function Header() {
   return (
     // The frames give the header no bar of its own — it floats on the page grey
     // with no rule under it, and the round white icon buttons carry the chrome.
-    <header className="backdrop-blur-md sticky top-0 z-40 safe-top bg-page/95">
+    // Opaque, no backdrop-filter — same WebKit bug the BottomTabBar comment
+    // describes: a sticky/fixed element carrying a backdrop-filter gets painted
+    // into the scrolled layer on iOS, so this header scrolled away instead of
+    // sticking on the long Profile/Settings screens. The fill was already 95%
+    // opaque, so nothing is lost.
+    <header className="sticky top-0 z-40 safe-top bg-page">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           {/* Logo + Review */}
@@ -224,21 +231,48 @@ export function Header() {
               <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0" />
               <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
             </Link>
-            {navReady && navItems.some(i => i.tab === 'review') && (() => {
+            {/* ── SPEAK UP, next to the logo, on every screen size. ──
+                This is the club's only "something isn't working" channel, and it
+                used to be `hidden md:flex` — invisible on the phone, which is the
+                only device most of the club ever opens the app on. Reaching it
+                there meant the tab bar's "More" sheet.
+
+                Deliberately NOT gated by `role_tab_permissions` any more (it was
+                gated on the `review` tab). A permission row must never be able to
+                remove the way to report that the app is broken — the state where
+                it's revoked is exactly the state where somebody needs it. The
+                permission still decides whether it appears in the nav LISTS; this
+                entry point is unconditional, the same way Store and Benefits are.
+                It stays in the "More" sheet too, so muscle memory still works. */}
+            {(() => {
               const isActive = pathname === '/dashboard/review';
               return (
-                <Link
-                  href="/dashboard/review"
-                  className={cn(
-                    'hidden md:flex items-center gap-2 px-4 h-9 rounded-xl font-bold text-sm transition-all',
-                    isActive
-                      ? 'bg-band-3 text-ink-900 shadow-md shadow-band-3/25'
-                      : 'bg-band-3/15 text-band-3-ink border border-band-3/30 hover:bg-band-3/25'
-                  )}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  <span className="text-xs font-bold">{t('review')}</span>
-                </Link>
+                <>
+                  {/* Phone: icon only — the right-hand cluster already owns three
+                      44px buttons, and a labelled pill wouldn't fit at 390px. */}
+                  <Link
+                    href="/dashboard/review"
+                    aria-label={t('review')}
+                    className={cn(
+                      'md:hidden flex items-center justify-center w-11 h-11 rounded-full active:scale-95 transition-transform',
+                      isActive ? 'bg-band-3 text-ink-900' : 'bg-band-3/20 text-band-3-ink',
+                    )}
+                  >
+                    <MessageSquareWarning className="h-5 w-5" />
+                  </Link>
+                  <Link
+                    href="/dashboard/review"
+                    className={cn(
+                      'hidden md:flex items-center gap-2 px-4 h-9 rounded-xl font-bold text-sm transition-all',
+                      isActive
+                        ? 'bg-band-3 text-ink-900 shadow-md shadow-band-3/25'
+                        : 'bg-band-3/15 text-band-3-ink border border-band-3/30 hover:bg-band-3/25'
+                    )}
+                  >
+                    <MessageSquareWarning className="h-4 w-4" />
+                    <span className="text-xs font-bold">{t('review')}</span>
+                  </Link>
+                </>
               );
             })()}
           </div>
@@ -450,7 +484,7 @@ export function Header() {
             </div>
             <button
               onClick={handleLogout}
-              className={cn('p-2.5 rounded-lg transition-colors', 'text-ink-400 hover:text-accent-red hover:bg-card')}
+              className={cn('p-2.5 rounded-lg transition-colors', 'text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-card')}
               title={tc('signOut')}
               aria-label={tc('signOut')}
             >

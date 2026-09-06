@@ -1,5 +1,6 @@
-import type { ParsedWeeklyPlan, ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
+import type { ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
 import { workoutDistanceMeters } from '@/lib/workout-distance';
+import { workoutDurationSec } from '@/lib/workout-duration';
 
 /**
  * Plan normalization — stamping the matcher hints (`workoutKey`,
@@ -24,6 +25,34 @@ import { workoutDistanceMeters } from '@/lib/workout-distance';
  * see `normalizeParsedWorkouts`, applied on both the read and the write side.
  */
 
+/** "ערב - אופציה", "אופציונלי", "מי שרוצה" — offered, not prescribed. */
+const OPTIONAL_RE = /אופצי|optional|מי שרוצה/i;
+
+/**
+ * Is this session offered rather than prescribed?
+ *
+ * The flag wins where it is set, and the name is read where it isn't: only plans
+ * written since normalization moved onto the write path carry `optional`, and
+ * every read path that needs to tell a required session from an optional one
+ * (the weekly target range, the day tiles) has to answer for the older ones too.
+ *
+ * Exported so that question has exactly one answer in the codebase — a second
+ * copy of this regex is how "required" and "optional" start disagreeing between
+ * two screens showing the same week.
+ */
+export function isOptionalWorkout(
+  workout: { name?: string | null; description?: string | null; optional?: boolean | null } | null | undefined,
+): boolean {
+  if (!workout) return false;
+  if (typeof workout.optional === 'boolean') return workout.optional;
+  return OPTIONAL_RE.test(`${workout.name || ''} ${workout.description || ''}`);
+}
+// The lookahead is why these aren't bare words: \b is ASCII-only, so /ערב/ alone
+// also fires on ערבוב ("mixing"), which is a plausible thing for a fartlek to be
+// called and would label it the evening session.
+const MORNING_RE = /בוקר(?![א-ת])|morning|\bam\b/i;
+const EVENING_RE = /ערב(?![א-ת])|evening|\bpm\b/i;
+
 function inferPartKind(
   workout: ParsedWorkout,
   partCount: number,
@@ -31,6 +60,15 @@ function inferPartKind(
   if (workout.partKind) return workout.partKind;
   if (partCount === 1) return 'single';
   const text = `${workout.name} ${workout.description || ''}`.toLowerCase();
+  // Before the test/warmup/main guesses: when the day names its sessions בוקר
+  // and ערב, that IS the axis it was split on, and mislabelling the evening
+  // session "main" is what made two-a-days unreadable in the week view. This
+  // does move `workoutKey` for such a day (…-part-2-main → …-part-2-evening),
+  // which orphans a persisted manual match — but only on multi-part days whose
+  // names say morning/evening, and until now the parser merged those into one
+  // part instead of producing two, so there are effectively none to orphan.
+  if (MORNING_RE.test(text)) return 'morning';
+  if (EVENING_RE.test(text)) return 'evening';
   if (/מבחן|test|race|time trial|3000/.test(text)) return 'test';
   if (workout.steps.every((step) => step.type === 'warmup')) return 'warmup';
   if (workout.steps.every((step) => step.type === 'cooldown' || step.type === 'recovery')) {
@@ -39,22 +77,18 @@ function inferPartKind(
   return 'main';
 }
 
-function expectedDuration(steps: WorkoutStep[]): number | undefined {
-  let total = 0;
-  let hasTime = false;
-  for (const step of steps) {
-    if (step.repeatCount && step.repeatSteps) {
-      const nested = expectedDuration(step.repeatSteps);
-      if (nested) {
-        total += nested * step.repeatCount;
-        hasTime = true;
-      }
-    } else if (step.durationType === 'time' && step.durationValue) {
-      total += step.durationValue;
-      hasTime = true;
-    }
-  }
-  return hasTime ? total : undefined;
+/**
+ * The local version of this counted `time` steps ONLY, so Sunday (2 km + 20 km +
+ * 8×15s/45s) was stamped `expectedDurationSec: 480` — the strides block, and
+ * nothing else. `workoutDurationSec` converts distance with the step's own pace.
+ *
+ * Recomputed unconditionally rather than deferring to a stored value: every
+ * `expectedDurationSec` in the database was produced by the broken helper, and
+ * because normalization runs on read as well as write, trusting the stored figure
+ * would keep serving "8m" for a 23.5 km day forever.
+ */
+function expectedDuration(workout: ParsedWorkout): number | undefined {
+  return workoutDurationSec(workout) || undefined;
 }
 
 export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
@@ -65,11 +99,29 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
     perDay.set(workout.dayOfWeek, list);
   }
 
+  // Part indices are resolved per DAY rather than per workout, because a supplied
+  // index that clashes with a sibling's is worse than no index at all: partIndex
+  // goes straight into `workoutKey`, so two workouts on the same day would answer
+  // to the same key and each other's persisted matches. The supplied numbers come
+  // from the model (lib/ai/prompt.ts asks it for "sequential partIndex starting at
+  // 1"), so "2, 2" or "2, 3" for a two-part day is a plausible output, not a
+  // hypothetical. Honour the day's numbering only when every part of that day
+  // carries a positive index AND they are all distinct; otherwise fall back to
+  // list order for the whole day. Still deterministic, which is what lets this run
+  // on read as well as on write.
+  const resolvedIndex = new Map<ParsedWorkout, number>();
+  for (const siblings of perDay.values()) {
+    const supplied = siblings.map((w) => w.partIndex);
+    const usable =
+      supplied.every((i) => typeof i === 'number' && i > 0) &&
+      new Set(supplied).size === siblings.length;
+    siblings.forEach((w, i) => resolvedIndex.set(w, usable ? (w.partIndex as number) : i + 1));
+  }
+
   return {
     workouts: plan.workouts.map((workout) => {
       const siblings = perDay.get(workout.dayOfWeek) || [workout];
-      const inferredIndex = siblings.indexOf(workout) + 1;
-      const partIndex = workout.partIndex || inferredIndex;
+      const partIndex = resolvedIndex.get(workout) || siblings.indexOf(workout) + 1;
       const partCount = siblings.length;
       const partKind = inferPartKind(workout, partCount);
       const measuredDistance = workoutDistanceMeters(workout);
@@ -82,7 +134,7 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
         : undefined;
       const expectedDistanceM =
         workout.expectedDistanceM || measuredDistance || statedDistance || undefined;
-      const expectedDurationSec = workout.expectedDurationSec || expectedDuration(workout.steps);
+      const expectedDurationSec = expectedDuration(workout);
       // A coach-stated range carries its own tolerance; a single figure gets ±8%
       // (floor 150 m, so a 1 km jog isn't held to ±80 m).
       const statedSpread =
@@ -106,6 +158,9 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
         partIndex,
         partCount,
         partKind,
+        // Not part of the key, so inferring it costs nothing and labels the
+        // sessions already stored with "אופציה" only in their name.
+        optional: isOptionalWorkout(workout),
         expectedDistanceM,
         expectedDurationSec,
         distanceToleranceM,

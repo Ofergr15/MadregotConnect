@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints, ImagePlus } from 'lucide-react';
-import { cn, getPlanWeekStart } from '@/lib/utils';
+import { cn, getPlanWeekStart, israelToday } from '@/lib/utils';
+import { planDayKey } from '@/lib/plans/workout-parsing';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState, Switch } from '@/components/ui';
@@ -287,11 +288,21 @@ export function NotificationCenter() {
     }).catch(() => {});
     // This week's upcoming workouts (from the plan) for one-tap reminders.
     const DN = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-    const todayDow = new Date().getDay();
     // Session-gated now (requireMember), so this needs the bearer header — the
     // same treatment /api/admin/users gets above.
     apiHeaders().then(h => fetch('/api/dashboard/weekly', { headers: h })).then(r => r.ok ? r.json() : null).then(d => {
-      const days = (d?.dailyDistances || []).filter((x: any) => x.dayOfWeek >= todayDow && x.max > 0);
+      // Filtered by DATE against the week the endpoint returned, not by
+      // `dayOfWeek >= today's weekday`. That comparison assumed the returned week
+      // is the current one: after Saturday 20:00 the endpoint serves NEXT week, so
+      // on a Sunday it offered "send a reminder about Sunday" for a session already
+      // seven days gone, and every earlier day of the previewed week vanished from
+      // the list. ISO date strings compare correctly as plain strings.
+      const weekStart: string | null = d?.hasPlan ? d.currentWeekStart : null;
+      if (!weekStart) { setUpcoming([]); return; }
+      const todayKey = israelToday();
+      const days = (d?.dailyDistances || []).filter(
+        (x: any) => x.max > 0 && planDayKey(weekStart, x.dayOfWeek) >= todayKey,
+      );
       setUpcoming(days.map((x: any) => ({
         dayOfWeek: x.dayOfWeek,
         dayName: `יום ${DN[x.dayOfWeek]}`,
@@ -669,7 +680,7 @@ export function NotificationCenter() {
                     <img src={imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
                     <button
                       onClick={() => setImageUrl('')}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-accent-red hover:text-accent-red bg-card/60 hover:bg-page transition"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-accent-red hover:text-accent-red active:text-accent-red bg-card/60 hover:bg-page transition"
                     >
                       <X className="w-3.5 h-3.5" /> הסרת תמונה
                     </button>
@@ -720,7 +731,7 @@ export function NotificationCenter() {
                         <button
                           type="button"
                           onClick={() => setSurveyOptionsHe(surveyOptionsHe.filter((_, j) => j !== i))}
-                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red shrink-0"
+                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red shrink-0"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -970,7 +981,7 @@ export function NotificationCenter() {
                     <button
                       type="button"
                       onClick={() => setTplOptionsHe(tplOptionsHe.filter((_, j) => j !== i))}
-                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red shrink-0"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red shrink-0"
                     >
                       <X className="w-4 h-4" />
                     </button>

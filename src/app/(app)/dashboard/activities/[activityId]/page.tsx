@@ -42,7 +42,7 @@ export default function ActivityDetailPage() {
 
   // No athleteId to pass — arriving here from a feed card, the activity uuid is
   // all we have. The route looks it up by id and returns the summary row with it.
-  const { details, loading, error, planned, plannedContinuous } = useActivityDetails({
+  const { details, loading, error, planned, plannedContinuous, verdict } = useActivityDetails({
     activityId,
     auto: true,
   });
@@ -128,7 +128,8 @@ export default function ActivityDetailPage() {
         loading={loading}
         planned={planned}
         plannedContinuous={plannedContinuous}
-        canSeeExecution={isMyActivity || isStaff}
+        verdict={verdict}
+        loadingVerdict={loading}
       />
 
       {showShare && (

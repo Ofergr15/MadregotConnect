@@ -1,4 +1,7 @@
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
+import { isOptionalWorkout } from '@/lib/plans/normalize-plan';
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
  * Shared parsing/derivation logic for `weekly_plans.parsed_workouts` (the
@@ -47,6 +50,46 @@ export function getDisplayWeekStart(now: Date): string {
   const sunday = new Date(israelMidday);
   sunday.setUTCDate(israelMidday.getUTCDate() - daysSinceSunday);
   return sunday.toISOString().split('T')[0];
+}
+
+/**
+ * The calendar date (YYYY-MM-DD) a plan day falls on: `weekStart` + `dayOfWeek`.
+ *
+ * Every surface that renders a plan needs this, and getting it by hand is how
+ * "today's workout" ended up showing a session from a different week. A
+ * `dailyDistances` entry carries only a `dayOfWeek`, which is meaningless
+ * without the week it belongs to — and the week the API returns is NOT always
+ * the week the browser is standing in (`getDisplayWeekStart` rolls forward on
+ * Saturday evening). Compare dates, never weekdays.
+ *
+ * Pure UTC arithmetic on the date string, so it answers the same on a UTC
+ * server and in any viewer's timezone.
+ */
+export function planDayKey(weekStart: string, dayOfWeek: number): string {
+  const d = new Date(`${weekStart}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dayOfWeek);
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * A plan week rendered as its "DD.MM – DD.MM" Sunday→Saturday date range.
+ *
+ * Lives here next to `getDisplayWeekStart` because the range is only ever the
+ * label for a week start this module produced. It used to be a private helper
+ * in the Program page, which left the Profile page's "This week's program" row
+ * with no way to say which week it meant — that row shipped a hardcoded
+ * `Week 5` list instead, and was still claiming week 5 of June months later.
+ *
+ * Pure UTC arithmetic on the date string, same as `planDayKey`, so it answers
+ * the same on a UTC server and in any viewer's timezone.
+ */
+export function formatPlanWeekRange(sundayISO: string): string {
+  const sunday = new Date(`${sundayISO}T00:00:00Z`);
+  const saturday = new Date(sunday);
+  saturday.setUTCDate(sunday.getUTCDate() + 6);
+  const fmt = (d: Date) =>
+    `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  return `${fmt(sunday)} – ${fmt(saturday)}`;
 }
 
 export function extractWorkouts(parsedWorkouts: any): ParsedWorkout[] {
@@ -123,6 +166,24 @@ export function enrichWithGroupPaces(parsedWorkouts: any): ParsedWorkout[] {
   });
 }
 
+/**
+ * Assumed pace for a TIMED step the coach gave no pace for, seconds per km.
+ *
+ * These are estimates and they are the reason a plan's km show as a range at
+ * all — when the coach fills in `distanceMinKm/distanceMaxKm`, `getWorkoutKm`
+ * uses those and none of this runs.
+ *
+ * `recovery` is separate because one default for everything credited a rest
+ * interval with running distance: a 90-second recovery inside an interval set
+ * was being counted at 5:00–6:00/km, the same as the working reps, which
+ * inflated every interval session's total. A recovery IS usually jogged, so it
+ * still contributes — just not at the effort's pace.
+ */
+const DEFAULT_PACE_S_PER_KM = {
+  running: { min: 300, max: 360 },   // 5:00–6:00 /km
+  recovery: { min: 420, max: 540 },  // 7:00–9:00 /km
+} as const;
+
 export function computeStepDistance(step: WorkoutStep): { min: number; max: number } {
   if (step.repeatCount && step.repeatSteps) {
     let subMin = 0;
@@ -140,8 +201,14 @@ export function computeStepDistance(step: WorkoutStep): { min: number; max: numb
   }
 
   if (step.durationType === 'time' && step.durationValue) {
-    const paceMin = step.targetPaceMinPerKm || 300;
-    const paceMax = step.targetPaceMaxPerKm || 360;
+    const fallback = DEFAULT_PACE_S_PER_KM[step.type === 'rest' || step.type === 'recovery' ? 'recovery' : 'running'];
+    const paceMin = step.targetPaceMinPerKm || fallback.min;
+    // Falls back to the step's OWN min before the generic default: with
+    // `|| 360`, a step carrying only a slow min (say 6:40/km) got a max of
+    // 6:00/km — a max faster than its min, which inverts the range below and
+    // reports distMin > distMax. A single-sided pace means one pace, not a
+    // range, which is exactly what `stepGroupPace` already assumes.
+    const paceMax = step.targetPaceMaxPerKm || step.targetPaceMinPerKm || fallback.max;
     const timeSec = step.durationValue;
     const distMax = (timeSec / paceMin) * 1000;
     const distMin = (timeSec / paceMax) * 1000;
@@ -270,13 +337,45 @@ export function getWorkoutKm(w: ParsedWorkout): { min: number; max: number } {
   return { min: Math.round(dist.min / 1000 * 10) / 10, max: Math.round(dist.max / 1000 * 10) / 10 };
 }
 
+/**
+ * Drops duplicate workouts within a day while KEEPING a day's separate parts.
+ *
+ * The old rule here was "keep only the first workout per `dayOfWeek`",
+ * justified as collapsing the three group variants. On the paths that call it
+ * that justification is false: `extractWorkouts` returns exactly ONE group's
+ * array (group1's, or the flat `workouts` array), and `enrichWithGroupPaces`
+ * folds groups 2 and 3 in as `groupPaces` on the steps rather than appending
+ * workouts. So the only thing a blind first-per-day filter could ever remove
+ * was a genuine second session — which `ParsedWorkout.partIndex/partCount`
+ * exists to express, and which `buildWeekBreakdown`'s own per-day loop is
+ * written to sum. Measured against all 11 plans in the database: every one has
+ * exactly one workout per day in both shapes, so this changes no current
+ * number; it stops a double day being silently halved.
+ *
+ * Keyed on day + name so a true duplicate (same day, same workout, e.g. a
+ * re-parse that appended instead of replacing) still collapses.
+ */
+export function dedupeWorkoutsByDay(workouts: ParsedWorkout[]): ParsedWorkout[] {
+  const seen = new Set<string>();
+  return workouts.filter((w) => {
+    const key = `${w.dayOfWeek}|${w.name}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export interface DailyDistance {
   day: string;
   dayOfWeek: number;
+  /** Every session of the day, optional ones included. */
   min: number;
   max: number;
+  /** Prescribed sessions only — the day with its "ערב אופציה" left out. */
+  requiredMin: number;
+  requiredMax: number;
   type: string;
-  sessions: Array<{ min: number; max: number; type: string; name: string }>;
+  sessions: Array<{ min: number; max: number; type: string; name: string; optional: boolean }>;
 }
 
 export interface KeySession {
@@ -293,8 +392,17 @@ export interface WeekBreakdown {
   dailyDistances: DailyDistance[];
   keySessions: KeySession[];
   typeDistribution: Record<string, number>;
+  /** The whole week as published, optional sessions included. */
   weekTotalMin: number;
   weekTotalMax: number;
+  /**
+   * The week with the optional sessions removed — the floor of the target range.
+   * `weekRequiredMin` … `weekTotalMax` is the band an athlete is "on plan"
+   * inside: the bottom is the week done without any of the offered extras, the
+   * top is every session at the long end of its range.
+   */
+  weekRequiredMin: number;
+  weekRequiredMax: number;
   trainingDays: number;
 }
 
@@ -306,37 +414,51 @@ export interface WeekBreakdown {
  * differently.
  */
 export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
-  const rawWorkouts = enrichWithGroupPaces(parsedWorkouts);
-  // Deduplicate: keep only the first workout per day (group variants share same dayOfWeek)
-  const workouts = rawWorkouts.filter((w, i, arr) => arr.findIndex(x => x.dayOfWeek === w.dayOfWeek) === i);
+  const workouts = dedupeWorkoutsByDay(enrichWithGroupPaces(parsedWorkouts));
 
   const dailyDistances: DailyDistance[] = [];
   for (let d = 0; d < 7; d++) {
     const dayWorkouts = workouts.filter(w => w.dayOfWeek === d);
     if (dayWorkouts.length > 0) {
-      let totalMin = 0, totalMax = 0;
-      const sessions: Array<{ min: number; max: number; type: string; name: string }> = [];
+      let totalMin = 0, totalMax = 0, reqMin = 0, reqMax = 0;
+      const sessions: DailyDistance['sessions'] = [];
       for (const workout of dayWorkouts) {
         const km = getWorkoutKm(workout);
+        const optional = isOptionalWorkout(workout);
         totalMin += km.min;
         totalMax += km.max;
-        sessions.push({ min: km.min, max: km.max, type: getWorkoutType(workout), name: workout.name });
+        // An offered session counts towards the top of the week's range but not
+        // its floor — skipping every "ערב אופציה" still leaves you on plan.
+        if (!optional) {
+          reqMin += km.min;
+          reqMax += km.max;
+        }
+        sessions.push({ min: km.min, max: km.max, type: getWorkoutType(workout), name: workout.name, optional });
       }
       dailyDistances.push({
         day: DAY_NAMES[d],
         dayOfWeek: d,
+        // Deliberately NOT rounded per day: `typeDistribution` is summed from
+        // the same raw session numbers and is asserted to equal the week
+        // average, so rounding here puts those two 0.2 km apart. Callers that
+        // print a day round on the way out (see ProfileOverview's day tile,
+        // which was rendering "11–13.400000000000006").
         min: totalMin,
         max: totalMax,
+        requiredMin: reqMin,
+        requiredMax: reqMax,
         type: getWorkoutType(dayWorkouts[0]),
         sessions,
       });
     } else {
-      dailyDistances.push({ day: DAY_NAMES[d], dayOfWeek: d, min: 0, max: 0, type: 'rest', sessions: [] });
+      dailyDistances.push({ day: DAY_NAMES[d], dayOfWeek: d, min: 0, max: 0, requiredMin: 0, requiredMax: 0, type: 'rest', sessions: [] });
     }
   }
 
-  const weekTotalMin = dailyDistances.reduce((sum, d) => sum + d.min, 0);
-  const weekTotalMax = dailyDistances.reduce((sum, d) => sum + d.max, 0);
+  const weekTotalMin = round1(dailyDistances.reduce((sum, d) => sum + d.min, 0));
+  const weekTotalMax = round1(dailyDistances.reduce((sum, d) => sum + d.max, 0));
+  const weekRequiredMin = round1(dailyDistances.reduce((sum, d) => sum + d.requiredMin, 0));
+  const weekRequiredMax = round1(dailyDistances.reduce((sum, d) => sum + d.requiredMax, 0));
 
   const keySessions: KeySession[] = [];
   const seenDays = new Set<number>();
@@ -373,10 +495,25 @@ export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
   for (const w of workouts) {
     const t = getWorkoutType(w);
     const km = getWorkoutKm(w);
-    typeDistribution[t] = (typeDistribution[t] || 0) + Math.round((km.min + km.max) / 2);
+    // Rounded once at the end, not per workout: rounding each session first lost
+    // up to 500 m a time, so a week of five sessions could report 2 km less
+    // across the type split than `weekTotalMin/Max` say for the same week.
+    typeDistribution[t] = (typeDistribution[t] || 0) + (km.min + km.max) / 2;
+  }
+  for (const t of Object.keys(typeDistribution)) {
+    typeDistribution[t] = Math.round(typeDistribution[t] * 10) / 10;
   }
 
   const trainingDays = dailyDistances.filter(d => d.max > 0).length;
 
-  return { dailyDistances, keySessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays };
+  return {
+    dailyDistances,
+    keySessions,
+    typeDistribution,
+    weekTotalMin,
+    weekTotalMax,
+    weekRequiredMin,
+    weekRequiredMax,
+    trainingDays,
+  };
 }

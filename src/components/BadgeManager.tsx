@@ -231,7 +231,7 @@ export function BadgeManager() {
                     </button>
                     <button
                       onClick={() => setDeleteTarget(b)}
-                      className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-ink-400 hover:text-accent-red hover:bg-accent-red/10"
+                      className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10"
                       aria-label={t('delete')}
                     >
                       <Trash2 className="h-4 w-4" />

@@ -52,6 +52,33 @@ export function groupPaceTokens(
   ];
 }
 
+/** The shape every renderer sees: a parsed step's own pace plus the two others. */
+export interface PacedStep {
+  targetType?: string;
+  targetPaceMinPerKm?: number | null;
+  targetPaceMaxPerKm?: number | null;
+  group2Pace?: GroupPace | null;
+  group3Pace?: GroupPace | null;
+}
+
+/**
+ * The three pace tokens for one parsed step — `['3:45', '3:55', '4:05']`.
+ *
+ * Group ❶ lives on the step itself (`targetPaceMinPerKm`) while ❷/❸ hang off it
+ * as `group2Pace`/`group3Pace`; three separate screens each re-derived that by
+ * hand. `['', '', '']` means "this step has no pace" (a recovery jog, an
+ * All-Out effort), which callers must render as *nothing* rather than as a dash
+ * filling the pace column.
+ */
+export function stepPaceTokens(step: PacedStep): [string, string, string] {
+  if (step.targetType === 'no_target' || !step.targetPaceMinPerKm) return ['', '', ''];
+  return groupPaceTokens(
+    { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm ?? step.targetPaceMinPerKm },
+    step.group2Pace,
+    step.group3Pace,
+  );
+}
+
 /**
  * Club pace notation: Group 1 plain, Group 2 single brackets, Group 3 double
  * brackets — e.g. "3:30 (3:40) ((3:50))". Groups without a pace are skipped.

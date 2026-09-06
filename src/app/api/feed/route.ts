@@ -9,6 +9,11 @@ import {
   type FeedItem,
   type FeedLiker,
 } from '@/lib/feed/project';
+import {
+  loadFeedPlanVerdicts,
+  type FeedPlanVerdict,
+  type VerdictActivityRow,
+} from '@/lib/feed/plan-verdicts';
 import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
 import { buildLikeIndex } from '@/lib/feed/likes';
 import {
@@ -94,13 +99,20 @@ export async function GET(request: Request) {
     let likedItemIds = new Set<string>();
     let likersByItem = new Map<string, FeedLiker[]>();
     let commentsByItem = new Map<string, FeedComment[]>();
+    let planVerdictsByActivity = new Map<string, FeedPlanVerdict>();
     if (page.length > 0) {
       const pageIds = page.map((r: { id: string }) => r.id);
+      // Through `unknown`: the generated select type calls the embedded
+      // `athlete_activities` an array, but it's a to-one FK join and arrives as a
+      // single object — the same reason `projectFeedItem` casts its own row.
+      const activityRows = (page as unknown as Array<{ athlete_activities?: VerdictActivityRow | null }>)
+        .map((r) => r.athlete_activities)
+        .filter((a): a is VerdictActivityRow => !!a);
 
-      // Likes and comment previews are independent queries against different
-      // tables, so they go out together rather than one after the other — the
-      // feed is the app's landing page and this is on its critical path.
-      const [likesRes, commentsRes] = await Promise.all([
+      // Likes, comment previews and plan verdicts are independent reads against
+      // different tables, so they go out together rather than one after the other
+      // — the feed is the app's landing page and this is on its critical path.
+      const [likesRes, commentsRes, verdicts] = await Promise.all([
         supabase
           .from('feed_likes')
           .select(LIKER_SELECT)
@@ -119,9 +131,22 @@ export async function GET(request: Request) {
           .is('deleted_at', null)
           .order('created_at', { ascending: false })
           .limit(pageIds.length * COMMENT_PREVIEW_COUNT * 10),
+        // Never throws and never rejects — a page with no plans, or a plan read
+        // that fails, comes back as an empty map and the cards show no badge.
+        //
+        // The viewer is passed in because the ring is not public: an accuracy
+        // percentage is a score on a named person, so it is graded for the person
+        // looking and for staff, and simply not computed for anyone else's runs.
+        // Filtering at the source rather than at render time means a stranger's
+        // score never reaches the response to be dropped from later.
+        loadFeedPlanVerdicts(supabase, activityRows, {
+          athleteId: auth.user.athleteId,
+          isStaff: auth.user.isStaff,
+        }),
       ]);
       if (likesRes.error) throw likesRes.error;
       if (commentsRes.error) throw commentsRes.error;
+      planVerdictsByActivity = verdicts;
 
       const index = buildLikeIndex(likesRes.data || [], auth.user.athleteId, LIKE_PREVIEW_COUNT);
       likedItemIds = index.likedItemIds;
@@ -140,6 +165,7 @@ export async function GET(request: Request) {
       likedItemIds,
       likersByItem,
       commentsByItem,
+      planVerdictsByActivity,
     };
 
     const items: FeedItem[] = page.map((row) => projectFeedItem(row, ctx));
