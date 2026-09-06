@@ -182,6 +182,29 @@ export async function GET(request: Request) {
         return NextResponse.redirect(new URL(`/join/${joinToken}?strava=invalid`, origin));
       }
 
+      // strava_athlete_id is UNIQUE (migration 053), so if this Strava account
+      // already sits on a DIFFERENT row the update below fails on the constraint
+      // and no amount of retrying will change that. It has one likely cause and
+      // it is expected during a rollout: they signed in with Strava from the
+      // landing page before opening the emailed link, and login mode — which has
+      // to guess who came back — could not recognise an `invited` row carrying a
+      // placeholder name, so it created a duplicate. Both rows are real, one has
+      // their group and one has their Strava; merging them is migration 080's job,
+      // not a redirect handler's. Say so plainly instead of failing blankly.
+      const { data: clash } = await admin
+        .from('athletes')
+        .select('id')
+        .eq('strava_athlete_id', stravaId)
+        .neq('id', invited.id)
+        .maybeSingle();
+      if (clash) {
+        console.error(`[auth-debug:${debugId}] callback:invite_strava_taken`, {
+          athleteId: invited.id,
+          heldBy: clash.id,
+        });
+        return NextResponse.redirect(new URL(`/join/${joinToken}?strava=duplicate`, origin));
+      }
+
       const { error: linkErr } = await admin
         .from('athletes')
         .update({
