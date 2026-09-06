@@ -296,7 +296,12 @@ function RepRows({ reps }: { reps: ExecutionRep[] }) {
               {index + 1}
             </span>
             <span className="min-w-0 flex-1 truncate text-xs text-ink-500">
-              {rep.actualDistanceM ? <Num>{(rep.actualDistanceM / 1000).toFixed(2)} km</Num> : rep.label}
+              {/* Localised units, not the literals "km" and "s" these two cells
+                  used to hardcode — an English abbreviation next to a table that
+                  says ק״מ two rows down reads as an unfinished screen. */}
+              {rep.actualDistanceM
+                ? <><Num>{(rep.actualDistanceM / 1000).toFixed(2)}</Num> {t('unitKm')}</>
+                : rep.label}
             </span>
             <span className="text-sm font-bold tabular-nums" style={{ color }}>
               <Num>{formatPace(rep.actualPace as number)}</Num>
@@ -304,7 +309,7 @@ function RepRows({ reps }: { reps: ExecutionRep[] }) {
             <span className="w-16 shrink-0 text-end text-3xs font-semibold" style={{ color }}>
               {delta === 0
                 ? t('repInBand')
-                : <Num>{delta > 0 ? '+' : '−'}{Math.abs(delta)}s</Num>}
+                : <><Num>{delta > 0 ? '+' : '−'}{Math.abs(delta)}</Num>{t('unitSec')}</>}
             </span>
           </div>
         );
@@ -357,7 +362,16 @@ function MetricRow({ metric }: { metric: ExecutionMetric }) {
         {planned ? <><Num>{planned}</Num>{unit && <span className="ms-0.5">{unit}</span>}</> : '—'}
       </span>
       <span className="flex-1 text-sm font-bold" style={{ color }}>
-        {actual ? <Num>{actual}</Num> : '—'}
+        {/* The unit goes on the actual too, for distance only: "8.0" beside a
+            planned "13.6 km" is the one cell in this table that can't be read on
+            its own, and it's the cell that carries the whole verdict. A pace and
+            a duration announce their own format. */}
+        {actual ? (
+          <>
+            <Num>{actual}</Num>
+            {metric.key === 'distance' && unit && <span className="ms-0.5 text-xs font-semibold">{unit}</span>}
+          </>
+        ) : '—'}
       </span>
       {graded ? (
         <span className="shrink-0 text-3xs font-bold" style={{ color }}>
@@ -447,10 +461,26 @@ export function ExecutionQuality({
 
   const gradedReps = verdict.reps.filter((rep) => rep.graded && rep.actualPace != null && rep.status !== 'unknown');
   const hasBand = verdict.paceBandMin != null && verdict.paceBandMax != null;
+  const paceMetric = verdict.metrics.find((metric) => metric.key === 'pace');
   const averagePace = gradedReps.length
     ? Math.round(gradedReps.reduce((sum, rep) => sum + (rep.actualPace as number), 0) / gradedReps.length)
-    : verdict.metrics.find((metric) => metric.key === 'pace')?.actual ?? null;
+    : paceMetric?.actual ?? null;
   const color = DIRECTION_COLOR[verdict.direction];
+
+  /**
+   * Whether plotting that pace against the coach's band is a fair comparison.
+   *
+   * It is for the mean of the graded reps, and for a continuous run whose
+   * whole-run average `adherence.ts` was willing to grade. It is NOT for a
+   * structured session's whole-run average, which includes the warmup, the
+   * recoveries and the cooldown: on a 4x2000 that average is minutes per km
+   * slower than the work band, so the axis pinned the marker at the far slow end
+   * of a run whose reps may have been perfect — the exact comparison the engine
+   * declines to make (`reason: 'structured_session'`), drawn as the biggest
+   * graphic on the card, and coloured by a direction that came from elsewhere.
+   */
+  const paceComparable = gradedReps.length > 0
+    || (paceMetric != null && paceMetric.status !== 'unknown');
 
   return (
     <div className={cn('overflow-hidden rounded-card border border-page bg-card', className)}>
@@ -487,7 +517,7 @@ export function ExecutionQuality({
           />
         </div>
 
-        {averagePace != null && hasBand && (
+        {averagePace != null && hasBand && paceComparable && (
           <div className="mt-5 border-t border-page pt-4">
             <DeviationAxis
               actual={averagePace}
