@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { User, LogOut, X, MessageSquareWarning, Bell, Eye, Search as SearchIcon } from 'lucide-react';
+import { User, LogOut, X, Bug, Bell, Eye, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
@@ -258,7 +258,7 @@ export function Header() {
                       isActive ? 'bg-band-3 text-ink-900' : 'bg-band-3/20 text-band-3-ink',
                     )}
                   >
-                    <MessageSquareWarning className="h-5 w-5" />
+                    <Bug className="h-5 w-5" />
                   </Link>
                   <Link
                     href="/dashboard/review"
@@ -269,7 +269,7 @@ export function Header() {
                         : 'bg-band-3/15 text-band-3-ink border border-band-3/30 hover:bg-band-3/25'
                     )}
                   >
-                    <MessageSquareWarning className="h-4 w-4" />
+                    <Bug className="h-4 w-4" />
                     <span className="text-xs font-bold">{t('review')}</span>
                   </Link>
                 </>

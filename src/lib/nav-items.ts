@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
-  Route, MessageSquare, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
+  Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
@@ -35,7 +35,9 @@ export const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy
 export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
   { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
-  { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: MessageSquare },
+    // A beetle, not a speech bubble: this is the "something is broken" channel,
+  // and a message icon read as one more place to talk to the coach.
+  { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: Bug },
   { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
   { href: '/dashboard/athletes', tab: 'athletes', labelKey: 'athletes', icon: Users },
   ACADEMY_ITEM,

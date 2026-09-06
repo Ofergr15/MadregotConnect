@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
+import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import {
   buildAllTimeTotals,
   buildKmTable,
@@ -72,6 +73,11 @@ export async function GET(
 
     const weekTable = buildKmTable(acts, { limit: weeks, currentWeekStart });
 
+    // Laps are pulled separately and only for the runs long enough to hold a PR
+    // segment — see attach-laps.ts for why they don't ride along with the select
+    // above, which everything else on this payload is built from.
+    const prRuns = await attachLapsForPrs(supabase, id, filterQualifyingRuns(acts));
+
     return NextResponse.json({
       ...buildAllTimeTotals(acts),
       currentWeekStart,
@@ -83,7 +89,7 @@ export async function GET(
       recentRuns: buildRecentRuns(acts, runLimit),
       // Same bucket math as /api/athletes/prs and the badge award engine, so a
       // PR shown here is the one a "first 10K" badge fired on.
-      prs: computeDistanceBests(filterQualifyingRuns(acts)),
+      prs: computeDistanceBests(prRuns),
     });
   } catch (error) {
     console.error('Failed to fetch athlete profile stats:', error);

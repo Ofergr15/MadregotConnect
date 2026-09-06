@@ -19,6 +19,7 @@ import { MapPrefsRow } from '@/components/MapPrefsRow';
 import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
 import { FeedbackAdmin } from '@/components/FeedbackAdmin';
+import { CORE_RUNNER_LABEL, CORE_RUNNER_MARK } from '@/lib/core-runner';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
@@ -37,9 +38,16 @@ interface User {
   approved?: boolean;
   approvedAt?: string | null;
   lastSeenAt?: string | null;
+  /** In the גרעין — the flag (migration 091) OR the legacy role. See lib/core-runner. */
+  isCoreRunner?: boolean;
 }
 
 type Role = 'admin' | 'coach' | 'academy_coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
+
+interface GroupOption {
+  id: string;
+  name: string;
+}
 
 // Single source of truth for a role's display label — 'core_runner' has its
 // own settings-namespace key; 'academy_coach'/'academy_user' have none (they
@@ -63,6 +71,70 @@ const roleConfig = {
   academy_user: { label: 'Academy', bg: 'bg-brand-600/15', text: 'text-brand-600', border: 'border-brand-600/30', dot: 'bg-brand-600' },
   viewer: { label: 'Viewer', bg: 'bg-ink-300/15', text: 'text-ink-400', border: 'border-ink-300/30', dot: 'bg-ink-300' },
 };
+
+/**
+ * The דבוקה picker, sitting next to the role picker on the same member row.
+ *
+ * Both facts about a member — what they may do (role) and which squad's paces
+ * they are prescribed (דבוקה) — are now edited in one place. Before this, moving
+ * somebody between squads meant leaving the roster entirely: the only staff path
+ * was /api/athletes PUT, reachable from the athletes list, so the roster could
+ * show a member's group (it already grouped rows by it) without being able to
+ * fix it. `null` is a real choice, not an empty state: a brand-new member has no
+ * squad yet and un-assigning one is how you park them.
+ */
+function GroupDropdown({ value, groups, onChange, disabled, t }: {
+  value: string | null | undefined;
+  groups: GroupOption[];
+  onChange: (groupId: string | null) => void;
+  disabled: boolean;
+  t: TFunc;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = groups.find(g => g.id === value);
+  const resolved = current ? resolveGroup(current.name) : null;
+
+  return (
+    <>
+      <button
+        onClick={() => !disabled && setOpen(true)}
+        disabled={disabled}
+        className={cn(
+          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-page text-xs font-semibold text-ink-500 bg-page/60 transition-colors',
+          disabled ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-95 cursor-pointer'
+        )}
+      >
+        <span
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ backgroundColor: resolved ? resolved.hex : '#969696' }}
+        />
+        {resolved ? resolved.displayName : t('noGroup')}
+        <ChevronDown className="h-3 w-3" />
+      </button>
+
+      <Sheet open={open} onOpenChange={setOpen} title={t('changeGroup')}>
+        <div className="rounded-2xl bg-page/40 overflow-hidden divide-y divide-page/50">
+          {groups.map(g => {
+            const r = resolveGroup(g.name);
+            return (
+              <InsetRow
+                key={g.id}
+                label={r.displayName}
+                onClick={() => { onChange(g.id); setOpen(false); }}
+                trailing={g.id === value ? <CheckCircle2 className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
+              />
+            );
+          })}
+          <InsetRow
+            label={t('noGroup')}
+            onClick={() => { onChange(null); setOpen(false); }}
+            trailing={!value ? <CheckCircle2 className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
+          />
+        </div>
+      </Sheet>
+    </>
+  );
+}
 
 function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: Role; onChange: (role: Role) => void; disabled: boolean; canGrantAdmin: boolean; t: TFunc }) {
   const [open, setOpen] = useState(false);
@@ -309,6 +381,12 @@ export default function SettingsPage() {
   );
   const groupsById: Record<string, string> = {};
   (groupsData?.groups || []).forEach(g => { groupsById[g.id] = g.name; });
+  // Squads in the order the club thinks of them (1, 2, 3) rather than however
+  // /api/groups happened to return them, so the picker reads the same as the
+  // filter bar above it and the section headers below.
+  const groupOptions: GroupOption[] = [...(groupsData?.groups || [])].sort(
+    (a, b) => resolveGroup(a.name).index - resolveGroup(b.name).index,
+  );
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [uSearch, setUSearch] = useState('');
   const [uRole, setURole] = useState<'all' | Role>('all');
@@ -386,12 +464,13 @@ export default function SettingsPage() {
       <div
         key={user.id}
         className={cn(
-          'flex items-center gap-3 p-3.5 rounded-xl transition-all',
+          'p-3.5 rounded-xl transition-all',
           isAdmin
             ? 'bg-purple-500/5 border border-purple-500/20'
             : 'bg-page/40 border border-transparent hover:border-page/50 hover:bg-page/60'
         )}
       >
+      <div className="flex items-center gap-3">
         <div className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0', isAdmin ? 'bg-purple-500/20' : 'bg-page/50')}>
           {isAdmin ? (
             <Shield className="w-4.5 h-4.5 text-purple-600" />
@@ -403,6 +482,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-ink-700 truncate">{user.name}</p>
             {isAdmin && <span className="text-3xs font-bold text-purple-800 bg-purple-500/15 px-1.5 py-0.5 rounded">{t('admin').toUpperCase()}</span>}
+            {user.isCoreRunner && <span className="text-xs" title={CORE_RUNNER_LABEL}>{CORE_RUNNER_MARK}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-ink-400 truncate">{user.email}</span>
@@ -424,19 +504,58 @@ export default function SettingsPage() {
           {savedUsers.has(user.id) && <CheckCircle2 className="w-4 h-4 text-accent-600" />}
           {updatingUsers.has(user.id) && <Loader2 className="w-4 h-4 text-ink-400 animate-spin" />}
           {!isAdmin && (
-            <>
-              <RoleDropdown value={user.role} onChange={(role) => handleRoleSelect(user, role)} disabled={updatingUsers.has(user.id)} canGrantAdmin={canGrantAdminHere} t={t} />
-              <button
-                onClick={() => setPendingDelete(user)}
-                disabled={updatingUsers.has(user.id)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
-                title={t('deleteUser')}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </>
+            <button
+              onClick={() => setPendingDelete(user)}
+              disabled={updatingUsers.has(user.id)}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
+              title={t('deleteUser')}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
+      </div>
+
+      {/* The three things a member actually gets managed on, on one line.
+          Own row rather than trailing the name, because at 402px three controls
+          plus a name and an address do not fit side by side — the pickers were
+          what got squeezed, and they are the point of this screen.
+          Role is admin-protected (as before); the דבוקה and the גרעין are not,
+          because both are orthogonal to the role — a coach can be in the גרעין,
+          and the club admin still runs with a squad. */}
+      {/* ps-[52px] = the 40px avatar + its 12px gap, so the controls line up
+          under the name rather than under the avatar. */}
+      <div className="mt-2.5 flex items-center gap-2 flex-wrap ps-[52px]">
+        {isAdmin ? (
+          <span className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold', roleConfig.admin.bg, roleConfig.admin.text, roleConfig.admin.border)}>
+            <span className={cn('w-1.5 h-1.5 rounded-full', roleConfig.admin.dot)} />
+            {getRoleLabel('admin', t)}
+          </span>
+        ) : (
+          <RoleDropdown value={user.role} onChange={(role) => handleRoleSelect(user, role)} disabled={updatingUsers.has(user.id)} canGrantAdmin={canGrantAdminHere} t={t} />
+        )}
+        <GroupDropdown
+          value={user.groupId}
+          groups={groupOptions}
+          onChange={(groupId) => handleGroupSelect(user, groupId)}
+          disabled={updatingUsers.has(user.id)}
+          t={t}
+        />
+        <button
+          onClick={() => handleCoreToggle(user)}
+          disabled={updatingUsers.has(user.id)}
+          aria-pressed={!!user.isCoreRunner}
+          className={cn(
+            'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50',
+            user.isCoreRunner
+              ? 'bg-accent-600/15 text-accent-900 border-accent-600/30'
+              : 'bg-page/60 text-ink-400 border-page'
+          )}
+        >
+          <span>{CORE_RUNNER_MARK}</span>
+          {t('coreRunner')}
+        </button>
+      </div>
       </div>
     );
   };
@@ -625,6 +744,65 @@ export default function SettingsPage() {
     if (newRole === user.role) return;
     setPendingChange({ user, newRole });
   };
+
+  /**
+   * One saving wrapper for the two non-role edits, so both get the spinner, the
+   * green tick and the same failure behaviour (surface the message AND refetch,
+   * because a half-applied write must not be left on screen as if it took).
+   * Deliberately no confirmation step, unlike the role change: moving somebody
+   * between squads or in and out of the גרעין is reversible in one more tap,
+   * whereas a role change can hand out or revoke staff access.
+   */
+  const saveUserEdit = async (user: User, run: () => Promise<Response>, fallback: string) => {
+    setUpdatingUsers(prev => new Set(prev).add(user.id));
+    setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+    try {
+      const response = await run();
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || data.message || data.error || fallback);
+      }
+      await fetchUsers();
+      setSavedUsers(prev => new Set(prev).add(user.id));
+      setTimeout(() => {
+        setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : fallback);
+      fetchUsers();
+    } finally {
+      setUpdatingUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+    }
+  };
+
+  // Staff group changes go through /api/athletes PUT — the same handler the
+  // athletes list uses — not /api/athletes/update-group, which is the ungated
+  // sign-up path and would reject an already-active member anyway.
+  const handleGroupSelect = (user: User, groupId: string | null) =>
+    groupId === (user.groupId || null)
+      ? undefined
+      : saveUserEdit(
+          user,
+          async () => fetch('/api/athletes', {
+            method: 'PUT',
+            headers: await apiHeaders(true),
+            body: JSON.stringify({ id: user.id, groupId }),
+          }),
+          t('failedToUpdateGroup'),
+        );
+
+  // The גרעין keeps its own route on purpose: /api/admin/users PUT writes `role`,
+  // and migration 091 exists precisely to stop membership from being a role.
+  const handleCoreToggle = (user: User) =>
+    saveUserEdit(
+      user,
+      async () => fetch('/api/admin/core-runners', {
+        method: 'PUT',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ athleteId: user.id, isCoreRunner: !user.isCoreRunner }),
+      }),
+      t('failedToUpdateCoreRunner'),
+    );
 
   const confirmRoleChange = async () => {
     if (!pendingChange) return;
