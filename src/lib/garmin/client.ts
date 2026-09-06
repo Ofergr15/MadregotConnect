@@ -1,5 +1,11 @@
 import { GarminConnect } from 'garmin-connect';
 import { GarminAuth, GarminWorkout, GarminActivity } from './types';
+import {
+  assertWorkoutOnAccount,
+  readCreatedWorkoutId,
+  readScheduleConfirmation,
+  type ScheduleConfirmation,
+} from './delivery';
 import { decrypt } from '../encryption';
 
 export class GarminClient {
@@ -39,21 +45,67 @@ export class GarminClient {
     }
   }
 
+  /**
+   * Create the workout on the athlete's Garmin account. Throws rather than
+   * returning a placeholder id when Garmin's response carries none — see
+   * `readCreatedWorkoutId`; a caller that gets a string back from here is
+   * holding an id Garmin issued.
+   */
   async createWorkout(workout: GarminWorkout): Promise<string> {
     await this.restoreSession();
     const response = await this.gc.addWorkout(workout as any);
-    return response.workoutId?.toString() || '';
+    return readCreatedWorkoutId(response);
   }
 
-  async scheduleWorkout(workoutId: string, date: string): Promise<void> {
+  /**
+   * Put the workout on a date in the athlete's Garmin calendar, and return what
+   * Garmin says it did — this response used to be thrown away, which is why a
+   * schedule landing on the wrong day was invisible.
+   */
+  async scheduleWorkout(workoutId: string, date: string): Promise<ScheduleConfirmation> {
+    if (!workoutId) {
+      throw new Error('scheduleWorkout called without a workout id');
+    }
     await this.restoreSession();
-    await (this.gc as any).client.post(
+    const response = await (this.gc as any).client.post(
       `https://connectapi.garmin.com/workout-service/schedule/${workoutId}`,
       { date }
     );
+    return readScheduleConfirmation(response, date);
+  }
+
+  /**
+   * Read a workout back off the account: proof that the create + schedule writes
+   * actually stuck, rather than "the POSTs didn't throw". This is as far as
+   * verification can go — Garmin exposes nothing about what a *device* holds, so
+   * a confirmed workout is one the watch will pull on its next sync, not one
+   * already on the wrist.
+   *
+   * Retried once, because the only expected failure of an immediate read-after-
+   * write is a transient one and a false negative here would mark a perfectly
+   * good push as failed.
+   */
+  async verifyWorkoutOnAccount(workoutId: string): Promise<void> {
+    await this.restoreSession();
+    try {
+      assertWorkoutOnAccount(await this.gc.getWorkoutDetail({ workoutId }), workoutId);
+    } catch (first) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      try {
+        assertWorkoutOnAccount(await this.gc.getWorkoutDetail({ workoutId }), workoutId);
+      } catch {
+        throw first;
+      }
+    }
   }
 
   async deleteWorkout(workoutId: string): Promise<void> {
+    if (!workoutId) {
+      // Rows written before createWorkout started throwing can hold an empty id.
+      // The package's own guard says "Missing workout", which reads like a bug in
+      // the call rather than a delivery that never happened.
+      throw new Error('deleteWorkout called without a workout id — nothing was ever created to delete');
+    }
     await this.restoreSession();
     await this.gc.deleteWorkout({ workoutId });
   }
