@@ -15,6 +15,7 @@ import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { Spinner } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
+import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import { cn } from '@/lib/utils';
 
 // Shared shell for every signed-in surface — /dashboard/* and /feed — via the
@@ -77,6 +78,17 @@ export default function AppLayout({
       window.removeEventListener('pagehide', setFromServer);
     };
   }, []);
+
+  // Breadcrumb for the review screen ("where did it happen?"). Every screen
+  // except /dashboard/review itself, so what's stored is always the last screen
+  // the user was actually LOOKING at when they decided to report something — by
+  // the time the review page mounts, that pathname is gone, and asking somebody
+  // to remember which screen broke is exactly the friction that turns a bug
+  // report into "something is broken somewhere".
+  useEffect(() => {
+    if (pathname === '/dashboard/review') return;
+    try { sessionStorage.setItem(REVIEW_LAST_PATH_KEY, pathname); } catch { /* private mode */ }
+  }, [pathname]);
 
   useEffect(() => {
     const supabase = getSupabase();

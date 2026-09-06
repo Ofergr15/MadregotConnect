@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut } from 'lucide-react';
+import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, MessageSquareWarning } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
@@ -72,14 +72,22 @@ export function BottomTabBar() {
   for (const item of navItems) {
     if (primary.length >= 4) break;
     if (isStaffView && item.tab === 'practice-attendance') continue;
+    // Review has two permanent homes of its own now — the button beside the logo
+    // in the Header and the static card in the sheet below — so it must never be
+    // promoted into a flat tab, which would spend one of four daily-use slots on
+    // a screen you visit when something breaks.
+    if (item.tab === 'review') continue;
     if (byTab.has(item.tab)) { primary.push(item); byTab.delete(item.tab); }
   }
-  const overflow = navItems.filter(i => byTab.has(i.tab));
+  // Same reason review is skipped above: it's a static card in the sheet for
+  // every role, so leaving it in the permission-gated overflow would print it
+  // twice for anyone whose `review` tab is enabled.
+  const overflow = navItems.filter(i => byTab.has(i.tab) && i.tab !== 'review');
   const isActive = (href: string) => pathname === href;
   const overflowActive = overflow.some(i => isActive(i.href));
   // The static quick-action pages are reachable from the "More" sheet only, so
   // they light its slot up exactly like an overflow page does.
-  const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits'];
+  const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits', '/dashboard/review'];
   const moreActive = MORE_SHEET_HREFS.some(isActive);
 
   // STAFF ONLY: one "do something now" destination, additive to the 4 primary
@@ -207,6 +215,12 @@ export function BottomTabBar() {
               <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={Gift} label={t('benefits' as any)} href="/dashboard/benefits" active={isActive('/dashboard/benefits')} onClick={() => setMoreOpen(false)} />
+              {/* Review — static, like the three above, and for a stronger
+                  reason: it's the "something is broken" channel, so it cannot be
+                  gated by a permission row that might itself be the thing that's
+                  wrong. Also lives beside the logo in the Header now; this card
+                  keeps the place the club already knows. */}
+              <MoreCard icon={MessageSquareWarning} label={t('review' as any)} href="/dashboard/review" active={isActive('/dashboard/review')} onClick={() => setMoreOpen(false)} />
               {/* Photos is still being built — card and route disabled for now.
                   Restore with the Header nav entry and the page (re-add the
                   lucide Camera import too). */}

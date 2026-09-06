@@ -18,6 +18,7 @@ import { ReminderConfig } from '@/components/ReminderConfig';
 import { MapPrefsRow } from '@/components/MapPrefsRow';
 import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
+import { reviewContextRows, type ReviewContext } from '@/lib/review-context';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
@@ -253,6 +254,9 @@ interface FeedbackItem {
   sort_order: number | null;
   image_url: string | null;
   created_at: string;
+  /** Auto-collected diagnostics (migration 093) — see src/lib/review-context.ts.
+   *  Null on every report filed before that shipped, so it renders conditionally. */
+  context: ReviewContext | null;
 }
 
 const categoryConfig = {
@@ -1192,6 +1196,27 @@ export default function SettingsPage() {
                   {selectedFeedback.image_url && (
                     <img src={selectedFeedback.image_url} alt="Attached" className="max-h-48 rounded-lg border border-page/50 mb-5" />
                   )}
+
+                  {/* The reporter's device, app version and the screen it happened
+                      on. Same rows, from the same function, that the athlete saw
+                      before they sent it — the point of showing it to them is that
+                      it is exactly what lands here. */}
+                  {(() => {
+                    const rows = reviewContextRows(selectedFeedback.context, {
+                      page: 'Screen', version: 'Version', device: 'Device', screen: 'Viewport', mode: 'Running as',
+                    });
+                    if (rows.length === 0) return null;
+                    return (
+                      <dl className="mb-5 rounded-xl bg-page/50 px-3.5 py-3 space-y-1.5">
+                        {rows.map(r => (
+                          <div key={r.label} className="flex items-baseline gap-2 text-2xs">
+                            <dt className="w-20 shrink-0 text-ink-400">{r.label}</dt>
+                            <dd className="min-w-0 flex-1 font-medium text-ink-700" dir="auto">{r.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    );
+                  })()}
 
                   <div className="border-t border-page/50 pt-4 space-y-4">
                     <div className={cn(updatingFeedback === selectedFeedback.id && 'opacity-50 pointer-events-none')}>
