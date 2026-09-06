@@ -349,6 +349,23 @@ describe('effortRequirements', () => {
     expect(reqs[0].distanceM).toBe(1000);
   });
 
+  it('does not turn a long timed block into a rep', () => {
+    // "60 min at 4:40" is a steady run. Converting it gives a 12,973 m
+    // requirement no lap can match; the whole-run pace grade answers it instead.
+    const reqs = effortRequirements(flattenPlannedSteps(workout([
+      step({ type: 'active', durationType: 'time', durationValue: 3600, targetType: 'pace', targetPaceMinPerKm: 275, targetPaceMaxPerKm: 280 }),
+    ])));
+    expect(reqs).toHaveLength(0);
+  });
+
+  it('still looks for a long rep the plan wrote in meters', () => {
+    // A 5 km tempo is one effort, and 5000 is the coach's number, not an estimate.
+    const reqs = effortRequirements(flattenPlannedSteps(workout([
+      step({ type: 'interval', durationValue: 5000, targetType: 'pace', targetPaceMinPerKm: 240 }),
+    ])));
+    expect(reqs[0].distanceM).toBe(5000);
+  });
+
   it('skips work with no placeable length', () => {
     const reqs = effortRequirements(flattenPlannedSteps(workout([
       step({ type: 'interval', durationType: 'open', durationValue: undefined, targetType: 'pace', targetPaceMinPerKm: 240 }),
@@ -413,13 +430,13 @@ describe('findPlannedEfforts', () => {
       { ...lap(400, 236), averagePace: 236 },
       { ...lap(400, 240), averagePace: 240 },
     ]);
-    expect(r.requirements[0].foundPaces).toEqual([244, 236, 240]);
+    expect(r.requirements[0].paces).toEqual([244, 236, 240]);
   });
 
   it('spends each lap once, so one fast kilometre is not six reps', () => {
     const r = findPlannedEfforts(reps(), [lap(400, 240), lap(3000, 330)]);
     expect(r.foundTotal).toBe(1);
-    expect(r.requirements[0].foundPaces).toHaveLength(1);
+    expect(r.requirements[0].paces).toHaveLength(1);
     expect(r.verdict).toBe('partial');
   });
 
@@ -433,11 +450,53 @@ describe('findPlannedEfforts', () => {
     expect(r.neededTotal).toBe(6);
   });
 
-  it('calls it missed when the reps are there but none is at target pace', () => {
+  it('counts a rep run off pace as run, not as skipped', () => {
+    // Six 400s a good 55 s/km slow. The work happened — that is a different
+    // conversation from not turning up, and 'missed' would say the wrong one.
     const r = findPlannedEfforts(reps(), Array.from({ length: 6 }, () => lap(400, 300)));
-    expect(r.verdict).toBe('missed');
+    expect(r.verdict).toBe('partial');
+    expect(r.attemptedTotal).toBe(6);
     expect(r.foundTotal).toBe(0);
     expect(r.requirements[0].verifiable).toBe(true);
+  });
+
+  it('credits a rep run faster than the band', () => {
+    // A descending ladder run harder than written all the way down. Every rep was
+    // run; none is 'in band'; calling that a miss is just wrong.
+    const r = findPlannedEfforts(reps(), Array.from({ length: 6 }, () => lap(400, 200)));
+    expect(r.attemptedTotal).toBe(6);
+    expect(r.foundTotal).toBe(0);
+    expect(r.verdict).toBe('partial');
+  });
+
+  it('calls it missed only when no rep was run at all', () => {
+    // Right length, walked — past any plausible rep pace, so nothing is credited.
+    const r = findPlannedEfforts(reps(), Array.from({ length: 6 }, () => lap(400, 700)));
+    expect(r.verdict).toBe('missed');
+    expect(r.attemptedTotal).toBe(0);
+    expect(r.requirements[0].verifiable).toBe(true);
+  });
+
+  it('does not count the recovery jogs as reps when they are the same length', () => {
+    // 10×200 with 200 m recoveries: every recovery lap is exactly rep-length, and
+    // crediting by distance alone would report 10/10 for five reps and five jogs.
+    const flat = flattenPlannedSteps(workout([
+      step({
+        durationType: 'open',
+        repeatCount: 10,
+        repeatSteps: [
+          step({ type: 'interval', durationValue: 200, targetType: 'pace', targetPaceMinPerKm: 190 }),
+          step({ type: 'recovery', durationValue: 200, targetType: 'pace', targetPaceMinPerKm: 420 }),
+        ],
+      }),
+    ]));
+    const laps: Lap[] = [];
+    for (let i = 0; i < 5; i++) { laps.push(lap(200, 190)); laps.push(lap(200, 430)); }
+    const r = findPlannedEfforts(flat, laps);
+    expect(r.attemptedTotal).toBe(5);
+    expect(r.foundTotal).toBe(5);
+    expect(r.neededTotal).toBe(10);
+    expect(r.verdict).toBe('partial');
   });
 
   it('honours a caller\'s pace tolerance', () => {

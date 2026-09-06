@@ -186,7 +186,11 @@ function ComplianceLegend({ tolerances }: { tolerances: AdherenceTolerances }) {
               <span className="font-semibold">כמה מתוך כמה</span> נמצאו.
             </div>
             <div>
-              כשהשעון רשם רק ק״מ שלמים אי אפשר לראות בהם חזרות של 400 מ׳ — במקרה כזה כתוב שאי
+              חזרה שרוצה מהר מהיעד או קצת לאט ממנו נחשבת <span className="font-semibold">בוצעה</span>,
+              אבל לא נספרת כ״בקצב היעד״ — לכן יופיעו שני מספרים: כמה חזרות בוצעו וכמה מהן בקצב.
+            </div>
+            <div>
+              כשאורך המקטעים לא מתאים לחזרות — למשל ק״מ שלמים מול חזרות של 400 מ׳ — כתוב שאי
               אפשר לבדוק, ולא שהאימון לא בוצע.
             </div>
           </div>
@@ -396,20 +400,21 @@ interface SegmentVerdict {
 // what's left when the run wasn't the pushed structured workout.
 interface EffortRequirement {
   label: string; distanceM: number; paceMin: number; paceMax: number;
-  needed: number; found: number; foundPaces: number[]; verifiable: boolean;
+  needed: number; attempted: number; found: number; paces: number[]; verifiable: boolean;
 }
 interface EffortReport {
   verdict: 'confirmed' | 'partial' | 'missed' | 'unverifiable';
   requirements: EffortRequirement[];
-  neededTotal: number; foundTotal: number;
+  neededTotal: number; attemptedTotal: number; foundTotal: number;
   lapCount: number; medianLapM: number | null;
   reason?: 'no_paced_plan' | 'no_laps' | 'laps_too_coarse';
 }
 
-const effortHeadline: Record<Exclude<EffortReport['verdict'], 'unverifiable'>, { text: string; style: string }> = {
-  confirmed: { text: 'העבודה בוצעה — כל החזרות נמצאו בקצב היעד', style: 'text-accent-600' },
-  partial: { text: 'בוצע חלקית', style: 'text-band-3' },
-  missed: { text: 'לא נמצאה אף חזרה בקצב היעד', style: 'text-accent-red' },
+// The headline. `partial` is built from the numbers instead — it's the case that
+// needs both of them, and the split between them is the whole point.
+const effortHeadline: Record<'confirmed' | 'missed', { text: string; style: string }> = {
+  confirmed: { text: 'העבודה בוצעה — כל החזרות בקצב היעד', style: 'text-accent-600' },
+  missed: { text: 'לא נמצאה אף חזרה מהמתוכננות', style: 'text-accent-red' },
 };
 
 // Why the laps can't answer. Kept apart from "didn't do it" on purpose: an athlete
@@ -421,8 +426,11 @@ function effortReasonText(report: EffortReport): string {
       return 'לאימון הזה אין יעד קצב שאפשר לבדוק מול המקטעים.';
     case 'no_laps':
       return 'השעון רשם את הריצה כמקטע אחד, אין מה להשוות.';
+    // Deliberately not "longer than" or "shorter than": both happen. A run with no
+    // lap presses gets 1 km auto-laps against 400 m reps; a run lapped every 80 m
+    // has nothing that looks like the 2 km block. Either way the laps can't answer.
     case 'laps_too_coarse':
-      return `המקטעים שנרשמו (${report.medianLapM ?? '—'} מ׳ בערך) ארוכים מהחזרות המתוכננות, ולכן אי אפשר לזהות אותן — זה לא אומר שהאימון לא בוצע.`;
+      return `אורך המקטעים שהשעון רשם (${report.medianLapM != null ? `כ-${Math.round(report.medianLapM)} מ׳` : 'לא ידוע'}) לא מתאים לחזרות המתוכננות, ולכן אי אפשר לזהות אותן — זה לא אומר שהאימון לא בוצע.`;
     default:
       return 'אין נתוני מקטעים לריצה הזו.';
   }
@@ -473,21 +481,29 @@ function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string })
             /* The run wasn't the structured workout, so grade it as a set of
                efforts instead of step by step. */
             <div className="space-y-1.5 text-xs">
-              <div className={cn('font-semibold', effortHeadline[efforts.verdict].style)}>
+              <div className={cn('font-semibold',
+                efforts.verdict === 'partial' ? 'text-band-3' : effortHeadline[efforts.verdict].style)}>
                 {efforts.verdict === 'partial'
                   ? `בוצע חלקית — ${efforts.foundTotal} מתוך ${efforts.neededTotal} חזרות בקצב היעד`
                   : effortHeadline[efforts.verdict].text}
               </div>
+              {/* The distinction the coach actually needs: did the session, off pace. */}
+              {efforts.attemptedTotal > efforts.foundTotal && (
+                <div className="text-ink-500">
+                  {efforts.attemptedTotal} מתוך {efforts.neededTotal} החזרות בוצעו,{' '}
+                  {efforts.foundTotal} מהן בקצב שנקבע.
+                </div>
+              )}
               {effortRows.map((r, i) => (
                 <div key={i} className="flex items-center gap-2 rounded-lg bg-page/50 px-2.5 py-1.5">
                   <span className="text-ink-400 flex-1 min-w-0 truncate" dir="auto">
                     {r.needed}×{Math.round(r.distanceM)} מ׳ ב-{paceBandLabel(r.paceMin, r.paceMax)}
                   </span>
                   <span className="text-ink-500 tabular-nums" dir="ltr">
-                    {r.foundPaces.map(p => formatPace(p)).join(' · ') || '—'}
+                    {r.paces.map(p => formatPace(p)).join(' · ') || '—'}
                   </span>
                   <span className={cn('font-semibold w-14 text-end',
-                    r.found >= r.needed ? 'text-accent-600' : r.found > 0 ? 'text-band-3' : 'text-accent-red')}>
+                    r.found >= r.needed ? 'text-accent-600' : r.attempted > 0 ? 'text-band-3' : 'text-accent-red')}>
                     {r.found}/{r.needed}
                   </span>
                 </div>
