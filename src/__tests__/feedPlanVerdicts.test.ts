@@ -84,6 +84,44 @@ const steadyRun = (dayOfWeek: number) => ({
   }],
 });
 
+/**
+ * The shape most of the program is written in, and the one a whole-run average
+ * cannot describe: a warm-up at one pace, then the block the session is about.
+ * The average of 2 km easy + 10 km at 4:42 is neither number.
+ */
+const warmupThenBlock = (dayOfWeek: number) => ({
+  dayOfWeek,
+  name: 'חימום + 10 ק״מ בקצב',
+  distanceMinKm: 12,
+  distanceMaxKm: 12,
+  steps: [
+    {
+      order: 1,
+      type: 'warmup' as const,
+      durationType: 'distance' as const,
+      durationValue: 2000,
+      targetType: 'pace' as const,
+      targetPaceMinPerKm: 330,
+      targetPaceMaxPerKm: 360,
+    },
+    {
+      order: 2,
+      type: 'active' as const,
+      durationType: 'distance' as const,
+      durationValue: 10000,
+      targetType: 'pace' as const,
+      targetPaceMinPerKm: 280,
+      targetPaceMaxPerKm: 285,
+    },
+  ],
+});
+
+/** What the watch recorded for that session: 2 km at 5:45, then 10 km at 4:42. */
+const warmupThenBlockLaps = [
+  ...Array.from({ length: 2 }, () => ({ distance: 1000, duration: 345 })),
+  ...Array.from({ length: 10 }, () => ({ distance: 1000, duration: 282 })),
+];
+
 /** One synced run: 10 km, and whatever average pace the test wants to grade. */
 const run = (id: string, athleteId: string, averagePace: number, over: Record<string, unknown> = {}) => ({
   id,
@@ -131,10 +169,14 @@ describe('loadFeedPlanVerdicts', () => {
     const page = Array.from({ length: 12 }, (_, i) => run(`act-${i}`, i % 2 ? SLOW : FAST, 282));
     await loadFeedPlanVerdicts(supabase, page);
 
-    // athletes + groups + individual plans + shared plans. Not 12 of anything.
+    // athletes + groups + individual plans + shared plans + the executed workouts.
+    // Not 12 of anything.
     expect(ops.map(o => o.table).sort()).toEqual(
-      ['athletes', 'groups', 'weekly_plans', 'weekly_plans'],
+      ['athlete_activities', 'athletes', 'groups', 'weekly_plans', 'weekly_plans'],
     );
+    // And that fifth one asks for the whole page at once, not a row at a time.
+    const executed = ops.find(o => o.table === 'athlete_activities')!;
+    expect(argOf(executed, 'in')?.[1]).toHaveLength(12);
   });
 
   it('grades each athlete against their own pace lane', async () => {
@@ -204,6 +246,146 @@ describe('loadFeedPlanVerdicts', () => {
     expect(out.size).toBe(0);
     // And it doesn't even ask the DB when the page has no runs on it.
     expect(ops).toHaveLength(0);
+  });
+
+  /**
+   * The badge's pace comes from the block the plan was written about, not the run's
+   * average. This session's average is 4:53 over 12 km and the plan's 4:40–4:45 band
+   * covers 83% of it, which is under the coverage the average path needs — so the old
+   * badge had nothing to say about a session that was run exactly as asked.
+   */
+  describe('block-aligned pace', () => {
+    const blockRun = (over: Record<string, unknown> = {}) => run('act-block', FAST, 293, {
+      distance: 12000,
+      duration: 3510,
+      moving_duration: 3510,
+      ...over,
+    });
+
+    it('grades the block from the laps instead of refusing the average', async () => {
+      stubClub({ shared: [{
+        week_start_date: '2026-09-06',
+        parsed_workouts: { workouts: [warmupThenBlock(3)] },
+        created_at: '2026-09-05T00:00:00Z',
+      }] });
+
+      const out = await loadFeedPlanVerdicts(supabase, [blockRun({ laps: warmupThenBlockLaps })]);
+      expect(out.get('act-block')).toMatchObject({ level: 'on_plan', paceStatus: 'on_target' });
+    });
+
+    // Strava's stored laps carry `moving_time`; read as Garmin's `duration` they are
+    // all zero-length, and the block grading silently falls back to the average.
+    it('reads Strava-shaped laps too', async () => {
+      stubClub({ shared: [{
+        week_start_date: '2026-09-06',
+        parsed_workouts: { workouts: [warmupThenBlock(3)] },
+        created_at: '2026-09-05T00:00:00Z',
+      }] });
+
+      const out = await loadFeedPlanVerdicts(supabase, [blockRun({
+        laps: warmupThenBlockLaps.map((l, i) => ({
+          split: i + 1, distance: l.distance, moving_time: l.duration, elapsed_time: l.duration,
+        })),
+      })]);
+      expect(out.get('act-block')?.paceStatus).toBe('on_target');
+    });
+
+    // A run synced before laps were stored still gets the badge it always got.
+    it('falls back to the whole-run answer when the row has no laps', async () => {
+      stubClub({ shared: [{
+        week_start_date: '2026-09-06',
+        parsed_workouts: { workouts: [warmupThenBlock(3)] },
+        created_at: '2026-09-05T00:00:00Z',
+      }] });
+
+      const out = await loadFeedPlanVerdicts(supabase, [blockRun()]);
+      expect(out.get('act-block')?.paceStatus).toBe('unknown');
+    });
+  });
+
+  /**
+   * When the run came off a structured workout, the badge stops searching the distance
+   * axis for the block and reads the step each lap says it was.
+   *
+   * The case pinned here is the one the search gets WRONG, not merely approximates:
+   * this athlete ran a workout of her own — one open 22 km step, with the target in its
+   * note — while the club plan for the day is a 2 km warm-up plus a 20 km block. Every
+   * lap index still lands inside the plan's step count, so nothing looks amiss; the
+   * search lays the plan's blocks over her run and reports the wrong band.
+   */
+  describe('the watch\'s own step list', () => {
+    const ownWorkout = {
+      name: 'EZ + intervals',
+      createdAt: '2026-09-08T19:00:00.0',
+      steps: [
+        { stepIndex: 0, intensity: 'ACTIVE', durationType: 'OPEN', notes: '22km - 4:45-4:55' },
+        { stepIndex: 1, intensity: 'ACTIVE', durationType: 'TIME', durationSec: 15 },
+        { stepIndex: 2, intensity: 'RECOVERY', durationType: 'TIME', durationSec: 45 },
+        {
+          stepIndex: 3, intensity: null, durationType: 'REPEAT_UNTIL_STEPS_CMPLT',
+          repeatFrom: 1, iterations: 8,
+        },
+      ],
+    };
+    /** 22 km at 4:52 stamped step 0, then eight strides. */
+    const ownLaps = [
+      ...Array.from({ length: 22 }, () => ({
+        distance: 1000, duration: 292, averagePace: 292, averageHR: null, maxHR: null,
+        wktStepIndex: 0,
+      })),
+      ...Array.from({ length: 8 }, () => [
+        { distance: 73, duration: 15, averagePace: 205, averageHR: null, maxHR: null, wktStepIndex: 1 },
+        { distance: 70, duration: 45, averagePace: 642, averageHR: null, maxHR: null, wktStepIndex: 2 },
+      ]).flat(),
+    ];
+
+    const stubWithWorkout = (workout: unknown) => {
+      stubClub({ shared: [{
+        week_start_date: '2026-09-06',
+        parsed_workouts: { workouts: [warmupThenBlock(3)] },
+        created_at: '2026-09-05T00:00:00Z',
+      }] });
+      const club = respond;
+      respond = (op) => op.table === 'athlete_activities'
+        ? { data: [{ id: 'act-own', executed_workout: workout }], error: null }
+        : club(op);
+    };
+
+    const ownRun = () => run('act-own', FAST, 292, {
+      distance: 22000, duration: 6424, moving_duration: 6424, laps: ownLaps,
+    });
+
+    it('grades the step the watch ran, not the block the plan expected', async () => {
+      stubWithWorkout(ownWorkout);
+      const out = await loadFeedPlanVerdicts(supabase, [ownRun()]);
+      // 4:52 against the 4:45–4:55 she wrote herself, in the step's own note.
+      expect(out.get('act-own')?.paceStatus).toBe('on_target');
+    });
+
+    it('falls back to the search when the run was not driven by a workout', async () => {
+      stubWithWorkout(null);
+      const out = await loadFeedPlanVerdicts(supabase, [ownRun()]);
+      // The plan's 4:40–4:45 block, searched for inside a 22 km run at 4:52 — the
+      // wrong band, because it is a workout she did not run.
+      expect(out.get('act-own')?.paceStatus).toBe('slower');
+    });
+
+    // Migration 095 is applied by hand, so the column may simply not be there yet.
+    // The badge must be the one the feed shipped without it, not no badge at all.
+    it('falls back to the search when the column is unmigrated', async () => {
+      stubClub({ shared: [{
+        week_start_date: '2026-09-06',
+        parsed_workouts: { workouts: [warmupThenBlock(3)] },
+        created_at: '2026-09-05T00:00:00Z',
+      }] });
+      const club = respond;
+      respond = (op) => op.table === 'athlete_activities'
+        ? { data: null, error: { message: 'column "executed_workout" does not exist' } }
+        : club(op);
+
+      const out = await loadFeedPlanVerdicts(supabase, [ownRun()]);
+      expect(out.get('act-own')?.paceStatus).toBe('slower');
+    });
   });
 
   it('reports over-distance separately from off-pace, for the badge to colour', async () => {

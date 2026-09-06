@@ -12,14 +12,39 @@ import {
   matchLapsToSteps,
   buildPlannedBands,
   findPlannedEfforts,
-  Lap,
 } from '@/lib/academy/segments';
+import { dominantBlock, gradePlanBlocks, traceFromLaps, traceFromStream } from '@/lib/academy/execution';
+import { dominantWatchStep, gradeWatchSteps, type WatchStepReport } from '@/lib/academy/watch-steps';
+import { loadActivityStream } from '@/lib/garmin/stream-store';
+import { narrowLaps, normalizeStoredLaps, type StoredLap } from '@/lib/garmin/laps';
+import { narrowExecutedWorkout, type ExecutedWorkout } from '@/lib/garmin/executed-workout';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * A teammate's copy of the watch's step-by-step report: the session's shape and each
+ * part's verdict, with the numbers a per-km split doesn't already give away removed.
+ *
+ * `occurrences` goes entirely — that is a rep-by-rep pace readout of someone else's
+ * intervals, the one thing `?verdict=1` was made member-visible without.
+ */
+function trimWatchReport(report: WatchStepReport): WatchStepReport {
+  return {
+    ...report,
+    steps: report.steps.map(step => ({
+      ...step,
+      actualPace: null,
+      gradeAdjustedPace: null,
+      averageHR: null,
+      occurrences: [],
+    })),
+  };
+}
+
 /**
  * GET /api/academy/segments?athleteId=&date=YYYY-MM-DD
  *
@@ -140,13 +165,24 @@ export async function GET(request: Request) {
       : {};
     if (wantsBands && !wantsVerdict) return NextResponse.json(bandsPayload);
 
-    // 2) The matched activity for that date, with its stored laps.
-    const { data: acts } = await supabase
-      .from('athlete_activities')
-      .select('id, garmin_activity_id, start_time, distance, duration, moving_duration, average_pace, activity_type, laps')
+    // 2) The matched activity for that date, with its stored laps and — when the run
+    //    was driven by a structured workout — the step list those laps are stamped
+    //    with. Retried without `executed_workout` because migration 095 is applied by
+    //    hand: without the fallback an unapplied migration returns no rows at all here,
+    //    which this route would report as "no completed activity on this day".
+    const activityColumns =
+      'id, garmin_activity_id, garmin_workout_id, start_time, distance, duration,'
+      + ' moving_duration, average_pace, activity_type, laps';
+    const dayRange = (q: any) => q
       .eq('athlete_id', athleteId)
       .gte('start_time', `${date}T00:00:00Z`)
       .lte('start_time', `${date}T23:59:59Z`);
+    let actsRes = await dayRange(supabase.from('athlete_activities')
+      .select(`${activityColumns}, executed_workout`));
+    if (actsRes.error) {
+      actsRes = await dayRange(supabase.from('athlete_activities').select(activityColumns));
+    }
+    const acts = actsRes.data;
     const dayActs = (acts || []).filter((a: any) => activityLocalDateStr(a.start_time) === date);
     // A running plan grades runs. A ride or a swim on a plan day isn't a worse
     // version of the workout, it isn't the workout — and "closest to planned
@@ -175,36 +211,83 @@ export async function GET(request: Request) {
     }
 
     // 3) Ensure laps — fetch on-demand from Garmin if not cached.
-    let laps: Lap[] = Array.isArray(activity.laps) ? activity.laps : [];
-    if (laps.length === 0) {
+    // Through the normalizer, not straight off the row: `laps` is jsonb three
+    // writers have filled, and reading only Garmin's `duration` key gave every
+    // Strava athlete a set of zero-duration laps — indistinguishable here from a
+    // run with no markers at all.
+    // Typed as StoredLap, not the narrower `Lap` the segment matcher takes: the step
+    // index rides on the wider shape and is what the watch path grades from.
+    let laps: StoredLap[] = normalizeStoredLaps(activity.laps);
+    let executedWorkout = (activity as { executed_workout?: ExecutedWorkout | null })
+      .executed_workout ?? null;
+    const isStamped = (ls: StoredLap[]) => ls.some(l => l.wktStepIndex != null);
+    // A watch-driven run whose stored laps predate step-index storage: the index is
+    // the whole basis of the step-by-step verdict, so it is worth re-asking for. Only
+    // when the row says the run came from a workout — otherwise there is nothing to
+    // stamp and the refetch would be pure cost on every plain run anyone opens.
+    const wantsStamps = activity.garmin_workout_id != null && !isStamped(laps);
+    if (laps.length === 0 || wantsStamps || (activity.garmin_workout_id && !executedWorkout)) {
       const { data: ath } = await supabase
         .from('athletes').select('garmin_auth').eq('id', athleteId).maybeSingle();
       if (ath?.garmin_auth) {
         try {
           const client = new GarminClient(ath.garmin_auth as any);
-          const lapData = await client.getActivitySplits(Number(activity.garmin_activity_id));
-          if (Array.isArray(lapData) && lapData.length > 1) {
-            laps = lapData.map((lap: any) => ({
-              distance: lap.distance || 0,
-              duration: lap.duration || lap.movingDuration || 0,
-              averagePace: lap.distance > 0 ? Math.round((lap.duration || lap.movingDuration || 0) / (lap.distance / 1000)) : null,
-            }));
-            // Best-effort cache back (ignore if column unmigrated).
-            await supabase.from('athlete_activities').update({ laps })
-              .eq('id', activity.id).then(() => {}, () => {});
+          if (laps.length === 0 || wantsStamps) {
+            // Through `narrowLaps`, not a hand-rolled map: the map this replaced kept
+            // three fields, so `wktStepIndex` — the watch's own answer to "which step
+            // was this" — was fetched and thrown away on the line that stored it.
+            const lapData = await client.getActivitySplits(Number(activity.garmin_activity_id));
+            const narrowed = narrowLaps(lapData);
+            if (narrowed.length > 1) {
+              laps = narrowed;
+              // Best-effort cache back (ignore if column unmigrated).
+              await supabase.from('athlete_activities').update({ laps })
+                .eq('id', activity.id).then(() => {}, () => {});
+            }
           }
-        } catch { /* laps optional */ }
+          // Only worth asking once the laps are known to be stamped: without an index
+          // to resolve, the step list grades nothing.
+          if (!executedWorkout && isStamped(laps)) {
+            executedWorkout = narrowExecutedWorkout(
+              await client.getActivityWorkout(Number(activity.garmin_activity_id)));
+            if (executedWorkout) {
+              await supabase.from('athlete_activities')
+                .update({ executed_workout: executedWorkout })
+                .eq('id', activity.id).then(() => {}, () => {});
+            }
+          }
+        } catch { /* laps and the step list are both optional */ }
       }
     }
+
+    // 3b) The distance/time trace the plan's blocks are graded over. The stored
+    //     ~1 Hz stream when there is one, otherwise the laps — even plain 1 km
+    //     auto-laps place a 20 km block to within a kilometre, which is well inside
+    //     the accuracy a pace verdict needs, so this works for the whole club
+    //     before a single stream has been backfilled.
+    const stored = await loadActivityStream(supabase, activity.id);
+    const trace = traceFromStream(stored?.series) ?? traceFromLaps(laps);
 
     // 4) Flatten + match + grade.
     const flat = flattenPlannedSteps(planned);
     const report = matchLapsToSteps(flat, laps, paceSec);
+    // Block-aligned pace: each planned block graded over its own stretch of the run
+    // rather than against the whole-run average. This is the fix for the verdict an
+    // athlete who ran "2 km easy + 20 km at 4:25 + 8 strides" used to get — 4:33
+    // against 4:25, "slower", while the 20 km block was 4:23.
+    const blocks = gradePlanBlocks(flat, trace, paceSec);
     // Plus the order-free verdict, which is the only one an athlete who ran the
     // session off the watch (no per-step laps) can get. Always returned: when the
     // positional alignment succeeded it's a cheap cross-check, and when it failed
     // it's the answer to "did they do the workout" the caller actually wanted.
     const efforts = findPlannedEfforts(flat, laps, paceSec);
+    // And, for a run the watch drove, the account that needs no searching at all: every
+    // lap already carries the step it was, so the block does not have to be located and
+    // a rep does not have to be recognised by its length. Null for the ~85% of runs
+    // started as plain runs, and for a stamped run whose indices don't fit the list.
+    const watched = executedWorkout
+      ? gradeWatchSteps(executedWorkout, laps, lane, paceSec)
+      : null;
 
     // Verdict mode: the same two answers the academy compliance table gives, for
     // ONE run — the whole-run metrics from the adherence engine (so a coach can't
@@ -224,6 +307,67 @@ export async function GET(request: Request) {
         },
         tolerances,
       );
+
+      // The pace row answers "did you hit the pace you were asked to run". When the
+      // plan has a block and the run has a trace, that question is about the block,
+      // so the block's answer replaces the whole-run one — the longest graded block,
+      // because that is what the session was mostly about. The average is still
+      // returned as `wholeRunPace` so a card can show both, and `scope` tells the
+      // client which stretch of the run the number describes.
+      //
+      // Exposure: a block average is COARSER than the per-km splits already visible
+      // to any member on this run's chart and in the feed's `paceBands`, so putting
+      // it in the member-visible verdict publishes nothing new. The per-rep paces
+      // below stay trimmed — those are finer than splits.
+      //
+      // The watch's own step wins over the searched block when there is one: same
+      // question, same `dominant*` rule, evidence instead of inference. It also fixes a
+      // case the search cannot — an athlete running a workout of their own making was
+      // being graded against the club plan's structure, which on one real Sunday turned
+      // her 22 km at 4:48 (her own step said 4:35-4:45: on target) into "slower".
+      const watchStep = watched ? dominantWatchStep(watched) : null;
+      const dominant = watchStep ?? dominantBlock(blocks);
+      const pace = dominant
+        ? {
+          status: dominant.status,
+          plannedMin: dominant.plannedPaceMin,
+          plannedMax: dominant.plannedPaceMax,
+          comparedMin: dominant.plannedPaceMin,
+          comparedMax: dominant.plannedPaceMax,
+          actual: dominant.actualPace,
+          scope: watchStep
+            ? {
+              label: watchStep.label,
+              // The watch names a step, not a stretch of the distance axis: it can
+              // report the same step several times over (eight strides), so there is
+              // no single from/to to give. `steps` below carries the detail.
+              fromM: null,
+              toM: null,
+              plannedLengthM: watchStep.plannedDistanceM,
+              truncated: watchStep.truncated,
+              resolutionM: null,
+              source: 'watch' as const,
+            }
+            : {
+              label: dominant.label,
+              fromM: 'window' in dominant ? dominant.window?.startM ?? null : null,
+              toM: 'window' in dominant ? dominant.window?.endM ?? null : null,
+              plannedLengthM: 'plannedLengthM' in dominant ? dominant.plannedLengthM : null,
+              truncated: dominant.truncated,
+              resolutionM: blocks.resolutionM,
+              source: blocks.source,
+            },
+        }
+        : graded.pace;
+
+      // Re-score against the corrected pace status, or the score would keep counting
+      // the average-based miss this route just stopped reporting.
+      const scored = [graded.distance.status, graded.duration.status, pace.status]
+        .filter(s => s !== 'unknown');
+      const score = scored.length
+        ? scored.filter(s => s === 'on_target').length / scored.length
+        : graded.score;
+
       return NextResponse.json({
         ...bandsPayload,
         verdict: {
@@ -232,21 +376,30 @@ export async function GET(request: Request) {
           activityId: activity.id,
           distance: graded.distance,
           duration: graded.duration,
-          pace: graded.pace,
-          score: graded.score,
+          pace,
+          wholeRunPace: graded.pace,
+          blocks,
+          score,
           // Which rep paces a teammate may read is the one thing this mode trims:
           // aggregate counts answer "did they do the session" without handing the
           // club a rep-by-rep readout of someone else's intervals.
           efforts: isOwnOrStaff
             ? efforts
             : { ...efforts, requirements: efforts.requirements.map(r => ({ ...r, paces: [] })) },
+          // The watch's step-by-step account, trimmed on the same rule as the reps
+          // above. A step can be a 45-second stride, so its pace is FINER than the
+          // per-km splits any member can already see — that number and the heart rate
+          // beside it are the athlete's and staff's. What stays for a teammate is the
+          // shape of the session and whether each part was hit: the same grain as the
+          // badge on the card that got them here.
+          watchSteps: watched && (isOwnOrStaff ? watched : trimWatchReport(watched)),
           alignedToWatch: report.aligned,
         },
         tolerances,
       });
     }
 
-    return NextResponse.json({ ...report, efforts });
+    return NextResponse.json({ ...report, efforts, blocks });
   } catch (error: any) {
     console.error('Academy segments error:', error);
     return NextResponse.json({ error: error.message || 'Failed to compute segments' }, { status: 500 });

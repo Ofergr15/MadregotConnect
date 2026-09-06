@@ -7,17 +7,34 @@ import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { verdictLevel, type PlanVerdictLevel } from '@/lib/academy/verdict';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
+import { flattenPlannedSteps } from '@/lib/academy/segments';
+import { dominantBlock, gradePlanBlocks, traceFromLaps } from '@/lib/academy/execution';
+import { dominantWatchStep, gradeWatchSteps } from '@/lib/academy/watch-steps';
+import { normalizeStoredLaps } from '@/lib/garmin/laps';
+import type { ExecutedWorkout } from '@/lib/garmin/executed-workout';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
 /**
  * "Did this run match the plan?" as a badge on a feed card.
  *
- * The whole-run answer only. The per-rep effort check needs per-step laps, which
- * are cached for a few hundred rows all-time and otherwise have to be fetched
- * from Garmin one activity at a time — impossible in a list request, and the
- * reason the badge stops at the run's totals. Tapping the card runs the full
- * check (`?verdict=1` on the segments route) and shows the reps.
+ * Distance and duration come from the run's totals, which is what those questions
+ * are about. Pace does NOT: a plan of "2 km easy, 20 km at 4:25, 8 strides" is three
+ * paces and the run's average is none of them, so pace is graded per block over the
+ * stretch of the run each block was written about (`gradePlanBlocks`). The laps ride
+ * along on the select the feed already does, so this stays a fixed number of queries.
+ *
+ * When the run was driven by a structured workout, that stretch is not searched for at
+ * all — `gradeWatchSteps` reads the step the watch says each lap was. One extra query
+ * per page fetches those step lists, and it is worth it because the search's answer is
+ * an estimate in exactly the cases the club cares most about: a timed block's length
+ * has to be guessed through its target pace (measured: 4:36 estimated vs 4:42 actual on
+ * a 120-minute block), and an athlete running a workout of their own making gets graded
+ * against a plan they never followed.
+ *
+ * The per-rep effort check still isn't here — that needs the laps interpreted rep by
+ * rep and belongs on the card's detail, one tap away (`?verdict=1` on the segments
+ * route), which also shows the blocks individually.
  *
  * Grading is not re-implemented here: the same `assessWorkout` the academy
  * compliance table uses, on the same lane resolution, so a coach cannot get two
@@ -41,6 +58,10 @@ export interface VerdictActivityRow {
   duration?: number | null;
   moving_duration?: number | null;
   average_pace?: number | null;
+  /** The watch's lap markers, as stored. Unnarrowed on purpose — `traceFromLaps`
+   *  reads only distance and duration, and a row that predates lap storage simply
+   *  has none, which drops pace back to the whole-run answer. */
+  laps?: unknown;
 }
 
 /**
@@ -71,6 +92,33 @@ async function lanesForAthletes(
 }
 
 /**
+ * The step list for each watch-driven run on the page, keyed by activity id.
+ *
+ * Its own query rather than a column on `FEED_SELECT`: that select's callers throw on
+ * error, so one unapplied migration there takes the club's landing page down. Here a
+ * missing column returns an empty map and every run falls back to the distance search —
+ * which is what the feed shipped yesterday, so nothing regresses.
+ */
+async function executedWorkoutsFor(
+  supabase: SupabaseServer,
+  activityIds: string[],
+): Promise<Map<string, ExecutedWorkout>> {
+  const out = new Map<string, ExecutedWorkout>();
+  if (activityIds.length === 0) return out;
+  const { data, error } = await supabase
+    .from('athlete_activities')
+    .select('id, executed_workout')
+    .in('id', activityIds)
+    .not('executed_workout', 'is', null);
+  if (error) return out;
+  for (const row of data || []) {
+    const workout = row.executed_workout as ExecutedWorkout | null;
+    if (workout?.steps?.length) out.set(row.id, workout);
+  }
+  return out;
+}
+
+/**
  * Grade a page of feed activities against their days' plans.
  *
  * Best-effort by construction: the feed is the app's landing page and a missing
@@ -95,7 +143,7 @@ export async function loadFeedPlanVerdicts(
     // independent reads — the feed's critical path, so they go out together.
     // Published weeks only (PLAN_STATUSES): a draft is the coach mid-edit, and a
     // red "off plan" chip for a week nobody was asked to run is worse than no chip.
-    const [lanes, indivRes, sharedRes, settings] = await Promise.all([
+    const [lanes, indivRes, sharedRes, settings, executed] = await Promise.all([
       lanesForAthletes(supabase, athleteIds),
       supabase
         .from('weekly_plans').select('week_start_date, athlete_id, parsed_workouts, created_at')
@@ -108,6 +156,7 @@ export async function loadFeedPlanVerdicts(
         .in('status', PLAN_STATUSES)
         .order('created_at', { ascending: false }),
       loadAcademySettings(),
+      executedWorkoutsFor(supabase, runs.map(r => r.id)),
     ]);
     const { tolerances } = settings;
 
@@ -164,14 +213,48 @@ export async function loadFeedPlanVerdicts(
         },
         tolerances,
       );
+
+      // Block-aligned pace where the laps allow it. The dominant (longest) graded
+      // block is the one the session was mostly about, and its verdict replaces the
+      // whole-run average's — which on a warm-up-plus-block session reads 8 s/km
+      // slow no matter how well the block was run.
+      //
+      // The watch's own account of which step each lap was comes first when it exists,
+      // because it is evidence where the block search is inference. Both funnel through
+      // the same "one dominant step" rule, so a run cannot pick up two verdicts.
+      const laps = normalizeStoredLaps(row.laps);
+      const workout = executed.get(row.id);
+      const watched = workout
+        ? gradeWatchSteps(workout, laps, lane, tolerances.paceSec)
+        : null;
+      const watchStep = watched ? dominantWatchStep(watched) : null;
+      const trace = watchStep ? null : traceFromLaps(laps);
+      const blocks = trace ? gradePlanBlocks(flattenPlannedSteps(planned), trace, tolerances.paceSec) : null;
+      const dominant = watchStep ?? (blocks ? dominantBlock(blocks) : null);
+      const pace = dominant
+        ? {
+          ...graded.pace,
+          status: dominant.status,
+          comparedMin: dominant.plannedPaceMin,
+          comparedMax: dominant.plannedPaceMax,
+          actual: dominant.actualPace,
+        }
+        : graded.pace;
+      // Re-score, or the badge's level would keep counting a pace miss that the
+      // block grading just retracted.
+      const scored = [graded.distance.status, graded.duration.status, pace.status]
+        .filter(s => s !== 'unknown');
+
       const level = verdictLevel({
         workoutName: planned.name,
         date,
         activityId: row.id,
         distance: graded.distance,
         duration: graded.duration,
-        pace: graded.pace,
-        score: graded.score,
+        pace,
+        score: scored.length
+          ? scored.filter(s => s === 'on_target').length / scored.length
+          : graded.score,
         // No laps in a list request — the badge is the whole-run answer, and
         // passing no effort report is what makes verdictLevel say so.
         efforts: null,
@@ -183,7 +266,7 @@ export async function loadFeedPlanVerdicts(
         level,
         workoutName: planned.name,
         distanceStatus: graded.distance.status,
-        paceStatus: graded.pace.status,
+        paceStatus: pace.status,
       });
     }
   } catch (err) {

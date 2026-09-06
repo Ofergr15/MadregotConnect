@@ -50,16 +50,63 @@ const STEP_LABEL: Record<string, string> = {
   active: 'Run', rest: 'Rest', recovery: 'Recovery',
 };
 
+/**
+ * How long a step is, as it goes on a label: "2km", "400m", "15s", "4min", "1:30".
+ *
+ * Exported because the same step is labelled by two engines — this one off the plan,
+ * `watch-steps` off the workout the device ran — and a step that reads "Interval 400m"
+ * on one screen and "Interval 0.4km" on the other looks like two different steps.
+ *
+ * Seconds under a minute, and mm:ss for anything that isn't whole minutes: rounding to
+ * minutes labelled the plan's 15-second strides "0min" and its 45-second recoveries
+ * "1min", both of which reach the athlete's screen.
+ */
+export function lengthLabel(distanceM?: number | null, durationSec?: number | null): string | null {
+  if (distanceM && distanceM > 0) {
+    return distanceM >= 1000
+      ? `${(distanceM / 1000).toFixed(distanceM % 1000 ? 1 : 0)}km`
+      : `${Math.round(distanceM)}m`;
+  }
+  if (durationSec && durationSec > 0) {
+    const sec = Math.round(durationSec);
+    if (sec < 60) return `${sec}s`;
+    if (sec % 60) return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+    return `${sec / 60}min`;
+  }
+  return null;
+}
+
 function segLabel(step: WorkoutStep): string {
   const base = STEP_LABEL[step.type] || step.type;
-  if (step.durationType === 'distance' && step.durationValue) {
-    const m = step.durationValue;
-    return `${base} ${m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)}km` : `${m}m`}`;
-  }
-  if (step.durationType === 'time' && step.durationValue) {
-    return `${base} ${Math.round(step.durationValue / 60)}min`;
-  }
-  return base;
+  const length = lengthLabel(
+    step.durationType === 'distance' ? step.durationValue : null,
+    step.durationType === 'time' ? step.durationValue : null,
+  );
+  return length ? `${base} ${length}` : base;
+}
+
+/**
+ * One leaf step of a plan as a planned segment.
+ *
+ * Exported because two different walks of the same workout need the identical
+ * reading of a step: this module expands repeats (the run order), while
+ * `watch-steps` collapses them (the order Garmin indexes on the watch). If they
+ * derived `graded` or the label separately they would drift, and a step would then
+ * be scored on one screen and not the other.
+ */
+export function segmentFromStep(step: WorkoutStep, index: number): PlannedSegment {
+  const isPace = step.targetType === 'pace' && !!step.targetPaceMinPerKm;
+  const isRest = step.type === 'rest' || step.type === 'recovery';
+  return {
+    index,
+    type: step.type,
+    label: segLabel(step),
+    distanceM: step.durationType === 'distance' ? step.durationValue : undefined,
+    durationSec: step.durationType === 'time' ? step.durationValue : undefined,
+    paceMin: step.targetPaceMinPerKm,
+    paceMax: step.targetPaceMaxPerKm || step.targetPaceMinPerKm,
+    graded: isPace && !isRest,
+  };
 }
 
 /** Ordered, repeat-EXPANDED list of executable steps (the leaf run order). */
@@ -70,18 +117,7 @@ export function flattenPlannedSteps(workout: ParsedWorkout): PlannedSegment[] {
       if (s.repeatCount && s.repeatSteps && s.repeatSteps.length) {
         for (let i = 0; i < s.repeatCount; i++) walk(s.repeatSteps);
       } else {
-        const isPace = s.targetType === 'pace' && !!s.targetPaceMinPerKm;
-        const isRest = s.type === 'rest' || s.type === 'recovery';
-        out.push({
-          index: out.length,
-          type: s.type,
-          label: segLabel(s),
-          distanceM: s.durationType === 'distance' ? s.durationValue : undefined,
-          durationSec: s.durationType === 'time' ? s.durationValue : undefined,
-          paceMin: s.targetPaceMinPerKm,
-          paceMax: s.targetPaceMaxPerKm || s.targetPaceMinPerKm,
-          graded: isPace && !isRest,
-        });
+        out.push(segmentFromStep(s, out.length));
       }
     }
   };
@@ -200,6 +236,20 @@ export interface EffortRequirement {
   label: string;
   /** Target length of one rep in meters (time-based reps converted via target pace). */
   distanceM: number;
+  /** Set when the plan wrote this rep as a duration. */
+  durationSec?: number;
+  /**
+   * Which axis identifies this rep among the laps.
+   *
+   * `duration` for a rep the plan wrote in time, and it matters: converting "15 s
+   * hard" to metres through the target pace only finds the rep if the athlete ran
+   * it at roughly that pace, so a rep run 40 s/km off its target comes out the
+   * wrong LENGTH and is reported as never run. Time is the thing the athlete
+   * actually controlled — a 15 s lap is 15 s at any pace — and the watch recorded
+   * it exactly. 105 of the plan's rep steps are written in time against 28 in
+   * distance, so this is the common case, not the edge one.
+   */
+  matchBy: 'distance' | 'duration';
   paceMin: number;
   paceMax: number;
   needed: number;
@@ -233,6 +283,11 @@ export interface EffortReport {
 
 /** How far a lap's length may be off the planned rep and still count as that rep. */
 const EFFORT_DISTANCE_TOL = 0.2;
+
+/** Same, on the duration axis, with a floor: 20% of a 15-second stride is 3 s, and
+ *  a watch lap-press lands a second or two either side of the intended mark. */
+const EFFORT_DURATION_TOL = 0.2;
+const EFFORT_DURATION_FLOOR_SEC = 2;
 
 /**
  * Longest TIMED block still treated as a rep. Beyond this it's a steady run, not
@@ -298,6 +353,8 @@ export function effortRequirements(planned: PlannedSegment[]): EffortRequirement
     const requirement: EffortRequirement = {
       label: seg.label,
       distanceM: meters,
+      ...(timed ? { durationSec: seg.durationSec! } : {}),
+      matchBy: timed ? 'duration' : 'distance',
       paceMin,
       paceMax,
       needed: 1,
@@ -344,11 +401,19 @@ export function findPlannedEfforts(
 
   const spent = new Set<number>();
   for (const requirement of [...requirements].sort((a, b) => b.distanceM - a.distanceM)) {
-    const tolerance = requirement.distanceM * EFFORT_DISTANCE_TOL;
+    // Match a timed rep on the clock and a measured rep on the tape. Both are the
+    // same question — "is there a lap of about this size" — asked on the axis the
+    // plan actually specified, so a rep run off pace still has the right size.
+    const byDuration = requirement.matchBy === 'duration' && !!requirement.durationSec;
+    const fits = byDuration
+      ? (lap: Lap) => Math.abs(lap.duration - requirement.durationSec!)
+          <= Math.max(requirement.durationSec! * EFFORT_DURATION_TOL, EFFORT_DURATION_FLOOR_SEC)
+      : (lap: Lap) => Math.abs(lap.distance - requirement.distanceM) <= requirement.distanceM * EFFORT_DISTANCE_TOL;
+
     const candidates = usable
       .map((lap, index) => ({ lap, index, pace: lapPace(lap)! }))
-      .filter(c => !spent.has(c.index) && Math.abs(c.lap.distance - requirement.distanceM) <= tolerance);
-    // Verifiability is about LENGTH alone: if no lap is anywhere near this long,
+      .filter(c => !spent.has(c.index) && fits(c.lap));
+    // Verifiability is about SIZE alone: if no lap is anywhere near this long,
     // the laps can't show the rep at any pace, and that's not the athlete's fault.
     requirement.verifiable = candidates.length > 0;
 

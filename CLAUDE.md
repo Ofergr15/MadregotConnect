@@ -37,7 +37,7 @@ can't start, check `node -v` before anything else.
 | `npm run check` | **Run before every commit** — typecheck + test + lint |
 | `npm test` | vitest (120 tests, ~0.5s) |
 | `npm run typecheck` | `tsc --noEmit` (~4s, currently clean) |
-| `npm run lint` | next lint (5 pre-existing `exhaustive-deps` warnings, 0 errors) |
+| `npm run lint` | next lint (3 pre-existing `exhaustive-deps` warnings, 0 errors) |
 | `npm run build` | Production build (~40s) |
 
 `npm run lint` warnings are pre-existing — don't treat them as your regression,
@@ -115,6 +115,69 @@ inline — don't. Group 1 = green/fast, 2 = yellow/medium, 3 = orange/slow.
 
 Coach pace notation: `3:30 (3:40) ((3:50))` — plain = Group 1, single brackets =
 Group 2, double = Group 3.
+
+### "Did they do the workout" — four engines, not one
+
+A plan day is rarely one thing ("2 km easy, 20 km at 4:25, 8×15 s strides"), so several
+separate questions get asked of it and none of them subsumes the others:
+
+| Question | Engine | Evidence |
+|---|---|---|
+| Did they cover the distance / time? | `assessWorkout` (`academy/adherence.ts`) | the run's totals |
+| Did they hit the pace they were asked to run? | `gradePlanBlocks` (`academy/execution.ts`) | a distance/time trace |
+| Did they do the reps? | `findPlannedEfforts` (`academy/segments.ts`) | the watch's laps |
+| All of it, when a workout drove the watch | `gradeWatchSteps` (`academy/watch-steps.ts`) | the device's own step list + stamped laps |
+
+**The fourth one is evidence where the others are inference, so it goes first** — the
+feed badge and the segments route both prefer it and fall back automatically. It only
+answers for a run the athlete started as a structured workout (~15% of runs, but that's
+the club's quality sessions), and it needs *both* halves to come from the device:
+
+- `athlete_activities.laps[].wktStepIndex` — the step Garmin says each lap was
+  (`garmin/laps.ts`).
+- `athlete_activities.executed_workout` — the step list that index points into,
+  from `GET /activity/{id}/workouts` (`garmin/executed-workout.ts`, migration 095).
+  Fetched on the sync when a lap is stamped; `?mode=stream` backfills history; the
+  segments route fetches on demand for a run that has neither.
+
+**Never read `wktStepIndex` against our own parsed plan.** It cost a real wrong verdict
+twice: a repeat is a flat *marker* step that occupies an index and never runs, so
+everything after the first set is numbered one too low (one athlete's Tuesday has three
+markers mid-list); and athletes run workouts nobody pushed — one Sunday came off a
+single open 22 km step where the club plan has a 2 km warm-up plus a 20 km block, every
+index landed in range, and the verdict read "warm-up: 22 km".
+
+**The pace target is usually prose.** 1 workout in 8 carries a machine `SPEED` target;
+in the rest the coach writes it in the step's `notes`, in the same bracket notation as
+the plan — so `stepPaceBand(step, lane)` runs it through `lanePaceFromNotes`
+(`ai/splitGroups.ts`). Strip the notes and most steps stop being gradeable.
+
+`dominantWatchStep()` mirrors `dominantBlock()` and both feed the same one-verdict rule,
+so a run cannot pick up two answers. `report.complete` is the separate signal that a
+step was never run — the athlete who abandoned a ladder at rep 5 still has an on-target
+rep 4, and only the distance row says the session didn't happen.
+
+**Pace is never the whole-run average.** `assessWorkout`'s pace row only means
+anything when one band covers ≥90% of the plan (`computeGradedPaceBand`), and even
+then it's wrong for the shape above — the average of a warm-up plus a block is neither
+number. `gradePlanBlocks` lays the plan's blocks out on the distance axis and *searches*
+for the window of each block's planned length that best fits its band, forward of the
+previous block and within a bounded drift (a longer warm-up is a real story; starting
+the session 8 km in is not). Three constraints in there each exist because production
+data broke without them — an unbounded search located a 2 km warm-up in the jog home,
+reps merged across their recoveries into one long "block", and a warm-up written at
+session pace became the headline verdict. Don't relax them without re-running a replay.
+
+- `dominantBlock()` picks the one block a single verdict is about: longest, excluding
+  warm-ups, cool-downs, ungraded and truncated blocks. **Both** the feed badge and the
+  segments route go through it — the same run must not get two verdicts.
+- Reps are not blocks. A 5-minute rep is the rep finder's business, matched by
+  *duration* for a timed step (`matchBy`), because a 15 s stride converted to metres
+  through its target pace mis-measures anyone who ran it off pace.
+- Read stored laps through `normalizeStoredLaps` (`garmin/laps.ts`), never straight off
+  the jsonb. Three writers have filled that column (`duration` / `movingDuration` /
+  Strava's `moving_time`), and a reader that knows only Garmin's key returns
+  zero-duration laps — indistinguishable from a run with no markers.
 
 ## API conventions
 
@@ -230,6 +293,29 @@ table only ever answered it for the one athlete flagged `is_academy` while the o
   verdict is still on their run's detail page.
 
 If you add a new plan-derived label to the feed, mask it under `pace` too.
+
+Same date, the verdict's pace stopped being the whole-run average and became a **block
+average over a named stretch of the run** (`verdict.pace.scope` = `fromM`/`toM`, with the
+average kept beside it as `wholeRunPace`; see "four engines" above). No new exposure
+class: a mean over 10 km is strictly coarser than the per-km splits already on that
+run's chart and in the feed's `paceBands` for any member. The per-rep paces stay
+trimmed — those are finer than splits. `FEED_SELECT` in `src/lib/feed/project.ts` now
+reads `laps` for the same reason the verdict does; it is consumed server-side to build
+the trace and **never reaches the client**, so keep it out of the projected item.
+
+Still the same date, `?verdict=1` gained **`watchSteps`** — the device's own step list
+graded step by step (`gradeWatchSteps`). Member-visible, but **trimmed for anyone but the
+athlete and staff**: `actualPace`, `gradeAdjustedPace`, `averageHR` and `occurrences` are
+stripped, leaving the planned band, the step's name and its status. The trim is not
+symmetry with `paces: []` for its own sake — a step can be a 45-second stride, so its
+pace is finer than the per-km splits members already see, and per-step HR would be a new
+class outright (the feed masks HR under its own key). What survives the trim is the same
+grain as the badge: which steps were asked for, and whether each was met.
+
+Because the watch path now runs first, the feed badge's `paceStatus` may be the verdict
+on **a step shorter than a kilometre**. It is still a status and never a number, and
+still masked under the existing `pace` key, so nothing new leaves the server — but do
+not "improve" the badge by shipping the step's pace alongside it.
 
 ## The AI parser — the accuracy-critical path
 

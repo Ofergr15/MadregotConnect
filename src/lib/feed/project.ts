@@ -421,7 +421,14 @@ export function projectLike(value: unknown): { itemId: string; liker: FeedLiker 
   };
 }
 
-/** Columns /api/feed selects. Kept next to the projection so the two can't drift. */
+/**
+ * Columns /api/feed selects. Kept next to the projection so the two can't drift.
+ *
+ * `laps` is read for the plan badge, not for the card: `loadFeedPlanVerdicts` grades
+ * each planned block over its own stretch of the run, and the laps are the distance/
+ * time axis it needs. It never reaches the client — `projectFeedItem` doesn't emit it
+ * — so this costs the page a wider server-side read and nothing on the wire.
+ */
 export const FEED_SELECT = `
   id, type, author_athlete_id, body, media, payload, occurred_at,
   like_count, comment_count,
@@ -430,6 +437,6 @@ export const FEED_SELECT = `
     id, athlete_id, garmin_activity_id, activity_name, activity_type, start_time,
     distance, duration, moving_duration, average_pace, average_hr, max_hr,
     calories, elevation_gain, location_name, perceived_rpe, perceived_feel,
-    route_preview, has_polyline, splits
+    route_preview, has_polyline, splits, laps
   )
 `;
