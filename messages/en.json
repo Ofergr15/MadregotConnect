@@ -2141,6 +2141,8 @@
     "detail_on_target": "The execution landed inside the range the plan asked for.",
     "detail_too_fast": "{sec}s per km faster than the range the plan asked for, on average.",
     "detail_too_slow": "{sec}s per km slower than the range the plan asked for, on average.",
+    "detail_too_fast_reps": "{count} of {graded} reps were faster than the range the plan asked for.",
+    "detail_too_slow_reps": "{count} of {graded} reps were slower than the range the plan asked for.",
     "detail_mixed": "{faster} reps too fast and {slower} too slow — the pacing was not even.",
     "detail_too_long": "The distance was {km} km longer than planned.",
     "detail_too_short": "The distance was {km} km shorter than planned.",

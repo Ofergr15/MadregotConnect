@@ -23,7 +23,7 @@ import {
 } from '@/lib/academy/segments';
 import { hasStoredLaps, toLaps } from '@/lib/plan-execution/laps';
 import { segmentReportFor } from '@/lib/plan-execution/resolve';
-import { executionTakesPaceChart } from '@/components/activity/ExecutionQuality';
+import { executionTakesPaceChart, workRepsOf } from '@/components/activity/ExecutionQuality';
 import type { Split } from '@/components/activity/types';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 
@@ -572,5 +572,83 @@ describe('segmentReportFor', () => {
     const fromRunPage = verdictFor(187, run());
     expect(fromStore.score).toBe(fromRunPage.score);
     expect(fromStore.direction).toBe(fromRunPage.direction);
+  });
+});
+
+/**
+ * Which segments the "rep after rep" section is about.
+ *
+ * A coach who writes "2 km warmup at 5:30–5:50" has prescribed a pace, so the
+ * warmup arrives as a GRADED segment — indistinguishable, to everything
+ * downstream, from one of the four 2000s. It got counted as a rep, and the card
+ * then described a 4×2000 four different ways at once: a list of six "reps" headed
+ * "target 4:25–4:32" with a 5:40 warmup marked in-range against it, a deviation
+ * axis whose marker was the mean of all six (4:49 — pinned at the far SLOW end)
+ * under a headline reading "you ran faster than planned", and a count of 5 of 6.
+ *
+ * Every one of those numbers was real. They just described different segments to
+ * each other, which is the failure mode this whole feature exists to avoid, and no
+ * test caught it because the fixture above leaves the warmup unpaced.
+ */
+describe('workRepsOf', () => {
+  /** The 4×2000, with the warmup and cooldown paced the way a coach writes them. */
+  function pacedEnds(): ParsedWorkout {
+    const workout = fourByTwoK();
+    const ends = { targetType: 'pace', targetPaceMinPerKm: 330, targetPaceMaxPerKm: 350 };
+    return {
+      ...workout,
+      steps: [
+        { ...workout.steps[0], ...ends },
+        workout.steps[1],
+        { ...workout.steps[2], ...ends },
+      ] as WorkoutStep[],
+    } as ParsedWorkout;
+  }
+
+  /**
+   * One rep run past the tolerance, the rest in band, warmup and cooldown to plan.
+   * The band is 200–210 and the tolerance 5, so 192 is the first pace that counts
+   * as faster rather than close enough.
+   */
+  function repsOfPacedEnds() {
+    const workout = pacedEnds();
+    const laps = lapsAt(205);
+    laps[1] = { distance: 2000, duration: 2000 * (192 / 1000), averagePace: 192 };
+    const verdict = buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1', workoutName: workout.name,
+      adherence: assessWorkout(buildPlannedWorkout(workout, DATE), run(), DEFAULT_TOLERANCES),
+      segments: matchLapsToSteps(flattenPlannedSteps(workout), laps, DEFAULT_TOLERANCES.paceSec),
+    });
+    return verdict.reps.filter((rep) => rep.graded && rep.actualPace != null && rep.status !== 'unknown');
+  }
+
+  it('keeps the four reps and drops the warmup and the cooldown', () => {
+    const graded = repsOfPacedEnds();
+    // The engine grades all six: that is not wrong, it is just not a rep list.
+    expect(graded).toHaveLength(6);
+    expect(workRepsOf(graded).map((rep) => rep.type)).toEqual(Array(4).fill('interval'));
+  });
+
+  it('leaves the mean on the side of the band the headline claims', () => {
+    const work = workRepsOf(repsOfPacedEnds());
+    const mean = work.reduce((sum, rep) => sum + (rep.actualPace as number), 0) / work.length;
+    // The work band is 200–210. Including the 5:00/km ends put this at 245.
+    expect(mean).toBeLessThan(210);
+  });
+
+  it('counts only the reps, so "n of m in range" matches the rows on screen', () => {
+    const work = workRepsOf(repsOfPacedEnds());
+    expect(work.filter((rep) => rep.status === 'on_target')).toHaveLength(3);
+    expect(work).toHaveLength(4);
+  });
+
+  it('keeps what there is when the warmup and cooldown are all the plan paced', () => {
+    // Nothing to show beats an empty section: the athlete still ran something the
+    // coach put a pace on.
+    const workout = pacedEnds();
+    const ends = flattenPlannedSteps(workout).filter((seg) => seg.type !== 'interval');
+    expect(ends.length).toBeGreaterThan(0);
+    const onlyEnds = repsOfPacedEnds().filter((rep) => rep.type !== 'interval');
+    expect(workRepsOf(onlyEnds)).toEqual(onlyEnds);
   });
 });

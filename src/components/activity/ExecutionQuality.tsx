@@ -76,8 +76,24 @@ function verdictDetail(
   if (direction === 'mixed') {
     return t('detail_mixed', { faster: repCounts.faster, slower: repCounts.slower });
   }
-  if ((direction === 'too_fast' || direction === 'too_slow') && seconds != null) {
-    return t(direction === 'too_fast' ? 'detail_too_fast' : 'detail_too_slow', { sec: seconds });
+  if (direction === 'too_fast' || direction === 'too_slow') {
+    // `paceDeviationSec` is the MEAN of what the reps missed by, and one rep out
+    // of four missing by 7s averages to under a second. "Faster by 0 seconds per
+    // km" then sat directly under a headline saying the run was faster than
+    // planned — a self-contradiction in the same breath. When the average has
+    // rounded the miss away, count the reps that missed instead: that is the
+    // thing that actually happened.
+    const outside = workRepsOf(verdict.reps.filter((rep) => rep.graded && rep.deviation != null));
+    if (seconds === 0 && outside.length) {
+      const missed = outside.filter((rep) => rep.deviation !== 0).length;
+      if (missed) {
+        return t(direction === 'too_fast' ? 'detail_too_fast_reps' : 'detail_too_slow_reps',
+          { count: missed, graded: outside.length });
+      }
+    }
+    if (seconds != null) {
+      return t(direction === 'too_fast' ? 'detail_too_fast' : 'detail_too_slow', { sec: seconds });
+    }
   }
   if (direction === 'too_long' || direction === 'too_short') {
     const distance = verdict.metrics.find((metric) => metric.key === 'distance');
@@ -398,6 +414,31 @@ function gradedRepsOf(verdict: ExecutionVerdict): ExecutionRep[] {
   return verdict.reps.filter((rep) => rep.graded && rep.actualPace != null && rep.status !== 'unknown');
 }
 
+const WARM_COOL = new Set(['warmup', 'cooldown']);
+
+/**
+ * The reps a "rep after rep" section is actually about.
+ *
+ * A warmup and a cooldown with paces on them are graded segments, so they arrive
+ * here — but they are not reps, and they are not run at the band this section
+ * names. On a 4×2000 that put a 5:40 warmup and a 5:45 cooldown in a list headed
+ * "target 4:25–4:32", both marked green against their own bands, and dragged the
+ * mean of the "reps" out to 4:49: the deviation axis then pinned its marker at the
+ * far SLOW end of a card whose headline read "you ran faster than planned". Same
+ * trap as grading a structured session's whole-run average, one level down.
+ *
+ * Falls back to everything rather than emptying the section, for a plan whose only
+ * paced steps ARE the warmup and the cooldown.
+ *
+ * Exported to be tested: this card cannot be rendered under vitest (node env, no
+ * jsdom), and the bug it fixes is invisible in every other check — the numbers
+ * were all real, they just described different segments to each other.
+ */
+export function workRepsOf(reps: ExecutionRep[]): ExecutionRep[] {
+  const work = reps.filter((rep) => !WARM_COOL.has(rep.type));
+  return work.length ? work : reps;
+}
+
 /**
  * Whether this card draws the per-km pace chart as its evidence.
  *
@@ -573,10 +614,15 @@ export function ExecutionQuality({
   }
 
   const gradedReps = gradedRepsOf(verdict);
+  // Everything on screen below the headline — the axis marker, the chart, the
+  // rows and the "n of m in range" count — reads this one set, so the four
+  // graphics cannot describe four different sets of segments.
+  const workReps = workRepsOf(gradedReps);
+  const workOnTarget = workReps.filter((rep) => rep.status === 'on_target').length;
   const hasBand = verdict.paceBandMin != null && verdict.paceBandMax != null;
   const paceMetric = verdict.metrics.find((metric) => metric.key === 'pace');
-  const averagePace = gradedReps.length
-    ? Math.round(gradedReps.reduce((sum, rep) => sum + (rep.actualPace as number), 0) / gradedReps.length)
+  const averagePace = workReps.length
+    ? Math.round(workReps.reduce((sum, rep) => sum + (rep.actualPace as number), 0) / workReps.length)
     : paceMetric?.actual ?? null;
   const color = DIRECTION_COLOR[verdict.direction];
 
@@ -638,7 +684,7 @@ export function ExecutionQuality({
               bandMax={verdict.paceBandMax as number}
               toleranceSec={verdict.toleranceSec}
               direction={verdict.direction}
-              noRepOnTarget={gradedReps.length > 0 && verdict.repCounts.onTarget === 0}
+              noRepOnTarget={workReps.length > 0 && workOnTarget === 0}
             />
           </div>
         )}
@@ -648,20 +694,20 @@ export function ExecutionQuality({
             <div className="mb-1 flex items-baseline justify-between gap-2">
               <p className="text-xs font-bold text-ink-700">{t('repsTitle')}</p>
               <p className="text-3xs text-ink-400">
-                {t('repSummary', { onTarget: verdict.repCounts.onTarget, graded: gradedReps.length })}
+                {t('repSummary', { onTarget: workOnTarget, graded: workReps.length })}
               </p>
             </div>
             <p className="mb-2 text-3xs text-ink-400">
               {t('repsTargetLabel')} <Num>{paceRange(verdict.paceBandMin, verdict.paceBandMax)}</Num> {t('unitPerKm')}
             </p>
             <RepsChart
-              reps={gradedReps}
+              reps={workReps}
               bandMin={verdict.paceBandMin as number}
               bandMax={verdict.paceBandMax as number}
               toleranceSec={verdict.toleranceSec}
             />
             <div className="mt-2">
-              <RepRows reps={gradedReps} />
+              <RepRows reps={workReps} />
             </div>
           </div>
         ) : kmChart ? (
