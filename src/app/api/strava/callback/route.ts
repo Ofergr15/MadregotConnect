@@ -74,10 +74,11 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state');
-  // 'login' | 'login:<challenge>' | '<athleteId>'. The challenge means the login
-  // began in a standalone PWA, which cannot see a session established here —
-  // park it in login_handoffs and let the app collect it instead.
-  const { isLogin, challenge } = parseLoginState(state);
+  // 'login' | 'login:<challenge>' | 'join:<inviteToken>' | '<athleteId>'. The
+  // challenge means the login began in a standalone PWA, which cannot see a
+  // session established here — park it in login_handoffs and let the app collect
+  // it instead.
+  const { isLogin, challenge, joinToken } = parseLoginState(state);
   // Localhost stays local even if .env still points at production.
   // Behind a Cloudflare tunnel (non-localhost host), prefer NEXT_PUBLIC_APP_URL.
   const origin = resolveAppOrigin(request);
@@ -149,6 +150,94 @@ export async function GET(request: Request) {
       `Strava ${stravaId}`;
     const email = stravaAuthEmail(stravaId);
     const avatar = tokenData.athlete?.profile || tokenData.athlete?.profile_medium || null;
+
+    // ── Invite mode: the Strava step of /join/{token} ─────────────────────────
+    //
+    // Separate from login mode on purpose. Login mode has to GUESS who came back,
+    // and for a just-approved member it guesses wrong in the worst way: it matches
+    // on strava_athlete_id (still NULL), then the synthetic Strava address (not
+    // their real one), then an exact name match against the ACTIVE roster — while
+    // their row is `invited` and still carries the placeholder name derived from
+    // their email address. All three miss, so login mode INSERTS A SECOND ROW,
+    // auto-approved, and the row holding their group assignment is orphaned. That
+    // is where every production duplicate came from (see the login branch below).
+    //
+    // Here there is nothing to guess: the invite token names exactly one row.
+    if (joinToken) {
+      const admin = adminClient();
+      const { data: invited, error: inviteErr } = await admin
+        .from('athletes')
+        .select('id, email, name, approved, status, garmin_auth')
+        .eq('invite_token', joinToken)
+        .maybeSingle();
+
+      if (inviteErr) {
+        console.error(`[auth-debug:${debugId}] callback:invite_lookup_failed`, inviteErr);
+        return NextResponse.redirect(new URL('/?strava=error&reason=lookup_failed', origin));
+      }
+      if (!invited) {
+        // A token that no longer resolves — revoked, or already superseded. Send
+        // them back to the join page, which explains an invalid link properly.
+        console.error(`[auth-debug:${debugId}] callback:invite_not_found`);
+        return NextResponse.redirect(new URL(`/join/${joinToken}?strava=invalid`, origin));
+      }
+
+      const { error: linkErr } = await admin
+        .from('athletes')
+        .update({
+          strava_auth: encrypted,
+          strava_athlete_id: stravaId,
+          strava_enabled: true,
+          // Same rule as login mode: data_source decides which sync cron owns
+          // this athlete, so it is only claimed when Strava is the sole source.
+          // Someone who already had Garmin on file keeps being synced by Garmin —
+          // and keeps receiving pushed workouts, which Strava cannot deliver.
+          ...(invited.garmin_auth ? {} : { data_source: 'strava' }),
+          ...(avatar ? { avatar_url: avatar } : {}),
+          // The approver already said yes; this is the athlete finishing up. The
+          // `approved !== false` guard mirrors /api/athletes/connect exactly: an
+          // explicitly unapproved row must not let itself in through this door.
+          ...(invited.approved !== false ? { status: 'active' } : {}),
+          onboarding_status: 'strava_authed',
+        })
+        .eq('id', invited.id);
+      if (linkErr) {
+        console.error(`[auth-debug:${debugId}] callback:invite_link_failed`, linkErr);
+        return NextResponse.redirect(new URL(`/join/${joinToken}?strava=error`, origin));
+      }
+
+      // Their REAL address, not the synthetic Strava one: resolve-role matches the
+      // athlete row by email, and the whole point of this branch is that we know
+      // which row it is. Minting on the synthetic address would create a second
+      // identity pointing at nothing.
+      const joinAuth = await createSyntheticSession(admin, invited.email, {
+        strava_athlete_id: stravaId,
+        athlete_id: invited.id,
+        name: invited.name || name,
+      });
+      if (joinAuth.error || !joinAuth.session) {
+        console.error(`[auth-debug:${debugId}] callback:invite_session_failed`, joinAuth.error);
+        // The Strava link itself succeeded, so don't imply the whole thing failed.
+        // They can sign in from the landing page and will now be matched on
+        // strava_athlete_id, which this request just wrote.
+        return NextResponse.redirect(new URL('/?strava=linked&reason=session_failed', origin));
+      }
+
+      const joinFragment = new URLSearchParams({
+        access_token: joinAuth.session.access_token,
+        refresh_token: joinAuth.session.refresh_token,
+        expires_in: String(joinAuth.session.expires_in),
+        token_type: joinAuth.session.token_type,
+        type: 'strava',
+        debug_id: debugId,
+      });
+      console.info(`[auth-debug:${debugId}] callback:invite_complete`, { athleteId: invited.id });
+      // Straight to /auth/resolve, same as a login. It reads the role, stores the
+      // athlete keys and lands them on /feed — where FirstRunTour picks them up,
+      // since it fires for anyone with no `onboarding_tour_seen_at`. So finishing
+      // the join hands them directly to the in-app guide with no extra wiring.
+      return NextResponse.redirect(`${origin}/auth/resolve#${joinFragment.toString()}`);
+    }
 
     // ── Coach link mode ──────────────────────────────────────────────────────
     if (!isLogin) {

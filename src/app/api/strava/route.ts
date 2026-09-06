@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server';
 import { resolveStravaRedirectUri } from '@/lib/strava/client';
-import { loginState } from '@/lib/auth/login-handoff';
+import { loginState, joinState } from '@/lib/auth/login-handoff';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 /**
  * GET /api/strava?mode=login[&challenge=<base64url sha256>]
- * GET /api/strava?athleteId=<uuid>  (link Strava onto an existing athlete)
+ * GET /api/strava?athleteId=<uuid>       (link Strava onto an existing athlete)
+ * GET /api/strava?inviteToken=<32 hex>   (the Strava step of /join/{token})
  *
  * Returns { authUrl } for the Strava OAuth authorize page.
+ *
+ * The `inviteToken` branch is open, like `mode=login`, and for the same kind of
+ * reason: the caller is a person who has been mailed a link and has no session
+ * yet. It names nobody — the token IS the identity, it is unguessable, and the
+ * callback resolves the athlete from it server-side. See `joinState` for why the
+ * token and not an athlete id goes into `state`.
  *
  * `mode=login` is deliberately open — it is the sign-in entry point on the
  * public landing page, so there is no session to require yet, and the state it
@@ -31,6 +38,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get('mode');
   const athleteId = searchParams.get('athleteId');
+  // Shape-checked here as well as in parseLoginState, so a malformed token is a
+  // 400 the join page can show rather than a round trip to Strava that comes
+  // back as an unexplained failure.
+  const inviteTokenParam = searchParams.get('inviteToken');
+  const inviteToken =
+    inviteTokenParam && /^[0-9a-f]{32}$/.test(inviteTokenParam) ? inviteTokenParam : null;
   // Echoed straight back to us by Strava and then used as a primary key, so it
   // is shape-checked here rather than trusted: 43 chars of base64url, the length
   // of a SHA-256 digest. Anything else is dropped and the login proceeds without
@@ -47,7 +60,11 @@ export async function GET(request: Request) {
   }
 
   let state: string;
-  if (mode === 'login' || (!athleteId && mode !== 'link')) {
+  if (inviteTokenParam && !inviteToken) {
+    return NextResponse.json({ error: 'invalid inviteToken' }, { status: 400 });
+  } else if (inviteToken) {
+    state = joinState(inviteToken);
+  } else if (mode === 'login' || (!athleteId && mode !== 'link')) {
     state = loginState(challenge);
   } else if (athleteId) {
     // Self-or-staff: a runner may connect their own Strava (profile page), a

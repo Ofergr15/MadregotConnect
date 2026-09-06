@@ -4,6 +4,7 @@ import {
   HANDOFF_TTL_MS,
   challengeFor,
   clearPendingVerifier,
+  joinState,
   loginState,
   newVerifier,
   parseLoginState,
@@ -50,6 +51,7 @@ describe('the OAuth state round trip', () => {
       isLogin: true,
       challenge,
       linkAthleteId: null,
+      joinToken: null,
     });
   });
 
@@ -60,6 +62,7 @@ describe('the OAuth state round trip', () => {
       isLogin: true,
       challenge: null,
       linkAthleteId: null,
+      joinToken: null,
     });
   });
 
@@ -68,7 +71,12 @@ describe('the OAuth state round trip', () => {
     // 'login:<challenge>' state would have been read as an athlete id and the
     // callback would have written Strava credentials onto athlete "login:...".
     const id = '4e7d7c0f-3a13-4c86-a5f8-b103f1506f81';
-    expect(parseLoginState(id)).toEqual({ isLogin: false, challenge: null, linkAthleteId: id });
+    expect(parseLoginState(id)).toEqual({
+      isLogin: false,
+      challenge: null,
+      linkAthleteId: id,
+      joinToken: null,
+    });
     expect(parseLoginState(`login:${'A'.repeat(43)}`).linkAthleteId).toBeNull();
   });
 
@@ -87,7 +95,58 @@ describe('the OAuth state round trip', () => {
       isLogin: false,
       challenge: null,
       linkAthleteId: null,
+      joinToken: null,
     });
+  });
+});
+
+describe('the join state — finishing an invite with Strava', () => {
+  const TOKEN = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'; // randomBytes(16).toString('hex')
+
+  it('round-trips the invite token', () => {
+    expect(joinState(TOKEN)).toBe(`join:${TOKEN}`);
+    expect(parseLoginState(joinState(TOKEN))).toEqual({
+      isLogin: false,
+      challenge: null,
+      linkAthleteId: null,
+      joinToken: TOKEN,
+    });
+  });
+
+  // The whole reason this branch is safe to leave open. The callback resolves an
+  // athlete from `joinToken` and MINTS A SESSION for it, so anything that is not
+  // an unguessable token we issued must resolve to no join at all. An athlete
+  // uuid in that position would be a one-request account takeover — `state` is
+  // attacker-craftable, since client_id is public and the redirect_uri is ours.
+  it('refuses anything that is not a 32-char lowercase hex token', () => {
+    const uuid = '4e7d7c0f-3a13-4c86-a5f8-b103f1506f81';
+    const bad = [
+      '',
+      uuid,
+      TOKEN.toUpperCase(),
+      TOKEN.slice(0, 31),
+      `${TOKEN}0`,
+      `${TOKEN.slice(0, 31)}g`,
+      'runner@madregot.local',
+      "' or 1=1--",
+    ];
+    for (const value of bad) {
+      const parsed = parseLoginState(`join:${value}`);
+      expect(parsed.joinToken).toBeNull();
+      // And it must not fall through into a branch that DOES act on it.
+      expect(parsed.isLogin).toBe(false);
+      expect(parsed.linkAthleteId).toBeNull();
+    }
+  });
+
+  it('does not collide with the other three states', () => {
+    expect(parseLoginState('login').joinToken).toBeNull();
+    expect(parseLoginState(`login:${'A'.repeat(43)}`).joinToken).toBeNull();
+    expect(parseLoginState('4e7d7c0f-3a13-4c86-a5f8-b103f1506f81').joinToken).toBeNull();
+    // …and a join state is never read as an athlete id, which is what would let
+    // the callback's link mode write credentials onto a row named "join:…".
+    expect(parseLoginState(joinState(TOKEN)).linkAthleteId).toBeNull();
+    expect(parseLoginState(joinState(TOKEN)).isLogin).toBe(false);
   });
 });
 

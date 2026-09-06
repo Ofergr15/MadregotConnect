@@ -143,7 +143,10 @@ export async function notifyRegistrationApproved(user: { email: string; token: s
         <h2 style="color: #1D1E26;">אושרת! 🎉</h2>
         <p style="color: #2D2E38; line-height: 1.7;">
           ההרשמה שלך למדרגות אושרה${user.groupName ? ` — ${user.groupName}` : ''}.
-          נשאר רק להשלים את הפרטים ולחבר את השעון, וזה הכל.
+          נשאר רק להשלים כמה פרטים ולהתחבר עם Strava, וזה הכל.
+        </p>
+        <p style="color: #656565; font-size: 13px; line-height: 1.6;">
+          מי שהשעון שלו כבר מחובר אצלנו — נזהה את זה ונדלג על השלב.
         </p>
         <p style="margin-top: 20px;">
           <a href="${link}" style="background: #1525FF; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">

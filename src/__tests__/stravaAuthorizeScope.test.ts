@@ -103,6 +103,39 @@ describe('GET /api/strava — link branch', () => {
   });
 });
 
+describe('GET /api/strava — invite branch', () => {
+  const TOKEN = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+
+  // Open like login mode, and for the same reason: the caller is someone who was
+  // mailed a link and has no session yet. It names nobody — the token IS the
+  // identity, and it is unguessable.
+  it('serves an invited member finishing their registration', async () => {
+    requireSession.mockResolvedValue({ ok: false, status: 401, error: 'Missing bearer token' });
+    const res = await get(`?inviteToken=${TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(await stateOf(res)).toBe(`join:${TOKEN}`);
+    expect(requireSession).not.toHaveBeenCalled();
+  });
+
+  // A malformed token is a 400 here rather than a trip to Strava that comes back
+  // as an unexplained failure — and, more importantly, it never becomes a state
+  // the callback might act on. An athlete uuid in that slot would be a takeover.
+  it('rejects anything that is not an invite token, rather than falling back to login', async () => {
+    requireSession.mockResolvedValue({ ok: false, status: 401, error: 'Missing bearer token' });
+    for (const bad of [VICTIM, TOKEN.toUpperCase(), TOKEN.slice(0, 31), 'x']) {
+      const res = await get(`?inviteToken=${encodeURIComponent(bad)}`);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('does not let an invite token smuggle in a link state', async () => {
+    requireSession.mockResolvedValue({ ok: false, status: 401, error: 'Missing bearer token' });
+    const state = await stateOf(await get(`?inviteToken=${TOKEN}`));
+    expect(state).not.toBe(TOKEN);
+    expect(state).not.toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}/i);
+  });
+});
+
 describe('GET /api/strava — login branch stays open', () => {
   // No session exists yet on the landing page, so requiring one here would lock
   // every new and returning user out of the app entirely.
