@@ -6,7 +6,7 @@ import { activityLocalDateStr } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { requireCallerForAthlete, requireMember } from '@/lib/auth/self-or-staff';
-import { flattenPlannedSteps, matchLapsToSteps, buildPlannedBands, Lap } from '@/lib/academy/segments';
+import { flattenPlannedSteps, matchLapsToSteps, buildPlannedBands, isContinuousPlan, Lap } from '@/lib/academy/segments';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 
@@ -97,7 +97,15 @@ export async function GET(request: Request) {
     // not always 1km). No lap fetch needed. bands:null → the day has no paced plan.
     if (searchParams.get('bands')) {
       const bands = buildPlannedBands(planned);
-      return NextResponse.json({ bands: bands.length ? bands : null, workoutName: planned.name });
+      return NextResponse.json({
+        bands: bands.length ? bands : null,
+        // Whether a kilometre grid is a fair frame for these bands. Answered here
+        // because only this side holds the plan's steps, and the bands themselves
+        // cannot tell an interval session from a continuous run — see
+        // `isContinuousPlan`. Same plan content, same gate: no new surface.
+        continuous: isContinuousPlan(planned),
+        workoutName: planned.name,
+      });
     }
 
     // 2) The matched activity for that date, with its stored laps.

@@ -48,7 +48,7 @@ function ActivityCard({
   // sharing of) any past run, not just the one that was just synced.
   const [showShare, setShowShare] = useState(false);
 
-  const { details, loading: loadingDetails, planned, load } = useActivityDetails({
+  const { details, loading: loadingDetails, planned, plannedContinuous, load } = useActivityDetails({
     activityId: activity.id,
     athleteId: activity.athlete_id,
     startTime: activity.start_time,
@@ -202,6 +202,7 @@ function ActivityCard({
           details={details}
           loading={loadingDetails}
           planned={planned}
+          plannedContinuous={plannedContinuous}
           canSeeExecution={canSeeExecution}
           className="border-t border-page/50 px-4 sm:px-5 py-5"
         />

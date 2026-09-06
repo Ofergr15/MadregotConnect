@@ -15,8 +15,15 @@ import {
   DEFAULT_TOLERANCES,
   type ActualActivity,
 } from '@/lib/academy/adherence';
-import { flattenPlannedSteps, matchLapsToSteps, type Lap } from '@/lib/academy/segments';
+import {
+  flattenPlannedSteps,
+  matchLapsToSteps,
+  type Lap,
+  type PlannedKmPoint,
+} from '@/lib/academy/segments';
 import { hasStoredLaps, toLaps } from '@/lib/plan-execution/laps';
+import { executionTakesPaceChart } from '@/components/activity/ExecutionQuality';
+import type { Split } from '@/components/activity/types';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 
 /**
@@ -445,5 +452,77 @@ describe('buildVerdict — a paced session whose reps could not be read', () => 
     });
     expect(verdict.status).toBe('graded');
     expect(verdict.score).not.toBeNull();
+  });
+});
+
+/**
+ * Which evidence the accuracy card is allowed to draw.
+ *
+ * A pure predicate, but the one that decides whether a runner sees a chart at all,
+ * and every `false` below is a render that was wrong on screen before it existed:
+ * a km grid laid over reps and recovery jogs, an axis with an empty band behind it,
+ * the same chart twice on one page.
+ */
+describe('executionTakesPaceChart', () => {
+  const splits: Split[] = Array(10).fill(0).map(() => ({
+    distance: 1000, duration: 300, averagePace: 300, averageHR: null, elevationGain: null,
+  }));
+  const overlay: (PlannedKmPoint | null)[] = splits.map(() => ({ pace: 295, min: 290, max: 300 }));
+
+  /** A continuous run: paced, but with no reps the engine could grade. */
+  function continuousVerdict() {
+    const steady = {
+      dayOfWeek: 1, name: 'Tempo 10k',
+      steps: [{
+        order: 1, type: 'active', durationType: 'distance', durationValue: 10000,
+        targetType: 'pace', targetPaceMinPerKm: 290, targetPaceMaxPerKm: 300,
+      }],
+    } as ParsedWorkout;
+    return buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1',
+      adherence: assessWorkout(
+        buildPlannedWorkout(steady, DATE),
+        run({ distance: 10000, duration: 3000, movingDuration: 3000, averagePace: 300 }),
+        DEFAULT_TOLERANCES,
+      ),
+      segments: null,
+      workoutName: steady.name,
+    });
+  }
+
+  it('draws the kilometres for a continuous run — its only other evidence is one average', () => {
+    expect(executionTakesPaceChart(continuousVerdict(), splits, overlay, true)).toBe(true);
+  });
+
+  it('yields to the rep chart when the reps were readable', () => {
+    // Even told the plan is continuous: gradeable reps answer the same question
+    // more sharply, and two charts stacked on one card is the third label problem.
+    expect(executionTakesPaceChart(verdictFor(205, run()), splits, overlay, true)).toBe(false);
+  });
+
+  it('refuses an interval plan — `isContinuousPlan` already said the frame lies', () => {
+    expect(executionTakesPaceChart(continuousVerdict(), splits, overlay, false)).toBe(false);
+  });
+
+  it('refuses an unplanned run — there is no plan to draw behind the line', () => {
+    const unplanned = buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1', adherence: null, segments: null,
+    });
+    expect(unplanned.status).toBe('unplanned');
+    expect(executionTakesPaceChart(unplanned, splits, overlay, true)).toBe(false);
+  });
+
+  it('refuses an all-null overlay — a chart with nothing to compare against', () => {
+    expect(executionTakesPaceChart(continuousVerdict(), splits, splits.map(() => null), true)).toBe(false);
+    expect(executionTakesPaceChart(continuousVerdict(), splits, null, true)).toBe(false);
+  });
+
+  it('refuses a single split — one point is not a line', () => {
+    expect(executionTakesPaceChart(continuousVerdict(), splits.slice(0, 1), overlay, true)).toBe(false);
+    expect(executionTakesPaceChart(continuousVerdict(), undefined, overlay, true)).toBe(false);
+  });
+
+  it('refuses when the verdict has not loaded yet', () => {
+    expect(executionTakesPaceChart(null, splits, overlay, true)).toBe(false);
   });
 });

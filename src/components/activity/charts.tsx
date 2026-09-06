@@ -1,10 +1,45 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Heart, Mountain, Timer } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
 import { catmullRom, formatPace, getHRZone } from './format';
 import type { Split } from './types';
+
+// ─── Chart geometry ───────────────────────────────────────────────────────────
+// Padding is in CSS pixels, because the viewBox is measured (see useChartWidth)
+// rather than fixed. `left` holds a "5:39"-width pace label at 11px; `right` only
+// has to keep the last x-axis label from being clipped.
+const PAD = { top: 20, right: 14, bottom: 26, left: 42 };
+
+/**
+ * The chart's rendered width in CSS pixels, used as the SVG's own coordinate width.
+ *
+ * These charts declared a fixed 1000-unit viewBox against a fixed pixel height,
+ * so preserveAspectRatio scaled all 1000 units down to fit — on a 358px phone the
+ * plot rendered at 36%, which left ~140px of dead space above it and drew the
+ * 11px axis labels at about 4px. Measuring makes one SVG unit one pixel, so a
+ * stated font size means what it says at every container width.
+ */
+function useChartWidth() {
+  const boxRef = useRef<HTMLDivElement>(null);
+  // Narrower than any real container, so the first paint is never wider than the
+  // box it lands in — it grows to fit on measure, rather than overflowing first.
+  const [width, setWidth] = useState(320);
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const measure = () => setWidth(Math.max(240, Math.round(el.clientWidth)));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return { boxRef, width };
+}
 
 // ─── Interactive Chart Tooltip Hook ────────────────────────────────────────────
 
@@ -12,12 +47,13 @@ function useChartHover(pointCount: number) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>, padLeft: number, chartW: number) => {
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>, chartW: number) => {
     if (!svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
+    // The pointer is always measured from the SVG's own left edge: the viewBox is
+    // LTR even when the page is RTL, so this must not use `dir`-aware offsets.
     const x = e.clientX - rect.left;
-    const relX = (x / rect.width) * 1000;
-    const idx = Math.round(((relX - padLeft) / chartW) * (pointCount - 1));
+    const idx = Math.round(((x - PAD.left) / chartW) * (pointCount - 1));
     if (idx >= 0 && idx < pointCount) setHoverIdx(idx);
     else setHoverIdx(null);
   };
@@ -27,18 +63,31 @@ function useChartHover(pointCount: number) {
   return { hoverIdx, svgRef, handleMouseMove, handleMouseLeave };
 }
 
+/** Legend swatch + label, e.g. a dashed green rule meaning "planned". */
+function LegendItem({ label, swatch }: { label: string; swatch: React.ReactNode }) {
+  return (
+    <span className="flex items-center gap-1 font-semibold normal-case">
+      {swatch}
+      {label}
+    </span>
+  );
+}
+
 // ─── Full-Width Pace Chart ─────────────────────────────────────────────────────
 
 export function PaceChart({ splits, planned }: { splits: Split[]; planned?: (PlannedKmPoint | null)[] }) {
+  const t = useTranslations('activities');
   const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
+  const { boxRef, width } = useChartWidth();
 
-  if (splits.length < 2) return null;
-
-  const width = 1000;
   const height = 220;
-  const pad = { top: 24, right: 40, bottom: 36, left: 56 };
+  const pad = PAD;
   const chartW = width - pad.left - pad.right;
   const chartH = height - pad.top - pad.bottom;
+
+  // After the hooks: an early return above them changes the hook count between
+  // renders when a split arrives, which React rejects.
+  if (splits.length < 2) return null;
 
   const paces = splits.map(s => s.averagePace);
   // The planned band (aligned per-km with the splits) may sit outside the actual
@@ -90,17 +139,32 @@ export function PaceChart({ splits, planned }: { splits: Split[]; planned?: (Pla
   };
 
   return (
-    <div>
-      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
-        <Timer className="h-3 w-3" /> Pace per KM
-        {hasPlan && <span className="text-3xs text-accent-600 ms-2">— dashed = planned</span>}
+    <div ref={boxRef}>
+      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="flex items-center gap-1.5"><Timer className="h-3 w-3" /> {t('chartPacePerKm')}</span>
+        {/* Named, not "dashed = planned": the band is the more legible of the two
+            marks and the dash was the only thing the old label pointed at. */}
+        {hasPlan && (
+          <LegendItem
+            label={t('legendPlanned')}
+            swatch={<span className="inline-block w-4 border-t-2 border-dashed border-accent-600" />}
+          />
+        )}
+        <LegendItem
+          label={t('legendActual')}
+          swatch={<span className="inline-block w-4 border-t-2 border-brand-600" />}
+        />
       </h4>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
-        style={{ height: '220px' }}
-        onMouseMove={e => handleMouseMove(e, pad.left, chartW)}
+        width={width}
+        height={height}
+        // The page is RTL and an SVG inherits that: without this, textAnchor="end"
+        // resolves to the LEFT edge and every y-axis label draws into the plot.
+        direction="ltr"
+        className="max-w-full"
+        onMouseMove={e => handleMouseMove(e, chartW)}
         onMouseLeave={handleMouseLeave}
       >
         <defs>
@@ -116,7 +180,10 @@ export function PaceChart({ splits, planned }: { splits: Split[]; planned?: (Pla
         {/* Planned pace band + dashed center, per contiguous paced run. */}
         {plannedRuns.map((run, k) => (
           <g key={`plan-${k}`}>
-            <path d={bandArea(run)} fill="#22c55e" opacity={0.1} />
+            {/* Drawn over the blue area fill, and at an opacity that survives it:
+                at 0.1 the band was invisible exactly where it matters most, under
+                the stretch of the run the plan actually put a target on. */}
+            <path d={bandArea(run)} fill="#16a34a" opacity={0.2} stroke="#16a34a" strokeOpacity={0.35} strokeWidth="1" />
             <path
               d={catmullRom(run.map(({ i, p }) => ({ x: toX(i + 1), y: toY(p.pace) })))}
               fill="none" stroke="#22c55e" strokeWidth="2" strokeDasharray="8 4" opacity={0.75}
@@ -132,10 +199,10 @@ export function PaceChart({ splits, planned }: { splits: Split[]; planned?: (Pla
             <line x1={points[hoverIdx].x} x2={points[hoverIdx].x} y1={pad.top} y2={pad.top + chartH} stroke="#1525FF" strokeWidth="1" opacity={0.4} strokeDasharray="3 3" />
             <rect x={points[hoverIdx].x - 40} y={points[hoverIdx].y - 28} width="80" height="22" rx="4" fill="#1D1E26" stroke="#1525FF" strokeWidth="1" />
             <text x={points[hoverIdx].x} y={points[hoverIdx].y - 14} textAnchor="middle" className="fill-white" fontSize="12" fontWeight="700">
-              {formatPace(paces[hoverIdx])} /km
+              {formatPace(paces[hoverIdx])} {t('perKm')}
             </text>
             <text x={points[hoverIdx].x} y={pad.top + chartH + 14} textAnchor="middle" className="fill-ink-500" fontSize="10" fontWeight="600">
-              KM {hoverIdx + 1}
+              {t('kmNumber', { n: hoverIdx + 1 })}
             </text>
           </g>
         )}
@@ -157,15 +224,17 @@ export function PaceChart({ splits, planned }: { splits: Split[]; planned?: (Pla
 // ─── Full-Width Heart Rate Chart ───────────────────────────────────────────────
 
 export function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: number }) {
+  const t = useTranslations('activities');
   const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
-  const valid = splits.filter(s => s.averageHR);
-  if (valid.length < 2) return null;
+  const { boxRef, width } = useChartWidth();
 
-  const width = 1000;
   const height = 200;
-  const pad = { top: 24, right: 40, bottom: 36, left: 56 };
+  const pad = PAD;
   const chartW = width - pad.left - pad.right;
   const chartH = height - pad.top - pad.bottom;
+
+  const valid = splits.filter(s => s.averageHR);
+  if (valid.length < 2) return null;
 
   const hrs = splits.map(s => s.averageHR || 0);
   const validHrs = hrs.filter(h => h > 0);
@@ -200,16 +269,18 @@ export function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: numb
   const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
 
   return (
-    <div>
+    <div ref={boxRef}>
       <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
-        <Heart className="h-3 w-3" /> Heart Rate
+        <Heart className="h-3 w-3" /> {t('chartHrPerKm')}
       </h4>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
-        style={{ height: '200px' }}
-        onMouseMove={e => handleMouseMove(e, pad.left, chartW)}
+        width={width}
+        height={height}
+        direction="ltr"
+        className="max-w-full"
+        onMouseMove={e => handleMouseMove(e, chartW)}
         onMouseLeave={handleMouseLeave}
       >
         <defs>
@@ -239,10 +310,10 @@ export function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: numb
             <line x1={points[hoverIdx].x} x2={points[hoverIdx].x} y1={pad.top} y2={pad.top + chartH} stroke="#D74E4E" strokeWidth="1" opacity={0.4} strokeDasharray="3 3" />
             <rect x={points[hoverIdx].x - 42} y={points[hoverIdx].y - 28} width="84" height="22" rx="4" fill="#1D1E26" stroke="#D74E4E" strokeWidth="1" />
             <text x={points[hoverIdx].x} y={points[hoverIdx].y - 14} textAnchor="middle" className="fill-white" fontSize="12" fontWeight="700">
-              {hrs[hoverIdx]} bpm
+              {hrs[hoverIdx]} {t('bpm')}
             </text>
             <text x={points[hoverIdx].x} y={pad.top + chartH + 14} textAnchor="middle" className="fill-ink-500" fontSize="10" fontWeight="600">
-              KM {hoverIdx + 1}
+              {t('kmNumber', { n: hoverIdx + 1 })}
             </text>
           </g>
         )}
@@ -264,15 +335,16 @@ export function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: numb
 // ─── Full-Width Elevation Chart (Gain + Loss per KM) ──────────────────────────
 
 export function ElevationChart({ splits }: { splits: Split[] }) {
+  const t = useTranslations('activities');
   const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
+  const { boxRef, width } = useChartWidth();
 
-  if (splits.length < 2) return null;
-
-  const width = 1000;
   const height = 180;
-  const pad = { top: 24, right: 40, bottom: 36, left: 56 };
+  const pad = PAD;
   const chartW = width - pad.left - pad.right;
   const chartH = height - pad.top - pad.bottom;
+
+  if (splits.length < 2) return null;
 
   const gains = splits.map(s => s.elevationGain || 0);
   const losses = splits.map(s => s.elevationLoss || 0);
@@ -290,20 +362,26 @@ export function ElevationChart({ splits }: { splits: Split[] }) {
   const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
 
   return (
-    <div>
-      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
-        <Mountain className="h-3 w-3" /> Elevation per KM
-        <span className="ms-2 flex items-center gap-2 text-3xs">
-          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-600/80" /> gain</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-red/80" /> loss</span>
-        </span>
+    <div ref={boxRef}>
+      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="flex items-center gap-1.5"><Mountain className="h-3 w-3" /> {t('chartElevationPerKm')}</span>
+        <LegendItem
+          label={t('legendGain')}
+          swatch={<span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-600/80" />}
+        />
+        <LegendItem
+          label={t('legendLoss')}
+          swatch={<span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-red/80" />}
+        />
       </h4>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
-        style={{ height: '180px' }}
-        onMouseMove={e => handleMouseMove(e, pad.left, chartW)}
+        width={width}
+        height={height}
+        direction="ltr"
+        className="max-w-full"
+        onMouseMove={e => handleMouseMove(e, chartW)}
         onMouseLeave={handleMouseLeave}
       >
         <line x1={pad.left} x2={width - pad.right} y1={midY} y2={midY} stroke="#BBBBBB" strokeWidth="1" />

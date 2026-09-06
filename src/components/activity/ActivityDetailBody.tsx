@@ -9,7 +9,7 @@ import { PlannedKmPoint } from '@/lib/academy/segments';
 import { cn } from '@/lib/utils';
 import { ElevationChart, HRChart, PaceChart } from './charts';
 import { useExecutionVerdict } from './execution-context';
-import { ExecutionQuality } from './ExecutionQuality';
+import { ExecutionQuality, executionTakesPaceChart } from './ExecutionQuality';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone } from './format';
 import { RouteMap } from './RouteMap';
 import { SplitsTable } from './SplitsTable';
@@ -49,6 +49,7 @@ export function ActivityDetailBody({
   details,
   loading = false,
   planned,
+  plannedContinuous = false,
   canSeeExecution = false,
   className,
 }: {
@@ -56,6 +57,8 @@ export function ActivityDetailBody({
   details: ActivityDetailsData | null;
   loading?: boolean;
   planned?: (PlannedKmPoint | null)[] | null;
+  /** Whether that plan is one unbroken stretch — see `executionTakesPaceChart`. */
+  plannedContinuous?: boolean;
   /**
    * Whether to show the plan-vs-execution grade: the athlete themselves, or
    * staff. The caller decides because only the caller knows who's looking; the
@@ -114,8 +117,16 @@ export function ActivityDetailBody({
   return (
     <div className={cn('space-y-5', className)}>
       {/* First, before the map and the numbers: was this the workout that was
-          asked for? Everything below is the evidence for that answer. */}
-      <ExecutionQuality verdict={verdict} loading={loadingVerdict} />
+          asked for? Everything below is the evidence for that answer — including,
+          on a run with no reps to grade, the per-km chart that used to sit far
+          below the map where nobody compared it to anything. */}
+      <ExecutionQuality
+        verdict={verdict}
+        splits={splits}
+        planned={planned}
+        plannedContinuous={plannedContinuous}
+        loading={loadingVerdict}
+      />
 
       {loading && !details && (
         <div className="flex items-center justify-center py-8">
@@ -255,9 +266,14 @@ export function ActivityDetailBody({
       {/* Charts - Full Width Stacked */}
       {splits.length >= 2 && (
         <div className="space-y-4">
-          <div className="bg-page/40 rounded-xl p-4 border border-page/20">
-            <PaceChart splits={splits} planned={planned || undefined} />
-          </div>
+          {/* Once, not twice: when the accuracy card above took this chart as its
+              evidence, drawing it again 600 px lower is the same picture with the
+              plan comparison stripped of its context. */}
+          {!executionTakesPaceChart(verdict, splits, planned, plannedContinuous) && (
+            <div className="bg-page/40 rounded-xl p-4 border border-page/20">
+              <PaceChart splits={splits} planned={planned || undefined} />
+            </div>
+          )}
           {splits.some(s => s.averageHR) && (
             <div className="bg-page/40 rounded-xl p-4 border border-page/20">
               <HRChart splits={splits} maxHR={maxHR} />

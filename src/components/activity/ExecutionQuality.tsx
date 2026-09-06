@@ -32,8 +32,11 @@ import {
   type ExecutionRep,
   type ExecutionVerdict,
 } from '@/lib/plan-execution/verdict';
+import type { PlannedKmPoint } from '@/lib/academy/segments';
 import { ExecutionRing } from './ExecutionRing';
+import { PaceChart } from './charts';
 import { formatDuration, formatPace } from './format';
+import type { Split } from './types';
 
 // ── Small formatters ────────────────────────────────────────────────────────
 
@@ -388,14 +391,88 @@ function MetricRow({ metric }: { metric: ExecutionMetric }) {
   );
 }
 
+// ── Which evidence this card can show ───────────────────────────────────────
+
+/** The reps the engine was willing to grade — the rest have no pace to plot. */
+function gradedRepsOf(verdict: ExecutionVerdict): ExecutionRep[] {
+  return verdict.reps.filter((rep) => rep.graded && rep.actualPace != null && rep.status !== 'unknown');
+}
+
+/**
+ * Whether this card draws the per-km pace chart as its evidence.
+ *
+ * Only for a continuous run, and only when there is nothing better. A structured
+ * session gets `RepsChart`, which answers the same question far more sharply; and
+ * a structured session whose reps could NOT be read gets no chart at all, because
+ * a kilometre grid laid over reps and recovery jogs is actively misleading — see
+ * `isContinuousPlan`, which is where that call is made and explained.
+ *
+ * A continuous run has no reps to draw. Until now its whole evidence was one
+ * average on the deviation axis, so 10 km held steady on target and 10 km that
+ * drifted 20 s/km over the last three looked identical on this card.
+ *
+ * Exported so `ActivityDetailBody` can drop its own copy of the chart instead of
+ * showing the same graphic twice on one page: one predicate, both call sites.
+ */
+export function executionTakesPaceChart(
+  verdict: ExecutionVerdict | null,
+  splits: Split[] | undefined,
+  planned: (PlannedKmPoint | null)[] | null | undefined,
+  plannedContinuous: boolean | undefined,
+): boolean {
+  if (!verdict) return false;
+  // An unplanned run has no plan to draw behind the line.
+  if (verdict.status === 'unplanned') return false;
+  if (!plannedContinuous) return false;
+  if (!splits || splits.length < 2) return false;
+  // Every bin unmatched means the plan put no pace target on this run's distance;
+  // an all-null overlay draws a chart with nothing to compare against.
+  if (!planned?.some((point) => point != null)) return false;
+  return gradedRepsOf(verdict).length === 0;
+}
+
+/**
+ * How many kilometres actually sat in the band drawn behind them.
+ *
+ * The chart is not self-explanatory at a glance: a line that hugs a 10 s/km band
+ * over an 85 s/km axis looks like it is "roughly there" whether it was in or out.
+ * Counting says which — and it is what makes the chart evidence rather than
+ * decoration. Judged against the same ±tolerance the rest of the card uses, so a
+ * kilometre one second outside the band is not called a miss.
+ */
+function tallyKmInBand(
+  splits: Split[],
+  planned: (PlannedKmPoint | null)[],
+  toleranceSec: number,
+): { inBand: number; graded: number } {
+  let inBand = 0;
+  let graded = 0;
+  planned.forEach((point, index) => {
+    const pace = splits[index]?.averagePace;
+    if (point == null || pace == null) return;
+    graded += 1;
+    if (pace >= point.min - toleranceSec && pace <= point.max + toleranceSec) inBand += 1;
+  });
+  return { inBand, graded };
+}
+
 // ── The section ─────────────────────────────────────────────────────────────
 
 export function ExecutionQuality({
   verdict,
+  splits,
+  planned,
+  plannedContinuous,
   loading = false,
   className,
 }: {
   verdict: ExecutionVerdict | null;
+  /** Per-km splits, for the pace chart. Absent on the feed, present on a run. */
+  splits?: Split[];
+  /** The plan projected onto those same bins by `projectBandsToBins`. */
+  planned?: (PlannedKmPoint | null)[] | null;
+  /** Whether that plan is one unbroken stretch — see `executionTakesPaceChart`. */
+  plannedContinuous?: boolean;
   loading?: boolean;
   className?: string;
 }) {
@@ -419,9 +496,36 @@ export function ExecutionQuality({
     );
   }
 
-  // A structured session whose reps couldn't be read, with nothing else worth
-  // reporting. Says so plainly instead of showing an empty ring and three grey
-  // rows — a percentage withheld without a reason reads as a broken feature.
+  const showKmChart = executionTakesPaceChart(verdict, splits, planned, plannedContinuous);
+  const kmTally = showKmChart && splits && planned
+    ? tallyKmInBand(splits, planned, verdict.toleranceSec)
+    : null;
+  const kmChart = showKmChart && splits ? (
+    <>
+      <PaceChart splits={splits} planned={planned ?? undefined} />
+      <p className="mt-1 text-3xs leading-snug text-ink-400">
+        {kmTally && kmTally.graded > 0
+          ? t('kmSummary', { inBand: kmTally.inBand, graded: kmTally.graded })
+          : t('kmChartNote')}
+      </p>
+      {/* The reason this chart is worth the space. A whole-run average of 5:02
+          lands inside a 4:50–5:00 band's tolerance, so the ring reads 100% for a
+          run whose last four kilometres were 6–16 s/km slow. Same trap the axis
+          note warns about on a structured session, on a run with no reps to
+          count — and without saying it, the ring and the chart directly
+          contradict each other with nothing to say which to believe. */}
+      {verdict.direction === 'on_target' && kmTally != null && kmTally.inBand < kmTally.graded && (
+        <p className="mt-1.5 flex items-start gap-1.5 text-3xs leading-snug text-ink-500">
+          <Info className="mt-px h-3 w-3 shrink-0 text-ink-400" />
+          {t('kmAverageTrap')}
+        </p>
+      )}
+    </>
+  ) : null;
+
+  // A session the engine won't score, with nothing else worth reporting. Says so
+  // plainly instead of showing an empty ring and three grey rows — a percentage
+  // withheld without a reason reads as a broken feature.
   // (A run that also went long or short keeps the full section below: the ring
   // dashes out, but "you ran 8 of 13.6 km" is still true and worth saying.)
   if (verdict.status === 'ungraded' && verdict.direction === 'unknown') {
@@ -433,9 +537,18 @@ export function ExecutionQuality({
           </div>
           <div className="min-w-0">
             <p className="text-sm font-bold text-ink-700">{t('ungradedTitle')}</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-ink-400">{t('ungradedBody')}</p>
+            {/* Two different reasons wear the same "no score" hat, and blaming the
+                watch for the wrong one is a lie the athlete can check: a plan that
+                asked for three different paces has no single average to grade, and
+                its laps were never the problem. */}
+            <p className="mt-0.5 text-xs leading-relaxed text-ink-400">
+              {t(kmChart ? 'ungradedVariableBody' : 'ungradedBody')}
+            </p>
           </div>
         </div>
+        {/* No number, but not nothing: the kilometres are still evidence, and this
+            state used to end the page with an apology and a blank. */}
+        {kmChart && <div className="mt-4 border-t border-page pt-4">{kmChart}</div>}
       </div>
     );
   }
@@ -459,7 +572,7 @@ export function ExecutionQuality({
     );
   }
 
-  const gradedReps = verdict.reps.filter((rep) => rep.graded && rep.actualPace != null && rep.status !== 'unknown');
+  const gradedReps = gradedRepsOf(verdict);
   const hasBand = verdict.paceBandMin != null && verdict.paceBandMax != null;
   const paceMetric = verdict.metrics.find((metric) => metric.key === 'pace');
   const averagePace = gradedReps.length
@@ -551,6 +664,10 @@ export function ExecutionQuality({
               <RepRows reps={gradedReps} />
             </div>
           </div>
+        ) : kmChart ? (
+          // No heading above it: the chart draws its own, and a second one saying
+          // the same words would be the third label on one graphic.
+          <div className="mt-5 border-t border-page pt-4">{kmChart}</div>
         ) : verdict.repsReason ? (
           <p className="mt-4 flex items-start gap-1.5 border-t border-page pt-4 text-3xs leading-snug text-ink-400">
             <AlertCircle className="mt-px h-3 w-3 shrink-0" />

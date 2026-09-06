@@ -141,6 +141,36 @@ export function buildPlannedBands(workout: ParsedWorkout): PlannedBand[] {
   return bands;
 }
 
+/**
+ * True when a plan is one continuous run rather than a set of reps — i.e. whether
+ * a per-kilometre chart of it is honest.
+ *
+ * Because `projectBandsToBins` below hands a bin the band that covers half of it,
+ * the kilometre of a 4×2000 that straddles a rep and its 400 m recovery jog gets
+ * drawn against the rep's band while the pace plotted on it includes the jog: a
+ * rep the athlete nailed reads a minute per km slow. A continuous run has no such
+ * seam — each bin's pace and each bin's band describe the same stretch of running.
+ *
+ * Read off the STEPS, deliberately, and not off the bands: a rest written as
+ * "2 min" carries no pace, so `buildPlannedBands` can place no metres for it and
+ * the four reps of a 4×2000 come back touching. By the bands alone that plan
+ * looks perfectly continuous.
+ *
+ * Unpaced steps BEFORE the first target and after the last are not seams — a
+ * warmup jog or a walk home just leaves those bins null.
+ */
+export function isContinuousPlan(workout: ParsedWorkout): boolean {
+  const flat = flattenPlannedSteps(workout);
+  const first = flat.findIndex((seg) => seg.graded);
+  if (first < 0) return false;
+  const last = flat.reduce((acc, seg, i) => (seg.graded ? i : acc), -1);
+  // Any ungraded step in between is a stretch the plan set no pace for, whose
+  // metres a neighbouring band would silently absorb: a rest, a recovery, or an
+  // untargeted middle section. All three break the km frame the same way.
+  for (let i = first; i <= last; i++) if (!flat[i].graded) return false;
+  return true;
+}
+
 // Project paced bands onto ordered distance bins (meters each). Returns one point
 // per bin, overlap-weighted; a bin less than half-covered by any paced band → null
 // (the overlay breaks rather than drawing a value it can't justify). Pure &

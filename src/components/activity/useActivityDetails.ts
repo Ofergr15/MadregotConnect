@@ -39,6 +39,9 @@ export function useActivityDetails({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [planned, setPlanned] = useState<(PlannedKmPoint | null)[] | null>(null);
+  // Whether that overlay came from a continuous plan — the bins alone can't say,
+  // because a 400 m recovery never empties a 1 km bin. See `isContinuousPlan`.
+  const [plannedContinuous, setPlannedContinuous] = useState(false);
 
   // The non-id inputs live in a ref so `load` stays stable across renders: the
   // caller passes an array (`fallbackSplits`) that's a fresh identity every
@@ -84,6 +87,7 @@ export function useActivityDetails({
             if (Array.isArray(pj?.bands) && pj.bands.length) {
               const binMeters = useSplits.map((s) => s.distance || 1000);
               setPlanned(projectBandsToBins(pj.bands, binMeters));
+              setPlannedContinuous(pj.continuous === true);
             }
           }
         } catch { /* plan overlay optional */ }
@@ -99,5 +103,5 @@ export function useActivityDetails({
     if (auto) load();
   }, [auto, load]);
 
-  return { details, loading, error, planned, load };
+  return { details, loading, error, planned, plannedContinuous, load };
 }
