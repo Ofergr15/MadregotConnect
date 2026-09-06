@@ -239,7 +239,7 @@ function HeroHeading() {
         <CountdownRow />
       </div>
 
-      {/* The subject of the numbers, and the only line of prose left up here. A
+      {/* The subject of the numbers, and the first of the two lines of prose up here. A
           countdown with no subject is a puzzle — especially for the people this
           link is sent to, who have never seen the app. It reads AFTER the numerals
           rather than before ("5 ימים 3 שעות 14 דקות → להשקת האפליקציה"), which is
@@ -251,6 +251,19 @@ function HeroHeading() {
       <p className={cn('mt-1 w-full text-center text-[14px] short:text-13 font-semibold text-white/90', TEXT_ON_PHOTO)}>
         להשקת האפליקציה
       </p>
+
+      {/* The date in words, under the clock. A countdown alone answers "how long"
+          but never "when" — somebody opening this link on Tuesday cannot turn
+          "3 ימים 4 שעות" into a plan without doing the arithmetic, and the people
+          it is sent to are being asked to be somewhere at a particular hour.
+          Explicitly requested on 2026-09-06, replacing an earlier decision to let
+          the numerals speak alone.
+          Kept to its own line, BELOW the label, so it grows the block downwards
+          into the flex slack rather than upwards into the banner's white star —
+          the numerals' clearance is 8–12px and must not be spent here. */}
+      <p className={cn('mt-0.5 w-full text-center text-13 short:text-[12px] font-medium text-white/80', TEXT_ON_PHOTO)}>
+        יום חמישי ב-20:00 בערב
+      </p>
     </div>
   );
 }
@@ -258,12 +271,12 @@ function HeroHeading() {
 /**
  * How long until the app opens — the LAST thing in the card, under the button.
  *
- * ⚠️ Nothing else about the time goes on this page. Two lines have already been
- * tried and removed from next to this clock: a generated sentence ("עוד 4 ימים,
- * 4 שעות ו-11 דקות להשקת האפליקציה") that restated the three numerals word for
- * word, and then a bold date line ("יום רביעי, 20:00 — האפליקציה נפתחת"), which
- * was a second way of saying the same thing to somebody already looking at a
- * live clock. The countdown says it once. That is the design, not an oversight.
+ * ⚠️ Exactly ONE line of prose about the time goes with this clock, and it is the
+ * static one in HeroHeading ("יום חמישי ב-20:00 בערב"). A generated sentence
+ * ("עוד 4 ימים, 4 שעות ו-11 דקות להשקת האפליקציה") was tried here and removed: it
+ * restated these three numerals word for word. The named day and hour is a
+ * different fact from the numerals — it answers "when", which a countdown never
+ * does — which is why that one stayed and the generated one did not.
  */
 function CountdownRow() {
   // null on the first render so the server and client markup agree — a live clock
@@ -476,17 +489,17 @@ export default function RegisterPage() {
     const copy = {
       new: {
         title: 'ההרשמה נשלחה',
-        line: 'ביום רביעי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
+        line: 'ביום חמישי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
       },
       pending: {
         title: 'כבר נרשמת',
-        line: 'הכתובת הזאת כבר בהרשמה. ביום רביעי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
+        line: 'הכתובת הזאת כבר בהרשמה. ביום חמישי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
       },
       // Not "you already applied" — this address has an account. Saying so is what
       // stops a member re-registering and waiting for a mail that isn't coming.
       member: {
         title: 'הכתובת הזאת כבר רשומה',
-        line: 'יש לך כבר חשבון במדרגות, אין צורך להירשם שוב. ביום רביעי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
+        line: 'יש לך כבר חשבון במדרגות, אין צורך להירשם שוב. ביום חמישי ב-20:00 יתחילו להישלח המיילים עם הקישור לכניסה לאפליקציה.',
       },
     }[state];
 
