@@ -12,6 +12,7 @@ import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-pa
 import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
 import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
 import { AttendanceConfirmCard } from '@/components/AttendanceConfirmCard';
+import { scrollAppToTop } from '@/lib/app-scroll';
 
 // pdf.js is ~350 KB gzipped on top of a 1.2 MB worker. Loaded on demand so it is
 // fetched by someone who opened a plan, not by everyone who opens the app.
@@ -544,7 +545,7 @@ export default function ProgramPage() {
                   key={video.id}
                   onClick={() => {
                     setSelectedVideoIndex(globalIndex);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    scrollAppToTop();
                   }}
                   className={cn(
                     'w-full rounded-xl border transition-all text-start overflow-hidden flex sm:flex-col active:scale-[0.98]',

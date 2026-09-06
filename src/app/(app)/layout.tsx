@@ -17,6 +17,7 @@ import { Spinner } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
+import { APP_SCROLL_ID } from '@/lib/app-scroll';
 import { cn } from '@/lib/utils';
 
 // Shared shell for every signed-in surface — /dashboard/* and /feed — via the
@@ -91,6 +92,20 @@ export default function AppLayout({
     try { sessionStorage.setItem(REVIEW_LAST_PATH_KEY, pathname); } catch { /* private mode */ }
   }, [pathname]);
 
+  // Next scrolls the WINDOW to the top on every navigation, and the window no
+  // longer scrolls — without this, tapping a link while scrolled halfway down
+  // opens the next screen already halfway down. Keyed on pathname only, so
+  // changing a tab via ?tab= (settings, profile) keeps your place as before.
+  //
+  // This is a plain reset rather than Next's push-to-top/pop-to-restore pair:
+  // the router doesn't tell a layout which of the two it just did, and restoring
+  // the wrong offset is worse than losing it. Back navigation therefore lands at
+  // the top of the previous screen.
+  useEffect(() => {
+    const el = document.getElementById(APP_SCROLL_ID);
+    if (el) el.scrollTop = 0;
+  }, [pathname]);
+
   useEffect(() => {
     const supabase = getSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -126,9 +141,13 @@ export default function AppLayout({
     // setup checklist — instead of three components each deciding on a timer.
     <InstallStepProvider>
       <div
-        // min-h-[100dvh] is what makes the page grey cover the viewport, so a
-        // short screen doesn't end in a band of raw background.
-        className={cn('flex flex-col', isRunChat ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]')}
+        // Exactly one viewport tall and never overflowing — the document does
+        // not scroll inside the app, <main> does. That is what finally stops the
+        // bottom tab bar drifting on iOS: a bar that is a flex sibling of the
+        // scroll container is never aligned to a moving viewport edge. See
+        // lib/app-scroll.ts for the full reasoning and for what it costs.
+        // Run-chat has always had this shape; now every screen shares it.
+        className="flex flex-col h-[100dvh] overflow-hidden"
       >
         <PullToRefresh />
         <div className={isRunChat ? 'hidden md:contents' : 'contents'}>
@@ -146,16 +165,19 @@ export default function AppLayout({
         {popupsAllowed && <ConnectDataSourcePopup />}
         {!isRunChat && <FirstRunTour onActiveChange={setTourActive} />}
         <main
+          // THE scroll container for the whole app — see lib/app-scroll.ts.
+          // `min-h-0` is load-bearing: without it a flex child refuses to shrink
+          // below its content and the overflow escapes back to the document,
+          // which is exactly the state this change exists to prevent.
+          id={APP_SCROLL_ID}
           className={cn(
-            'w-full',
+            'w-full flex-1 min-h-0 overscroll-contain',
             isRunChat
-              ? 'h-full min-h-0 overflow-hidden p-0 md:mx-auto md:h-auto md:max-w-7xl md:flex-1 md:px-6 md:pt-5 md:pb-8 lg:px-8'
-              // No 72px bottom reservation any more: BottomTabBar is `sticky`
-              // rather than `fixed` (see the comment there), so it occupies real
-              // layout space at the end of the column and carries the safe-area
-              // padding itself. Keeping both put a bar's height of dead space
-              // under the last card on every screen.
-              : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-4 sm:px-6 md:pb-8 lg:px-8',
+              // Run-chat manages its own internal panes and must NOT scroll here.
+              ? 'overflow-hidden p-0 md:mx-auto md:max-w-7xl md:px-6 md:pt-5 md:pb-8 lg:px-8'
+              // No bottom reservation for the bar: it is a flex sibling below
+              // this box, so it occupies real layout space and can't overlap.
+              : 'overflow-y-auto mx-auto max-w-7xl px-4 pt-5 pb-4 sm:px-6 md:pb-8 lg:px-8',
           )}
         >
           {/* One accuracy-ring cache for every signed-in screen. Mounted here, in

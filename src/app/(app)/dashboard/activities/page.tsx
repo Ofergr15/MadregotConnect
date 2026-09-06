@@ -13,6 +13,7 @@ import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-clien
 import { Spinner, BigStat } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { ManualActivitySheet } from '@/components/ManualActivitySheet';
+import { appScrollTop } from '@/lib/app-scroll';
 
 // Local-date ISO (YYYY-MM-DD). NOT toISOString(), which converts to UTC and
 // shifts the day back in timezones ahead of UTC (Israel is +2/+3), throwing the
@@ -200,12 +201,12 @@ export default function ActivitiesPage() {
   };
 
   const handlePullStart = (e: React.TouchEvent) => {
-    if (syncing || window.scrollY > 0) return;
+    if (syncing || appScrollTop() > 0) return;
     pullStartYRef.current = e.touches[0].clientY;
   };
   const handlePullMove = (e: React.TouchEvent) => {
     if (pullStartYRef.current == null) return;
-    if (window.scrollY > 0) { pullStartYRef.current = null; setPullDistance(0); return; }
+    if (appScrollTop() > 0) { pullStartYRef.current = null; setPullDistance(0); return; }
     const delta = e.touches[0].clientY - pullStartYRef.current;
     setPullDistance(delta > 0 ? Math.min(delta * 0.5, PULL_MAX) : 0);
   };

@@ -100,7 +100,7 @@ function GroupDropdown({ value, groups, onChange, disabled, t }: {
         onClick={() => !disabled && setOpen(true)}
         disabled={disabled}
         className={cn(
-          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-page text-xs font-semibold text-ink-500 bg-page/60 transition-colors',
+          'flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border border-page text-xs font-semibold text-ink-500 bg-page/60 transition-colors',
           disabled ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-95 cursor-pointer'
         )}
       >
@@ -146,7 +146,9 @@ function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: 
         onClick={() => !disabled && setOpen(true)}
         disabled={disabled}
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors',
+          // min-h-[38px] rather than py-1.5: at 30px these were under any
+          // reasonable thumb target, and they are the point of this screen.
+          'flex items-center gap-2 px-3 min-h-[38px] rounded-lg border text-xs font-semibold transition-colors',
           config.bg, config.text, config.border,
           disabled ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-125 cursor-pointer'
         )}
@@ -481,7 +483,9 @@ export default function SettingsPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-ink-700 truncate">{user.name}</p>
-            {isAdmin && <span className="text-3xs font-bold text-purple-800 bg-purple-500/15 px-1.5 py-0.5 rounded">{t('admin').toUpperCase()}</span>}
+            {/* No role badge here: the role control two lines below already says
+                "מנהל", and printing it twice on one card read as two different
+                facts. The purple shield avatar is the at-a-glance admin marker. */}
             {user.isCoreRunner && <span className="text-xs" title={CORE_RUNNER_LABEL}>{CORE_RUNNER_MARK}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -523,11 +527,15 @@ export default function SettingsPage() {
           Role is admin-protected (as before); the דבוקה and the גרעין are not,
           because both are orthogonal to the role — a coach can be in the גרעין,
           and the club admin still runs with a squad. */}
-      {/* ps-[52px] = the 40px avatar + its 12px gap, so the controls line up
-          under the name rather than under the avatar. */}
-      <div className="mt-2.5 flex items-center gap-2 flex-wrap ps-[52px]">
+      {/* Full card width, NOT indented under the name. The ps-[52px] that used
+          to align these with the name spent 52 of the card's 328px, leaving 246
+          for three controls that measure 239 + 16 of gaps — so the גרעין button
+          orphaned onto a second line on every single row and the block read as
+          a broken staircase. Alignment with the name is worth less than the
+          three controls sitting on one line. */}
+      <div className="mt-2.5 flex items-center gap-2 flex-wrap">
         {isAdmin ? (
-          <span className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold', roleConfig.admin.bg, roleConfig.admin.text, roleConfig.admin.border)}>
+          <span className={cn('flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border text-xs font-semibold', roleConfig.admin.bg, roleConfig.admin.text, roleConfig.admin.border)}>
             <span className={cn('w-1.5 h-1.5 rounded-full', roleConfig.admin.dot)} />
             {getRoleLabel('admin', t)}
           </span>
@@ -546,7 +554,7 @@ export default function SettingsPage() {
           disabled={updatingUsers.has(user.id)}
           aria-pressed={!!user.isCoreRunner}
           className={cn(
-            'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50',
+            'flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50',
             user.isCoreRunner
               ? 'bg-accent-600/15 text-accent-900 border-accent-600/30'
               : 'bg-page/60 text-ink-400 border-page'

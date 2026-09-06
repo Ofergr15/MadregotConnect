@@ -3,13 +3,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { APP_SCROLL_ID, appScrollTop } from '@/lib/app-scroll';
 
 // Native-style pull-to-refresh for the installed iOS PWA (Safari's built-in PTR
 // doesn't exist in standalone mode, so we hand-roll it).
 //
-// The whole document/body scrolls (no dedicated scroll container), so we listen
-// on window and only engage when we're already at the very top (scrollY === 0)
-// and the gesture is a downward drag. A spinner follows the finger with a
+// The app scrolls inside <main>, not the document (see lib/app-scroll.ts), so
+// "am I at the very top?" is that element's scrollTop — and the nested-scroller
+// bail-out below has to let it through, or it would swallow every pull on every
+// screen. We still listen on window because touch events bubble there.
+// We only engage when already at the top and the gesture is a downward drag.
+// A spinner follows the finger with a
 // resistance curve; releasing past THRESHOLD triggers a full reload
 // (window.location.reload) — dashboard pages fetch their data on mount, so a
 // reload is the correct, complete refresh.
@@ -53,6 +57,10 @@ export function PullToRefresh() {
       // scrollTop 0. Otherwise a chat/list drag can become a page reload.
       let ancestor: Element | null = target;
       while (ancestor && ancestor !== document.body) {
+        // The app scroller is the page as far as this gesture is concerned — it
+        // is what the "at the top?" test below reads. Only scrollers INSIDE it
+        // (a chat pane, a lap table) own their own vertical drag.
+        if (ancestor.id === APP_SCROLL_ID) break;
         const style = window.getComputedStyle(ancestor);
         if (
           /(auto|scroll)/.test(style.overflowY) &&
@@ -66,8 +74,7 @@ export function PullToRefresh() {
 
       // Only begin if scrolled to the very top and not already refreshing.
       if (refreshing) return;
-      const top = window.scrollY || document.documentElement.scrollTop || 0;
-      if (top > 0) { dragging.current = false; return; }
+      if (appScrollTop() > 0) { dragging.current = false; return; }
       startY.current = e.touches[0].clientY;
       dragging.current = true;
     };
