@@ -1223,7 +1223,17 @@
     "goToDashboard": "Go to Dashboard",
     "bluetoothNote": "Make sure Garmin Connect Mobile is running with Bluetooth enabled for automatic syncing",
     "selectPaceGroupError": "Please select a pace group",
-    "groupPaceNote": "Your coach will assign workouts based on your group's pace offset"
+    "groupPaceNote": "Your coach will assign workouts based on your group's pace offset",
+    "joinDesc": "Finish your registration and connect your training account",
+    "connectStravaDesc": "One last step — connect Strava so your runs reach the club",
+    "connectWithStrava": "Connect with Strava",
+    "stravaWhy": "This is how your runs get into the app: your coach sees them, and so does the club feed. No password to give us.",
+    "haveGarmin": "I have a Garmin watch",
+    "stravaConnectFailed": "Connecting to Strava failed. Please try again.",
+    "stravaInviteInvalid": "This invitation link is no longer valid. Ask your coach for a new one.",
+    "stravaWhyGarmin": "Your watch keeps syncing exactly as before. Strava is how you sign in to the app — there is no other way in.",
+    "connectLater": "I'll do this later",
+    "stravaAlreadyLinked": "This Strava account is already linked to another Madregot account. Ask your coach to merge them — no need to try again."
   },
   "joinAcademy": {
     "title": "Connect Your Garmin",
