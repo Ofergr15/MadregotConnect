@@ -15,6 +15,7 @@ import {
   Lap,
 } from '@/lib/academy/segments';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
+import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 
@@ -77,10 +78,14 @@ export async function GET(request: Request) {
 
     // 1) Planned workout for that day — the athlete's individual plan wins (newest,
     //    tolerating duplicates), else the coach-wide shared plan (athlete_id NULL).
+    //    Published weeks only: a `draft` is the coach mid-edit, and neither the
+    //    chart's target band nor a verdict should come from a week nobody was asked
+    //    to run. Same filter matchAthleteActivities attributes runs with.
     let workouts: ParsedWorkout[] = [];
     const indiv = await supabase
       .from('weekly_plans').select('parsed_workouts, created_at')
       .eq('week_start_date', weekStart).eq('athlete_id', athleteId)
+      .in('status', PLAN_STATUSES)
       .order('created_at', { ascending: false });
     // laneWorkouts reads either stored shape: the pre-split group buckets of
     // older rows, or a unified plan, which it runs through splitIntoGroups so
@@ -96,11 +101,13 @@ export async function GET(request: Request) {
         .from('weekly_plans').select('parsed_workouts, created_at')
         .eq('coach_id', COACH_ID).eq('week_start_date', weekStart)
         .is('athlete_id', null)
+        .in('status', PLAN_STATUSES)
         .order('created_at', { ascending: false });
       if (shared.error) {
         shared = await supabase
           .from('weekly_plans').select('parsed_workouts, created_at')
           .eq('coach_id', COACH_ID).eq('week_start_date', weekStart)
+          .in('status', PLAN_STATUSES)
           .order('created_at', { ascending: false });
       }
       workouts = shared.data?.length ? laneWorkouts(shared.data[0].parsed_workouts, lane) : [];

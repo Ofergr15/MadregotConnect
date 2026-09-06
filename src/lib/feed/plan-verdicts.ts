@@ -4,6 +4,7 @@ import { activityLocalDateStr, planWeekStartOf, resolveGroup } from '@/lib/utils
 import { assessWorkout, buildPlannedWorkout, type MetricStatus, type PaceStatus } from '@/lib/academy/adherence';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
+import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { verdictLevel, type PlanVerdictLevel } from '@/lib/academy/verdict';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 
@@ -92,15 +93,19 @@ export async function loadFeedPlanVerdicts(
 
     // Lanes, individual plans, shared plans and the tolerance settings are four
     // independent reads — the feed's critical path, so they go out together.
+    // Published weeks only (PLAN_STATUSES): a draft is the coach mid-edit, and a
+    // red "off plan" chip for a week nobody was asked to run is worse than no chip.
     const [lanes, indivRes, sharedRes, settings] = await Promise.all([
       lanesForAthletes(supabase, athleteIds),
       supabase
         .from('weekly_plans').select('week_start_date, athlete_id, parsed_workouts, created_at')
         .in('week_start_date', weeks).in('athlete_id', athleteIds)
+        .in('status', PLAN_STATUSES)
         .order('created_at', { ascending: false }),
       supabase
         .from('weekly_plans').select('week_start_date, parsed_workouts, created_at')
         .eq('coach_id', COACH_ID).in('week_start_date', weeks).is('athlete_id', null)
+        .in('status', PLAN_STATUSES)
         .order('created_at', { ascending: false }),
       loadAcademySettings(),
     ]);

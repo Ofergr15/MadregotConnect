@@ -202,6 +202,18 @@ describe('GET /api/academy/segments?verdict=1', () => {
     expect(body.reason).toBe('no completed activity on this day');
   });
 
+  // Both the chart's target band and the verdict come from this one lookup, so a
+  // `draft` week must reach neither: the coach is still moving days around.
+  it('reads only a published plan, never a draft', async () => {
+    await call(`athleteId=${ATHLETE}&date=${DATE}&bands=1&verdict=1`);
+    const plans = ops.filter(o => o.table === 'weekly_plans');
+    expect(plans.length).toBeGreaterThan(0);
+    for (const op of plans) {
+      const statuses = op.calls.find(([m, a]) => m === 'in' && a[0] === 'status')?.[1][1];
+      expect(statuses).toEqual(['pushed', 'partial']);
+    }
+  });
+
   it('requires a verified caller', async () => {
     resolveVerifiedCaller.mockResolvedValue({ denied: new Response('nope', { status: 401 }) });
     expect((await call(`athleteId=${ATHLETE}&date=${DATE}&verdict=1`)).status).toBe(401);

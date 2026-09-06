@@ -244,6 +244,20 @@ describe('loadFeedPlanVerdicts', () => {
     }
   });
 
+  // Found on the live data: the only plan for the current week was a `draft`, and
+  // it badged 11 of the newest 30 runs — 4 of them a red "off plan" for a week the
+  // coach was still editing and nobody had been asked to run.
+  it('reads only a published plan, never a draft', async () => {
+    stubClub();
+    await loadFeedPlanVerdicts(supabase, [run('a', FAST, 282)]);
+    const plans = ops.filter(o => o.table === 'weekly_plans');
+    expect(plans).toHaveLength(2);
+    for (const op of plans) {
+      const statuses = op.calls.find(([m, a]) => m === 'in' && a[0] === 'status')?.[1][1];
+      expect(statuses).toEqual(['pushed', 'partial']);
+    }
+  });
+
   it("scopes the plan reads to the page's athletes", async () => {
     stubClub();
     await loadFeedPlanVerdicts(supabase, [run('a', FAST, 282), run('b', FAST, 282)]);
