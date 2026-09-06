@@ -562,6 +562,26 @@ export function coachReplyCopy(
     : { title: name ? `💬 Reply from ${name}` : '💬 Reply from your coach' };
 }
 
+/**
+ * "The thing you reported is fixed."
+ *
+ * The reason this exists at all: reporting a bug is unpaid work the reporter
+ * does for us, and the only thing that makes anyone do it twice is finding out
+ * it led somewhere. The report's own text is quoted back (clipped) rather than
+ * described, because by the time a fix ships the reporter has usually forgotten
+ * which of their reports this was.
+ */
+export function reviewResolvedCopy(
+  locale: NotificationLocale,
+  p: { preview: string | null | undefined },
+): PushCopy {
+  const raw = (p.preview || '').trim().replace(/\s+/g, ' ');
+  const clipped = raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
+  return locale === 'he'
+    ? { title: '✅ הדיווח שלך טופל', body: clipped || 'תודה שדיווחתם — זה תוקן.' }
+    : { title: '✅ Your report is fixed', body: clipped || 'Thanks for reporting it — it’s been fixed.' };
+}
+
 /** Sponsor name and deal title are admin-authored; only the header translates. */
 export function newPerkCopy(
   locale: NotificationLocale,

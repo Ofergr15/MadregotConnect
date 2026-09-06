@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { notifyAthlete } from '@/lib/push';
+import { reviewResolvedCopy } from '@/lib/notifications/copy';
+import { shouldNotifyReporter, type ResolutionStatus } from '@/lib/feedback-resolution';
 
 // App feedback ("ביקורת"): athletes file it from /dashboard/review, staff
 // triage it from the admin settings page. Submitting is self-only, reading and
@@ -104,6 +107,21 @@ export async function GET(request: Request) {
     if (denied) return denied;
 
     const supabase = createServerClient();
+
+    // `?count=1` — just the totals, for the "N reports, M new" link on the
+    // review screen. It exists so that badge doesn't have to download the full
+    // list: every row carries a base64 screenshot in `image_url`, so the list
+    // response is measured in megabytes and is far too heavy to fetch for a
+    // number. `head: true` sends no rows at all.
+    if (new URL(request.url).searchParams.get('count') === '1') {
+      const [total, fresh] = await Promise.all([
+        supabase.from('feedback').select('id', { count: 'exact', head: true }),
+        supabase.from('feedback').select('id', { count: 'exact', head: true }).or('status.is.null,status.eq.new'),
+      ]);
+      if (total.error) throw total.error;
+      return NextResponse.json({ total: total.count ?? 0, new: fresh.count ?? 0 });
+    }
+
     const { data, error } = await supabase
       .from('feedback')
       .select('*')
@@ -161,12 +179,50 @@ export async function PATCH(request: Request) {
     if (admin_notes !== undefined) updateData.admin_notes = admin_notes;
     if (sort_order !== undefined) updateData.sort_order = sort_order;
 
+    // Read the row BEFORE writing, to learn what the status was. That's the only
+    // way to tell "just marked done" from "was already done and the note
+    // changed" — see shouldNotifyReporter for why the difference matters.
+    const { data: before } = await supabase
+      .from('feedback')
+      .select('athlete_id, status, message')
+      .eq('id', id)
+      .maybeSingle<{ athlete_id: string | null; status: ResolutionStatus; message: string | null }>();
+
     const { error } = await supabase
       .from('feedback')
       .update(updateData)
       .eq('id', id);
 
     if (error) throw error;
+
+    // Close the loop: the reporter did unpaid work for us, and the only thing
+    // that makes anyone report a second bug is finding out the first one led
+    // somewhere. Awaited rather than fired-and-forgotten — on a serverless
+    // function the response ends the invocation, so a dangling promise here is a
+    // notification that sometimes doesn't get sent. Caught, though: the triage
+    // save already succeeded, and a push failure must not report it as a 500 and
+    // send the coach back to re-click a button that already worked.
+    if (before && shouldNotifyReporter(before.status, status, before.athlete_id)) {
+      try {
+        await notifyAthlete({
+          athleteId: before.athlete_id!,
+          // Deliberately absent from KIND_CATEGORY (src/lib/notifications/prefs.ts)
+          // and sent with no `category`, so no preference toggle can mute it —
+          // same treatment as `approval`. It's a direct answer to a message this
+          // person sent us, not a stream of chatter they might want quieter.
+          kind: 'review_resolved',
+          actorAthleteId: null,
+          url: '/dashboard/review',
+          // One tag per report, so a re-resolved report replaces its own old
+          // notification on the lock screen instead of stacking.
+          tag: `review-resolved-${id}`,
+          copy: (locale) => reviewResolvedCopy(locale, { preview: before.message }),
+        });
+      } catch (pushError) {
+        console.error('Feedback resolved notify failed:', pushError);
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Feedback update error:', error);
