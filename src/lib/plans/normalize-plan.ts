@@ -1,5 +1,6 @@
-import type { ParsedWeeklyPlan, ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
+import type { ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
 import { workoutDistanceMeters } from '@/lib/workout-distance';
+import { workoutDurationSec } from '@/lib/workout-duration';
 
 /**
  * Plan normalization — stamping the matcher hints (`workoutKey`,
@@ -56,22 +57,18 @@ function inferPartKind(
   return 'main';
 }
 
-function expectedDuration(steps: WorkoutStep[]): number | undefined {
-  let total = 0;
-  let hasTime = false;
-  for (const step of steps) {
-    if (step.repeatCount && step.repeatSteps) {
-      const nested = expectedDuration(step.repeatSteps);
-      if (nested) {
-        total += nested * step.repeatCount;
-        hasTime = true;
-      }
-    } else if (step.durationType === 'time' && step.durationValue) {
-      total += step.durationValue;
-      hasTime = true;
-    }
-  }
-  return hasTime ? total : undefined;
+/**
+ * The local version of this counted `time` steps ONLY, so Sunday (2 km + 20 km +
+ * 8×15s/45s) was stamped `expectedDurationSec: 480` — the strides block, and
+ * nothing else. `workoutDurationSec` converts distance with the step's own pace.
+ *
+ * Recomputed unconditionally rather than deferring to a stored value: every
+ * `expectedDurationSec` in the database was produced by the broken helper, and
+ * because normalization runs on read as well as write, trusting the stored figure
+ * would keep serving "8m" for a 23.5 km day forever.
+ */
+function expectedDuration(workout: ParsedWorkout): number | undefined {
+  return workoutDurationSec(workout) || undefined;
 }
 
 export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
@@ -117,7 +114,7 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
         : undefined;
       const expectedDistanceM =
         workout.expectedDistanceM || measuredDistance || statedDistance || undefined;
-      const expectedDurationSec = workout.expectedDurationSec || expectedDuration(workout.steps);
+      const expectedDurationSec = expectedDuration(workout);
       // A coach-stated range carries its own tolerance; a single figure gets ±8%
       // (floor 150 m, so a 1 km jog isn't held to ±80 m).
       const statedSpread =

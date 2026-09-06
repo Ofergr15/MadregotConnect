@@ -1087,7 +1087,10 @@ export default function WeeklyPlannerPage() {
     }
   };
 
-  const workoutCount = parsedPlan ? new Set(parsedPlan.workouts.map(w => w.dayOfWeek)).size : 0;
+  // Sessions, not training days. Counting distinct days made a 9-session week
+  // (Tuesday and Saturday are two-a-days) read as "7 workouts" — and it is also
+  // the number Garmin will receive, which is per session.
+  const workoutCount = parsedPlan ? parsedPlan.workouts.length : 0;
 
   // Days that actually have a workout (from the base plan) — for the per-day
   // push selector. Sorted Sunday→Saturday.

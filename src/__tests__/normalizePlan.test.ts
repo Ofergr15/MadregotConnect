@@ -313,8 +313,27 @@ describe('normalizeWorkoutParts — expectations the matcher scores against', ()
     expect(w.expectedDurationSec).toBe(960); // 600 + 4×90
   });
 
-  it('leaves the duration undefined when no step states a time', () => {
+  it('converts distance steps to time instead of ignoring them', () => {
+    // This used to be `toBeUndefined()`: only `time` steps counted, so a 23.5 km
+    // Sunday was stamped 480s (its 8×15s/45s strides block) and the week header
+    // said 3h59m for 120 km. 1 km with no stated pace = the 5:00–6:00 fallback.
     const [w] = normalizeWorkoutParts({ workouts: [workout()] }).workouts;
+    expect(w.expectedDurationSec).toBe(330);
+  });
+
+  it('reads the minutes out of an open step\'s note', () => {
+    // "70-80 דק׳ ריצת שחרור קלה" is how the program writes an easy day; there is
+    // no other number in the step to count.
+    const [w] = normalizeWorkoutParts({
+      workouts: [workout({ steps: [step({ durationType: 'open', durationValue: undefined, notes: '70-80 דק׳ ריצת שחרור קלה' })] })],
+    }).workouts;
+    expect(w.expectedDurationSec).toBe(4500); // midpoint of 70–80 min
+  });
+
+  it('leaves the duration undefined when there is nothing to measure at all', () => {
+    const [w] = normalizeWorkoutParts({
+      workouts: [workout({ steps: [step({ durationType: 'open', durationValue: undefined })] })],
+    }).workouts;
     expect(w.expectedDurationSec).toBeUndefined();
   });
 });

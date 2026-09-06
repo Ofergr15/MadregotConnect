@@ -9,36 +9,14 @@ import { Sheet } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { Route, Timer, Zap, Pencil, Plus } from 'lucide-react';
 import { workoutDistanceMeters, totalDistanceMeters } from '@/lib/workout-distance';
+import { workoutDurationSec, totalDurationSec, formatDurationShort, stepDurationSec } from '@/lib/workout-duration';
+import { isRestStep, stepMetric, stepQualifier, type StepUnits } from '@/lib/plans/step-display';
 import { StepPace } from './PaceTokens';
 
 interface WeekViewProps {
   workouts: ParsedWorkout[];
   editable?: boolean;
   onWorkoutChange?: (index: number, workout: ParsedWorkout) => void;
-}
-
-function estimateWorkoutDistance(steps: WorkoutStep[]): number {
-  let total = 0;
-  for (const step of steps) {
-    if (step.repeatCount && step.repeatSteps) {
-      total += estimateWorkoutDistance(step.repeatSteps) * step.repeatCount;
-    } else if (step.durationType === 'distance' && step.durationValue) {
-      total += step.durationValue;
-    }
-  }
-  return total;
-}
-
-function estimateWorkoutTime(steps: WorkoutStep[]): number {
-  let total = 0;
-  for (const step of steps) {
-    if (step.repeatCount && step.repeatSteps) {
-      total += estimateWorkoutTime(step.repeatSteps) * step.repeatCount;
-    } else if (step.durationType === 'time' && step.durationValue) {
-      total += step.durationValue;
-    }
-  }
-  return total;
 }
 
 const stepTypeColors: Record<string, string> = {
@@ -58,33 +36,53 @@ function stepTypeLabel(type: string, t: (key: string) => string): string {
   }
 }
 
-function fmtStepDuration(step: WorkoutStep, lapLabel: string): string {
-  if (step.durationType === 'distance' && step.durationValue) {
-    return step.durationValue >= 1000
-      ? `${(step.durationValue / 1000).toFixed(step.durationValue % 1000 === 0 ? 0 : 1)} km`
-      : `${step.durationValue}m`;
-  }
-  if (step.durationType === 'time' && step.durationValue) {
-    if (step.durationValue >= 3600) {
-      const h = Math.floor(step.durationValue / 3600);
-      const m = Math.floor((step.durationValue % 3600) / 60);
-      return m > 0 ? `${h}h${m}m` : `${h}h`;
-    }
-    if (step.durationValue >= 60) {
-      const mins = Math.floor(step.durationValue / 60);
-      const secs = step.durationValue % 60;
-      return secs > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `${mins} min`;
-    }
-    return `${step.durationValue}s`;
-  }
-  return lapLabel;
+/**
+ * One step, or one leg of a repeat block: colour bar · metric · qualifier · pace.
+ *
+ * The metric is never replaced by the note. That substitution (`notes || dur`) is
+ * how a 45-second walk recovery came out as just "הליכה", with the 45 seconds —
+ * the part that decides whether the set is hard — nowhere on the screen.
+ */
+function DetailStepRow({ step, units, t }: { step: WorkoutStep; units: StepUnits; t: (key: string) => string }) {
+  const metric = stepMetric(step, units);
+  const qualifier = stepQualifier(step);
+  const rest = isRestStep(step);
+
+  return (
+    <div className="flex items-center gap-2 text-sm min-w-0">
+      <div
+        className="w-1 h-5 rounded-full shrink-0"
+        style={{ background: stepTypeColors[step.type] || '#969696', opacity: rest ? 0.5 : 1 }}
+      />
+      {metric && (
+        <span className={cn('font-medium shrink-0', rest ? 'text-ink-400' : 'text-ink-700')}>{metric}</span>
+      )}
+      {/* With no metric the note IS the prescription — Wednesday is "70-80 דק׳
+          ריצת שחרור קלה" and nothing else — so it takes the metric's weight
+          instead of the word "סבב" that used to stand in for it. */}
+      {qualifier ? (
+        <span className={cn('min-w-0 flex-1', metric ? 'text-xs text-ink-400' : 'font-medium text-ink-700')}>
+          {qualifier}
+        </span>
+      ) : !metric ? (
+        <span className="text-xs text-ink-400 flex-1">{stepTypeLabel(step.type, t)}</span>
+      ) : null}
+      <StepPace step={step} size="sm" className="shrink-0 ms-auto" />
+    </div>
+  );
 }
 
 function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: ParsedWorkout | null; dayName: string; open: boolean; onClose: () => void }) {
   const t = useTranslations('workoutEditor');
+  const tc = useTranslations('common');
   const tp = useTranslations('planner');
-  const totalDist = workout ? estimateWorkoutDistance(workout.steps) : 0;
-  const totalTime = workout ? estimateWorkoutTime(workout.steps) : 0;
+  const units: StepUnits = {
+    km: tc('km'), m: tc('meters'), sec: tc('seconds'), min: tc('minutes'),
+  };
+  const totalDist = workout ? workoutDistanceMeters(workout) : 0;
+  // Pace-aware, so a 23.5 km Sunday no longer reports the 8 minutes of strides
+  // that were its only `time` steps.
+  const totalTime = workout ? workoutDurationSec(workout) : 0;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()} className="max-h-[85vh]">
@@ -106,7 +104,7 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
               {totalTime > 0 && (
                 <span className="flex items-center gap-1 text-sm text-ink-500 font-medium">
                   <Timer className="h-3.5 w-3.5 text-ink-400" />
-                  {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
+                  {formatDurationShort(totalTime)}
                 </span>
               )}
               <span className="text-xs text-ink-400">{tp('stepsCount', { count: workout.steps.length })}</span>
@@ -115,39 +113,33 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
 
           <div className="space-y-1.5 scrollbar-thin">
             {workout.steps.map((step, i) => {
+              // A set is drawn as a set: ×N and its own total on top, then every
+              // leg inside a bracket. This is the one screen with room for it, and
+              // the block was previously the least legible thing on it.
               if (step.repeatCount && step.repeatSteps) {
+                const blockTotal = formatDurationShort(stepDurationSec(step));
+                const blockNote = stepQualifier(step);
                 return (
                   <div key={i} className="rounded-lg border border-brand-600/20 bg-brand-600/5 px-3 py-2.5">
                     <div className="flex items-center gap-2 mb-2">
-                      <span dir="ltr" className="text-sm font-bold text-brand-600">{step.repeatCount}x</span>
-                      {step.notes && <span className="text-xs text-ink-400">{step.notes}</span>}
+                      <span dir="ltr" className="text-sm font-bold text-brand-600">{step.repeatCount} ×</span>
+                      {blockNote && <span className="text-xs text-ink-400 min-w-0">{blockNote}</span>}
+                      {blockTotal && (
+                        <span className="ms-auto text-xs text-ink-400 tabular-nums shrink-0">{blockTotal}</span>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      {step.repeatSteps.map((sub, j) => {
-                        const dur = fmtStepDuration(sub, t('lap'));
-                        const isRest = sub.type === 'rest' || sub.type === 'recovery';
-                        return (
-                          <div key={j} className="flex items-center gap-2 text-sm">
-                            <div className="w-1 h-4 rounded-full shrink-0" style={{ background: stepTypeColors[sub.type] || '#969696' }} />
-                            <span className={cn("font-medium shrink-0", isRest ? "text-ink-400" : "text-ink-700")}>{dur}</span>
-                            {sub.notes && <span className="text-ink-400 truncate flex-1 text-xs">{sub.notes}</span>}
-                            <StepPace step={sub} size="sm" className="shrink-0 ms-auto" />
-                          </div>
-                        );
-                      })}
+                    <div className="space-y-1 border-s-2 border-brand-600/25 ps-2.5">
+                      {step.repeatSteps.map((sub, j) => (
+                        <DetailStepRow key={j} step={sub} units={units} t={t} />
+                      ))}
                     </div>
                   </div>
                 );
               }
 
-              const dur = fmtStepDuration(step, t('lap'));
-              const label = step.notes || stepTypeLabel(step.type, t);
               return (
-                <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-card/40 text-sm">
-                  <div className="w-1 h-5 rounded-full shrink-0" style={{ background: stepTypeColors[step.type] || '#969696' }} />
-                  <span className="font-medium text-ink-700 shrink-0">{dur}</span>
-                  <span className="text-ink-400 truncate flex-1 text-xs">{label}</span>
-                  <StepPace step={step} size="sm" className="shrink-0 ms-auto" />
+                <div key={i} className="py-2 px-3 rounded-lg bg-card/40">
+                  <DetailStepRow step={step} units={units} t={t} />
                 </div>
               );
             })}
@@ -184,7 +176,9 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
   // Use the shared, coach-aware distance so the planner total matches the
   // athlete dashboard (prefers distanceMinKm/Max, falls back to time+pace).
   const totalDist = totalDistanceMeters(workouts);
-  const totalTime = workouts.reduce((s, w) => s + estimateWorkoutTime(w.steps), 0);
+  // Same pace-aware sum as every card, so the header can't disagree with the days
+  // under it — this line is where "3h59m" for a 120 km week came from.
+  const totalTime = totalDurationSec(workouts);
   const trainingDays = new Set(workouts.map(w => w.dayOfWeek)).size;
 
   const handleCardDoubleTap = (globalIdx: number) => {
@@ -211,9 +205,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
         {totalTime > 0 && (
           <div className="flex items-center gap-1.5">
             <Timer className="h-3.5 w-3.5 text-accent-600" />
-            <span className="font-bold text-ink-700 tabular-nums">
-              {totalTime >= 3600 ? `${Math.floor(totalTime / 3600)}h${Math.floor((totalTime % 3600) / 60)}m` : `${Math.floor(totalTime / 60)}m`}
-            </span>
+            <span className="font-bold text-ink-700 tabular-nums">{formatDurationShort(totalTime)}</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">

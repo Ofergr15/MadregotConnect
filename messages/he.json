@@ -19,6 +19,9 @@
     "copied": "הועתק!",
     "days": "ימים",
     "km": "ק״מ",
+    "meters": "מ׳",
+    "seconds": "שנ׳",
+    "minutes": "דק׳",
     "bpm": "פעימות/דקה",
     "language": "שפה",
     "all": "הכל",
@@ -341,6 +344,12 @@
     "sessionEvening": "ערב",
     "sessionOptional": "אופציונלי",
     "sessionCount": "{count} אימונים",
+    "sectionWarmup": "חימום",
+    "sectionMain": "עיקרי",
+    "sectionCooldown": "שחרור",
+    "paceLadder": "סולם קצב",
+    "setsOne": "סט אחד",
+    "setsCount": "{count} סטים",
     "viewDayTooltip": "הצג את האימון של {day}",
     "runFallback": "ריצה",
     "clipboardStudioTitle": "סטודיו סקירת לוחות",
@@ -411,9 +420,7 @@
     "moreCount": "+{count} עוד",
     "editDayTooltip": "ערוך {day}",
     "addWorkoutTooltip": "הוסף אימון ל{day}",
-    "stepsCount": "{count} שלבים",
-    "stepsMore": "+{count} עוד",
-    "stepsLess": "פחות"
+    "stepsCount": "{count} שלבים"
   },
   "planDetail": {
     "viewDetails": "הצגת פירוט",

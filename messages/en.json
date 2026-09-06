@@ -19,6 +19,9 @@
     "copied": "Copied!",
     "days": "days",
     "km": "km",
+    "meters": "m",
+    "seconds": "s",
+    "minutes": "min",
     "bpm": "bpm",
     "language": "Language",
     "all": "All",
@@ -341,6 +344,12 @@
     "sessionEvening": "Evening",
     "sessionOptional": "Optional",
     "sessionCount": "{count} sessions",
+    "sectionWarmup": "Warm-up",
+    "sectionMain": "Main",
+    "sectionCooldown": "Cool-down",
+    "paceLadder": "Pace ladder",
+    "setsOne": "1 set",
+    "setsCount": "{count} sets",
     "viewDayTooltip": "Show {day}'s workout",
     "runFallback": "Run",
     "clipboardStudioTitle": "Clipboard Review Studio",
@@ -411,9 +420,7 @@
     "moreCount": "+{count} more",
     "editDayTooltip": "Edit {day}",
     "addWorkoutTooltip": "Add a workout for {day}",
-    "stepsCount": "{count} steps",
-    "stepsMore": "+{count} more",
-    "stepsLess": "less"
+    "stepsCount": "{count} steps"
   },
   "planDetail": {
     "viewDetails": "View details",
