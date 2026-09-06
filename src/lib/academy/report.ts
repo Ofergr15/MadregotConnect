@@ -6,6 +6,7 @@ import {
   assessWeek,
   buildPlannedWorkout,
   ActualActivity,
+  AdherenceTolerances,
   PlannedWorkout,
   WeekAdherence,
 } from './adherence';
@@ -23,6 +24,12 @@ export interface AcademyWeekReport {
   weekStart: string;
   weekEnd: string;
   athletes: AthleteAdherence[];
+  /**
+   * The tolerances this report was graded with, from academy settings. Returned so
+   * a reader can say what "on target" meant here instead of restating the defaults
+   * and being wrong the moment a coach edits them in AcademySettings.
+   */
+  tolerances: AdherenceTolerances;
 }
 
 // Sunday-based week start, matching how plans are saved (`planWeekStartOf`) and
@@ -93,7 +100,7 @@ export async function computeAcademyWeekAdherence(opts: {
   let athletes: any[] = athRes.error ? [] : (athRes.data || []).filter((a: any) => a.is_academy);
   if (opts.onlyAthleteId) athletes = athletes.filter(a => a.id === opts.onlyAthleteId);
 
-  if (!athletes.length) return { weekStart, weekEnd, athletes: [] };
+  if (!athletes.length) return { weekStart, weekEnd, athletes: [], tolerances };
 
   const athleteIds = athletes.map(a => a.id);
 
@@ -223,5 +230,5 @@ export async function computeAcademyWeekAdherence(opts: {
     ),
   }));
 
-  return { weekStart, weekEnd, athletes: result };
+  return { weekStart, weekEnd, athletes: result, tolerances };
 }

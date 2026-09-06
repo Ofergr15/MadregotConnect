@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus, ListChecks, ClipboardCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus, ListChecks, ClipboardCheck, Info } from 'lucide-react';
 import { cn, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
 import { useApi, apiHeaders } from '@/lib/api';
@@ -10,6 +10,15 @@ import { Spinner, LoadingBlock, EmptyState } from '@/components/ui';
 // Mirror of the adherence API response (kept structural to avoid importing server types).
 type MetricStatus = 'on_target' | 'under' | 'over' | 'unknown';
 type PaceStatus = 'on_target' | 'faster' | 'slower' | 'unknown';
+
+// What the report was graded with (lib/academy/adherence.ts): distance/duration are
+// fractions, pace is ± seconds per km. Read from the response rather than restated
+// here, so the legend can't disagree with the grading after a coach edits them.
+interface AdherenceTolerances {
+  distance: number;
+  duration: number;
+  paceSec: number;
+}
 
 interface WorkoutAdherence {
   date: string;
@@ -96,12 +105,98 @@ const metricLabel: Record<MetricStatus | PaceStatus, string> = {
   unknown: '—',
 };
 
+/**
+ * What the badges mean — the coach's key to this table.
+ *
+ * Worth spelling out because two of the verdicts read as bad news and aren't, and
+ * one combination is the most useful thing on the page: distance `under` with pace
+ * `on_target` is "ran only part of it, but ran that part right", which is a
+ * different coaching conversation from "ran part of it, and not at the pace". The
+ * numbers come from the response, not from restating DEFAULT_TOLERANCES here.
+ */
+function ComplianceLegend({ tolerances }: { tolerances: AdherenceTolerances }) {
+  const [open, setOpen] = useState(false);
+  const pct = (fraction: number) => `${Math.round(fraction * 100)}%`;
+
+  const rows: Array<{ status: MetricStatus | PaceStatus; label?: string; text: string }> = [
+    {
+      status: 'on_target',
+      text: `הביצוע בתוך הסטייה המותרת: ±${pct(tolerances.distance)} במרחק, ±${pct(tolerances.duration)} בזמן, ±${tolerances.paceSec} שנ׳/ק״מ בקצב.`,
+    },
+    {
+      status: 'faster',
+      text: `הקצב הממוצע היה מהיר מהיעד ביותר מ-${tolerances.paceSec} שנ׳/ק״מ. לא בהכרח טוב — באימון קל זה אומר שהוא לא היה קל.`,
+    },
+    {
+      status: 'slower',
+      text: `הקצב הממוצע היה איטי מהיעד ביותר מ-${tolerances.paceSec} שנ׳/ק״מ.`,
+    },
+    { status: 'under', text: 'פחות מהמתוכנן — מרחק או זמן מתחת לטווח.' },
+    { status: 'over', text: 'יותר מהמתוכנן — מרחק או זמן מעל הטווח.' },
+    {
+      status: 'unknown',
+      text: 'לא נמדד: או שהתוכנית לא קבעה זמן, או שזה אימון מובנה שממוצע כל הריצה לא יכול לשפוט — שם הקצב נמדד ב״פירוט לפי מקטע״.',
+    },
+  ];
+
+  return (
+    <div className="mb-4">
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 mx-auto text-xs font-semibold text-ink-400 hover:text-ink-900 min-h-[44px] transition-colors"
+      >
+        <Info className="h-3.5 w-3.5" /> {open ? 'הסתרת המקרא' : 'מקרא — מה המדדים אומרים'}
+      </button>
+      {open && (
+        <div className="mt-1 bg-card/50 border border-page/50 rounded-card p-4 space-y-3 text-xs">
+          <div className="space-y-1.5">
+            {rows.map(row => (
+              <div key={row.status + row.text} className="flex gap-2">
+                <span className={cn('font-semibold shrink-0 w-20', metricStyle[row.status])}>
+                  {metricLabel[row.status]}
+                </span>
+                <span className="text-ink-500 flex-1">{row.text}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t border-page/50 pt-3 space-y-1.5">
+            <div className="font-semibold text-ink-700">שילובים שכדאי להכיר</div>
+            <div className="text-ink-500">
+              <span className="text-band-3 font-semibold">מרחק מתחת</span> +{' '}
+              <span className="text-accent-600 font-semibold">קצב בטווח</span> — בוצע רק חלק
+              מהאימון, אבל מה שבוצע היה בקצב שנקבע.
+            </div>
+            <div className="text-ink-500">
+              <span className="text-band-3 font-semibold">מרחק מתחת</span> +{' '}
+              <span className="text-band-3 font-semibold">קצב לא בטווח</span> — בוצע רק חלק
+              מהאימון, וגם לא בקצב שנקבע.
+            </div>
+          </div>
+
+          <div className="border-t border-page/50 pt-3 space-y-1.5 text-ink-500">
+            <div className="font-semibold text-ink-700">האחוז והנקודות</div>
+            <div>האחוז ליד השם: אימונים שבוצעו מתוך המתוכננים לשבוע.</div>
+            <div>
+              נקודה <span className="text-accent-600 font-semibold">ירוקה</span> = לפחות חצי
+              מהמדדים באימון היו בטווח, <span className="text-band-3 font-semibold">כתומה</span> =
+              פחות מחצי, <span className="text-ink-400 font-semibold">אפורה</span> = לא בוצע.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AcademyCompliance() {
   const [weekStart, setWeekStart] = useState(() => planWeekStartOf());
   const [expanded, setExpanded] = useState<string | null>(null);
-  const { data: adherence, isLoading } = useApi<{ athletes: AthleteAdherence[] }>(
-    `/api/academy/adherence?weekStart=${weekStart}`,
-  );
+  const { data: adherence, isLoading } = useApi<{
+    athletes: AthleteAdherence[];
+    tolerances?: AdherenceTolerances;
+  }>(`/api/academy/adherence?weekStart=${weekStart}`);
 
   const data = adherence?.athletes ?? [];
 
@@ -131,6 +226,11 @@ export function AcademyCompliance() {
           <ChevronLeft className="h-5 w-5" />
         </button>
       </div>
+
+      {/* Only once the report is in: the tolerances it was graded with come with it. */}
+      {adherence?.tolerances && data.length > 0 && (
+        <ComplianceLegend tolerances={adherence.tolerances} />
+      )}
 
       {isLoading ? (
         <LoadingBlock />
