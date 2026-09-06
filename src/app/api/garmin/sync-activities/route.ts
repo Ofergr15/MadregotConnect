@@ -12,6 +12,7 @@ import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
 import { mapActivityDetail } from '@/lib/garmin/activity-detail';
 import { isMissingColumn, withoutColumns } from '@/lib/supabase/schema-drift';
+import { backfillGarminWorkoutIds } from '@/lib/garmin/workout-id-backfill';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 /**
@@ -318,9 +319,15 @@ export async function runSyncRequest(request: Request) {
  *
  *   ?mode=route    (default) rows with no stored GPS — the map repair
  *   ?mode=missing  rows with no avg_cadence — the original behaviour
+ *   ?mode=workout  rows with no garmin_workout_id — plan attribution for history
+ *                  (lib/garmin/workout-id-backfill.ts; one Garmin request per
+ *                  athlete rather than two per row, so `limit` goes to 1000)
  *   ?limit=N       rows per call, 1-100 (default 25; Garmin calls are serial,
  *                  ~2 requests per row, so keep it inside maxDuration)
  *   ?before=<ISO>  only rows older than this start_time — the batch cursor
+ *   ?since=<ISO>   mode=workout only: floor on start_time, to scope a one-off
+ *                  run to a single day instead of the whole history
+ *   ?athleteId=…   mode=workout only: one athlete instead of the club
  *
  * `mode=route` selects on `gps_points IS NULL` — migration 018's own definition
  * of "not yet fetched" — and deliberately NOT on `has_polyline`. That flag is
@@ -362,9 +369,29 @@ export async function PATCH(request: Request) {
 
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
-    const mode = searchParams.get('mode') === 'missing' ? 'missing' : 'route';
+    const requestedMode = searchParams.get('mode');
+    const mode = requestedMode === 'missing' || requestedMode === 'workout' ? requestedMode : 'route';
     const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 25, 1), 100);
     const before = searchParams.get('before');
+
+    // Its own pass: this one is keyed on garmin_workout_id itself (the filters
+    // below can't reach an already-enriched row) and needs no per-row Garmin
+    // call, so it doesn't belong in the loop underneath.
+    if (mode === 'workout') {
+      const result = await backfillGarminWorkoutIds(supabase, {
+        limit: Number(searchParams.get('limit')) || undefined,
+        before,
+        since: searchParams.get('since'),
+        athleteId: searchParams.get('athleteId'),
+      });
+      if (result.unmigrated) {
+        return NextResponse.json(
+          { error: 'athlete_activities.garmin_workout_id is missing — apply migration 092 first', mode },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ mode, ...result });
+    }
 
     let query = supabase
       .from('athlete_activities')
@@ -463,10 +490,13 @@ export async function PATCH(request: Request) {
 
         if (Object.keys(update).length > 0) {
           let { error: updateError } = await supabase.from('athlete_activities').update(update).eq('id', act.id);
-          // This is the backfill that gives historical runs their Garmin workout
-          // id — so it's also the path that runs first if migration 092 hasn't
-          // been applied. Retry without the column rather than reporting every
-          // row as an error and repairing no routes.
+          // Historical rows pick up their Garmin workout id here — but only the
+          // ones this endpoint's own filters select (mode=route: no gps_points,
+          // mode=missing: no avg_cadence). A row that is already fully enriched
+          // is never revisited, so its workout id stays NULL; `mode=workout`
+          // above is the pass keyed on the column itself, and it's the one to
+          // use for history. Retry without it rather than reporting every row as
+          // an error and repairing no routes.
           if (isMissingColumn(updateError, 'garmin_workout_id')) {
             const { garmin_workout_id: _unmigrated, ...rest } = update;
             ({ error: updateError } = await supabase.from('athlete_activities').update(rest).eq('id', act.id));

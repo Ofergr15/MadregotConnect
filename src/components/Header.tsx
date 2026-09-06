@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { User, LogOut, X, MessageSquare, Bell, Eye, Search as SearchIcon } from 'lucide-react';
+import { User, LogOut, X, Bug, Bell, Eye, Search as SearchIcon } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
@@ -231,21 +231,48 @@ export function Header() {
               <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0" />
               <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
             </Link>
-            {navReady && navItems.some(i => i.tab === 'review') && (() => {
+            {/* ── SPEAK UP, next to the logo, on every screen size. ──
+                This is the club's only "something isn't working" channel, and it
+                used to be `hidden md:flex` — invisible on the phone, which is the
+                only device most of the club ever opens the app on. Reaching it
+                there meant the tab bar's "More" sheet.
+
+                Deliberately NOT gated by `role_tab_permissions` any more (it was
+                gated on the `review` tab). A permission row must never be able to
+                remove the way to report that the app is broken — the state where
+                it's revoked is exactly the state where somebody needs it. The
+                permission still decides whether it appears in the nav LISTS; this
+                entry point is unconditional, the same way Store and Benefits are.
+                It stays in the "More" sheet too, so muscle memory still works. */}
+            {(() => {
               const isActive = pathname === '/dashboard/review';
               return (
-                <Link
-                  href="/dashboard/review"
-                  className={cn(
-                    'hidden md:flex items-center gap-2 px-4 h-9 rounded-xl font-bold text-sm transition-all',
-                    isActive
-                      ? 'bg-band-3 text-ink-900 shadow-md shadow-band-3/25'
-                      : 'bg-band-3/15 text-band-3-ink border border-band-3/30 hover:bg-band-3/25'
-                  )}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  <span className="text-xs font-bold">{t('review')}</span>
-                </Link>
+                <>
+                  {/* Phone: icon only — the right-hand cluster already owns three
+                      44px buttons, and a labelled pill wouldn't fit at 390px. */}
+                  <Link
+                    href="/dashboard/review"
+                    aria-label={t('review')}
+                    className={cn(
+                      'md:hidden flex items-center justify-center w-11 h-11 rounded-full active:scale-95 transition-transform',
+                      isActive ? 'bg-band-3 text-ink-900' : 'bg-band-3/20 text-band-3-ink',
+                    )}
+                  >
+                    <Bug className="h-5 w-5" />
+                  </Link>
+                  <Link
+                    href="/dashboard/review"
+                    className={cn(
+                      'hidden md:flex items-center gap-2 px-4 h-9 rounded-xl font-bold text-sm transition-all',
+                      isActive
+                        ? 'bg-band-3 text-ink-900 shadow-md shadow-band-3/25'
+                        : 'bg-band-3/15 text-band-3-ink border border-band-3/30 hover:bg-band-3/25'
+                    )}
+                  >
+                    <Bug className="h-4 w-4" />
+                    <span className="text-xs font-bold">{t('review')}</span>
+                  </Link>
+                </>
               );
             })()}
           </div>

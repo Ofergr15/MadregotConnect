@@ -4,6 +4,8 @@ import {
   buildPublicProfile,
   type PublicProfileAthleteRow,
   type PublicProfileGroupRow,
+  type PublicProfileBandRow,
+  type PublicProfileCoachRow,
 } from '@/lib/athletes/public-profile';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +25,9 @@ export async function GET(
 
     const { data: athlete, error } = await supabase
       .from('athletes')
-      .select('id, name, avatar_url, group_id, created_at')
+      .select(
+        'id, name, avatar_url, group_id, created_at, role, is_core_runner, is_academy, academy_band_id, academy_coach_id',
+      )
       .eq('id', id)
       .maybeSingle();
 
@@ -48,7 +52,36 @@ export async function GET(
       group = groupRow;
     }
 
-    return NextResponse.json(buildPublicProfile(athlete as PublicProfileAthleteRow, group));
+    // The academy band (דבוקה) and the personal coach — looked up ONLY for an
+    // academy trainee. Two extra round trips that a regular member never pays,
+    // and the shaping drops both anyway for a non-academy athlete, so querying
+    // them unconditionally would be work spent on a field guaranteed to be null.
+    let band: PublicProfileBandRow | null = null;
+    let coach: PublicProfileCoachRow | null = null;
+    if (athlete.is_academy) {
+      if (athlete.academy_band_id) {
+        const { data: bandRow } = await supabase
+          .from('academy_bands')
+          .select('band_number, name, goal')
+          .eq('id', athlete.academy_band_id)
+          .maybeSingle();
+        band = bandRow;
+      }
+      if (athlete.academy_coach_id) {
+        // Name only. The coach is another athlete row, and everything else on it
+        // is as private as the one this route is already being careful about.
+        const { data: coachRow } = await supabase
+          .from('athletes')
+          .select('name')
+          .eq('id', athlete.academy_coach_id)
+          .maybeSingle();
+        coach = coachRow;
+      }
+    }
+
+    return NextResponse.json(
+      buildPublicProfile(athlete as PublicProfileAthleteRow, group, band, coach),
+    );
   } catch (error) {
     console.error('Failed to fetch public athlete profile:', error);
     return NextResponse.json({ error: 'Failed to fetch public athlete profile' }, { status: 500 });

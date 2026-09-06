@@ -262,17 +262,66 @@ export function feedPostCopy(
 
 // ── Workouts & plans ──────────────────────────────────────────────────────
 
+/**
+ * How the post-workout push says which way the run missed, in the few words a
+ * lock screen gives you. Two-word phrases, not the full sentences the app shows —
+ * the point here is to be readable at a glance and to make the number mean
+ * something, since 62% alone doesn't say too fast from too slow.
+ *
+ * `unknown` has no entry on purpose: a push that can't say which way is better
+ * off not quoting a percentage at all (see below).
+ */
+const EXECUTION_PUSH: Record<string, { he: string; en: string; emoji: string }> = {
+  on_target: { he: 'בוצע לפי התוכנית', en: 'Ran to plan', emoji: '🎯' },
+  too_fast: { he: 'מהר מהמתוכנן', en: 'Faster than planned', emoji: '⚡' },
+  too_slow: { he: 'לאט מהמתוכנן', en: 'Slower than planned', emoji: '⏱️' },
+  mixed: { he: 'קצב לא אחיד', en: 'Uneven pacing', emoji: '📊' },
+  too_long: { he: 'ארוך מהמתוכנן', en: 'Longer than planned', emoji: '📏' },
+  too_short: { he: 'קצר מהמתוכנן', en: 'Shorter than planned', emoji: '📏' },
+};
+
 export function postWorkoutPromptCopy(
   locale: NotificationLocale,
-  p: { activityType: string | null | undefined; km: number | null },
+  p: {
+    activityType: string | null | undefined;
+    km: number | null;
+    /**
+     * The plan-vs-execution grade, when there is one. Omitted for a run with no
+     * planned workout behind it — which is most easy runs — and in that case the
+     * wording below is exactly what it has always been.
+     */
+    execution?: { score: number; direction: string } | null,
+  },
 ): PushCopy {
   const label = runTypeLabel(locale, p.activityType);
+  const verdict = p.execution && EXECUTION_PUSH[p.execution.direction]
+    ? { ...EXECUTION_PUSH[p.execution.direction], score: p.execution.score }
+    : null;
+
   if (locale === 'he') {
+    // The score leads: it's the one thing that's new since the run ended, and the
+    // screen this opens shows the whole breakdown.
+    if (verdict) {
+      return {
+        title: `${verdict.emoji} דיוק ביצוע ${verdict.score}%`,
+        body: p.km
+          ? `${verdict.he} · ${label} של ${p.km} ק״מ — ספרו לנו איך היה`
+          : `${verdict.he} — ספרו לנו איך היה`,
+      };
+    }
     return {
       title: 'כל הכבוד על האימון! 🏃',
       body: p.km
         ? `${label} של ${p.km} ק״מ — איך היה? ספרו לנו במשוב קצר`
         : 'איך היה? ספרו לנו במשוב קצר',
+    };
+  }
+  if (verdict) {
+    return {
+      title: `${verdict.emoji} ${verdict.score}% execution accuracy`,
+      body: p.km
+        ? `${verdict.en} · ${p.km} km ${label.toLowerCase()} — tell us how it went`
+        : `${verdict.en} — tell us how it went`,
     };
   }
   return {
@@ -511,6 +560,26 @@ export function coachReplyCopy(
   return locale === 'he'
     ? { title: name ? `💬 תשובה מ${name}` : '💬 תשובה מהמאמן' }
     : { title: name ? `💬 Reply from ${name}` : '💬 Reply from your coach' };
+}
+
+/**
+ * "The thing you reported is fixed."
+ *
+ * The reason this exists at all: reporting a bug is unpaid work the reporter
+ * does for us, and the only thing that makes anyone do it twice is finding out
+ * it led somewhere. The report's own text is quoted back (clipped) rather than
+ * described, because by the time a fix ships the reporter has usually forgotten
+ * which of their reports this was.
+ */
+export function reviewResolvedCopy(
+  locale: NotificationLocale,
+  p: { preview: string | null | undefined },
+): PushCopy {
+  const raw = (p.preview || '').trim().replace(/\s+/g, ' ');
+  const clipped = raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
+  return locale === 'he'
+    ? { title: '✅ הדיווח שלך טופל', body: clipped || 'תודה שדיווחתם — זה תוקן.' }
+    : { title: '✅ Your report is fixed', body: clipped || 'Thanks for reporting it — it’s been fixed.' };
 }
 
 /** Sponsor name and deal title are admin-authored; only the header translates. */

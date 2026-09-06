@@ -19,6 +19,9 @@ export async function GET(request: Request) {
     const report = await computeAcademyWeekAdherence({
       weekStart: searchParams.get('weekStart'),
       onlyAthleteId: searchParams.get('athleteId'),
+      // The compliance table leads with accuracy, so it needs the verdicts. Only
+      // the compact summary crosses the wire — laps stay on this side.
+      withExecution: true,
     });
     return NextResponse.json(report);
   } catch (error: any) {

@@ -11,10 +11,12 @@ import { BottomTabBar } from '@/components/BottomTabBar';
 import { PageTransition } from '@/components/PageTransition';
 import { FirstRunTour } from '@/components/onboarding/FirstRunTour';
 import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider';
+import { ExecutionScoreProvider } from '@/components/activity/execution-context';
 import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { Spinner } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
+import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import { cn } from '@/lib/utils';
 
 // Shared shell for every signed-in surface — /dashboard/* and /feed — via the
@@ -77,6 +79,17 @@ export default function AppLayout({
       window.removeEventListener('pagehide', setFromServer);
     };
   }, []);
+
+  // Breadcrumb for the review screen ("where did it happen?"). Every screen
+  // except /dashboard/review itself, so what's stored is always the last screen
+  // the user was actually LOOKING at when they decided to report something — by
+  // the time the review page mounts, that pathname is gone, and asking somebody
+  // to remember which screen broke is exactly the friction that turns a bug
+  // report into "something is broken somewhere".
+  useEffect(() => {
+    if (pathname === '/dashboard/review') return;
+    try { sessionStorage.setItem(REVIEW_LAST_PATH_KEY, pathname); } catch { /* private mode */ }
+  }, [pathname]);
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -145,7 +158,12 @@ export default function AppLayout({
               : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-4 sm:px-6 md:pb-8 lg:px-8',
           )}
         >
-          {isRunChat ? children : <PageTransition>{children}</PageTransition>}
+          {/* One accuracy-ring cache for every signed-in screen. Mounted here, in
+              the shell that survives a feed ↔ dashboard hop, so a page of cards
+              fetches its scores in ONE request and keeps them across navigation. */}
+          <ExecutionScoreProvider>
+            {isRunChat ? children : <PageTransition>{children}</PageTransition>}
+          </ExecutionScoreProvider>
         </main>
         {!isRunChat && <BottomTabBar />}
       </div>

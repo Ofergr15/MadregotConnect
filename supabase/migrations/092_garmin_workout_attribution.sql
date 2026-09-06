@@ -17,7 +17,7 @@
 -- Apply this BEFORE deploying the code that writes these columns. Both writers
 -- degrade gracefully if it hasn't been (the sync retries the insert without the
 -- column, the matcher falls back to the heuristic), but the enrichment backfill
--- at `GET /api/garmin/sync-activities?mode=…` will log a per-row error until it
+-- at `PATCH /api/garmin/sync-activities?mode=…` will log a per-row error until it
 -- exists.
 
 -- Garmin's workoutId for the structured workout this activity was run from.

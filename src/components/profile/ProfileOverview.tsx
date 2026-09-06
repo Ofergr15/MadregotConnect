@@ -7,7 +7,9 @@ import { useApi } from '@/lib/api';
 import { cn, getPlanWeekStart, israelDateAnchor, israelNow, israelToday } from '@/lib/utils';
 import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
 import { WORKOUT_TYPE_TEXT_COLORS, WORKOUT_TYPE_LABELS, planDayKey } from '@/lib/plans/workout-parsing';
+import { weekTargetRange, dayTargetLabel, type WeekPlanTotals } from '@/lib/plans/week-target';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
+import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
 import CoreRunnerBadge from '@/components/CoreRunnerBadge';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import type { FeedItem } from '@/lib/feed/project';
@@ -36,8 +38,11 @@ interface DailyDistance {
   dayOfWeek: number;
   min: number;
   max: number;
+  /** Prescribed only — the day with its offered "ערב אופציה" left out. */
+  requiredMin?: number;
+  requiredMax?: number;
   type: string;
-  sessions?: Array<{ min: number; max: number; type: string; name: string }>;
+  sessions?: Array<{ min: number; max: number; type: string; name: string; optional?: boolean }>;
 }
 
 interface WeeklyData {
@@ -118,17 +123,15 @@ export function ProfileOverview({
   // Saturday evening. `/api/plans/week` answers for one explicit week and reports
   // `hasPlan: false` rather than substituting another, so the bar hides instead of
   // measuring against a week that was never planned.
-  const { data: thisWeekPlan } = useApi<{ hasPlan?: boolean; weekTotalMin?: number; weekTotalMax?: number }>(
+  const { data: thisWeekPlan } = useApi<WeekPlanTotals>(
     `/api/plans/week?weekStart=${getPlanWeekStart(israelDateAnchor())}`,
   );
-  // The MIDPOINT of the plan's range, not its top. `weekTotalMax` made the bar
-  // permanently unfinishable — run every session at the middle of its range and it
-  // sat near 85% — and the midpoint is already what this codebase means by a
-  // week's planned volume (`weekDelta` and the volume-trend chart both average
-  // min and max).
-  const weekKmGoal = thisWeekPlan?.hasPlan
-    ? round1(((thisWeekPlan.weekTotalMin || 0) + (thisWeekPlan.weekTotalMax || 0)) / 2)
-    : 0;
+  // A RANGE, not one number: the floor is every prescribed session at the short
+  // end of its span, the ceiling is every session including the offered evenings
+  // at the long end, and anywhere between the two is on plan. The single figure
+  // this replaced was the midpoint of the whole menu — 146.3 km for a week whose
+  // prescribed sessions add up to about 115 — so the bar could not be finished.
+  const weekTarget = weekTargetRange(thisWeekPlan);
 
   // Which workout does the card show? Simply the SOONEST planned day — today
   // first, then tomorrow, and so on.
@@ -220,25 +223,8 @@ export function ProfileOverview({
       {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
       <SetupProgressCard onOpen={onOpenSetup} />
 
-      {/* ═══ WEEKLY KM — actual against the plan's own weekly total ═══ */}
-      {weekKmGoal > 0 && (
-        <div>
-          <div className="mb-2 flex items-end justify-between">
-            <h2 className="text-xl font-bold text-ink-700">{t('weeklyKm')}</h2>
-            <p className="text-2xl font-bold text-brand-600 tabular-nums">
-              {round1(weekKmDone)}<span className="text-ink-400">/</span>{round1(weekKmGoal)}
-            </p>
-          </div>
-          {/* Fill is a plain block inside an RTL track, so it grows from the
-              right in Hebrew and from the left in English without two rules. */}
-          <div className="h-3 w-full overflow-hidden rounded-pill bg-card">
-            <div
-              className="h-full rounded-pill bg-brand-600 transition-[width] duration-500"
-              style={{ width: `${Math.min(100, Math.round((weekKmDone / weekKmGoal) * 100))}%` }}
-            />
-          </div>
-        </div>
-      )}
+      {/* ═══ WEEKLY KM — actual against the plan's target band ═══ */}
+      {weekTarget && <WeekTargetBar title={t('weeklyKm')} doneKm={weekKmDone} target={weekTarget} />}
 
       {/* ═══ UPDATES — the club's announcements, newest first ═══ */}
       {updates?.items && updates.items.length > 0 && (
@@ -281,11 +267,11 @@ export function ProfileOverview({
           <div className="flex items-start justify-between">
             <h2 className="text-xl font-bold text-ink-700">{t('upcomingWorkout')}</h2>
             <p className="shrink-0">
-              <span className="text-2xl font-bold text-brand-600 tabular-nums">
-                {upcoming.workout.min === upcoming.workout.max
-                  ? upcoming.workout.max
-                  : `${upcoming.workout.min}–${upcoming.workout.max}`}
-              </span>{' '}
+              {/* dir="ltr": in the Hebrew line bidi swapped the ends and Sunday's
+                  23–24 read "24–23", a range that counts down. */}
+              <bdi dir="ltr" className="text-2xl font-bold text-brand-600 tabular-nums">
+                {dayTargetLabel(upcoming.workout).km}
+              </bdi>{' '}
               <span className="text-xs font-light text-ink-400">{tc('km')}</span>
             </p>
           </div>
@@ -364,7 +350,12 @@ export function ProfileOverview({
                 key={d.dayOfWeek}
                 letter={(tc.raw('dayNamesShort') as string[])[d.dayOfWeek]}
                 date={weekly?.currentWeekStart ? dayOfWeekDate(weekly.currentWeekStart, d.dayOfWeek) : null}
-                km={d.min === d.max ? `${d.max}` : `${d.min}–${d.max}`}
+                // Prescribed kilometres only, rounded on the way in — same rule
+                // as the week's band above, so the strip cannot contradict it.
+                // (Rounding matters here too: a Tuesday of 11 + 2.4 arrives as
+                // 13.400000000000006 and overflowed the tile's own width.)
+                km={dayTargetLabel(d).km}
+                hasOptional={dayTargetLabel(d).hasOptional}
                 hasKm={d.max > 0}
                 locale={locale}
                 // By date, not by weekday: on Saturday evening the strip shows the
@@ -404,13 +395,15 @@ function Field({ label, value, color }: { label: string; value: string; color?: 
 }
 
 function DayTile({
-  letter, date, km, hasKm, locale, isToday, isTeamDay, kmUnit,
+  letter, date, km, hasOptional, hasKm, locale, isToday, isTeamDay, kmUnit,
 }: {
   letter: string;
   date: Date | null;
   /** Pre-formatted, so a day whose plan is a RANGE reads the same here as on the
    *  card above it — the strip used to print only the top of it. */
   km: string;
+  /** The day also carries an offered session, which the range excludes. */
+  hasOptional: boolean;
   hasKm: boolean;
   locale: string;
   isToday: boolean;
@@ -433,7 +426,27 @@ function DayTile({
           {date.getDate()} {date.toLocaleDateString(locale, { month: 'short' })}
         </span>
       )}
-      <span className="text-sm font-light text-ink-500">{hasKm ? `${km} ${kmUnit}` : '—'}</span>
+      {/* A parsed day can read "23.6–24.5", which wraps inside a 74px tile and
+          pushed the team-day dot off its own line. One line always, a size down
+          when the range is long enough to need it. */}
+      <span
+        className={cn(
+          'whitespace-nowrap font-light text-ink-500',
+          km.length > 6 ? 'text-2xs' : 'text-sm',
+        )}
+      >
+        {hasKm ? (
+          <>
+            {/* dir="ltr" or bidi prints "24–23" for a 23–24 day. */}
+            <bdi dir="ltr">{km}</bdi>
+            {/* The offered evening is not in the range, but the day is not
+                silent about it either — a bare "+" is the whole hint. */}
+            {hasOptional && <span className="text-brand-600">+</span>} {kmUnit}
+          </>
+        ) : (
+          '—'
+        )}
+      </span>
       {/* The frame's blue dots mark the club's team-workout days. */}
       {isTeamDay && <span className="absolute bottom-2 h-1.5 w-1.5 rounded-full bg-brand-600" />}
     </div>

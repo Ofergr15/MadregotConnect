@@ -1,6 +1,8 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
 import { postWorkoutPromptCopy } from '@/lib/notifications/copy';
+import { loadAcademySettings } from '@/lib/academy/settings-server';
+import { resolveExecutionVerdict } from '@/lib/plan-execution/resolve';
 import { getPlanWeekStart } from '@/lib/utils';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { COACH_ID } from '@/lib/constants';
@@ -11,7 +13,7 @@ import { COACH_ID } from '@/lib/constants';
 // generous enough to bridge a real gap without merging an unrelated later run.
 const CLUSTER_GAP_MS = 90 * 60 * 1000;
 
-interface Act { garmin_activity_id: number; distance: number; activity_type: string | null; start_time: string; duration: number | null }
+interface Act { id: string; garmin_activity_id: number; distance: number; activity_type: string | null; start_time: string; duration: number | null }
 
 /** The club's planned distance/type for one specific date, or null (rest day / no plan loaded). */
 export async function planTargetForDate(dateStr: string): Promise<{ min: number; max: number; type: string } | null> {
@@ -82,6 +84,36 @@ async function pickMainActivity(acts: Act[], dateStr: string): Promise<Act> {
 }
 
 /**
+ * The plan-vs-execution grade to put in the push, or null.
+ *
+ * Best-effort by design: this runs inside a sync route, and a run that can't be
+ * graded (no plan matched, an unparseable workout, a missing table) has to send
+ * the plain prompt rather than no prompt. Note the sync calls this BEFORE
+ * matchAthleteActivities, so `resolveExecutionVerdict` is doing the matching
+ * itself here — and its result is persisted, so the screen the push opens reads
+ * the same match rather than recomputing a different one.
+ *
+ * Watch laps aren't stored by the Garmin sync, so a grade computed here is from
+ * distance/duration/pace. The percentage can therefore tighten once the athlete
+ * opens the run and the laps get cached — which is the honest behaviour: the
+ * per-rep detail genuinely wasn't known yet.
+ */
+async function gradeForPush(
+  activityId: string,
+): Promise<{ score: number; direction: string } | null> {
+  try {
+    const supabase = createServerClient();
+    const { tolerances } = await loadAcademySettings();
+    const verdict = await resolveExecutionVerdict(supabase, activityId, tolerances);
+    if (!verdict || verdict.status !== 'graded' || verdict.score == null) return null;
+    if (verdict.direction === 'unknown') return null;
+    return { score: verdict.score, direction: verdict.direction };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Sends (at most once per athlete per calendar day) the post-workout feedback
  * prompt for the day's MAIN workout, queried fresh from the DB rather than
  * scoped to whichever sync call happens to be running.
@@ -121,7 +153,7 @@ export async function notifyMainWorkoutFeedback(opts: { athleteId: string; dateS
 
     const { data: acts } = await supabase
       .from('athlete_activities')
-      .select('garmin_activity_id, distance, activity_type, start_time, duration')
+      .select('id, garmin_activity_id, distance, activity_type, start_time, duration')
       .eq('athlete_id', opts.athleteId)
       .gte('start_time', `${opts.dateStr}T00:00:00`)
       .lt('start_time', `${opts.dateStr}T23:59:59.999`);
@@ -129,6 +161,7 @@ export async function notifyMainWorkoutFeedback(opts: { athleteId: string; dateS
 
     const main = await pickMainActivity(acts as Act[], opts.dateStr);
     const km = main.distance > 0 ? Math.round((main.distance / 1000) * 10) / 10 : null;
+    const execution = await gradeForPush(main.id);
 
     await notifyAthlete({
       athleteId: opts.athleteId,
@@ -136,6 +169,7 @@ export async function notifyMainWorkoutFeedback(opts: { athleteId: string; dateS
       copy: (locale) => postWorkoutPromptCopy(locale, {
         activityType: main.activity_type as string | null,
         km,
+        execution,
       }),
       url: `/dashboard/feedback?activity=${main.garmin_activity_id}`,
       tag: `post-workout-${main.garmin_activity_id}`,

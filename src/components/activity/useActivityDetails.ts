@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchActivityDetails } from '@/lib/activities-client';
 import { apiHeaders } from '@/lib/api';
 import { projectBandsToBins, PlannedKmPoint } from '@/lib/academy/segments';
+import type { ExecutionVerdict } from '@/lib/plan-execution/verdict';
 import { activityLocalDateStr } from '@/lib/utils';
 import type { ActivityDetailsData, Split } from './types';
 
@@ -21,7 +22,8 @@ interface UseActivityDetailsArgs {
 
 /**
  * Loads one activity's route, splits and summary — plus, best-effort, that day's
- * planned pace projected onto the actual split distances.
+ * planned pace projected onto the actual split distances, and whether the run
+ * matched the plan.
  *
  * Extracted from ActivityFeed so the feed card and the standalone detail page
  * fetch identically: the plan overlay in particular is easy to get subtly wrong
@@ -39,6 +41,10 @@ export function useActivityDetails({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [planned, setPlanned] = useState<(PlannedKmPoint | null)[] | null>(null);
+  // Whether that overlay came from a continuous plan — the bins alone can't say,
+  // because a 400 m recovery never empties a 1 km bin. See `isContinuousPlan`.
+  const [plannedContinuous, setPlannedContinuous] = useState(false);
+  const [verdict, setVerdict] = useState<ExecutionVerdict | null>(null);
 
   // The non-id inputs live in a ref so `load` stays stable across renders: the
   // caller passes an array (`fallbackSplits`) that's a fresh identity every
@@ -66,27 +72,34 @@ export function useActivityDetails({
         setError(res.status === 404 ? 'not-found' : res.status === 403 ? 'forbidden' : 'failed');
       }
 
-      // Overlay the day's planned pace, aligned to the ACTUAL split distances.
-      // Fetch the plan as meter bands, then project onto each split's distance.
-      // Best-effort: no plan / no paced steps → no overlay.
+      // The day's plan, in one request: the pace bands for the chart overlay, and
+      // the verdict on whether this run matched the plan. Best-effort throughout —
+      // no plan for the day, or no paced steps in it, and neither appears.
+      //
+      // The overlay is aligned to the ACTUAL split distances rather than assumed
+      // kilometres, so it needs splits; the verdict doesn't, which is why the
+      // request is no longer gated on having them.
       const useSplits = liveSplits.length ? liveSplits : (fs || []);
       const planAthleteId = aid || row?.athlete_id;
       const planStart = st || row?.start_time;
-      if (useSplits.length >= 2 && planAthleteId && planStart) {
+      if (planAthleteId && planStart) {
         const date = activityLocalDateStr(planStart);
         try {
           const pr = await fetch(
-            `/api/academy/segments?athleteId=${encodeURIComponent(planAthleteId)}&date=${date}&bands=1`,
+            `/api/academy/segments?athleteId=${encodeURIComponent(planAthleteId)}&date=${date}`
+            + `&bands=1&verdict=1&activityId=${encodeURIComponent(activityId)}`,
             { headers: await apiHeaders() },
           );
           if (pr.ok) {
             const pj = await pr.json();
-            if (Array.isArray(pj?.bands) && pj.bands.length) {
+            if (Array.isArray(pj?.bands) && pj.bands.length && useSplits.length >= 2) {
               const binMeters = useSplits.map((s) => s.distance || 1000);
               setPlanned(projectBandsToBins(pj.bands, binMeters));
+              setPlannedContinuous(pj.continuous === true);
             }
+            if (pj?.verdict) setVerdict(pj.verdict as ExecutionVerdict);
           }
-        } catch { /* plan overlay optional */ }
+        } catch { /* plan overlay + verdict optional */ }
       }
     } catch {
       setError('failed');
@@ -99,5 +112,5 @@ export function useActivityDetails({
     if (auto) load();
   }, [auto, load]);
 
-  return { details, loading, error, planned, load };
+  return { details, loading, error, planned, plannedContinuous, verdict, load };
 }

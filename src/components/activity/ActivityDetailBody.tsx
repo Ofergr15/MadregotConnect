@@ -6,8 +6,10 @@ import {
   RefreshCw, Sparkles, TrendingUp, Zap,
 } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
+import type { ExecutionVerdict } from '@/lib/plan-execution/verdict';
 import { cn } from '@/lib/utils';
 import { ElevationChart, HRChart, PaceChart } from './charts';
+import { ExecutionQuality, executionTakesPaceChart } from './ExecutionQuality';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone } from './format';
 import { RouteMap } from './RouteMap';
 import { SplitsTable } from './SplitsTable';
@@ -47,12 +49,27 @@ export function ActivityDetailBody({
   details,
   loading = false,
   planned,
+  plannedContinuous = false,
+  verdict = null,
+  loadingVerdict = false,
   className,
 }: {
   activity: ActivityEntry;
   details: ActivityDetailsData | null;
   loading?: boolean;
   planned?: (PlannedKmPoint | null)[] | null;
+  /** Whether that plan is one unbroken stretch — see `executionTakesPaceChart`. */
+  plannedContinuous?: boolean;
+  /**
+   * The day's plan graded against this run. Passed in rather than fetched here:
+   * it arrives on the same request as `planned` (`?bands=1&verdict=1`), because
+   * the bands and the score are two readings of one plan lookup and asking twice
+   * was two round trips to render one card. Null → the card renders nothing,
+   * which is also what a viewer who may not read this person's score gets.
+   */
+  verdict?: ExecutionVerdict | null;
+  /** That request still in flight — the card holds its height instead of popping in. */
+  loadingVerdict?: boolean;
   className?: string;
 }) {
   const t = useTranslations('activities');
@@ -96,6 +113,18 @@ export function ActivityDetailBody({
 
   return (
     <div className={cn('space-y-5', className)}>
+      {/* First, before the map and the numbers: was this the workout that was
+          asked for? Everything below is the evidence for that answer — including,
+          on a run with no reps to grade, the per-km chart that used to sit far
+          below the map where nobody compared it to anything. */}
+      <ExecutionQuality
+        verdict={verdict}
+        splits={splits}
+        planned={planned}
+        plannedContinuous={plannedContinuous}
+        loading={loadingVerdict}
+      />
+
       {loading && !details && (
         <div className="flex items-center justify-center py-8">
           <RefreshCw className="h-5 w-5 text-ink-400 animate-spin" />
@@ -234,9 +263,14 @@ export function ActivityDetailBody({
       {/* Charts - Full Width Stacked */}
       {splits.length >= 2 && (
         <div className="space-y-4">
-          <div className="bg-page/40 rounded-xl p-4 border border-page/20">
-            <PaceChart splits={splits} planned={planned || undefined} />
-          </div>
+          {/* Once, not twice: when the accuracy card above took this chart as its
+              evidence, drawing it again 600 px lower is the same picture with the
+              plan comparison stripped of its context. */}
+          {!executionTakesPaceChart(verdict, splits, planned, plannedContinuous) && (
+            <div className="bg-page/40 rounded-xl p-4 border border-page/20">
+              <PaceChart splits={splits} planned={planned || undefined} />
+            </div>
+          )}
           {splits.some(s => s.averageHR) && (
             <div className="bg-page/40 rounded-xl p-4 border border-page/20">
               <HRChart splits={splits} maxHR={maxHR} />

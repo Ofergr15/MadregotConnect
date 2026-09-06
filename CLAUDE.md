@@ -61,7 +61,7 @@ src/
     supabase/           Clients + hand-written DB types
     utils.ts            cn(), week-start + activity-time helpers, group identity
   i18n/                 next-intl cookie-based locale
-messages/{en,he}.json   1716 keys each, currently at parity
+messages/{en,he}.json   1891 keys each, currently at parity
 supabase/
   schema.sql            ⚠️ ORIGINAL schema only — stale
   migrations/0NN_*.sql  ⚠️ The real schema. Applied MANUALLY in the Supabase SQL editor.
@@ -210,6 +210,37 @@ paces are pace at a finer grain and would hand back the average the athlete just
 visibly in the colours and exactly in the JSON. If you add anything else derived from
 `splits` to the feed, mask it the same way.
 
+Recorded exposure change, **2026-09-06**: the plan verdict now reaches every athlete
+for their OWN runs, on the feed card and the run detail — the academy compliance table
+only ever answered "did this match the plan" for the one athlete flagged `is_academy`
+while the other 25 got a plan pushed to their watch and no feedback.
+
+It carries an accuracy **percentage**, and that is what sets its exposure: a score on a
+named person, legible at a glance and comparable between teammates. So it is
+**self-or-staff**, not member-visible — the spec was "the ring appears only on that
+person's own workouts; staff see everything".
+
+- `GET /api/academy/segments?verdict=1` is self-or-staff, **enforced by omission**:
+  a caller who may not read it gets `verdict: null`, not a 403. That matters because the
+  activity detail asks for `bands=1&verdict=1` in one request, so refusing would take
+  the chart overlay — planned band + actual pace line, club training content any member
+  may see — down with the score. `verdict: null` is a state the caller already renders;
+  it's what a day with no plan returns. The omission short-circuits before the activity
+  read and the lap match, so it costs nothing either. The per-segment default mode (a
+  rep-by-rep pace readout) stays a hard 403. Pinned by
+  `src/__tests__/academySegmentsVerdictRoute.test.ts`.
+- The feed's rings are resolved server-side in `src/lib/feed/plan-verdicts.ts`, which
+  grades **for the viewer**: rows that are neither the viewer's own nor readable as
+  staff are skipped before scoring, so a teammate's number never enters the response to
+  leak from. That is also the cheap path — a member's 20-card page grades the ~2 rows
+  that are theirs. Pinned by `src/__tests__/feedPlanVerdicts.test.ts`.
+- Then masked again under the existing `pace` hidden-field key
+  (`project.ts:323`): hiding pace drops the ring outright rather than shipping a version
+  computed from distance alone, since "off the target band" is a pace disclosure at a
+  coarser grain.
+
+If you add a new plan-derived label to the feed, mask it under `pace` too.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:
@@ -274,7 +305,7 @@ via `Promise.allSettled` so one provider failing doesn't block the other, then w
 ## i18n
 
 `next-intl`, cookie-based (`NEXT_LOCALE`), **Hebrew default**, no locale in the URL.
-`messages/en.json` and `messages/he.json` are at 1716 keys each — keep them in sync;
+`messages/en.json` and `messages/he.json` are at 1891 keys each — keep them in sync;
 adding a key to one and not the other is the common mistake.
 
 Adoption is partial: 14 of 44 components use `useTranslations`. Several (notably the

@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { formatActivityTime } from '@/lib/utils';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { RouteMinimap } from '@/components/RouteMinimap';
+import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import {
   AuthorRow,
@@ -139,6 +140,10 @@ function ExpandedRunner({
         className="mt-3 -mx-2 px-2 py-1 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
       >
         <ActivityStatTiles act={act} />
+        {/* One runner's row inside a club run. The score is graded per viewer, so
+            on a card with four teammates on it this is silent for three of them
+            and shows for whoever is reading — which is exactly the rule. */}
+        <ExecutionBadge summary={act.planVerdict} showChevron />
         <ActivityChips act={act} />
       </div>
 

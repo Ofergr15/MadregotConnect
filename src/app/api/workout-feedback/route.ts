@@ -274,7 +274,10 @@ export async function GET(request: Request) {
 
     const { data: activity } = await supabase
       .from('athlete_activities')
-      .select('activity_name, activity_type, distance, start_time, perceived_rpe, perceived_feel')
+      // `id` (the internal uuid) so the form can ask /api/plan-execution for this
+      // run's grade — everything the athlete sees here is keyed by the GARMIN id,
+      // which that endpoint doesn't know.
+      .select('id, activity_name, activity_type, distance, start_time, perceived_rpe, perceived_feel')
       .eq('athlete_id', athleteId)
       .eq('garmin_activity_id', Number(activityId))
       .maybeSingle();

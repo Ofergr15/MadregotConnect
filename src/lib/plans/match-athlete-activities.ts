@@ -128,7 +128,7 @@ function isGrouped(value: unknown): value is GroupedWeeklyPlans {
  * from dayOfWeek/partIndex/partKind, so a plan normalized lazily now gets exactly
  * the key it would have been given at publish time.
  */
-function workoutPlanForGroup(value: unknown, groupNumber: number): ParsedWeeklyPlan | null {
+export function workoutPlanForGroup(value: unknown, groupNumber: number): ParsedWeeklyPlan | null {
   const normalized = normalizeParsedWorkouts(value);
   if (isGrouped(normalized)) return normalized[`group${groupNumber}` as keyof GroupedWeeklyPlans];
   const plan = normalized as ParsedWeeklyPlan | null;

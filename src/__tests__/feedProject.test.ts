@@ -229,6 +229,34 @@ describe('feed projection — payload.hiddenFields', () => {
     expect(project(['pace']).paceBands).toBeNull();
   });
 
+  // The accuracy ring is a statement about pace among other things — "72%, slower
+  // than the target band" is a pace disclosure, coarser but the same kind. An
+  // athlete who hid their pace hid this too; their own score is still on the run's
+  // detail page, where only they and staff can reach it.
+  it('the plan verdict ships with pace, and goes when pace is hidden', () => {
+    const withVerdict = (hiddenFields: unknown) =>
+      projectFeedItem(
+        { ...baseRow, type: 'activity', payload: { hiddenFields }, athlete_activities: activityRow },
+        {
+          ...context,
+          planVerdictsByActivity: new Map([['act-1', {
+            activityId: 'act-1',
+            status: 'graded' as const,
+            score: 72,
+            direction: 'too_slow' as const,
+            workoutName: '6x400',
+          }]]),
+        },
+      ).activity!;
+
+    expect(withVerdict([])?.planVerdict).toMatchObject({ score: 72, workoutName: '6x400' });
+    expect(withVerdict(['pace']).planVerdict).toBeNull();
+  });
+
+  it('has no plan verdict when the caller resolved none', () => {
+    expect(project([]).planVerdict).toBeNull();
+  });
+
   it('hides everything asked for at once', () => {
     expect(project(['calories', 'heart_rate', 'pace'])).toMatchObject({
       calories: null, averageHr: null, maxHr: null, averagePace: null,

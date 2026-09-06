@@ -28,6 +28,26 @@ import { workoutDurationSec } from '@/lib/workout-duration';
 
 /** "ערב - אופציה", "אופציונלי", "מי שרוצה" — offered, not prescribed. */
 const OPTIONAL_RE = /אופצי|optional|מי שרוצה/i;
+
+/**
+ * Is this session offered rather than prescribed?
+ *
+ * The flag wins where it is set, and the name is read where it isn't: only plans
+ * written since normalization moved onto the write path carry `optional`, and
+ * every read path that needs to tell a required session from an optional one
+ * (the weekly target range, the day tiles) has to answer for the older ones too.
+ *
+ * Exported so that question has exactly one answer in the codebase — a second
+ * copy of this regex is how "required" and "optional" start disagreeing between
+ * two screens showing the same week.
+ */
+export function isOptionalWorkout(
+  workout: { name?: string | null; description?: string | null; optional?: boolean | null } | null | undefined,
+): boolean {
+  if (!workout) return false;
+  if (typeof workout.optional === 'boolean') return workout.optional;
+  return OPTIONAL_RE.test(`${workout.name || ''} ${workout.description || ''}`);
+}
 // The lookahead is why these aren't bare words: \b is ASCII-only, so /ערב/ alone
 // also fires on ערבוב ("mixing"), which is a plausible thing for a fartlek to be
 // called and would label it the evening session.
@@ -146,8 +166,7 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
         partKind,
         // Not part of the key, so inferring it costs nothing and labels the
         // sessions already stored with "אופציה" only in their name.
-        optional:
-          workout.optional ?? OPTIONAL_RE.test(`${workout.name} ${workout.description || ''}`),
+        optional: isOptionalWorkout(workout),
         expectedDistanceM,
         expectedDurationSec,
         distanceToleranceM,

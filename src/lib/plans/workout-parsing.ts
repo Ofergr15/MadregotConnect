@@ -1,4 +1,5 @@
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
+import { isOptionalWorkout } from '@/lib/plans/normalize-plan';
 import { workoutDurationSec } from '@/lib/workout-duration';
 import {
   type EstimateOptions,
@@ -301,10 +302,14 @@ export function dedupeWorkoutsByDay(workouts: ParsedWorkout[]): ParsedWorkout[] 
 export interface DailyDistance {
   day: string;
   dayOfWeek: number;
+  /** Every session of the day, optional ones included. */
   min: number;
   max: number;
+  /** Prescribed sessions only — the day with its "ערב אופציה" left out. */
+  requiredMin: number;
+  requiredMax: number;
   type: string;
-  sessions: Array<{ min: number; max: number; type: string; name: string }>;
+  sessions: Array<{ min: number; max: number; type: string; name: string; optional: boolean }>;
 }
 
 /**
@@ -348,8 +353,17 @@ export interface WeekBreakdown {
   dailyDistances: DailyDistance[];
   sessions: WeekSession[];
   typeDistribution: Record<string, number>;
+  /** The whole week as published, optional sessions included. */
   weekTotalMin: number;
   weekTotalMax: number;
+  /**
+   * The week with the optional sessions removed — the floor of the target range.
+   * `weekRequiredMin` … `weekTotalMax` is the band an athlete is "on plan"
+   * inside: the bottom is the week done without any of the offered extras, the
+   * top is every session at the long end of its range.
+   */
+  weekRequiredMin: number;
+  weekRequiredMax: number;
   trainingDays: number;
 }
 
@@ -409,7 +423,11 @@ export function buildWeekSessions(workouts: ParsedWorkout[]): WeekSession[] {
       kind,
       partIndex: w.partIndex ?? 1,
       partCount: w.partCount ?? dayParts.length,
-      optional: !!w.optional,
+      // Not `!!w.optional`: weeks published before normalization moved onto the
+      // write path carry no flag at all, and say it in the name instead ("ערב
+      // אופציה"). Reading only the field priced those evenings into the floor of
+      // the week's target, so a week done exactly as prescribed read as short.
+      optional: isOptionalWorkout(w),
       kmMin: km.min,
       kmMax: km.max,
       kmFrom: km.from,
@@ -433,17 +451,32 @@ export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
 
   let rawWeekMin = 0;
   let rawWeekMax = 0;
+  let rawWeekReqMin = 0;
+  let rawWeekReqMax = 0;
   const dailyDistances: DailyDistance[] = [];
   for (let d = 0; d < 7; d++) {
     const daySessions = sessions.filter(s => s.dayOfWeek === d);
     if (daySessions.length === 0) {
-      dailyDistances.push({ day: DAY_NAMES[d], dayOfWeek: d, min: 0, max: 0, type: 'rest', sessions: [] });
+      dailyDistances.push({
+        day: DAY_NAMES[d], dayOfWeek: d,
+        min: 0, max: 0, requiredMin: 0, requiredMax: 0,
+        type: 'rest', sessions: [],
+      });
       continue;
     }
     const totalMin = daySessions.reduce((sum, s) => sum + s.kmMin, 0);
     const totalMax = daySessions.reduce((sum, s) => sum + s.kmMax, 0);
+    // An offered session counts towards the top of the week's range but not its
+    // floor — skipping every "ערב אופציה" still leaves you on plan. Summed from
+    // `sessions` rather than re-derived, so the floor is priced with the same
+    // plan-derived pace bands as everything else on the day.
+    const required = daySessions.filter(s => !s.optional);
+    const reqMin = required.reduce((sum, s) => sum + s.kmMin, 0);
+    const reqMax = required.reduce((sum, s) => sum + s.kmMax, 0);
     rawWeekMin += totalMin;
     rawWeekMax += totalMax;
+    rawWeekReqMin += reqMin;
+    rawWeekReqMax += reqMax;
     dailyDistances.push({
       day: DAY_NAMES[d],
       dayOfWeek: d,
@@ -451,11 +484,15 @@ export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
       // reads it: Tuesday's 17.6 + 21.8 was rendering as 39.400000000000006.
       min: round1(totalMin),
       max: round1(totalMax),
+      requiredMin: round1(reqMin),
+      requiredMax: round1(reqMax),
       // The day's HARDEST session, not its first. Monday leads with an easy
       // hour and Tuesday leads with intervals, but a day whose colour comes
       // from whichever part happened to be recorded first is a coin toss.
       type: hardestType(daySessions),
-      sessions: daySessions.map(s => ({ min: s.kmMin, max: s.kmMax, type: s.type, name: s.name })),
+      sessions: daySessions.map(s => ({
+        min: s.kmMin, max: s.kmMax, type: s.type, name: s.name, optional: s.optional,
+      })),
     });
   }
 
@@ -463,6 +500,8 @@ export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
   // total and the type split below (which is also raw-then-rounded) agree.
   const weekTotalMin = round1(rawWeekMin);
   const weekTotalMax = round1(rawWeekMax);
+  const weekRequiredMin = round1(rawWeekReqMin);
+  const weekRequiredMax = round1(rawWeekReqMax);
 
   const typeDistribution: Record<string, number> = {};
   for (const w of workouts) {
@@ -481,5 +520,14 @@ export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
   // 2026-09-06 has nine sessions across seven days.
   const trainingDays = dailyDistances.filter(d => d.max > 0).length;
 
-  return { dailyDistances, sessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays };
+  return {
+    dailyDistances,
+    sessions,
+    typeDistribution,
+    weekTotalMin,
+    weekTotalMax,
+    weekRequiredMin,
+    weekRequiredMax,
+    trainingDays,
+  };
 }

@@ -75,6 +75,7 @@ function run(opts: RunOpts): FeedItem {
       routePreview: route,
       hasRoute: !!route,
       paceBands: null,
+      planVerdict: null,
     },
   } as FeedItem;
 }

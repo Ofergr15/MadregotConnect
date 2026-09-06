@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { flattenPlannedSteps, matchLapsToSteps, Lap } from '../lib/academy/segments';
+import {
+  buildPlannedBands,
+  flattenPlannedSteps,
+  isContinuousPlan,
+  matchLapsToSteps,
+  projectBandsToBins,
+  Lap,
+} from '../lib/academy/segments';
 import { laneWorkouts } from '../lib/academy/group-lane';
 import { ParsedWorkout, WorkoutStep } from '../lib/ai/types';
 
@@ -156,5 +163,82 @@ describe('matchLapsToSteps — alignment + verdicts', () => {
     const r = matchLapsToSteps(planned, []);
     expect(r.aligned).toBe(false);
     expect(r.reason).toContain('not run on watch');
+  });
+});
+
+/**
+ * The guard on the per-km chart: is a kilometre grid an honest frame for this plan?
+ *
+ * Worth its own block because the obvious implementation is wrong, and wrong in a
+ * way that reads as correct — see the "band geometry" case below, which is the bug
+ * this function replaced.
+ */
+describe('isContinuousPlan — whether a per-km chart of this plan is honest', () => {
+  /** Warmup, then 4 × (2 km rep + 2 min recovery), then cooldown. */
+  const intervals = wk([
+    { type: 'warmup', durationType: 'distance', durationValue: 2000, targetType: 'no_target' },
+    {
+      type: 'interval', durationType: 'open', repeatCount: 4,
+      repeatSteps: [
+        { order: 1, type: 'interval', durationType: 'distance', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 200, targetPaceMaxPerKm: 210 } as WorkoutStep,
+        { order: 2, type: 'recovery', durationType: 'time', durationValue: 120, targetType: 'no_target' } as WorkoutStep,
+      ],
+    },
+    { type: 'cooldown', durationType: 'distance', durationValue: 2000, targetType: 'no_target' },
+  ]);
+
+  /** 2 km warmup, 6 km at marathon pace, 2 km cooldown — all three paced. */
+  const progression = wk([
+    { type: 'warmup', durationType: 'distance', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 320, targetPaceMaxPerKm: 340 },
+    { type: 'active', durationType: 'distance', durationValue: 6000, targetType: 'pace', targetPaceMinPerKm: 290, targetPaceMaxPerKm: 300 },
+    { type: 'cooldown', durationType: 'distance', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 320, targetPaceMaxPerKm: 345 },
+  ]);
+
+  it('refuses a 4×2000 — a km bin there spans a rep and its recovery jog', () => {
+    expect(isContinuousPlan(intervals)).toBe(false);
+  });
+
+  it('accepts a multi-band progression run — every bin is one stretch of running', () => {
+    expect(isContinuousPlan(progression)).toBe(true);
+  });
+
+  it('cannot be decided from band geometry: the 4×2000 bands come back TOUCHING', () => {
+    // This is the whole reason the check reads the steps. A 2 min recovery with no
+    // pace target has no placeable length, so `buildPlannedBands` advances the
+    // cursor not at all and the four reps land end-to-end. Any "are the bands
+    // contiguous?" test therefore calls this interval session continuous — the
+    // exact false positive that drew a km grid over reps and recovery jogs.
+    const bands = buildPlannedBands(intervals);
+    expect(bands.length).toBe(4);
+    for (let i = 1; i < bands.length; i++) {
+      expect(bands[i].startM).toBe(bands[i - 1].endM);
+    }
+    // And the gap-based reading is no better: over a 1 km grid the nulls fall only
+    // at the ends, where the unpaced warmup and cooldown are.
+    const bins = projectBandsToBins(bands, Array(14).fill(1000));
+    expect(bins.slice(2, 8).every((p) => p != null)).toBe(true);
+  });
+
+  it('ignores unpaced steps outside the targets — those bins just come back null', () => {
+    const withBookends = wk([
+      { type: 'warmup', durationType: 'distance', durationValue: 2000, targetType: 'no_target' },
+      { type: 'active', durationType: 'distance', durationValue: 8000, targetType: 'pace', targetPaceMinPerKm: 290, targetPaceMaxPerKm: 300 },
+      { type: 'cooldown', durationType: 'distance', durationValue: 1000, targetType: 'no_target' },
+    ]);
+    expect(isContinuousPlan(withBookends)).toBe(true);
+  });
+
+  it('refuses an untargeted middle section — a band would absorb its metres', () => {
+    const gapInside = wk([
+      { type: 'active', durationType: 'distance', durationValue: 3000, targetType: 'pace', targetPaceMinPerKm: 290, targetPaceMaxPerKm: 300 },
+      { type: 'active', durationType: 'distance', durationValue: 3000, targetType: 'no_target' },
+      { type: 'active', durationType: 'distance', durationValue: 3000, targetType: 'pace', targetPaceMinPerKm: 290, targetPaceMaxPerKm: 300 },
+    ]);
+    expect(isContinuousPlan(gapInside)).toBe(false);
+  });
+
+  it('refuses a plan with no paced step at all — there is no band to draw behind it', () => {
+    const unpaced = wk([{ type: 'active', durationType: 'distance', durationValue: 10000, targetType: 'no_target' }]);
+    expect(isContinuousPlan(unpaced)).toBe(false);
   });
 });

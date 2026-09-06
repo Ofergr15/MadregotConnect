@@ -12,6 +12,7 @@ import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedShareSheet } from '@/components/FeedShareSheet';
 import { RouteMinimap } from '@/components/RouteMinimap';
 import { FeedBodyText } from '@/components/FeedBodyText';
+import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { toAchievementPayload } from '@/lib/feed/project';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -516,6 +517,16 @@ function ActivityCard({
           )}
 
           <ActivityStatTiles act={act} />
+
+          {/* Right under the stats, because it's the same question one level up:
+              those are the numbers, this is whether they were the numbers asked
+              for. Silent on runs with no planned workout behind them.
+
+              Your grade is yours: the score arrives on the feed payload already
+              graded for the person looking (staff see everyone's, because that is
+              the job), so a teammate's card carries no score to render rather than
+              one that gets hidden here. See `loadFeedPlanVerdicts`. */}
+          <ExecutionBadge summary={act.planVerdict} showChevron />
 
           {/* The rest of what the projection already ships — max HR, calories and
               the athlete's own effort rating were being fetched and thrown away. */}
