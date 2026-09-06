@@ -200,6 +200,26 @@ export function rangeDeviation(
   return { deviation: 0, tolerance: Math.max(min * toleranceFraction, 1) };
 }
 
+/**
+ * Signed distance outside the PLAN's own band, in the metric's unit.
+ *
+ * Not the same number as `deviation`, and the difference is the difference
+ * between a score and a sentence. `deviation` measures from the TOLERATED edge,
+ * because that is where closeness starts decaying — 15.0 km against a 23 km plan
+ * is 4.5 km outside the ±15% band. But the athlete is told "the distance was
+ * {km} km shorter than planned", and the plan said 23: they were 8.0 km short,
+ * and 4.5 is a number that appears nowhere in their run or their plan.
+ *
+ * So the copy asks this, the ring asks `deviation`, and neither has to lie.
+ */
+export function planGap(metric: ExecutionMetric): number | null {
+  const { actual, plannedMin, plannedMax } = metric;
+  if (actual == null || plannedMin == null || plannedMax == null) return null;
+  if (actual < plannedMin) return actual - plannedMin;
+  if (actual > plannedMax) return actual - plannedMax;
+  return 0;
+}
+
 /** Weight on the per-rep verdicts when a session has both reps and metrics. */
 export const REPS_WEIGHT = 0.7;
 

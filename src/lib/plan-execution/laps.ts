@@ -30,13 +30,41 @@ import type { Lap } from '@/lib/academy/segments';
  * is why `hasStoredLaps` distinguishes it from a column nobody has filled yet.
  */
 export function toLaps(value: unknown): Lap[] {
+  return readStoredLaps(value).map(({ distance, duration, averagePace }) => ({
+    distance, duration, averagePace,
+  }));
+}
+
+/**
+ * A stored lap with everything a reader might want off it, not just the three
+ * fields the grader needs.
+ *
+ * The extras are what the splits table and the HR/elevation charts draw, and they
+ * live here for one reason: the "which key holds this" knowledge above must exist
+ * in exactly one place. A second reader that knew only Garmin's `duration` is how
+ * the detail screen came to render 0:00 for every kilometre of every Garmin run.
+ */
+export interface StoredLap extends Lap {
+  averagePace: number;
+  averageHR: number | null;
+  maxHR: number | null;
+  elevationGain: number | null;
+  elevationLoss: number | null;
+}
+
+/** Reads both stored shapes; see `toLaps` for what fills this column. */
+export function readStoredLaps(value: unknown): StoredLap[] {
   if (!Array.isArray(value)) return [];
   return value
-    .map((raw): Lap | null => {
+    .map((raw): StoredLap | null => {
       const lap = raw as {
         distance?: unknown; duration?: unknown; averagePace?: unknown;
         movingDuration?: unknown; moving_time?: unknown; elapsed_time?: unknown;
         average_speed?: unknown;
+        averageHR?: unknown; average_heartrate?: unknown;
+        maxHR?: unknown; max_heartrate?: unknown;
+        elevationGain?: unknown; total_elevation_gain?: unknown;
+        elevationLoss?: unknown;
       };
       const distance = Number(lap?.distance);
       // Garmin's `duration`, else Strava's moving time (its own laps and the
@@ -56,9 +84,35 @@ export function toLaps(value: unknown): Lap[] {
           ? Math.round(1000 / speed)
           : Math.round(duration / (distance / 1000));
 
-      return { distance, duration, averagePace };
+      return {
+        distance,
+        duration,
+        averagePace,
+        averageHR: positive(lap?.averageHR, lap?.average_heartrate),
+        maxHR: positive(lap?.maxHR, lap?.max_heartrate),
+        // Elevation stays NULL when the lap never carried it, rather than 0: a
+        // chart of zeroes claims the run was flat, which is a different statement
+        // from "this run has no elevation data".
+        elevationGain: finite(lap?.elevationGain, lap?.total_elevation_gain),
+        elevationLoss: finite(lap?.elevationLoss),
+      };
     })
-    .filter((lap): lap is Lap => lap !== null);
+    .filter((lap): lap is StoredLap => lap !== null);
+}
+
+/** First candidate that is a number at all (0 included — a flat km is real). */
+function finite(...candidates: unknown[]): number | null {
+  for (const candidate of candidates) {
+    const value = Number(candidate);
+    if (candidate != null && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+/** First candidate above zero — a heart rate of 0 is a missing reading. */
+function positive(...candidates: unknown[]): number | null {
+  const value = finite(...candidates);
+  return value != null && value > 0 ? value : null;
 }
 
 /** Has anyone looked for this run's laps yet? `[]` means yes, and found none. */

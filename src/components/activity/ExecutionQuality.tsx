@@ -27,6 +27,7 @@ import {
   DIRECTION_COLOR,
   PACE_STATUS_COLOR,
   ZERO_AT_TOLERANCE_MULTIPLE,
+  planGap,
   type ExecutionDirection,
   type ExecutionMetric,
   type ExecutionRep,
@@ -97,9 +98,12 @@ function verdictDetail(
   }
   if (direction === 'too_long' || direction === 'too_short') {
     const distance = verdict.metrics.find((metric) => metric.key === 'distance');
+    // Measured from the PLAN, not from the tolerated edge: "shorter than planned"
+    // has to be the gap to what the plan said. See `planGap`.
+    const gap = distance ? planGap(distance) : null;
     // No number to quote means no sentence to build — never "longer by  km".
-    if (distance?.deviation != null) {
-      const km = (Math.abs(distance.deviation) / 1000).toFixed(1);
+    if (gap != null && gap !== 0) {
+      const km = (Math.abs(gap) / 1000).toFixed(1);
       return t(direction === 'too_long' ? 'detail_too_long' : 'detail_too_short', { km });
     }
   }
