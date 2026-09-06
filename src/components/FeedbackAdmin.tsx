@@ -6,7 +6,7 @@ import { Loader2, MessageSquare, Trash2, Bug, Lightbulb, Dumbbell, MessageCircle
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
 import { reviewContextRows, type ReviewContext } from '@/lib/review-context';
-import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock } from '@/components/ui';
+import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, Spinner } from '@/components/ui';
 import { InsetSection } from '@/components/ui/InsetList';
 
 /**
@@ -43,7 +43,10 @@ export interface FeedbackItem {
   priority: FeedbackPriority;
   admin_notes: string | null;
   sort_order: number | null;
-  image_url: string | null;
+  /** Whether this report has a screenshot — NOT the screenshot itself. They are
+   *  stored base64 in the row and were 98% of the list response (366 KB of 370 KB),
+   *  for images the list does not render. The sheet fetches the one it opens. */
+  has_image: boolean;
   created_at: string;
   /** Auto-collected diagnostics (migration 093) — see src/lib/review-context.ts.
    *  Null on every report filed before that shipped, so it renders conditionally. */
@@ -83,6 +86,29 @@ export function FeedbackAdmin() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  // The open report's screenshot, fetched on open rather than shipped with the
+  // list. Keyed by id so a stale response for the report you just closed can't
+  // paint itself over the one you opened next.
+  const [image, setImage] = useState<{ id: string; url: string | null } | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  const openReport = async (item: FeedbackItem) => {
+    setSelected(item);
+    setAdminNotes(item.admin_notes || '');
+    setImage(null);
+    if (!item.has_image) return;
+    setImageLoading(true);
+    try {
+      const res = await fetch(`/api/feedback?image=${encodeURIComponent(item.id)}`, { headers: await apiHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      setImage({ id: item.id, url: data.image_url ?? null });
+    } catch {
+      /* the report is still readable without its screenshot */
+    } finally {
+      setImageLoading(false);
+    }
+  };
 
   const fetchFeedback = async () => {
     try {
@@ -200,11 +226,20 @@ export function FeedbackAdmin() {
             {/* break-words: a report is often a pasted URL or a stack trace, i.e.
                 one unbreakable token far wider than the sheet. */}
             <p className="text-base text-ink-700 leading-relaxed whitespace-pre-wrap break-words mb-4" dir="auto">{selected.message}</p>
-            {selected.image_url && (
-              // max-w-full, or a landscape screenshot is scaled by max-h-48 to a
-              // width the sheet can't hold and the whole sheet scrolls sideways.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={selected.image_url} alt="Attached" className="max-h-48 max-w-full rounded-lg border border-page/50 mb-5" />
+            {selected.has_image && (
+              imageLoading || image?.id !== selected.id ? (
+                // Reserves the same height the image will take, so opening a report
+                // with a screenshot doesn't shove the triage controls down a moment
+                // after they are already under the reader's thumb.
+                <div className="mb-5 flex h-48 items-center justify-center rounded-lg border border-page/50 bg-page/30">
+                  <Spinner />
+                </div>
+              ) : image.url ? (
+                // max-w-full, or a landscape screenshot is scaled by max-h-48 to a
+                // width the sheet can't hold and the whole sheet scrolls sideways.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={image.url} alt="Attached" className="max-h-48 max-w-full rounded-lg border border-page/50 mb-5" />
+              ) : null
             )}
 
             {/* The reporter's device, app version and the screen it happened on.
@@ -389,7 +424,7 @@ export function FeedbackAdmin() {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => { setSelected(item); setAdminNotes(item.admin_notes || ''); }}
+                      onClick={() => openReport(item)}
                       className="w-full text-start px-4 py-3 active:bg-page/40 transition-colors"
                     >
                       {/* flex-wrap + min-w-0: two chips side by side already
@@ -404,7 +439,7 @@ export function FeedbackAdmin() {
                         <span className={cn('shrink-0 text-3xs font-semibold px-1.5 py-0.5 rounded border', priCfg.bg, priCfg.border, priCfg.text)}>
                           {t(item.priority || 'medium')}
                         </span>
-                        {item.image_url && <Smartphone className="w-2.5 h-2.5 shrink-0 text-ink-400" />}
+                        {item.has_image && <Smartphone className="w-2.5 h-2.5 shrink-0 text-ink-400" />}
                       </div>
                       {/* break-words for the same reason as the sheet: a report is
                           often one pasted URL. line-clamp caps the height, not the

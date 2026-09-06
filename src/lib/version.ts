@@ -7,4 +7,4 @@
 // Profile screen — the only version an athlete or a coach can actually see —
 // answered "did the fix ship?" with a stale yes. versionSync.test.ts now fails
 // the build on any drift, because a version you can't trust is worse than none.
-export const APP_VERSION = '2.39.113';
+export const APP_VERSION = '2.39.114';
