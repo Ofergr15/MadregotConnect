@@ -1177,7 +1177,8 @@
     "stravaConnectFailed": "Connecting to Strava failed. Please try again.",
     "stravaInviteInvalid": "This invitation link is no longer valid. Ask your coach for a new one.",
     "stravaWhyGarmin": "Your watch keeps syncing exactly as before. Strava is how you sign in to the app — there is no other way in.",
-    "connectLater": "I'll do this later"
+    "connectLater": "I'll do this later",
+    "stravaAlreadyLinked": "This Strava account is already linked to another Madregot account. Ask your coach to merge them — no need to try again."
   },
   "joinAcademy": {
     "title": "Connect Your Garmin",

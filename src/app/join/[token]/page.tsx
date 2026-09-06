@@ -92,7 +92,7 @@ export default function JoinPage() {
     // connection to retry. Read off the URL rather than useSearchParams so the
     // page keeps rendering without a Suspense boundary.
     const returned = new URLSearchParams(window.location.search).get('strava');
-    if (returned === 'invalid' || returned === 'error') {
+    if (returned === 'invalid' || returned === 'error' || returned === 'duplicate') {
       setStravaReturn(returned);
       setStep('garmin');
       window.history.replaceState({}, '', window.location.pathname);
@@ -312,9 +312,13 @@ export default function JoinPage() {
   // in another request, in another page load.
   const displayError =
     error ||
-    (stravaReturn
-      ? t(stravaReturn === 'invalid' ? 'stravaInviteInvalid' : 'stravaConnectFailed')
-      : null);
+    (stravaReturn === 'invalid'
+      ? t('stravaInviteInvalid')
+      : stravaReturn === 'duplicate'
+        ? t('stravaAlreadyLinked')
+        : stravaReturn
+          ? t('stravaConnectFailed')
+          : null);
 
   /** Back out of the Garmin form to wherever it was opened from. */
   const backFromGarminForm = () => {
