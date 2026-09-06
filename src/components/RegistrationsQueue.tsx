@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
+import { Check, ChevronDown, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
 import { Card, LoadingBlock, ConfirmSheet, SegmentedControl } from '@/components/ui';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
@@ -175,20 +175,24 @@ export default function RegistrationsQueue() {
       const list = byGroup.get(key);
       if (list) list.push(r); else byGroup.set(key, [r]);
     }
-    const sections: Array<{ key: string; label: string; band: number | null; hex: string | null; rows: Registration[] }> = [];
+    const sections: Array<{
+      key: string; label: string; band: number | null; hex: string | null;
+      chip: { bg: string; text: string; border: string } | null; rows: Registration[];
+    }> = [];
     const none = byGroup.get('none');
-    if (none?.length) sections.push({ key: 'none', label: 'בלי דבוקה', band: null, hex: null, rows: none });
+    if (none?.length) sections.push({ key: 'none', label: 'בלי דבוקה', band: null, hex: null, chip: null, rows: none });
     for (const g of groups) {
       const rows = byGroup.get(g.id);
       if (rows?.length) {
-        sections.push({ key: g.id, label: `דבוקה ${g.band}`, band: g.band, hex: resolveGroup(g.name).hex, rows });
+        const resolved = resolveGroup(g.name);
+        sections.push({ key: g.id, label: `דבוקה ${g.band}`, band: g.band, hex: resolved.hex, chip: resolved.colors.chip, rows });
       }
     }
     // A group that is no longer in /api/groups — a stale id on an old row. Kept
     // visible rather than silently dropped from a list of people.
     for (const [key, rows] of byGroup) {
       if (key !== 'none' && !groups.some(g => g.id === key)) {
-        sections.push({ key, label: 'דבוקה לא מזוהה', band: null, hex: null, rows });
+        sections.push({ key, label: 'דבוקה לא מזוהה', band: null, hex: null, chip: null, rows });
       }
     }
     return sections;
@@ -439,26 +443,46 @@ export default function RegistrationsQueue() {
         <div className="mt-4 space-y-4">
           {pendingSections.map(s => (
             <div key={s.key}>
-              <div className="flex items-baseline justify-between px-2 mb-1.5">
-                <span className="flex items-center gap-1.5 min-w-0">
+              {/* The header is deliberately BIG — 13px bold ink, not the 3xs grey
+                  uppercase caption used elsewhere on this screen. It is the thing
+                  that has to be legible while scrolling past twenty-five rows, and
+                  as a caption it was quieter than the rows it was labelling. */}
+              <div className="flex items-center justify-between gap-2 px-2 mb-1.5">
+                <span className="flex items-center gap-2 min-w-0">
                   {/* The colour, once, at the head of the section — the same band
                       hue the rest of the app uses for that דבוקה (resolveGroup, so
-                      it cannot drift). A dot, not a filled header: three saturated
-                      bars stacked down a white screen is louder than the content. */}
+                      it cannot drift). */}
                   <span
-                    className={cn('w-2 h-2 rounded-full shrink-0', !s.hex && 'bg-ink-300')}
+                    className={cn('w-2.5 h-2.5 rounded-full shrink-0', !s.hex && 'bg-ink-300')}
                     style={s.hex ? { backgroundColor: s.hex } : undefined}
                     aria-hidden="true"
                   />
-                  <span className="text-3xs font-semibold uppercase tracking-[0.09em] text-ink-400 truncate">
-                    {s.label} · {s.rows.length}
+                  <span className="text-13 font-bold text-ink-900 truncate">{s.label}</span>
+                  {/* The count in the band's own chip colours rather than grey text:
+                      "nine in דבוקה 2" is the fact this screen exists to show, and
+                      the -ink text tones are the ones picked for small bold type on
+                      a tint (getGroupColors), so this stays readable. */}
+                  <span
+                    className={cn(
+                      'text-3xs font-bold px-1.5 py-0.5 rounded-md border shrink-0',
+                      s.chip ? [s.chip.bg, s.chip.text, s.chip.border] : 'bg-page text-ink-500 border-page',
+                    )}
+                  >
+                    {s.rows.length}
                   </span>
                 </span>
                 {/* Said on the section that it applies to, instead of once at the
                     top of a list where the blocked rows were 20 rows further down. */}
                 {!s.band && <span className="text-3xs font-semibold text-ink-900 shrink-0">האישור חסום</span>}
               </div>
-              <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              {/* A 3px stripe down the card's leading edge in the band colour, so
+                  the colour survives past the header once the header has scrolled
+                  off. Colour sections only: the "בלי דבוקה" card marks its rows
+                  individually in black, and stacking both would read as 6px. */}
+              <div
+                className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
+                style={s.hex ? { borderInlineStartWidth: 3, borderInlineStartStyle: 'solid', borderInlineStartColor: s.hex } : undefined}
+              >
                 {s.rows.map((r, i) => (
                   <QueueRow
                     key={r.id}
@@ -631,6 +655,24 @@ function QueueRow({
     return { number: g.band, chip: resolveGroup(g.name).colors.chip };
   }, [groups, groupId]);
 
+  /**
+   * Whether this row is showing the picker for a group it ALREADY has.
+   *
+   * Requested directly ("אני רוצה שיהיה אופציה במסך של הpending לשנות דבוקה
+   * לאתלט"). It reverses an earlier call of mine to show the picker only where a
+   * group was missing — which did clean up the list, and also made the one number
+   * that matters here unchangeable. Behind a tap rather than always-on, so the
+   * twenty-five rows stay scannable and a mis-tap while scrolling cannot silently
+   * re-band somebody: opening the picker is one deliberate tap, and the change is
+   * still only local state until Approve commits it.
+   *
+   * ⚠️ For a backfilled row the athlete ALREADY has a group and approving
+   * OVERWRITES it (see migration 090) — so this control is the real thing, not a
+   * queue-only annotation.
+   */
+  const [editing, setEditing] = useState(false);
+  const showPicker = isPending && (needsGroup || editing);
+
   return (
     <div
       className={cn(
@@ -678,41 +720,74 @@ function QueueRow({
                 and cannot drift). On a row that HAS a group this replaces the three
                 buttons entirely — which is most rows after the backfill, and the
                 other half of why this list was so hard to read. */}
-            {band && (
-              <span
+            {band && !editing && (
+              <button
+                onClick={() => setEditing(true)}
+                disabled={busy}
+                aria-label={`דבוקה ${band.number} — החלפת דבוקה`}
                 className={cn(
-                  'text-3xs font-bold px-2 py-0.5 rounded-md border shrink-0 whitespace-nowrap',
+                  'flex items-center gap-1 text-3xs font-bold px-2 py-0.5 rounded-md border shrink-0 whitespace-nowrap',
                   band.chip.bg, band.chip.text, band.chip.border,
+                  'disabled:opacity-50',
                 )}
               >
                 דבוקה {band.number}
-              </span>
+                {/* A tiny caret is the whole affordance. Anything more (a pencil, a
+                    "שינוי" label) is 25 copies of a control nobody uses on most
+                    rows, which is what made this list unreadable in the first place. */}
+                <ChevronDown className="h-2.5 w-2.5 opacity-60" strokeWidth={3} aria-hidden="true" />
+              </button>
             )}
-            {needsGroup && (
+            {showPicker && (
               <>
-                <span className="text-3xs font-bold text-ink-900 shrink-0 whitespace-nowrap">בחר דבוקה</span>
+                {needsGroup && (
+                  <span className="text-3xs font-bold text-ink-900 shrink-0 whitespace-nowrap">בחר דבוקה</span>
+                )}
                 {/* Three chips instead of a <select>: at this density a native
                     picker is two taps and a modal per person, and the whole point
-                    is to get through thirty of them. Shown ONLY here, where a
-                    choice is actually missing. To change a group that is already
-                    set, change it on the athlete — this screen is for approving. */}
+                    is to get through thirty of them. The one currently set is
+                    filled in its own band colour, so the row still answers "which
+                    דבוקה is this?" while the picker is open. */}
                 <span className="flex gap-1 shrink-0">
-                  {groups.map(g => (
-                    <button
-                      key={g.id}
-                      onClick={() => onPickGroup(g.id)}
-                      disabled={busy}
-                      aria-label={`דבוקה ${g.band}`}
-                      className="w-[24px] h-[24px] rounded-lg text-3xs font-bold flex items-center justify-center bg-page text-ink-500 active:bg-ink-300/40"
-                    >
-                      {g.band}
-                    </button>
-                  ))}
+                  {groups.map(g => {
+                    const on = g.id === groupId;
+                    const chip = resolveGroup(g.name).colors.chip;
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => { onPickGroup(g.id); setEditing(false); }}
+                        disabled={busy}
+                        aria-label={`דבוקה ${g.band}`}
+                        aria-pressed={on}
+                        className={cn(
+                          'w-[26px] h-[26px] rounded-lg text-3xs font-bold flex items-center justify-center border',
+                          on ? [chip.bg, chip.text, 'border-current'] : 'bg-page text-ink-500 border-transparent active:bg-ink-300/40',
+                        )}
+                      >
+                        {g.band}
+                      </button>
+                    );
+                  })}
                 </span>
+                {/* Only when a group already existed: closing an empty picker would
+                    hide the one control the row needs. */}
+                {editing && !needsGroup && (
+                  <button
+                    onClick={() => setEditing(false)}
+                    aria-label="סגירה"
+                    className="w-[26px] h-[26px] rounded-lg text-ink-400 flex items-center justify-center shrink-0 active:bg-page"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
               </>
             )}
-            <span className="text-3xs text-ink-300 shrink-0" aria-hidden="true">·</span>
-            <span className="text-3xs text-ink-400 shrink-0 truncate">{waitingFor(r.createdAt)}</span>
+            {!showPicker && (
+              <>
+                <span className="text-3xs text-ink-300 shrink-0" aria-hidden="true">·</span>
+                <span className="text-3xs text-ink-400 shrink-0 truncate">{waitingFor(r.createdAt)}</span>
+              </>
+            )}
           </div>
         ) : (
           <div dir="ltr" className="mt-1 flex items-center gap-1.5">
