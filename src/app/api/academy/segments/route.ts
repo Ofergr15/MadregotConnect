@@ -16,7 +16,7 @@ import {
   Lap,
 } from '@/lib/academy/segments';
 import { buildVerdict } from '@/lib/plan-execution/verdict';
-import { toLaps } from '@/lib/plan-execution/laps';
+import { fromGarminLaps, toLaps } from '@/lib/plan-execution/laps';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
@@ -213,13 +213,14 @@ export async function GET(request: Request) {
           const client = new GarminClient(ath.garmin_auth as any);
           const lapData = await client.getActivitySplits(Number(activity.garmin_activity_id));
           if (Array.isArray(lapData) && lapData.length > 1) {
-            laps = lapData.map((lap: any) => ({
-              distance: lap.distance || 0,
-              duration: lap.duration || lap.movingDuration || 0,
-              averagePace: lap.distance > 0 ? Math.round((lap.duration || lap.movingDuration || 0) / (lap.distance / 1000)) : null,
-            }));
+            // Through `fromGarminLaps`, so the cache this route writes carries the
+            // HR and elevation the run detail's charts read. The hand-rolled map
+            // that used to live here kept three fields, and this route is the
+            // first to touch most runs — which is why those charts were empty.
+            const stored = fromGarminLaps(lapData);
+            laps = toLaps(stored);
             // Best-effort cache back (ignore if column unmigrated).
-            await supabase.from('athlete_activities').update({ laps })
+            await supabase.from('athlete_activities').update({ laps: stored })
               .eq('id', activity.id).then(() => {}, () => {});
           }
         } catch { /* laps optional */ }

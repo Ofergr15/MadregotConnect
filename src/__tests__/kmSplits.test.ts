@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { kmSplitsFromLaps } from '@/lib/activities/km-splits';
-import { readStoredLaps } from '@/lib/plan-execution/laps';
+import { fromGarminLaps, readStoredLaps } from '@/lib/plan-execution/laps';
 
 /**
  * The run in the bug report: Ben's Sunday, 15,009 m against a 2 km warm-up + 20 km
@@ -122,5 +122,51 @@ describe('readStoredLaps — the extras the splits table draws', () => {
 
   it('treats a heart rate of 0 as no reading', () => {
     expect(readStoredLaps([{ distance: 1000, duration: 300, averageHR: 0 }])[0].averageHR).toBeNull();
+  });
+});
+
+describe('fromGarminLaps — the writer, paired with the reader', () => {
+  /** One entry of Garmin's `lapDTOs`, trimmed to the keys that matter here. */
+  const GARMIN_LAP = {
+    distance: 1000.42, duration: 317.364, movingDuration: 315.1,
+    averageHR: 141, maxHR: 152, elevationGain: 6.2, elevationLoss: 3.1,
+    averageSpeed: 3.15, averageRunCadence: 172,
+  };
+
+  it('keeps every field the reader knows how to read', () => {
+    // The whole point: what goes in comes back out. The two hand-rolled maps this
+    // replaced dropped elevation (both) and HR (one), which is why the run
+    // detail's elevation chart was empty for every run in the club.
+    const [stored] = fromGarminLaps([GARMIN_LAP]);
+    expect(stored).toEqual({
+      distance: 1000.42,
+      duration: 317.364,
+      averagePace: 317,
+      averageHR: 141,
+      maxHR: 152,
+      elevationGain: 6.2,
+      elevationLoss: 3.1,
+    });
+    // And the reader reads back exactly what the writer wrote — no lossy round trip.
+    expect(readStoredLaps(fromGarminLaps([GARMIN_LAP]))).toEqual([stored]);
+  });
+
+  it('falls back to movingDuration, and drops a lap with no usable duration', () => {
+    const { duration: _drop, ...noDuration } = GARMIN_LAP;
+    expect(fromGarminLaps([noDuration])[0].duration).toBe(315.1);
+    expect(fromGarminLaps([{ distance: 1000 }])).toEqual([]);
+    expect(fromGarminLaps([{ distance: 0, duration: 300 }])).toEqual([]);
+  });
+
+  it('says nothing rather than zero for a lap Garmin sent no HR for', () => {
+    const { averageHR: _hr, maxHR: _max, elevationGain: _gain, ...bare } = GARMIN_LAP;
+    expect(fromGarminLaps([bare])).toMatchObject([
+      { averageHR: null, maxHR: null, elevationGain: null, elevationLoss: 3.1 },
+    ]);
+  });
+
+  it('has nothing to write when Garmin returned nothing', () => {
+    expect(fromGarminLaps(null)).toEqual([]);
+    expect(fromGarminLaps([])).toEqual([]);
   });
 });
