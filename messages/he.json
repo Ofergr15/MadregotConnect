@@ -628,7 +628,13 @@
     "reminderFooterNote": "לפי שעון ישראל. הסקר שלאחר האימון נשלח אוטומטית לאחר סנכרון כל ריצה.",
     "selectHour": "בחרו שעה",
     "notifPrefsSignIn": "התחברו כספורטאי כדי לנהל העדפות התראות אישיות.",
-    "personalInfoSignIn": "התחברו כספורטאי כדי לערוך פרטים אישיים."
+    "personalInfoSignIn": "התחברו כספורטאי כדי לערוך פרטים אישיים.",
+    "feedbackInbox": "כל הדיווחים",
+    "feedbackInboxSubtitle": "כל מה שנשלח מהסקירה — קריאה, תיעדוף וסימון כטופל.",
+    "feedbackSearch": "חיפוש בדיווחים, בשם או בדבוקה",
+    "feedbackCount": "{count} דיווחים",
+    "feedbackNewCount": "{count} חדשים",
+    "feedbackNoMatch": "אין דיווח שמתאים לחיפוש"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",
@@ -991,7 +997,9 @@
     "statusIdea": "רעיון לעתיד",
     "statusSprint": "בטיפול",
     "statusDone": "טופל",
-    "statusDenied": "לא ייטופל"
+    "statusDenied": "לא ייטופל",
+    "adminInbox": "כל הדיווחים",
+    "adminInboxHint": "מה שהמתאמנים דיווחו — לצוות בלבד"
   },
   "setup": {
     "title": "השלמת הפרופיל",

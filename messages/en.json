@@ -628,7 +628,13 @@
     "reminderFooterNote": "Israel time. Post-workout survey fires automatically after each run syncs.",
     "selectHour": "Select time",
     "notifPrefsSignIn": "Sign in as an athlete to manage your own notification preferences.",
-    "personalInfoSignIn": "Sign in as an athlete to edit your personal details."
+    "personalInfoSignIn": "Sign in as an athlete to edit your personal details.",
+    "feedbackInbox": "All reports",
+    "feedbackInboxSubtitle": "Everything filed from Review — read it, prioritise it, mark it done.",
+    "feedbackSearch": "Search reports, names or groups",
+    "feedbackCount": "{count} reports",
+    "feedbackNewCount": "{count} new",
+    "feedbackNoMatch": "No report matches this search"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",
@@ -976,7 +982,7 @@
     "ctxDevice": "Device",
     "ctxScreen": "Screen size",
     "ctxMode": "Running as",
-    "submitError": "Sending failed. Your text was kept \u2014 you can try again.",
+    "submitError": "Sending failed. Your text was kept — you can try again.",
     "anonymous": "Anonymous",
     "send": "Send",
     "thankYou": "Thank you! Your feedback has been submitted.",
@@ -991,7 +997,9 @@
     "statusIdea": "Future idea",
     "statusSprint": "In progress",
     "statusDone": "Done",
-    "statusDenied": "Won't do"
+    "statusDenied": "Won't do",
+    "adminInbox": "All reports",
+    "adminInboxHint": "What the club reported — staff only"
   },
   "setup": {
     "title": "Finish your profile",

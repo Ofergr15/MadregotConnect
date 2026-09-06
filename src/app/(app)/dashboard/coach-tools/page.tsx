@@ -91,7 +91,10 @@ export default function CoachToolsPage() {
         <InsetRow icon={UserPlus} iconBg="bg-accent-600" label={ts('registrations')} href="/dashboard/settings?tab=registrations" />
         <InsetRow icon={Users} iconBg="bg-indigo-500" label={ts('userManager')} href="/dashboard/settings?tab=users" />
         <InsetRow icon={Layout} iconBg="bg-band-3" label={ts('tabManager')} href="/dashboard/settings?tab=tabs" />
-        <InsetRow icon={MessageSquare} iconBg="bg-teal-500" label={ts('feedback')} href="/dashboard/settings?tab=feedback" />
+        {/* The reports inbox has its own screen now (next to the review screen
+            people file from), so this row points at it directly instead of at a
+            tab inside Settings. */}
+        <InsetRow icon={MessageSquare} iconBg="bg-teal-500" label={ts('feedback')} href="/dashboard/review/all" />
         <InsetRow icon={Bell} iconBg="bg-accent-red" label={ts('notificationCenter')} href="/dashboard/settings?tab=notifications" />
         <InsetRow icon={Bell} iconBg="bg-band-2" label={ts('workoutReminders')} href="/dashboard/settings?tab=reminders" />
         <InsetRow icon={Award} iconBg="bg-fuchsia-500" label={ts('badgeManager')} href="/dashboard/settings?tab=badges" />

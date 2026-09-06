@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import {
   Send, CheckCircle2, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, Images, X,
-  ChevronDown, ChevronLeft, Info, MapPin, RotateCcw,
+  ChevronDown, ChevronLeft, Info, MapPin, RotateCcw, Inbox,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -110,7 +110,7 @@ export default function ReviewPage() {
 
   // The reachable screens, from the same resolver the nav uses — so the picker
   // can only ever offer somewhere this account can actually go.
-  const { navItems } = useNavItems();
+  const { navItems, isStaffView } = useNavItems();
   const screenOptions = useMemo(
     () => navItems.filter(i => i.tab !== 'review').map(i => ({ href: i.href, label: tn(i.labelKey as any) })),
     [navItems, tn],
@@ -122,6 +122,13 @@ export default function ReviewPage() {
 
   const { data: mineData, mutate: refreshMine } = useApi<{ feedback?: MyReport[] }>('/api/feedback?mine=1');
   const myReports = mineData?.feedback || [];
+
+  // Staff only, and counts only — never the list. The full staff response
+  // carries a base64 screenshot per row, so fetching it just to show a badge
+  // would cost megabytes on a phone (see `?count=1` in the route).
+  const { data: counts } = useApi<{ total?: number; new?: number }>(
+    isStaffView ? '/api/feedback?count=1' : null,
+  );
 
   // ── Mount: identity, the breadcrumb, and any unsent draft ──────────────────
   useEffect(() => {
@@ -469,6 +476,32 @@ export default function ReviewPage() {
             })}
           </div>
         </div>
+      )}
+
+      {/* ── Staff: the other half of the loop ──
+          A report nobody reads is worse than no channel at all, and the inbox
+          used to live only as a tab inside Settings — four taps behind a grid of
+          eleven management screens, which is why every report in prod was still
+          `status = 'new'`. Staff now get the door to it on the same screen the
+          club files from, with the unread count on it. Non-staff never see the
+          row, and /api/feedback would refuse them anyway. */}
+      {isStaffView && (
+        <Link
+          href="/dashboard/review/all"
+          className="mt-2 flex min-h-[56px] items-center gap-2.5 rounded-card bg-card px-4 active:bg-page/40"
+        >
+          <Inbox className="h-4 w-4 shrink-0 text-brand-600" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-ink-900">{t('adminInbox')}</span>
+            <span className="block text-3xs text-ink-400">{t('adminInboxHint')}</span>
+          </span>
+          {typeof counts?.new === 'number' && counts.new > 0 && (
+            <span className="shrink-0 rounded-full bg-accent-red/15 px-2 py-0.5 text-3xs font-bold text-accent-red-ink">
+              {counts.new}
+            </span>
+          )}
+          <ChevronLeft className="h-4 w-4 shrink-0 text-ink-400" />
+        </Link>
       )}
 
       {/* Screen picker */}
