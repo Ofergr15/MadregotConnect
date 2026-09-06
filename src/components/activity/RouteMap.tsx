@@ -180,6 +180,13 @@ export function RouteMap({
     const segments = showPaceColors ? paceSegments(latlngs.length, stablePaces) : null;
 
     if (segments) {
+      // One continuous white casing UNDER the whole route, drawn once before the
+      // coloured segments — not per segment, which would paint white over each
+      // neighbour's end and leave a dotted seam. The pace ramp's light end is
+      // #60a5fa, which is a legible mark on paper and a weak one over satellite
+      // imagery; a casing is the mark-on-busy-ground fix, and it also stops two
+      // adjacent segments of similar step from bleeding into one stroke.
+      L.polyline(latlngs, { color: '#fff', weight: 9, opacity: 0.7 }).addTo(layer);
       for (const seg of segments) {
         L.polyline(latlngs.slice(seg.start, seg.end), {
           color: seg.color,
@@ -194,6 +201,11 @@ export function RouteMap({
       L.polyline(latlngs, { color: '#1525FF', weight: 4, opacity: 0.9 }).addTo(layer);
     }
 
+    // Start green / finish red. These are two named PLACES, not two rungs of the
+    // pace scale — and now that the ramp is a single blue hue they can't be read as
+    // one. While the ramp started on #22c55e the start marker was literally the
+    // fastest-kilometre colour, so a green stretch of line and "this is where you
+    // set off" were the same paint.
     L.circleMarker(latlngs[0], { radius: 7, fillColor: '#22c55e', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(layer);
     L.circleMarker(latlngs[latlngs.length - 1], { radius: 7, fillColor: '#ef4444', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(layer);
 
