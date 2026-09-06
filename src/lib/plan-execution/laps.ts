@@ -16,7 +16,9 @@ import type { Lap } from '@/lib/academy/segments';
  * and neither converts:
  *
  *  - Garmin (api/garmin/activity-details, api/academy/segments) writes
- *    `{ distance, duration, averagePace }` — already this shape.
+ *    `{ distance, duration, averagePace, … }` through `fromGarminLaps` below —
+ *    already this shape. Rows cached before that existed carry only the three
+ *    graded fields, or those plus HR, depending on which route got there first.
  *  - Strava (lib/strava/enrich.ts) writes the provider's raw `StravaLap`:
  *    `{ distance, moving_time, elapsed_time?, average_speed }` — no `duration`
  *    and no `averagePace` at all.
@@ -113,6 +115,46 @@ function finite(...candidates: unknown[]): number | null {
 function positive(...candidates: unknown[]): number | null {
   const value = finite(...candidates);
   return value != null && value > 0 ? value : null;
+}
+
+/**
+ * Garmin's lap DTOs, in the shape this column stores — the one writer for it.
+ *
+ * The reader above knows how to read HR and elevation off a lap; for a long time
+ * nothing wrote them. Two call sites each hand-mapped Garmin's `lapDTOs` and each
+ * dropped a different set of fields (`api/academy/segments` kept only
+ * distance/duration/pace, `api/garmin/activity-details` also kept HR), so the
+ * elevation chart on the run detail was empty for every run in the club, and the
+ * per-split HR chart was empty for whichever half of them the segments route had
+ * cached first. Not missing from Garmin — never asked for on the way in.
+ *
+ * So writing this column goes through here, next to the reader, and the pair
+ * can't drift: anything `readStoredLaps` looks for, this stores.
+ *
+ * Garmin's own keys are kept (`averagePace` being ours, derived) so the stored
+ * jsonb still reads as a Garmin lap to anything that inspects it by hand.
+ */
+export function fromGarminLaps(lapData: unknown): StoredLap[] {
+  if (!Array.isArray(lapData)) return [];
+  return lapData
+    .map((raw): StoredLap | null => {
+      const lap = raw as Record<string, unknown>;
+      const distance = Number(lap?.distance);
+      const duration = finite(lap?.duration, lap?.movingDuration);
+      if (!Number.isFinite(distance) || distance <= 0 || duration == null || duration <= 0) {
+        return null;
+      }
+      return {
+        distance,
+        duration,
+        averagePace: Math.round(duration / (distance / 1000)),
+        averageHR: positive(lap?.averageHR),
+        maxHR: positive(lap?.maxHR),
+        elevationGain: finite(lap?.elevationGain),
+        elevationLoss: finite(lap?.elevationLoss),
+      };
+    })
+    .filter((lap): lap is StoredLap => lap !== null);
 }
 
 /** Has anyone looked for this run's laps yet? `[]` means yes, and found none. */
