@@ -423,8 +423,10 @@ export function ActivityChips({ act }: { act: NonNullable<FeedItem['activity']> 
       {act.averageHr && (
         <span className="flex items-center gap-1">
           <Heart className="h-3 w-3 text-accent-red" />
-          {act.averageHr} bpm
-          {act.maxHr ? <span className="text-ink-400">· {t('statMaxHr')} {act.maxHr}</span> : null}
+          {/* Rounded here as well as at ingest: rows synced from Strava before
+              that fix still hold the raw float. */}
+          {Math.round(act.averageHr)} bpm
+          {act.maxHr ? <span className="text-ink-400">· {t('statMaxHr')} {Math.round(act.maxHr)}</span> : null}
         </span>
       )}
       {act.calories ? (
