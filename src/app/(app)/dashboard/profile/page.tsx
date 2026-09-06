@@ -24,6 +24,7 @@ import { SetupChecklist } from '@/components/onboarding/SetupChecklist';
 import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
 import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
 import { shareTextForDay } from '@/lib/workout-share';
+import { getDisplayWeekStart, formatPlanWeekRange } from '@/lib/plans/workout-parsing';
 import { fetchActivities } from '@/lib/activities-client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { APP_VERSION } from '@/lib/version';
@@ -42,45 +43,11 @@ interface Group {
   marathonGoal?: string;
 }
 
-interface WeekProgram {
-  weekLabel: string;
-  dateRange: string;
-  training: string;
-  nutrition: string;
-}
-
-const WEEKS: WeekProgram[] = [
-  {
-    weekLabel: 'Week 5',
-    dateRange: '28.06 – 04.07',
-    training: '/plans/training-program/week-28-06-04-07-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-28-06-04-07-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 4',
-    dateRange: '21.06 – 27.06',
-    training: '/plans/training-program/week-21-27-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-21-27-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 3',
-    dateRange: '14.06 – 20.06',
-    training: '/plans/training-program/week-14-20-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-14-20-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 2',
-    dateRange: '07.06 – 13.06',
-    training: '/plans/training-program/week-07-13-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-07-13-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 1',
-    dateRange: '31.05 – 06.06',
-    training: '/plans/training-program/week-31-05-06-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-31-05-06-06-2026.pdf',
-  },
-];
+// The five hardcoded WEEKS that used to live here are gone. They were a static
+// list of June 2026 PDFs whose only surviving reader was the "This week's
+// program" row's trailing value — so that row said "Week 5" forever, months
+// after week 5 was over, and the number meant nothing to an athlete anyway.
+// The row now shows the real date range of the week it opens; see currentWeekRange.
 
 // iOS-Settings-style drill-down tabs. null = the Profile landing (avatar/name +
 // row list); a value = a detail screen open. Mirrors the mechanism in
@@ -400,7 +367,10 @@ function ProfileContent() {
   }
 
   const currentGroup = groups.find(g => g.id === currentGroupId);
-  const currentWeek = WEEKS[0];
+  // The date range of the week this row opens. `getDisplayWeekStart` — the same
+  // "current week" the Program page lands on, Saturday-20:00 rollover included —
+  // so tapping the row can't show one week here and a different one there.
+  const currentWeekRange = formatPlanWeekRange(getDisplayWeekStart(new Date()));
 
   // Days (0=Sun..6=Sat) that actually have a workout in the loaded plan.
   const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -561,7 +531,7 @@ function ProfileContent() {
               icon={Dumbbell}
               iconBg="bg-brand-600"
               label={t('thisWeeksProgram')}
-              value={currentWeek.weekLabel}
+              value={currentWeekRange}
               href="/dashboard/program"
             />
           </InsetSection>
