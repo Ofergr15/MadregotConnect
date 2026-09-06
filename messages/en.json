@@ -2285,5 +2285,15 @@
     "unitSec": "s",
     "unitKm": "km",
     "unitPerKm": "/km"
+  },
+  "blocked": {
+    "noneTitle": "This account has no Madregot membership",
+    "noneBody": "Sign-in worked, but no active membership is linked to it. If you got an approval email, open the link in it to finish registering.",
+    "noneHint": "If you are a club member, you are probably signed in with a different account.",
+    "pendingTitle": "Your access is not active",
+    "pendingBody": "We have your account, but its access is not active right now. A club admin can turn it back on.",
+    "pendingHint": "If you just registered, approval is on its way and you will get an email.",
+    "switchAccount": "Sign in with another account",
+    "signingOut": "Signing out\u2026"
   }
 }

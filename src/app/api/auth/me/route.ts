@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       // A verified account with no membership row is an answer, not a failure —
       // it's the 'viewer' this route already fell through to. Only a missing or
       // invalid token is a real 401.
-      if (auth.status === 403) return NextResponse.json({ role: 'viewer' });
+      if (auth.status === 403) return NextResponse.json({ role: 'viewer', membership: 'none' });
       return authError(auth);
     }
 
@@ -46,9 +46,23 @@ export async function GET(request: Request) {
     // from `role` alone (migration 091). Free here — requireSession resolved it.
     const isCore = auth.user.isCoreRunner === true;
 
+    // ── May this person be inside the app at all? ───────────────────────────
+    //
+    // `membership` is the shell's gate, and it is deliberately a THIRD answer
+    // rather than something the client derives from `role`: a revoked or
+    // not-yet-approved member keeps their role ('runner'), so role alone reads
+    // as "let them in". The three values:
+    //   'active'   — a real member, or legacy staff that live only in `coaches`
+    //   'inactive' — an athletes row that is not active (invited / removed)
+    //   'none'     — a verified session with no membership row at all (above)
+    // Only 'active' may see club content. See AccessBlocked + the (app) layout:
+    // before this existed, a revoked account got the whole signed-in shell and
+    // every card inside it failed on its own with a raw English 403.
     if (!auth.user.athleteId) {
-      return NextResponse.json({ role: auth.user.role || 'coach', isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
+      return NextResponse.json({ role: auth.user.role || 'coach', membership: 'active', isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
     }
+
+    const membership = auth.user.athleteStatus === 'active' ? 'active' : 'inactive';
 
     const supabase = createServerClient();
 
@@ -69,7 +83,7 @@ export async function GET(request: Request) {
       .update({ last_seen_at: new Date().toISOString() })
       .eq('id', auth.user.athleteId);
 
-    return NextResponse.json({ role: auth.user.role || 'runner', isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
+    return NextResponse.json({ role: auth.user.role || 'runner', membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

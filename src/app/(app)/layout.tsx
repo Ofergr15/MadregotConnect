@@ -14,7 +14,8 @@ import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider
 import { ExecutionScoreProvider } from '@/components/activity/execution-context';
 import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { Spinner } from '@/components/ui';
-import { apiHeaders } from '@/lib/api';
+import { AccessBlocked } from '@/components/AccessBlocked';
+import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import { APP_SCROLL_ID } from '@/lib/app-scroll';
@@ -123,7 +124,30 @@ export default function AppLayout({
     });
   }, [router]);
 
-  if (!authorized) {
+  // ── Is this session still a MEMBER? ───────────────────────────────────────
+  //
+  // The check above only proves a session exists. That is not the same question:
+  // an account whose access was removed — or that never finished joining — keeps
+  // its session and its localStorage identity, so it used to get this entire
+  // shell and then watch every card inside it fail separately (the feed printed
+  // the server's raw English "No membership found for this account" under a retry
+  // button that could only fail again). The server answers it once, in the same
+  // /api/auth/me the Header already fetches, so this costs no extra request.
+  //
+  // Fails OPEN on purpose: only an explicit non-active answer blocks. A network
+  // error, a 401 on the legacy localStorage-only path, or an older deploy that
+  // doesn't send `membership` all leave the shell exactly as it was — locking
+  // members out of a working club because a fetch failed is the worse bug.
+  const { data: me, isLoading: meLoading } = useApi<{ membership?: string }>(
+    authorized ? '/api/auth/me' : null,
+  );
+  const blocked =
+    me?.membership === 'none' || me?.membership === 'inactive' ? me.membership : null;
+
+  // Held behind the same spinner as the session check rather than swapped in
+  // after the fact: a revoked member should never see a flash of the feed they
+  // just lost.
+  if (!authorized || (meLoading && !me)) {
     return (
       // Ink, not brand: this is the frame immediately after AppSplash on a cold
       // open, and the splash is monochrome. A blue ring here was the one spot of
@@ -133,6 +157,8 @@ export default function AppLayout({
       </div>
     );
   }
+
+  if (blocked) return <AccessBlocked membership={blocked} />;
 
   return (
     // Wraps the whole shell so InstallPrompt, PushOptIn and FirstRunTour read
