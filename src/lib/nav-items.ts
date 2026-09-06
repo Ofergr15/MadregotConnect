@@ -35,7 +35,7 @@ export const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy
 export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
   { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
-    // A beetle, not a speech bubble: this is the "something is broken" channel,
+  // A beetle, not a speech bubble: this is the "something is broken" channel,
   // and a message icon read as one more place to talk to the coach.
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: Bug },
   { href: '/dashboard/plan/new', tab: 'plan/new', labelKey: 'planner', icon: Calendar },
