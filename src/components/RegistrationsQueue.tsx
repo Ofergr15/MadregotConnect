@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, ChevronDown, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
+import { Check, ChevronDown, Copy, MessageCircle, Send, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
 import { Card, LoadingBlock, ConfirmSheet, SegmentedControl } from '@/components/ui';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
@@ -46,7 +46,31 @@ interface Registration {
    *  On a PENDING row it changes what approving means: no member is created, the
    *  existing row is adopted and the /join onboarding link is mailed. */
   athleteId: string | null;
+  /** How far they actually got. Derived server-side from the athlete row — see
+   *  stageOf() in the route. 'emailed' | 'connected' | 'done' for an approved row;
+   *  otherwise the same value as `status`. */
+  stage: Stage | 'pending' | 'rejected' | 'member';
+  /** The name they typed at /join, once they have. Before that it is the
+   *  placeholder derived from their address, so never treat it as progress. */
+  athleteName: string | null;
+  hasStrava: boolean;
+  hasGarmin: boolean;
+  /** Their invite link's token. A credential — see the route — so it is only ever
+   *  used to build a link the approver hands to that one person. */
+  inviteToken: string | null;
 }
+
+/** The three states an approved person passes through. Ordered, and that order is
+ *  what the אושרו tab is sorted by. */
+type Stage = 'emailed' | 'connected' | 'done';
+
+const STAGES: Array<{ key: Stage; label: string; hint: string }> = [
+  // The one that needs chasing, first. "Approved and nothing happened" is either a
+  // mail that never arrived or a person who needs a nudge, and both are actions.
+  { key: 'emailed', label: 'מייל נשלח', hint: 'קיבלו קישור ועוד לא נגעו בו' },
+  { key: 'connected', label: 'בוצע חיבור', hint: 'התחילו — חסר להם Strava, ובלעדיו אין כניסה' },
+  { key: 'done', label: 'סיימו חיבור', hint: 'בפנים, אפשר לשכוח מהם' },
+];
 
 interface GroupOption {
   id: string;
@@ -55,9 +79,17 @@ interface GroupOption {
   band: number;
 }
 
-/** The SWR key the pending queue reads. Exported so the Settings landing badge
- *  shares this exact request instead of firing a second one. */
-export const PENDING_REGISTRATIONS_KEY = '/api/admin/registrations?status=pending';
+/**
+ * The one SWR key this whole screen reads. Exported so the Settings landing badge
+ * shares this exact request instead of firing a second one.
+ *
+ * `status=all`, not `pending`, since the tabs became three: the counts on all of
+ * them have to be right while you are looking at any one of them, and re-fetching
+ * per tab made the numbers appear one tab at a time. It is one small list — this
+ * is a club, not a mailing list — so filtering in the browser is cheaper than
+ * three round trips.
+ */
+export const PENDING_REGISTRATIONS_KEY = '/api/admin/registrations?status=all';
 
 /** Number of people waiting, for a badge. `null` while unknown (or not allowed). */
 export function usePendingRegistrationsCount(enabled: boolean): number | null {
@@ -82,7 +114,27 @@ function waitingFor(iso: string): string {
 function errorText(code: string): string {
   if (code === 'group-required') return 'צריך לשייך דבוקה לפני אישור.';
   if (code === 'group-invalid') return 'הדבוקה שנבחרה לא נמצאה. שווה לרענן ולנסות שוב.';
+  if (code === 'not-approved') return 'אפשר לשלוח קישור מחדש רק למי שאושר.';
   return code || 'הפעולה נכשלה';
+}
+
+/**
+ * Why a send failed, in words that point at the fix.
+ *
+ * `reason` is Resend's own `name: message` (see sendOrThrow in lib/email.ts). The
+ * one worth naming explicitly is the sandbox sender: with no RESEND_FROM_EMAIL set,
+ * mail goes out as `onboarding@resend.dev`, which Resend only delivers to the
+ * address that owns the Resend account. Every applicant is "every other recipient",
+ * so on the day the club signs up, nobody gets a link — and that is a config fix,
+ * not something to retry.
+ */
+function mailFailureText(reason?: string | null): string {
+  if (reason === 'email-not-configured') return 'שליחת מיילים לא מוגדרת בסביבה הזו (חסר RESEND_API_KEY).';
+  const r = (reason || '').toLowerCase();
+  if (r.includes('testing emails') || r.includes('own email address') || r.includes('domain')) {
+    return 'Resend מסרב לשלוח לכתובת הזו: כתובת השולח היא onboarding@resend.dev, שמותרת רק לכתובת של בעל החשבון ב-Resend. צריך דומיין מאומת ו-RESEND_FROM_EMAIL.';
+  }
+  return `שליחת המייל נכשלה${reason ? ` (${reason})` : ''}.`;
 }
 
 /** The small grey caption above a grouped card — the iOS section-header idiom. */
@@ -95,12 +147,14 @@ function SectionCaption({ children, className }: { children: React.ReactNode; cl
 }
 
 export default function RegistrationsQueue() {
-  const [tab, setTab] = useState<'pending' | 'all'>('pending');
+  const [tab, setTab] = useState<'pending' | 'approved' | 'all'>('pending');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [confirmReject, setConfirmReject] = useState<Registration | null>(null);
+  /** The row whose link was just copied, for a two-second "הועתק". */
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Progress of a bulk run, so thirty sequential requests are not a frozen
   // screen. null when nothing is running.
@@ -120,7 +174,7 @@ export default function RegistrationsQueue() {
     requests?: Registration[];
     migrated?: boolean;
     error?: string;
-  }>(allowed ? `/api/admin/registrations?status=${tab}` : null);
+  }>(allowed ? PENDING_REGISTRATIONS_KEY : null);
 
   const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> }>(
     allowed ? '/api/groups' : null,
@@ -148,12 +202,47 @@ export default function RegistrationsQueue() {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? requests.filter(r => r.email.toLowerCase().includes(q)) : requests;
+    if (!q) return requests;
+    // Name as well as address, now that approved rows carry one: after /join the
+    // approver knows these people as "דנה" and not as an email local part.
+    return requests.filter(
+      r => r.email.toLowerCase().includes(q) || (r.athleteName || '').toLowerCase().includes(q),
+    );
   }, [requests, query]);
 
-  const pending = visible.filter(r => r.status === 'pending');
+  // One fetch serves three tabs, so the order is decided here rather than in SQL:
+  // a worklist reads oldest-first (who has waited longest), a history reads
+  // newest-first (what just happened).
+  const pending = useMemo(
+    () => visible.filter(r => r.status === 'pending')
+      .slice()
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [visible],
+  );
+  const history = useMemo(
+    () => visible.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [visible],
+  );
+  const approved = useMemo(
+    () => history.filter(r => r.status === 'approved'),
+    [history],
+  );
   const pendingCount = requests.filter(r => r.status === 'pending').length;
+  const approvedCount = requests.filter(r => r.status === 'approved').length;
+  // The headline number of the אושרו tab: approved, mailed, and not in yet. It is
+  // the only count on this screen that represents unfinished business nobody is
+  // being reminded about.
+  const stuckCount = requests.filter(r => r.status === 'approved' && r.stage !== 'done').length;
   const missingGroupCount = requests.filter(r => r.status === 'pending' && !effectiveGroup(r)).length;
+
+  /** The approved rows, bucketed by how far they got, in stage order. Empty
+   *  buckets are dropped — an empty "בוצע חיבור" card says nothing. */
+  const approvedSections = useMemo(
+    () => STAGES
+      .map(s => ({ ...s, rows: approved.filter(r => r.stage === s.key) }))
+      .filter(s => s.rows.length > 0),
+    [approved],
+  );
 
   /**
    * The pending list, split by דבוקה, with the ones that still need one first.
@@ -214,7 +303,10 @@ export default function RegistrationsQueue() {
 
   /** One approve/reject round trip. Returns whether the mail went out, so the
    *  bulk caller can report on the whole run instead of per row. */
-  const call = async (r: Registration, action: 'approve' | 'reject'): Promise<{ emailed: boolean }> => {
+  const call = async (
+    r: Registration,
+    action: 'approve' | 'reject',
+  ): Promise<{ emailed: boolean; emailReason?: string | null }> => {
     const body: Record<string, unknown> = { id: r.id, action };
     // Always explicit on approve. The route treats a missing key as "keep what
     // was submitted", and this screen always knows better than that — the chips
@@ -230,7 +322,7 @@ export default function RegistrationsQueue() {
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(errorText(out.error));
-    return { emailed: out.emailed !== false };
+    return { emailed: out.emailed !== false, emailReason: out.emailReason ?? null };
   };
 
   const act = async (r: Registration, action: 'approve' | 'reject') => {
@@ -244,12 +336,13 @@ export default function RegistrationsQueue() {
     setError(null);
     setNote(null);
     try {
-      const { emailed } = await call(r, action);
+      const { emailed, emailReason } = await call(r, action);
       // emailed:false means the approval went through but Resend didn't — the
-      // person is in and does NOT know it. Worth saying out loud, because the
-      // fix is a human one (send them the link yourself).
+      // person is approved and does NOT know it. Worth saying out loud, with the
+      // reason, because the fix is a human one: the אושרו tab now carries their
+      // link, so it is "copy this and send it" rather than "something failed".
       if (action === 'approve' && !emailed) {
-        setNote('אושר — אבל שליחת המייל נכשלה. הם בפנים ולא יודעים על זה. צריך לשלוח את הקישור ידנית.');
+        setNote(`אושר — אבל המייל לא נשלח. ${mailFailureText(emailReason)} הקישור שלהם מחכה בטאב "אושרו" — אפשר להעתיק ולשלוח בוואטסאפ.`);
       }
       setSelected(prev => { const n = new Set(prev); n.delete(r.id); return n; });
       await mutate();
@@ -298,6 +391,63 @@ export default function RegistrationsQueue() {
     await mutate();
   };
 
+  // ── THE LINK, IN HUMAN HANDS ────────────────────────────────────────────────
+  //
+  // Approval's whole payload is one URL, and until now it existed only inside an
+  // email nobody could confirm had arrived. On 2026-09-06 an approval sent no mail
+  // and said nothing about it (Resend's SDK resolves with `{ error }` instead of
+  // throwing, so the route's `emailed` was always true) — leaving a person
+  // approved, waiting, and unreachable from every screen in the app.
+  //
+  // So the link is on the screen now, in the two forms that actually get used:
+  // copied, and sent over WhatsApp, which is where this club talks anyway.
+  const joinUrl = (r: Registration) =>
+    r.inviteToken ? `${window.location.origin}/join/${r.inviteToken}` : null;
+
+  const copyLink = async (r: Registration) => {
+    const url = joinUrl(r);
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(r.id);
+      setTimeout(() => setCopiedId(prev => (prev === r.id ? null : prev)), 2000);
+    } catch {
+      // Clipboard access can be refused (an insecure context, or a denied
+      // permission). Showing the URL is the fallback that always works.
+      setError(url);
+    }
+  };
+
+  const shareWhatsApp = (r: Registration) => {
+    const url = joinUrl(r);
+    if (!url) return;
+    const text = `היי! אושרת למדרגות 🏃 נשאר רק להשלים את ההרשמה ולהתחבר עם Strava:\n${url}\nהקישור אישי — לא להעביר.`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+  };
+
+  /** Send the approval mail again. Same address, same link — see the route. */
+  const resend = async (r: Registration) => {
+    setBusyId(r.id);
+    setError(null);
+    setNote(null);
+    try {
+      const res = await fetch('/api/admin/registrations/resend', {
+        method: 'POST',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ id: r.id }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(errorText(out.error));
+      if (out.emailed) setNote(`המייל נשלח מחדש ל-${r.email}.`);
+      else setNote(`${mailFailureText(out.emailReason)} הקישור עצמו תקין — אפשר להעתיק אותו ולשלוח בוואטסאפ.`);
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שליחה מחדש נכשלה');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   /** Assign one group to everything currently selected, in local state only —
    *  committed by the approve that follows. */
   const assignAllSelected = (groupId: string) =>
@@ -344,12 +494,24 @@ export default function RegistrationsQueue() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-[22px] font-extrabold text-ink-900 leading-tight">בקשות הרשמה</h2>
-          <p className="mt-0.5 text-xs">
-            <span className="font-semibold text-ink-900">
-              {pendingCount === 0 ? 'אין הרשמות שממתינות' : `${pendingCount} ממתינות לאישור`}
-            </span>
-            {missingGroupCount > 0 && <span className="text-ink-400"> · {missingGroupCount} ללא דבוקה</span>}
-          </p>
+          {/* The subline answers the question the open tab is asking. On ממתינות
+              that is "how many are waiting"; on אושרו it is the one nobody was being
+              told — approved, mailed, and still not in the app. */}
+          {tab === 'approved' ? (
+            <p className="mt-0.5 text-xs">
+              <span className="font-semibold text-ink-900">
+                {stuckCount === 0 ? 'כולם השלימו את החיבור' : `${stuckCount} אושרו ועוד לא נכנסו`}
+              </span>
+              <span className="text-ink-400"> · {approvedCount} אושרו בסך הכל</span>
+            </p>
+          ) : (
+            <p className="mt-0.5 text-xs">
+              <span className="font-semibold text-ink-900">
+                {pendingCount === 0 ? 'אין הרשמות שממתינות' : `${pendingCount} ממתינות לאישור`}
+              </span>
+              {missingGroupCount > 0 && <span className="text-ink-400"> · {missingGroupCount} ללא דבוקה</span>}
+            </p>
+          )}
         </div>
         <button
           onClick={() => mutate()}
@@ -368,6 +530,7 @@ export default function RegistrationsQueue() {
         onChange={(v) => { setTab(v); setSelected(new Set()); }}
         options={[
           { value: 'pending' as const, label: `ממתינות · ${pendingCount}`, icon: Clock, activeBg: 'bg-ink-900' },
+          { value: 'approved' as const, label: `אושרו · ${approvedCount}`, icon: Check, activeBg: 'bg-ink-900' },
           { value: 'all' as const, label: 'הכל', icon: Users, activeBg: 'bg-ink-900' },
         ]}
       />
@@ -379,8 +542,8 @@ export default function RegistrationsQueue() {
           onChange={e => setQuery(e.target.value)}
           dir="ltr"
           inputMode="email"
-          placeholder="חיפוש לפי אימייל"
-          aria-label="חיפוש לפי אימייל"
+          placeholder="חיפוש לפי אימייל או שם"
+          aria-label="חיפוש לפי אימייל או שם"
           className="flex-1 bg-transparent border-0 p-0 text-sm text-ink-900 placeholder-ink-400 text-right focus:outline-none focus:ring-0 placeholder:text-right"
         />
         {query && (
@@ -423,7 +586,9 @@ export default function RegistrationsQueue() {
         <p className="mt-4 text-center text-sm text-ink-500">אין תוצאות ל-<span dir="ltr">{query}</span></p>
       )}
 
-      {pending.length > 0 && (
+      {/* Pending tab only: the other two tabs have no selectable rows, so a
+          "בחר הכל" over them selected nothing and said "0 מתוך 0". */}
+      {tab === 'pending' && pending.length > 0 && (
         <div className="mt-4">
           <SectionCaption>בחירה</SectionCaption>
           <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
@@ -507,26 +672,83 @@ export default function RegistrationsQueue() {
         </div>
       )}
 
+      {/* ── THE אושרו TAB ─────────────────────────────────────────────────────────
+          One card per stage, in the order the stages happen, because "אישרתי אותם —
+          איפה הם עומדים?" is a question with three different answers and three
+          different follow-ups: chase the first, help the second, ignore the third.
+          A single flat "approved" list answered none of them. */}
+      {tab === 'approved' && approved.length > 0 && (
+        <div className="mt-4 space-y-4">
+          {approvedSections.map(s => (
+            <div key={s.key}>
+              <div className="px-2 mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-13 font-bold text-ink-900">{s.label}</span>
+                  <span className="text-3xs font-bold px-1.5 py-0.5 rounded-md bg-page text-ink-500 shrink-0">
+                    {s.rows.length}
+                  </span>
+                </div>
+                {/* The hint is the section's whole justification — the label alone
+                    ("בוצע חיבור") does not say that those people are stuck. */}
+                <p className="mt-0.5 text-3xs text-ink-400 leading-relaxed">{s.hint}</p>
+              </div>
+              <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+                {s.rows.map((r, i) => (
+                  <QueueRow
+                    key={r.id}
+                    r={r}
+                    groups={groups}
+                    last={i === s.rows.length - 1}
+                    selected={false}
+                    busy={busyId === r.id || !!bulk}
+                    groupId={effectiveGroup(r)}
+                    copied={copiedId === r.id}
+                    onToggle={() => toggle(r.id)}
+                    onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
+                    onApprove={() => act(r, 'approve')}
+                    onReject={() => setConfirmReject(r)}
+                    onCopy={() => copyLink(r)}
+                    onShare={() => shareWhatsApp(r)}
+                    onResend={() => resend(r)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+          <p className="px-2 text-3xs text-ink-400 leading-relaxed">
+            Strava הוא הדלת היחידה לאפליקציה — מי שלא חיבר אותו לא נכנס, גם אם מילא את כל הפרטים.
+          </p>
+        </div>
+      )}
+
+      {tab === 'approved' && approved.length === 0 && requests.length > 0 && (
+        <p className="mt-6 text-center text-sm text-ink-500">עוד לא אישרת אף אחד.</p>
+      )}
+
       {/* THE "הכל" TAB — one flat card, because it is a history and not a worklist:
           it mixes statuses, so splitting it by דבוקה would group things that are not
-          comparable. */}
-      {tab === 'all' && visible.length > 0 && (
+          comparable. Newest first, for the same reason. */}
+      {tab === 'all' && history.length > 0 && (
         <div className="mt-4">
-          <SectionCaption>כל ההרשמות · {visible.length}</SectionCaption>
+          <SectionCaption>כל ההרשמות · {history.length}</SectionCaption>
           <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            {visible.map((r, i) => (
+            {history.map((r, i) => (
               <QueueRow
                 key={r.id}
                 r={r}
                 groups={groups}
-                last={i === visible.length - 1}
+                last={i === history.length - 1}
                 selected={selected.has(r.id)}
                 busy={busyId === r.id || !!bulk}
                 groupId={effectiveGroup(r)}
+                copied={copiedId === r.id}
                 onToggle={() => toggle(r.id)}
                 onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
                 onApprove={() => act(r, 'approve')}
                 onReject={() => setConfirmReject(r)}
+                onCopy={() => copyLink(r)}
+                onShare={() => shareWhatsApp(r)}
+                onResend={() => resend(r)}
               />
             ))}
           </div>
@@ -623,16 +845,26 @@ function SelectMark({ state }: { state: 'on' | 'off' | 'some' }) {
   );
 }
 
+/** The three approved stages, as a chip. Ordered light → solid, so the row reads
+ *  as progress: grey = nothing happened, tinted = started, black = in. */
+const STAGE_FACE: Record<Stage, { label: string; cls: string }> = {
+  emailed: { label: 'מייל נשלח', cls: 'bg-page text-ink-500' },
+  connected: { label: 'בוצע חיבור', cls: 'bg-ink-900/10 text-ink-900' },
+  done: { label: 'סיימו חיבור', cls: 'bg-ink-900 text-white' },
+};
+
 /**
  * One request. Fixed height and a single line of identity, because thirty of
  * these have to be scannable: email + how long they've waited on top, the group
  * chips and the actions underneath.
  *
- * No name anywhere — the public form never asks for one. It gets collected at
- * /join/{token} after approval, so until then the email IS the person.
+ * The name is on it when there is one — the public form never asks, so it only
+ * exists after /join. Until then the email IS the person, which is why the
+ * address never gives up its line.
  */
 function QueueRow({
-  r, groups, last, selected, busy, groupId, onToggle, onPickGroup, onApprove, onReject,
+  r, groups, last, selected, busy, groupId, copied, onToggle, onPickGroup, onApprove, onReject,
+  onCopy, onShare, onResend,
 }: {
   r: Registration;
   groups: GroupOption[];
@@ -640,12 +872,20 @@ function QueueRow({
   selected: boolean;
   busy: boolean;
   groupId: string;
+  copied?: boolean;
   onToggle: () => void;
   onPickGroup: (groupId: string) => void;
   onApprove: () => void;
   onReject: () => void;
+  onCopy?: () => void;
+  onShare?: () => void;
+  onResend?: () => void;
 }) {
   const isPending = r.status === 'pending';
+  const stage = r.status === 'approved' ? (r.stage as Stage) : null;
+  /** The invite-link controls, on the rows where they change an outcome: approved,
+   *  has a token, and not in yet. On a 'done' row there is nobody to send it to. */
+  const showLinkActions = !!(stage && stage !== 'done' && r.inviteToken && onCopy);
   const needsGroup = isPending && !groupId;
   /** The row's דבוקה, resolved to its number and its brand colours. null when the
    *  row has no group, or an id that /api/groups no longer knows. */
@@ -676,16 +916,20 @@ function QueueRow({
   return (
     <div
       className={cn(
-        // Taller than the 62px it was: the address moved up to 14px and the badge
-        // sits under it, and cramming both into 62 is what made the old row read as
-        // a single grey smudge.
-        'flex items-center gap-2.5 px-3.5 py-2.5 min-h-[70px]',
         !last && 'border-b border-page',
         selected && 'bg-page/40',
         // A black edge on the row's leading side. Eight of these down the list is
         // the "these are the ones blocking you" signal, and it survives being
         // glanced at, which a greyed-out button alone does not.
         needsGroup && 'shadow-[inset_-3px_0_0_0_#1D1E26]',
+      )}
+    >
+    <div
+      className={cn(
+        // Taller than the 62px it was: the address moved up to 14px and the badge
+        // sits under it, and cramming both into 62 is what made the old row read as
+        // a single grey smudge.
+        'flex items-center gap-2.5 px-3.5 py-2.5 min-h-[70px]',
       )}
     >
       {isPending ? (
@@ -795,19 +1039,28 @@ function QueueRow({
                 flat grey chip rather than the black "אושר" or the red "נדחה":
                 nobody did anything and nobody has to. It reads as a note in the
                 margin, which is what it is. */}
+            {/* An approved row says its STAGE, not "אושר". "אושר" was true and
+                useless: it is the one thing the reader already knows, and it looked
+                identical whether the mail bounced or the person finished an hour
+                ago. 'member' stays deliberately the quiet one — a flat grey chip:
+                nobody did anything and nobody has to. */}
             <span
               className={cn(
-                'text-3xs font-bold px-1.5 py-0.5 rounded',
-                r.status === 'approved' && 'bg-ink-900 text-white',
+                'text-3xs font-bold px-1.5 py-0.5 rounded shrink-0',
+                stage ? STAGE_FACE[stage].cls : '',
                 r.status === 'rejected' && 'bg-accent-red/15 text-accent-red-ink',
                 r.status === 'member' && 'bg-page text-ink-400',
               )}
             >
-              {r.status === 'approved' ? 'אושר' : r.status === 'rejected' ? 'נדחה' : 'כבר חבר'}
+              {stage ? STAGE_FACE[stage].label : r.status === 'rejected' ? 'נדחה' : 'כבר חבר'}
             </span>
             <span className="text-3xs text-ink-400 truncate">
+              {/* The name once they have typed one at /join. Only from 'connected'
+                  on: before that the athlete row still carries
+                  placeholderNameFromEmail(), so showing it would be the address
+                  twice, dressed up as a name. */}
+              {stage && stage !== 'emailed' && r.athleteName ? `${r.athleteName} · ` : ''}
               {r.status === 'member' ? 'נרשם מהקישור, יש לו כבר חשבון' : r.groupName || 'ללא דבוקה'}
-              {r.status === 'approved' && r.approvedBy && ` · ${r.approvedBy}`}
               {r.status === 'rejected' && r.rejectedBy && ` · ${r.rejectedBy}`}
             </span>
           </div>
@@ -815,14 +1068,20 @@ function QueueRow({
       </div>
 
       {isPending && (
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
+          {/* ⚠️ BOTH OF THESE WERE UNDER 30px. "גם האישור שם לא ממש נוח" — and it
+              was not a matter of taste: a 28×28 circle beside a 28px pill, on a
+              70px row, is two adjacent sub-minimum targets where one of them is
+              irreversible. Now 40px tall with a 44px touch box (the -my-2/py-2
+              trick, so the target grows without the row growing), and the reject
+              X is pushed to the edge with a gap between them. */}
           <button
             onClick={onReject}
             disabled={busy}
-            className="w-7 h-7 rounded-full bg-page text-ink-400 flex items-center justify-center disabled:opacity-40"
+            className="w-10 h-10 -my-1 rounded-full text-ink-400 flex items-center justify-center disabled:opacity-40 active:bg-page"
             aria-label="דחייה"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
           {/* Outlined, not filled: thirty solid black pills down a white card is a
               wall, and the only filled button on the screen should be the bulk
@@ -833,7 +1092,7 @@ function QueueRow({
             disabled={busy || needsGroup}
             title={needsGroup ? 'צריך לשייך דבוקה לפני אישור' : undefined}
             className={cn(
-              'h-7 px-3 rounded-pill text-2xs font-semibold transition-colors',
+              'h-10 min-w-[64px] px-4 rounded-pill text-13 font-semibold transition-colors',
               needsGroup
                 ? 'bg-page/70 text-ink-300 border border-page'
                 : 'bg-card border border-ink-900/25 text-ink-900 active:bg-page',
@@ -844,6 +1103,47 @@ function QueueRow({
           </button>
         </div>
       )}
+    </div>
+
+    {/* ── THE LINK, WHERE A PERSON CAN REACH IT ────────────────────────────────
+        Its own strip under the identity rather than three more icons on the right:
+        at 44px each they do not fit beside an email address on a phone, and these
+        are the actions that get taken when a mail did not arrive — which is the
+        common case until RESEND_FROM_EMAIL is set on a verified domain. Copy first,
+        because it is the one that always works; WhatsApp second, because that is
+        where this club actually talks; re-send last, since it is the one that can
+        fail again for the same reason. */}
+    {showLinkActions && (
+      <div className="flex items-center gap-2 px-3.5 pb-2.5 -mt-1">
+        <button
+          onClick={onCopy}
+          disabled={busy}
+          className={cn(
+            'h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 border transition-colors disabled:opacity-40',
+            copied ? 'bg-ink-900 text-white border-ink-900' : 'bg-card text-ink-700 border-ink-900/20 active:bg-page',
+          )}
+        >
+          {copied ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? 'הועתק' : 'העתקת קישור'}
+        </button>
+        <button
+          onClick={onShare}
+          disabled={busy}
+          className="h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 bg-card text-ink-700 border border-ink-900/20 active:bg-page disabled:opacity-40"
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
+          וואטסאפ
+        </button>
+        <button
+          onClick={onResend}
+          disabled={busy}
+          className="h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 text-ink-400 active:bg-page disabled:opacity-40"
+        >
+          <Send className="h-3.5 w-3.5" />
+          שליחה מחדש
+        </button>
+      </div>
+    )}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove, COACH_ID } from '@/lib/constants';
+import { APP_URL, canApprove, COACH_ID } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
-import { notifyRegistrationApproved } from '@/lib/email';
+import { isEmailConfigured, notifyRegistrationApproved } from '@/lib/email';
 import { groupDisplayName } from '@/lib/utils';
 import { placeholderNameFromEmail } from '@/lib/signup';
 
@@ -186,16 +186,39 @@ export async function POST(request: Request) {
 
     // Isolated: the approval is already committed, and a Resend outage must not
     // undo it or make the queue look like nothing happened. If this fails, the
-    // link is still on the row and can be re-sent.
-    let emailed = true;
-    try {
-      await notifyRegistrationApproved({ email: reqRow.email, token, groupName });
-    } catch (mailErr) {
-      emailed = false;
-      console.error('Approval email failed for a signup request:', mailErr);
+    // link is still on the row and can be re-sent (or copied out of the queue).
+    //
+    // `emailed` used to be a guess dressed as a fact. It was true unless something
+    // threw, and nothing threw: an unconfigured key returns quietly, and Resend's
+    // SDK resolves with { error } instead of throwing. So the queue reported a
+    // link delivered to somebody who never got one. Both holes are closed now —
+    // this asks first, and notifyRegistrationApproved throws on a refusal — and
+    // `emailReason` carries the refusal out to the screen, because "Resend won't
+    // send to that address from this sender" is not a thing anyone can guess.
+    let emailed = isEmailConfigured();
+    let emailReason: string | null = emailed ? null : 'email-not-configured';
+    if (emailed) {
+      try {
+        await notifyRegistrationApproved({ email: reqRow.email, token, groupName });
+      } catch (mailErr) {
+        emailed = false;
+        emailReason = mailErr instanceof Error ? mailErr.message : 'send failed';
+        console.error('Approval email failed for a signup request:', mailErr);
+      }
     }
 
-    return NextResponse.json({ ok: true, status: 'approved', athleteId, emailed });
+    // The link rides back regardless of the mail. It is the only thing the
+    // approver can act on when delivery fails, and going to look it up means a
+    // trip to the SQL editor.
+    return NextResponse.json({
+      ok: true,
+      status: 'approved',
+      athleteId,
+      emailed,
+      emailReason,
+      inviteToken: token,
+      joinUrl: `${APP_URL}/join/${token}`,
+    });
   } catch (err) {
     console.error('Failed to approve registration:', err);
     return NextResponse.json({ error: 'Failed to approve registration' }, { status: 500 });

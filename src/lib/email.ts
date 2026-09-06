@@ -14,8 +14,49 @@ function isConfigured() {
   return !!process.env.RESEND_API_KEY;
 }
 
+/**
+ * Whether mail can go out at all — exported because "no key configured" is NOT
+ * the same answer as "sent".
+ *
+ * Every notify function here returns quietly when the key is missing, which is
+ * right for a preview deployment and was a lie in the one place it matters: the
+ * approve route reported `emailed: true` because nothing threw, so the queue told
+ * the approver a link had been sent to somebody who was never written to. A
+ * caller whose whole purpose is delivering a link has to ask first.
+ */
+export function isEmailConfigured() {
+  return isConfigured();
+}
+
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY!);
+}
+
+/**
+ * Send, and THROW when Resend refuses.
+ *
+ * ⚠️ The bug this exists for, found on 2026-09-06 after an approval that sent no
+ * mail and reported no error. `resend.emails.send()` does not throw on an API
+ * failure — it RESOLVES with `{ data: null, error }`. Every call here awaited it
+ * and looked only for an exception, so a 403 or a 422 was indistinguishable from
+ * a delivered message, and the approve route answered `emailed: true` while the
+ * person it named was never written to.
+ *
+ * The most likely refusal in this project, and the reason it went unnoticed for
+ * so long: `RESEND_FROM_EMAIL` is not set in production, so FROM falls back to
+ * Resend's shared `onboarding@resend.dev`, which is only allowed to deliver to
+ * the address that owns the Resend account. Every other recipient is rejected.
+ * Setting RESEND_FROM_EMAIL to an address on a verified domain is the real fix;
+ * this makes the failure impossible to miss until then.
+ */
+async function sendOrThrow(payload: Parameters<Resend['emails']['send']>[0]) {
+  const { error } = await getResend().emails.send(payload);
+  if (error) {
+    // The name is Resend's error code ('validation_error', 'forbidden', …). Both
+    // halves matter: the code says whose fault it is, the message names the
+    // address or the domain.
+    throw new Error(`${error.name || 'resend_error'}: ${error.message || 'send refused'}`);
+  }
 }
 
 export async function notifyAdminNewUser(user: { name: string; email: string; onboardingStatus: string; hasGarmin?: boolean }) {
@@ -100,7 +141,7 @@ export async function notifyAdminUserApproved(admin: { email: string }, user: { 
 
 export async function notifyAdminNewSignupRequest(req: { email: string; groupName?: string | null }) {
   if (!isConfigured()) return;
-  await getResend().emails.send({
+  await sendOrThrow({
     from: FROM,
     // Sent to the approver list, not just ADMIN_EMAIL: whoever is nearest their
     // phone should be able to let a new runner in.
@@ -134,7 +175,7 @@ export async function notifyAdminNewSignupRequest(req: { email: string; groupNam
 export async function notifyRegistrationApproved(user: { email: string; token: string; groupName?: string | null }) {
   if (!isConfigured()) return;
   const link = `${APP_URL}/join/${user.token}`;
-  await getResend().emails.send({
+  await sendOrThrow({
     from: FROM,
     to: user.email,
     subject: `✅ ההרשמה שלך למדרגות אושרה`,
