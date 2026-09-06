@@ -41,7 +41,8 @@ import type { ActivityStream } from '../garmin/streams';
 
 /**
  * A cumulative distance/time trace. `d` is monotonic non-decreasing (it stands
- * still through a walk break) and `t` strictly increasing.
+ * still through a walk break) and `t` non-decreasing — time spent moving, so it
+ * stands still through a pause (see `movingTimeAxis`).
  */
 export interface Trace {
   d: number[];
@@ -59,12 +60,71 @@ const median = (nums: number[]): number => {
   return sorted[Math.floor(sorted.length / 2)];
 };
 
+/** A gap in the samples this long with the distance axis standing still is the watch
+ *  stopped, not the athlete jogging slowly: 2 m in 5 s is 1.4 km/h, well under a walk.
+ *  Both bounds are needed — a 5 s gap that covered ground is just a downsampled
+ *  stretch, and a genuine standstill shorter than this moves no verdict. */
+const PAUSE_MIN_SEC = 5;
+const PAUSE_MAX_M = 2;
+
+/**
+ * Time spent moving, cumulative, with the watch's stops taken out.
+ *
+ * The raw stream's clock runs from the first sample to the last INCLUDING every
+ * pause, while Garmin's own `duration` — the number on the athlete's wrist and in
+ * `average_pace` — does not. On 2026-09-06's sixteen streamed runs the gap was 0 to
+ * 882 s, and subtracting exactly these intervals reproduced Garmin's duration to
+ * within a few seconds on fourteen of them.
+ *
+ * Left in, it is not a rounding error, it is wrong verdicts: three athletes stopped
+ * at 22 km, between the block and the strides, for 97-228 s. That pause sits inside
+ * the 20 km block's window, so the block came out 5-11 s/km slow — and two of them
+ * were told they missed a 4:25 target their own lap press puts at 4:23.
+ *
+ * "Moving" and not "what the timer counted" is also the right question: the coach
+ * asked for a running pace, so a red light is not part of it whether or not the watch
+ * happened to auto-pause. That does mean a stop taken with the timer running makes
+ * this trace slightly faster than `average_pace` — which is the honest answer to
+ * "how fast were you running".
+ */
+function movingTimeAxis(d: number[], t: number[]): number[] {
+  const out = [t[0]];
+  let shift = 0;
+  for (let i = 1; i < t.length; i++) {
+    const dt = t[i] - t[i - 1];
+    if (dt >= PAUSE_MIN_SEC && d[i] - d[i - 1] <= PAUSE_MAX_M) shift += dt;
+    out.push(t[i] - shift);
+  }
+  return out;
+}
+
 export function traceFromStream(series: ActivityStream | null | undefined): Trace | null {
   if (!series || !Array.isArray(series.d) || series.d.length < 2) return null;
-  const { d, t } = series;
-  if (t.length !== d.length) return null;
+  const { d } = series;
+  if (series.t.length !== d.length) return null;
+  const t = movingTimeAxis(d, series.t);
   const gaps = d.slice(1).map((x, i) => x - d[i]).filter(g => g > 0);
-  return { d, t, resolutionM: Math.max(1, median(gaps)), source: 'stream' };
+  const resolutionM = Math.max(1, median(gaps));
+
+  // The axis must start at the origin, because callers ask about metre 0 and
+  // `timeArriving`/`timeLeaving` return null below `d[0]`. Garmin's first sample is
+  // taken a moment after the start, so it sits at 1-3 m — and that silently cost a
+  // verdict: the only windows that begin at exactly 0 are the ones the block search
+  // has no slack for, i.e. a run that fell far short of the plan (`maxStart` clamps
+  // to the cursor), and the truncated fallback that is supposed to rescue exactly
+  // that case. Two of one Sunday's seventeen runs came back "not found" for every
+  // block on a clean 1 Hz trace.
+  //
+  // Bounded by one sample's worth of distance so this stays a correction and not an
+  // invention: a downsampled trace whose first sample lands 500 m in really does not
+  // know what happened before it, and pretending otherwise would put 500 m in zero
+  // seconds inside the first window. `t[0]` rather than 0 for the same reason —
+  // duplicating the first timestamp reads as a standstill, which is honest, whereas
+  // extrapolating backwards would invent a pace.
+  if (d[0] > 0 && d[0] <= Math.max(resolutionM, 10)) {
+    return { d: [0, ...d], t: [t[0], ...t], resolutionM, source: 'stream' };
+  }
+  return { d, t, resolutionM, source: 'stream' };
 }
 
 /**

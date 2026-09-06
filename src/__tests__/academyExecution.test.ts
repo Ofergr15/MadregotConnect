@@ -99,6 +99,41 @@ describe('traceFromStream', () => {
     expect(traceFromStream({ t: [0, 1], d: [0, 4, 8] })).toBeNull();
     expect(traceFromStream({ t: [0], d: [0] })).toBeNull();
   });
+
+  // Garmin's first sample lands a moment after the start, so the axis begins at
+  // 1-3 m — and metre 0 is then off the end of the trace, which is where a window
+  // pinned to the start of the run has to begin.
+  it('starts the axis at the origin when the first sample does not', () => {
+    const trace = traceFromStream({ t: [0, 1, 2, 3], d: [3, 7, 11, 15] })!;
+    expect(trace.d).toEqual([0, 3, 7, 11, 15]);
+    expect(trace.t).toEqual([0, 0, 1, 2, 3]);
+    expect(trace.resolutionM).toBe(4);
+  });
+
+  // Shalev Bahalul's 2026-09-06: he stopped for 228 s at 22 km, between the block and
+  // the strides. The raw stream counts that in the block's window and reports the 20 km
+  // he ran at 4:23 as 4:34 — a missed 4:25 target that his own lap press says he hit.
+  it('does not count a pause as time spent running', () => {
+    const t = [0, 1, 2, 230, 231];   // 227 s standing still at the 2 m mark
+    const d = [0, 1, 2, 2, 5];
+    const trace = traceFromStream({ t, d })!;
+    expect(trace.t).toEqual([0, 1, 2, 2, 3]);
+  });
+
+  // A gap with ground covered is a downsampled stretch, not a stop, and a stop too
+  // short to move a verdict is not worth second-guessing the watch over.
+  it('keeps a slow stretch and a brief halt', () => {
+    expect(traceFromStream({ t: [0, 10, 20], d: [0, 30, 60] })!.t).toEqual([0, 10, 20]);
+    expect(traceFromStream({ t: [0, 3, 6], d: [0, 0, 4] })!.t).toEqual([0, 3, 6]);
+  });
+
+  // Only a sample's worth of distance is a rounding artefact. A downsampled trace
+  // whose first sample is 500 m in genuinely does not know what came before it, and
+  // an invented origin would put 500 m in zero seconds inside the first window.
+  it('leaves a genuinely late-starting axis alone', () => {
+    const trace = traceFromStream({ t: [0, 60, 120], d: [500, 800, 1100] })!;
+    expect(trace.d).toEqual([500, 800, 1100]);
+  });
 });
 
 describe('paceOverWindow', () => {
@@ -381,6 +416,29 @@ describe('gradeWorkoutBlocks', () => {
     expect(report.blocks[1].window).toMatchObject({ startM: 2000, endM: 14000 });
     expect(report.blocks[1].status).toBe('on_target');
     expect(report.blocks[1].plannedLengthM).toBe(20000);
+  });
+
+  // Same case from a stream instead of laps, which is where it used to fail. A run
+  // this far short of the plan leaves the search no slack, so every window is pinned
+  // to metre 0 — and a stream whose first sample sits at 3 m had nothing there, so
+  // all three of the warm-up, the block and the truncated fallback came back 'not
+  // found' on a clean 1 Hz trace. Two of 2026-09-06's seventeen runs, both of them
+  // exactly the "how far did they get" question a coach wants answered.
+  it('grades an early-ended run from a stream whose first sample is not at zero', () => {
+    const t: number[] = [];
+    const d: number[] = [];
+    let seconds = 0;
+    for (let metres = 3; metres <= 13000; metres += 100) {
+      t.push(Math.round(seconds));
+      d.push(metres);
+      seconds += metres < 2000 ? 30 : 28.5;   // 5:00/km warm-up, then 4:45/km
+    }
+    const report = gradeWorkoutBlocks(SUNDAY, traceFromStream({ t, d }));
+    expect(report.blocks[0].window).toMatchObject({ startM: 0 });
+    expect(report.blocks[0].status).toBe('on_target');
+    expect(report.blocks[1].truncated).toBe(true);
+    expect(report.blocks[1].actualPace).toBe(285);
+    expect(report.blocks[1].status).toBe('slower');
   });
 
   it('reports why it could not grade, rather than a wrong colour', () => {

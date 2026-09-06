@@ -168,9 +168,24 @@ data broke without them — an unbounded search located a 2 km warm-up in the jo
 reps merged across their recoveries into one long "block", and a warm-up written at
 session pace became the headline verdict. Don't relax them without re-running a replay.
 
+**A stream's clock is not the watch's clock.** `activity_streams.series.t` runs from
+the first sample to the last including every pause, while Garmin's `duration` and
+`average_pace` exclude them — measured across one day's 16 streamed runs the gap was
+0 to 882 s. `traceFromStream` therefore compresses any sample gap of ≥5 s that covered
+≤2 m out of the time axis, which reproduced Garmin's own duration to within a few
+seconds on 14 of those 16. This is not cosmetic: three athletes stopped for 97-228 s at
+22 km, between the block and the strides, and that pause falls *inside* the 20 km
+block's window — so before the fix two of them were told they missed a 4:25 target that
+their own lap press puts at 4:23. If a block's pace ever disagrees with the laps for the
+same stretch, suspect the time axis first.
+
 - `dominantBlock()` picks the one block a single verdict is about: longest, excluding
   warm-ups, cool-downs, ungraded and truncated blocks. **Both** the feed badge and the
   segments route go through it — the same run must not get two verdicts.
+- The trace must start at metre 0. Garmin's first sample sits at 1-3 m, and
+  `timeArriving`/`timeLeaving` return null below `d[0]` — which silently killed every
+  block verdict on a run that fell far short of the plan, because those are the runs
+  where the search has no slack and every window is pinned to the start.
 - Reps are not blocks. A 5-minute rep is the rep finder's business, matched by
   *duration* for a timed step (`matchBy`), because a 15 s stride converted to metres
   through its target pace mis-measures anyone who ran it off pace.
