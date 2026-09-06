@@ -628,7 +628,13 @@
     "reminderFooterNote": "לפי שעון ישראל. הסקר שלאחר האימון נשלח אוטומטית לאחר סנכרון כל ריצה.",
     "selectHour": "בחרו שעה",
     "notifPrefsSignIn": "התחברו כספורטאי כדי לנהל העדפות התראות אישיות.",
-    "personalInfoSignIn": "התחברו כספורטאי כדי לערוך פרטים אישיים."
+    "personalInfoSignIn": "התחברו כספורטאי כדי לערוך פרטים אישיים.",
+    "feedbackInbox": "כל הדיווחים",
+    "feedbackInboxSubtitle": "כל מה שנשלח מהסקירה — קריאה, תיעדוף וסימון כטופל.",
+    "feedbackSearch": "חיפוש בדיווחים, בשם או בדבוקה",
+    "feedbackCount": "{count} דיווחים",
+    "feedbackNewCount": "{count} חדשים",
+    "feedbackNoMatch": "אין דיווח שמתאים לחיפוש"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",
@@ -991,7 +997,9 @@
     "statusIdea": "רעיון לעתיד",
     "statusSprint": "בטיפול",
     "statusDone": "טופל",
-    "statusDenied": "לא ייטופל"
+    "statusDenied": "לא ייטופל",
+    "adminInbox": "כל הדיווחים",
+    "adminInboxHint": "מה שהמתאמנים דיווחו — לצוות בלבד"
   },
   "setup": {
     "title": "השלמת הפרופיל",
@@ -1133,7 +1141,16 @@
     "goToDashboard": "עבור ללוח הבקרה",
     "bluetoothNote": "ודא ש-Garmin Connect Mobile פועל עם Bluetooth מופעל לסנכרון אוטומטי",
     "selectPaceGroupError": "אנא בחר קבוצת קצב",
-    "groupPaceNote": "המאמן שלך יקצה אימונים בהתאם לקיזוז הקצב של הקבוצה שלך"
+    "groupPaceNote": "המאמן שלך יקצה אימונים בהתאם לקיזוז הקצב של הקבוצה שלך",
+    "joinDesc": "משלימים את ההרשמה ומחברים את חשבון האימונים",
+    "connectStravaDesc": "שלב אחרון — מחברים את סטראבה כדי שהריצות יגיעו למועדון",
+    "connectWithStrava": "התחברות עם Strava",
+    "stravaWhy": "כך הריצות שלך נכנסות לאפליקציה: המאמן רואה אותן, וגם הפיד של המועדון. בלי למסור לנו סיסמה.",
+    "haveGarmin": "יש לי שעון גרמין",
+    "stravaConnectFailed": "החיבור ל-Strava נכשל. נסו שוב.",
+    "stravaInviteInvalid": "קישור ההזמנה הזה אינו תקף יותר. בקשו מהמאמן קישור חדש.",
+    "stravaWhyGarmin": "השעון שלך ממשיך להסתנכרן בדיוק כמו קודם. סטראבה היא הדרך להתחבר לאפליקציה — אין דרך אחרת להיכנס.",
+    "connectLater": "אעשה את זה מאוחר יותר"
   },
   "joinAcademy": {
     "title": "חבר את הגרמין שלך",
