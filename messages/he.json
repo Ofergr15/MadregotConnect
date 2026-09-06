@@ -1245,6 +1245,8 @@
     "tabKm": "ק״מ",
     "totalKm": "ק״מ בסך הכל",
     "weekKm": "ק״מ השבוע",
+    "weekOnPlan": "בתוך היעד",
+    "weekAbovePlan": "מעל היעד",
     "lastTenWeeks": "10 השבועות האחרונים",
     "recentRuns": "הריצות האחרונות",
     "noRunsYet": "עדיין אין ריצות",

@@ -1,4 +1,7 @@
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
+import { isOptionalWorkout } from '@/lib/plans/normalize-plan';
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
  * Shared parsing/derivation logic for `weekly_plans.parsed_workouts` (the
@@ -365,10 +368,14 @@ export function dedupeWorkoutsByDay(workouts: ParsedWorkout[]): ParsedWorkout[] 
 export interface DailyDistance {
   day: string;
   dayOfWeek: number;
+  /** Every session of the day, optional ones included. */
   min: number;
   max: number;
+  /** Prescribed sessions only — the day with its "ערב אופציה" left out. */
+  requiredMin: number;
+  requiredMax: number;
   type: string;
-  sessions: Array<{ min: number; max: number; type: string; name: string }>;
+  sessions: Array<{ min: number; max: number; type: string; name: string; optional: boolean }>;
 }
 
 export interface KeySession {
@@ -385,8 +392,17 @@ export interface WeekBreakdown {
   dailyDistances: DailyDistance[];
   keySessions: KeySession[];
   typeDistribution: Record<string, number>;
+  /** The whole week as published, optional sessions included. */
   weekTotalMin: number;
   weekTotalMax: number;
+  /**
+   * The week with the optional sessions removed — the floor of the target range.
+   * `weekRequiredMin` … `weekTotalMax` is the band an athlete is "on plan"
+   * inside: the bottom is the week done without any of the offered extras, the
+   * top is every session at the long end of its range.
+   */
+  weekRequiredMin: number;
+  weekRequiredMax: number;
   trainingDays: number;
 }
 
@@ -404,29 +420,45 @@ export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
   for (let d = 0; d < 7; d++) {
     const dayWorkouts = workouts.filter(w => w.dayOfWeek === d);
     if (dayWorkouts.length > 0) {
-      let totalMin = 0, totalMax = 0;
-      const sessions: Array<{ min: number; max: number; type: string; name: string }> = [];
+      let totalMin = 0, totalMax = 0, reqMin = 0, reqMax = 0;
+      const sessions: DailyDistance['sessions'] = [];
       for (const workout of dayWorkouts) {
         const km = getWorkoutKm(workout);
+        const optional = isOptionalWorkout(workout);
         totalMin += km.min;
         totalMax += km.max;
-        sessions.push({ min: km.min, max: km.max, type: getWorkoutType(workout), name: workout.name });
+        // An offered session counts towards the top of the week's range but not
+        // its floor — skipping every "ערב אופציה" still leaves you on plan.
+        if (!optional) {
+          reqMin += km.min;
+          reqMax += km.max;
+        }
+        sessions.push({ min: km.min, max: km.max, type: getWorkoutType(workout), name: workout.name, optional });
       }
       dailyDistances.push({
         day: DAY_NAMES[d],
         dayOfWeek: d,
+        // Deliberately NOT rounded per day: `typeDistribution` is summed from
+        // the same raw session numbers and is asserted to equal the week
+        // average, so rounding here puts those two 0.2 km apart. Callers that
+        // print a day round on the way out (see ProfileOverview's day tile,
+        // which was rendering "11–13.400000000000006").
         min: totalMin,
         max: totalMax,
+        requiredMin: reqMin,
+        requiredMax: reqMax,
         type: getWorkoutType(dayWorkouts[0]),
         sessions,
       });
     } else {
-      dailyDistances.push({ day: DAY_NAMES[d], dayOfWeek: d, min: 0, max: 0, type: 'rest', sessions: [] });
+      dailyDistances.push({ day: DAY_NAMES[d], dayOfWeek: d, min: 0, max: 0, requiredMin: 0, requiredMax: 0, type: 'rest', sessions: [] });
     }
   }
 
-  const weekTotalMin = dailyDistances.reduce((sum, d) => sum + d.min, 0);
-  const weekTotalMax = dailyDistances.reduce((sum, d) => sum + d.max, 0);
+  const weekTotalMin = round1(dailyDistances.reduce((sum, d) => sum + d.min, 0));
+  const weekTotalMax = round1(dailyDistances.reduce((sum, d) => sum + d.max, 0));
+  const weekRequiredMin = round1(dailyDistances.reduce((sum, d) => sum + d.requiredMin, 0));
+  const weekRequiredMax = round1(dailyDistances.reduce((sum, d) => sum + d.requiredMax, 0));
 
   const keySessions: KeySession[] = [];
   const seenDays = new Set<number>();
@@ -474,5 +506,14 @@ export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
 
   const trainingDays = dailyDistances.filter(d => d.max > 0).length;
 
-  return { dailyDistances, keySessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays };
+  return {
+    dailyDistances,
+    keySessions,
+    typeDistribution,
+    weekTotalMin,
+    weekTotalMax,
+    weekRequiredMin,
+    weekRequiredMax,
+    trainingDays,
+  };
 }

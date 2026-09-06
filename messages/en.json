@@ -1245,6 +1245,8 @@
     "tabKm": "Km",
     "totalKm": "Total km",
     "weekKm": "Km this week",
+    "weekOnPlan": "On plan",
+    "weekAbovePlan": "Above plan",
     "lastTenWeeks": "Last 10 weeks",
     "recentRuns": "Recent runs",
     "noRunsYet": "No runs yet",

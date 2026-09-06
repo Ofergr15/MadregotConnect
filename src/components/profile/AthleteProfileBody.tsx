@@ -9,6 +9,8 @@ import { cn, getPlanWeekStart, israelDateAnchor } from '@/lib/utils';
 import { formatPace, formatDuration } from '@/components/activity/format';
 import { formatTime } from '@/lib/academy/benchmark';
 import { SegmentedControl } from '@/components/ui';
+import { weekTargetRange, type WeekPlanTotals } from '@/lib/plans/week-target';
+import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The body of an athlete's profile — the SAME component whether you are looking
@@ -135,14 +137,12 @@ export function AthleteProfileBody({
   // The club trains to ONE weekly programme (weekly_plans is keyed on a single
   // coach), so the goal is the same number for every athlete and this needs no
   // per-athlete lookup — the peer view and the owner's own view agree by
-  // construction rather than by coincidence. Same midpoint-of-the-range rule
-  // ProfileOverview uses: the top of the range made the bar unfinishable.
-  const { data: weekPlan } = useApi<{ hasPlan?: boolean; weekTotalMin?: number; weekTotalMax?: number }>(
+  // construction rather than by coincidence. Same band ProfileOverview draws,
+  // through the same helper, so the two surfaces cannot disagree about it.
+  const { data: weekPlan } = useApi<WeekPlanTotals>(
     `/api/plans/week?weekStart=${getPlanWeekStart(israelDateAnchor())}`,
   );
-  const weekGoal = weekPlan?.hasPlan
-    ? Math.round((((weekPlan.weekTotalMin || 0) + (weekPlan.weekTotalMax || 0)) / 2) * 10) / 10
-    : 0;
+  const weekTarget = weekTargetRange(weekPlan);
 
   const weeks = stats?.weeks || [];
   const runs = stats?.recentRuns || [];
@@ -252,37 +252,26 @@ export function AthleteProfileBody({
               Peer view only. The owner's page renders this exact headline and
               bar a few rows above (ProfileOverview), and two identical
               "25.6/146.3" on one scroll is noise, not emphasis. */}
-          {!owner && (
-            <div>
+          {!owner &&
+            (weekTarget ? (
+              <WeekTargetBar
+                title={t('weekKm')}
+                doneKm={stats?.thisWeek.km ?? 0}
+                target={weekTarget}
+                badge={trendBadge}
+              />
+            ) : (
+              // No plan for this week, so there is no band to measure against —
+              // but the kilometres themselves are still the answer to "how is
+              // their week going", so they stay, just without a bar.
               <div className="mb-2 flex items-end justify-between gap-2">
                 <h2 className="text-xl font-bold text-ink-700">{t('weekKm')}</h2>
                 <div className="flex shrink-0 items-baseline gap-2">
                   {trendBadge}
-                  <p className="text-2xl font-bold text-brand-600 tabular-nums">
-                    {stats?.thisWeek.km ?? 0}
-                    {weekGoal > 0 && (
-                      <>
-                        <span className="text-ink-400">/</span>
-                        {weekGoal}
-                      </>
-                    )}
-                  </p>
+                  <p className="text-2xl font-bold text-brand-600 tabular-nums">{stats?.thisWeek.km ?? 0}</p>
                 </div>
               </div>
-              {/* A plain block inside the RTL track, so the fill grows from the
-                  right in Hebrew and the left in English with no second rule. */}
-              <div className="h-3 w-full overflow-hidden rounded-pill bg-card">
-                <div
-                  className="h-full rounded-pill bg-brand-600 transition-[width] duration-500"
-                  style={{
-                    width: weekGoal > 0
-                      ? `${Math.min(100, Math.round(((stats?.thisWeek.km ?? 0) / weekGoal) * 100))}%`
-                      : '0%',
-                  }}
-                />
-              </div>
-            </div>
-          )}
+            ))}
 
           <TenWeekChart
             weeks={weeks}
