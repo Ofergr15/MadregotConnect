@@ -40,6 +40,12 @@ interface Registration {
   approvedBy: string | null;
   rejectedAt: string | null;
   rejectedBy: string | null;
+  /** Set when the address already has an athlete row — either because approval
+   *  created one, or because they were already in the app before they ever reached
+   *  this queue (the pre-launch backfill, and the public form's member branch).
+   *  On a PENDING row it changes what approving means: no member is created, the
+   *  existing row is adopted and the /join onboarding link is mailed. */
+  athleteId: string | null;
 }
 
 interface GroupOption {
@@ -568,6 +574,15 @@ function QueueRow({
           </span>
           <span className="text-3xs text-ink-300 shrink-0" aria-hidden="true">·</span>
           <span className="text-3xs text-ink-400 shrink-0">{waitingFor(r.createdAt)}</span>
+          {/* Approving this row will NOT create a member — there already is one.
+              It adopts the existing athlete and mails them the /join onboarding
+              link. Worth saying on the row, because it also means the דבוקה chosen
+              here overwrites the דבוקה they already have. */}
+          {isPending && r.athleteId && (
+            <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-page text-ink-400 shrink-0 whitespace-nowrap">
+              כבר באפליקציה
+            </span>
+          )}
         </div>
 
         {isPending ? (

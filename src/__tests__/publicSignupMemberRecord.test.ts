@@ -128,6 +128,20 @@ describe('POST /api/public/signup — an existing member submits the form', () =
     expect(await res.json()).toEqual({ ok: true, state: 'member' });
   });
 
+  it('says "waiting for approval" when the member is already in the queue', async () => {
+    // The pre-launch backfill (migration 090) puts every existing member in the
+    // queue as pending, so from then on a club member matches BOTH branches. The
+    // queue branch has to win: there IS something waiting to happen to them — the
+    // approval that mails their onboarding link — and "אין צורך להירשם שוב" would
+    // be literally true and actively misleading.
+    rows.signup_requests = [{ email: MEMBER, status: 'pending', id: 'req-1' }];
+    const res = await post(MEMBER);
+    expect(await res.json()).toEqual({ ok: true, state: 'pending' });
+    expect(inserts()).toHaveLength(0);
+    // And no second mail to the approvers: they already know about this one.
+    expect(mailed).toBe(0);
+  });
+
   it('leaves the other two outcomes alone', async () => {
     // A stranger: still queued as pending, and the approvers still hear about it.
     const res = await post('stranger@gmail.com');

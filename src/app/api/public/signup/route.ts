@@ -117,7 +117,30 @@ export async function POST(request: Request) {
     //
     // `state` is advisory for the copy only. It never changes what gets written.
 
-    // 1. Already a member (an athlete row exists). Nothing to APPROVE — but it is
+    // 1. Already in the queue. Update the chosen group (they may have come back to
+    //    correct it) and do not mail the approvers a second time.
+    //
+    //    ⚠️ CHECKED BEFORE THE ATHLETE LOOKUP, and the order is the point. The
+    //    pre-launch backfill (migration 090) puts every existing member in this
+    //    queue as pending, so from launch week onwards a club member submitting this
+    //    form matches BOTH branches. "ההרשמה שלך ממתינה לאישור" is the true and
+    //    useful answer for them; "יש לך כבר חשבון, אין צורך להירשם שוב" would be
+    //    literally true and actively misleading, because there IS something waiting
+    //    to happen to them — the approval that mails their onboarding link.
+    const { data: pending } = await supabase
+      .from('signup_requests')
+      .select('id')
+      .eq('email', email)
+      .eq('status', 'pending')
+      .maybeSingle();
+    if (pending) {
+      if (resolvedGroupId) {
+        await supabase.from('signup_requests').update({ group_id: resolvedGroupId }).eq('id', pending.id);
+      }
+      return NextResponse.json({ ok: true, state: 'pending' });
+    }
+
+    // 2. Already a member, and NOT in the queue. Nothing to approve — but it is
     //    still recorded, as status 'member' (migration 089).
     //
     //    This case used to write nothing at all, on the reasoning that there is
@@ -146,21 +169,6 @@ export async function POST(request: Request) {
         groupId: resolvedGroupId,
       });
       return NextResponse.json({ ok: true, state: 'member' });
-    }
-
-    // 2. Already pending. Update the chosen group (they may have come back to
-    //    correct it) and do not mail the approvers a second time.
-    const { data: pending } = await supabase
-      .from('signup_requests')
-      .select('id')
-      .eq('email', email)
-      .eq('status', 'pending')
-      .maybeSingle();
-    if (pending) {
-      if (resolvedGroupId) {
-        await supabase.from('signup_requests').update({ group_id: resolvedGroupId }).eq('id', pending.id);
-      }
-      return NextResponse.json({ ok: true, state: 'pending' });
     }
 
     // 3. New request.
