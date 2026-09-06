@@ -93,7 +93,14 @@ export function PaceChart({ splits, planned }: { splits: Split[]; planned?: (Pla
   // The planned band (aligned per-km with the splits) may sit outside the actual
   // pace range — include its values in the y-domain so the plan is never clipped.
   const hasPlan = Array.isArray(planned) && planned.some(p => p != null);
-  const domainVals = [...paces];
+  // Only paces that were actually measured set the scale, and there have to be
+  // two of them for this to be a chart of anything. A 0 here is a split whose
+  // duration never made it into the row; letting those into the domain stretched
+  // the axis down through zero, which pinned the whole line to the top of the
+  // chart over gridlines labelled "-1:-28" per kilometre.
+  const measured = paces.filter(p => p > 0);
+  if (measured.length < 2) return null;
+  const domainVals = [...measured];
   if (hasPlan) {
     planned!.forEach(p => { if (p) { domainVals.push(p.min, p.max); } });
   }

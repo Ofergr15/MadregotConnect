@@ -16,6 +16,7 @@ import {
   Lap,
 } from '@/lib/academy/segments';
 import { buildVerdict } from '@/lib/plan-execution/verdict';
+import { toLaps } from '@/lib/plan-execution/laps';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
@@ -199,7 +200,11 @@ export async function GET(request: Request) {
     }
 
     // 3) Ensure laps — fetch on-demand from Garmin if not cached.
-    let laps: Lap[] = Array.isArray(activity.laps) ? activity.laps : [];
+    // Through `toLaps`, never straight off the jsonb: a Strava-synced run stores
+    // `moving_time` with no `duration` and no `averagePace`, so the raw read left
+    // every lap zero-duration — indistinguishable here from a run with no laps at
+    // all, which fell the verdict back to distance alone.
+    let laps: Lap[] = toLaps(activity.laps);
     if (laps.length === 0) {
       const { data: ath } = await supabase
         .from('athletes').select('garmin_auth').eq('id', athleteId).maybeSingle();

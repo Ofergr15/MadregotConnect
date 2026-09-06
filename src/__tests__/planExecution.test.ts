@@ -4,10 +4,12 @@ import {
   closeness,
   directionFromDeviations,
   paceDeviation,
+  planGap,
   rangeDeviation,
   toExecutionSummary,
   REPS_WEIGHT,
   ZERO_AT_TOLERANCE_MULTIPLE,
+  type ExecutionMetric,
 } from '@/lib/plan-execution/verdict';
 import {
   assessWorkout,
@@ -141,6 +143,43 @@ describe('rangeDeviation', () => {
   it('is null when the plan asked for nothing', () => {
     expect(rangeDeviation(10000, 0, 0, 0.15)).toBeNull();
     expect(rangeDeviation(null, 10000, 10000, 0.15)).toBeNull();
+  });
+});
+
+describe('planGap — the number the athlete is actually told', () => {
+  const distanceMetric = (actual: number | null): ExecutionMetric => ({
+    key: 'distance',
+    status: 'under',
+    actual,
+    plannedMin: 23000,
+    plannedMax: 23000,
+    closeness: 0,
+    deviation: null,
+    reason: null,
+  });
+
+  it('measures from the plan, not from the tolerated edge', () => {
+    // The bug on screen: 15.0 km against a 23 km plan was reported as "shorter by
+    // 4.5 km" — that's the miss beyond the ±15% tolerance (19,550), a number that
+    // appears neither in the run nor in the plan. The athlete was 8 km short.
+    expect(planGap(distanceMetric(15009))).toBe(15009 - 23000);
+    expect(rangeDeviation(15009, 23000, 23000, 0.15)?.deviation).toBe(15009 - 19550);
+  });
+
+  it('is zero anywhere inside the plan’s own band, and signed outside it', () => {
+    const ranged = (actual: number): ExecutionMetric => ({
+      ...distanceMetric(actual), plannedMin: 10000, plannedMax: 12000,
+    });
+    expect(planGap(ranged(10000))).toBe(0);
+    expect(planGap(ranged(11000))).toBe(0);
+    expect(planGap(ranged(12000))).toBe(0);
+    expect(planGap(ranged(9000))).toBe(-1000);
+    expect(planGap(ranged(13000))).toBe(1000);
+  });
+
+  it('has no answer when either side of the comparison is missing', () => {
+    expect(planGap(distanceMetric(null))).toBeNull();
+    expect(planGap({ ...distanceMetric(15009), plannedMin: null })).toBeNull();
   });
 });
 
