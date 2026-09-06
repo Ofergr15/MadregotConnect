@@ -133,14 +133,22 @@ export function BottomTabBar() {
         // Anchor for the first-run tour's "these are your tabs" step (see
         // FirstRunTour). md:hidden, so the step self-skips on desktop.
         data-tour="tabbar"
-        // transform-gpu forces its own GPU compositing layer — iOS Safari has a
-        // long-standing bug where a `fixed` element that also has
-        // `backdrop-filter` (backdrop-blur-xl) can visually drift with scroll
-        // momentum instead of staying pinned to the viewport, especially in
-        // standalone PWA mode. This is the standard workaround.
-        // The frames' bar: near-white and translucent over the page grey, with a
-        // page-grey hairline instead of a shadow.
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-page bg-card/95 backdrop-blur-xl transform-gpu"
+        // NO backdrop-filter here, and no transform-gpu either. Both used to be
+        // on this element, and together they are what made the bar drift out of
+        // place mid-scroll on the long screens (Profile, Settings): iOS Safari
+        // takes a `fixed` element that also has `backdrop-filter` and paints it
+        // into the SCROLLED layer instead of pinning it to the viewport, so a
+        // fast scroll down leaves the bar hundreds of px up the page until the
+        // scroll settles. transform-gpu was added as a workaround for exactly
+        // that and doesn't fix it — a 3D-transformed fixed layer is the other
+        // half of the same WebKit bug.
+        // The blur was invisible anyway (the fill was already 95% opaque), so
+        // the fix costs nothing visually: an opaque near-white bar with a
+        // page-grey hairline instead of a shadow, per the frames.
+        // If a translucent bar is ever wanted back, it needs a separate
+        // absolutely-positioned child carrying the blur — never the fixed
+        // element itself.
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-page bg-card"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}

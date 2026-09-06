@@ -208,7 +208,12 @@ export function Header() {
   return (
     // The frames give the header no bar of its own — it floats on the page grey
     // with no rule under it, and the round white icon buttons carry the chrome.
-    <header className="backdrop-blur-md sticky top-0 z-40 safe-top bg-page/95">
+    // Opaque, no backdrop-filter — same WebKit bug the BottomTabBar comment
+    // describes: a sticky/fixed element carrying a backdrop-filter gets painted
+    // into the scrolled layer on iOS, so this header scrolled away instead of
+    // sticking on the long Profile/Settings screens. The fill was already 95%
+    // opaque, so nothing is lost.
+    <header className="sticky top-0 z-40 safe-top bg-page">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           {/* Logo + Review */}
