@@ -76,7 +76,7 @@ function BenefitsPageContent() {
   };
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4">
       <h1 className="text-2xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
       <p className="text-sm text-ink-400" dir="rtl">{t('subtitle')}</p>
 

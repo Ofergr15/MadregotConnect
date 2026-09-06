@@ -133,22 +133,35 @@ export function BottomTabBar() {
         // Anchor for the first-run tour's "these are your tabs" step (see
         // FirstRunTour). md:hidden, so the step self-skips on desktop.
         data-tour="tabbar"
-        // NO backdrop-filter here, and no transform-gpu either. Both used to be
-        // on this element, and together they are what made the bar drift out of
-        // place mid-scroll on the long screens (Profile, Settings): iOS Safari
-        // takes a `fixed` element that also has `backdrop-filter` and paints it
-        // into the SCROLLED layer instead of pinning it to the viewport, so a
-        // fast scroll down leaves the bar hundreds of px up the page until the
-        // scroll settles. transform-gpu was added as a workaround for exactly
-        // that and doesn't fix it — a 3D-transformed fixed layer is the other
-        // half of the same WebKit bug.
-        // The blur was invisible anyway (the fill was already 95% opaque), so
-        // the fix costs nothing visually: an opaque near-white bar with a
-        // page-grey hairline instead of a shadow, per the frames.
-        // If a translucent bar is ever wanted back, it needs a separate
-        // absolutely-positioned child carrying the blur — never the fixed
-        // element itself.
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-page bg-card"
+        // ── STICKY, NOT FIXED. This is the third and final fix for the bar
+        // drifting up the page mid-scroll on iOS.
+        //
+        // The two earlier attempts both treated a symptom: first removing
+        // `backdrop-filter`, then removing `transform-gpu`. Both are real
+        // triggers — either one promotes a `fixed` element into its own layer
+        // that WebKit then repaints late — but removing them only made the drift
+        // rarer, because the root cause is `position: fixed` itself. On iOS a
+        // fixed layer is pinned to the viewport by the compositor, and during a
+        // momentum scroll the compositor can be a frame or more behind, so the
+        // bar is painted wherever the viewport WAS. Nothing inside this component
+        // can fix that; it is not a CSS mistake.
+        //
+        // `sticky bottom-0` is not affected, because a sticky element is laid out
+        // inside the SCROLLED content — it moves with the page by construction,
+        // so there is no separate layer to fall behind. The Header has been
+        // `sticky top-0` all along and has never drifted, which is the in-app
+        // proof.
+        //
+        // It works here because the nav is the last child of the shell's
+        // `min-h-[100dvh] flex flex-col` column: that containing block spans the
+        // whole document, so the bar stays stuck to the viewport bottom for the
+        // entire scroll, and on a short page `flex-1` on <main> pushes it down to
+        // the bottom anyway. It now occupies real layout space at the end of the
+        // document, which is why <main> no longer needs to reserve room for it.
+        //
+        // Keep the fill opaque. A translucent bar needs a separate
+        // absolutely-positioned child to carry the blur — never this element.
+        className="md:hidden sticky bottom-0 z-40 flex items-stretch border-t border-page bg-card"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}

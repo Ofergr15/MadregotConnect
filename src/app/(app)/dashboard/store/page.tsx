@@ -184,7 +184,7 @@ function StorePageContent() {
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
         {tab === 'shop' && (

@@ -137,7 +137,12 @@ export default function AppLayout({
             'w-full',
             isRunChat
               ? 'h-full min-h-0 overflow-hidden p-0 md:mx-auto md:h-auto md:max-w-7xl md:flex-1 md:px-6 md:pt-5 md:pb-8 lg:px-8'
-              : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-[calc(72px+env(safe-area-inset-bottom))] sm:px-6 md:pb-8 lg:px-8',
+              // No 72px bottom reservation any more: BottomTabBar is `sticky`
+              // rather than `fixed` (see the comment there), so it occupies real
+              // layout space at the end of the column and carries the safe-area
+              // padding itself. Keeping both put a bar's height of dead space
+              // under the last card on every screen.
+              : 'mx-auto max-w-7xl flex-1 px-4 pt-5 pb-4 sm:px-6 md:pb-8 lg:px-8',
           )}
         >
           {isRunChat ? children : <PageTransition>{children}</PageTransition>}
