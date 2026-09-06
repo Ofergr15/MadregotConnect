@@ -71,7 +71,16 @@ function toActual(row: ActivityRow): ActualActivity {
   };
 }
 
-function segmentReportFor(workout: ParsedWorkout, laps: Lap[], paceSec: number): SegmentReport | null {
+/**
+ * The per-rep report for one run, or null when there are no laps to read.
+ *
+ * Exported for the academy roll-up, which reaches a verdict from the other
+ * direction: it already holds the week's adherence rows from `assessWeek` and only
+ * needs the reps. Sharing this is what keeps the coach's percentage identical to
+ * the one the athlete sees on the run — two implementations of "which reps
+ * counted" would eventually disagree, and the coach would be the last to know.
+ */
+export function segmentReportFor(workout: ParsedWorkout, laps: Lap[], paceSec: number): SegmentReport | null {
   if (laps.length === 0) return null;
   return matchLapsToSteps(flattenPlannedSteps(workout), laps, paceSec);
 }

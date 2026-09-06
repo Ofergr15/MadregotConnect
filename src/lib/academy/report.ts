@@ -8,15 +8,44 @@ import {
   ActualActivity,
   PlannedWorkout,
   WeekAdherence,
+  WorkoutAdherence,
 } from './adherence';
 import { loadAcademySettings } from './settings-server';
 import { isMissingMatchesTable } from '@/lib/plans/match-athlete-activities';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
+import { toLaps } from '@/lib/plan-execution/laps';
+import { segmentReportFor } from '@/lib/plan-execution/resolve';
+import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
+import type { Lap } from './segments';
+
+/** One planned workout, plus its accuracy verdict when the caller asked for one. */
+export interface WorkoutAdherenceRow extends WorkoutAdherence {
+  /**
+   * The same accuracy verdict the athlete sees on the run itself — `null` when it
+   * could not be graded (missed session, or a paced one whose laps nobody has
+   * fetched yet). Absent entirely unless `withExecution` was set, so a caller can
+   * never mistake "not asked for" for "not gradeable".
+   */
+  execution?: ExecutionSummary | null;
+}
+
+export interface AcademyWeek extends Omit<WeekAdherence, 'workouts'> {
+  workouts: WorkoutAdherenceRow[];
+  /**
+   * Mean accuracy (0..1) over the workouts that could be graded, null when none
+   * could. Deliberately NOT averaged over all planned workouts: a week whose laps
+   * haven't been read yet would report a low club accuracy that means nothing,
+   * which is why `gradedCount` travels with it.
+   */
+  avgAccuracy?: number | null;
+  /** How many of `completedCount` carried a gradeable accuracy score. */
+  gradedCount?: number;
+}
 
 export interface AthleteAdherence {
   athleteId: string;
   name: string;
-  week: WeekAdherence;
+  week: AcademyWeek;
 }
 
 export interface AcademyWeekReport {
@@ -77,6 +106,13 @@ function extractWorkouts(raw: any, groupNumber = 1): ParsedWorkout[] {
 export async function computeAcademyWeekAdherence(opts: {
   weekStart?: string | null;
   onlyAthleteId?: string | null;
+  /**
+   * Also grade each completed workout for ACCURACY — the ring's percentage, not
+   * the adherence score. Opt-in because it widens the activity read to include
+   * `laps`, and raw Strava laps are stored verbatim: a club-week of them is on the
+   * order of a megabyte, which the members overview has no use for.
+   */
+  withExecution?: boolean;
 }): Promise<AcademyWeekReport> {
   const weekStart = sundayOf(opts.weekStart);
   const weekEnd = addDaysStr(weekStart, 6);
@@ -143,24 +179,39 @@ export async function computeAcademyWeekAdherence(opts: {
   }
   const sharedPlan = (shared.data || [])[0];
 
-  const toPlanned = (workouts: ParsedWorkout[]): PlannedWorkout[] => {
+  // The raw ParsedWorkout goes back alongside the PlannedWorkout it becomes.
+  // `buildPlannedWorkout` reduces a session to its totals, which is all adherence
+  // needs and not enough for accuracy: the per-rep verdicts are read off the
+  // STEPS, so throwing the raw workout away here is what used to make a rep-level
+  // score impossible anywhere but the athlete's own run page.
+  const toPlanned = (workouts: ParsedWorkout[]): {
+    planned: PlannedWorkout[];
+    rawByDate: Map<string, ParsedWorkout>;
+  } => {
     const seen = new Set<number>();
-    const out: PlannedWorkout[] = [];
+    const planned: PlannedWorkout[] = [];
+    const rawByDate = new Map<string, ParsedWorkout>();
     for (const w of workouts) {
       if (seen.has(w.dayOfWeek)) continue;
       seen.add(w.dayOfWeek);
-      out.push(buildPlannedWorkout(w, addDaysStr(weekStart, w.dayOfWeek)));
+      // The same key WorkoutAdherence.date carries (it is planned.date verbatim).
+      const date = addDaysStr(weekStart, w.dayOfWeek);
+      planned.push(buildPlannedWorkout(w, date));
+      rawByDate.set(date, w);
     }
-    return out;
+    return { planned, rawByDate };
   };
 
   const plannedByAthlete = new Map<string, PlannedWorkout[]>();
+  const rawByAthlete = new Map<string, Map<string, ParsedWorkout>>();
   const planIdByAthlete = new Map<string, string>();
   for (const a of athletes) {
     const own = individualPlans.find(p => p.athlete_id === a.id);
     const plan = own || sharedPlan;
     if (plan?.id) planIdByAthlete.set(a.id, plan.id);
-    plannedByAthlete.set(a.id, toPlanned(extractWorkouts(plan?.parsed_workouts, groupNumberOf(a))));
+    const { planned, rawByDate } = toPlanned(extractWorkouts(plan?.parsed_workouts, groupNumberOf(a)));
+    plannedByAthlete.set(a.id, planned);
+    rawByAthlete.set(a.id, rawByDate);
   }
 
   // Which activity was attributed to which workout — the SAME attribution the
@@ -187,16 +238,22 @@ export async function computeAcademyWeekAdherence(opts: {
     }
   }
 
-  // 3) Actual activities for the week.
+  // 3) Actual activities for the week. `laps` only when accuracy was asked for —
+  // it is by far the widest column here and nothing else needs it.
   const acts = await supabase
     .from('athlete_activities')
-    .select('id, athlete_id, start_time, distance, duration, moving_duration, average_pace, activity_type')
+    .select(
+      'id, athlete_id, start_time, distance, duration, moving_duration, average_pace, activity_type'
+      + (opts.withExecution ? ', laps' : ''),
+    )
     .in('athlete_id', athleteIds)
     .gte('start_time', `${weekStart}T00:00:00Z`)
     .lte('start_time', `${weekEnd}T23:59:59Z`);
 
   const actualByAthlete = new Map<string, ActualActivity[]>();
+  const lapsByActivity = new Map<string, Lap[]>();
   for (const r of (acts.data || []) as any[]) {
+    if (opts.withExecution) lapsByActivity.set(r.id, toLaps(r.laps));
     const arr = actualByAthlete.get(r.athlete_id) || [];
     arr.push({
       id: r.id,
@@ -211,16 +268,56 @@ export async function computeAcademyWeekAdherence(opts: {
   }
 
   // 4) Assess each athlete.
-  const result: AthleteAdherence[] = athletes.map(a => ({
-    athleteId: a.id,
-    name: a.name,
-    week: assessWeek(
+  const result: AthleteAdherence[] = athletes.map(a => {
+    const week = assessWeek(
       plannedByAthlete.get(a.id) || [],
       actualByAthlete.get(a.id) || [],
       tolerances,
       attributionByAthlete.get(a.id),
-    ),
-  }));
+    );
+    if (!opts.withExecution) return { athleteId: a.id, name: a.name, week };
+    return { athleteId: a.id, name: a.name, week: withAccuracy(week, a.id) };
+  });
+
+  /**
+   * Fold the accuracy verdict into a week that has already been assessed.
+   *
+   * Built on the adherence row `assessWeek` just produced rather than re-deriving
+   * one, so the coach's percentage and the metric rows printed beside it in the
+   * compliance table describe the same run — including which activity the week
+   * decided a session was run FOR, which its own attribution (or same-day
+   * fallback) settled and a second pass could settle differently.
+   */
+  function withAccuracy(week: WeekAdherence, athleteId: string): AcademyWeek {
+    const rawByDate = rawByAthlete.get(athleteId);
+    const workouts: WorkoutAdherenceRow[] = week.workouts.map((w) => {
+      const raw = rawByDate?.get(w.date);
+      if (!w.completed || !w.actual || !raw) return { ...w, execution: null };
+      // Laps are read, never fetched. Grading a club-week would otherwise mean one
+      // Garmin round trip per session — and a paced session whose laps are missing
+      // comes back `ungraded` rather than scored on distance alone, so the gap
+      // shows up as an honest "—" instead of a confident wrong number.
+      const verdict = buildVerdict({
+        activityId: w.actual.id,
+        athleteId,
+        adherence: w,
+        segments: segmentReportFor(raw, lapsByActivity.get(w.actual.id) || [], tolerances.paceSec),
+        tolerances,
+        workoutName: w.name,
+      });
+      return { ...w, execution: toExecutionSummary(verdict) };
+    });
+
+    const scores = workouts
+      .map((w) => w.execution?.score)
+      .filter((score): score is number => score != null);
+    return {
+      ...week,
+      workouts,
+      avgAccuracy: scores.length ? scores.reduce((sum, s) => sum + s, 0) / scores.length / 100 : null,
+      gradedCount: scores.length,
+    };
+  }
 
   return { weekStart, weekEnd, athletes: result };
 }

@@ -22,6 +22,7 @@ import {
   type PlannedKmPoint,
 } from '@/lib/academy/segments';
 import { hasStoredLaps, toLaps } from '@/lib/plan-execution/laps';
+import { segmentReportFor } from '@/lib/plan-execution/resolve';
 import { executionTakesPaceChart } from '@/components/activity/ExecutionQuality';
 import type { Split } from '@/components/activity/types';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
@@ -524,5 +525,49 @@ describe('executionTakesPaceChart', () => {
 
   it('refuses when the verdict has not loaded yet', () => {
     expect(executionTakesPaceChart(null, splits, overlay, true)).toBe(false);
+  });
+});
+
+/**
+ * The seam the coach's roll-up shares with the athlete's own run page.
+ *
+ * The academy compliance table reaches its verdicts from the other direction — it
+ * already holds the week's adherence rows from `assessWeek` and borrows only the
+ * rep matching from here. If these two ever disagreed about which reps counted,
+ * the coach and the athlete would read different percentages for the same run and
+ * the coach would be the last to find out.
+ */
+describe('segmentReportFor', () => {
+  it('grades exactly the paced reps, not the warmup, cooldown or recoveries', () => {
+    const report = segmentReportFor(fourByTwoK(), lapsAt(205), DEFAULT_TOLERANCES.paceSec);
+    expect(report).not.toBeNull();
+    expect(report!.segments.filter(s => s.graded).length).toBe(4);
+    expect(report!.gradedCount).toBe(4);
+    expect(report!.onTargetCount).toBe(4);
+  });
+
+  it('returns null when there are no laps to read, rather than an empty report', () => {
+    // Load-bearing: `buildVerdict` treats a null report on a paced session as
+    // "asked but unmeasured" and refuses to score it, where an empty one would
+    // look like a session with nothing gradeable in it and fall back to grading
+    // the whole-run distance — a confident number for a run nobody measured.
+    expect(segmentReportFor(fourByTwoK(), [], DEFAULT_TOLERANCES.paceSec)).toBeNull();
+  });
+
+  it('reaches the same verdict from a stored lap blob as the run page does', () => {
+    // The roll-up's laps come out of `athlete_activities.laps` through `toLaps`,
+    // never from Garmin. Same reps, same score, whichever side asked.
+    const stored = lapsAt(187).map(l => ({
+      distance: l.distance, moving_time: l.duration, average_speed: 1000 / l.averagePace!,
+    }));
+    const workout = fourByTwoK();
+    const adherence = assessWorkout(buildPlannedWorkout(workout, DATE), run(), DEFAULT_TOLERANCES);
+    const fromStore = buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1', adherence, workoutName: workout.name,
+      segments: segmentReportFor(workout, toLaps(stored), DEFAULT_TOLERANCES.paceSec),
+    });
+    const fromRunPage = verdictFor(187, run());
+    expect(fromStore.score).toBe(fromRunPage.score);
+    expect(fromStore.direction).toBe(fromRunPage.direction);
   });
 });

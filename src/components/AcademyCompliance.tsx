@@ -1,11 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus, ListChecks, ClipboardCheck } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { ChartColumn, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus, ListChecks, ClipboardCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
 import { useApi, apiHeaders } from '@/lib/api';
 import { Spinner, LoadingBlock, EmptyState } from '@/components/ui';
+import { ExecutionRing } from '@/components/activity/ExecutionRing';
+import { DIRECTION_COLOR, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 
 // Mirror of the adherence API response (kept structural to avoid importing server types).
 type MetricStatus = 'on_target' | 'under' | 'over' | 'unknown';
@@ -30,6 +33,12 @@ interface WorkoutAdherence {
     actual: number | null;
   };
   score: number;
+  /**
+   * The accuracy verdict — the same one the athlete sees on the run itself, from
+   * /api/academy/adherence?withExecution. `null` when it couldn't be graded, which
+   * on this screen is usually a paced session whose laps nobody has fetched yet.
+   */
+  execution?: ExecutionSummary | null;
 }
 
 interface WeekAdherence {
@@ -37,6 +46,9 @@ interface WeekAdherence {
   completedCount: number;
   completionRate: number;
   avgScore: number;
+  /** Mean accuracy over the gradeable workouts only — see `gradedCount`. */
+  avgAccuracy?: number | null;
+  gradedCount?: number;
   workouts: WorkoutAdherence[];
 }
 
@@ -108,7 +120,17 @@ const metricLabel: Record<MetricStatus | PaceStatus, string> = {
   unknown: '—',
 };
 
+/** Below this the coach should be looking at the athlete, not the average. */
+const BELOW_BAR = 0.6;
+
+type ExecutionTranslator = ReturnType<typeof useTranslations<'execution'>>;
+
 export function AcademyCompliance() {
+  // Only the accuracy vocabulary comes from the message catalogue — the rest of
+  // this coach-only screen is hardcoded Hebrew. Deliberate: "דיוק" and the
+  // direction words must be the SAME words the athlete reads on their own run, or
+  // the coach and the athlete end up describing one workout two ways.
+  const t = useTranslations('execution');
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
   const [expanded, setExpanded] = useState<string | null>(null);
   const { data: adherence, isLoading } = useApi<{ athletes: AthleteAdherence[] }>(
@@ -118,6 +140,22 @@ export function AcademyCompliance() {
   const data = adherence?.athletes ?? [];
 
   const isCurrentWeek = weekStart === sundayOf(new Date());
+
+  // Club roll-up.
+  const gradedWorkouts = data.reduce((sum, a) => sum + (a.week.gradedCount ?? 0), 0);
+  const completedWorkouts = data.reduce((sum, a) => sum + a.week.completedCount, 0);
+  const plannedWorkouts = data.reduce((sum, a) => sum + a.week.plannedCount, 0);
+  // Weighted by how many of each athlete's sessions could actually be graded, so
+  // the number means what the caption beside it says: the average over those
+  // sessions. Averaging the per-athlete averages instead would give an athlete
+  // with one graded run the same weight as one with five, which is a different
+  // statistic than "8 of 12 sessions came out at 72%".
+  const clubAccuracy = gradedWorkouts
+    ? data.reduce((sum, a) => sum + (a.week.avgAccuracy ?? 0) * (a.week.gradedCount ?? 0), 0) / gradedWorkouts
+    : null;
+  const clubCompletion = plannedWorkouts ? completedWorkouts / plannedWorkouts : 0;
+  // Athletes, not sessions — this line exists to point at a person to talk to.
+  const belowBar = data.filter(a => a.week.avgAccuracy != null && a.week.avgAccuracy < BELOW_BAR).length;
 
   return (
     <div dir="rtl">
@@ -172,22 +210,64 @@ export function AcademyCompliance() {
                       {w.completedCount}/{w.plannedCount} אימונים בוצעו
                     </div>
                   </div>
-                  {/* Sessions-done bar */}
-                  <div className="hidden sm:flex items-center gap-1.5 shrink-0">
-                    {w.workouts.map((wk, i) => (
-                      <span
-                        key={i}
-                        title={`${wk.name} — ${wk.completed ? 'בוצע' : 'לא בוצע'}`}
-                        className={cn(
-                          'w-2.5 h-2.5 rounded-full',
-                          wk.completed ? (wk.score >= 0.5 ? 'bg-accent-600' : 'bg-band-3') : 'bg-ink-300'
-                        )}
-                      />
-                    ))}
+                  {/* One dot per planned workout — the week at a glance, and shown
+                      on a phone now: this is the screen a coach opens between
+                      intervals, and `hidden sm:` meant they never saw it there.
+                      Three states, not two, because "done but never measured" and
+                      "not done" are opposite facts about an athlete: hollow = the
+                      session didn't happen, grey = it did but has no accuracy yet,
+                      colour = graded, in the same DIRECTION colours as the rings. */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {w.workouts.map((wk, i) => {
+                      const acc = wk.execution?.score ?? null;
+                      return (
+                        <span
+                          key={i}
+                          title={`${wk.name} — ${dotTitle(wk, t)}`}
+                          className={cn(
+                            'w-2.5 h-2.5 rounded-full',
+                            !wk.completed && 'border-[1.5px] border-ink-300',
+                            wk.completed && acc == null && 'bg-ink-300',
+                          )}
+                          style={acc != null && wk.execution
+                            ? { backgroundColor: DIRECTION_COLOR[wk.execution.direction] }
+                            : undefined}
+                        />
+                      );
+                    })}
                   </div>
-                  <div className={cn('text-center shrink-0 w-14', scoreColor(w.completionRate))}>
-                    <div className="text-lg font-bold">{Math.round(w.completionRate * 100)}%</div>
-                    <div className="text-[10px] text-ink-400 -mt-0.5">בוצע</div>
+                  {/* Accuracy leads. The question this tab exists for is not "did
+                      they turn up" but "did they run what was asked", and turning
+                      up is already stated in words on the line above. Coloured by
+                      threshold rather than by DIRECTION: a week holds several
+                      directions at once and there is no honest single one. */}
+                  <div className="text-center shrink-0 w-14">
+                    {w.avgAccuracy != null ? (
+                      <div className={cn('text-lg font-bold tabular-nums', scoreColor(w.avgAccuracy))}>
+                        {Math.round(w.avgAccuracy * 100)}%
+                      </div>
+                    ) : (
+                      <div
+                        className="text-lg font-bold text-ink-400"
+                        title="אין עוד ציון דיוק לשבוע הזה — נמדד מהחזרות, ואלה נקראות כשנפתח אימון."
+                      >
+                        —
+                      </div>
+                    )}
+                    {/* When only some of the week could be graded, say so right
+                        under the number: 81% over 3 of her 5 sessions is not a
+                        verdict on her week, and unqualified it reads like one. */}
+                    <div
+                      className="text-[10px] text-ink-400 -mt-0.5"
+                      title={w.gradedCount != null && w.gradedCount < w.completedCount
+                        ? `נמדד על ${w.gradedCount} מתוך ${w.completedCount} האימונים שבוצעו`
+                        : undefined}
+                    >
+                      {t('accuracyShort')}
+                      {w.gradedCount != null && w.completedCount > 0 && w.gradedCount < w.completedCount && (
+                        <span className="text-ink-300"> <Num>{w.gradedCount}/{w.completedCount}</Num></span>
+                      )}
+                    </div>
                   </div>
                 </button>
 
@@ -207,7 +287,60 @@ export function AcademyCompliance() {
                                 : <XCircle className="h-5 w-5 text-ink-400 mx-auto mt-1" />}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium text-ink-700 text-sm truncate" dir="auto">{wk.name}</div>
+                              {/* The ring rides with the title, not in a column of
+                                  its own at the end of the row. As a column it took
+                                  64px off a 326px row and the pace metric wrapped
+                                  mid-token — "3:20–" on one line, "3:30/ק״מ" and its
+                                  verdict word on the next. Here the metrics get the
+                                  full width, and the score sits beside the workout's
+                                  name exactly as it does on the athlete's own card.
+                                  Rendered only where the session happened: a "—" ring
+                                  on a missed workout reads as a measurement that
+                                  failed rather than a session that never started. */}
+                              <div className="flex items-start gap-2.5">
+                                {wk.completed && wk.execution && (
+                                  <div className="shrink-0 mt-0.5">
+                                    <ExecutionRing
+                                      score={wk.execution.score}
+                                      direction={wk.execution.direction}
+                                      size={36}
+                                      ariaLabel={wk.execution.score != null
+                                        ? t('ringLabel', { score: wk.execution.score })
+                                        : t('ringLabelUngraded')}
+                                    />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-ink-700 text-sm truncate" dir="auto">{wk.name}</div>
+                                  {/* The verdict word under the name rather than under
+                                      the ring: under the ring it needs a 56px column
+                                      and wraps to two or three lines, and it left a
+                                      hole beside a short workout name. `dirShort_`,
+                                      not `dir_` — the athlete's own copy is second
+                                      person ("רצתם מהר מהמתוכנן"), and a coach reading
+                                      it about someone else was being addressed as if
+                                      they had run it. */}
+                                  {wk.completed && wk.execution && (
+                                    <div className="text-[10px] text-ink-400 leading-tight truncate">
+                                      {t(`dirShort_${wk.execution.direction}` as 'dirShort_unknown')}
+                                    </div>
+                                  )}
+                                  {/* Say the score is missing rather than leaving the
+                                      line blank. A ringless row beside metric rows
+                                      that DO show numbers reads as "nothing to say
+                                      about this one"; until the laps get read that is
+                                      the common case, and the coach should know which
+                                      two of the five weren't measured. */}
+                                  {wk.completed && !wk.execution && (
+                                    <div
+                                      className="text-[10px] text-ink-300 leading-tight truncate"
+                                      title={t('ungradedBody')}
+                                    >
+                                      אין ציון {t('accuracyShort')}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                               {wk.completed ? (
                                 <>
                                   <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -259,10 +392,89 @@ export function AcademyCompliance() {
               </div>
             );
           })}
+
+          {/* The club line, last: a coach reads the roster first and wants the one
+              sentence that says whether to worry. Both numbers, because they
+              answer different questions and one without the other misleads —
+              everybody turning up and running the wrong paces is 100% / 61%. */}
+          <div className="bg-card/50 border border-page/50 rounded-card p-4 mt-1">
+            <div className="flex items-center gap-2 mb-3">
+              <ChartColumn className="h-4 w-4 text-brand-600" />
+              <span className="text-sm font-semibold text-ink-700">ממוצע האקדמיה השבוע</span>
+            </div>
+            {/* Label above the number, and a divider between: the two figures are
+                often within a few points of each other and both land in the same
+                colour band, so side-by-side with the labels underneath they were
+                two orange 70-somethings a coach had to squint at to tell apart. */}
+            <div className="flex items-stretch">
+              <Stat
+                label={t('accuracyShort')}
+                value={clubAccuracy != null ? `${Math.round(clubAccuracy * 100)}%` : '—'}
+                color={clubAccuracy != null ? scoreColor(clubAccuracy) : 'text-ink-400'}
+                // Measured-out-of, always. An average over 8 of 12 sessions is not
+                // the academy's accuracy, and the number alone can't say so.
+                note={<>נמדד על <Num>{gradedWorkouts}</Num> מתוך <Num>{completedWorkouts}</Num> אימונים</>}
+              />
+              <div className="w-px bg-page/70 mx-4" />
+              <Stat
+                label="בוצע"
+                value={`${Math.round(clubCompletion * 100)}%`}
+                color={scoreColor(clubCompletion)}
+                note={<><Num>{completedWorkouts}</Num> מתוך <Num>{plannedWorkouts}</Num> אימונים</>}
+              />
+            </div>
+            {belowBar > 0 && (
+              <p className="mt-3 pt-3 border-t border-page/50 text-xs text-accent-red font-medium">
+                {belowBar === 1 ? 'מתאמן אחד מתחת' : <>{<Num>{belowBar}</Num>} מתאמנים מתחת</>}
+                {' '}ל־<Num>{Math.round(BELOW_BAR * 100)}%</Num> דיוק&#x200F;.
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * An LTR-isolated number inside Hebrew prose.
+ *
+ * `8 מתוך 12` without it is a bidi coin toss — the two digits sit either side of a
+ * Hebrew word and the browser is free to reorder them, which turns "8 of 12" into
+ * "12 of 8" without anything looking broken.
+ */
+function Num({ children }: { children: React.ReactNode }) {
+  return <bdi dir="ltr" className="tabular-nums">{children}</bdi>;
+}
+
+/** One club figure: what it is, the number, and what it was measured over. */
+function Stat({ label, value, color, note }: {
+  label: string;
+  value: string;
+  color: string;
+  note: React.ReactNode;
+}) {
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="text-[11px] font-semibold text-ink-500">{label}</div>
+      <div className={cn('text-2xl font-black tabular-nums leading-tight mt-0.5', color)}>{value}</div>
+      <div className="text-[10px] text-ink-400 mt-0.5 leading-snug">{note}</div>
+    </div>
+  );
+}
+
+/**
+ * What a week dot means, in words, for its tooltip.
+ *
+ * Kept out of the row so the three states are stated once: the dot's colour and
+ * its title are the same fact, and a colour that says "graded" over a title that
+ * says "done" is how a coach ends up trusting the wrong one.
+ */
+function dotTitle(wk: WorkoutAdherence, t: ExecutionTranslator): string {
+  if (!wk.completed) return 'לא בוצע';
+  const score = wk.execution?.score;
+  if (score == null || !wk.execution) return 'בוצע · אין ציון דיוק';
+  return `${score}% ${t('accuracyShort')} · ${t(`dir_${wk.execution.direction}` as 'dir_unknown')}`;
 }
 
 function paceBandLabel(min: number | null, max: number | null): string {
