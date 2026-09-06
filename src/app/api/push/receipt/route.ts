@@ -16,10 +16,15 @@ export const dynamic = 'force-dynamic';
  *
  * `push_subscriptions.last_success_at` is written ONLY here. That makes the
  * column mean what its name always promised — a device confirmed it showed
- * something — so a stale timestamp is now real evidence of a ghost, which is
- * what /api/push/test reports and what a future automatic prune can safely act
- * on. (Kept under the existing name deliberately: renaming it would need a
+ * something — so a stale timestamp is real evidence of a ghost, which is what
+ * /api/push/test reports and what the prune in /api/push/subscribe acts on.
+ * (Kept under the existing name deliberately: renaming it would need a
  * hand-applied migration for a column whose meaning is now correct anyway.)
+ *
+ * "ONLY here" is load-bearing, not tidiness — /api/push/subscribe used to stamp
+ * it too, which made a never-delivered endpoint indistinguishable from a
+ * healthy one and would have made that prune delete the wrong rows. Anything
+ * that writes this column outside this route breaks both.
  *
  * Unauthenticated by necessity: a service worker has no access to the Supabase
  * session (it lives in localStorage, in the page), and unlike the notification

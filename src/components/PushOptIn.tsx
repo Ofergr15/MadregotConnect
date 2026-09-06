@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bell, X } from 'lucide-react';
 import { isStandalone, isIosDevice, subscribeToPush, ensurePushSubscription } from '@/lib/pwa';
+import { PUSH_HEAL_DAY_KEY } from '@/lib/push-storage';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
 import { logClient } from '@/lib/client-log';
 
 const DISMISS_KEY = 'push_optin_dismissed';
-// Last day (YYYY-MM-DD) the subscription self-heal ran successfully on this
-// device — see ensurePushSubscription. Once a day is plenty: the thing it
-// repairs only changes when iOS drops the subscription.
-const HEAL_KEY = 'push_sub_healed_on';
+// Shared with recover.ts, which clears it on a hard reload so the next load
+// re-verifies the subscription — see push-storage.ts for why it lives there.
+const HEAL_KEY = PUSH_HEAL_DAY_KEY;
 // Belt to the localStorage braces: never run the heal twice in one page life,
 // even if the effect re-runs or the recheck event fires.
 let healAttempted = false;
