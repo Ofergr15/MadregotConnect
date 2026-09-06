@@ -125,13 +125,43 @@ export async function computeAcademyWeekAdherence(opts: {
   const weekStart = sundayOf(opts.weekStart);
   const weekEnd = addDaysStr(weekStart, 6);
   const supabase = createServerClient();
-  const { tolerances } = await loadAcademySettings();
 
-  // 1) Academy athletes (or a single requested one).
-  const athRes = await supabase
-    .from('athletes')
-    .select('id, name, is_academy, group_id')
-    .eq('coach_id', COACH_ID);
+  // Every read below is small, and the cost of this function was almost entirely
+  // the number of times it waited for a round trip rather than the size of any
+  // one answer: seven queries in a row, ~350ms of latency each. They go in three
+  // waves now — everything that needs nothing first, then everything that needs
+  // only the roster, then the one thing that needs the plans. Same queries, same
+  // results, three waits instead of seven.
+  const [{ tolerances }, athRes, groupsRes, sharedRes] = await Promise.all([
+    loadAcademySettings(),
+    // 1) Academy athletes (or a single requested one).
+    supabase
+      .from('athletes')
+      .select('id, name, is_academy, group_id')
+      .eq('coach_id', COACH_ID),
+    // Which of the plan's three group variants each athlete is actually graded
+    // against. One query for the whole table rather than per athlete — see
+    // extractWorkouts for why using the wrong group misgrades pace.
+    supabase.from('groups').select('id, name'),
+    // The shared/group plan is the coach-wide one (athlete_id IS NULL) — must NOT
+    // pick up another athlete's individual plan for the same week. Fall back to the
+    // unscoped query if the athlete_id column isn't migrated.
+    supabase
+      .from('weekly_plans')
+      .select('id, week_start_date, parsed_workouts, created_at')
+      .eq('coach_id', COACH_ID)
+      .eq('week_start_date', weekStart)
+      .is('athlete_id', null)
+      .order('created_at', { ascending: false })
+      .then((res) => (res.error
+        ? supabase
+          .from('weekly_plans')
+          .select('id, week_start_date, parsed_workouts, created_at')
+          .eq('coach_id', COACH_ID)
+          .eq('week_start_date', weekStart)
+          .order('created_at', { ascending: false })
+        : res)),
+  ]);
 
   let athletes: any[] = athRes.error ? [] : (athRes.data || []).filter((a: any) => a.is_academy);
   if (opts.onlyAthleteId) athletes = athletes.filter(a => a.id === opts.onlyAthleteId);
@@ -140,10 +170,6 @@ export async function computeAcademyWeekAdherence(opts: {
 
   const athleteIds = athletes.map(a => a.id);
 
-  // Which of the plan's three group variants each athlete is actually graded
-  // against. One query for the whole table rather than per athlete — see
-  // extractWorkouts for why using the wrong group misgrades pace.
-  const groupsRes = await supabase.from('groups').select('id, name');
   const groupNames = new Map<string, string>(
     (groupsRes.data || []).map((g: any) => [g.id, g.name]),
   );
@@ -159,33 +185,30 @@ export async function computeAcademyWeekAdherence(opts: {
   // week_start_date), and a coach re-pushing a revised plan for the same
   // athlete/week always INSERTs a new row rather than updating the old one,
   // so more than one can exist for the same key.
-  const indiv = await supabase
-    .from('weekly_plans')
-    .select('id, athlete_id, week_start_date, parsed_workouts, created_at')
-    .eq('week_start_date', weekStart)
-    .in('athlete_id', athleteIds)
-    .order('created_at', { ascending: false });
-  const individualPlans: any[] = indiv.error ? [] : indiv.data || [];
-
-  // The shared/group plan is the coach-wide one (athlete_id IS NULL) — must NOT
-  // pick up another athlete's individual plan for the same week. Fall back to the
-  // unscoped query if the athlete_id column isn't migrated.
-  let shared = await supabase
-    .from('weekly_plans')
-    .select('id, week_start_date, parsed_workouts, created_at')
-    .eq('coach_id', COACH_ID)
-    .eq('week_start_date', weekStart)
-    .is('athlete_id', null)
-    .order('created_at', { ascending: false });
-  if (shared.error) {
-    shared = await supabase
+  // Wave two: the individual plans and the week's activities. Both need only the
+  // roster, so neither has any reason to wait for the other. (`acts` is read
+  // further down, where the actuals are folded in.)
+  const [indiv, acts] = await Promise.all([
+    supabase
       .from('weekly_plans')
-      .select('id, week_start_date, parsed_workouts, created_at')
-      .eq('coach_id', COACH_ID)
+      .select('id, athlete_id, week_start_date, parsed_workouts, created_at')
       .eq('week_start_date', weekStart)
-      .order('created_at', { ascending: false });
-  }
-  const sharedPlan = (shared.data || [])[0];
+      .in('athlete_id', athleteIds)
+      .order('created_at', { ascending: false }),
+    // 3) Actual activities for the week. `laps` only when accuracy was asked for —
+    // it is by far the widest column here and nothing else needs it.
+    supabase
+      .from('athlete_activities')
+      .select(
+        'id, athlete_id, start_time, distance, duration, moving_duration, average_pace, activity_type'
+        + (opts.withExecution ? ', laps' : ''),
+      )
+      .in('athlete_id', athleteIds)
+      .gte('start_time', `${weekStart}T00:00:00Z`)
+      .lte('start_time', `${weekEnd}T23:59:59Z`),
+  ]);
+  const individualPlans: any[] = indiv.error ? [] : indiv.data || [];
+  const sharedPlan = (sharedRes.data || [])[0];
 
   // The raw ParsedWorkout goes back alongside the PlannedWorkout it becomes.
   // `buildPlannedWorkout` reduces a session to its totals, which is all adherence
@@ -245,18 +268,6 @@ export async function computeAcademyWeekAdherence(opts: {
       attributionByAthlete.set(row.athlete_id, forAthlete);
     }
   }
-
-  // 3) Actual activities for the week. `laps` only when accuracy was asked for —
-  // it is by far the widest column here and nothing else needs it.
-  const acts = await supabase
-    .from('athlete_activities')
-    .select(
-      'id, athlete_id, start_time, distance, duration, moving_duration, average_pace, activity_type'
-      + (opts.withExecution ? ', laps' : ''),
-    )
-    .in('athlete_id', athleteIds)
-    .gte('start_time', `${weekStart}T00:00:00Z`)
-    .lte('start_time', `${weekEnd}T23:59:59Z`);
 
   const actualByAthlete = new Map<string, ActualActivity[]>();
   const lapsByActivity = new Map<string, Lap[]>();

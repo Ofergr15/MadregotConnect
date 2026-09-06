@@ -26,6 +26,43 @@ const LEADERBOARD_SIZE = 10;
 const round1 = (meters: number) => Math.round(meters / 100) / 10;
 const toMin = (sec: number) => Math.round(sec / 60);
 
+/** `YYYY-MM-DD` shifted by whole days, for padding a query's date bounds. */
+const dayShift = (iso: string, days: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * Every activity this athlete has ever recorded, for the lifetime totals.
+ * Paginated because there is no aggregate to ask for here — but scoped to the ONE
+ * athlete whose screen this is. It used to page through every academy member's
+ * full history to build a per-member lifetime map that only ever had one key read
+ * out of it (`all.get(athleteId)`); with a 30-person cohort that is 30x the rows
+ * for the same answer.
+ */
+async function loadLifetime(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteId: string,
+): Promise<{ km: number; runs: number; dur: number }> {
+  const acc = { km: 0, runs: 0, dur: 0 };
+  for (let offset = 0; ; offset += 1000) {
+    const { data: page, error } = await supabase
+      .from('athlete_activities')
+      .select('distance, duration')
+      .eq('athlete_id', athleteId)
+      .range(offset, offset + 999);
+    if (error || !page || page.length === 0) break;
+    for (const r of page) {
+      acc.km += Number(r.distance) || 0;
+      acc.runs += 1;
+      acc.dur += Number(r.duration) || 0;
+    }
+    if (page.length < 1000) break;
+  }
+  return acc;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -44,15 +81,21 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
 
+    // The roster, without the OAuth blobs. `garmin_auth` and `strava_auth` are
+    // whole token documents, and selecting them here shipped every athlete's
+    // provider credentials — 60 KB of this query's 65 KB, over 90% — across the
+    // wire on a request that renders ONE athlete's screen and needs them only to
+    // decide whether that one athlete has a watch. They're fetched for that
+    // athlete alone below.
     let rows: any[] = [];
     const primary = await supabase
       .from('athletes')
-      .select('id, name, avatar_url, group_id, garmin_auth, strava_auth, is_academy, groups (name)')
+      .select('id, name, avatar_url, group_id, is_academy, groups (name)')
       .eq('coach_id', COACH_ID);
     if (primary.error) {
       const fallback = await supabase
         .from('athletes')
-        .select('id, name, group_id, garmin_auth, is_academy, groups (name)')
+        .select('id, name, group_id, is_academy, groups (name)')
         .eq('coach_id', COACH_ID);
       rows = fallback.error ? [] : fallback.data || [];
     } else {
@@ -70,46 +113,68 @@ export async function GET(request: Request) {
     const members = rows.filter((a) => a.is_academy);
     const memberIds = members.map((a) => a.id);
 
-    const acts: any[] = [];
-    for (let offset = 0; ; offset += 1000) {
-      const { data: page, error } = await supabase
+    type Acc = { km: number; runs: number; dur: number };
+    const zero = (): Acc => ({ km: 0, runs: 0, dur: 0 });
+
+    // Four independent reads, so they wait on each other rather than on the
+    // clock: the leaderboard week, the caller's lifetime totals, their adherence
+    // and the benchmark board. Run in series this route was 3.7s.
+    const [weekActs, myAllAcc, adherence, bench, watch] = await Promise.all([
+      // Only the leaderboard week, not every activity ever recorded. The date
+      // bounds are padded a day either side and the exact membership test below
+      // is unchanged: `activityWeekStart` reads the activity's own wall clock,
+      // which can sit up to a day away from the instant Postgres compares, and
+      // over-fetching a day is free while dropping an edge run is a wrong number.
+      supabase
         .from('athlete_activities')
         .select('athlete_id, distance, duration, start_time')
         .in('athlete_id', memberIds)
-        .range(offset, offset + 999);
-      if (error || !page || page.length === 0) break;
-      acts.push(...page);
-      if (page.length < 1000) break;
-    }
+        .gte('start_time', dayShift(weekStart, -1))
+        .lt('start_time', dayShift(weekStart, 8)),
+      loadLifetime(supabase, athleteId),
+      // The athlete's own planned-vs-actual, from the same shared implementation
+      // the coach's compliance table uses — so the two can't disagree about
+      // whether a session counted.
+      computeAcademyWeekAdherence({ weekStart, onlyAthleteId: athleteId }),
+      // The athlete's own benchmark results (approved only — a pending one hasn't
+      // been confirmed by a coach yet, so it has no rank to show).
+      supabase
+        .from('benchmark_results')
+        .select('id, test_name, time_seconds, recorded_on, status, athlete_id')
+        .eq('coach_id', COACH_ID)
+        .order('time_seconds', { ascending: true }),
+      // Just the caller's provider tokens, for the watch badge. Same `!!` test as
+      // before, one row instead of the whole roster. `strava_auth` predates some
+      // deployments, so a 42703 here falls back to Garmin alone rather than
+      // failing the screen.
+      supabase
+        .from('athletes')
+        .select('garmin_auth, strava_auth')
+        .eq('id', athleteId)
+        .maybeSingle<{ garmin_auth: unknown; strava_auth: unknown }>()
+        .then((res) => (res.error
+          ? supabase.from('athletes').select('garmin_auth').eq('id', athleteId)
+            .maybeSingle<{ garmin_auth: unknown }>()
+          : res)),
+    ]);
 
-    type Acc = { km: number; runs: number; dur: number };
-    const zero = (): Acc => ({ km: 0, runs: 0, dur: 0 });
     const week = new Map<string, Acc>();
-    const all = new Map<string, Acc>();
-
-    for (const r of acts) {
-      const dist = Number(r.distance) || 0;
-      const dur = Number(r.duration) || 0;
-      const a = all.get(r.athlete_id) || zero();
-      a.km += dist; a.runs += 1; a.dur += dur;
-      all.set(r.athlete_id, a);
-      if (r.start_time && activityWeekStart(r.start_time) === weekStart) {
-        const w = week.get(r.athlete_id) || zero();
-        w.km += dist; w.runs += 1; w.dur += dur;
-        week.set(r.athlete_id, w);
-      }
+    for (const r of weekActs.data || []) {
+      if (!r.start_time || activityWeekStart(r.start_time) !== weekStart) continue;
+      const w = week.get(r.athlete_id) || zero();
+      w.km += Number(r.distance) || 0;
+      w.runs += 1;
+      w.dur += Number(r.duration) || 0;
+      week.set(r.athlete_id, w);
     }
 
-    // The athlete's own planned-vs-actual, from the same shared implementation
-    // the coach's compliance table uses — so the two can't disagree about
-    // whether a session counted.
-    const adherence = await computeAcademyWeekAdherence({ weekStart, onlyAthleteId: athleteId });
     const myWeek = adherence.athletes[0]?.week ?? {
       plannedCount: 0, completedCount: 0, completionRate: 0, avgScore: 0, workouts: [],
     };
 
     const myWeekAcc = week.get(athleteId) || zero();
-    const myAllAcc = all.get(athleteId) || zero();
+    const hasWatch = !!(watch.data as { garmin_auth?: unknown; strava_auth?: unknown } | null)?.garmin_auth
+      || !!(watch.data as { strava_auth?: unknown } | null)?.strava_auth;
 
     const ranked = members
       .map((a) => ({
@@ -145,14 +210,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // The athlete's own benchmark results (approved only — a pending one hasn't
-    // been confirmed by a coach yet, so it has no rank to show).
     let myResults: any[] = [];
-    const bench = await supabase
-      .from('benchmark_results')
-      .select('id, test_name, time_seconds, recorded_on, status, athlete_id')
-      .eq('coach_id', COACH_ID)
-      .order('time_seconds', { ascending: true });
     if (!bench.error) {
       const allApproved = (bench.data || []).filter((r: any) => (r.status ?? 'approved') === 'approved');
       const rankByTest: Record<string, number> = {};
@@ -182,7 +240,7 @@ export async function GET(request: Request) {
         name: me.name,
         avatarUrl: me.avatar_url || null,
         groupName: me.groups?.name ? groupDisplayName(me.groups.name) : null,
-        hasWatch: !!me.garmin_auth || !!me.strava_auth,
+        hasWatch,
       },
       week: myWeek,
       volume: {
