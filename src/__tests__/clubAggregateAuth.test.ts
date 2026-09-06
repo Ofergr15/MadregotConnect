@@ -69,7 +69,7 @@ vi.mock('@/lib/auth-session', () => ({
 const ME = '11111111-1111-1111-1111-111111111111';
 const OTHER = '22222222-2222-2222-2222-222222222222';
 
-const session = (over: Partial<{ athleteId: string | null; role: string; isStaff: boolean }> = {}) => ({
+const session = (over: Partial<{ athleteId: string | null; role: string; isStaff: boolean; isCoreRunner: boolean }> = {}) => ({
   ok: true as const,
   user: {
     email: 'runner@madregot.local',
@@ -189,6 +189,45 @@ describe('GET /api/perks', () => {
     await call(perks, '/api/perks');
     const club = ops.find((o) => o.table === 'club_perks');
     expect(club?.calls).not.toContainEqual(['eq', ['tier', 'all']]);
+  });
+
+  // ── THE FLAG PATH (migration 091) ────────────────────────────────────────
+  // The gate that actually decides whether the 6 core-squad partnerships are
+  // returned at all. Worth pinning in both directions: the perks are real money
+  // (a free annual gym membership, a shoe allocation), so a leak hands them to
+  // the whole club and a false negative takes them off the people who have them.
+  it('unlocks the core tier for a flagged member whose role is plain runner', async () => {
+    // The case the role comparison could never express, and the case Ofer is in.
+    requireSession.mockResolvedValue(session({ role: 'runner', isCoreRunner: true }));
+    await call(perks, '/api/perks');
+    const club = ops.find((o) => o.table === 'club_perks');
+    expect(club?.calls).not.toContainEqual(['eq', ['tier', 'all']]);
+  });
+
+  it('unlocks it for a coach in the squad without touching their role', async () => {
+    requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true, isCoreRunner: true }));
+    await call(perks, '/api/perks');
+    const club = ops.find((o) => o.table === 'club_perks');
+    expect(club?.calls).not.toContainEqual(['eq', ['tier', 'all']]);
+  });
+
+  it('keeps the core tier away from a member who is not in the squad', async () => {
+    // Explicit false, not merely absent — this is the 25 other athletes.
+    requireSession.mockResolvedValue(session({ role: 'runner', isCoreRunner: false }));
+    await call(perks, '/api/perks');
+    const club = ops.find((o) => o.table === 'club_perks');
+    expect(club?.calls).toContainEqual(['eq', ['tier', 'all']]);
+  });
+
+  it('filters the core tier in search too, for the same caller', async () => {
+    // Search reads club_perks with its own copy of the gate, so it can drift.
+    requireSession.mockResolvedValue(session({ role: 'runner', isCoreRunner: false }));
+    await call(search, '/api/search?q=hoka');
+    expect(ops.find((o) => o.table === 'club_perks')?.calls).toContainEqual(['eq', ['tier', 'all']]);
+    ops = [];
+    requireSession.mockResolvedValue(session({ role: 'runner', isCoreRunner: true }));
+    await call(search, '/api/search?q=hoka');
+    expect(ops.find((o) => o.table === 'club_perks')?.calls).not.toContainEqual(['eq', ['tier', 'all']]);
   });
 
   // The bug this replaces: any core_runner's id in the URL bought the premium
