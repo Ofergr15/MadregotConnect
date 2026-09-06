@@ -7,6 +7,7 @@ import { Timer, Route, Sunrise, Moon } from 'lucide-react';
 import { workoutDistanceMeters } from '@/lib/workout-distance';
 import { workoutDurationSec, stepDurationSec, formatDurationShort } from '@/lib/workout-duration';
 import { sessionKind } from '@/lib/plans/session-label';
+import { classifyWorkout } from '@/lib/plans/session-summary';
 import { splitRepeatSteps } from '@/lib/plans/repeat-block';
 import {
   isRestStep,
@@ -52,25 +53,17 @@ function fmtZone(step: WorkoutStep): string {
   return step.targetZone || '';
 }
 
-export function inferWorkoutType(workout: ParsedWorkout): string {
-  const name = workout.name.toLowerCase();
-  const desc = (workout.description || '').toLowerCase();
-  const text = `${name} ${desc}`;
-
-  if (/interval|אינטרוול|pyramid|פירמידה/.test(text)) return 'intervals';
-  if (/long|ארוכה|ארוך/.test(text)) return 'long_run';
-  if (/tempo|טמפו/.test(text)) return 'tempo';
-  if (/fartlek|פרטלק/.test(text)) return 'fartlek';
-  if (/progressive|מתגברת/.test(text)) return 'progressive';
-  if (/recovery|שחרור|easy|קל/.test(text)) return 'recovery';
-
-  const hasRepeats = workout.steps.some(s => s.repeatCount && s.repeatCount > 2);
-  if (hasRepeats) return 'intervals';
-
-  if (workoutDistanceMeters(workout) > 15000) return 'long_run';
-
-  return 'easy';
-}
+/**
+ * One classifier for the whole app — see `classifyWorkout`.
+ *
+ * This used to be a second, differently-ordered copy of the athlete side's
+ * `getWorkoutType`, and the two disagreed on the same session: the coach's card
+ * called Sunday a long run (over 15 km), the athlete's Plan tab called it
+ * intervals (it has a strides block), and neither of them could see Friday's
+ * MEDIO. Kept as a named re-export because the local colour maps are keyed on
+ * the string it returns.
+ */
+export const inferWorkoutType = classifyWorkout;
 
 /** The legs of a set on one wrapped line: `15 שנ׳ מתגברת / 45 שנ׳ הליכה`. */
 function LegList({ legs, units, showPaces }: { legs: WorkoutStep[]; units: StepUnits; showPaces: boolean }) {

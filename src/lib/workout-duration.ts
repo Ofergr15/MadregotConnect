@@ -1,4 +1,10 @@
 import { ParsedWorkout, WorkoutStep } from './ai/types';
+import {
+  type EstimateOptions,
+  minutesRangeFromNotes,
+  stepTimeRange,
+  workoutTimeEstimate,
+} from './plans/step-estimate';
 
 /**
  * Canonical per-workout DURATION estimation — the mirror of workout-distance.ts,
@@ -21,87 +27,46 @@ import { ParsedWorkout, WorkoutStep } from './ai/types';
  *      prose, so the minutes are read out of the note. This is not a heuristic
  *      for style points: an open step is how the program writes an easy day, and
  *      without it Wednesday contributes nothing to the week's time.
+ *   4. A note stating a RANGE the stored `durationValue` sits inside outranks it,
+ *      because that is a range the parser collapsed to its midpoint: Saturday's
+ *      "40-50 דק׳" is stored as 2700 s, and 45 minutes is a figure the coach
+ *      never wrote.
  *
- * Returns seconds. Use `workoutDurationSec` for a single midpoint value, or
- * `workoutDurationRangeSec` when you need the min/max.
+ * The arithmetic is `lib/plans/step-estimate.ts`; this file is the duration-shaped
+ * door onto it. Returns seconds. Use `workoutDurationSec` for a single midpoint
+ * value, or `workoutDurationRangeSec` when you need the min/max.
  */
-
-const DEFAULT_PACE_MIN = 300; // sec/km — fallback fast bound for distance->time
-const DEFAULT_PACE_MAX = 360; // sec/km — fallback slow bound
 
 /**
  * "70-80 דק׳", "אופציה ל30-40 דק׳ קל בערב", "45 min easy" → seconds.
  *
  * Deliberately narrow: it only fires on an explicit minutes unit (דק / min), so
  * a pace note ("4:50-5:30") or a rep count ("5x") can never be mistaken for a
- * duration. Only consulted for `open` steps — a step that already states its own
- * time or distance is never second-guessed by its prose.
+ * duration. Kept as an alias because callers import this name.
  */
-export function durationRangeFromNotes(notes?: string): { min: number; max: number } | null {
-  if (!notes) return null;
-  const match = notes.match(/(\d{1,3})\s*(?:[-–—]\s*(\d{1,3}))?\s*(?:דק|דקות|min\b|minutes\b)/i);
-  if (!match) return null;
-  const low = parseInt(match[1], 10);
-  const high = match[2] ? parseInt(match[2], 10) : low;
-  if (!low || low > high) return null;
-  return { min: low * 60, max: high * 60 };
-}
-
-function stepDurationRangeSec(step: WorkoutStep): { min: number; max: number } {
-  if (step.repeatCount && step.repeatSteps) {
-    let min = 0;
-    let max = 0;
-    for (const sub of step.repeatSteps) {
-      const r = stepDurationRangeSec(sub);
-      min += r.min;
-      max += r.max;
-    }
-    return { min: min * step.repeatCount, max: max * step.repeatCount };
-  }
-
-  if (step.durationType === 'time' && step.durationValue) {
-    return { min: step.durationValue, max: step.durationValue };
-  }
-
-  if (step.durationType === 'distance' && step.durationValue) {
-    const paceMin = step.targetPaceMinPerKm || DEFAULT_PACE_MIN;
-    const paceMax = step.targetPaceMaxPerKm || step.targetPaceMinPerKm || DEFAULT_PACE_MAX;
-    const km = step.durationValue / 1000;
-    // faster pace (smaller sec/km) => less time
-    return { min: Math.round(km * paceMin), max: Math.round(km * paceMax) };
-  }
-
-  const fromNotes = durationRangeFromNotes(step.notes);
-  if (fromNotes) return fromNotes;
-
-  return { min: 0, max: 0 };
-}
+export const durationRangeFromNotes = minutesRangeFromNotes;
 
 /**
  * Midpoint duration in SECONDS for a SINGLE step, so a repeat block can state its
  * own total ("×8 … סה״כ 8 דק׳") — the number the athlete needs to know how long
  * the set will take, which no screen showed before.
  */
-export function stepDurationSec(step: WorkoutStep): number {
-  const { min, max } = stepDurationRangeSec(step);
+export function stepDurationSec(step: WorkoutStep, opts?: EstimateOptions): number {
+  const { min, max } = stepTimeRange(step, opts).range;
   return Math.round((min + max) / 2);
 }
 
 /** Min/max duration in SECONDS for one workout. */
-export function workoutDurationRangeSec(workout: ParsedWorkout): { min: number; max: number } {
-  let min = 0;
-  let max = 0;
-  for (const step of workout.steps) {
-    const r = stepDurationRangeSec(step);
-    min += r.min;
-    max += r.max;
-  }
-  return { min, max };
+export function workoutDurationRangeSec(
+  workout: ParsedWorkout,
+  opts?: EstimateOptions,
+): { min: number; max: number } {
+  return workoutTimeEstimate(workout, opts).range;
 }
 
 /** Midpoint duration in SECONDS for one workout (what most UIs show). */
-export function workoutDurationSec(workout: ParsedWorkout): number {
-  const { min, max } = workoutDurationRangeSec(workout);
+export function workoutDurationSec(workout: ParsedWorkout, opts?: EstimateOptions): number {
+  const { min, max } = workoutDurationRangeSec(workout, opts);
   return Math.round((min + max) / 2);
 }
 
@@ -123,4 +88,18 @@ export function formatDurationShort(seconds: number): string {
   const m = totalMinutes % 60;
   if (h > 0) return m > 0 ? `${h}h${m}m` : `${h}h`;
   return `${m}m`;
+}
+
+/**
+ * Seconds → "1:47" / "0:50" — the same duration as a clock.
+ *
+ * For a COLUMN of durations, one per session down the week. "1h47m" and "50m"
+ * are different widths and different shapes, so nine of them stacked don't line
+ * up and can't be compared at a glance; `0:50` under `1:47` can. Untranslated on
+ * purpose — there is no word in it.
+ */
+export function formatDurationClock(seconds: number): string {
+  if (seconds <= 0) return '';
+  const totalMinutes = Math.max(Math.round(seconds / 60), 1);
+  return `${Math.floor(totalMinutes / 60)}:${String(totalMinutes % 60).padStart(2, '0')}`;
 }

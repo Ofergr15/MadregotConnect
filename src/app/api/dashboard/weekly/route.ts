@@ -75,10 +75,10 @@ export async function GET(request: Request) {
     // no comparison, which `weekDelta` already expresses as 0 (the pill hides).
     const prevPlan = uniquePlans.find(p => p.week_start_date === previousWeekStartStr);
 
-    // Per-day distances/types + key (non-easy) sessions for the displayed week —
-    // shared with /api/plans/week so the Program page's arbitrary-week view can
-    // never disagree with this dashboard chart's math.
-    const { dailyDistances, keySessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays } =
+    // Per-day distances/types + every session of the displayed week — shared
+    // with /api/plans/week so the Program page's arbitrary-week view can never
+    // disagree with this dashboard chart's math.
+    const { dailyDistances, sessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays } =
       buildWeekBreakdown(currentPlan?.parsed_workouts);
 
     // Previous week volume
@@ -134,7 +134,7 @@ export async function GET(request: Request) {
       hasPlan: !!currentPlan,
       weeklyVolumes,
       longRunProgression,
-      keySessions,
+      sessions,
       typeDistribution,
       currentWeekStart,
       trainingDays,

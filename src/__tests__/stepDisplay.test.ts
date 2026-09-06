@@ -98,6 +98,40 @@ describe('stepQualifier', () => {
     }))).toBe('לא מהר מזה!');
   });
 
+  it('drops the ❷/❸ brackets when the step carries those paces in fields', () => {
+    // Tuesday's intervals: the note IS the club notation, and the screens that
+    // print it print a column per group beside it.
+    expect(stepQualifier(step({
+      type: 'interval', durationType: 'time', durationValue: 45,
+      targetType: 'pace', targetPaceMinPerKm: 230, targetPaceMaxPerKm: 230,
+      group2Pace: { min: 240, max: 240 }, group3Pace: { min: 250, max: 250 },
+      notes: '3:50 (4:00) ((4:10))',
+    }))).toBe('');
+    expect(stepQualifier(step({
+      type: 'interval', durationValue: 300,
+      targetType: 'pace', targetPaceMinPerKm: 210,
+      group2Pace: { min: 220, max: 220 }, group3Pace: { min: 230, max: 230 },
+      notes: '3:30 (3:40) ((3:50)) לא מהר מזה!',
+    }))).toBe('לא מהר מזה!');
+  });
+
+  it('keeps a bracket with no group field behind it', () => {
+    // Unsplit steps exist, and there the bracket is the ONLY place ❷'s pace is
+    // written — stripping it would delete the number instead of de-duplicating it.
+    expect(stepQualifier(step({
+      type: 'interval', durationType: 'time', durationValue: 45,
+      targetType: 'pace', targetPaceMinPerKm: 230, targetPaceMaxPerKm: 230,
+      notes: '3:50 (4:00) ((4:10))',
+    }))).toBe('(4:00) ((4:10))');
+    // …and a bracket that isn't a pace at all is prose, whatever the fields say.
+    expect(stepQualifier(step({
+      type: 'interval', durationType: 'time', durationValue: 45,
+      targetType: 'pace', targetPaceMinPerKm: 230,
+      group2Pace: { min: 240, max: 240 },
+      notes: '3:50 (4:00) (בעלייה)',
+    }))).toBe('(בעלייה)');
+  });
+
   it('strips the asterisks the program uses for emphasis', () => {
     expect(stepQualifier(step({
       durationValue: 1000, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 330,

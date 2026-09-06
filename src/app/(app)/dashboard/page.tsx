@@ -50,7 +50,7 @@ interface WeeklyData {
   prevWeekTotal: number;
   weeklyVolumes: Array<{ week: string; volume: number; weekNum: number }>;
   longRunProgression: Array<{ week: string; distance: number }>;
-  keySessions: Array<{ day: string; dayOfWeek: number; name: string; type: string; totalKm: number; highlight: string; steps: any[] }>;
+  sessions: Array<{ key: string; dayOfWeek: number; name: string; type: string; kmMin: number; kmMax: number; steps: any[] }>;
   typeDistribution: Record<string, number>;
   trainingDays: number;
   currentWeekStart: string;

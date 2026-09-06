@@ -3,6 +3,8 @@
 import { X, Repeat } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
+import { textDir } from '@/lib/bidi';
+import type { WorkoutStep } from '@/lib/ai/types';
 import { groupPaceTokens } from '@/lib/garmin/pace';
 import { PaceTokens } from './PaceTokens';
 import { Sheet } from '@/components/ui';
@@ -139,8 +141,27 @@ function GroupPaces({ step, viewGroup }: { step: any; viewGroup: number }) {
   return <PaceTokens tokens={tokens} highlight={viewGroup} size="sm" />;
 }
 
+/**
+ * What the sheet needs to know about the session it is opening.
+ *
+ * `distance` and `duration` arrive as finished strings, units and all: the row
+ * the athlete tapped already prints them, and the sheet saying "24.5 km" under a
+ * row that says "23.6–24.5 ק״מ" is the same session described two ways. It was
+ * `session: any` with a hardcoded ` km` suffix, which is exactly how that
+ * happened.
+ */
+export interface WorkoutDetailSession {
+  /** The session's headline — the sheet's title. */
+  name: string;
+  /** Where in the week it sits: "שלישי · ערב". */
+  day: string;
+  distance: string;
+  duration: string;
+  steps: WorkoutStep[];
+}
+
 export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
-  session: any;
+  session: WorkoutDetailSession;
   viewGroup: number;
   onPickGroup: (idx: number) => void;
   onClose: () => void;
@@ -155,15 +176,23 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
   );
 
   return (
-    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }} title={session.name}>
+    // The title is the session's headline — "20 × 500 מ׳" — and an unmarked
+    // metric expression reaches an RTL screen as "מ׳ 500 × 20".
+    <Sheet
+      open
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title={<bdi dir={textDir(session.name)}>{session.name}</bdi>}
+    >
         {/* Header */}
         <div className="pb-3 flex items-start justify-between shrink-0">
           <div>
             <p className="text-xs font-bold text-brand-600 uppercase tracking-wider">{session.day}</p>
             <div className="flex items-center gap-3 mt-1">
-              <span className="text-sm font-bold text-ink-700">{session.totalKm} km</span>
-              {session.highlight && (
-                <code className="text-xs font-bold text-brand-600 bg-brand-600/10 px-2 py-0.5 rounded">{session.highlight}</code>
+              {session.distance && (
+                <span dir="ltr" className="text-sm font-bold text-ink-700 tabular-nums">{session.distance}</span>
+              )}
+              {session.duration && (
+                <span dir="ltr" className="text-sm text-ink-400 tabular-nums">{session.duration}</span>
               )}
             </div>
           </div>

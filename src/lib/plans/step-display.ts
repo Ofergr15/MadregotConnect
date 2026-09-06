@@ -69,11 +69,13 @@ export function stepMetric(step: WorkoutStep, units: StepUnits): string {
 
 const MINUTES_PHRASE = /(\d{1,3})\s*(?:[-–—]\s*(\d{1,3}))?\s*(?:דק|דקות|min\b|minutes\b)׳?/i;
 const EDGE_SEPARATORS = /^\s*[-–—•/]\s*|\s*[-–—•/]\s*$/g;
+/** One `(…)` / `((…))` group of the club's pace notation, with its contents. */
+const BRACKETED = /\(+([^()]+)\)+/g;
 
 /**
- * What the note adds beyond the metric and the pace already on the row —
+ * What the note adds beyond the metric and the paces already on the row —
  * "הליכה", "ג׳וג", "מתגברת", "לא מהר מזה!". Empty when the note was only a
- * restatement of them.
+ * restatement of them, ❷/❸ included.
  *
  * A prose step is returned untouched: stripping "30-40 דק׳" out of
  * "אופציה ל30-40 דק׳ קל בערב" leaves "אופציה ל קל בערב", which is worse than the
@@ -84,12 +86,22 @@ export function stepQualifier(step: WorkoutStep): string {
   if (!note) return '';
   if (isProseStep(step)) return note;
 
-  const [pace] = stepPaceTokens(step);
+  const [pace, pace2, pace3] = stepPaceTokens(step);
   if (pace) {
     // Removed as a range AND as each bound, because the note writes "4:50-5:30"
     // with a hyphen while the pace token uses an en dash.
     note = note.replace(pace, ' ');
     for (const bound of pace.split('–')) note = note.replace(bound, ' ');
+  }
+  // ❷/❸ live in fields of their own now, so the "(4:00) ((4:10))" tail the club
+  // writes is the same numbers a second time — every screen that prints this note
+  // prints those paces beside it. Only brackets whose contents match a pace the
+  // step actually carries are dropped: a bracket with no field behind it is the
+  // one place that group's pace is written down, and must survive.
+  const printed = new Set([pace2, pace3].filter(Boolean).flatMap((p) => [p, ...p.split('–')]));
+  if (printed.size) {
+    note = note.replace(BRACKETED, (bracketed, inner: string) =>
+      printed.has(inner.trim().replace(/[-—]/g, '–')) ? ' ' : bracketed);
   }
   if (durationRangeFromNotes(step.notes)) note = note.replace(MINUTES_PHRASE, ' ');
 

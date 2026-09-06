@@ -1,5 +1,6 @@
 import type { ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
-import { workoutDistanceMeters } from '@/lib/workout-distance';
+import { planEstimateOptions, workoutDistanceEstimated } from '@/lib/workout-distance';
+import type { EstimateOptions } from '@/lib/workout-distance';
 import { workoutDurationSec } from '@/lib/workout-duration';
 
 /**
@@ -67,8 +68,8 @@ function inferPartKind(
  * because normalization runs on read as well as write, trusting the stored figure
  * would keep serving "8m" for a 23.5 km day forever.
  */
-function expectedDuration(workout: ParsedWorkout): number | undefined {
-  return workoutDurationSec(workout) || undefined;
+function expectedDuration(workout: ParsedWorkout, opts: EstimateOptions): number | undefined {
+  return workoutDurationSec(workout, opts) || undefined;
 }
 
 export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
@@ -89,6 +90,10 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
   // carries a positive index AND they are all distinct; otherwise fall back to
   // list order for the whole day. Still deterministic, which is what lets this run
   // on read as well as on write.
+  // Derived from the whole plan, once: an unpaced easy run is priced at the pace
+  // band this coach actually writes rather than a global assumption.
+  const estimateOptions = planEstimateOptions(plan.workouts);
+
   const resolvedIndex = new Map<ParsedWorkout, number>();
   for (const siblings of perDay.values()) {
     const supplied = siblings.map((w) => w.partIndex);
@@ -104,27 +109,28 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
       const partIndex = resolvedIndex.get(workout) || siblings.indexOf(workout) + 1;
       const partCount = siblings.length;
       const partKind = inferPartKind(workout, partCount);
-      const measuredDistance = workoutDistanceMeters(workout);
-      // A coach-stated km range is the best expectation there is; fall back to
-      // whatever the steps measure. Without one of the two the matcher can only
-      // judge by day, so this is the difference between a scored match and a
-      // coin flip.
-      const statedDistance = workout.distanceMinKm
-        ? Math.round(((workout.distanceMinKm + (workout.distanceMaxKm || workout.distanceMinKm)) / 2) * 1000)
-        : undefined;
-      const expectedDistanceM =
-        workout.expectedDistanceM || measuredDistance || statedDistance || undefined;
-      const expectedDurationSec = expectedDuration(workout);
-      // A coach-stated range carries its own tolerance; a single figure gets ±8%
+      // The coach's own km range if they wrote one, otherwise the steps summed —
+      // including a time stated only in prose ("70-80 דק׳"), multiplied by its
+      // pace. Without a figure here the matcher can only judge by day, which is
+      // the difference between a scored match and a coin flip.
+      //
+      // Recomputed unconditionally, for the same reason `expectedDurationSec` is:
+      // every stored `expectedDistanceM` was produced by an estimator that
+      // ignored open-ended steps entirely and averaged the coach's range away,
+      // and because normalization runs on read, deferring to the stored figure
+      // would keep serving those forever. Nothing but this line has ever written
+      // the field — it is not a coach-editable value.
+      const distance = workoutDistanceEstimated(workout, estimateOptions);
+      const expectedDistanceM = Math.round((distance.range.min + distance.range.max) / 2) || undefined;
+      const expectedDurationSec = expectedDuration(workout, estimateOptions);
+      // A range carries its own tolerance, whether the coach wrote it ("8 – 11
+      // ק"מ") or it fell out of a 40–50 minute estimate; a single figure gets ±8%
       // (floor 150 m, so a 1 km jog isn't held to ±80 m).
-      const statedSpread =
-        workout.distanceMinKm && workout.distanceMaxKm && workout.distanceMaxKm > workout.distanceMinKm
-          ? Math.round(((workout.distanceMaxKm - workout.distanceMinKm) / 2) * 1000)
-          : 0;
+      const spread = Math.round((distance.range.max - distance.range.min) / 2);
       const distanceToleranceM =
         workout.distanceToleranceM ||
         (expectedDistanceM
-          ? Math.max(150, statedSpread, Math.round(expectedDistanceM * 0.08))
+          ? Math.max(150, spread, Math.round(expectedDistanceM * 0.08))
           : undefined);
       const defaultTokens = [
         partKind,

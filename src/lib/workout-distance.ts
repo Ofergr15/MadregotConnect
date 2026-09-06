@@ -1,77 +1,62 @@
-import { ParsedWorkout, WorkoutStep } from './ai/types';
+import { ParsedWorkout } from './ai/types';
+import {
+  type EstimateOptions,
+  type Estimate,
+  planEstimateOptions,
+  workoutDistanceEstimate,
+} from './plans/step-estimate';
 
 /**
- * Canonical per-workout distance estimation, shared by the planner (WeekView /
- * WorkoutPreview) and the athlete dashboard so their weekly km ALWAYS agree.
+ * Canonical per-workout distance, shared by the planner (WeekView /
+ * WorkoutPreview), the athlete dashboard and the matcher's `expectedDistanceM`
+ * so their weekly km ALWAYS agree.
  *
- * Priority:
- *   1. The coach's explicit per-day range (distanceMinKm / distanceMaxKm from
- *      the PDF header, e.g. "9 – 11 ק"מ") — this is the source of truth.
- *   2. Otherwise, estimate from the steps: distance steps count directly, and
- *      time steps are converted to distance using their target pace.
+ * The arithmetic lives in `lib/plans/step-estimate.ts` — this file is the
+ * distance-shaped door onto it, kept because half the app imports these three
+ * names. Priority, in short:
  *
- * Returns metres. Use `workoutDistanceMeters` for a single midpoint value, or
- * `workoutDistanceRangeMeters` when you need the min/max.
+ *   1. The coach's own km range from the PDF header ("9 – 11 ק"מ").
+ *   2. The steps: measured distances directly, times multiplied by their pace.
+ *   3. A time stated only in the coach's note ("70-80 דק׳"), also multiplied.
+ *
+ * Pass `opts` from `planEstimateOptions(week)` when the whole week is in hand:
+ * an unpaced easy run is then priced at the pace band this coach actually
+ * writes rather than a global assumption.
  */
 
-const DEFAULT_PACE_MIN = 300; // sec/km — fallback fast bound for time->distance
-const DEFAULT_PACE_MAX = 360; // sec/km — fallback slow bound
+export { planEstimateOptions } from './plans/step-estimate';
+export type { EstimateOptions, Estimate, Provenance } from './plans/step-estimate';
 
-function estimateStepRangeMeters(step: WorkoutStep): { min: number; max: number } {
-  if (step.repeatCount && step.repeatSteps) {
-    let min = 0;
-    let max = 0;
-    for (const sub of step.repeatSteps) {
-      const r = estimateStepRangeMeters(sub);
-      min += r.min;
-      max += r.max;
-    }
-    return { min: min * step.repeatCount, max: max * step.repeatCount };
-  }
-
-  if (step.durationType === 'distance' && step.durationValue) {
-    return { min: step.durationValue, max: step.durationValue };
-  }
-
-  if (step.durationType === 'time' && step.durationValue) {
-    const paceMin = step.targetPaceMinPerKm || DEFAULT_PACE_MIN;
-    const paceMax = step.targetPaceMaxPerKm || DEFAULT_PACE_MAX;
-    const timeSec = step.durationValue;
-    // faster pace (smaller sec/km) => more distance
-    const distMax = (timeSec / paceMin) * 1000;
-    const distMin = (timeSec / paceMax) * 1000;
-    return { min: Math.round(distMin), max: Math.round(distMax) };
-  }
-
-  return { min: 0, max: 0 };
+/** Min/max distance in METRES for one workout, with where the figure came from. */
+export function workoutDistanceEstimated(
+  workout: ParsedWorkout,
+  opts?: EstimateOptions,
+): Estimate {
+  return workoutDistanceEstimate(workout, opts);
 }
 
 /** Min/max distance in METRES for one workout. */
-export function workoutDistanceRangeMeters(workout: ParsedWorkout): { min: number; max: number } {
-  const coachMin = (workout as any).distanceMinKm as number | undefined;
-  const coachMax = (workout as any).distanceMaxKm as number | undefined;
-  if (coachMin || coachMax) {
-    const min = (coachMin || coachMax || 0) * 1000;
-    const max = (coachMax || coachMin || 0) * 1000;
-    return { min, max };
-  }
-  let min = 0;
-  let max = 0;
-  for (const step of workout.steps) {
-    const r = estimateStepRangeMeters(step);
-    min += r.min;
-    max += r.max;
-  }
-  return { min, max };
+export function workoutDistanceRangeMeters(
+  workout: ParsedWorkout,
+  opts?: EstimateOptions,
+): { min: number; max: number } {
+  return workoutDistanceEstimate(workout, opts).range;
 }
 
 /** Midpoint distance in METRES for one workout (what most UIs show). */
-export function workoutDistanceMeters(workout: ParsedWorkout): number {
-  const { min, max } = workoutDistanceRangeMeters(workout);
+export function workoutDistanceMeters(workout: ParsedWorkout, opts?: EstimateOptions): number {
+  const { min, max } = workoutDistanceRangeMeters(workout, opts);
   return Math.round((min + max) / 2);
 }
 
-/** Total midpoint distance in METRES across many workouts. */
-export function totalDistanceMeters(workouts: ParsedWorkout[]): number {
-  return workouts.reduce((sum, w) => sum + workoutDistanceMeters(w), 0);
+/**
+ * Total midpoint distance in METRES across many workouts.
+ *
+ * Derives the week's own easy pace band first, since it has the week to derive
+ * it from — the estimated part of the total is otherwise priced at a pace this
+ * coach never prescribes.
+ */
+export function totalDistanceMeters(workouts: ParsedWorkout[], opts?: EstimateOptions): number {
+  const tuned = planEstimateOptions(workouts, opts);
+  return workouts.reduce((sum, w) => sum + workoutDistanceMeters(w, tuned), 0);
 }

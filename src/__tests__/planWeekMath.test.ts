@@ -5,6 +5,7 @@ import {
   dedupeWorkoutsByDay,
   computeStepDistance,
   buildWeekBreakdown,
+  buildWeekSessions,
 } from '@/lib/plans/workout-parsing';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 
@@ -131,6 +132,20 @@ describe('buildWeekBreakdown', () => {
     expect(b.typeDistribution.easy).toBe(40.3);
   });
 
+  it('rounds the day for display without losing the week', () => {
+    // A day's own row is rounded to one decimal — "39.400000000000006 km" was on
+    // screen — but the week is accumulated raw and rounded once at the end, so
+    // the total still agrees with typeDistribution.
+    const b = buildWeekBreakdown({
+      workouts: [
+        workout(2, 'Morning intervals', { distanceMinKm: 23.65, distanceMaxKm: 24.55 }),
+        workout(2, 'Evening easy run', { distanceMinKm: 15.75, distanceMaxKm: 16.65 }),
+      ],
+    });
+    expect(b.dailyDistances[2].min).toBe(39.4);
+    expect(b.dailyDistances[2].max).toBe(41.2);
+  });
+
   it('reads only group1 when the plan is split by group', () => {
     // extractWorkouts returns exactly ONE group's array; groups 2 and 3 come back
     // as per-step groupPaces, not as extra workouts. This is why a blind
@@ -142,5 +157,56 @@ describe('buildWeekBreakdown', () => {
     });
     expect(b.weekTotalMax).toBe(10);
     expect(b.trainingDays).toBe(1);
+  });
+});
+
+describe('buildWeekSessions', () => {
+  it('keeps every session, in the order they are run', () => {
+    // Nine sessions on seven days. `keySessions`, which this replaces, was one
+    // entry per DAY, so two of the week's runs had no representation at all —
+    // and the Plan tab, which is a list of those entries, could not open them.
+    const sessions = buildWeekSessions([
+      workout(2, 'Evening', { partKind: 'evening', partIndex: 2, partCount: 2 }),
+      workout(2, 'Morning', { partKind: 'morning', partIndex: 1, partCount: 2 }),
+      workout(0, 'Long run'),
+    ]);
+    expect(sessions.map(s => s.name)).toEqual(['Long run', 'Morning', 'Evening']);
+    expect(sessions.map(s => s.key)).toEqual(['day-0-part-1', 'day-2-part-1', 'day-2-part-2']);
+  });
+
+  it('names the earlier part of a day "morning" when only the later one is labelled', () => {
+    // How Monday is actually parsed: part 1 is a plain 'single' and part 2 is
+    // 'evening'. `sessionKind` alone calls part 1 "חלק 1/2", i.e. the day's main
+    // run is labelled by a number while the optional add-on gets the real word.
+    const [first, second] = buildWeekSessions([
+      workout(1, 'Main run', { partKind: 'single', partIndex: 1, partCount: 2 }),
+      workout(1, 'Optional evening', { partKind: 'evening', partIndex: 2, partCount: 2, optional: true }),
+    ]);
+    expect(first.kind).toBe('morning');
+    expect(second.kind).toBe('evening');
+    expect(second.optional).toBe(true);
+  });
+
+  it('leaves a single-session day unlabelled', () => {
+    const [only] = buildWeekSessions([workout(3, 'Easy run')]);
+    expect(only.kind).toBeNull();
+    expect(only.partCount).toBe(1);
+  });
+
+  it('types each session from its own steps, not from its day', () => {
+    const sessions = buildWeekSessions([
+      workout(2, 'Morning intervals', { partKind: 'morning', partIndex: 1, partCount: 2 }),
+      workout(2, 'Evening easy run', { partKind: 'evening', partIndex: 2, partCount: 2 }),
+    ]);
+    expect(sessions.map(s => s.type)).toEqual(['intervals', 'easy']);
+  });
+
+  it('carries its kilometres unrounded', () => {
+    // Same rule as the week total: round for DISPLAY (`roundKm`), never in the
+    // data, or nine sessions rounded up a decimal each stop adding up to the
+    // week they belong to.
+    const [s] = buildWeekSessions([workout(0, 'Long run', { distanceMinKm: 23.65, distanceMaxKm: 24.55 })]);
+    expect(s.kmMin).toBe(23.65);
+    expect(s.kmMax).toBe(24.55);
   });
 });

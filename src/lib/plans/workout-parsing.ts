@@ -1,4 +1,14 @@
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
+import { workoutDurationSec } from '@/lib/workout-duration';
+import {
+  type EstimateOptions,
+  type Provenance,
+  planEstimateOptions,
+  stepDistanceRange,
+  workoutDistanceEstimate,
+} from './step-estimate';
+import { classifyWorkout } from './session-summary';
+import { sessionKind } from './session-label';
 
 /**
  * Shared parsing/derivation logic for `weekly_plans.parsed_workouts` (the
@@ -164,82 +174,29 @@ export function enrichWithGroupPaces(parsedWorkouts: any): ParsedWorkout[] {
 }
 
 /**
- * Assumed pace for a TIMED step the coach gave no pace for, seconds per km.
+ * Distance for one step, in metres.
  *
- * These are estimates and they are the reason a plan's km show as a range at
- * all — when the coach fills in `distanceMinKm/distanceMaxKm`, `getWorkoutKm`
- * uses those and none of this runs.
- *
- * `recovery` is separate because one default for everything credited a rest
- * interval with running distance: a 90-second recovery inside an interval set
- * was being counted at 5:00–6:00/km, the same as the working reps, which
- * inflated every interval session's total. A recovery IS usually jogged, so it
- * still contributes — just not at the effort's pace.
+ * The arithmetic — and the assumed pace bands it falls back on — now lives in
+ * `lib/plans/step-estimate.ts`, which four near-identical copies of it had
+ * already drifted apart from. `assumeOpenBlocks` keeps this door's answer for an
+ * open-ended warmup carrying no information (a nominal 2 km) rather than the
+ * canonical `workout-distance.ts` answer (nothing); see the option's own note.
  */
-const DEFAULT_PACE_S_PER_KM = {
-  running: { min: 300, max: 360 },   // 5:00–6:00 /km
-  recovery: { min: 420, max: 540 },  // 7:00–9:00 /km
-} as const;
-
-export function computeStepDistance(step: WorkoutStep): { min: number; max: number } {
-  if (step.repeatCount && step.repeatSteps) {
-    let subMin = 0;
-    let subMax = 0;
-    for (const sub of step.repeatSteps) {
-      const subDist = computeStepDistance(sub);
-      subMin += subDist.min;
-      subMax += subDist.max;
-    }
-    return { min: subMin * step.repeatCount, max: subMax * step.repeatCount };
-  }
-
-  if (step.durationType === 'distance' && step.durationValue) {
-    return { min: step.durationValue, max: step.durationValue };
-  }
-
-  if (step.durationType === 'time' && step.durationValue) {
-    const fallback = DEFAULT_PACE_S_PER_KM[step.type === 'rest' || step.type === 'recovery' ? 'recovery' : 'running'];
-    const paceMin = step.targetPaceMinPerKm || fallback.min;
-    // Falls back to the step's OWN min before the generic default: with
-    // `|| 360`, a step carrying only a slow min (say 6:40/km) got a max of
-    // 6:00/km — a max faster than its min, which inverts the range below and
-    // reports distMin > distMax. A single-sided pace means one pace, not a
-    // range, which is exactly what `stepGroupPace` already assumes.
-    const paceMax = step.targetPaceMaxPerKm || step.targetPaceMinPerKm || fallback.max;
-    const timeSec = step.durationValue;
-    const distMax = (timeSec / paceMin) * 1000;
-    const distMin = (timeSec / paceMax) * 1000;
-    return { min: Math.round(distMin), max: Math.round(distMax) };
-  }
-
-  // Open duration with pace: estimate based on typical duration for the step type
-  if (step.durationType === 'open' && step.targetPaceMinPerKm) {
-    const pace = (step.targetPaceMinPerKm + (step.targetPaceMaxPerKm || step.targetPaceMinPerKm)) / 2;
-    let estimatedMin = 0;
-    if (step.type === 'warmup' || step.type === 'cooldown') {
-      estimatedMin = 10 * 60; // 10 min warmup/cooldown
-    } else if (step.type === 'active' || step.type === 'interval') {
-      estimatedMin = 40 * 60; // 40 min for main active blocks
-    }
-    if (estimatedMin > 0) {
-      const dist = (estimatedMin / pace) * 1000;
-      return { min: Math.round(dist * 0.8), max: Math.round(dist * 1.2) };
-    }
-  }
-
-  // Open warmup/cooldown without pace: default 2km
-  if (step.durationType === 'open' && (step.type === 'warmup' || step.type === 'cooldown')) {
-    return { min: 1500, max: 2500 };
-  }
-
-  return { min: 0, max: 0 };
+export function computeStepDistance(
+  step: WorkoutStep,
+  opts: EstimateOptions = {},
+): { min: number; max: number } {
+  return stepDistanceRange(step, { assumeOpenBlocks: true, ...opts }).range;
 }
 
-export function computeWorkoutDistance(workout: ParsedWorkout): { min: number; max: number } {
+export function computeWorkoutDistance(
+  workout: ParsedWorkout,
+  opts: EstimateOptions = {},
+): { min: number; max: number } {
   let totalMin = 0;
   let totalMax = 0;
   for (const step of workout.steps) {
-    const d = computeStepDistance(step);
+    const d = computeStepDistance(step, opts);
     totalMin += d.min;
     totalMax += d.max;
   }
@@ -276,62 +233,41 @@ export const WORKOUT_TYPE_LABELS: Record<string, string> = {
   fartlek: 'Fartlek', progressive: 'Progressive', easy: 'Easy', rest: 'Rest',
 };
 
-export function getWorkoutType(workout: ParsedWorkout): string {
-  const name = workout.name.toLowerCase();
-  const desc = ((workout as any).description || '').toLowerCase();
-  const text = `${name} ${desc}`;
-
-  if (/fartlek|פרטלק/.test(text)) return 'fartlek';
-  if (/long run|ארוכה/.test(text)) return 'long_run';
-  if (/interval|אינטרוול|pyramid/.test(text)) return 'intervals';
-  if (/tempo|טמפו/.test(text)) return 'tempo';
-  if (/easy|שחרור|recovery/.test(text)) return 'easy';
-  if (/progressive|מתגברת/.test(text)) return 'progressive';
-
-  // Only 1 step with open duration = easy run
-  if (workout.steps.length === 1 && workout.steps[0].durationType === 'open') return 'easy';
-
-  const hasIntervals = workout.steps.some(s => s.repeatCount || s.type === 'interval');
-  if (hasIntervals) return 'intervals';
-
-  return 'easy';
-}
-
-/**
- * Compact duration for a repeat's rep, used in the "Nx…" highlight badge.
- * Distance -> "200m"; time -> "Nmin" for whole minutes, else "M:SS" (so a 30s
- * rep reads "0:30", not the old buggy "0min").
- */
-export function formatRepDuration(rep: WorkoutStep): string {
-  if (rep.durationType === 'distance' && rep.durationValue) {
-    return `${rep.durationValue}m`;
-  }
-  if (rep.durationType === 'time' && rep.durationValue) {
-    const s = rep.durationValue;
-    if (s % 60 === 0) return `${s / 60}min`;
-    if (s < 60) return `0:${s.toString().padStart(2, '0')}`;
-    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
-  }
-  return '';
-}
+// `formatRepDuration` lived here — a rep's duration for the old "Nx…" highlight
+// badge, in its own private format ("200m", "8min", "0:15"). The badge is gone:
+// a session's headline is now built by `sessionHeadline` off `stepMetric`, which
+// is the same wording the step rows themselves use and is translated.
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
- * A workout's km range — coach-entered `distanceMinKm`/`distanceMaxKm` win
- * when present (the coach's own number beats our step-math estimate);
- * otherwise derived from computeWorkoutDistance.
+ * A workout's km range, and how much it is worth: coach-entered
+ * `distanceMinKm`/`distanceMaxKm` win when present (the coach's own number beats
+ * any step-math estimate), otherwise the steps are summed and a time stated in
+ * prose is multiplied by its pace.
+ *
+ * `from` is what lets a screen mark a calculated figure as one. Without it, the
+ * 5–8 km this now reports for "אופציה ל30-40 דק׳ קל בערב" looks exactly like the
+ * 11–13 km the coach typed, and the athlete has no way to tell which of the two
+ * came off the plan.
  */
-export function getWorkoutKm(w: ParsedWorkout): { min: number; max: number } {
-  const hasCoachKm = (w as any).distanceMinKm || (w as any).distanceMaxKm;
-  if (hasCoachKm) {
-    return {
-      min: (w as any).distanceMinKm || (w as any).distanceMaxKm || 0,
-      max: (w as any).distanceMaxKm || (w as any).distanceMinKm || 0,
-    };
+export function getWorkoutKm(
+  w: ParsedWorkout,
+  opts?: EstimateOptions,
+): { min: number; max: number; from: Provenance } {
+  const estimate = workoutDistanceEstimate(w, { assumeOpenBlocks: true, ...opts });
+  // The coach's own figure passes through UNROUNDED — "23.65 ק"מ" is what they
+  // wrote, and rounding each session to 0.1 before the day and the week sum them
+  // loses about a kilometre off a nine-session week. Only the step-derived metres
+  // are rounded, because a sum of estimates does not deserve three decimals.
+  if (estimate.from === 'coach') {
+    return { min: estimate.range.min / 1000, max: estimate.range.max / 1000, from: estimate.from };
   }
-  const dist = computeWorkoutDistance(w);
-  return { min: Math.round(dist.min / 1000 * 10) / 10, max: Math.round(dist.max / 1000 * 10) / 10 };
+  return {
+    min: Math.round((estimate.range.min / 1000) * 10) / 10,
+    max: Math.round((estimate.range.max / 1000) * 10) / 10,
+    from: estimate.from,
+  };
 }
 
 /**
@@ -371,23 +307,116 @@ export interface DailyDistance {
   sessions: Array<{ min: number; max: number; type: string; name: string }>;
 }
 
-export interface KeySession {
-  day: string;
+/**
+ * One SESSION of the week — every one of them, in the order they are run.
+ *
+ * This replaces `keySessions`, which was one session per day, skipped anything
+ * typed `easy`, and carried a `highlight` taken from the first repeat block in
+ * the steps. On the real week of 2026-09-06 that meant four of the nine
+ * sessions did not exist as far as the Plan tab was concerned: Tuesday's
+ * evening 20 × 500 m @3:25 was inside a day whose row was already spoken for,
+ * so it could not be opened at all, and Friday's 32 km ITALIAN MEDIO was
+ * dropped for being "easy". A screen that hides half the week is worse than no
+ * screen.
+ *
+ * The headline and sub-line are NOT here: they are words, and they are built
+ * from `steps` by `sessionHeadline`/`sessionFrame` at the point where the
+ * athlete's own language is known.
+ */
+export interface WeekSession {
+  /** The plan's own stable id when it has one — see ParsedWorkout.workoutKey. */
+  key: string;
   dayOfWeek: number;
+  /** The coach's title for the session. */
   name: string;
   type: string;
-  totalKm: number;
-  highlight: string;
+  /** How to label it when the day holds more than one; null when it doesn't. */
+  kind: 'morning' | 'evening' | 'part' | null;
+  partIndex: number;
+  partCount: number;
+  /** Offered, not prescribed ("ערב - אופציה") — still shown, never summed away. */
+  optional: boolean;
+  kmMin: number;
+  kmMax: number;
+  /** Where the km came from; `isEstimate(kmFrom)` is the "~" test. */
+  kmFrom: Provenance;
+  durationSec: number;
   steps: WorkoutStep[];
 }
 
 export interface WeekBreakdown {
   dailyDistances: DailyDistance[];
-  keySessions: KeySession[];
+  sessions: WeekSession[];
   typeDistribution: Record<string, number>;
   weekTotalMin: number;
   weekTotalMax: number;
   trainingDays: number;
+}
+
+/** One decimal. Two 1-decimal sessions summed in binary give 39.400000000000006. */
+function round1(km: number): number {
+  return Math.round(km * 10) / 10;
+}
+
+/** Hardest first — what a day of two sessions is called, and coloured. */
+const TYPE_HARDNESS = ['intervals', 'tempo', 'fartlek', 'progressive', 'long_run', 'easy', 'rest'];
+
+function hardestType(sessions: WeekSession[]): string {
+  // An unranked type sorts LAST, not first: `indexOf` answers -1 for one, and
+  // taking that at face value would let an unknown label outrank intervals.
+  const rank = (type: string) => {
+    const i = TYPE_HARDNESS.indexOf(type);
+    return i === -1 ? TYPE_HARDNESS.length : i;
+  };
+  const ranked = [...sessions].sort((a, b) => rank(a.type) - rank(b.type));
+  return ranked[0]?.type || 'rest';
+}
+
+/**
+ * Every session of the week, ordered day then part.
+ *
+ * The `kind` labels are repaired here rather than trusted verbatim: Monday is
+ * stored as part 1 `single` + part 2 `evening`, so `sessionKind` calls the first
+ * one "part 1/2" — a filing label, when the day itself already says the second
+ * session is the evening one and this is therefore the morning one.
+ */
+export function buildWeekSessions(workouts: ParsedWorkout[]): WeekSession[] {
+  const ordered = [...workouts].sort(
+    (a, b) => a.dayOfWeek - b.dayOfWeek || (a.partIndex ?? 1) - (b.partIndex ?? 1),
+  );
+  // Derived from the week, once, and handed to every session in it: an unpaced
+  // easy run is then priced at the pace band THIS coach writes (4:50–5:30 here)
+  // rather than the module's global 5:00–6:00, which is slower than anything on
+  // the plan and shortens every estimate by about a kilometre.
+  const opts = planEstimateOptions(ordered);
+
+  return ordered.map((w, i) => {
+    const km = getWorkoutKm(w, opts);
+    const dayParts = ordered.filter(x => x.dayOfWeek === w.dayOfWeek);
+    let kind = sessionKind(w);
+    if (kind === 'part') {
+      const evening = dayParts.find(x => x.partKind === 'evening');
+      const morning = dayParts.find(x => x.partKind === 'morning');
+      if (evening && (w.partIndex ?? 1) < (evening.partIndex ?? 1)) kind = 'morning';
+      else if (morning && (w.partIndex ?? 1) > (morning.partIndex ?? 1)) kind = 'evening';
+    }
+
+    return {
+      key: w.workoutKey || `day-${w.dayOfWeek}-part-${w.partIndex ?? i + 1}`,
+      dayOfWeek: w.dayOfWeek,
+      name: w.description || w.name,
+      type: classifyWorkout(w),
+      kind,
+      partIndex: w.partIndex ?? 1,
+      partCount: w.partCount ?? dayParts.length,
+      optional: !!w.optional,
+      kmMin: km.min,
+      kmMax: km.max,
+      kmFrom: km.from,
+      durationSec: workoutDurationSec(w, opts),
+      steps: w.steps,
+    };
+  });
 }
 
 /**
@@ -400,68 +429,44 @@ export interface WeekBreakdown {
 export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
   const workouts = dedupeWorkoutsByDay(enrichWithGroupPaces(parsedWorkouts));
 
+  const sessions = buildWeekSessions(workouts);
+
+  let rawWeekMin = 0;
+  let rawWeekMax = 0;
   const dailyDistances: DailyDistance[] = [];
   for (let d = 0; d < 7; d++) {
-    const dayWorkouts = workouts.filter(w => w.dayOfWeek === d);
-    if (dayWorkouts.length > 0) {
-      let totalMin = 0, totalMax = 0;
-      const sessions: Array<{ min: number; max: number; type: string; name: string }> = [];
-      for (const workout of dayWorkouts) {
-        const km = getWorkoutKm(workout);
-        totalMin += km.min;
-        totalMax += km.max;
-        sessions.push({ min: km.min, max: km.max, type: getWorkoutType(workout), name: workout.name });
-      }
-      dailyDistances.push({
-        day: DAY_NAMES[d],
-        dayOfWeek: d,
-        min: totalMin,
-        max: totalMax,
-        type: getWorkoutType(dayWorkouts[0]),
-        sessions,
-      });
-    } else {
+    const daySessions = sessions.filter(s => s.dayOfWeek === d);
+    if (daySessions.length === 0) {
       dailyDistances.push({ day: DAY_NAMES[d], dayOfWeek: d, min: 0, max: 0, type: 'rest', sessions: [] });
+      continue;
     }
+    const totalMin = daySessions.reduce((sum, s) => sum + s.kmMin, 0);
+    const totalMax = daySessions.reduce((sum, s) => sum + s.kmMax, 0);
+    rawWeekMin += totalMin;
+    rawWeekMax += totalMax;
+    dailyDistances.push({
+      day: DAY_NAMES[d],
+      dayOfWeek: d,
+      // Rounded, because this is a SUM of the day's sessions and the athlete
+      // reads it: Tuesday's 17.6 + 21.8 was rendering as 39.400000000000006.
+      min: round1(totalMin),
+      max: round1(totalMax),
+      // The day's HARDEST session, not its first. Monday leads with an easy
+      // hour and Tuesday leads with intervals, but a day whose colour comes
+      // from whichever part happened to be recorded first is a coin toss.
+      type: hardestType(daySessions),
+      sessions: daySessions.map(s => ({ min: s.kmMin, max: s.kmMax, type: s.type, name: s.name })),
+    });
   }
 
-  const weekTotalMin = dailyDistances.reduce((sum, d) => sum + d.min, 0);
-  const weekTotalMax = dailyDistances.reduce((sum, d) => sum + d.max, 0);
-
-  const keySessions: KeySession[] = [];
-  const seenDays = new Set<number>();
-  for (const w of workouts) {
-    if (seenDays.has(w.dayOfWeek)) continue;
-    const wType = getWorkoutType(w);
-    if (wType === 'easy' || wType === 'rest') continue;
-    seenDays.add(w.dayOfWeek);
-    const km = getWorkoutKm(w);
-    const avgKm = Math.round(((km.min + km.max) / 2) * 10) / 10;
-    const displayName = (w as any).description || w.name;
-
-    let highlight = '';
-    if (wType === 'long_run') {
-      highlight = `${km.min}–${km.max}km`;
-    } else if (wType === 'fartlek') {
-      const mainRepeat = w.steps.find(s => s.repeatCount && s.repeatCount > 2);
-      if (mainRepeat && mainRepeat.repeatSteps?.[0]) {
-        const dur = formatRepDuration(mainRepeat.repeatSteps[0]);
-        if (dur) highlight = `${mainRepeat.repeatCount}x${dur}`;
-      }
-    } else {
-      const intervalStep = w.steps.find(s => s.repeatCount && s.repeatSteps?.[0]?.durationValue);
-      if (intervalStep && intervalStep.repeatSteps?.[0]) {
-        const dur = formatRepDuration(intervalStep.repeatSteps[0]);
-        if (dur) highlight = `${intervalStep.repeatCount}x${dur}`;
-      }
-    }
-
-    keySessions.push({ day: DAY_NAMES[w.dayOfWeek], dayOfWeek: w.dayOfWeek, name: displayName, type: wType, totalKm: avgKm, highlight, steps: w.steps });
-  }
+  // Rounded from the raw floats rather than from the rounded days, so the week
+  // total and the type split below (which is also raw-then-rounded) agree.
+  const weekTotalMin = round1(rawWeekMin);
+  const weekTotalMax = round1(rawWeekMax);
 
   const typeDistribution: Record<string, number> = {};
   for (const w of workouts) {
-    const t = getWorkoutType(w);
+    const t = classifyWorkout(w);
     const km = getWorkoutKm(w);
     // Rounded once at the end, not per workout: rounding each session first lost
     // up to 500 m a time, so a week of five sessions could report 2 km less
@@ -472,7 +477,9 @@ export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
     typeDistribution[t] = Math.round(typeDistribution[t] * 10) / 10;
   }
 
+  // Days, not sessions — `sessions.length` is the session count, and the week of
+  // 2026-09-06 has nine sessions across seven days.
   const trainingDays = dailyDistances.filter(d => d.max > 0).length;
 
-  return { dailyDistances, keySessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays };
+  return { dailyDistances, sessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays };
 }

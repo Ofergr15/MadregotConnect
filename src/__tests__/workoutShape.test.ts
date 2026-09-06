@@ -6,6 +6,7 @@ import {
   ladderPaces,
   paceCarrier,
   profileSegments,
+  tableRows,
   workoutSections,
 } from '@/lib/plans/workout-shape';
 import type { WorkoutStep } from '@/lib/ai/types';
@@ -165,6 +166,34 @@ describe('groupLadders', () => {
   it('never merges warmups or recoveries', () => {
     const warm = () => step({ type: 'warmup', durationValue: 2000, targetPaceMinPerKm: 300 });
     expect(groupLadders([warm(), warm(), warm()]).map((i) => i.kind)).toEqual(['step', 'step', 'step']);
+  });
+});
+
+describe('tableRows', () => {
+  it('gives every leg of a set its own row, under a header for the set', () => {
+    const rows = tableRows([kmSet(215)]);
+    expect(rows.map((r) => r.kind)).toEqual(['repeat', 'leg', 'leg']);
+    expect(rows[0]).toMatchObject({ count: 2 });
+    // The 2 km and the jog are separate rows, so each can carry its own paces.
+    expect(rows[1].step.durationValue).toBe(2000);
+    expect(rows[2].step.notes).toBe('ג׳וג');
+  });
+
+  it('leaves a plain step as one row', () => {
+    expect(tableRows([step()]).map((r) => r.kind)).toEqual(['step']);
+  });
+
+  it('keeps the steps in the order the session runs them', () => {
+    const rows = tableRows(TUESDAY_MORNING);
+    // Fifteen steps in, nothing hidden: 10 plain + 5 blocks × (1 header + 2 legs).
+    expect(rows).toHaveLength(10 + 5 * 3);
+    expect(rows[0].kind).toBe('step');
+    expect(rows.filter((r) => r.kind === 'repeat')).toHaveLength(5);
+  });
+
+  it('does not treat a repeatCount with no legs as a block', () => {
+    // The zero-length wrapper the parser sometimes leaves behind.
+    expect(tableRows([step({ repeatCount: 4, repeatSteps: [] })]).map((r) => r.kind)).toEqual(['step']);
   });
 });
 

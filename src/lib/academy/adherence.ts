@@ -1,4 +1,5 @@
 import { ParsedWorkout, WorkoutStep } from '../ai/types';
+import { ASSUMED_PACE, stepDistanceRange } from '../plans/step-estimate';
 
 // ── Adherence engine ────────────────────────────────────────────────────────
 // Pure functions that compare a coach's PLANNED workouts to what an academy
@@ -101,52 +102,20 @@ export interface WeekAdherence {
 
 // ── Planned-metric extraction ───────────────────────────────────────────────
 
-const DEFAULT_PACE_MIN = 300; // 5:00/km fallback when a step has no pace
-const DEFAULT_PACE_MAX = 360; // 6:00/km
-
-// Distance in meters for one step (mirrors the estimator in the weekly dashboard
-// route so planned distances stay consistent across the app).
+/**
+ * Distance in meters for one step.
+ *
+ * The arithmetic lives in `lib/plans/step-estimate.ts` — this used to be a
+ * hand-kept copy of it, carrying the comment "mirrors the estimator in the
+ * weekly dashboard route so planned distances stay consistent across the app",
+ * which is a note saying the copy was manual and would eventually be wrong. It
+ * was: the copy priced a walking recovery at running pace and inverted its range
+ * on a one-sided pace. `assumeOpenBlocks` preserves this engine's answer for an
+ * open-ended warmup — an adherence score that ignores the warmup marks the
+ * athlete over-distance for running it.
+ */
 export function computeStepDistance(step: WorkoutStep): { min: number; max: number } {
-  if (step.repeatCount && step.repeatSteps) {
-    let subMin = 0;
-    let subMax = 0;
-    for (const sub of step.repeatSteps) {
-      const d = computeStepDistance(sub);
-      subMin += d.min;
-      subMax += d.max;
-    }
-    return { min: subMin * step.repeatCount, max: subMax * step.repeatCount };
-  }
-
-  if (step.durationType === 'distance' && step.durationValue) {
-    return { min: step.durationValue, max: step.durationValue };
-  }
-
-  if (step.durationType === 'time' && step.durationValue) {
-    const paceMin = step.targetPaceMinPerKm || DEFAULT_PACE_MIN;
-    const paceMax = step.targetPaceMaxPerKm || DEFAULT_PACE_MAX;
-    const timeSec = step.durationValue;
-    const distMax = (timeSec / paceMin) * 1000; // faster pace → more distance
-    const distMin = (timeSec / paceMax) * 1000;
-    return { min: Math.round(distMin), max: Math.round(distMax) };
-  }
-
-  if (step.durationType === 'open' && step.targetPaceMinPerKm) {
-    const pace = (step.targetPaceMinPerKm + (step.targetPaceMaxPerKm || step.targetPaceMinPerKm)) / 2;
-    let estimatedSec = 0;
-    if (step.type === 'warmup' || step.type === 'cooldown') estimatedSec = 10 * 60;
-    else if (step.type === 'active' || step.type === 'interval') estimatedSec = 40 * 60;
-    if (estimatedSec > 0) {
-      const dist = (estimatedSec / pace) * 1000;
-      return { min: Math.round(dist * 0.8), max: Math.round(dist * 1.2) };
-    }
-  }
-
-  if (step.durationType === 'open' && (step.type === 'warmup' || step.type === 'cooldown')) {
-    return { min: 1500, max: 2500 };
-  }
-
-  return { min: 0, max: 0 };
+  return stepDistanceRange(step, { assumeOpenBlocks: true }).range;
 }
 
 /**
@@ -155,8 +124,8 @@ export function computeStepDistance(step: WorkoutStep): { min: number; max: numb
  *
  * `estimated` is the honesty flag. A "run 10 km at 5:00/km" step yields an exact
  * 3000 s. But an open-ended step ("Lap Button Press") or a distance with no pace
- * only yields a duration because this function falls back to DEFAULT_PACE_* or a
- * flat 10/40-minute guess — and grading a coach's plan against this engine's own
+ * only yields a duration because this function falls back to the shared assumed
+ * pace band or a flat 10/40-minute guess — and grading a coach's plan against this engine's own
  * guess at ±15% is not a measurement, it's noise. Measured over 882 completed
  * production workouts, that comparison produced 393 'over' and 243 'under'
  * against only 246 'on_target'.
@@ -177,8 +146,11 @@ function computeStepDuration(step: WorkoutStep): { sec: number; estimated: boole
   }
   if (step.durationType === 'distance' && step.durationValue) {
     const hasPace = Boolean(step.targetPaceMinPerKm);
-    const paceMin = step.targetPaceMinPerKm || DEFAULT_PACE_MIN;
-    const paceMax = step.targetPaceMaxPerKm || DEFAULT_PACE_MAX;
+    const paceMin = step.targetPaceMinPerKm || ASSUMED_PACE.running.min;
+    // The step's OWN min before the generic default: a one-sided pace means one
+    // pace, so a step prescribed at 6:40/km must not average in a 6:00/km max
+    // nobody wrote and come out faster than the prescription.
+    const paceMax = step.targetPaceMaxPerKm || step.targetPaceMinPerKm || ASSUMED_PACE.running.max;
     const avgPace = (paceMin + paceMax) / 2; // sec/km
     return { sec: Math.round((step.durationValue / 1000) * avgPace), estimated: !hasPace };
   }

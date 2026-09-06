@@ -7,10 +7,16 @@ import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronL
 import { cn, isRecentlyPublished, toISODate } from '@/lib/utils';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useApi } from '@/lib/api';
-import { getDisplayWeekStart, formatPlanWeekRange } from '@/lib/plans/workout-parsing';
-import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
+import { getDisplayWeekStart, formatPlanWeekRange, planDayKey } from '@/lib/plans/workout-parsing';
+import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_TEXT_COLORS, type WeekSession } from '@/lib/plans/workout-parsing';
+import { sessionFrame, sessionHeadline, type FrameLabels } from '@/lib/plans/session-summary';
+import { nameQualifier, roundKm, weekChart, weekStats } from '@/lib/plans/week-summary';
+import type { StepUnits } from '@/lib/plans/step-display';
+import { formatDurationClock } from '@/lib/workout-duration';
+import { ltr, textDir } from '@/lib/bidi';
+import { isEstimate } from '@/lib/plans/step-estimate';
 import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
-import { WorkoutDetailModal } from '@/components/WorkoutDetailModal';
+import { WorkoutDetailModal, type WorkoutDetailSession } from '@/components/WorkoutDetailModal';
 import { AttendanceConfirmCard } from '@/components/AttendanceConfirmCard';
 
 // pdf.js is ~350 KB gzipped on top of a 1.2 MB worker. Loaded on demand so it is
@@ -29,22 +35,13 @@ interface WeekPlanDay {
   sessions: Array<{ min: number; max: number; type: string; name: string }>;
 }
 
-interface WeekPlanSession {
-  day: string;
-  dayOfWeek: number;
-  name: string;
-  type: string;
-  totalKm: number;
-  highlight: string;
-  steps: any[];
-}
-
 interface WeekPlanResponse {
   hasPlan: boolean;
   weekStart: string;
   publishedAt?: string | null;
   dailyDistances: WeekPlanDay[];
-  keySessions: WeekPlanSession[];
+  /** Every session of the week, in the order they are run — see `buildWeekSessions`. */
+  sessions: WeekSession[];
 }
 
 
@@ -117,7 +114,7 @@ export default function ProgramPage() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | ExerciseCategory>('all');
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<WeekPlanSession | null>(null);
+  const [selectedSession, setSelectedSession] = useState<WorkoutDetailSession | null>(null);
   // Which group's pace is highlighted in the workout-detail sheet — mirrors the
   // dashboard's own remembered pick (localStorage `view_group`) rather than
   // re-deriving it from the athlete's group assignment on this page too.
@@ -613,7 +610,7 @@ export default function ProgramPage() {
           <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
         </div>
       ) : activeView === 'training' && weekPlan?.hasPlan ? (
-        <WeekClimb weekPlan={weekPlan} onSelectSession={setSelectedSession} t={t} />
+        <WeekClimb weekPlan={weekPlan} onSelectSession={setSelectedSession} />
       ) : currentWeek && getPdfUrl(currentWeek, activeView) ? (
         /* Was a bare <iframe src={pdf}> — the browser's own viewer, which offers no
            zoom, and which on iOS shows a single static first page. The plan is five
@@ -674,110 +671,315 @@ function getPdfUrl(week: ProgramWeek, view: 'training' | 'nutrition' | 'workout'
   return view === 'training' ? week.training_pdf_url : week.nutrition_pdf_url;
 }
 
-// The week rendered as an ascending/descending "climb" — Madregot means
-// stairs, so each day is a step whose height reflects that day's real
-// distance (a genuine hard/easy/hard week reads as an uneven climb, not a
-// fake smooth ramp — we never reorder days to force a monotonic staircase).
-// Replaces the old flat, uniform-row day list with real visual hierarchy:
-// a hero stat row up top, then steps sized by intensity, today highlighted.
+/** Pixels the tallest column in the week chart is allowed to reach. */
+const CHART_HEIGHT = 80;
+
+/**
+ * The week rendered as an ascending/descending "climb" — Madregot means stairs,
+ * so the chart's columns are sized by real distance (a genuine hard/easy/hard
+ * week reads as an uneven climb; we never reorder days to force a smooth ramp).
+ *
+ * EVERY session is on this screen, each on its own row under the day it is run.
+ * The version this replaces had one row per DAY, which on a double day summed
+ * the two runs into a single number and a single tap target: Tuesday showed
+ * "41.1 km" — a distance no one in the club runs, on a day no one runs it — and
+ * the 20 × 500 m evening session behind that number could not be opened at all.
+ * Monday's optional evening was invisible for the same reason, having no km of
+ * its own to add.
+ */
 function WeekClimb({
   weekPlan,
   onSelectSession,
-  t,
 }: {
   weekPlan: WeekPlanResponse;
-  onSelectSession: (s: WeekPlanSession) => void;
-  t: (k: any, values?: any) => string;
+  onSelectSession: (s: WorkoutDetailSession) => void;
 }) {
-  const todayDow = new Date().getDay();
-  const totalKm = weekPlan.dailyDistances.reduce((sum, d) => sum + d.max, 0);
-  const trainingDaysCount = weekPlan.dailyDistances.filter((d) => d.max > 0).length;
-  const longest = Math.max(0, ...weekPlan.dailyDistances.map((d) => d.max));
-  const weekMax = Math.max(longest, 1);
-  const STEP_MIN = 8;
-  const STEP_MAX = 48;
+  const t = useTranslations('program');
+  const tp = useTranslations('planner');
+  const tc = useTranslations('common');
+  const ta = useTranslations('activities');
+  // Hebrew day names, from the same array the rest of the app reads. The
+  // `dailyDistances[].day` this used to print is an English "Tue" baked in by
+  // the parser, which is why the one Hebrew screen in the app had English
+  // weekdays down its side.
+  const dayNames = tc.raw('dayNames') as string[];
+  const dayNamesShort = tc.raw('dayNamesShort') as string[];
+  const units: StepUnits = {
+    km: tc('km'), m: tc('meters'), sec: tc('seconds'), min: tc('minutes'),
+  };
+  const frameLabels: FrameLabels = {
+    ...units, warmup: tp('sectionWarmup'), cooldown: tp('sectionCooldown'),
+  };
+
+  const sessions = weekPlan.sessions;
+  const stats = useMemo(() => weekStats(sessions), [sessions]);
+  const columns = useMemo(() => weekChart(sessions, { heightPx: CHART_HEIGHT }), [sessions]);
+  const days = useMemo(
+    () => Array.from({ length: 7 }, (_, dow) => ({
+      dayOfWeek: dow,
+      dateKey: planDayKey(weekPlan.weekStart, dow),
+      sessions: sessions.filter((s) => s.dayOfWeek === dow),
+    })),
+    [sessions, weekPlan.weekStart],
+  );
+  // Compare DATES, not weekdays: the week on screen is whichever one the picker
+  // is standing on, and "Tuesday" is a Tuesday in every one of them. -1 on every
+  // week that isn't the current one, which is the point.
+  const todayKey = toISODate(new Date());
+  const todayIndex = days.findIndex((d) => d.dateKey === todayKey);
+
+  const typeLabel = (type: string) => ta(`runType_${type}` as any);
+  // Rounded HERE, at the edge where a number becomes text — the sessions
+  // themselves keep their raw kilometres so the week total still adds up.
+  const kmRange = (rawMin: number, rawMax: number) => {
+    const min = roundKm(rawMin);
+    const max = roundKm(rawMax);
+    return min !== max ? `${min}–${max}` : `${max}`;
+  };
+  const kindLabel = (s: WeekSession) =>
+    s.kind === 'morning' ? tp('sessionMorning')
+    : s.kind === 'evening' ? tp('sessionEvening')
+    : s.kind === 'part' ? tp('partLabel', { index: s.partIndex, count: s.partCount })
+    : '';
+
+  /** The row's own title: the main set, plus whatever the coach named it. */
+  const sessionTitle = (s: WeekSession) => {
+    const parts = [sessionHeadline(s.steps, units), nameQualifier(s.name, dayNames)].filter(Boolean);
+    return parts.length ? parts.join(' · ') : s.name;
+  };
 
   return (
-    <div className="space-y-3">
+    <div>
       <Card>
-        <p className="text-2xs font-bold uppercase tracking-wider text-brand-600/80 mb-3">
+        <p className="text-2xs font-bold uppercase tracking-[0.08em] text-brand-600/85 mb-3">
           {t('weekClimbTitle')}
         </p>
-        <div className="grid grid-cols-3 gap-2">
-          <BigStat value={totalKm} label={t('weekKm')} />
-          <BigStat value={trainingDaysCount} label={t('trainingDays')} />
-          <BigStat value={longest} label={t('longestSession')} />
+
+        {/* Three numbers, hairline-separated. `longestSession` is the longest
+            single session and names its day — it used to be a day's SUM. */}
+        <div className="flex [&>*+*]:border-s [&>*+*]:border-page">
+          <BigStat
+            className="flex-1 px-1"
+            valueClassName="text-2xl font-bold"
+            value={<span dir="ltr">{kmRange(Math.round(stats.kmMin), Math.round(stats.kmMax))}</span>}
+            label={t('weekKm')}
+          />
+          <BigStat
+            className="flex-1 px-1"
+            valueClassName="text-2xl font-bold"
+            value={stats.sessionCount}
+            label={t('sessionsAndDays', { days: stats.dayCount })}
+          />
+          <BigStat
+            className="flex-1 px-1"
+            valueClassName="text-2xl font-bold"
+            value={<><bdi dir="ltr">{stats.longestKm}</bdi><span className="text-xs"> {units.km}</span></>}
+            label={t('longestSessionOn', {
+              day: stats.longestDayOfWeek >= 0 ? dayNames[stats.longestDayOfWeek] : '—',
+            })}
+          />
         </div>
+
+        {/* One segment per SESSION, stacked. A single bar per day is what hid
+            the evening runs. */}
+        <div className="mt-3.5 mx-0.5 flex h-[116px] items-end gap-[5px]" aria-hidden="true">
+          {columns.map((col) => (
+            <div
+              key={col.dayOfWeek}
+              className="flex h-full flex-1 flex-col items-center justify-end"
+            >
+              <span
+                dir="ltr"
+                className={cn(
+                  'mb-1 text-4xs tabular-nums',
+                  col.dayOfWeek === todayIndex ? 'font-bold text-ink-900' : 'text-ink-400',
+                )}
+              >
+                {col.hasWorkout ? `${col.leadKm || ''}${col.multi ? '+' : ''}` || '—' : '—'}
+              </span>
+              <span className="flex w-full flex-col justify-end gap-0.5">
+                {col.segments.map((seg) => (
+                  <i
+                    key={seg.key}
+                    className="block rounded-tile"
+                    style={{
+                      height: seg.heightPx,
+                      background: WORKOUT_TYPE_COLORS[seg.type] || WORKOUT_TYPE_COLORS.easy,
+                      opacity: seg.optional ? 0.5 : 1,
+                    }}
+                  />
+                ))}
+              </span>
+              <span
+                className={cn(
+                  'mt-1.5 text-2xs',
+                  col.dayOfWeek === todayIndex ? 'font-bold text-brand-600' : 'text-ink-400',
+                )}
+              >
+                {dayNamesShort[col.dayOfWeek]}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mx-0.5 h-px bg-page" />
+
+        <div className="mx-0.5 mt-3 flex flex-wrap gap-x-2.5 gap-y-1.5">
+          {stats.types.map((type) => (
+            <span key={type} className="inline-flex items-center gap-1 text-4xs text-ink-400">
+              <i
+                className="block h-[7px] w-[7px] rounded-pill"
+                style={{ background: WORKOUT_TYPE_COLORS[type] || WORKOUT_TYPE_COLORS.easy }}
+              />
+              {typeLabel(type)}
+            </span>
+          ))}
+          {(stats.optionalDays.length > 0 || stats.hasKmlessSession) && (
+            <span className="inline-flex items-center gap-1 text-4xs text-ink-400">
+              <i className="block h-[7px] w-[7px] rounded-pill bg-ink-300" />
+              {t('legendNoKm')}
+            </span>
+          )}
+        </div>
+
+        {/* What is not compulsory, said out loud — otherwise the week total is
+            read as an obligation and this one is 16 km heavier than it is. */}
+        {stats.optionalKmMax > 0 && (
+          <p className="mt-2.5 text-center text-4xs text-ink-400">
+            {t('optionalNote', {
+              // Isolated: a bare "15–17" inside a Hebrew sentence renders "17–15".
+              km: ltr(kmRange(Math.round(stats.optionalKmMin), Math.round(stats.optionalKmMax))),
+              days: stats.optionalDays.map((d) => dayNames[d]).join(', '),
+            })}
+          </p>
+        )}
       </Card>
 
-      <InsetSection>
-        {weekPlan.dailyDistances.map((d) => {
-          const session = weekPlan.keySessions.find((s) => s.dayOfWeek === d.dayOfWeek);
-          const hasWorkout = d.max > 0;
-          const isToday = d.dayOfWeek === todayDow;
-          const stepColor = WORKOUT_TYPE_COLORS[d.type] || '#159AFF';
-          const stepHeight = hasWorkout
-            ? Math.round(STEP_MIN + (d.max / weekMax) * (STEP_MAX - STEP_MIN))
-            : STEP_MIN;
+      <p className="mx-1.5 mt-4 mb-1.5 text-2xs font-bold tracking-[0.06em] text-ink-400">
+        {tp('sessionCount', { count: stats.sessionCount })}
+      </p>
 
-          return (
-            <button
-              key={d.dayOfWeek}
-              onClick={() => session && onSelectSession(session)}
-              disabled={!session}
+      {days.map((day) => {
+        const isToday = day.dateKey === todayKey;
+        const [, month, date] = day.dateKey.split('-');
+
+        return (
+          <div key={day.dayOfWeek} className="mb-2.5 overflow-hidden rounded-card bg-card">
+            <div
               className={cn(
-                'w-full flex items-center gap-3.5 px-4 py-3.5 min-h-[56px] text-start transition-colors',
-                session && 'active:bg-page/40',
-                isToday && 'bg-brand-600/[0.07]'
+                'flex items-center justify-between px-3.5 pt-2.5 pb-2',
+                isToday && 'bg-brand-600/[0.07]',
               )}
             >
-              {/* Step indicator: a rail with a bar rising from the bottom,
-                  height proportional to that day's real distance. */}
-              <span className="relative w-6 shrink-0 self-stretch flex items-end justify-center py-1">
-                <span className="absolute top-0 bottom-0 start-1/2 w-px -translate-x-1/2 bg-page/50" />
-                <span
-                  className="relative w-2 rounded-full"
-                  style={{ height: stepHeight, background: hasWorkout ? stepColor : '#DFDFDF' }}
-                />
-              </span>
-
-              <span className="flex-1 min-w-0">
-                <span className="flex items-center gap-1.5">
-                  <span className={cn('text-[15px] font-semibold', isToday ? 'text-brand-600' : 'text-ink-700')}>
-                    {d.day}
+              <span className="flex items-center gap-1.5 text-sm font-bold text-ink-900">
+                {dayNames[day.dayOfWeek]}
+                <span dir="ltr" className="text-4xs font-light text-ink-400 tabular-nums">
+                  {Number(date)}.{Number(month)}
+                </span>
+                {isToday && (
+                  <span className="rounded-pill bg-brand-600/[0.14] px-1.5 py-[3px] text-4xs font-bold leading-none text-brand-600">
+                    {t('todayBadge')}
                   </span>
-                  {isToday && (
-                    <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-brand-600/20 text-brand-600 shrink-0">
-                      {t('todayBadge')}
-                    </span>
-                  )}
-                </span>
-                <span className="block text-xs text-ink-400 truncate mt-0.5">
-                  {hasWorkout
-                    ? `${WORKOUT_TYPE_LABELS[d.type] || d.type}${session?.highlight ? ' · ' + session.highlight : ''}`
-                    : t('restDay')}
-                </span>
+                )}
               </span>
+              <span className="text-2xs text-ink-400">
+                {day.sessions.length > 1
+                  ? tp('sessionCount', { count: day.sessions.length })
+                  : day.sessions.length === 0
+                    ? t('restDay')
+                    : ''}
+              </span>
+            </div>
 
-              {hasWorkout && (
-                <span dir="ltr" className="text-[15px] font-bold text-ink-700 tabular-nums shrink-0">
-                  {d.min !== d.max ? `${d.min}–${d.max}` : d.max}
-                  <span className="text-xs text-ink-400 font-normal"> km</span>
-                </span>
-              )}
-              {session && <ChevronLeft className="h-4 w-4 text-ink-400 shrink-0" />}
-            </button>
-          );
-        })}
-      </InsetSection>
+            {day.sessions.map((s) => {
+              const title = sessionTitle(s);
+              const kind = kindLabel(s);
+              const sub = sessionFrame(s.steps, frameLabels);
+              const km = s.kmMax > 0 ? kmRange(s.kmMin, s.kmMax) : '';
+              // A "~" when nobody wrote this distance down — it was multiplied
+              // out of a stated time and a pace ("אופציה ל30-40 דק׳ קל" is 5–8 km
+              // at this club's easy pace). Worth the one character: without it an
+              // inferred 5–8 looks exactly like the 11–13 the coach typed on the
+              // row above, and the athlete can't tell which is the plan.
+              const kmApprox = Boolean(km) && isEstimate(s.kmFrom);
+              const clock = formatDurationClock(s.durationSec);
+              const color = WORKOUT_TYPE_COLORS[s.type] || WORKOUT_TYPE_COLORS.easy;
+
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => onSelectSession({
+                    name: title,
+                    day: [dayNames[s.dayOfWeek], kind].filter(Boolean).join(' · '),
+                    distance: km ? `${kmApprox ? '~' : ''}${km} ${units.km}` : '',
+                    duration: clock,
+                    steps: s.steps,
+                  })}
+                  className="flex w-full items-center gap-[11px] border-t border-page px-3.5 py-2.5 text-start transition-colors active:bg-page/40"
+                >
+                  <span
+                    className="min-h-[34px] w-1 shrink-0 self-stretch rounded-pill"
+                    style={{ background: color, opacity: s.optional ? 0.5 : 1 }}
+                  />
+
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className="block text-4xs font-bold"
+                      style={{ color: WORKOUT_TYPE_TEXT_COLORS[s.type] || WORKOUT_TYPE_TEXT_COLORS.easy }}
+                    >
+                      {[typeLabel(s.type), kind, s.optional ? tp('sessionOptional') : ''].filter(Boolean).join(' · ')}
+                    </span>
+                    {/* "20 × 500 מ׳" is an LTR expression with a Hebrew unit on
+                        the end. Unmarked, bidi rule N1 flips it to "מ׳ 500 × 20"
+                        — still a plausible workout, which is what makes it worth
+                        marking. A prose note stays RTL, hence `textDir`. */}
+                    <span className="mt-0.5 block text-sm font-bold text-ink-900">
+                      <bdi dir={textDir(title)}>{title}</bdi>
+                    </span>
+                    {sub && (
+                      <span className="mt-0.5 block truncate text-2xs text-ink-400">
+                        <bdi dir={textDir(sub)}>{sub}</bdi>
+                      </span>
+                    )}
+                  </span>
+
+                  <span className="shrink-0 text-end">
+                    {km ? (
+                      <>
+                        {/* The number is isolated and the unit is not, so an RTL
+                            row lays them out as "23.5 ק״מ" and not "ק״מ 23.5". */}
+                        <span className="block text-base font-bold text-ink-900 tabular-nums">
+                          <bdi dir="ltr">{kmApprox ? `~${km}` : km}</bdi>
+                          <span className="text-4xs font-light text-ink-400"> {units.km}</span>
+                        </span>
+                        {clock && (
+                          <span dir="ltr" className="mt-px block text-4xs text-ink-400 tabular-nums">{clock}</span>
+                        )}
+                      </>
+                    ) : (
+                      // No distance at all — "30-40 min easy or strength". Its
+                      // time is the only size it has, so the time takes the
+                      // number's place instead of leaving the row blank.
+                      <span className="block text-13 text-ink-400 tabular-nums">
+                        <bdi dir="ltr">{Math.round(s.durationSec / 60)}</bdi> {units.min}
+                      </span>
+                    )}
+                  </span>
+
+                  <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // A single plan-status row (training / nutrition) — green when uploaded, red +
 // upload action (admin only) when missing. Mirrors the Saturday 20:00 push.
-// Rendered inside an InsetSection so it matches WeekClimb's inset-grouped list
-// directly below it, instead of its own independently-styled card.
+// Rendered inside an InsetSection so the two rows read as one grouped list
+// instead of two independently-styled cards.
 function PlanStatusRow({
   icon, label, present, isAdmin, onUpload, t,
 }: {

@@ -164,6 +164,36 @@ export function isPaceLadder(steps: WorkoutStep[]): boolean {
   return new Set(ladderPaces(steps).filter(Boolean)).size > 1;
 }
 
+export type TableRow =
+  /** The header of a repeat block: "6 ×", with the legs on the rows below it. */
+  | { kind: 'repeat'; step: WorkoutStep; count: number }
+  /** One leg INSIDE a repeat block. */
+  | { kind: 'leg'; step: WorkoutStep }
+  /** A step that stands on its own. */
+  | { kind: 'step'; step: WorkoutStep };
+
+/**
+ * A section's steps as rows of a table — a repeat block becomes a header row
+ * plus one row per leg, so every leg gets its own pace cells.
+ *
+ * The alternative, and what the review screen used to do, is one row per step
+ * with the block's legs summarised into its note: Thursday's 6 × (9 דק׳ @4:25 +
+ * 1 דק׳ @3:40) then showed a single pace, and the surge that is the point of the
+ * session had no row to appear on.
+ */
+export function tableRows(steps: WorkoutStep[]): TableRow[] {
+  const rows: TableRow[] = [];
+  for (const step of steps) {
+    if (step.repeatCount && step.repeatSteps?.length) {
+      rows.push({ kind: 'repeat', step, count: step.repeatCount });
+      for (const leg of step.repeatSteps) rows.push({ kind: 'leg', step: leg });
+      continue;
+    }
+    rows.push({ kind: 'step', step });
+  }
+  return rows;
+}
+
 export interface ProfileSegment {
   /** Step type, for the colour. */
   type: string;

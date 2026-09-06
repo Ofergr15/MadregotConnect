@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     const plan = (rows || []).sort((a, b) => (a.status === 'pushed' ? -1 : b.status === 'pushed' ? 1 : 0))[0];
 
     if (!plan) {
-      return NextResponse.json({ hasPlan: false, weekStart, dailyDistances: [], keySessions: [], typeDistribution: {}, weekTotalMin: 0, weekTotalMax: 0, trainingDays: 0 });
+      return NextResponse.json({ hasPlan: false, weekStart, dailyDistances: [], sessions: [], typeDistribution: {}, weekTotalMin: 0, weekTotalMax: 0, trainingDays: 0 });
     }
 
     const breakdown = buildWeekBreakdown(plan.parsed_workouts);

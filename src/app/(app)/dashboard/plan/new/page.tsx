@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
+import { PublishReview } from '@/components/PublishReview';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
 import { cn, activityLocalDay, formatActivityTime, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
@@ -220,6 +221,9 @@ export default function WeeklyPlannerPage() {
   const [clipboardPreview, setClipboardPreview] = useState<string | null>(null);
   const [clipboardText, setClipboardText] = useState('');
   const [clipboardLoading, setClipboardLoading] = useState(false);
+  // Distinct from `clipboardLoading`, which also covers rendering a preview and
+  // refining: only a publish in flight makes the review screen's board dots pulse.
+  const [clipboardPublishing, setClipboardPublishing] = useState(false);
   const [clipboardInstruction, setClipboardInstruction] = useState('');
   const [clipboardRefineScope, setClipboardRefineScope] = useState<'current' | 'all'>('all');
   const [clipboardEditing, setClipboardEditing] = useState(false);
@@ -807,6 +811,7 @@ export default function WeeklyPlannerPage() {
   const publishClipboards = async () => {
     if (!groupedPlans || !savedPlanId) return;
     setClipboardLoading(true);
+    setClipboardPublishing(true);
     setError(null);
     try {
       const saveRes = await fetch('/api/plans', {
@@ -838,11 +843,15 @@ export default function WeeklyPlannerPage() {
         ),
       );
       setLastSavedAt(new Date());
-      setShowClipboardReview(false);
+      // The sheet used to close itself here, which meant the coach never saw the
+      // result of what they had just pressed. It stays open: the board dots are
+      // recomputed from the plan the server returned, so twenty-seven of them
+      // turning green IS the confirmation.
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('errors.clipboardPublishingFailed'));
     } finally {
       setClipboardLoading(false);
+      setClipboardPublishing(false);
     }
   };
 
@@ -1597,7 +1606,7 @@ export default function WeeklyPlannerPage() {
         open={!!(showClipboardReview && groupedPlans && savedPlanId)}
         onOpenChange={(o) => { if (!o) setShowClipboardReview(false); }}
         title={t('clipboardStudioTitle')}
-        className="md:max-w-5xl md:mx-auto"
+        className="md:max-w-6xl md:mx-auto"
         footer={groupedPlans && (
           <div className="flex items-center justify-between border-t border-page bg-card/30 px-5 py-4">
             <span className="text-xs text-ink-400">
@@ -1630,152 +1639,29 @@ export default function WeeklyPlannerPage() {
         )}
       >
         {groupedPlans && savedPlanId && (
-          <>
-            <p className="mb-3 text-xs text-ink-400">
-              {t('clipboardStudioDesc')}
-            </p>
-
-            <SegmentedControl
-              value={String(activeGroup)}
-              onChange={(v) => setActiveGroup(Number(v) as 1 | 2 | 3)}
-              options={[1, 2, 3].map((group) => ({ value: String(group), label: t('groupLabel', { n: group }) }))}
-              className="mb-4"
-            />
-
-            <div className="grid md:grid-cols-[260px_1fr] gap-4">
-              <aside className="md:border-e border-page md:pe-3">
-                <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-widest text-ink-400">
-                  {t('workoutParts')}
-                </p>
-                <div className="space-y-2">
-                  {groupedPlans[`group${activeGroup}`].workouts.map((workout, index) => (
-                    <button
-                      key={workout.workoutKey || `${workout.dayOfWeek}-${index}`}
-                      onClick={() => setClipboardWorkoutIndex(index)}
-                      className={cn(
-                        'w-full rounded-xl border p-3 text-start transition-colors',
-                        clipboardWorkoutIndex === index
-                          ? 'border-brand-600 bg-brand-600/10'
-                          : 'border-page bg-card/40 hover:border-ink-300',
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase text-ink-400">
-                          {DAY_LABELS[workout.dayOfWeek]}
-                          {workout.partCount && workout.partCount > 1
-                            ? ` · ${t('partLabel', { index: workout.partIndex ?? 0, count: workout.partCount })}`
-                            : ''}
-                        </span>
-                        {workout.clipboardImageUrl && (
-                          <span className="rounded-full bg-accent-600/15 px-2 py-0.5 text-[9px] font-bold text-accent-900">
-                            {t('published')}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 truncate text-sm font-medium text-ink-700">{workout.name}</p>
-                      <p className="mt-1 text-[10px] text-ink-400">
-                        {workout.expectedDistanceM
-                          ? t('expectedKm', { km: (workout.expectedDistanceM / 1000).toFixed(1) })
-                          : workout.partKind || t('single')}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </aside>
-
-              <main className="min-w-0">
-                {(() => {
-                  const workout =
-                    groupedPlans[`group${activeGroup}`].workouts[clipboardWorkoutIndex];
-                  if (!workout) return null;
-                  return (
-                    <div className="grid gap-6 lg:grid-cols-2">
-                      <section>
-                        <div className="mb-3 flex items-center justify-between">
-                          <div>
-                            <h3 className="font-semibold text-ink-700">{workout.name}</h3>
-                            <p className="text-xs text-ink-400">
-                              {workout.workoutKey} · {t('groupLabel', { n: activeGroup })}
-                            </p>
-                          </div>
-                          <Button variant="secondary" size="sm" onClick={() => setClipboardEditing(true)}>
-                            <Edit3 className="h-4 w-4" />
-                            {t('editSteps')}
-                          </Button>
-                        </div>
-                        <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-xl border border-page bg-page/60 p-4">
-                          {clipboardLoading && !clipboardPreview ? (
-                            <Loader2 className="h-7 w-7 animate-spin text-brand-600" />
-                          ) : clipboardPreview ? (
-                            <img
-                              src={clipboardPreview}
-                              alt={workout.name}
-                              className="max-h-[560px] max-w-full rounded-lg object-contain"
-                            />
-                          ) : (
-                            <div className="text-center text-sm text-ink-400">
-                              <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                              {t('previewUnavailable')}
-                            </div>
-                          )}
-                        </div>
-                      </section>
-
-                      <section className="space-y-5">
-                        <div>
-                          <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">
-                            {t('aiReadableText')}
-                          </h4>
-                          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-page bg-page/60 p-4 text-xs leading-6 text-ink-700">
-                            {clipboardText || workout.clipboardText || t('rendering')}
-                          </pre>
-                        </div>
-
-                        <div className="rounded-xl border border-page bg-card/35 p-4">
-                          <h4 className="flex items-center gap-2 text-sm font-semibold text-ink-700">
-                            <Sparkles className="h-4 w-4 text-purple-600" />
-                            {t('refineWithAi')}
-                          </h4>
-                          <textarea
-                            value={clipboardInstruction}
-                            onChange={(event) => setClipboardInstruction(event.target.value)}
-                            placeholder={t('refinePlaceholder')}
-                            className="mt-3 min-h-24 w-full rounded-lg border border-ink-300 bg-page px-3 py-2 text-sm text-ink-700 placeholder:text-ink-400 focus:border-brand-600 focus:outline-none"
-                          />
-                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                            <SegmentedControl
-                              value={clipboardRefineScope}
-                              onChange={setClipboardRefineScope}
-                              options={[
-                                { value: 'all', label: t('allGroups') },
-                                { value: 'current', label: t('currentGroupOnly') },
-                              ]}
-                              className="w-fit"
-                            />
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={refineClipboard}
-                              disabled={clipboardLoading || !clipboardInstruction.trim()}
-                            >
-                              {clipboardLoading
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                : <Sparkles className="h-4 w-4" />}
-                              {t('refine')}
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl border border-brand-600/30 bg-brand-600/5 p-4 text-xs text-ink-500">
-                          {t('pngNote')}
-                        </div>
-                      </section>
-                    </div>
-                  );
-                })()}
-              </main>
-            </div>
-          </>
+          <PublishReview
+            grouped={groupedPlans}
+            weekStartDate={weekStartDate}
+            index={clipboardWorkoutIndex}
+            onIndex={setClipboardWorkoutIndex}
+            group={activeGroup}
+            onGroup={setActiveGroup}
+            preview={clipboardPreview}
+            previewText={clipboardText}
+            loading={clipboardLoading}
+            publishing={clipboardPublishing}
+            onEditSteps={() => setClipboardEditing(true)}
+            programPdfUrl={programPdfUrl}
+            onOpenPdf={() => {
+              setShowClipboardReview(false);
+              setShowProgramViewer(true);
+            }}
+            instruction={clipboardInstruction}
+            onInstruction={setClipboardInstruction}
+            refineScope={clipboardRefineScope}
+            onRefineScope={setClipboardRefineScope}
+            onRefine={refineClipboard}
+          />
         )}
       </Sheet>
 
