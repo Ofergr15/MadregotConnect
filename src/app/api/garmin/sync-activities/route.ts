@@ -463,10 +463,13 @@ export async function PATCH(request: Request) {
 
         if (Object.keys(update).length > 0) {
           let { error: updateError } = await supabase.from('athlete_activities').update(update).eq('id', act.id);
-          // This is the backfill that gives historical runs their Garmin workout
-          // id — so it's also the path that runs first if migration 092 hasn't
-          // been applied. Retry without the column rather than reporting every
-          // row as an error and repairing no routes.
+          // Historical rows pick up their Garmin workout id here — but only the
+          // ones this endpoint's own filters select (mode=route: no gps_points,
+          // mode=missing: no avg_cadence). A row that is already fully enriched
+          // is never revisited, so its workout id stays NULL: attribution is
+          // forward-looking unless someone adds a pass keyed on the column
+          // itself. Retry without it rather than reporting every row as an error
+          // and repairing no routes.
           if (isMissingColumn(updateError, 'garmin_workout_id')) {
             const { garmin_workout_id: _unmigrated, ...rest } = update;
             ({ error: updateError } = await supabase.from('athlete_activities').update(rest).eq('id', act.id));
