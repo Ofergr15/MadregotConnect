@@ -328,6 +328,15 @@ export function ProfileOverview({
                 : ''}
             </p>
           </div>
+          {/* Says why the tiles are empty. `/api/dashboard/weekly` deliberately
+              stopped falling back to the newest plan, so a week with nothing
+              published renders seven "—" tiles — correct, and unreadable: it
+              looks identical to the app having lost the plan. Only on an
+              explicit `false`; while the request is in flight `hasPlan` is
+              undefined and there is nothing to claim yet. */}
+          {weekly?.hasPlan === false && (
+            <p className="mb-2 text-sm font-light text-ink-400">{t('noPlanThisWeekYet')}</p>
+          )}
           {/* Seven 74px tiles don't fit 402px, so the strip scrolls — the frame
               shows five and clips the rest. `-mx-4 px-4` lets it bleed to the
               screen edge inside the page's padded main. */}

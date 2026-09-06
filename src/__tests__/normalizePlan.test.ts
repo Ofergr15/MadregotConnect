@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeParsedWorkouts, normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
+import { sessionKind } from '@/lib/plans/session-label';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 
 // The matcher-hint stamper. `activity-matcher.ts` rejects a keyless workout
@@ -200,6 +201,79 @@ describe('normalizeWorkoutParts — partKind', () => {
 
   it('trusts a partKind the caller already set', () => {
     expect(kind({ name: 'Part 2', partKind: 'test' }, 1)).toBe('test');
+  });
+
+  // ── Two sessions in one day ────────────────────────────────────────────────
+  // The week this was written, Tuesday held a morning run and an evening run and
+  // the app showed one merged workout. Naming the axis the day was split on is
+  // what makes the second session readable instead of "part 2".
+  it('names a morning and an evening session, in Hebrew or English', () => {
+    expect(kind({ name: 'בוקר - 8 ק״מ' }, 1)).toBe('morning');
+    expect(kind({ name: 'ערב - 6 ק״מ' }, 1)).toBe('evening');
+    expect(kind({ name: 'Morning easy' }, 1)).toBe('morning');
+    expect(kind({ name: 'Evening intervals' }, 1)).toBe('evening');
+    expect(kind({ name: 'Long run', description: 'אימון ערב' }, 1)).toBe('evening');
+  });
+
+  it('checks morning/evening before the test guess, so a morning test is still the morning', () => {
+    // Both are true of "בוקר - מבחן 3000"; the one that tells the athlete WHICH
+    // of the day's two runs this is wins.
+    expect(kind({ name: 'בוקר - מבחן 3000' }, 1)).toBe('morning');
+  });
+
+  it('does not read ערבוב as the evening session', () => {
+    // \b is ASCII-only, so a bare /ערב/ also fires on ערבוב ("mixing") — a
+    // plausible name for a fartlek, and it would label it the evening run.
+    expect(kind({ name: 'ערבוב קצבים' }, 1)).toBe('main');
+  });
+
+  it('still calls a lone morning session "single"', () => {
+    // Nothing to disambiguate on a one-workout day.
+    expect(kind({ name: 'בוקר - 8 ק״מ' })).toBe('single');
+  });
+});
+
+describe('normalizeWorkoutParts — optional sessions', () => {
+  const optional = (w: Partial<ParsedWorkout>) =>
+    normalizeWorkoutParts({ workouts: [workout(w)] }).workouts[0].optional;
+
+  it('marks a session the coach only offered', () => {
+    expect(optional({ name: 'ערב - אופציה' })).toBe(true);
+    expect(optional({ name: 'Evening', description: 'מי שרוצה' })).toBe(true);
+    expect(optional({ name: 'Strides', description: 'optional' })).toBe(true);
+  });
+
+  it('leaves a prescribed session unmarked', () => {
+    expect(optional({ name: 'ערב - 6 ק״מ' })).toBe(false);
+  });
+
+  it('trusts the flag when the parser set one', () => {
+    // `?? `, not `||`: an explicit false has to survive a name that merely reads
+    // like an offer.
+    expect(optional({ name: 'ערב - אופציה', optional: false })).toBe(false);
+  });
+
+  it('is outside the key, so labelling one cannot orphan a match', () => {
+    const [w] = normalizeWorkoutParts({ workouts: [workout({ dayOfWeek: 2, name: 'אופציה' })] }).workouts;
+    expect(w.workoutKey).toBe('day-2-part-1-single');
+  });
+});
+
+describe('sessionKind — what the UI labels a session', () => {
+  it('says nothing on an ordinary single-session day', () => {
+    // The day name already says everything; a "part 1" pill on every card in the
+    // club would be pure noise.
+    expect(sessionKind(workout({ partCount: 1, partKind: 'single' }))).toBeNull();
+    expect(sessionKind(workout({}))).toBeNull();
+  });
+
+  it('distinguishes morning from evening on a two-a-day', () => {
+    expect(sessionKind(workout({ partCount: 2, partKind: 'morning' }))).toBe('morning');
+    expect(sessionKind(workout({ partCount: 2, partKind: 'evening' }))).toBe('evening');
+  });
+
+  it('falls back to a generic part label for a day split some other way', () => {
+    expect(sessionKind(workout({ partCount: 3, partKind: 'warmup' }))).toBe('part');
   });
 });
 

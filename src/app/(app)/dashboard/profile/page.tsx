@@ -7,7 +7,7 @@ import { mutate as globalMutate } from 'swr';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
 import { ChallengesGrid } from '@/components/ChallengesGrid';
@@ -42,45 +42,22 @@ interface Group {
   marathonGoal?: string;
 }
 
-interface WeekProgram {
-  weekLabel: string;
-  dateRange: string;
-  training: string;
-  nutrition: string;
+// The trailing value on the Program row: the week the loaded plan is actually
+// for, e.g. "6 ספט׳ – 12 ספט׳".
+//
+// This row used to read `WEEKS[0].weekLabel` from a hardcoded five-entry list of
+// June PDFs, so from July onwards it told every athlete their current program was
+// "Week 5 · 28.06 – 04.07" — in September, next to a week strip showing September
+// dates. The list is gone rather than extended: /api/public/current-plan already
+// knows which week is published, and a constant can only go stale again.
+function weekRangeLabel(weekStartDate: string, locale: string): string {
+  const start = new Date(`${weekStartDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return '';
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const fmt = new Intl.DateTimeFormat(locale === 'he' ? 'he-IL' : 'en-US', { month: 'short', day: 'numeric' });
+  return `${fmt.format(start)} – ${fmt.format(end)}`;
 }
-
-const WEEKS: WeekProgram[] = [
-  {
-    weekLabel: 'Week 5',
-    dateRange: '28.06 – 04.07',
-    training: '/plans/training-program/week-28-06-04-07-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-28-06-04-07-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 4',
-    dateRange: '21.06 – 27.06',
-    training: '/plans/training-program/week-21-27-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-21-27-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 3',
-    dateRange: '14.06 – 20.06',
-    training: '/plans/training-program/week-14-20-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-14-20-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 2',
-    dateRange: '07.06 – 13.06',
-    training: '/plans/training-program/week-07-13-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-07-13-06-2026.pdf',
-  },
-  {
-    weekLabel: 'Week 1',
-    dateRange: '31.05 – 06.06',
-    training: '/plans/training-program/week-31-05-06-06-2026.pdf',
-    nutrition: '/plans/nutrition-plan/week-31-05-06-06-2026.pdf',
-  },
-];
 
 // iOS-Settings-style drill-down tabs. null = the Profile landing (avatar/name +
 // row list); a value = a detail screen open. Mirrors the mechanism in
@@ -109,6 +86,7 @@ export default function ProfilePage() {
 function ProfileContent() {
   const t = useTranslations('profile');
   const tCommon = useTranslations('common');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   // null = landing (iOS-style list); a value = a detail screen open. Reads
@@ -400,7 +378,9 @@ function ProfileContent() {
   }
 
   const currentGroup = groups.find(g => g.id === currentGroupId);
-  const currentWeek = WEEKS[0];
+  // Empty until the plan loads, which is right: an empty trailing value renders
+  // nothing, where a placeholder would be one more thing to disbelieve.
+  const programWeekLabel = planWeekStart ? weekRangeLabel(planWeekStart, locale) : '';
 
   // Days (0=Sun..6=Sat) that actually have a workout in the loaded plan.
   const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -561,7 +541,10 @@ function ProfileContent() {
               icon={Dumbbell}
               iconBg="bg-brand-600"
               label={t('thisWeeksProgram')}
-              value={currentWeek.weekLabel}
+              value={programWeekLabel}
+              // The plan on file isn't for this week — say which, rather than
+              // letting the row imply the athlete is looking at the current one.
+              sublabel={!planIsCurrent && programWeekLabel ? t('latestPublishedWeek') : undefined}
               href="/dashboard/program"
             />
           </InsetSection>

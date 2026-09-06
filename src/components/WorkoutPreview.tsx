@@ -5,8 +5,9 @@ import { useTranslations } from 'next-intl';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { groupPaceTokens, joinGroupPaces } from '@/lib/garmin/pace';
 import { cn } from '@/lib/utils';
-import { ChevronDown, ChevronUp, Timer, Route } from 'lucide-react';
+import { ChevronDown, ChevronUp, Timer, Route, Sunrise, Moon } from 'lucide-react';
 import { workoutDistanceMeters } from '@/lib/workout-distance';
+import { sessionKind } from '@/lib/plans/session-label';
 
 const stepColors: Record<string, { dot: string; bg: string }> = {
   warmup: { dot: 'bg-band-3', bg: 'bg-band-3/10' },
@@ -155,6 +156,38 @@ interface WorkoutPreviewProps {
   className?: string;
 }
 
+/**
+ * "בוקר" / "ערב" / "חלק 1/2", plus an optional-session pill.
+ *
+ * Only rendered when the day actually holds more than one session — which is
+ * exactly when a bare workout name ("ריצה קלה") stops being enough to tell you
+ * which of the day's two runs you are looking at.
+ */
+function SessionBadge({ workout, compact }: { workout: ParsedWorkout; compact?: boolean }) {
+  const tp = useTranslations('planner');
+  const kind = sessionKind(workout);
+  if (!kind) return null;
+
+  const label =
+    kind === 'morning' ? tp('sessionMorning')
+    : kind === 'evening' ? tp('sessionEvening')
+    : tp('partLabel', { index: workout.partIndex ?? 1, count: workout.partCount ?? 1 });
+
+  return (
+    <div className={cn('flex items-center gap-1.5 flex-wrap', compact ? 'mb-1' : 'mb-1')}>
+      <span className="inline-flex items-center gap-1 rounded-full bg-brand-600/12 px-2 py-0.5 text-[10px] font-bold text-brand-600">
+        {kind === 'morning' ? <Sunrise className="h-2.5 w-2.5" /> : kind === 'evening' ? <Moon className="h-2.5 w-2.5" /> : null}
+        {label}
+      </span>
+      {workout.optional && (
+        <span className="inline-flex items-center rounded-full bg-ink-300/15 px-2 py-0.5 text-[10px] font-bold text-ink-400">
+          {tp('sessionOptional')}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function WorkoutPreview({ workout, compact = false, className }: WorkoutPreviewProps) {
   const t = useTranslations('workoutEditor');
   const tp = useTranslations('planner');
@@ -177,6 +210,7 @@ export function WorkoutPreview({ workout, compact = false, className }: WorkoutP
         className
       )}>
         <div className="px-3 py-2.5">
+          <SessionBadge workout={workout} compact />
           <p className="text-[11px] font-semibold text-ink-700 truncate">{workout.name}</p>
           <div className="flex items-center gap-2 mt-1.5">
             {totalDist > 0 && (
@@ -208,6 +242,7 @@ export function WorkoutPreview({ workout, compact = false, className }: WorkoutP
     )}>
       {/* Header */}
       <div className="px-3 pt-3 pb-1.5">
+        <SessionBadge workout={workout} />
         <h3 className="font-semibold text-[12px] text-ink-700 leading-snug truncate">{workout.name}</h3>
         {workout.description && (
           <p className="text-[10px] text-ink-400 mt-0.5 truncate">{workout.description}</p>

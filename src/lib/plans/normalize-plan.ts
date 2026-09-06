@@ -24,6 +24,14 @@ import { workoutDistanceMeters } from '@/lib/workout-distance';
  * see `normalizeParsedWorkouts`, applied on both the read and the write side.
  */
 
+/** "ערב - אופציה", "אופציונלי", "מי שרוצה" — offered, not prescribed. */
+const OPTIONAL_RE = /אופצי|optional|מי שרוצה/i;
+// The lookahead is why these aren't bare words: \b is ASCII-only, so /ערב/ alone
+// also fires on ערבוב ("mixing"), which is a plausible thing for a fartlek to be
+// called and would label it the evening session.
+const MORNING_RE = /בוקר(?![א-ת])|morning|\bam\b/i;
+const EVENING_RE = /ערב(?![א-ת])|evening|\bpm\b/i;
+
 function inferPartKind(
   workout: ParsedWorkout,
   partCount: number,
@@ -31,6 +39,15 @@ function inferPartKind(
   if (workout.partKind) return workout.partKind;
   if (partCount === 1) return 'single';
   const text = `${workout.name} ${workout.description || ''}`.toLowerCase();
+  // Before the test/warmup/main guesses: when the day names its sessions בוקר
+  // and ערב, that IS the axis it was split on, and mislabelling the evening
+  // session "main" is what made two-a-days unreadable in the week view. This
+  // does move `workoutKey` for such a day (…-part-2-main → …-part-2-evening),
+  // which orphans a persisted manual match — but only on multi-part days whose
+  // names say morning/evening, and until now the parser merged those into one
+  // part instead of producing two, so there are effectively none to orphan.
+  if (MORNING_RE.test(text)) return 'morning';
+  if (EVENING_RE.test(text)) return 'evening';
   if (/מבחן|test|race|time trial|3000/.test(text)) return 'test';
   if (workout.steps.every((step) => step.type === 'warmup')) return 'warmup';
   if (workout.steps.every((step) => step.type === 'cooldown' || step.type === 'recovery')) {
@@ -124,6 +141,10 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
         partIndex,
         partCount,
         partKind,
+        // Not part of the key, so inferring it costs nothing and labels the
+        // sessions already stored with "אופציה" only in their name.
+        optional:
+          workout.optional ?? OPTIONAL_RE.test(`${workout.name} ${workout.description || ''}`),
         expectedDistanceM,
         expectedDurationSec,
         distanceToleranceM,

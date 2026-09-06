@@ -1472,11 +1472,12 @@ export default function WeeklyPlannerPage() {
       {/* Plan exists - show it */}
       {!loadingPlans && currentPlan && groupedPlans && parsedPlan && (
         <div className="flex-1 flex flex-col">
-          {/* Status bar — button labels hide below sm (icon + title tooltip
-              only) so 5 elements + a wrapping count don't fight for space on
-              a phone-width screen; full labels return once there's room. */}
+          {/* Status bar. The labels used to hide below `sm`, which on the phone
+              this is actually used on left three unlabelled icons whose only
+              name was a `title` — never shown on touch and never read out. They
+              are always visible now and the row wraps instead. */}
           <div className="px-4 sm:px-6 py-3 border-b border-page/50 bg-card/30">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-sm text-ink-500 shrink-0">
                   {workoutCount} {t('workouts')}
@@ -1500,19 +1501,21 @@ export default function WeeklyPlannerPage() {
                   size="sm"
                   onClick={syncFromProgram}
                   title={t('syncFromProgram')}
+                  aria-label={t('syncFromProgram')}
                 >
                   <RefreshCw className="h-4 w-4" />
-                  <span className="hidden sm:inline">{t('sync')}</span>
+                  {t('sync')}
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => setEditMode(!editMode)}
                   title={editMode ? t('done') : t('edit')}
+                  aria-label={editMode ? t('done') : t('edit')}
                   className={cn(editMode && 'ring-1 ring-brand-600')}
                 >
                   <Edit3 className="h-4 w-4" />
-                  <span className="hidden sm:inline">{editMode ? t('done') : t('edit')}</span>
+                  {editMode ? t('done') : t('edit')}
                 </Button>
                 <Button
                   variant="secondary"
@@ -1520,10 +1523,11 @@ export default function WeeklyPlannerPage() {
                   onClick={() => setConfirmDelete(true)}
                   disabled={deleting}
                   title={t('remove')}
+                  aria-label={t('remove')}
                   className="text-accent-red hover:text-accent-red active:text-accent-red"
                 >
                   <Trash2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">{t('remove')}</span>
+                  {t('remove')}
                 </Button>
               </div>
             </div>

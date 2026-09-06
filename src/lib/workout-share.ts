@@ -155,20 +155,58 @@ export function workoutToShareText(
 }
 
 /**
+ * The heading a session gets in shared text when the day holds more than one.
+ *
+ * Hebrew, unconditionally: this is the plan's own language — the coach writes
+ * בוקר/ערב and the athletes paste this straight into WhatsApp. Everything else
+ * in the shared block (paces, ק״מ) is already language-free.
+ */
+function sessionHeading(workout: ParsedWorkout): string {
+  if (workout.partKind === 'morning') return 'בוקר';
+  if (workout.partKind === 'evening') return 'ערב';
+  return `חלק ${workout.partIndex ?? 1}`;
+}
+
+/**
  * Given the stored GroupedWeeklyPlans and a dayOfWeek, return the shareable text
  * for that day (or null if there's no workout that day). Matches the three
  * groups by dayOfWeek so paces line up as ❶ (❷) ((❸)).
+ *
+ * Every session of the day, in order. This used to be `.find()`, so a two-a-day
+ * shared only its morning run and the evening session vanished — the same
+ * one-workout-per-day assumption that made the week view hide it.
  */
 export function shareTextForDay(
   grouped: GroupedWeeklyPlans,
   dayOfWeek: number,
 ): string | null {
-  const find = (plan: { workouts: ParsedWorkout[] }) =>
-    plan.workouts.find((w) => w.dayOfWeek === dayOfWeek);
-  const w1 = find(grouped.group1);
-  if (!w1 || !w1.steps.length) return null;
-  const w2 = grouped.group2 ? find(grouped.group2) : undefined;
-  const w3 = grouped.group3 ? find(grouped.group3) : undefined;
-  const body = workoutToShareText(w1, w2, w3);
-  return body || null;
+  const onDay = (plan: { workouts: ParsedWorkout[] } | undefined) =>
+    (plan?.workouts || []).filter((w) => w.dayOfWeek === dayOfWeek);
+
+  const sessions = onDay(grouped.group1).filter((w) => w.steps.length);
+  if (!sessions.length) return null;
+
+  const g2 = onDay(grouped.group2);
+  const g3 = onDay(grouped.group3);
+  // By key, not by position: a group's plan can legitimately carry a different
+  // number of sessions for the day (an optional evening run only the fast group
+  // gets), and pairing those by index would print group ❷'s morning paces under
+  // group ❶'s evening steps.
+  const sibling = (list: ParsedWorkout[], w: ParsedWorkout) =>
+    list.find((x) => x.workoutKey && x.workoutKey === w.workoutKey)
+    || (list.length === sessions.length ? list[sessions.indexOf(w)] : undefined);
+
+  const blocks = sessions
+    .map((w1) => {
+      const body = workoutToShareText(w1, sibling(g2, w1), sibling(g3, w1));
+      if (!body) return null;
+      // No heading for an ordinary single-session day — it would only add a line
+      // saying "part 1" to every shared workout in the club.
+      if (sessions.length === 1) return body;
+      const optional = w1.optional ? ' (אופציה)' : '';
+      return `${sessionHeading(w1)}${optional}:\n${body}`;
+    })
+    .filter((block): block is string => !!block);
+
+  return blocks.join('\n\n') || null;
 }

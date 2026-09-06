@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireSession, authError } from '@/lib/auth-session';
 import { createServerClient } from '@/lib/supabase/server';
+import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { extractJson, normalizeWorkoutParts } from '@/lib/ai/parser';
 import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import type { GroupedWeeklyPlans, ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
@@ -181,6 +182,7 @@ export async function POST(
       planId,
       plan.parsed_workouts as GroupedWeeklyPlans | ParsedWeeklyPlan,
     );
+    revalidateWeeklyPlans();
     return NextResponse.json({ plan: updated });
   } catch (error: unknown) {
     console.error('POST plan clipboards error:', error);

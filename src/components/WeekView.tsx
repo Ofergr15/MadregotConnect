@@ -178,7 +178,6 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
   const dayNamesShort = t.raw('dayNamesShort') as string[];
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [viewingIdx, setViewingIdx] = useState<number | null>(null);
-  const [expandedDay, setExpandedDay] = useState<number | null>(null);
   // A brand-new, not-yet-saved workout for a specific day (e.g. "tomorrow
   // needs something different") — distinct from editingIdx, which always
   // indexes an existing entry in `workouts`. Kept as just the day number so
@@ -248,7 +247,6 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
           const dayWorkouts = workouts.filter((w) => w.dayOfWeek === dayIndex);
           const isToday = dayIndex === todayIdx;
           const hasMultiple = dayWorkouts.length > 1;
-          const isExpanded = expandedDay === dayIndex;
 
           return (
             <div key={day} className="flex flex-col min-w-0">
@@ -268,21 +266,27 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                     <span className="lg:hidden">{dayNamesShort[dayIndex]}</span>
                     <span className="hidden lg:inline">{day}</span>
                   </h4>
+                  {/* A two-a-day is a fact about the week, not a problem with
+                      it. This was a red circle you had to press to reveal the
+                      second session, which read as an error badge and hid the
+                      thing it was counting; now it just says how many, and
+                      both sessions are on screen. */}
                   {hasMultiple && (
-                    <button
-                      onClick={() => setExpandedDay(isExpanded ? null : dayIndex)}
-                      className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-red text-white text-[10px] font-black shrink-0"
-                    >
-                      {dayWorkouts.length}
-                    </button>
+                    <span className="rounded-full bg-brand-600/12 px-2 py-0.5 text-[10px] font-bold text-brand-600 shrink-0">
+                      {tp('sessionCount', { count: dayWorkouts.length })}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
-                  {/* Per-day edit pencil — always available when editing is possible */}
-                  {canEdit && dayWorkouts.length > 0 && (
+                  {/* Per-day edit pencil — only for a day with a single session.
+                      On a two-a-day it always opened `dayWorkouts[0]`, so it
+                      silently edited the morning while you were looking at the
+                      evening; those days get a pencil per card instead. */}
+                  {canEdit && dayWorkouts.length === 1 && (
                     <button
                       onClick={() => setEditingIdx(workouts.indexOf(dayWorkouts[0]))}
                       title={tp('editDayTooltip', { day })}
+                      aria-label={tp('editDayTooltip', { day })}
                       className="flex items-center justify-center w-7 h-7 rounded-lg text-brand-600 hover:bg-brand-600/15 transition-colors touch-target"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -308,66 +312,67 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                 </div>
               </div>
 
-              {/* Workout Card(s) */}
+              {/* Session card(s) — every session of the day, always. A second
+                  session used to sit behind a "+1 more" button, so the one
+                  case where the week view most needed to be explicit (Tuesday
+                  is a morning AND an evening run) was the one it hid. */}
               <div className="flex-1 flex flex-col gap-1.5">
                 {dayWorkouts.length > 0 ? (
-                  <>
-                    {/* Primary workout — single click edits in edit mode, else opens view.
-                        The role and the tab stop are conditional on `editable` for the
-                        same reason the cursor is: when the week is read-only this div
-                        does nothing, and announcing it as a button or handing it a tab
-                        stop would be a lie. When it IS editable it was mouse-only. */}
-                    <div
-                      role={editable ? 'button' : undefined}
-                      tabIndex={editable ? 0 : undefined}
-                      onClick={() => { if (editable) setEditingIdx(workouts.indexOf(dayWorkouts[0])); }}
-                      onKeyDown={(event) => {
-                        if (editable && (event.key === 'Enter' || event.key === ' ')) {
-                          event.preventDefault();
-                          setEditingIdx(workouts.indexOf(dayWorkouts[0]));
-                        }
-                      }}
-                      onDoubleClick={() => handleCardDoubleTap(workouts.indexOf(dayWorkouts[0]))}
-                      className="flex-1 cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 rounded-b-xl"
-                    >
-                      <WorkoutPreview
-                        workout={dayWorkouts[0]}
-                        className={cn('rounded-t-none border-t-0 hover:ring-1 hover:ring-brand-600/50', isToday && 'border-brand-600/30')}
-                      />
-                    </div>
-
-                    {/* Additional workouts */}
-                    {hasMultiple && (isExpanded ? (
-                      dayWorkouts.slice(1).map((workout) => {
-                        const globalIdx = workouts.indexOf(workout);
-                        return (
-                          <div
-                            key={globalIdx}
-                            role={editable ? 'button' : undefined}
-                            tabIndex={editable ? 0 : undefined}
-                            onClick={() => { if (editable) setEditingIdx(globalIdx); }}
-                            onKeyDown={(event) => {
-                              if (editable && (event.key === 'Enter' || event.key === ' ')) {
-                                event.preventDefault();
-                                setEditingIdx(globalIdx);
-                              }
-                            }}
-                            onDoubleClick={() => handleCardDoubleTap(globalIdx)}
-                            className="cursor-pointer hover:ring-1 hover:ring-brand-600/50 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+                  dayWorkouts.map((workout, sessionIdx) => {
+                    const globalIdx = workouts.indexOf(workout);
+                    const isFirst = sessionIdx === 0;
+                    // Single click does the one thing this card can do: open the
+                    // editor when the week is editable, open the read-only detail
+                    // otherwise. Read mode used to need a double click, which
+                    // nothing on the screen said and no touch device suggests.
+                    const activate = () => {
+                      if (editable) setEditingIdx(globalIdx);
+                      else setViewingIdx(globalIdx);
+                    };
+                    return (
+                      <div key={globalIdx} className={cn('relative', isFirst && 'flex-1 flex flex-col')}>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-label={editable ? tp('editDayTooltip', { day }) : tp('viewDayTooltip', { day })}
+                          onClick={activate}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              activate();
+                            }
+                          }}
+                          onDoubleClick={() => handleCardDoubleTap(globalIdx)}
+                          className={cn(
+                            'cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600',
+                            isFirst ? 'flex-1 rounded-b-xl' : 'rounded-lg',
+                          )}
+                        >
+                          <WorkoutPreview
+                            workout={workout}
+                            className={cn(
+                              'hover:ring-1 hover:ring-brand-600/50',
+                              // Only the first card is welded to the day header.
+                              isFirst && 'rounded-t-none border-t-0',
+                              isToday && 'border-brand-600/30',
+                            )}
+                          />
+                        </div>
+                        {/* This session's own pencil, so a two-a-day can be
+                            edited session by session. */}
+                        {canEdit && hasMultiple && (
+                          <button
+                            onClick={(event) => { event.stopPropagation(); setEditingIdx(globalIdx); }}
+                            title={tp('editDayTooltip', { day })}
+                            aria-label={tp('editDayTooltip', { day })}
+                            className="absolute top-1.5 end-1.5 flex items-center justify-center w-7 h-7 rounded-lg bg-card/80 text-brand-600 hover:bg-brand-600/15 transition-colors touch-target"
                           >
-                            <WorkoutPreview workout={workout} compact />
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <button
-                        onClick={() => setExpandedDay(dayIndex)}
-                        className="text-xs font-bold text-accent-red-ink bg-accent-red/10 border border-accent-red/20 rounded-lg py-2 px-3 text-center hover:bg-accent-red/15 transition-colors min-h-[36px]"
-                      >
-                        {tp('moreCount', { count: dayWorkouts.length - 1 })}
-                      </button>
-                    ))}
-                  </>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
                 ) : (
                   <div
                     role={canEdit ? 'button' : undefined}

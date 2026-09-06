@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
+import { getDisplayWeekStart } from '@/lib/plans/workout-parsing';
 
 export const dynamic = 'force-dynamic';
-
-// Local-timezone Sunday-of-this-week as YYYY-MM-DD (weeks are Sunday→Saturday).
-function currentWeekSunday(): string {
-  const now = new Date();
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() - now.getDay());
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${sunday.getFullYear()}-${pad(sunday.getMonth() + 1)}-${pad(sunday.getDate())}`;
-}
 
 /**
  * GET /api/public/current-plan
@@ -23,7 +15,14 @@ function currentWeekSunday(): string {
 export async function GET() {
   try {
     const supabase = createServerClient();
-    const thisWeek = currentWeekSunday();
+    // The same "which week is it" the dashboard and the planner use: Israel time,
+    // rolling to next week after Saturday 20:00. This route used to compute a
+    // Sunday from the SERVER's local date, which is UTC in production — so
+    // between Sunday 00:00 and 03:00 Israel it was still Saturday in UTC and this
+    // endpoint answered with LAST week's plan (flagged `is_current: true`) while
+    // /api/dashboard/weekly on the same screen had already moved on. The profile
+    // reads this endpoint, so that mismatch is a plan you cannot find.
+    const thisWeek = getDisplayWeekStart(new Date());
 
     const base = () =>
       supabase

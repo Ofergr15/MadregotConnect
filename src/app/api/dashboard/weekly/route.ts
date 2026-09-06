@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     const denied = await requireMember(request);
     if (denied) return denied;
 
-    const supabase = createServerClient({ revalidateSeconds: 300 });
+    const supabase = createServerClient({ revalidateSeconds: 300, cacheTags: [WEEKLY_PLANS_TAG] });
     const now = new Date();
     // Plan week to display — rolls to next week after Saturday 20:00 Israel time.
     const currentWeekStart = getDisplayWeekStart(now);
