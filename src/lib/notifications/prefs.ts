@@ -1,11 +1,41 @@
 // Per-user notification category preferences. Categories map to the push
 // categories in src/lib/push.ts. A missing key = opted IN (receive everything),
-// so defaults are all-on and nothing is silenced unless explicitly turned off.
-export const CATEGORIES = ['workouts', 'coach', 'achievements', 'program', 'teammates', 'news', 'events'] as const;
+// so defaults are all-on and nothing is silenced unless explicitly turned off —
+// except for the staff exception below.
+export const CATEGORIES = ['workouts', 'coach', 'achievements', 'program', 'teammates', 'news', 'events', 'management'] as const;
 export type Category = (typeof CATEGORIES)[number];
 export const DEFAULTS: Record<Category, boolean> = {
-  workouts: true, coach: true, achievements: true, program: true, teammates: true, news: true, events: true,
+  workouts: true, coach: true, achievements: true, program: true, teammates: true, news: true, events: true, management: true,
 };
+
+/**
+ * Categories that default to OFF for staff (admin / coach / academy_coach).
+ *
+ * An admin's notifications should be about things that need them — a sign-up
+ * waiting for approval, a bug report, a failed workout delivery. What they
+ * actually got was the club's social firehose: kudos_activity alone is two
+ * thirds of every row ever written, and an admin follows more people than
+ * anyone. The signal was there; it was buried under other people's runs.
+ *
+ * This is a DEFAULT, not a rule: the toggle is still in Settings and a coach
+ * who wants the social pings can turn `teammates` back on, which writes an
+ * explicit `true` and wins over this list. That is why it lives here rather
+ * than as a hard filter at the send sites — those can't be overridden.
+ */
+export const STAFF_QUIET_CATEGORIES: readonly Category[] = ['teammates'];
+
+/**
+ * The all-categories baseline for this reader — everything on, minus the quiet
+ * list for staff. Every "is this muted?" decision goes through here so the
+ * send path, the badge counter and the Settings screen can't disagree about
+ * what an untouched preference means.
+ */
+export function defaultsFor(isStaff?: boolean): Record<Category, boolean> {
+  if (!isStaff) return { ...DEFAULTS };
+  const out = { ...DEFAULTS };
+  for (const c of STAFF_QUIET_CATEGORIES) out[c] = false;
+  return out;
+}
 
 // Only a genuinely-unmigrated column should read as "everything on" — a
 // blanket check here used to catch EVERY DB error (a transient hiccup
@@ -25,12 +55,16 @@ export function isMigrationMissing(error: { message?: string; code?: string } | 
  */
 export type SavedPrefs = Partial<Record<Category, boolean>> & { language?: string };
 
-// Merge a partial saved map over the all-on defaults so any category the
-// athlete has never touched still reads as enabled. `language` passes straight
-// through when set — it has no default here on purpose, so the client can tell
-// "never chose one" apart from "chose Hebrew".
-export function mergeWithDefaults(saved: SavedPrefs | null | undefined): Record<Category, boolean> & { language?: string } {
-  return { ...DEFAULTS, ...(saved || {}) };
+// Merge a partial saved map over this reader's defaults so any category they
+// have never touched still reads as its baseline (see defaultsFor — all-on for
+// an athlete, social-quiet for staff). `language` passes straight through when
+// set — it has no default here on purpose, so the client can tell "never chose
+// one" apart from "chose Hebrew".
+export function mergeWithDefaults(
+  saved: SavedPrefs | null | undefined,
+  isStaff?: boolean,
+): Record<Category, boolean> & { language?: string } {
+  return { ...defaultsFor(isStaff), ...(saved || {}) };
 }
 
 /**
@@ -64,24 +98,45 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // Club-wide announcements and surveys.
   custom: 'news',
   survey: 'news',
+  // Running the club. Staff-only by construction — nothing sends these to an
+  // athlete — so the toggle exists to let a coach turn them DOWN, not up.
+  signup_request: 'management',
+  problem_report: 'management',
+  workout_delivery_failed: 'management',
+  sync_stalled: 'management',
+  // These two predate the channel and used to be sent with no category at all,
+  // which made them the only staff alerts no toggle could reach. They go through
+  // the same notifyStaff fan-out now, so they belong to the same channel.
+  store_order: 'management',
+  feedback_alert: 'management',
 };
 
 /**
  * True when this kind belongs to a category the athlete explicitly muted.
  *
  * Deliberately absent from KIND_CATEGORY, and so never muted: `approval` (a
- * one-time "you're in" that no toggle governs) and `store_order` (a coach-only
- * alert). Both send their push without a category too, so badge and push agree.
- * An unrecognised kind also counts — a kind added later should show up in the
- * badge as an off-by-one, not disappear from it silently.
+ * one-time "you're in" that no toggle governs) and `review_resolved` (a direct
+ * answer to a message this person sent us). Both send their push without a
+ * category too, so badge and push agree. An unrecognised kind also counts — a
+ * kind added later should show up in the badge as an off-by-one, not disappear
+ * from it silently.
+ *
+ * `isStaff` selects the baseline for a category the reader never touched, so a
+ * coach's untouched `teammates` reads as muted (see STAFF_QUIET_CATEGORIES).
+ * Note there is no early return on a missing `prefs` any more: "no saved
+ * preferences at all" is exactly the state every existing coach is in, and it
+ * has to resolve to the staff baseline rather than to receive-everything.
  */
 export function isKindMuted(
   kind: string,
   prefs: Partial<Record<Category, boolean>> | null | undefined,
+  isStaff?: boolean,
 ): boolean {
-  if (!prefs) return false;
   const category = KIND_CATEGORY[kind];
-  return !!category && prefs[category] === false;
+  if (!category) return false;
+  const saved = prefs?.[category];
+  if (saved === undefined) return defaultsFor(isStaff)[category] === false;
+  return saved === false;
 }
 
 /**

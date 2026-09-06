@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing, Send, RefreshCw, Globe } from 'lucide-react';
+import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing, Send, RefreshCw, Globe, ShieldCheck } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Switch } from '@/components/ui';
 import { subscribeToPush } from '@/lib/pwa';
 import { logClient } from '@/lib/client-log';
 
-type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
+type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events' | 'management';
 type Language = 'he' | 'en';
 type Prefs = Record<Category, boolean> & { language?: Language };
 
@@ -34,7 +34,11 @@ function readLocaleCookie(): Language {
 // in src/lib/push.ts. Labels come from messages/{he,en}.json under
 // notificationPrefs.categories — keyed by the same category name, so the two
 // can't drift apart.
-const ROWS: { key: Category; icon: typeof Calendar; bg: string }[] = [
+// `staffOnly` rows are hidden from an athlete: nothing sends them a management
+// alert, so the toggle would be a control over nothing. `isStaff` comes from the
+// prefs API (derived from the athlete's role server-side) rather than being
+// guessed here, so this screen and the send path agree on who counts as staff.
+const ROWS: { key: Category; icon: typeof Calendar; bg: string; staffOnly?: boolean }[] = [
   { key: 'workouts', icon: Calendar, bg: 'bg-brand-600' },
   { key: 'coach', icon: MessageSquare, bg: 'bg-band-2' },
   { key: 'achievements', icon: Flame, bg: 'bg-accent-600' },
@@ -42,6 +46,7 @@ const ROWS: { key: Category; icon: typeof Calendar; bg: string }[] = [
   { key: 'teammates', icon: Users, bg: 'bg-band-3' },
   { key: 'news', icon: Megaphone, bg: 'bg-accent-red' },
   { key: 'events', icon: PartyPopper, bg: 'bg-violet-500' },
+  { key: 'management', icon: ShieldCheck, bg: 'bg-ink-700', staffOnly: true },
 ];
 
 // Per-user notification preferences — each athlete chooses which categories of
@@ -50,7 +55,7 @@ const ROWS: { key: Category; icon: typeof Calendar; bg: string }[] = [
 // returns all-on defaults and PUT is a no-op 501, so toggles simply won't stick).
 export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   const t = useTranslations('notificationPrefs');
-  const { data, mutate } = useApi<{ prefs: Prefs }>(
+  const { data, mutate } = useApi<{ prefs: Prefs; isStaff?: boolean }>(
     athleteId ? `/api/athletes/notification-prefs?athleteId=${encodeURIComponent(athleteId)}` : null,
     // Disabled specifically here: this is what actually caused the "toggle it
     // off and it turns back on" bug — a revalidateOnFocus refetch racing a
@@ -325,7 +330,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
         )}
       </InsetSection>
       <InsetSection header={t('categoriesHeader')}>
-        {ROWS.map(({ key, icon, bg }) => {
+        {ROWS.filter((r) => !r.staffOnly || data?.isStaff).map(({ key, icon, bg, staffOnly }) => {
           const on = prefs[key];
           const label = t(`categories.${key}`);
           return (
@@ -334,6 +339,11 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
               icon={icon}
               iconBg={bg}
               label={label}
+              // Only the management row is explained: the others say what they
+              // are in their own label, but "running the club" needs to name the
+              // four things it actually covers before anyone will trust it enough
+              // to leave it on.
+              sublabel={staffOnly ? t('managementHint') : undefined}
               trailing={<Switch checked={on} onChange={() => toggle(key)} disabled={saving === key} activeColor="bg-accent-600" ariaLabel={label} />}
             />
           );

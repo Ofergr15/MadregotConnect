@@ -1,8 +1,8 @@
 import webpush from 'web-push';
 import { createServerClient } from '@/lib/supabase/server';
-import { COACH_ID } from '@/lib/constants';
+import { COACH_ID, isStaffRole } from '@/lib/constants';
 import { kudosScope, rsvpScope, signActionToken } from '@/lib/auth/action-token';
-import { isKindMuted, isLedgerRow } from '@/lib/notifications/prefs';
+import { defaultsFor, isKindMuted, isLedgerRow, type Category } from '@/lib/notifications/prefs';
 import {
   DEFAULT_NOTIFICATION_LOCALE,
   localeFromPrefs,
@@ -65,7 +65,12 @@ function ensureConfigured(): boolean {
 // Toggleable notification categories (per-user prefs). A payload's category lets
 // sendPushToSubscriptions drop athletes who muted it. Omit category → always sent
 // (e.g. critical/admin messages that shouldn't be silenceable).
-export type NotificationCategory = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events';
+//
+// Aliased to the prefs module's own union rather than restated: this file used to
+// keep a hand-written copy of the seven names, which is one edit away from a
+// category that the send path silently ignores because it isn't in the local
+// list. There is now exactly one place to add one.
+export type NotificationCategory = Category;
 
 export interface PushPayload {
   title: string;
@@ -119,37 +124,47 @@ export function actionScopeFor(payload: PushPayload): string | null {
 
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };
 
+type PrefsRow = { id: string; role?: string | null; notification_prefs?: Record<string, boolean> | null };
+
 /**
- * Given athlete rows (id + their saved notification_prefs) and a category,
- * returns the set of athlete ids who have explicitly muted it. A missing
- * prefs object, or a missing key within it, means opted IN — only an
- * explicit `false` mutes. Pure — filterByCategory below does the DB fetch.
+ * Given athlete rows (id + role + their saved notification_prefs) and a
+ * category, returns the set of athlete ids for whom it is muted. An explicit
+ * `false` always mutes; an absent key falls back to that reader's baseline,
+ * which is receive-everything for an athlete but social-quiet for staff (see
+ * STAFF_QUIET_CATEGORIES). Pure — filterByCategory below does the DB fetch.
  */
 export function computeMutedAthleteIds(
-  athleteRows: Array<{ id: string; notification_prefs?: Record<string, boolean> | null }>,
+  athleteRows: Array<PrefsRow>,
   category: NotificationCategory,
 ): Set<string> {
-  return new Set(
-    athleteRows
-      .filter((a) => a.notification_prefs && a.notification_prefs[category] === false)
-      .map((a) => a.id),
-  );
+  const muted = new Set<string>();
+  for (const a of athleteRows) {
+    const saved = a.notification_prefs?.[category];
+    if (saved === false) { muted.add(a.id); continue; }
+    if (saved === undefined && defaultsFor(isStaffRole(a.role))[category] === false) muted.add(a.id);
+  }
+  return muted;
 }
 
 /**
  * Drop subscriptions whose athlete has muted this notification category. A
- * missing prefs column, missing athlete row, or missing key = opted IN (default
- * is receive-everything), so nothing is silenced unless explicitly turned off.
- * Fails OPEN (returns subs unchanged) on any error.
+ * missing prefs column or missing athlete row = opted IN, and a missing key
+ * resolves to the reader's baseline. Fails OPEN (returns subs unchanged) on any
+ * error.
+ *
+ * `role` is selected alongside the prefs because the baseline for an untouched
+ * category now depends on it — without it every existing coach, none of whom
+ * has ever opened the notification settings, would keep receiving the social
+ * firehose this change exists to quiet.
  */
 async function filterByCategory(subs: SubRow[], category?: NotificationCategory): Promise<SubRow[]> {
   if (!category || subs.length === 0) return subs;
   try {
     const supabase = createServerClient();
     const ids = [...new Set(subs.map(s => s.athlete_id).filter(Boolean))];
-    const { data, error } = await supabase.from('athletes').select('id, notification_prefs').in('id', ids);
+    const { data, error } = await supabase.from('athletes').select('id, role, notification_prefs').in('id', ids);
     if (error) return subs; // column not migrated yet → everyone opted in
-    const muted = computeMutedAthleteIds((data || []) as Array<{ id: string; notification_prefs?: Record<string, boolean> | null }>, category);
+    const muted = computeMutedAthleteIds((data || []) as Array<PrefsRow>, category);
     if (muted.size === 0) return subs;
     return subs.filter(s => !muted.has(s.athlete_id));
   } catch {
@@ -208,14 +223,17 @@ export function matchesAudience(
  */
 export function countsTowardBadge(
   notif: { kind: string; url?: string | null; audience_type: string; audience_id: string | null; last_sent_at: string },
-  athlete: { group_id: string | null },
+  athlete: { group_id: string | null; role?: string | null },
   athleteId: string,
   since: string,
   prefs?: Record<string, boolean> | null,
 ): boolean {
   if (isLedgerRow(notif.url)) return false;
   if (!matchesAudience(notif, athlete, athleteId, since)) return false;
-  return !isKindMuted(notif.kind, prefs);
+  // Staffness comes off the athlete row the caller already loaded for the
+  // audience rule, so rule 3 agrees with filterByCategory on the send path even
+  // for a reader who has never saved a single preference.
+  return !isKindMuted(notif.kind, prefs, isStaffRole(athlete.role));
 }
 
 /**
@@ -332,9 +350,10 @@ async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string,
 
   const { data: athletesData } = await supabase
     .from('athletes')
-    .select('id, group_id, last_seen_at')
+    // `role` for the mute rule — see countsTowardBadge.
+    .select('id, group_id, role, last_seen_at')
     .in('id', athleteIds);
-  const athleteById = new Map((athletesData || []).map((a: { id: string; group_id: string | null; last_seen_at: string | null }) => [a.id, a]));
+  const athleteById = new Map((athletesData || []).map((a: { id: string; group_id: string | null; role: string | null; last_seen_at: string | null }) => [a.id, a]));
   const prefsById = await prefsByAthlete(athleteIds);
 
   const earliestSince = (athletesData || []).reduce(
@@ -376,7 +395,8 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
   const supabase = createServerClient();
   const { data: a } = await supabase
     .from('athletes')
-    .select('group_id, last_seen_at')
+    // `role` for the mute rule — see countsTowardBadge.
+    .select('group_id, role, last_seen_at')
     .eq('id', athleteId)
     .maybeSingle();
   if (!a) return 0;

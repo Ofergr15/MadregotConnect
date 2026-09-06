@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
-import { reviewResolvedCopy } from '@/lib/notifications/copy';
+import { problemReportCopy, reviewResolvedCopy } from '@/lib/notifications/copy';
+import { notifyStaff } from '@/lib/notifications/staff';
 import { shouldNotifyReporter, type ResolutionStatus } from '@/lib/feedback-resolution';
 
 // App feedback ("ביקורת"): athletes file it from /dashboard/review, staff
@@ -72,6 +73,24 @@ export async function POST(request: Request) {
     }
 
     if (error) throw error;
+
+    // Tell the staff. Nothing surfaced a report until somebody thought to open
+    // the review screen, which for a "something is broken" channel is exactly
+    // backwards — the whole point is that the club shouldn't have to chase us.
+    // After the insert and outside its error path: a notification failure must
+    // never turn a saved report into a 500 the reporter reads as "not sent".
+    await notifyStaff({
+      kind: 'problem_report',
+      url: '/dashboard/review',
+      // Per-reporter rather than per-report: a second report from the same
+      // person before anyone has looked replaces the first notification instead
+      // of adding to the pile.
+      tag: `problem-report-${caller.athleteId || athleteEmail || 'anon'}`,
+      category: 'management',
+      actorAthleteId: caller.athleteId || null,
+      copy: (locale) => problemReportCopy(locale, { athleteName: athleteName, preview: row.message }),
+    });
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Feedback submit error:', error);

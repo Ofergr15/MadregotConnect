@@ -27,6 +27,20 @@ export function isProtectedEmail(email: string | null | undefined): boolean {
   return PROTECTED_EMAILS.includes(email.toLowerCase());
 }
 
+/**
+ * Roles that run the club rather than train in it.
+ *
+ * Lives here, not in auth-session.ts where it started, because the notification
+ * layer needs the same answer: staff get the management channel and default out
+ * of the social one (see notifications/prefs.ts). push.ts must not import the
+ * session resolver to ask a question this simple.
+ */
+export const STAFF_ROLES = ['admin', 'coach', 'academy_coach'];
+
+export function isStaffRole(role: string | null | undefined): boolean {
+  return !!role && STAFF_ROLES.includes(role);
+}
+
 // Only these accounts may approve new registrations (club + academy sign-ups).
 // Gate is enforced server-side in /api/admin/approve; the Settings/Registrations
 // UIs also hide the Approve button for anyone not on this list.

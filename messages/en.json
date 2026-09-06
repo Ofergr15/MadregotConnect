@@ -1782,8 +1782,10 @@
       "program": "Weekly program",
       "teammates": "Workouts from your teammates",
       "news": "Updates and announcements",
-      "events": "Event and race reminders"
-    }
+      "events": "Event and race reminders",
+      "management": "Running the club"
+    },
+    "managementHint": "Sign-up requests, problem reports and system alerts"
   },
   "attendance": {
     "title": "Coming to today's workout?",

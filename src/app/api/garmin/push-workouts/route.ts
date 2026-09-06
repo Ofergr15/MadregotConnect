@@ -8,7 +8,8 @@ import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { notifyAthlete } from '@/lib/push';
-import { planPushedCopy } from '@/lib/notifications/copy';
+import { deliveryFailedCopy, planPushedCopy } from '@/lib/notifications/copy';
+import { notifyStaff } from '@/lib/notifications/staff';
 import { authError, requireSession } from '@/lib/auth-session';
 
 interface PushResult {
@@ -290,6 +291,28 @@ export async function POST(req: NextRequest) {
           });
         }
       }
+    }
+
+    // One alert for the whole batch, after the loop rather than inside it. A
+    // Garmin outage or an expired token fails every athlete in the run, and 20
+    // identical pushes say nothing the first one didn't — so this counts the
+    // failures and sends once, naming the total so "3 of 20" and "20 of 20"
+    // read as the different problems they are.
+    //
+    // Push only, no inbox row: this repeats every time a coach retries, and a
+    // durable row per attempt would bury the inbox in the same sentence. The
+    // per-athlete detail is already on the screen the coach is looking at.
+    const failed = results.filter((r) => r.status === 'failed').length;
+    if (failed > 0) {
+      await notifyStaff({
+        kind: 'workout_delivery_failed',
+        url: '/dashboard/program',
+        // Per-week, so a retry replaces the previous alert instead of stacking.
+        tag: `delivery-failed-${weekStartDate}`,
+        category: 'management',
+        pushOnly: true,
+        copy: (locale) => deliveryFailedCopy(locale, { failed, total: results.length }),
+      });
     }
 
     return NextResponse.json({ results });

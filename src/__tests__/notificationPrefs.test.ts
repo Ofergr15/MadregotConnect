@@ -88,8 +88,13 @@ describe('KIND_CATEGORY', () => {
   it('deliberately does NOT map the kinds whose push ignores preferences', () => {
     // Badge and push have to agree: these two send with no `category`, so no
     // toggle silences them and the badge must keep counting them.
+    //
+    // `store_order` used to be on this list. It moved onto the management
+    // channel when it moved onto the shared notifyStaff fan-out, which sends it
+    // WITH a category — so leaving it unmapped is now the disagreement, not the
+    // agreement. See staffNotificationPrefs.test.ts.
     expect(KIND_CATEGORY['approval']).toBeUndefined();
-    expect(KIND_CATEGORY['store_order']).toBeUndefined();
+    expect(KIND_CATEGORY['review_resolved']).toBeUndefined();
   });
 
   it('the ledger bookkeeping kind is not mapped — it is excluded by url, not category', () => {

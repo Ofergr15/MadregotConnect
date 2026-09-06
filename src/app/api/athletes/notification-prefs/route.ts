@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { CATEGORIES, DEFAULTS, isMigrationMissing, mergeWithDefaults, type SavedPrefs } from '@/lib/notifications/prefs';
+import { CATEGORIES, defaultsFor, isMigrationMissing, mergeWithDefaults, type SavedPrefs } from '@/lib/notifications/prefs';
+import { isStaffRole } from '@/lib/constants';
 import { isSupportedNotificationLocale } from '@/lib/notifications/locale';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
@@ -31,18 +32,23 @@ async function gate(request: Request, athleteId: string): Promise<Response | nul
 export async function GET(request: Request) {
   try {
     const athleteId = new URL(request.url).searchParams.get('athleteId');
-    if (!athleteId) return NextResponse.json({ prefs: DEFAULTS });
+    if (!athleteId) return NextResponse.json({ prefs: defaultsFor(false), isStaff: false });
     const denied = await gate(request, athleteId);
     if (denied) return denied;
     const supabase = createServerClient();
+    // `role` because an untouched category's baseline depends on it — staff
+    // default OUT of the social channel (see STAFF_QUIET_CATEGORIES), so a coach
+    // who has never opened this screen must see that switch already off rather
+    // than on-but-silently-not-sending.
     const { data, error } = await supabase
-      .from('athletes').select('notification_prefs').eq('id', athleteId).maybeSingle();
+      .from('athletes').select('role, notification_prefs').eq('id', athleteId).maybeSingle();
     if (error) {
-      if (isMigrationMissing(error)) return NextResponse.json({ prefs: DEFAULTS });
+      if (isMigrationMissing(error)) return NextResponse.json({ prefs: defaultsFor(false), isStaff: false });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    const prefs = mergeWithDefaults(data?.notification_prefs as SavedPrefs | undefined);
-    return NextResponse.json({ prefs });
+    const isStaff = isStaffRole(data?.role);
+    const prefs = mergeWithDefaults(data?.notification_prefs as SavedPrefs | undefined, isStaff);
+    return NextResponse.json({ prefs, isStaff });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
@@ -76,7 +82,7 @@ export async function PUT(request: Request) {
     if (denied) return denied;
     const supabase = createServerClient();
     // Read current, merge, write back (small JSON; no concurrent-writer concern per user).
-    const cur = await supabase.from('athletes').select('notification_prefs').eq('id', athleteId).maybeSingle();
+    const cur = await supabase.from('athletes').select('role, notification_prefs').eq('id', athleteId).maybeSingle();
     if (isMigrationMissing(cur.error)) {
       return NextResponse.json({ error: 'notification_prefs not migrated (run migration 038)' }, { status: 501 });
     }
@@ -94,7 +100,8 @@ export async function PUT(request: Request) {
       }
       throw error;
     }
-    return NextResponse.json({ prefs: mergeWithDefaults(next) });
+    const isStaff = isStaffRole(cur.data?.role);
+    return NextResponse.json({ prefs: mergeWithDefaults(next, isStaff), isStaff });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }

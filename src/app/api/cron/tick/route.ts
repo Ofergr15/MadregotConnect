@@ -3,15 +3,27 @@ import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications, localesForAthletes } from '@/lib/push';
 import {
   trainingDayBeforeCopy, trainingEveningBeforeCopy, RSVP_ACTION_LABELS, newWeekProgramCopy,
-  eventTomorrowCopy, eventClosingCopy, weeklyRecapCopy, surveyNudgeCopy,
+  eventTomorrowCopy, eventClosingCopy, weeklyRecapCopy, surveyNudgeCopy, syncStalledCopy,
 } from '@/lib/notifications/copy';
+import { notifyStaff } from '@/lib/notifications/staff';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
-import { israelNow, getPlanWeekStart, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
+import { israelNow, israelToday, getPlanWeekStart, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+/**
+ * The "has anything synced?" health check — 09:00 Israel, looking back a full
+ * day. 09:00 rather than a small hour so the alert arrives when somebody can
+ * act on it, and after the morning's runs have had every chance to land: the
+ * club trains early, so a quiet 09:00 is genuinely quiet rather than merely
+ * early. The window is a day, not an hour, because a Saturday with no runs at
+ * all is normal and must not page anyone.
+ */
+const SYNC_CHECK_HOUR = 9;
+const SYNC_STALE_HOURS = 24;
 
 /** Format seconds-per-km as m:ss (e.g. 312 -> "5:12"), for the weekly recap. */
 function formatPace(secPerKm: number): string {
@@ -477,6 +489,55 @@ async function run(request: Request) {
   }
 
   // Fold in admin scheduled/recurring notifications so they also get intraday
+  // ── Health check: has ANYTHING synced? ───────────────────────────────────
+  // Not "is Garmin up" — nobody can answer that from here — but the observable
+  // consequence, which is the same signal the Control Room shows: zero rows in
+  // athlete_activities for a whole day. That state has happened before and was
+  // only ever noticed by a person wondering why the feed looked stale, which for
+  // a club whose entire input is other systems is far too late.
+  //
+  // Once daily at 09:00 Israel, gated by its own ledger tag so a re-run of the
+  // same hour can't send twice. Deliberately not hourly: a stalled sync is still
+  // stalled an hour later and the alert would say the same thing 24 times.
+  if (hour === SYNC_CHECK_HOUR) {
+    const tag = `sync-stalled-${israelToday(now)}`;
+    const { count: alreadySent } = await supabase
+      .from('scheduled_notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('kind', 'sync_stalled')
+      .eq('url', `#ledger:${tag}`);
+    if (!alreadySent) {
+      const since = new Date(Date.now() - SYNC_STALE_HOURS * 3_600_000).toISOString();
+      const { count: recent, error: recentError } = await supabase
+        .from('athlete_activities')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', since);
+      // Only an actual zero alarms. A query error is unknown, not empty, and
+      // "we couldn't check" must never be reported as "nothing arrived".
+      if (!recentError && (recent ?? 0) === 0) {
+        await notifyStaff({
+          kind: 'sync_stalled',
+          url: '/dashboard',
+          tag,
+          category: 'management',
+          pushOnly: true,
+          copy: (locale) => syncStalledCopy(locale, { hours: SYNC_STALE_HOURS }),
+        });
+        fired.push(tag);
+      }
+      // The ledger row goes in either way — it records that the CHECK ran today,
+      // not that an alert went out, which is what keeps a healthy day from
+      // re-checking on every subsequent tick within the hour.
+      await supabase.from('scheduled_notifications').insert({
+        kind: 'sync_stalled',
+        title_he: 'sync check', body_he: tag,
+        audience_type: 'all', schedule_type: 'now',
+        status: 'sent', last_sent_at: new Date().toISOString(), sent_count: 0,
+        url: `#ledger:${tag}`,
+      });
+    }
+  }
+
   // precision (delegate to the existing scanner route).
   let scanned: unknown = null;
   try {

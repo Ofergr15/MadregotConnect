@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { APPROVER_EMAILS } from '@/lib/constants';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
-import { subscriptionsForAthletes, sendPushLocalized, persistNotifications, localesForAthletes } from '@/lib/push';
 import { storeOrderCopy } from '@/lib/notifications/copy';
-import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
+import { notifyStaff } from '@/lib/notifications/staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,46 +158,23 @@ export async function POST(request: Request) {
     }
 
     // Previously a coach only learned of a new order by manually opening the
-    // Store admin panel — nothing ever surfaced it. Best-effort, same
-    // coach-allowlist pattern as the workout-feedback alert push.
-    try {
-      const { data: athlete } = await supabase.from('athletes').select('name').eq('id', athleteId).maybeSingle();
-      const { data: coaches } = await supabase.from('athletes').select('id').in('email', APPROVER_EMAILS);
-      const coachIds = (coaches || []).map((c: { id: string }) => c.id);
-      if (coachIds.length > 0) {
-        const build = (locale: NotificationLocale) =>
-          storeOrderCopy(locale, { athleteName: athlete?.name, itemCount: lineItems.length, total });
-        // Send first, persist second — the badge count inside sendPushDetailed
-        // adds +1 for "the notification being delivered right now" on the
-        // assumption its row isn't in the DB yet, so persisting first made this
-        // row match that query too and bumped every coach's app-icon badge by
-        // an extra 1. Sending first also yields the real per-coach delivery
-        // count for the persisted rows instead of an assumed 1.
-        const subs = await subscriptionsForAthletes(coachIds);
-        let byAthlete: Record<string, number> | undefined;
-        if (subs.length > 0) {
-          ({ byAthlete } = await sendPushLocalized(subs, (locale) => ({
-            ...build(locale),
-            url: '/dashboard/store',
-            tag: `store-order-${order.id}`,
-          })));
-        } else {
-          byAthlete = {};
-        }
-        // A coach with no subscription still gets an inbox row, so the language
-        // is looked up from the coach ids rather than from `subs`.
-        const rowLocales = await localesForAthletes(coachIds);
-        await persistNotifications(coachIds.map((coachId) => ({
-          athleteId: coachId,
-          kind: 'store_order',
-          actorAthleteId: athleteId,
-          ...build(rowLocales.get(coachId) ?? DEFAULT_NOTIFICATION_LOCALE),
-          url: '/dashboard/store',
-        })), byAthlete);
-      }
-    } catch {
-      // best-effort — never let a push failure affect order creation
-    }
+    // Store admin panel — nothing ever surfaced it.
+    //
+    // This was a hand-rolled fan-out resolved off APPROVER_EMAILS, which misses
+    // the club's own admin (a Strava-only login has a synthetic address that
+    // matches no literal on that list) — so the one person who fulfils orders was
+    // the one person not told about them. notifyStaff resolves recipients by flag
+    // and role as well as email, and is shared with the other three management
+    // alerts so they can't drift apart again.
+    const { data: athlete } = await supabase.from('athletes').select('name').eq('id', athleteId).maybeSingle();
+    await notifyStaff({
+      kind: 'store_order',
+      url: '/dashboard/store',
+      tag: `store-order-${order.id}`,
+      category: 'management',
+      actorAthleteId: athleteId,
+      copy: (locale) => storeOrderCopy(locale, { athleteName: athlete?.name, itemCount: lineItems.length, total }),
+    });
 
     return NextResponse.json({ orderId: order.id, total, createdAt: order.created_at });
   } catch (error) {

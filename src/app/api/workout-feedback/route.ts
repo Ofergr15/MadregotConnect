@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushLocalized } from '@/lib/push';
 import { feedbackAlertCopy } from '@/lib/notifications/copy';
-import { APPROVER_EMAILS } from '@/lib/constants';
+import { notifyStaff } from '@/lib/notifications/staff';
 import { requireCallerForAthlete, requireStaffCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -354,40 +353,30 @@ export async function POST(request: Request) {
     // request for feedback → push the coaches so they can reach out.
     const flag = (difficulty != null && difficulty >= 9) || pain === true || wantsFeedback === true;
     if (flag) {
-      try {
-        // Same row already loaded for the alert's name — widen to avatar_url too
-        // (no new join/table) so the coach's push shows the flagging athlete's
-        // own photo, the same "who is this about" treatment as the coach-reply push.
-        const { data: athlete } = await supabase
-          .from('athletes')
-          .select('name, avatar_url')
-          .eq('id', athleteId)
-          .maybeSingle();
-        const name = athlete?.name || 'רץ/ה';
-        const athleteAvatarUrl = athlete?.avatar_url?.trim() || '';
-        const reason = pain ? 'דיווח/ה על כאב' : (difficulty >= 9 ? 'קושי גבוה מאוד' : 'ביקש/ה משוב');
-        // Coaches are the athletes whose email is on the approver allowlist.
-        const { data: coaches } = await supabase
-          .from('athletes')
-          .select('id')
-          .in('email', APPROVER_EMAILS);
-        const coachIds = (coaches || []).map((c: { id: string }) => c.id);
-        if (coachIds.length > 0) {
-          const { data: subs } = await supabase
-            .from('push_subscriptions')
-            .select('id, endpoint, p256dh, auth, athlete_id')
-            .in('athlete_id', coachIds);
-          if (subs && subs.length > 0) {
-            await sendPushLocalized(subs as any, (locale) => ({
-              ...feedbackAlertCopy(locale, { athleteName: name, reason }),
-              url: '/dashboard/review',
-              tag: `feedback-alert-${athleteId}`,
-              badge: 1,
-              ...(athleteAvatarUrl ? { icon: athleteAvatarUrl } : {}),
-            }));
-          }
-        }
-      } catch { /* never let the alert fail the submit */ }
+      // Same row already loaded for the alert's name — widen to avatar_url too
+      // (no new join/table) so the coach's push shows the flagging athlete's
+      // own photo, the same "who is this about" treatment as the coach-reply push.
+      const { data: athlete } = await supabase
+        .from('athletes')
+        .select('name, avatar_url')
+        .eq('id', athleteId)
+        .maybeSingle();
+      const name = athlete?.name || 'רץ/ה';
+      const reason = pain ? 'דיווח/ה על כאב' : (difficulty >= 9 ? 'קושי גבוה מאוד' : 'ביקש/ה משוב');
+      // Was a hand-rolled fan-out over APPROVER_EMAILS that sent a push and
+      // persisted NOTHING — so a coach whose phone was off never found out an
+      // athlete had reported pain, and the club's own admin (synthetic Strava
+      // address, on no email allowlist) was never told at all. notifyStaff
+      // resolves by flag and role too, and writes the inbox row.
+      await notifyStaff({
+        kind: 'feedback_alert',
+        url: '/dashboard/review',
+        tag: `feedback-alert-${athleteId}`,
+        category: 'management',
+        actorAthleteId: athleteId,
+        icon: athlete?.avatar_url?.trim() || undefined,
+        copy: (locale) => feedbackAlertCopy(locale, { athleteName: name, reason }),
+      });
     }
 
     return NextResponse.json({ success: true });

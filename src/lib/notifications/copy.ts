@@ -621,6 +621,88 @@ export function storeOrderCopy(
       };
 }
 
+// ── Management channel ────────────────────────────────────────────────────
+// The four things an admin actually needs to hear about: somebody waiting at
+// the door, somebody reporting a fault, a workout that never reached a watch,
+// and a sync that stopped. All four go through notifyStaff and all four are
+// governed by the `management` toggle.
+
+export function signupRequestCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; pending: number },
+): PushCopy {
+  const name = (p.name || '').trim();
+  // The pending total rides in the body rather than the title so a burst of
+  // sign-ups reads as one growing queue instead of N interchangeable pings.
+  return locale === 'he'
+    ? {
+        title: '👋 בקשת הרשמה חדשה',
+        body: p.pending > 1
+          ? `${name || 'מישהו'} · ${p.pending} בקשות ממתינות לאישור`
+          : `${name || 'מישהו'} מחכה לאישור`,
+      }
+    : {
+        title: '👋 New sign-up request',
+        body: p.pending > 1
+          ? `${name || 'Someone'} · ${p.pending} requests waiting for approval`
+          : `${name || 'Someone'} is waiting for approval`,
+      };
+}
+
+export function problemReportCopy(
+  locale: NotificationLocale,
+  p: { athleteName: string | null | undefined; preview: string | null | undefined },
+): PushCopy {
+  const name = (p.athleteName || '').trim();
+  const raw = (p.preview || '').trim().replace(/\s+/g, ' ');
+  const clipped = raw.length > 90 ? `${raw.slice(0, 90)}…` : raw;
+  return locale === 'he'
+    ? {
+        title: '🐞 דיווח חדש על תקלה',
+        body: clipped ? `${name || 'רץ/ה'}: ${clipped}` : `${name || 'רץ/ה'} דיווח/ה על תקלה`,
+      }
+    : {
+        title: '🐞 New problem report',
+        body: clipped ? `${name || 'A runner'}: ${clipped}` : `${name || 'A runner'} reported a problem`,
+      };
+}
+
+/**
+ * One alert for a whole failed batch, not one per athlete — a Garmin outage
+ * fails every delivery in the run, and 20 identical pushes say nothing that the
+ * first one didn't.
+ */
+export function deliveryFailedCopy(
+  locale: NotificationLocale,
+  p: { failed: number; total: number },
+): PushCopy {
+  return locale === 'he'
+    ? {
+        title: '⌚ אימונים לא הגיעו לשעון',
+        body: `${p.failed} מתוך ${p.total} שליחות נכשלו`,
+      }
+    : {
+        title: '⌚ Workouts didn’t reach the watch',
+        body: `${p.failed} of ${p.total} deliveries failed`,
+      };
+}
+
+/** The daily "the pipe is dry" check. `hours` is how long it's been. */
+export function syncStalledCopy(
+  locale: NotificationLocale,
+  p: { hours: number },
+): PushCopy {
+  return locale === 'he'
+    ? {
+        title: '🔌 לא נכנסו ריצות',
+        body: `${p.hours} שעות ללא סנכרון של אף ריצה — כדאי לבדוק את החיבורים`,
+      }
+    : {
+        title: '🔌 Nothing has synced',
+        body: `No activity has synced for ${p.hours} hours — worth checking the connections`,
+      };
+}
+
 // ── Surveys ───────────────────────────────────────────────────────────────
 // A survey's question is written by whoever created it (a coach, or a
 // recurring_survey_templates row) and is already stored in both languages, so

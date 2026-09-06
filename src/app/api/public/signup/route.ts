@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { notifyAdminNewSignupRequest } from '@/lib/email';
+import { notifyStaff } from '@/lib/notifications/staff';
+import { signupRequestCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
 import { isLikelyEmail, normaliseEmail } from '@/lib/signup';
 
@@ -192,6 +194,23 @@ export async function POST(request: Request) {
       } catch (mailErr) {
         console.error('Failed to notify approvers of a new signup request:', mailErr);
       }
+      // …and a push, because the email was the ONLY channel: an approver who
+      // doesn't live in their inbox learned about a person waiting at the door
+      // whenever they next happened to open the registrations tab. Carries the
+      // pending total so a burst reads as one queue rather than N pings.
+      const { count } = await supabase
+        .from('signup_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      await notifyStaff({
+        kind: 'signup_request',
+        url: '/dashboard/settings?tab=registrations',
+        // Per-email tag: two different people waiting are two different facts,
+        // but the same person pressing submit twice must not stack.
+        tag: `signup-request-${email}`,
+        category: 'management',
+        copy: (locale) => signupRequestCopy(locale, { name: email, pending: count ?? 1 }),
+      });
     }
 
     return NextResponse.json({ ok: true, state: 'new' });

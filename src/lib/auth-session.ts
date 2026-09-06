@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove, isSuperUser } from '@/lib/constants';
+import { canApprove, isSuperUser, STAFF_ROLES } from '@/lib/constants';
 import { isCoreRunner } from '@/lib/core-runner';
 import {
   entryExpiry,
@@ -41,8 +41,6 @@ export interface SessionUser {
 export type AuthResult =
   | { ok: true; user: SessionUser }
   | { ok: false; status: number; error: string };
-
-const STAFF_ROLES = ['admin', 'coach', 'academy_coach'];
 
 /** Columns of `athletes` this resolver needs, minus the optional flag columns. */
 const ATHLETE_BASE_COLUMNS = 'id, name, role, group_id, status';
