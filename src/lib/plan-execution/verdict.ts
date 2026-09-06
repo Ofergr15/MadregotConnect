@@ -59,6 +59,13 @@ export type ExecutionMetricKey = 'distance' | 'duration' | 'pace';
 export type ExecutionUnknownReason =
   /** The run itself has no such number. */
   | 'no_data'
+  /**
+   * The plan never asked for this metric. Distinct from `no_data`, which blames
+   * the watch: an easy run with no prescribed pace has a perfectly good actual
+   * pace sitting in the same row, so "the watch didn't record it" is a visible
+   * lie.
+   */
+  | 'no_plan_value'
   /** The plan never stated a time, so the "planned" duration is our own guess. */
   | 'estimated_plan'
   /** A structured session's whole-run average pace answers nothing — see reps. */
@@ -212,10 +219,11 @@ function mean(values: number[]): number | null {
  * missing measurement — it's the same question, answered per rep instead.
  */
 function paceUnknownReason(adherence: WorkoutAdherence): ExecutionUnknownReason {
+  // Checked before the watch is blamed: on an easy run the plan simply never
+  // prescribed a pace, and the row still shows the pace that WAS recorded.
+  if (adherence.pace.plannedMin == null) return 'no_plan_value';
   if (adherence.pace.actual == null) return 'no_data';
-  if (adherence.pace.comparedMin == null && adherence.pace.plannedMin != null) {
-    return 'structured_session';
-  }
+  if (adherence.pace.comparedMin == null) return 'structured_session';
   return 'no_data';
 }
 
@@ -259,7 +267,9 @@ function buildMetrics(
       plannedMax: adherence.distance.plannedMax || null,
       closeness: distanceRange ? closeness(Math.abs(distanceRange.deviation), distanceRange.tolerance) : null,
       deviation: distanceRange ? Math.round(distanceRange.deviation) : null,
-      reason: adherence.distance.status === 'unknown' ? 'no_data' : null,
+      reason: adherence.distance.status !== 'unknown'
+        ? null
+        : adherence.distance.plannedMin > 0 ? 'no_data' : 'no_plan_value',
     },
     {
       key: 'duration',

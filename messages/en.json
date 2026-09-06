@@ -2027,6 +2027,7 @@
     "status_faster": "faster",
     "status_slower": "slower",
     "reason_no_data": "The recorded run has no such value.",
+    "reason_no_plan_value": "The plan set no target, so there is nothing to compare against.",
     "reason_estimated_plan": "The plan never stated a time, so there is nothing to compare against.",
     "reason_structured_session": "On a structured session the whole-run average pace says nothing — each rep is checked on its own.",
     "basis_reps_and_metrics": "Score from the reps (70%) plus the metrics that were measured (30%).",

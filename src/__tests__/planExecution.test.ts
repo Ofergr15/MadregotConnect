@@ -209,6 +209,30 @@ describe('buildVerdict — the 4x2000 pair', () => {
     expect(duration?.reason).toBe('estimated_plan');
   });
 
+  it('blames the plan, not the watch, when no pace was ever prescribed', () => {
+    // An easy run: the plan asked for 10 km and said nothing about pace. The
+    // recorded pace is right there in the same row, so "the run has no such
+    // value" would be a lie the athlete can see.
+    const easy = {
+      dayOfWeek: 1, name: 'easy 10k',
+      steps: [{ order: 1, type: 'active', durationType: 'distance', durationValue: 10000, targetType: 'no_target' }],
+    } as ParsedWorkout;
+    const verdict = buildVerdict({
+      activityId: 'act-1',
+      athleteId: 'ath-1',
+      adherence: assessWorkout(
+        buildPlannedWorkout(easy, DATE),
+        run({ distance: 10200, duration: 3060, movingDuration: 3060, averagePace: 300 }),
+        DEFAULT_TOLERANCES,
+      ),
+      segments: null,
+    });
+    const pace = verdict.metrics.find((m) => m.key === 'pace');
+    expect(pace?.actual).toBe(300);
+    expect(pace?.status).toBe('unknown');
+    expect(pace?.reason).toBe('no_plan_value');
+  });
+
   it('weights the reps over distance/duration when it has both', () => {
     const verdict = verdictFor(187, run({ distance: 13600 }));
     expect(verdict.basis).toBe('reps_and_metrics');
