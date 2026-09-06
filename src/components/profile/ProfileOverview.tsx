@@ -364,7 +364,11 @@ export function ProfileOverview({
                 key={d.dayOfWeek}
                 letter={(tc.raw('dayNamesShort') as string[])[d.dayOfWeek]}
                 date={weekly?.currentWeekStart ? dayOfWeekDate(weekly.currentWeekStart, d.dayOfWeek) : null}
-                km={d.min === d.max ? `${d.max}` : `${d.min}–${d.max}`}
+                // Rounded on the way in. The plan's daily kilometres are summed
+                // from workout parts, so a Tuesday of 11 + 2.4 arrived here as
+                // 13.400000000000006 and the tile rendered
+                // "11–13.400000000000006", which overflowed its own width.
+                km={d.min === d.max ? `${round1(d.max)}` : `${round1(d.min)}–${round1(d.max)}`}
                 hasKm={d.max > 0}
                 locale={locale}
                 // By date, not by weekday: on Saturday evening the strip shows the
