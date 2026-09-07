@@ -21,12 +21,20 @@ import { backfillGarminHistory } from '@/lib/garmin/history-backfill';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 /**
- * Both handlers here walk rows making SERIAL Garmin requests, so neither fits in the
- * platform default. The PATCH backfills are the binding case: `?mode=stream` is 1-3
- * requests per row and a 40-row batch is comfortably a minute of wall clock, so on the
- * default the function is killed mid-batch — the rows it already wrote are kept (each is
- * committed as it goes), but `nextBefore` never comes back and the caller's cursor loop
- * stalls on the same batch forever. 300 is what `push-workouts` uses for the same reason.
+ * Both handlers here walk rows making SERIAL Garmin requests, so neither fits the
+ * platform default — and having no ceiling declared is not the same as having a
+ * generous one: the request is then killed mid-flight with no error body, so the
+ * caller sees a dead request and cannot tell a timeout from a bug. That is exactly
+ * how the first Garmin history import failed.
+ *
+ * The PATCH backfills are the binding case: `?mode=stream` is 1-3 requests per row
+ * and a 40-row batch is comfortably a minute of wall clock, so on the default the
+ * function dies mid-batch — the rows it already wrote are kept (each is committed as
+ * it goes), but `nextBefore` never comes back and the caller's cursor loop stalls on
+ * the same batch forever.
+ *
+ * 300s is what `push-workouts` and `strava/sync-activities` use for the same reason:
+ * a provider round trip per page, writes in batches, and a human watching.
  */
 export const maxDuration = 300;
 

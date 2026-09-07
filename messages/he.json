@@ -781,6 +781,7 @@
     "garminHistoryAthletes": "אתלטים עם שעון מחובר",
     "garminHistoryRunAll": "ייבוא לכל {count} האתלטים",
     "garminHistoryRunOne": "ייבוא",
+    "garminHistoryResume": "המשך",
     "garminHistoryStop": "עצור",
     "garminHistoryProgress": "{imported} ריצות נוספו · הוותיקה {date}",
     "garminHistoryTotal": "{count} ריצות נוספו עד כה",
