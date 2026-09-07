@@ -1,0 +1,91 @@
+import { describe, it, expect } from 'vitest';
+import { matchesStoredActivity, type StoredActivity } from '@/lib/activity-dedup';
+
+/**
+ * The cross-source duplicate verdict, as a pure function.
+ *
+ * Garmin can auto-export a run to Strava, and the two sync paths import
+ * independently — each deduping only inside its own id space, so neither ever
+ * sees the other's row for the same physical run. Left unchecked, that run is
+ * counted twice everywhere `athlete_activities` is summed: cumulative-distance
+ * badges, challenges, shoe mileage, teammate notifications.
+ *
+ * The interesting cases are the edges of the two tolerances, because a fuzzy
+ * matcher fails silently in both directions: too tight and the club's totals
+ * double, too loose and a real second run of the day disappears. The recorded
+ * numbers below are the tolerances themselves (15 minutes, 10%), so a change to
+ * either has to come here and be argued for rather than drifting.
+ */
+
+const stored = (over: Partial<StoredActivity> = {}): StoredActivity => ({
+  start_time: '2026-03-01T06:00:00',
+  distance: 10000,
+  ...over,
+});
+
+describe('matchesStoredActivity', () => {
+  it('matches the same run recorded by the other source', () => {
+    expect(matchesStoredActivity([stored()], '2026-03-01T06:00:00', 10000)).toBe(true);
+  });
+
+  it('has no opinion when nothing is stored', () => {
+    expect(matchesStoredActivity([], '2026-03-01T06:00:00', 10000)).toBe(false);
+  });
+
+  // The two clocks are the athlete's watch and Strava's own record of the same
+  // start, which routinely disagree by a few minutes.
+  it('tolerates a start-time gap up to fifteen minutes, and no more', () => {
+    expect(matchesStoredActivity([stored()], '2026-03-01T06:14:00', 10000)).toBe(true);
+    expect(matchesStoredActivity([stored()], '2026-03-01T06:16:00', 10000)).toBe(false);
+    // Symmetric: the candidate can be the earlier of the two.
+    expect(matchesStoredActivity([stored()], '2026-03-01T05:46:00', 10000)).toBe(true);
+  });
+
+  // Two devices measuring one run differ by GPS drift and by where each decided
+  // the run ended, but not by a fifth.
+  it('tolerates a distance gap up to ten percent, and no more', () => {
+    expect(matchesStoredActivity([stored()], '2026-03-01T06:00:00', 10900)).toBe(true);
+    expect(matchesStoredActivity([stored()], '2026-03-01T06:00:00', 11500)).toBe(false);
+    expect(matchesStoredActivity([stored()], '2026-03-01T06:00:00', 9200)).toBe(true);
+  });
+
+  // A double day: the second run must survive. It is close in time to the first
+  // only if the window is wrong, and close in distance only if it happens to be.
+  it('keeps a genuinely separate run later the same day', () => {
+    expect(matchesStoredActivity([stored()], '2026-03-01T18:00:00', 10000)).toBe(false);
+  });
+
+  // Same start, wildly different distance: a warm-up logged separately from the
+  // session it preceded. Nothing about the clock makes those one run.
+  it('keeps a short run that starts at the same moment as a long one', () => {
+    expect(matchesStoredActivity([stored()], '2026-03-01T06:00:00', 3000)).toBe(false);
+  });
+
+  // A row with no distance carries no evidence either way, and dividing by a
+  // zero-distance candidate would make every comparison NaN — which compares
+  // false, but for the wrong reason.
+  it('ignores rows and candidates with no usable distance', () => {
+    expect(matchesStoredActivity([stored({ distance: null })], '2026-03-01T06:00:00', 10000)).toBe(false);
+    expect(matchesStoredActivity([stored({ distance: 0 })], '2026-03-01T06:00:00', 10000)).toBe(false);
+    expect(matchesStoredActivity([stored()], '2026-03-01T06:00:00', 0)).toBe(false);
+  });
+
+  it('ignores unusable timestamps rather than matching everything', () => {
+    expect(matchesStoredActivity([stored({ start_time: null })], '2026-03-01T06:00:00', 10000)).toBe(false);
+    expect(matchesStoredActivity([stored({ start_time: 'not a date' })], '2026-03-01T06:00:00', 10000)).toBe(false);
+    expect(matchesStoredActivity([stored()], 'not a date', 10000)).toBe(false);
+  });
+
+  // The history walk hands this the athlete's whole table — hundreds of rows, one
+  // of which might be the twin. Finding it must not depend on where it sits.
+  it('finds the one twin among many unrelated runs', () => {
+    const many: StoredActivity[] = [
+      stored({ start_time: '2026-02-20T06:00:00', distance: 21000 }),
+      stored({ start_time: '2026-02-25T17:30:00', distance: 8000 }),
+      stored({ start_time: '2026-03-01T06:03:00', distance: 10200 }),
+      stored({ start_time: '2026-03-04T06:00:00', distance: 10000 }),
+    ];
+    expect(matchesStoredActivity(many, '2026-03-01T06:00:00', 10000)).toBe(true);
+    expect(matchesStoredActivity(many, '2026-03-02T06:00:00', 10000)).toBe(false);
+  });
+});

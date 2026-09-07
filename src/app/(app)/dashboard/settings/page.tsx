@@ -20,7 +20,6 @@ import { MapPrefsRow } from '@/components/MapPrefsRow';
 import { GarminHistoryImport } from '@/components/admin/GarminHistoryImport';
 import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
-import { ADMIN_HIDDEN_TABS } from '@/lib/nav-items';
 import { FeedbackAdmin } from '@/components/FeedbackAdmin';
 import { CORE_RUNNER_LABEL, CORE_RUNNER_MARK } from '@/lib/core-runner';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -1464,18 +1463,18 @@ export default function SettingsPage() {
                       const mobileEnabled = isMobileTabEnabled(role, tabKey);
                       const isWebTab = allTabs.some(t => t.key === tabKey);
                       const isMobileTab = allMobileTabs.some(t => t.key === tabKey);
-                      // The admin's own training screens aren't the admin's app —
-                      // resolveNavItems drops them whatever these rows say (see
-                      // ADMIN_HIDDEN_TABS for why that decision is in code). Shown
-                      // as a state rather than as two switches, because a toggle
-                      // that changes nothing is worse than no toggle at all.
-                      const unavailable = role === 'admin' && ADMIN_HIDDEN_TABS.includes(tabKey);
+                      // The admin sees every tab there is, whatever these rows say —
+                      // it's the role that fixes the club, so a screen it can't open
+                      // is a screen nobody can (see resolveNavItems). So the whole
+                      // admin column is stated as a fact rather than offered as
+                      // switches: a toggle that changes nothing is worse than none.
+                      const unavailable = role === 'admin';
 
                       return (
                         <InsetRow
                           key={tabKey}
                           label={tabLabels[tabKey]}
-                          value={unavailable ? t('notForAdmin') : undefined}
+                          value={unavailable ? t('adminSeesEverything') : undefined}
                           valueMuted={unavailable}
                           trailing={
                             unavailable ? <span /> :

@@ -27,13 +27,44 @@ export async function hasCrossSourceDuplicate(
   const start = new Date(startTimeLocal).getTime();
   const { data } = await supabase
     .from('athlete_activities')
-    .select('distance')
+    .select('start_time, distance')
     .eq('athlete_id', athleteId)
     .gte('start_time', new Date(start - WINDOW_MS).toISOString())
     .lte('start_time', new Date(start + WINDOW_MS).toISOString());
 
-  return (data || []).some((r: { distance: number | null }) => {
-    if (!r.distance || distanceMeters <= 0) return false;
+  return matchesStoredActivity((data || []) as StoredActivity[], startTimeLocal, distanceMeters);
+}
+
+/** The `(start_time, distance)` pair this comparison needs, and nothing else. */
+export type StoredActivity = { start_time: string | null; distance: number | null };
+
+/**
+ * The same verdict as `hasCrossSourceDuplicate`, against rows the caller ALREADY
+ * holds — no query at all.
+ *
+ * This exists because the query above is per candidate activity, and that is
+ * fine on the live sync path (a handful of new runs) and ruinous on a history
+ * walk: a hundred list rows meant a hundred sequential round trips inside one
+ * serverless invocation, which is most of what made the first history import
+ * time out. One `select` per athlete, then this in memory, is the same answer for
+ * a fraction of the wall clock.
+ *
+ * Deliberately shares WINDOW_MS and DISTANCE_TOLERANCE with the query version:
+ * two copies of a fuzzy-match threshold is how the live path and the backfill
+ * would come to disagree about whether a run is a duplicate.
+ */
+export function matchesStoredActivity(
+  stored: StoredActivity[],
+  startTimeLocal: string,
+  distanceMeters: number,
+): boolean {
+  if (distanceMeters <= 0) return false;
+  const start = new Date(startTimeLocal).getTime();
+  if (Number.isNaN(start)) return false;
+  return stored.some((r) => {
+    if (!r.distance || !r.start_time) return false;
+    const t = new Date(r.start_time).getTime();
+    if (Number.isNaN(t) || Math.abs(t - start) > WINDOW_MS) return false;
     return Math.abs(r.distance - distanceMeters) / distanceMeters <= DISTANCE_TOLERANCE;
   });
 }
