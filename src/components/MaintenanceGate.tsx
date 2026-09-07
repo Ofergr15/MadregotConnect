@@ -26,7 +26,18 @@ import { apiHeaders, useApi } from '@/lib/api';
 // reunites somebody with their own account would spend its token on a "we're
 // rebuilding" screen and be gone. Nothing on that page touches the app the gate is
 // protecting: it merges two rows and stops.
-const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register', '/claim'];
+// '/pending-approval' is here because the gate covering it is the worst version of
+// this bug, not a mild one: that screen is where somebody sits between signing in
+// and being let into the club, so a maintenance window locked out precisely the
+// people who have never once seen the app working — their first and only
+// impression being a closed door. It also hid the thing that gets them OUT of
+// there — the screen polls /api/auth/me until it turns active and then forwards
+// itself, and an overlay over that is a person who was approved and never found
+// out. (The poll itself keeps working: /api/auth/me goes through requireSession
+// rather than resolveVerifiedCaller, so it is one of the few routes NOT 503'd
+// during a window.) Nothing on the page is club content — it is a spinner, a claim
+// form and install instructions.
+const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register', '/claim', '/pending-approval'];
 const isPublicPath = (p: string) =>
   PUBLIC_PATHS.some((pub) => p === pub || p.startsWith(pub + '/'));
 

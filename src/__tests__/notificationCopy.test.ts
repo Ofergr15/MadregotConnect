@@ -4,7 +4,7 @@ import {
   postWorkoutPromptCopy, workoutDetectedCopy, activitySyncedCopy, planPushedCopy,
   shoeLimitCopy, trainingDayBeforeCopy, trainingEveningBeforeCopy, RSVP_ACTION_LABELS,
   newWeekProgramCopy, weeklyRecapCopy, newEventCopy, eventTomorrowCopy, eventClosingCopy,
-  approvalCopy, badgeEarnedCopy, coachReplyCopy, newPerkCopy, feedbackAlertCopy,
+  approvalCopy, accountLinkedCopy, badgeEarnedCopy, coachReplyCopy, newPerkCopy, feedbackAlertCopy,
   storeOrderCopy, surveyNudgeCopy, pickBilingual, runTypeLabel, dayName, eventKindLabel,
 } from '@/lib/notifications/copy';
 import { NOTIFICATION_LOCALES } from '@/lib/notifications/locale';
@@ -255,6 +255,8 @@ describe('English output', () => {
         eventTomorrowCopy(locale, { name: 'Race', timeLabel: '', location: null }),
         eventClosingCopy(locale, { name: 'Race' }),
         approvalCopy(locale, { name: 'Dana' }),
+        accountLinkedCopy(locale, { name: 'Dana' }),
+        accountLinkedCopy(locale, { name: null }),
         badgeEarnedCopy(locale, { nameHe: 'א', nameEn: 'A' }),
         newPerkCopy(locale, { sponsor: 'Nike', title: '20%' }),
         feedbackAlertCopy(locale, { athleteName: 'Dana', reason: 'shin pain' }),
@@ -312,5 +314,36 @@ describe('pickBilingual', () => {
 
   it('returns empty only when neither column has anything', () => {
     expect(pickBilingual('he', { he: null, en: undefined })).toBe('');
+  });
+});
+
+describe('accountLinkedCopy', () => {
+  // The point of it being separate from approvalCopy: this recipient is not a new
+  // member. "You're approved!" would be the app congratulating somebody on joining
+  // a club they have been running with for months, which is the exact "the app
+  // doesn't know who I am" feeling the merge exists to remove.
+  it('does not congratulate an existing member on joining', () => {
+    for (const locale of ['he', 'en'] as const) {
+      const linked = accountLinkedCopy(locale, { name: 'Dana' });
+      const approved = approvalCopy(locale, { name: 'Dana' });
+      expect(linked.title).not.toBe(approved.title);
+      expect(linked.body).not.toBe(approved.body);
+    }
+    expect(accountLinkedCopy('he', { name: 'דנה' }).title).toContain('דנה');
+    expect(accountLinkedCopy('en', { name: 'Dana' }).title).toContain('Dana');
+  });
+
+  // A nameless row is real: the shell is created from whatever Strava sent, and
+  // Strava sends nothing usable often enough (see stravaDisplayNameOf).
+  it('reads as a sentence when there is no name at all', () => {
+    for (const locale of ['he', 'en'] as const) {
+      for (const name of [null, undefined, '', '   ']) {
+        const copy = accountLinkedCopy(locale, { name });
+        expect(copy.title.trim()).not.toBe('');
+        expect(copy.title).not.toMatch(/^[,\s]/);
+        expect(copy.title).not.toContain('undefined');
+        expect(copy.title).not.toContain('null');
+      }
+    }
   });
 });

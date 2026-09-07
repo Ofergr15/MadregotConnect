@@ -5,6 +5,8 @@ import { canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 import { mergeAthleteRows } from '@/lib/auth/merge-athletes';
+import { notifyAthlete } from '@/lib/push';
+import { accountLinkedCopy } from '@/lib/notifications/copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,6 +123,37 @@ export async function POST(request: Request) {
     if (updateError) {
       // The accounts ARE merged at this point, which is the part that matters.
       console.error('Linked the account but failed to close the request:', updateError);
+    }
+
+    // Tell the person. This route used to send NOTHING — no push, no mail, no
+    // inbox row — while its sibling (approve) sent both. So the one press that
+    // reunites a member with their own account was silent: they were left on the
+    // waiting screen, already inside, with no way to know it. That is the whole
+    // defect, and it is why this is not optional politeness.
+    //
+    // notifyAthlete both pushes AND persists to the Notification Center, which is
+    // what makes it the right call here rather than a bare push: the recipient is
+    // an existing member who probably has no subscription (measured 2026-09-07: 4
+    // of 25 athletes do), and an inbox row is a message that waits instead of one
+    // that was never delivered.
+    //
+    // Isolated and last: the merge is committed above and a push failure must not
+    // report the link as failed. The waiting screen polls itself in as well (see
+    // /pending-approval), so this is the fast path, not the only one.
+    try {
+      await notifyAthlete({
+        athleteId,
+        kind: 'account-linked',
+        copy: (locale) => accountLinkedCopy(locale, { name: target.name }),
+        // /feed for the same reason approve uses it: the app's landing screen, and
+        // the one that means something the moment you are let in.
+        url: '/feed',
+        tag: 'account-linked',
+        // No category — this is the answer they have been waiting for since they
+        // signed in, and it must not be mutable by a preference.
+      });
+    } catch (pushErr) {
+      console.error('Account-linked notification failed:', pushErr);
     }
 
     return NextResponse.json({
