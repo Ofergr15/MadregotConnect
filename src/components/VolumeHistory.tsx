@@ -12,6 +12,12 @@ interface Week {
   km: number;
   runs: number;
   durationSec: number;
+  /**
+   * That week's OWN target band, from the plan published for it. Absent on a
+   * week with no parsed plan, and absent entirely at month/year granularity —
+   * a month has no target of its own.
+   */
+  target?: { min: number; max: number };
 }
 interface Data {
   series: Week[];
@@ -56,7 +62,11 @@ export function VolumeHistory({ athleteId }: { athleteId: string }) {
   const pad = { top: 20, right: 16, bottom: 40, left: 40 };
   const chartW = W - pad.left - pad.right;
   const chartH = H - pad.top - pad.bottom;
-  const maxKm = Math.max(data?.peakKm || 0, ...series.map((w) => w.km), 1);
+  // The ceilings count towards the scale too: a week whose target sat above
+  // anything the athlete ran would otherwise have its band clipped off the top
+  // of the chart, i.e. hidden in exactly the weeks that fell short.
+  const maxKm = Math.max(data?.peakKm || 0, ...series.map((w) => Math.max(w.km, w.target?.max || 0)), 1);
+  const hasTargets = series.some((w) => w.target);
   const n = series.length;
   const slot = n ? chartW / n : chartW;
   const barW = Math.min(slot * 0.6, 46);
@@ -130,6 +140,36 @@ export function VolumeHistory({ athleteId }: { athleteId: string }) {
             </g>
           );
         })}
+        {/* THE TARGET BAND, per week, behind the bars. One rect per slot rather
+            than one across the chart: every week has its own plan, so a single
+            band would judge a 78 km week against today's numbers when the plan
+            it actually had asked for 70–85. Full slot width, so consecutive
+            weeks with the same target merge into one ribbon and a week whose
+            target changed reads as a step. The floor gets a line of its own —
+            "did the bar reach the green" is the whole question. */}
+        {series.map((w, i) =>
+          w.target ? (
+            <g key={`t-${w.weekStart}`}>
+              <rect
+                x={pad.left + slot * i}
+                y={toY(w.target.max)}
+                width={slot}
+                height={Math.max(toY(w.target.min) - toY(w.target.max), 1)}
+                fill="#22c55e"
+                fillOpacity={0.18}
+              />
+              <line
+                x1={pad.left + slot * i}
+                x2={pad.left + slot * (i + 1)}
+                y1={toY(w.target.min)}
+                y2={toY(w.target.min)}
+                stroke="#14532d"
+                strokeOpacity={0.45}
+                strokeWidth="1"
+              />
+            </g>
+          ) : null,
+        )}
         {series.map((w, i) => {
           const cx = pad.left + slot * i + slot / 2;
           const y = toY(w.km);
@@ -181,6 +221,14 @@ export function VolumeHistory({ athleteId }: { athleteId: string }) {
       <p className="mt-2 text-2xs text-ink-400">
         ק״מ {PER_PERIOD_LABEL[granularity]}{granularity === 'week' ? ' (ראשון–שבת)' : ''}, {data.weeksReturned} {RECENT_PERIODS_LABEL[granularity]}
       </p>
+      {/* Only when something is actually painted green — on a stretch of weeks
+          with no parsed plan the sentence would point at nothing. */}
+      {hasTargets && (
+        <p className="mt-1 flex items-center gap-1.5 text-2xs text-ink-400">
+          <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-tile bg-accent-500/25 ring-1 ring-accent-900/25" />
+          <span>הירוק = טווח היעד של אותו שבוע, מהתכנית שפורסמה לו. שבוע בלי תכנית מפורסמת נשאר בלי יעד.</span>
+        </p>
+      )}
         </>
       )}
     </div>

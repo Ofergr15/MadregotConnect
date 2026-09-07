@@ -538,6 +538,30 @@ export function approvalCopy(locale: NotificationLocale, p: { name: string | nul
 }
 
 /**
+ * "We found your account" — the other half of the queue (migration 097's merge).
+ *
+ * Its own copy rather than a reuse of approvalCopy, because "you're approved!" is
+ * the wrong sentence for this person: they have been a member all along, and being
+ * congratulated on joining a club they already run with reads as the app not
+ * knowing who they are — which is the exact complaint that started this. What
+ * happened to them is smaller and worth saying plainly: the Strava sign-in was
+ * recognised as theirs, and their own account is behind it, history included.
+ */
+export function accountLinkedCopy(locale: NotificationLocale, p: { name: string | null | undefined }): PushCopy {
+  const who = (p.name || '').trim();
+  const hey = who ? `${who}, ` : '';
+  return locale === 'he'
+    ? {
+        title: `${hey}החשבון שלך מחובר ✅`,
+        body: 'זיהינו שההתחברות דרך Strava היא שלך — האימונים, הדבוקה וההיסטוריה שלך מחכים בפנים',
+      }
+    : {
+        title: `${hey}your account is connected ✅`,
+        body: 'We recognised the Strava sign-in as yours — your runs, your group and your history are inside',
+      };
+}
+
+/**
  * The nudge for somebody who was approved and never came in.
  *
  * Its own copy rather than a second approvalCopy: "you're approved!" is wrong the

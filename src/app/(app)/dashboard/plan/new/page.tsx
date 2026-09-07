@@ -37,9 +37,10 @@ import {
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
-import { PublishReview } from '@/components/PublishReview';
+import { DayByDayReview } from '@/components/DayByDayReview';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
+import { undoAutoFixes } from '@/lib/plans/auto-fix';
 import { cn, activityLocalDay, formatActivityTime, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -729,6 +730,28 @@ export default function WeeklyPlannerPage() {
     setGroupedPlans({ ...groupedPlans, [groupKey]: { workouts: newWorkouts } });
   };
 
+  /**
+   * Undo the import's auto-fixes on one session, in all three groups at once.
+   *
+   * Applied to the client's plan rather than the server's: `publishClipboards`
+   * PUTs this state before it renders anything, so the undo reaches the boards —
+   * and `undoAutoFixes` leaves an empty `autoFixes` behind, which is what stops
+   * normalization (it runs on read too) from putting the fix straight back.
+   */
+  const undoAutoFixesForSession = (workoutIndex: number) => {
+    if (!groupedPlans) return;
+    const next = { ...groupedPlans };
+    for (const group of [1, 2, 3] as const) {
+      const key = `group${group}` as keyof GroupedWeeklyPlans;
+      const workouts = [...groupedPlans[key].workouts];
+      const workout = workouts[workoutIndex];
+      if (!workout) continue;
+      workouts[workoutIndex] = undoAutoFixes(workout);
+      next[key] = { workouts };
+    }
+    setGroupedPlans(next);
+  };
+
   const loadClipboardPreview = useCallback(async (workout: ParsedWorkout) => {
     if (!savedPlanId) return;
     setClipboardLoading(true);
@@ -736,7 +759,10 @@ export default function WeeklyPlannerPage() {
       const res = await fetch(`/api/plans/${savedPlanId}/clipboards`, {
         method: 'POST',
         headers: await bearerHeaders(),
-        body: JSON.stringify({ action: 'preview', workout }),
+        // `group` only prices the board's derived distance off this group's own
+        // week — the same band the publish path uses, so the preview promises
+        // the number the athlete will get.
+        body: JSON.stringify({ action: 'preview', workout, group: activeGroup }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || t('errors.failedToRenderClipboard'));
@@ -747,7 +773,7 @@ export default function WeeklyPlannerPage() {
     } finally {
       setClipboardLoading(false);
     }
-  }, [savedPlanId, t]);
+  }, [savedPlanId, activeGroup, t]);
 
   useEffect(() => {
     if (!showClipboardReview || !groupedPlans) return;
@@ -787,6 +813,7 @@ export default function WeeklyPlannerPage() {
             action: 'refine',
             workout,
             instruction: clipboardInstruction.trim(),
+            group,
           }),
         });
         const body = await res.json();
@@ -1607,39 +1634,13 @@ export default function WeeklyPlannerPage() {
         onOpenChange={(o) => { if (!o) setShowClipboardReview(false); }}
         title={t('clipboardStudioTitle')}
         className="md:max-w-6xl md:mx-auto"
-        footer={groupedPlans && (
-          <div className="flex items-center justify-between border-t border-page bg-card/30 px-5 py-4">
-            <span className="text-xs text-ink-400">
-              {t('partsTimesGroups', { parts: groupedPlans.group1.workouts.length })}
-            </span>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setShowClipboardReview(false);
-                  setShowMatchReview(true);
-                }}
-                disabled={clipboardLoading}
-              >
-                <Search className="h-4 w-4" />
-                {t('activityMatches')}
-              </Button>
-              <Button variant="secondary" onClick={saveDraft} disabled={saving || clipboardLoading}>
-                <Save className="h-4 w-4" />
-                {t('saveDraft')}
-              </Button>
-              <Button onClick={publishClipboards} disabled={clipboardLoading} className="px-5">
-                {clipboardLoading
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <CheckCircle2 className="h-4 w-4" />}
-                {t('publishAllClipboards')}
-              </Button>
-            </div>
-          </div>
-        )}
       >
+        {/* No Sheet footer here on purpose: the whole point of the day-by-day
+            flow is that publish exists on ONE screen — the week summary at the
+            end of it — rather than sitting under the coach's thumb from the
+            moment the sheet opens. It moved into the flow's own step bar. */}
         {groupedPlans && savedPlanId && (
-          <PublishReview
+          <DayByDayReview
             grouped={groupedPlans}
             weekStartDate={weekStartDate}
             index={clipboardWorkoutIndex}
@@ -1661,6 +1662,14 @@ export default function WeeklyPlannerPage() {
             refineScope={clipboardRefineScope}
             onRefineScope={setClipboardRefineScope}
             onRefine={refineClipboard}
+            saving={saving}
+            onSaveDraft={saveDraft}
+            onPublish={publishClipboards}
+            onMatches={() => {
+              setShowClipboardReview(false);
+              setShowMatchReview(true);
+            }}
+            onUndoAutoFix={undoAutoFixesForSession}
           />
         )}
       </Sheet>

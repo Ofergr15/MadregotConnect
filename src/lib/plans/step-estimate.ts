@@ -240,6 +240,12 @@ export function stepTimeRange(step: WorkoutStep, opts: EstimateOptions = {}): Es
 
   if (step.durationType === 'time' && step.durationValue) {
     const value = step.durationValue;
+    // Both ends stored explicitly — the import's auto-fix having already read the
+    // range out of the note, or a coach who wrote it that way. Taken over the
+    // note because it survives the note being edited.
+    if (step.durationMaxValue && step.durationMaxValue > value) {
+      return { range: { min: value, max: step.durationMaxValue }, from: 'stated' };
+    }
     if (stated && stated.min <= value && value <= stated.max && stated.min !== stated.max) {
       return { range: stated, from: 'stated' };
     }

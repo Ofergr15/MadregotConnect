@@ -11,6 +11,7 @@ import {
   workoutToClipboardText,
 } from '@/lib/plans/clipboard';
 import { renderGarminClipboardPng } from '@/lib/run-chat/garmin-clipboard';
+import { planEstimateOptions } from '@/lib/plans/step-estimate';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -30,10 +31,28 @@ async function ensureBucket(supabase: ReturnType<typeof createServerClient>) {
   }
 }
 
-async function preview(workout: ParsedWorkout) {
+/**
+ * The group's whole week, for the pace band the board's derived distance is
+ * priced off. Read from the stored plan rather than sent by the client: a tempo
+ * session priced on its own comes out at tempo pace, and the preview would then
+ * promise a distance the published board doesn't repeat. Absent group (or an
+ * unsaved plan) falls back to the session alone — coarser, never wrong.
+ */
+async function groupWorkouts(planId: string, group?: 1 | 2 | 3): Promise<ParsedWorkout[]> {
+  if (!group) return [];
+  const supabase = createServerClient();
+  const { data } = await supabase.from('weekly_plans').select('parsed_workouts').eq('id', planId).maybeSingle();
+  const stored = data?.parsed_workouts;
+  if (!stored) return [];
+  const grouped = isGrouped(stored) ? stored : splitIntoGroups(stored as ParsedWeeklyPlan);
+  return grouped[`group${group}`]?.workouts || [];
+}
+
+async function preview(workout: ParsedWorkout, siblings: ParsedWorkout[] = []) {
   const clipboardText = workoutToClipboardText(workout);
+  const opts = planEstimateOptions(siblings.length ? siblings : [workout]);
   const png = await renderGarminClipboardPng(
-    parsedWorkoutToClipboard({ ...workout, clipboardText }),
+    parsedWorkoutToClipboard({ ...workout, clipboardText }, opts),
   );
   return {
     workout: { ...workout, clipboardText },
@@ -107,6 +126,9 @@ async function publish(
     if (plan.workouts.length !== baseKeys.length) {
       throw new Error(`Group ${group} has a different number of workout parts`);
     }
+    // Priced off THIS group's week: the groups run the same sessions at
+    // different paces, so the same minutes are not the same kilometres.
+    const opts = planEstimateOptions(plan.workouts);
     for (let index = 0; index < plan.workouts.length; index++) {
       const workout = plan.workouts[index];
       if (workout.workoutKey !== baseKeys[index]) {
@@ -114,7 +136,7 @@ async function publish(
       }
       const clipboardText = workoutToClipboardText(workout);
       const png = await renderGarminClipboardPng(
-        parsedWorkoutToClipboard({ ...workout, clipboardText }),
+        parsedWorkoutToClipboard({ ...workout, clipboardText }, opts),
       );
       const path = `weekly-plans/${planId}/${workout.workoutKey}/group-${group}-${ARTIFACT_VERSION}.png`;
       const { error: uploadError } = await supabase.storage
@@ -156,16 +178,20 @@ export async function POST(
     const action = body?.action as 'preview' | 'refine' | 'publish' | undefined;
     if (!action) return NextResponse.json({ error: 'action required' }, { status: 400 });
 
+    // Which group's week to price the derived distance against; optional, and
+    // only ever used for that.
+    const group = ([1, 2, 3] as const).find((g) => g === Number(body?.group));
+
     if (action === 'preview') {
       if (!body.workout) return NextResponse.json({ error: 'workout required' }, { status: 400 });
-      return NextResponse.json(await preview(body.workout as ParsedWorkout));
+      return NextResponse.json(await preview(body.workout as ParsedWorkout, await groupWorkouts(planId, group)));
     }
     if (action === 'refine') {
       if (!body.workout || !body.instruction?.trim()) {
         return NextResponse.json({ error: 'workout and instruction required' }, { status: 400 });
       }
       const workout = await refine(body.workout as ParsedWorkout, body.instruction.trim());
-      return NextResponse.json(await preview(workout));
+      return NextResponse.json(await preview(workout, await groupWorkouts(planId, group)));
     }
 
     const supabase = createServerClient();

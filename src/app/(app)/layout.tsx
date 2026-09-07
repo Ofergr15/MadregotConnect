@@ -153,6 +153,21 @@ export default function AppLayout({
   );
   const blocked = BLOCKED_MEMBERSHIPS.find((m) => m === me?.membership) ?? null;
 
+  // 'pending' is the one blocked state that has a screen of its OWN, and it is a
+  // better screen than AccessBlocked: /pending-approval carries the claim form
+  // (the way an existing member whose Strava name didn't match gets back to their
+  // own account) and the add-to-home-screen card. Two waiting screens meant the
+  // person's experience depended on which URL they happened to arrive at — the
+  // polling was here and the way out was over there. Send them to the one that
+  // has both. It cannot bounce back: that screen only ever navigates once
+  // membership turns 'active', which is not a blocked state.
+  //
+  // The other two stay on AccessBlocked. 'inactive' and 'none' are not waiting for
+  // anything, and a screen that promises an approval is coming would be a lie.
+  useEffect(() => {
+    if (blocked === 'pending') router.replace('/pending-approval');
+  }, [blocked, router]);
+
   // Held behind the same spinner as the session check rather than swapped in
   // after the fact: a revoked member should never see a flash of the feed they
   // just lost.
@@ -167,6 +182,16 @@ export default function AppLayout({
     );
   }
 
+  // Held on the spinner rather than flashing AccessBlocked's "waiting" copy for
+  // the frame before the effect above navigates — two different waiting screens in
+  // quick succession is the kind of stutter that reads as a broken app.
+  if (blocked === 'pending') {
+    return (
+      <div className="min-h-[100dvh] bg-page flex items-center justify-center">
+        <Spinner size={32} tone="ink" />
+      </div>
+    );
+  }
   if (blocked) return <AccessBlocked membership={blocked} />;
 
   return (

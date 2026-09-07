@@ -30,7 +30,24 @@ export interface WeekTarget {
   min: number;
   /** Everything on offer, long end. */
   max: number;
+  /**
+   * How many of the ceiling's kilometres are OFFERED rather than prescribed —
+   * the width the optional evenings add to the top of the band.
+   *
+   * On screen it is the sentence that explains why the target is a band at all.
+   * Without it the green zone is just a wide green zone, and the athlete reading
+   * "45/101–120" has no way to know that the 120 end is only reachable by taking
+   * sessions nobody asked them to take.
+   *
+   * 0 when the plan has no offered sessions, and also 0 on a plan stored before
+   * the required/optional split existed — there the split is unknowable, and a
+   * missing sentence is better than an invented number.
+   */
+  optionalKm: number;
 }
+
+/** The two ends alone — all the geometry below needs. */
+type Band = Pick<WeekTarget, 'min' | 'max'>;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -54,15 +71,25 @@ export function weekTargetRange(plan: WeekPlanTotals | null | undefined): WeekTa
     ? plan.weekRequiredMin
     : plan.weekTotalMin || 0;
 
+  // The prescribed week at its LONG end. Everything above it is on offer, so the
+  // gap to the ceiling is what the optional sessions contribute. Absent on the
+  // same older plans `weekRequiredMin` is absent on, where it falls back to the
+  // ceiling itself and the gap comes out 0 — see `optionalKm`.
+  const requiredCeiling = plan.weekRequiredMax && plan.weekRequiredMax > 0 ? plan.weekRequiredMax : max;
+
   // A floor above the ceiling is nonsense to render. It can only happen on a
   // malformed plan, and clamping is quieter than a bar that draws backwards.
-  return { min: round1(Math.min(floor, max)), max };
+  return {
+    min: round1(Math.min(floor, max)),
+    max,
+    optionalKm: round1(Math.max(0, max - requiredCeiling)),
+  };
 }
 
 export type WeekTargetState = 'below' | 'in' | 'above';
 
 /** Below the floor, inside the band, or past the ceiling. */
-export function weekTargetState(doneKm: number, target: WeekTarget): WeekTargetState {
+export function weekTargetState(doneKm: number, target: Band): WeekTargetState {
   if (doneKm > target.max) return 'above';
   // `>=` on purpose: hitting the floor exactly is on plan, not one metre short
   // of it. The floor is already the most forgiving reading of the week.
@@ -70,10 +97,57 @@ export function weekTargetState(doneKm: number, target: WeekTarget): WeekTargetS
   return 'below';
 }
 
-/** Where the fill ends, as a percentage of the ceiling. Capped at 100. */
-export function weekTargetProgressPct(doneKm: number, target: WeekTarget): number {
-  if (target.max <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((doneKm / target.max) * 100)));
+export interface WeekTargetGeometry {
+  /** Where the fill ends. */
+  fillPct: number;
+  /** Where the green target zone starts. */
+  floorPct: number;
+  /** Where it ends — 100, unless the week has already run past the ceiling. */
+  ceilingPct: number;
+}
+
+/**
+ * The three coordinates the bar draws, all off ONE scale.
+ *
+ * One function rather than three, because the bug they invite is drawing the
+ * fill and the zone against different maxima — and then the zone no longer means
+ * what the fill is measured in.
+ *
+ * The track runs 0 → the ceiling, and stretches only when the athlete has gone
+ * PAST the ceiling. With the track ending there, a week over target filled it end
+ * to end and painted over the zone, so the one bar whose whole job is "did I land
+ * in the band" stopped showing the band at the moment the answer got interesting.
+ * Stretching to the kilometres actually run keeps the zone on screen and makes the
+ * overshoot the part you see.
+ */
+export function weekTargetGeometry(doneKm: number, target: Band): WeekTargetGeometry {
+  const scale = Math.max(target.max, doneKm);
+  if (scale <= 0) return { fillPct: 0, floorPct: 0, ceilingPct: 100 };
+  const pct = (km: number) => Math.max(0, Math.min(100, Math.round((km / scale) * 100)));
+  return { fillPct: pct(doneKm), floorPct: pct(target.min), ceilingPct: pct(target.max) };
+}
+
+export interface WeekTargetSegments extends WeekTargetGeometry {
+  /** Where the kilometres that landed INSIDE the band stop. */
+  inEndPct: number;
+  /** Is there a stretch inside the band to paint at all? */
+  inBand: boolean;
+  /** Only while nothing has crossed the floor — past that the colour marks it. */
+  showFloorTick: boolean;
+}
+
+/**
+ * The bar's segments: the fill cut at the band's edges.
+ *
+ * Here rather than in the component because the clamp is the whole correctness of
+ * the drawing — `inEndPct` has to stop at the ceiling, or a week that ran past the
+ * band paints bright green over the overshoot and reports being on plan.
+ */
+export function weekTargetSegments(doneKm: number, target: Band): WeekTargetSegments {
+  const geometry = weekTargetGeometry(doneKm, target);
+  const inEndPct = Math.min(geometry.fillPct, geometry.ceilingPct);
+  const inBand = inEndPct > geometry.floorPct;
+  return { ...geometry, inEndPct, inBand, showFloorTick: !inBand };
 }
 
 /** The shape `buildWeekBreakdown` gives each day of the week. */
@@ -105,8 +179,3 @@ export function dayTargetLabel(d: DayTotals): { km: string; hasOptional: boolean
   return { km, hasOptional };
 }
 
-/** Where the floor sits on that same track, so the band can be drawn behind it. */
-export function weekTargetFloorPct(target: WeekTarget): number {
-  if (target.max <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((target.min / target.max) * 100)));
-}
