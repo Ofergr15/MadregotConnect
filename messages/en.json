@@ -1547,10 +1547,14 @@
   "connectPrompt": {
     "title": "Connect Your Training Data",
     "description": "Connect Strava or Garmin so your coach can see your runs and send workouts straight to your watch.",
+    "garminTitle": "Your watch is not connected",
+    "garminDescription": "Your runs arrive from Strava, but workouts can only be sent to a watch through Garmin — without it you will not get the weekly plan on your watch.",
     "connectNow": "Connect Now",
+    "garminConnectNow": "Connect Garmin",
     "logManually": "Or log a run manually instead",
     "remindLater": "Remind Me Later",
     "dontShowAgain": "Don't Show Again",
+    "noGarmin": "I don't have a Garmin",
     "close": "Close"
   },
   "calendar": {
