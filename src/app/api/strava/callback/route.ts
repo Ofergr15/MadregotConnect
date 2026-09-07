@@ -12,6 +12,7 @@ import {
   type IdentityRow,
 } from '@/lib/auth/athlete-identity';
 import { HANDOFF_TTL_MS, parseLoginState } from '@/lib/auth/login-handoff';
+import { queuePendingStravaSignup } from '@/lib/signup-queue';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -362,16 +363,31 @@ export async function GET(request: Request) {
         { onConflict: 'id' },
       );
 
+      // ⚠️ A STRANGER, NOT A MEMBER.
+      //
+      // Nobody matched, by Strava id, by address or by name — so this is somebody
+      // the club has never heard of, arriving at the only door the app has. This
+      // insert used to read `status: 'active', approved: true` with the comment
+      // "tighten later if needed", and what that meant in practice is that anyone
+      // on earth with a Strava account could press "sign in with Strava" and become
+      // a full member: the whole club's runs, their GPS traces, their home streets.
+      // There is no invite to check and no email to verify, so the row itself has
+      // to be the gate.
+      //
+      // They still get a session and land on the waiting screen (see
+      // /api/auth/me's `membership` → 'pending' and AccessBlocked). Their Strava
+      // credential is kept, because it is what makes them recognisable on their
+      // next login — and because approval then activates them outright, with no
+      // link to click and no mail to deliver.
       const { data: created, error: insertErr } = await admin
         .from('athletes')
         .insert({
           name,
           email,
           role: 'runner',
-          status: 'active',
+          status: 'invited',
           coach_id: COACH_ID,
-          approved: true, // Strava-first: auto-approve on login; tighten later if needed
-          approved_at: new Date().toISOString(),
+          approved: false,
           strava_auth: encrypted,
           strava_athlete_id: stravaId,
           strava_enabled: true,
@@ -385,6 +401,13 @@ export async function GET(request: Request) {
         return NextResponse.redirect(new URL('/?strava=error&reason=save_failed', origin));
       }
       athleteId = created.id;
+
+      // The queue the coach actually looks at reads `signup_requests`, not
+      // `athletes`. Without this row the person above is pending and INVISIBLE:
+      // nothing lists them, so nothing can approve them, and the waiting screen is
+      // where they stay for good. Best-effort by design — the account exists either
+      // way, and a failure here must not turn a sign-in into an error page.
+      await queuePendingStravaSignup({ athleteId: created.id, email, name });
     }
 
     // ── Handoff mode ─────────────────────────────────────────────────────────

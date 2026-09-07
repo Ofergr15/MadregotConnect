@@ -2294,10 +2294,13 @@
     "noneTitle": "This account has no Madregot membership",
     "noneBody": "Sign-in worked, but no active membership is linked to it. If you got an approval email, open the link in it to finish registering.",
     "noneHint": "If you are a club member, you are probably signed in with a different account.",
-    "pendingTitle": "Your access is not active",
-    "pendingBody": "We have your account, but its access is not active right now. A club admin can turn it back on.",
-    "pendingHint": "If you just registered, approval is on its way and you will get an email.",
+    "pendingTitle": "Your account is waiting for approval",
+    "pendingBody": "You are registered. A club admin has to approve you before you can enter the app.",
+    "pendingHint": "No need to close the app — this screen updates by itself the moment approval lands.",
+    "revokedTitle": "Your access is not active",
+    "revokedBody": "We have your account, but its access is not active right now. A club admin can turn it back on.",
+    "revokedHint": "If this looks wrong, talk to your coach.",
     "switchAccount": "Sign in with another account",
-    "signingOut": "Signing out\u2026"
+    "signingOut": "Signing out…"
   }
 }

@@ -6,6 +6,7 @@ import { Card, LoadingBlock, ConfirmSheet, SegmentedControl } from '@/components
 import EmailHealthBanner from '@/components/EmailHealthBanner';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
+import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 
 /**
  * The public /register approval queue — "who is waiting, and should they be in?".
@@ -307,7 +308,7 @@ export default function RegistrationsQueue() {
   const call = async (
     r: Registration,
     action: 'approve' | 'reject',
-  ): Promise<{ emailed: boolean; emailReason?: string | null }> => {
+  ): Promise<{ emailed: boolean; emailReason?: string | null; activated?: boolean }> => {
     const body: Record<string, unknown> = { id: r.id, action };
     // Always explicit on approve. The route treats a missing key as "keep what
     // was submitted", and this screen always knows better than that — the chips
@@ -323,7 +324,7 @@ export default function RegistrationsQueue() {
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(errorText(out.error));
-    return { emailed: out.emailed !== false, emailReason: out.emailReason ?? null };
+    return { emailed: out.emailed !== false, emailReason: out.emailReason ?? null, activated: out.activated === true };
   };
 
   const act = async (r: Registration, action: 'approve' | 'reject') => {
@@ -337,12 +338,19 @@ export default function RegistrationsQueue() {
     setError(null);
     setNote(null);
     try {
-      const { emailed, emailReason } = await call(r, action);
-      // emailed:false means the approval went through but Resend didn't — the
-      // person is approved and does NOT know it. Worth saying out loud, with the
-      // reason, because the fix is a human one: the אושרו tab now carries their
-      // link, so it is "copy this and send it" rather than "something failed".
-      if (action === 'approve' && !emailed) {
+      const { emailed, emailReason, activated } = await call(r, action);
+      // activated:true — they signed in with Strava and were waiting on the blocked
+      // screen, so this approval put them straight in and pushed them a notification.
+      // There is no link to chase and nothing failed, which is the opposite of what
+      // the note below would have said (it keys off the mail, and there is no address
+      // to mail).
+      if (action === 'approve' && activated) {
+        setNote(`${r.athleteName || r.email} בפנים — נשלחה התראה לאפליקציה. אין צורך בקישור.`);
+      } else if (action === 'approve' && !emailed) {
+        // emailed:false means the approval went through but Resend didn't — the
+        // person is approved and does NOT know it. Worth saying out loud, with the
+        // reason, because the fix is a human one: the אושרו tab now carries their
+        // link, so it is "copy this and send it" rather than "something failed".
         setNote(`אושר — אבל המייל לא נשלח. ${mailFailureText(emailReason)} הקישור שלהם מחכה בטאב "אושרו" — אפשר להעתיק ולשלוח בוואטסאפ.`);
       }
       setSelected(prev => { const n = new Set(prev); n.delete(r.id); return n; });
@@ -373,8 +381,11 @@ export default function RegistrationsQueue() {
     const noMail: string[] = [];
     for (let i = 0; i < targets.length; i++) {
       try {
-        const { emailed } = await call(targets[i], 'approve');
-        if (!emailed) noMail.push(targets[i].email);
+        const { emailed, activated } = await call(targets[i], 'approve');
+        // An activated row is in, notified, and has nothing to chase — counting it
+        // as a mail failure would send the approver looking for thirty links that
+        // nobody needs.
+        if (!emailed && !activated) noMail.push(targets[i].email);
         setBulk({ done: i + 1, total: targets.length });
       } catch (err) {
         failedAt = err instanceof Error ? err.message : 'הפעולה נכשלה';
@@ -892,6 +903,8 @@ function QueueRow({
    *  has a token, and not in yet. On a 'done' row there is nobody to send it to. */
   const showLinkActions = !!(stage && stage !== 'done' && r.inviteToken && onCopy);
   const needsGroup = isPending && !groupId;
+  /** True when the address on this row is one the app invented — see line one below. */
+  const identifiedByName = isSyntheticAuthEmail(r.email);
   /** The row's דבוקה, resolved to its number and its brand colours. null when the
    *  row has no group, or an id that /api/groups no longer knows. */
   const band = useMemo(() => {
@@ -952,8 +965,18 @@ function QueueRow({
             truncated mid-domain ("grosfeldofe…"), which is unreadable and, worse,
             ambiguous between two people. It now owns line one at 14px, with
             everything else demoted to line two. */}
-        <span dir="ltr" title={r.email} className="block text-sm font-semibold text-ink-900 truncate text-left select-all">
-          {r.email}
+        {/* …unless there is no address. A Strava sign-in queues itself under
+            `strava_1234@strava.madregot.local` — a synthetic address the app
+            invented, which identifies nobody and is not theirs to be shown as
+            such. Their Strava display name is the only real thing on the row, so
+            it takes line one instead. dir=auto because that name is usually
+            Hebrew, and forcing LTR on it flips its punctuation to the wrong end. */}
+        <span
+          dir={identifiedByName ? 'auto' : 'ltr'}
+          title={r.email}
+          className="block text-sm font-semibold text-ink-900 truncate text-left select-all"
+        >
+          {identifiedByName ? r.athleteName || 'התחברות דרך Strava' : r.email}
         </span>
 
         {/* dir=ltr on the SECOND line too, and it matters: the address above is an

@@ -4,6 +4,9 @@ import { createServerClient } from '@/lib/supabase/server';
 import { APP_URL, canApprove, COACH_ID } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { notifyRegistrationApproved } from '@/lib/email';
+import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
+import { notifyAthlete } from '@/lib/push';
+import { approvalCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
 import { placeholderNameFromEmail } from '@/lib/signup';
 
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
 
     const { data: reqRow, error: findError } = await supabase
       .from('signup_requests')
-      .select('id, email, group_id, status')
+      .select('id, email, group_id, status, athlete_id')
       .eq('id', id)
       .maybeSingle();
     if (findError) throw findError;
@@ -135,27 +138,59 @@ export async function POST(request: Request) {
       group_id: groupId,
     };
 
-    const { data: athlete, error: insertError } = await supabase
-      .from('athletes')
-      .insert(insertPayload)
-      .select('id')
-      .single();
-
-    // 23505 = unique_violation on athletes.email (migration 079). Someone signed
-    // up through another door — a Google/Strava login, or the academy form —
-    // between registering here and being approved. Adopt that row rather than
-    // failing: mark it approved, give it the token, and mail the link. The
-    // request is still legitimately approved; there is just already a row for it.
-    let athleteId = athlete?.id as string | undefined;
-    if (insertError) {
-      if (insertError.code !== '23505') throw insertError;
-      const { data: existing } = await supabase
+    // ── IS THERE ALREADY AN ATHLETE ROW FOR THIS PERSON? ─────────────────────
+    //
+    // Two ways there can be, and both end up in the same branch:
+    //
+    //  - `signup_requests.athlete_id` is set, because the row CREATED the request.
+    //    A Strava sign-in queues itself that way (src/lib/signup-queue.ts) — the
+    //    account exists, waiting on the AccessBlocked screen.
+    //  - the insert collides on the address (23505 on athletes.email, migration
+    //    079): they came in through another door — a Google/Strava login, the
+    //    academy form — between registering here and being approved.
+    //
+    // It matters beyond bookkeeping. Someone who ALREADY has a way to sign in does
+    // not need /join/{token} at all: the only things that flow would still collect
+    // are a name they gave Strava and a group this approval just set. So approving
+    // them ACTIVATES them outright, and the whole join works with no mail in it —
+    // which is the point, since the club's sender is not verified yet. A form
+    // applicant has neither a name nor a watch, so they stay 'invited' until they
+    // finish /join, exactly as before.
+    const readAthlete = async (column: 'id' | 'email', value: string) => {
+      const { data } = await supabase
         .from('athletes')
-        .select('id')
-        .eq('email', reqRow.email)
+        // strava_auth is read for PRESENCE only. It is an OAuth credential and must
+        // not leave this route — see the response at the bottom.
+        .select('id, name, strava_auth')
+        .eq(column, value)
         .maybeSingle();
-      if (!existing) throw insertError;
+      return (data || null) as { id: string; name: string | null; strava_auth: string | null } | null;
+    };
+
+    let existing = reqRow.athlete_id ? await readAthlete('id', reqRow.athlete_id) : null;
+    let athleteId: string | undefined;
+
+    if (!existing) {
+      const { data: athlete, error: insertError } = await supabase
+        .from('athletes')
+        .insert(insertPayload)
+        .select('id')
+        .single();
+      athleteId = athlete?.id as string | undefined;
+      if (insertError) {
+        if (insertError.code !== '23505') throw insertError;
+        existing = await readAthlete('email', reqRow.email);
+        if (!existing) throw insertError;
+      }
+    }
+
+    // Whether this approval also let them straight in. Reported back, because the
+    // queue's whole "copy the link and WhatsApp it" flow is pointless for them.
+    let activated = false;
+
+    if (existing) {
       athleteId = existing.id;
+      activated = !!existing.strava_auth;
       await supabase
         .from('athletes')
         .update({
@@ -164,6 +199,10 @@ export async function POST(request: Request) {
           approved_by: approverEmail || null,
           invite_token: token,
           group_id: groupId,
+          // Not written when they are NOT connected: an academy applicant adopted
+          // here still owes us a watch, and 'active' would end the onboarding
+          // before it started.
+          ...(activated ? { status: 'active' } : {}),
         })
         .eq('id', existing.id);
     }
@@ -194,15 +233,53 @@ export async function POST(request: Request) {
     // whatever the one send path actually observed, and the refusal itself travels out
     // as `emailReason`, because "Resend won't send to that address from this sender"
     // is not something anyone can guess from "failed".
-    const mail = await notifyRegistrationApproved({
-      email: reqRow.email,
-      token,
-      groupName,
-      athleteId: athleteId || null,
-      signupRequestId: id,
-    });
-    const emailed = mail.ok;
-    const emailReason = mail.ok ? null : mail.code === 'email-not-configured' ? mail.code : mail.reason;
+    let emailed = false;
+    let emailReason: string | null = null;
+
+    if (isSyntheticAuthEmail(reqRow.email)) {
+      // There is no address to send to. They signed in with Strava, so the one on
+      // the row is `strava_1234@strava.madregot.local` — ours, not theirs. Calling
+      // Resend with it would produce a refusal that reads on the queue as a delivery
+      // problem to go and fix, when the truth is that nothing needed sending: this
+      // person is already inside (see `activated`) and got a push instead.
+      emailReason = 'no-address';
+    } else {
+      const mail = await notifyRegistrationApproved({
+        email: reqRow.email,
+        token,
+        groupName,
+        athleteId: athleteId || null,
+        signupRequestId: id,
+      });
+      emailed = mail.ok;
+      emailReason = mail.ok ? null : mail.code === 'email-not-configured' ? mail.code : mail.reason;
+    }
+
+    // The push that replaces the mail for anyone already connected. They are sitting
+    // on the waiting screen — this is the ping that tells them to come in, and it is
+    // the one notification an account in that state is allowed to receive (the
+    // recipient filter in lib/push.ts keys off `status`, which the write above just
+    // set to 'active').
+    //
+    // Isolated, and after the request is marked: the approval is committed either
+    // way, and the shell's own 30s re-check lets them in even if this never lands.
+    if (activated && athleteId) {
+      try {
+        await notifyAthlete({
+          athleteId,
+          kind: 'approval',
+          copy: (locale) => approvalCopy(locale, { name: existing?.name || null }),
+          // /feed, not /dashboard: it is the app's landing page and the one screen
+          // that means something on the first visit.
+          url: '/feed',
+          tag: 'approval',
+          // No category — this is the moment they have been waiting for since they
+          // signed in, and it must not be mutable.
+        });
+      } catch (pushErr) {
+        console.error('Approval push notification failed:', pushErr);
+      }
+    }
 
     // The link rides back regardless of the mail. It is the only thing the
     // approver can act on when delivery fails, and going to look it up means a
@@ -211,6 +288,7 @@ export async function POST(request: Request) {
       ok: true,
       status: 'approved',
       athleteId,
+      activated,
       emailed,
       emailReason,
       inviteToken: token,

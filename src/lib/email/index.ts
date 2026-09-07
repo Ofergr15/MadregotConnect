@@ -98,18 +98,30 @@ export async function notifyAdminUserApproved(
 
 export async function notifyAdminNewSignupRequest(req: {
   email: string;
+  /**
+   * Present when we know it. A Strava sign-in gives a real display name and a
+   * SYNTHETIC address (strava_1234@strava.madregot.local), so for that person the
+   * name is the only identifying thing in the mail — hence it leads the subject
+   * line, because "New registration waiting: strava_1234@…" identifies nobody.
+   */
+  name?: string | null;
   groupName?: string | null;
 }): Promise<SendResult> {
+  const who = (req.name || '').trim() || req.email;
   return sendEmail({
     template: 'admin_new_signup_request',
     // The approver list, not just ADMIN_EMAIL: whoever is nearest their phone should
     // be able to let a new runner in.
     to: APPROVER_EMAILS,
-    subject: `🏃 New registration waiting: ${req.email}`,
+    subject: `🏃 New registration waiting: ${who}`,
     html: renderEmail({
       dir: 'ltr',
       title: 'New registration',
-      rows: [['Email', req.email], ['Group', req.groupName || '—']],
+      rows: [
+        ...(req.name ? ([['Name', req.name]] as Array<[string, string]>) : []),
+        ['Email', req.email],
+        ['Group', req.groupName || '—'],
+      ],
       cta: { label: 'Review & approve →', href: `${APP_URL}/dashboard/settings?tab=registrations` },
       notes: ['They cannot enter the app until someone approves this.'],
     }),

@@ -16,6 +16,7 @@ import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { Spinner } from '@/components/ui';
 import { AccessBlocked } from '@/components/AccessBlocked';
 import { apiHeaders, useApi } from '@/lib/api';
+import { BLOCKED_MEMBERSHIPS } from '@/lib/auth/membership';
 import { getSupabase } from '@/lib/supabase/client';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import { APP_SCROLL_ID } from '@/lib/app-scroll';
@@ -138,11 +139,19 @@ export default function AppLayout({
   // error, a 401 on the legacy localStorage-only path, or an older deploy that
   // doesn't send `membership` all leave the shell exactly as it was — locking
   // members out of a working club because a fetch failed is the worse bug.
+  //
+  // A blocked screen POLLS, and only a blocked screen does. Someone waiting for
+  // approval sits on that screen with the app open while the coach taps approve on
+  // their own phone — and nothing told them. The answer arrived only on a reload,
+  // so the real last step of joining the club was "close the app and open it
+  // again": nobody thinks to do that, and nothing on screen suggested it. Members
+  // poll never (`0`) — there is nothing to wait for, and this route stamps
+  // last_seen_at on every call.
   const { data: me, isLoading: meLoading } = useApi<{ membership?: string }>(
     authorized ? '/api/auth/me' : null,
+    { refreshInterval: (latest) => (latest?.membership && latest.membership !== 'active' ? 30_000 : 0) },
   );
-  const blocked =
-    me?.membership === 'none' || me?.membership === 'inactive' ? me.membership : null;
+  const blocked = BLOCKED_MEMBERSHIPS.find((m) => m === me?.membership) ?? null;
 
   // Held behind the same spinner as the session check rather than swapped in
   // after the fact: a revoked member should never see a flash of the feed they
