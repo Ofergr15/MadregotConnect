@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { ShieldOff, Clock } from 'lucide-react';
 import { Card, Button } from '@/components/ui';
 import { getSupabase } from '@/lib/supabase/client';
-import { clearIdentityKeys } from '@/lib/auth/identity-keys';
+import { signOutEverywhere } from '@/lib/auth/sign-out';
 import type { BlockedMembership } from '@/lib/auth/membership';
 
 /**
@@ -61,13 +61,10 @@ export function AccessBlocked({ membership }: { membership: BlockedMembership })
 
   const signOut = async () => {
     setSigningOut(true);
-    try {
-      await getSupabase().auth.signOut();
-    } catch {
-      // A failed sign-out must not trap them on this screen — the local identity
-      // is what the shell reads, so clearing it is the part that matters.
-    }
-    clearIdentityKeys();
+    // Clears the device cookie too, which is the part that used to be missing:
+    // without it the landing page minted a new session on arrival and put them
+    // straight back on this very screen.
+    await signOutEverywhere();
     window.location.href = '/';
   };
 

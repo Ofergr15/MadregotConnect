@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Clock } from 'lucide-react';
-import { getSupabase } from '@/lib/supabase/client';
+import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { Card, EmptyState, Button } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
 
@@ -10,8 +10,7 @@ export default function PendingApprovalPage() {
   const t = useTranslations('onboarding');
 
   const handleBackHome = async () => {
-    const supabase = getSupabase();
-    await supabase.auth.signOut();
+    await signOutEverywhere();
     window.location.href = '/';
   };
 
