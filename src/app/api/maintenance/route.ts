@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
+import { clearMaintenanceCache, maintenanceBlocks, readMaintenance } from '@/lib/maintenance';
 
 export const dynamic = 'force-dynamic';
 
+/** Uncached — the writer below must see what it just wrote. */
 async function getSettings() {
   const supabase = createServerClient();
   const { data } = await supabase.from('app_settings').select('key, value').in('key', ['maintenance_mode', 'maintenance_allow']);
@@ -15,18 +17,48 @@ async function getSettings() {
   return { on, allow };
 }
 
-// GET /api/maintenance?email=…  → { maintenance, allowed, allowlist }
-// allowed = the viewer's email is on the SAVED allowlist. (Approvers are NOT
-// auto-exempt anymore — the allowlist controls everyone. The actor who turns
-// maintenance ON is auto-added, so admins can't accidentally lock themselves out.)
+// GET /api/maintenance  → { maintenance, allowed, allowlist? }
+//
+// `allowed` is about the VERIFIED session, never about a `?email=` the caller
+// supplies. That parameter was the whole bypass: the addresses on the allowlist
+// are approver addresses, which ship in the client bundle, so anybody could ask
+// the endpoint whether an admin is allowed in and act on the yes. It is now
+// ignored — and the screen no longer has an address to send, because it reads the
+// answer for whoever holds the token.
+//
+// No session means blocked, not allowed: the allowlist cannot recognise somebody
+// it knows nothing about. (The gate never covers the public paths, so a visitor
+// who has not signed in yet is not affected — see PUBLIC_PATHS.)
+//
+// `allowlist` goes only to an approver. It is the list of who can still get in
+// during a window, which is nobody else's business.
+//
+// `identified` and `superUser` are here so the screen stops working them out for
+// itself — it used to read localStorage and run isSuperUser() in the browser, both
+// of which the viewer can write.
 export async function GET(request: Request) {
   try {
-    const email = (new URL(request.url).searchParams.get('email') || '').toLowerCase().trim();
-    const { on, allow } = await getSettings();
-    const allowed = !!email && allow.includes(email);
-    return NextResponse.json({ maintenance: on, allowed, allowlist: allow });
+    const state = await readMaintenance();
+    const auth = await requireSession(request);
+    if (!auth.ok) {
+      return NextResponse.json({
+        maintenance: state.on,
+        allowed: !state.on,
+        identified: false,
+        superUser: false,
+      });
+    }
+    return NextResponse.json({
+      maintenance: state.on,
+      allowed: !maintenanceBlocks(auth.user.email, state),
+      identified: true,
+      superUser: auth.user.isSuperUser,
+      ...(auth.user.canApprove ? { allowlist: state.allow } : {}),
+    });
   } catch {
-    return NextResponse.json({ maintenance: false, allowed: true, allowlist: [] });
+    // Fails open, the same way readMaintenance does and for the same reason: a
+    // read that did not answer is not evidence that the club is closed.
+    return NextResponse.json({ maintenance: false, allowed: true, identified: false, superUser: false });
   }
 }
 
@@ -72,6 +104,10 @@ export async function PUT(request: Request) {
       const { error } = await supabase.from('app_settings').upsert(rows, { onConflict: 'key' });
       if (error) throw error;
     }
+    // The API gate caches its answer for a few seconds. Drop it here so the
+    // window starts (or ends) on the tap rather than up to a TTL later — this
+    // instance at least; others expire on their own.
+    clearMaintenanceCache();
     const { on: nowOn, allow } = await getSettings();
     return NextResponse.json({ maintenance: nowOn, allowlist: allow });
   } catch (err: unknown) {

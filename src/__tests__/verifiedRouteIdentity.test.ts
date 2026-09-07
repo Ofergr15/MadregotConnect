@@ -83,6 +83,15 @@ describe('verified identity on every API route', () => {
 
 // ---------------------------------------------------------------------------
 
+// Maintenance mode is off for everything below. resolveVerifiedCaller reads it on
+// every request, and that read is a real `app_settings` query — it would show up in
+// `ops` and make "no query ran before the 403" look false. Which gate wins during a
+// window is pinned in maintenanceEnforcement.test.ts instead.
+vi.mock('@/lib/maintenance', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/maintenance')>()),
+  readMaintenance: async () => ({ on: false, allow: [] }),
+}));
+
 const requireSession = vi.fn();
 vi.mock('@/lib/auth-session', () => ({
   requireSession: (req: Request) => requireSession(req),
