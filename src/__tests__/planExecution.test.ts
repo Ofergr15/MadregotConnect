@@ -221,8 +221,12 @@ describe('buildVerdict — the 4x2000 pair', () => {
     const verdict = verdictFor(187, run({ distance: 13600, duration: 3300, movingDuration: 3300 }));
     expect(verdict.direction).toBe('too_fast');
     expect(verdict.repCounts).toMatchObject({ onTarget: 0, faster: 4, slower: 0 });
-    // 187 vs a 200 band with ±10 tolerance → 3 s/km outside, negative = fast.
-    expect(verdict.paceDeviationSec).toBe(-3);
+    // The deviation is measured from the EDGE of the tolerance band, not its centre:
+    // 187 against a 200 target is 13 s/km fast, of which the tolerance forgives
+    // `paceSec`. Derived rather than written out, because it moved silently when the
+    // tolerance widened from 5 to 10 (-8 → -3) and a hardcoded number here just
+    // records whatever the constant was the day the test was written.
+    expect(verdict.paceDeviationSec).toBe(187 - 200 + DEFAULT_TOLERANCES.paceSec);
     expect(verdict.score).toBeLessThan(100);
   });
 
@@ -286,8 +290,12 @@ describe('buildVerdict — the 4x2000 pair', () => {
   it('weights the reps over distance/duration when it has both', () => {
     const verdict = verdictFor(187, run({ distance: 13600 }));
     expect(verdict.basis).toBe('reps_and_metrics');
-    // 3 s/km outside a ±10 band → 1 - 3/30 per rep; distance is spot on.
-    const repPart = 1 - 3 / (DEFAULT_TOLERANCES.paceSec * ZERO_AT_TOLERANCE_MULTIPLE);
+    // 187 against a 200 target is 13 s/km fast, of which the tolerance forgives
+    // `paceSec`; the remainder scores down to zero at ZERO_AT_TOLERANCE_MULTIPLE
+    // band-widths out. Distance is spot on. Both halves derive from the constant so
+    // the arithmetic follows the tolerance instead of pinning it.
+    const outsideBand = 13 - DEFAULT_TOLERANCES.paceSec;
+    const repPart = 1 - outsideBand / (DEFAULT_TOLERANCES.paceSec * ZERO_AT_TOLERANCE_MULTIPLE);
     const expected = Math.round((REPS_WEIGHT * repPart + (1 - REPS_WEIGHT) * 1) * 100);
     expect(verdict.score).toBe(expected);
   });
@@ -748,7 +756,12 @@ describe('workRepsOf', () => {
   function repsOfPacedEnds() {
     const workout = pacedEnds();
     const laps = lapsAt(205);
-    laps[1] = { distance: 2000, duration: 2000 * (187 / 1000), averagePace: 187 };
+    // One rep deliberately off the 200–210 band, on the fast side, so the rep list
+    // has something that is not on target. Derived from the tolerance rather than
+    // written out: at ±5 this was 192, which the ±10 band absorbed entirely and
+    // quietly turned a 3-of-4 assertion into 4-of-4. Five seconds clear of the edge.
+    const offBand = 200 - DEFAULT_TOLERANCES.paceSec - 5;
+    laps[1] = { distance: 2000, duration: 2000 * (offBand / 1000), averagePace: offBand };
     const verdict = buildVerdict({
       activityId: 'act-1', athleteId: 'ath-1', workoutName: workout.name,
       adherence: assessWorkout(buildPlannedWorkout(workout, DATE), run(), DEFAULT_TOLERANCES),

@@ -79,18 +79,37 @@ Identical to runner, **plus מתכנן in More**: סקירה · מתכנן · פ
 ### admin — this is you
 
 **Bar:** פיד · לוח בקרה · [נוכחות] · ספורטאים · משוב אימונים · עוד
-(נוכחות is the middle staff slot, so it sits between the 2nd and 3rd tabs.)
-**More → morePages, in this order:** סקירה · מתכנן · אקדמיה · קבוצות · פעילויות · תוכנית · נוכחות · נפח הקבוצה · יומן · היסטוריה · הגדרות · פרופיל · כלי מאמן
+**More → morePages:** סקירה · מתכנן · אקדמיה · קבוצות · פעילויות · תוכנית · אימון ·
+נוכחות · נפח הקבוצה · יומן · היסטוריה · הגדרות · פרופיל · כלי מאמן
+(13 overflow cards + סקירה, which is static. כלי מאמן is back in the sheet: פיד
+returning to the bar took its flat slot.)
 
-- [ ] 13 cards in the More grid, in that order
+**The admin sees everything** (2026-09-07, Ofer's call — it replaced the opposite
+rule that had shipped the same day). Every tab in `ALL_NAV_ITEMS`, whatever
+`role_tab_permissions` says: it's the role that fixes the club, so a screen it
+can't open is a screen nobody can. Every other role is exactly what the matrix
+defines, and an account that is BOTH — a coach who runs, an admin who runs — keeps
+the member half, which is the פרופיל tab.
+
+- [ ] פיד, פעילויות and תוכנית are all there. Your account is `runner` +
+      משתמש-על, which renders as `admin`, so this is the bar you get by default.
+- [ ] **אימון (`/dashboard/practice`) is now reachable as admin** — no permission
+      row grants it (only the academy roles have one), the see-everything rule
+      does. This answers the open question the previous version of this doc asked.
 - [ ] נוכחות appears twice — once as the middle bar slot, once as a More card.
       Intended (it's excluded from *flat tabs* only), but eyeball it and say if
       it looks wrong.
-- [ ] פרופיל is there only because your account also has an athlete row. Fine.
-- [ ] ⚠️ **אימון (`/dashboard/practice`) is missing entirely.** `practice` is
-      enabled for `academy_coach` and `academy_user` only, so as admin there is
-      no route to it from the UI. Open `/dashboard/practice` by URL, decide
-      whether admin should have the tab, and tell me.
+- [ ] **פרופיל** opens your training profile — kilometres, records, Garmin — because
+      your account has an athlete row. The admin account screen (החשבון: identity,
+      משתמש-על / מאשר הרשמות, view-as, maintenance, version, sign out) is what an
+      admin with NO athlete row gets in that same slot. Sign-out and view-as are
+      both in the header too, so nobody is stranded either way.
+- [ ] View-as → רץ, then פרופיל: the runner's nav, no staff tabs, athlete profile.
+- [ ] הגדרות → ניהול טאבים: the whole admin row reads "מנהל רואה הכל" instead of
+      toggles, because no cell in that column changes anything now.
+- [ ] ⚠️ /dashboard is still the control room, not your training home — that's a
+      separate call (v2.39.104) and it wasn't part of this one. Your own week is on
+      תוכנית, your runs on פעילויות. Say if you want the training home back too.
 
 ### coach
 
@@ -107,11 +126,17 @@ back into More.
 - [ ] נוכחות now has a permission row to match the slot the bar was already
       rendering unconditionally. Tap it — page and API should agree now.
 - [ ] ⚠️ Side effect worth your eye: those were the last two tabs admin held and
-      coach did not, so **coach and admin now see an identical nav**. Nav is
+      coach did not, so **coach and admin saw an identical nav**. Nav is
       visibility only, and the sharp controls inside הגדרות (granting admin) are
       separately gated on the email allowlist, not on role — but coach already
       held `settings` before this change. Say if you want coach narrowed.
-- [ ] No אימון for coach either (see admin).
+- [ ] Since 2026-09-07 the admin is a strict superset: it adds אימון (which no
+      permission row grants) and, for an admin with no athlete row, החשבון. There
+      is nothing a coach reaches that an admin can't.
+- [ ] A coach who also runs keeps both halves: staff tabs AND פיד / פעילויות /
+      תוכנית / פרופיל. Several coaches here train with the club — check one.
+- [ ] No אימון for coach: the row is `academy_coach`/`academy_user` only, and the
+      see-everything rule is the admin's alone. Say if coaches should have it.
 
 ### academy_coach
 

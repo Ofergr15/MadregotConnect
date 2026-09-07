@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiHeaders } from '@/lib/api';
 import { Sheet } from '@/components/ui';
 import {
   getViewMode,
@@ -46,19 +47,23 @@ export function ImpersonationBar() {
   }, []);
 
   // Is the maintenance gate currently blocking the REAL super user? Only worth
-  // asking when no scenario is active: a role scenario bypasses the gate, and the
-  // maintenance scenario shows it with the trigger already up.
+  // asking when no scenario is active: the maintenance scenario shows the gate
+  // with the trigger already up.
+  //
+  // The answer is the server's, for whoever holds the token. This used to send an
+  // address out of localStorage and read the verdict for THAT address — the same
+  // forgeable check the gate itself used to make (see MaintenanceGate).
   useEffect(() => {
     if (!isSuper || mode) return;
-    const email =
-      localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    if (!email) return;
-    fetch(`/api/maintenance?email=${encodeURIComponent(email)}`)
+    let live = true;
+    apiHeaders()
+      .then((headers) => fetch('/api/maintenance', { headers }))
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d) setGateBlockingMe(!!d.maintenance && !d.allowed);
+        if (live && d) setGateBlockingMe(!!d.maintenance && !d.allowed);
       })
       .catch(() => {});
+    return () => { live = false; };
   }, [isSuper, mode]);
 
   // Open the chooser when the Header eye button dispatches 'open-view-as'.

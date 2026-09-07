@@ -13,11 +13,12 @@ import {
   canStartTour,
   isInstallStepAnswered,
   pushStepOfferCount,
+  resetInstallOffer,
   recordInstallOfferSkipped,
   recordPushStepSkipped,
   tourExitTarget,
 } from '@/lib/onboarding/first-run-order';
-import { isIosSafari } from '@/lib/pwa';
+import { isInAppBrowser, isIosSafari } from '@/lib/pwa';
 import type { OnboardingState } from '@/lib/onboarding/use-onboarding';
 
 // The first run has an ORDER — install, then the tour, then notifications, then
@@ -49,8 +50,12 @@ function browser(opts: {
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => local[k] ?? null,
     setItem: (k: string, v: string) => { local[k] = v; },
+    removeItem: (k: string) => { delete local[k]; },
   });
-  vi.stubGlobal('sessionStorage', { getItem: (k: string) => session[k] ?? null });
+  vi.stubGlobal('sessionStorage', {
+    getItem: (k: string) => session[k] ?? null,
+    removeItem: (k: string) => { delete session[k]; },
+  });
   return { local, session };
 }
 
@@ -331,5 +336,91 @@ describe('canShowNotificationsStep', () => {
     browser({ standalone: true, local: { [PUSH_STEP_OFFER_COUNT_KEY]: 'not-a-number' } });
     expect(pushStepOfferCount()).toBe(0);
     expect(canShowNotificationsStep(ready, true, 'default')).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The webview the club actually arrives in.
+//
+// Invites go out on WhatsApp, and a link tapped there opens in WhatsApp's own
+// browser — which cannot install a PWA: no Add to Home Screen in its share sheet
+// and no `beforeinstallprompt`. It used to be handed Safari's steps, pointing at
+// a menu item that isn't there, so those members stayed in a webview for good:
+// no icon, and on iOS no working notification ever (a subscription made outside
+// standalone is page-origin permanently). It needs its own offer — leave this
+// browser first — which means first being able to tell that we're in one.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('isInAppBrowser', () => {
+  const IOS_WEBVIEW =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
+
+  it('spots the webviews that name themselves', () => {
+    for (const ua of [
+      `${IOS_WEBVIEW} WhatsApp/2.24`,
+      'Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Instagram 300.0.0',
+      'Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 [FBAN/FBIOS;FBAV/450]',
+    ]) {
+      browser({ ua });
+      expect(isInAppBrowser()).toBe(true);
+    }
+  });
+
+  it('spots the ones that name nothing, by the Safari product they omit', () => {
+    // The WhatsApp versions that send a bare WKWebView UA. Real Safari always
+    // sends `Safari/<build>`; a WKWebView never does.
+    browser({ ua: IOS_WEBVIEW });
+    expect(isInAppBrowser()).toBe(true);
+  });
+
+  it('leaves real iPhone Safari alone — it has the Share-sheet route', () => {
+    browser();
+    expect(isInAppBrowser()).toBe(false);
+    expect(isIosSafari()).toBe(true);
+  });
+
+  it('never fires for the installed app, which is a webview by definition', () => {
+    // Getting this wrong would tell somebody who already installed to go and
+    // install — inside the very icon they installed.
+    browser({ ua: IOS_WEBVIEW, standalone: true });
+    expect(isInAppBrowser()).toBe(false);
+  });
+
+  it('spots an Android webview and leaves Chrome alone', () => {
+    browser({ ua: 'Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36' });
+    expect(isInAppBrowser()).toBe(true);
+    browser({ ua: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36' });
+    expect(isInAppBrowser()).toBe(false);
+  });
+
+  it('leaves desktop alone', () => {
+    browser({ ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36' });
+    expect(isInAppBrowser()).toBe(false);
+  });
+});
+
+describe('resetInstallOffer — the door back to step 1', () => {
+  it('undoes every sticky answer, so the offer can be asked for on purpose', () => {
+    // Without this the flow had an exit and no entrance: a dismissal, or three
+    // visits of "not now", and this device could never be offered the icon again
+    // — which on iOS also means it can never be asked for notifications, since
+    // that step waits for standalone.
+    const { local, session } = browser({
+      local: { [INSTALL_DISMISS_KEY]: '1', [INSTALL_OFFER_COUNT_KEY]: String(INSTALL_MAX_OFFERS) },
+      session: { [INSTALL_SESSION_SKIP_KEY]: '1' },
+    });
+    expect(isInstallStepAnswered()).toBe(true);
+    resetInstallOffer();
+    expect(local[INSTALL_DISMISS_KEY]).toBeUndefined();
+    expect(local[INSTALL_OFFER_COUNT_KEY]).toBeUndefined();
+    expect(session[INSTALL_SESSION_SKIP_KEY]).toBeUndefined();
+    expect(isInstallStepAnswered()).toBe(false);
+  });
+
+  it('cannot un-install an installed app', () => {
+    // The one answer that isn't a preference. Asking here would be asking
+    // somebody to install the icon they already launched us from.
+    browser({ standalone: true, local: { [INSTALL_DISMISS_KEY]: '1' } });
+    resetInstallOffer();
+    expect(isInstallStepAnswered()).toBe(true);
   });
 });

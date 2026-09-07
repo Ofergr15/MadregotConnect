@@ -3,8 +3,10 @@
 import { useMemo, useState } from 'react';
 import { Check, ChevronDown, Copy, MessageCircle, Send, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
 import { Card, LoadingBlock, ConfirmSheet, SegmentedControl } from '@/components/ui';
+import EmailHealthBanner from '@/components/EmailHealthBanner';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
+import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 
 /**
  * The public /register approval queue — "who is waiting, and should they be in?".
@@ -58,6 +60,18 @@ interface Registration {
   /** Their invite link's token. A credential — see the route — so it is only ever
    *  used to build a link the approver hands to that one person. */
   inviteToken: string | null;
+  /**
+   * "Isn't this somebody we already have?" — the roster row this sign-in looks
+   * like, set only for a Strava sign-in the app could not place by itself.
+   *
+   * Approving one of these creates a SECOND row for a member who is already in the
+   * club: no group, no history, role 'runner'. It has happened six times. The
+   * callback now recognises and merges what it can be certain of, so anything
+   * carrying a suggestion here is a name it deliberately refused to act on alone —
+   * `exact` says how close it got, and the difference is worth showing (see the
+   * route). Either way the decision is a person's.
+   */
+  suggestedMatch: { id: string; name: string | null; exact: boolean } | null;
 }
 
 /** The three states an approved person passes through. Ordered, and that order is
@@ -121,8 +135,8 @@ function errorText(code: string): string {
 /**
  * Why a send failed, in words that point at the fix.
  *
- * `reason` is Resend's own `name: message` (see sendOrThrow in lib/email.ts). The
- * one worth naming explicitly is the sandbox sender: with no RESEND_FROM_EMAIL set,
+ * `reason` is Resend's own message, carried out by sendEmail() in lib/email/send.ts.
+ * The one worth naming explicitly is the sandbox sender: with no RESEND_FROM_EMAIL set,
  * mail goes out as `onboarding@resend.dev`, which Resend only delivers to the
  * address that owns the Resend account. Every applicant is "every other recipient",
  * so on the day the club signs up, nobody gets a link — and that is a config fix,
@@ -153,6 +167,9 @@ export default function RegistrationsQueue() {
   const [note, setNote] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [confirmReject, setConfirmReject] = useState<Registration | null>(null);
+  /** The row about to be folded into an existing member. Confirmed, because it
+   *  moves an account rather than creating one. */
+  const [confirmLink, setConfirmLink] = useState<Registration | null>(null);
   /** The row whose link was just copied, for a two-second "הועתק". */
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -306,7 +323,7 @@ export default function RegistrationsQueue() {
   const call = async (
     r: Registration,
     action: 'approve' | 'reject',
-  ): Promise<{ emailed: boolean; emailReason?: string | null }> => {
+  ): Promise<{ emailed: boolean; emailReason?: string | null; activated?: boolean }> => {
     const body: Record<string, unknown> = { id: r.id, action };
     // Always explicit on approve. The route treats a missing key as "keep what
     // was submitted", and this screen always knows better than that — the chips
@@ -322,7 +339,7 @@ export default function RegistrationsQueue() {
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(errorText(out.error));
-    return { emailed: out.emailed !== false, emailReason: out.emailReason ?? null };
+    return { emailed: out.emailed !== false, emailReason: out.emailReason ?? null, activated: out.activated === true };
   };
 
   const act = async (r: Registration, action: 'approve' | 'reject') => {
@@ -336,12 +353,19 @@ export default function RegistrationsQueue() {
     setError(null);
     setNote(null);
     try {
-      const { emailed, emailReason } = await call(r, action);
-      // emailed:false means the approval went through but Resend didn't — the
-      // person is approved and does NOT know it. Worth saying out loud, with the
-      // reason, because the fix is a human one: the אושרו tab now carries their
-      // link, so it is "copy this and send it" rather than "something failed".
-      if (action === 'approve' && !emailed) {
+      const { emailed, emailReason, activated } = await call(r, action);
+      // activated:true — they signed in with Strava and were waiting on the blocked
+      // screen, so this approval put them straight in and pushed them a notification.
+      // There is no link to chase and nothing failed, which is the opposite of what
+      // the note below would have said (it keys off the mail, and there is no address
+      // to mail).
+      if (action === 'approve' && activated) {
+        setNote(`${r.athleteName || r.email} בפנים — נשלחה התראה לאפליקציה. אין צורך בקישור.`);
+      } else if (action === 'approve' && !emailed) {
+        // emailed:false means the approval went through but Resend didn't — the
+        // person is approved and does NOT know it. Worth saying out loud, with the
+        // reason, because the fix is a human one: the אושרו tab now carries their
+        // link, so it is "copy this and send it" rather than "something failed".
         setNote(`אושר — אבל המייל לא נשלח. ${mailFailureText(emailReason)} הקישור שלהם מחכה בטאב "אושרו" — אפשר להעתיק ולשלוח בוואטסאפ.`);
       }
       setSelected(prev => { const n = new Set(prev); n.delete(r.id); return n; });
@@ -372,8 +396,11 @@ export default function RegistrationsQueue() {
     const noMail: string[] = [];
     for (let i = 0; i < targets.length; i++) {
       try {
-        const { emailed } = await call(targets[i], 'approve');
-        if (!emailed) noMail.push(targets[i].email);
+        const { emailed, activated } = await call(targets[i], 'approve');
+        // An activated row is in, notified, and has nothing to chase — counting it
+        // as a mail failure would send the approver looking for thirty links that
+        // nobody needs.
+        if (!emailed && !activated) noMail.push(targets[i].email);
         setBulk({ done: i + 1, total: targets.length });
       } catch (err) {
         failedAt = err instanceof Error ? err.message : 'הפעולה נכשלה';
@@ -423,6 +450,39 @@ export default function RegistrationsQueue() {
     if (!url) return;
     const text = `היי! אושרת למדרגות 🏃 נשאר רק להשלים את ההרשמה ולהתחבר עם Strava:\n${url}\nהקישור אישי — לא להעביר.`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+  };
+
+  // ── "זה מישהו שכבר יש לנו" ───────────────────────────────────────────────────
+  //
+  // The other answer to a pending row. Approve says "welcome, you're new"; this
+  // says the sign-in belongs to a member who is already here, and folds the two
+  // rows into one — their group, their history and their role come back, and the
+  // duplicate is gone rather than sitting in the roster looking like a person.
+  //
+  // Behind a confirmation, unlike approve: approving the wrong row leaves an extra
+  // member to clean up, and linking the wrong row moves one person's account onto
+  // another's. The two are not symmetric, so they are not one tap each.
+  const linkToMember = async (r: Registration) => {
+    if (!r.suggestedMatch) return;
+    setBusyId(r.id);
+    setError(null);
+    setNote(null);
+    try {
+      const res = await fetch('/api/admin/registrations/link', {
+        method: 'POST',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ id: r.id, athleteId: r.suggestedMatch.id }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(errorText(out.error));
+      setNote(`חובר ל-${out.athleteName || r.suggestedMatch.name} — ההיסטוריה, הדבוקה והתפקיד שלו חזרו אליו.`);
+      setSelected(prev => { const n = new Set(prev); n.delete(r.id); return n; });
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'החיבור נכשל');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   /** Send the approval mail again. Same address, same link — see the route. */
@@ -489,6 +549,30 @@ export default function RegistrationsQueue() {
         }}
       />
 
+      {/* The merge, spelled out before it happens. It is one press and it is not
+          undoable from any screen, so the sheet names the person it is about to
+          become and says what moves — and, when the match was only a plausible
+          transliteration, says that too instead of presenting a guess as a fact. */}
+      <ConfirmSheet
+        open={!!confirmLink}
+        onOpenChange={(o) => { if (!o) setConfirmLink(null); }}
+        title="זה חבר שכבר יש לנו?"
+        description={
+          confirmLink
+            ? `${confirmLink.athleteName || 'ההתחברות הזאת'} יחובר לחשבון של ${confirmLink.suggestedMatch?.name} — האימונים, הדבוקה והתפקיד שלו יחזרו אליו, והרשומה הכפולה תימחק.${
+                confirmLink.suggestedMatch?.exact ? '' : ' השם דומה אבל לא זהה — כדאי לוודא שזה אותו אדם.'
+              }`
+            : undefined
+        }
+        confirmLabel="חיבור"
+        cancelLabel="ביטול"
+        onConfirm={() => {
+          const target = confirmLink;
+          setConfirmLink(null);
+          if (target) void linkToMember(target);
+        }}
+      />
+
       {/* Large-title header, iOS nav-bar shaped: the count is the headline, because
           "how many are waiting" is why anyone opens this tab. */}
       <div className="flex items-start justify-between gap-3">
@@ -521,6 +605,10 @@ export default function RegistrationsQueue() {
           <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
         </button>
       </div>
+
+      {/* Above the tabs, not below: whether mail works at all decides what approving
+          even means on this screen, and it renders nothing when mail is healthy. */}
+      <EmailHealthBanner />
 
       {/* activeBg overridden to ink: this screen is mono, and the default brand
           blue would be the only colour on it. */}
@@ -661,6 +749,7 @@ export default function RegistrationsQueue() {
                     onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
                     onApprove={() => act(r, 'approve')}
                     onReject={() => setConfirmReject(r)}
+                    onLink={() => setConfirmLink(r)}
                   />
                 ))}
               </div>
@@ -707,6 +796,7 @@ export default function RegistrationsQueue() {
                     onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
                     onApprove={() => act(r, 'approve')}
                     onReject={() => setConfirmReject(r)}
+                    onLink={() => setConfirmLink(r)}
                     onCopy={() => copyLink(r)}
                     onShare={() => shareWhatsApp(r)}
                     onResend={() => resend(r)}
@@ -746,6 +836,7 @@ export default function RegistrationsQueue() {
                 onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
                 onApprove={() => act(r, 'approve')}
                 onReject={() => setConfirmReject(r)}
+                onLink={() => setConfirmLink(r)}
                 onCopy={() => copyLink(r)}
                 onShare={() => shareWhatsApp(r)}
                 onResend={() => resend(r)}
@@ -864,7 +955,7 @@ const STAGE_FACE: Record<Stage, { label: string; cls: string }> = {
  */
 function QueueRow({
   r, groups, last, selected, busy, groupId, copied, onToggle, onPickGroup, onApprove, onReject,
-  onCopy, onShare, onResend,
+  onLink, onCopy, onShare, onResend,
 }: {
   r: Registration;
   groups: GroupOption[];
@@ -877,6 +968,9 @@ function QueueRow({
   onPickGroup: (groupId: string) => void;
   onApprove: () => void;
   onReject: () => void;
+  /** Fold this sign-in into the member it looks like, instead of approving it as a
+   *  new one. Only ever offered when the server sent a suggestedMatch. */
+  onLink?: () => void;
   onCopy?: () => void;
   onShare?: () => void;
   onResend?: () => void;
@@ -887,6 +981,12 @@ function QueueRow({
    *  has a token, and not in yet. On a 'done' row there is nobody to send it to. */
   const showLinkActions = !!(stage && stage !== 'done' && r.inviteToken && onCopy);
   const needsGroup = isPending && !groupId;
+  /** The row is a sign-in that looks like somebody already in the club. Pending
+   *  only: once it has been approved the second row exists and this is no longer
+   *  the fix. */
+  const showMatch = !!(isPending && r.suggestedMatch && onLink);
+  /** True when the address on this row is one the app invented — see line one below. */
+  const identifiedByName = isSyntheticAuthEmail(r.email);
   /** The row's דבוקה, resolved to its number and its brand colours. null when the
    *  row has no group, or an id that /api/groups no longer knows. */
   const band = useMemo(() => {
@@ -947,8 +1047,18 @@ function QueueRow({
             truncated mid-domain ("grosfeldofe…"), which is unreadable and, worse,
             ambiguous between two people. It now owns line one at 14px, with
             everything else demoted to line two. */}
-        <span dir="ltr" title={r.email} className="block text-sm font-semibold text-ink-900 truncate text-left select-all">
-          {r.email}
+        {/* …unless there is no address. A Strava sign-in queues itself under
+            `strava_1234@strava.madregot.local` — a synthetic address the app
+            invented, which identifies nobody and is not theirs to be shown as
+            such. Their Strava display name is the only real thing on the row, so
+            it takes line one instead. dir=auto because that name is usually
+            Hebrew, and forcing LTR on it flips its punctuation to the wrong end. */}
+        <span
+          dir={identifiedByName ? 'auto' : 'ltr'}
+          title={r.email}
+          className="block text-sm font-semibold text-ink-900 truncate text-left select-all"
+        >
+          {identifiedByName ? r.athleteName || 'התחברות דרך Strava' : r.email}
         </span>
 
         {/* dir=ltr on the SECOND line too, and it matters: the address above is an
@@ -1104,6 +1214,36 @@ function QueueRow({
         </div>
       )}
     </div>
+
+    {/* ── "רגע, זה לא מישהו שכבר יש לנו?" ───────────────────────────────────────
+        The row's own warning, said before the irreversible tap rather than after
+        it. A Strava sign-in cannot be recognised from its address — the address is
+        one the app invented — so on these rows Approve looks exactly as ordinary as
+        it does on a stranger, and pressing it is how the club got six duplicate
+        members, three of them coaches signed in as runners.
+
+        RTL here, unlike the ltr identity lines above: this is a sentence, not a
+        row of chips beside an email address, and it is Hebrew. */}
+    {showMatch && (
+      <div dir="rtl" className="flex items-center gap-2 px-3.5 pb-2.5 -mt-1 flex-wrap">
+        <span className="flex items-center gap-1.5 text-3xs text-ink-500 min-w-0">
+          <Users className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden="true" />
+          {/* The name is the whole message, so it is the bold part. `exact` is not
+              spelled out as a score — "כנראה" versus "אולי" is the difference an
+              approver can actually act on, and the confirm sheet says the rest. */}
+          <span className="truncate">
+            {r.suggestedMatch?.exact ? 'כנראה' : 'אולי'} <b className="font-bold text-ink-900">{r.suggestedMatch?.name}</b> — כבר בקבוצה
+          </span>
+        </span>
+        <button
+          onClick={onLink}
+          disabled={busy}
+          className="h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 bg-card text-ink-900 border border-ink-900/25 active:bg-page disabled:opacity-40 shrink-0"
+        >
+          חיבור לחשבון הקיים
+        </button>
+      </div>
+    )}
 
     {/* ── THE LINK, WHERE A PERSON CAN REACH IT ────────────────────────────────
         Its own strip under the identity rather than three more icons on the right:

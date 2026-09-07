@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
+import { membershipFor } from '@/lib/auth/membership';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -51,18 +52,14 @@ export async function GET(request: Request) {
     // `membership` is the shell's gate, and it is deliberately a THIRD answer
     // rather than something the client derives from `role`: a revoked or
     // not-yet-approved member keeps their role ('runner'), so role alone reads
-    // as "let them in". The three values:
-    //   'active'   — a real member, or legacy staff that live only in `coaches`
-    //   'inactive' — an athletes row that is not active (invited / removed)
-    //   'none'     — a verified session with no membership row at all (above)
+    // as "let them in". The values, and what each one means, are documented on
+    // membershipFor() in src/lib/auth/membership.ts — the one place that decides.
     // Only 'active' may see club content. See AccessBlocked + the (app) layout:
     // before this existed, a revoked account got the whole signed-in shell and
     // every card inside it failed on its own with a raw English 403.
     if (!auth.user.athleteId) {
       return NextResponse.json({ role: auth.user.role || 'coach', membership: 'active', isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
     }
-
-    const membership = auth.user.athleteStatus === 'active' ? 'active' : 'inactive';
 
     const supabase = createServerClient();
 
@@ -72,11 +69,18 @@ export async function GET(request: Request) {
     // second read because requireSession's select can't carry it — that select
     // gates the whole app, and a column it doesn't have yet in some environment
     // must not be able to fail it. Here a missing column just reads as false.
+    //
+    // `approved` is here for the same reason: it is what separates "waiting for
+    // the coach" from "access was removed", and requireSession does not carry it.
+    // A read that fails leaves it undefined, which membershipFor() resolves to the
+    // answer that promises nothing.
     const { data: row } = await supabase
       .from('athletes')
-      .select('is_academy')
+      .select('is_academy, approved')
       .eq('id', auth.user.athleteId)
       .maybeSingle();
+
+    const membership = membershipFor({ status: auth.user.athleteStatus, approved: row?.approved });
 
     await supabase
       .from('athletes')

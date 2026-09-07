@@ -30,9 +30,22 @@ vi.mock('@/lib/auth-session', () => ({
 }));
 
 let emailConfigured: boolean;
-let mailError: Error | null;
+/** Resend's refusal message, when the fake mailer should report one. */
+let mailError: string | null;
+
+/**
+ * The mailer returns a SendResult and never throws — that IS the contract now (see
+ * lib/email/send.ts), so the fake has to have the same shape or these tests would pass
+ * against a route that still believes in exceptions.
+ */
 const notifyRegistrationApproved = vi.fn(async (_args: { email: string; token: string; groupName?: string | null }) => {
-  if (mailError) throw mailError;
+  if (!emailConfigured) {
+    return { ok: false as const, status: 'skipped' as const, code: 'email-not-configured', reason: 'not configured', logId: null };
+  }
+  if (mailError) {
+    return { ok: false as const, status: 'refused' as const, code: 'validation_error', reason: mailError, logId: null };
+  }
+  return { ok: true as const, status: 'sent' as const, providerId: 'resend-1', logId: 'log-1' };
 });
 vi.mock('@/lib/email', () => ({
   isEmailConfigured: () => emailConfigured,
@@ -227,7 +240,7 @@ describe('POST /api/admin/registrations/resend', () => {
     // every applicant is refused. The reason has to travel, and the link has to
     // survive: copying it out is the only thing left that works.
     approved();
-    mailError = new Error('validation_error: You can only send testing emails to your own email address');
+    mailError = 'You can only send testing emails to your own email address';
     const body = await (await post('r-1')).json();
     expect(body.ok).toBe(true);
     expect(body.emailed).toBe(false);
@@ -235,12 +248,15 @@ describe('POST /api/admin/registrations/resend', () => {
     expect(body.joinUrl).toMatch(/\/join\/e{32}$/);
   });
 
-  it('says so, without trying, when mail is not configured at all', async () => {
+  it('says so when mail is not configured at all', async () => {
+    // The route does NOT pre-check the config any more — sendEmail() is the single
+    // place that decides whether a send is possible, and it reports 'skipped' rather
+    // than pretending. A second opinion in the route is how the two drift apart.
     approved();
     emailConfigured = false;
     const body = await (await post('r-1')).json();
     expect(body).toMatchObject({ ok: true, emailed: false, emailReason: 'email-not-configured' });
-    expect(notifyRegistrationApproved).not.toHaveBeenCalled();
+    expect(body.joinUrl).toMatch(/\/join\/e{32}$/);
   });
 
   it('mints a token onto the ATHLETE row when the request has none', async () => {

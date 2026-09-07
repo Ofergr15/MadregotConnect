@@ -3,6 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { canGrantAdmin } from '@/lib/constants';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isCoreRunner } from '@/lib/core-runner';
+import { readMaintenance } from '@/lib/maintenance';
+import { isBlockedByMaintenance } from '@/lib/admin/entry-queue';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -41,11 +43,31 @@ interface User {
   approved?: boolean;
   approvedAt?: string | null;
   lastSeenAt?: string | null;
+  createdAt?: string | null;
   /** In the גרעין. Read through isCoreRunner(), so the legacy role counts too. */
   isCoreRunner?: boolean;
+  /**
+   * Is the maintenance window keeping this person out RIGHT NOW — the same
+   * verdict `resolveVerifiedCaller` enforces, resolved here rather than in the
+   * browser. Approval is only one of the two doors, so a roster that shows
+   * `approved: true` and nothing else is how "I approved them and they still
+   * can't get in" happened repeatedly.
+   *
+   * The allowlist itself deliberately does NOT ship with this: the screen needs
+   * the answer, not the list.
+   */
+  blocked?: boolean;
+  /**
+   * A watch is CONNECTED, from garmin_auth/strava_auth presence — never
+   * `onboarding_status`, which said `garmin_authed` for people whose credential
+   * had since been cleared. Presence only; the credentials are encrypted at rest
+   * and never leave the server.
+   */
+  hasWatch?: boolean;
 }
 
-const BASE_COLUMNS = 'id, email, name, role, group_id, onboarding_status, approved, approved_at, last_seen_at';
+const BASE_COLUMNS =
+  'id, email, name, role, group_id, onboarding_status, approved, approved_at, last_seen_at, created_at';
 
 export async function GET(request: Request) {
   try {
@@ -59,17 +81,22 @@ export async function GET(request: Request) {
     // applied by hand, so "091 isn't pasted in yet" is a state a reader can hit —
     // fall back to the base columns rather than 500ing the whole roster. The
     // legacy role value still reads as in, so the list stays correct either way.
+    // garmin_auth/strava_auth are read for PRESENCE only — see hasWatch below.
+    const CREDENTIALS = 'garmin_auth, strava_auth';
     const withFlag = await supabase
       .from('athletes')
-      .select(`${BASE_COLUMNS}, is_core_runner`)
+      .select(`${BASE_COLUMNS}, ${CREDENTIALS}, is_core_runner`)
       .order('email');
 
     const { data: athletes, error } =
       withFlag.error?.code === UNDEFINED_COLUMN
-        ? await supabase.from('athletes').select(BASE_COLUMNS).order('email')
+        ? await supabase.from('athletes').select(`${BASE_COLUMNS}, ${CREDENTIALS}`).order('email')
         : withFlag;
 
     if (error) throw error;
+
+    // One read for the whole roster (15 s cached, fails open), not one per row.
+    const maintenance = await readMaintenance();
 
     const users: User[] = ((athletes || []) as any[]).map((a: any) => ({
       id: a.id,
@@ -81,10 +108,13 @@ export async function GET(request: Request) {
       approved: a.approved ?? true,
       approvedAt: a.approved_at,
       lastSeenAt: a.last_seen_at,
+      createdAt: a.created_at ?? null,
       isCoreRunner: isCoreRunner(a),
+      blocked: isBlockedByMaintenance({ id: a.id, email: a.email }, maintenance),
+      hasWatch: !!(a.garmin_auth || a.strava_auth),
     }));
 
-    return NextResponse.json({ users });
+    return NextResponse.json({ users, maintenance: maintenance.on });
   } catch (error) {
     console.error('Failed to fetch users:', error);
     return NextResponse.json(

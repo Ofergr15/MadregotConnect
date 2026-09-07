@@ -3,11 +3,10 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, LogIn } from 'lucide-react';
+import { Eye, LogIn, Wrench } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
-import { isSuperUser } from '@/lib/constants';
-import { useApi } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 
 // Public routes the gate must NEVER cover — otherwise a logged-out user (e.g.
 // Ofer in the installed PWA, which has its own session separate from Safari)
@@ -21,17 +20,33 @@ import { useApi } from '@/lib/api';
 // that, and they are queued for approval anyway.
 // (NOTE: '/academy-register' has the same problem and is deliberately left alone
 // here — same argument applies to it, but it is not this change's business.)
-const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register'];
+// '/claim' is here for the same reason as '/register': it is a link we MAIL to a
+// person (migration 098 — a member proving that a Strava sign-in is theirs), it is
+// valid for half an hour, and it is single-use. Behind the gate, the one click that
+// reunites somebody with their own account would spend its token on a "we're
+// rebuilding" screen and be gone. Nothing on that page touches the app the gate is
+// protecting: it merges two rows and stops.
+const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register', '/claim'];
 const isPublicPath = (p: string) =>
   PUBLIC_PATHS.some((pub) => p === pub || p.startsWith(pub + '/'));
 
 // Full-screen "under renovation" gate. Mounted in the root layout so it covers
-// the whole app (landing + dashboard). Shows the overlay when maintenance is on
-// and the viewer's email is NOT on the approver allowlist. Fails open on error.
+// the whole app (landing + dashboard). Shows the overlay when the server says
+// maintenance is on and this session is not on the allowlist. Fails open on error.
 //
-// Super-user "view as" override: the '__maintenance__' scenario force-shows this
-// screen (preview what a blocked member sees); any role scenario bypasses it
-// (so Ofer can actually explore the app as that role).
+// Everything on this screen is now the SERVER's answer for whoever holds the
+// token: allowed, whether there is an identity at all, and super-user. It used to
+// decide all three in the browser — it sent the email it wanted checked as a query
+// parameter, and read `coach_email` out of localStorage to run isSuperUser() — so
+// three lines in a console got you past a maintenance window. Worse, getting past
+// this overlay used to hand you a fully working app, because every API kept
+// serving behind it. Both halves are fixed: resolveVerifiedCaller returns 503 to
+// anyone this endpoint would block (src/lib/maintenance.ts), so there is nothing
+// left to reach, and the one role bypass is gone with it — it can now only turn a
+// clear "we're rebuilding" screen into an app full of failed requests.
+//
+// The '__maintenance__' view-as scenario still force-SHOWS this screen: a preview
+// only ever adds the block, so it needs no trust.
 // A private joke for one specific blocked user: instead of the normal
 // "rebuilding" copy, Asaf gets his own message. Everyone else sees the standard
 // screen. Keyed by email (lower-cased).
@@ -40,40 +55,64 @@ const ASAF_MESSAGE = 'עליך להוציא פחות גזים על מנת לצפ
 
 export function MaintenanceGate() {
   const pathname = usePathname();
-  // Force-preview / role-bypass / public-path short circuits resolve
-  // synchronously; only the "who is this + is maintenance on" check needs a
-  // network round trip, and only when none of those short circuits apply.
-  const forcedBlocked = !isPublicPath(pathname) && getViewMode() === MAINTENANCE_MODE;
-  const bypassed = isPublicPath(pathname) || (!!getViewMode() && getViewMode() !== MAINTENANCE_MODE);
-
-  // Best-effort viewer email: localStorage (coach/athlete) first (sync,
-  // covers the common case with no network call at all), else the live
-  // Supabase session.
-  const [email, setEmail] = useState<string | null>(null);
-  useEffect(() => {
-    if (bypassed || forcedBlocked) return;
-    const stored = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
-    if (stored) { setEmail(stored); return; }
-    getSupabase().auth.getSession()
-      .then(({ data }) => setEmail(data.session?.user?.email || ''))
-      .catch(() => setEmail(''));
-  }, [bypassed, forcedBlocked]);
+  const publicPath = isPublicPath(pathname);
+  const forcedBlocked = !publicPath && getViewMode() === MAINTENANCE_MODE;
 
   // Shared SWR cache (dedupingInterval 4s in useApi's defaults) — this is what
-  // actually fixes the "re-checks maintenance on every single tab switch"
-  // cost: rapid navigation reuses the cached response for the same email
-  // instead of re-hitting the network, and ImpersonationBar's own maintenance
-  // check (same endpoint, same key shape) shares this exact cache entry too.
-  const { data, error } = useApi<{ maintenance: boolean; allowed: boolean }>(
-    !bypassed && !forcedBlocked && email !== null ? `/api/maintenance?email=${encodeURIComponent(email)}` : null,
-  );
+  // actually fixes the "re-checks maintenance on every single tab switch" cost:
+  // rapid navigation reuses the cached response, and ImpersonationBar's own
+  // maintenance check hits the same key, so it shares this exact cache entry.
+  // The request carries no email now, which is also why the key is stable and the
+  // check no longer waits on a round trip to find out who the viewer is.
+  // While a window is on, re-check every 30s so the app comes back by itself when
+  // it ends, instead of needing everyone to reload.
+  const { data, error } = useApi<{
+    maintenance: boolean; allowed: boolean; identified?: boolean; superUser?: boolean;
+  }>(publicPath ? null : '/api/maintenance', {
+    refreshInterval: (latest) => (latest?.maintenance ? 30_000 : 0),
+  });
 
-  const superUser = isSuperUser(email);
-  const noIdentity = email === '';
-  const isAsaf = (email || '').toLowerCase().trim() === ASAF_EMAIL;
-  // Fail open on a fetch error, same as the original try/catch.
-  const blocked = forcedBlocked || (!bypassed && !error && !superUser && !!data?.maintenance && !data?.allowed);
-  const isSuper = !bypassed && superUser;
+  // Only for the joke below — never for the decision.
+  const [email, setEmail] = useState('');
+  useEffect(() => {
+    getSupabase().auth.getSession()
+      .then(({ data: s }) => setEmail(s.session?.user?.email || ''))
+      .catch(() => setEmail(''));
+  }, []);
+
+  // The off switch has to live ON the door. A super user who is not on the
+  // allowlist used to be blocked here with no way to the settings screen that
+  // holds the toggle — the switch was behind the door it locks, and the only way
+  // out was a SQL statement. PUT /api/maintenance needs nothing but a verified
+  // approver session, so one tap from here is enough.
+  const [turningOff, setTurningOff] = useState(false);
+  const turnOff = async () => {
+    setTurningOff(true);
+    try {
+      const res = await fetch('/api/maintenance', {
+        method: 'PUT',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ on: false }),
+      });
+      if (res.ok) {
+        // A hard reload rather than mutate(): every API refused while the window
+        // was on, so the shell behind this overlay is full of failed requests.
+        window.location.reload();
+        return;
+      }
+    } catch {
+      // Falls through to re-enabling the button — the window is still on, and
+      // saying nothing is better than a screen that claims it worked.
+    }
+    setTurningOff(false);
+  };
+
+  const noIdentity = data?.identified === false;
+  const isAsaf = email.toLowerCase().trim() === ASAF_EMAIL;
+  // Fails open on a fetch error, same as the original try/catch and for the same
+  // reason as readMaintenance: a check that did not answer is not a closed club.
+  const blocked = forcedBlocked || (!publicPath && !error && !!data?.maintenance && !data.allowed);
+  const isSuper = !!data?.superUser;
 
   if (!blocked) return null;
 
@@ -126,16 +165,27 @@ export function MaintenanceGate() {
           </>
         )}
 
+        {/* Super-user only: turn the window off from the door itself. */}
+        {isSuper && (
+          <button
+            onClick={turnOff}
+            disabled={turningOff}
+            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-pill bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 disabled:opacity-60 transition-colors"
+            dir="rtl"
+          >
+            <Wrench className="h-4 w-4" /> {turningOff ? 'מכבה…' : 'כבה מצב תחזוקה'}
+          </button>
+        )}
+
         {/* Super-user only: a clear "view as" button right on the gate, so Ofer
             can switch scenarios without hunting for the tiny floating pill. */}
         {isSuper && (
           <button
             onClick={() => window.dispatchEvent(new Event('open-view-as'))}
-            // The light system's primary button (same as ui/Button's `primary`) —
-            // the old amber outline was a warning colour on a dark field, and on
-            // white it both loses contrast and reads as an alert rather than the
-            // one thing you're meant to tap.
-            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-pill bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 transition-colors"
+            // ui/Button's `secondary` now, not `primary`: turning the window off
+            // is the one thing you're meant to tap on this screen, and two solid
+            // brand buttons stacked would say they matter equally.
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2.5 rounded-pill bg-card border border-brand-600 text-brand-600 text-sm font-bold hover:bg-brand-600/5 transition-colors"
             dir="rtl"
           >
             <Eye className="h-4 w-4" /> תצוגה כמשתמש אחר

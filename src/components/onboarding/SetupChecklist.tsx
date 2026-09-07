@@ -2,10 +2,11 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Check } from 'lucide-react';
+import { Check, Download } from 'lucide-react';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { BackNav, Spinner } from '@/components/ui';
 import { useOnboarding } from '@/lib/onboarding/use-onboarding';
+import { useInstallStep } from './InstallStepProvider';
 import type { SetupTask, SetupInfoItem } from '@/lib/onboarding/setup-tasks';
 import { ProgressRing } from './ProgressRing';
 import {
@@ -41,6 +42,13 @@ export function SetupChecklist({
 }) {
   const t = useTranslations('setup');
   const { data, mutate } = useOnboarding();
+  // The way back to step 1. Every exit from the install offer is sticky — a
+  // dismissal, or three visits of "not now" — and there was no door back in, so a
+  // member who waved it away stayed on the web permanently: no icon, and on iOS no
+  // working notification ever, since those need a subscription made while
+  // standalone. Not a scored task: being installed is a property of a DEVICE, so a
+  // column on `athletes` would be wrong for the same runner's phone and laptop.
+  const { reopen, canOffer } = useInstallStep();
 
   // Re-read every time this screen opens. The key stays mounted app-wide (the
   // tour holds it), so SWR wouldn't otherwise refetch — and you arrive here
@@ -127,7 +135,19 @@ export function SetupChecklist({
       <div className="[&>div]:mb-0 space-y-5">
         {open.length > 0 && <InsetSection header={t('sectionRemaining')}>{open.map(taskRow)}</InsetSection>}
         {done.length > 0 && <InsetSection header={t('sectionFinished')}>{done.map(taskRow)}</InsetSection>}
-        <InsetSection header={t('sectionNotCounted')}>{data.info.map(infoRow)}</InsetSection>
+        <InsetSection header={t('sectionNotCounted')}>
+          {canOffer && (
+            <InsetRow
+              icon={Download}
+              iconBg="bg-brand-600"
+              label={t('taskInstall')}
+              sublabel={t('hintInstall')}
+              value={t('ctaInstall')}
+              onClick={reopen}
+            />
+          )}
+          {data.info.map(infoRow)}
+        </InsetSection>
       </div>
 
       {!data.migrated && (

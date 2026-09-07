@@ -3,6 +3,12 @@ import { createServerClient } from '@/lib/supabase/server';
 import { canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { groupDisplayName } from '@/lib/utils';
+import {
+  isSyntheticAuthEmail,
+  matchAthleteByNameKey,
+  suggestAthleteByName,
+  type IdentityRow,
+} from '@/lib/auth/athlete-identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -86,6 +92,8 @@ export async function GET(request: Request) {
       hasGarmin: boolean;
       onboardingStatus: string | null;
       lastSeenAt: string | null;
+      /** Synthetic (strava_<id>@…) means the app invented it: nobody placed this person. */
+      email: string | null;
     };
     const byId = new Map<string, AthleteState>();
     const byEmail = new Map<string, AthleteState>();
@@ -109,6 +117,7 @@ export async function GET(request: Request) {
           hasGarmin: !!a.garmin_auth,
           onboardingStatus: a.onboarding_status ?? null,
           lastSeenAt: a.last_seen_at ?? null,
+          email: a.email ?? null,
         };
         byId.set(a.id, state);
         if (a.email) byEmail.set(String(a.email).toLowerCase(), state);
@@ -138,6 +147,45 @@ export async function GET(request: Request) {
       return 'emailed';
     };
 
+    // ── "ISN'T THIS SOMEBODY WE ALREADY HAVE?" ────────────────────────────────
+    //
+    // A Strava sign-in the app could not place lands in this queue holding a
+    // synthetic address, and approving it as new is what produces a second row for
+    // a member who is already in the club — six times so far. The callback now
+    // matches across scripts by itself and merges what it recognises, so anything
+    // that still reaches this queue is a name it could NOT read with certainty:
+    // "Roey Roth" against "רועי רוט" carries three consonants and that is not
+    // enough to act on alone.
+    //
+    // It is enough to show a person, though. So the queue offers the roster row
+    // that looks like this sign-in and lets the approver decide — and `exact` says
+    // which kind of answer it is, because the two carry very different weight:
+    //   exact — the same consonant skeleton, but MORE than one roster row shares it
+    //           (a unique exact match would have been merged automatically and
+    //           never arrived here).
+    //   near  — one edit away. A plausible transliteration, and nothing more.
+    const unplaced = (rows || []).filter(r => {
+      const a = (r.athlete_id ? byId.get(r.athlete_id) : null) || byEmail.get(String(r.email).toLowerCase());
+      return !!a && isSyntheticAuthEmail(a.email);
+    });
+    const suggestions = new Map<string, { id: string; name: string | null; exact: boolean }>();
+    if (unplaced.length) {
+      const { data: rosterRows } = await supabase
+        .from('athletes')
+        .select('id, name, email, role, status, created_at, strava_athlete_id');
+      const roster = (rosterRows || []) as unknown as IdentityRow[];
+      for (const r of unplaced) {
+        const a = (r.athlete_id ? byId.get(r.athlete_id) : null) || byEmail.get(String(r.email).toLowerCase());
+        if (!a) continue;
+        // Exclude the shell itself, or it suggests the person to themselves.
+        const others = roster.filter(row => row.id !== a.id);
+        const exact = matchAthleteByNameKey(others, a.name);
+        const near = exact ? null : suggestAthleteByName(others, a.name);
+        const hit = exact || near;
+        if (hit) suggestions.set(r.id, { id: hit.id, name: hit.name ?? null, exact: !!exact });
+      }
+    }
+
     const requests = (rows || []).map(r => {
       const athlete = (r.athlete_id ? byId.get(r.athlete_id) : null) || byEmail.get(String(r.email).toLowerCase()) || null;
       return {
@@ -164,6 +212,8 @@ export async function GET(request: Request) {
         // instead of from the SQL editor. It IS a credential (see /api/join/groups)
         // — this route is already canApprove-gated, and it must not travel further.
         inviteToken: r.invite_token || null,
+        // Set only for a sign-in the app could not place on the roster by itself.
+        suggestedMatch: suggestions.get(r.id) || null,
       };
     });
 

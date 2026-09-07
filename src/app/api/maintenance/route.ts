@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
+import { clearMaintenanceCache, maintenanceBlocks, readMaintenance } from '@/lib/maintenance';
 
 export const dynamic = 'force-dynamic';
 
+/** Uncached — the writer below must see what it just wrote. */
 async function getSettings() {
   const supabase = createServerClient();
   const { data } = await supabase.from('app_settings').select('key, value').in('key', ['maintenance_mode', 'maintenance_allow']);
@@ -15,18 +16,52 @@ async function getSettings() {
   return { on, allow };
 }
 
-// GET /api/maintenance?email=…  → { maintenance, allowed, allowlist }
-// allowed = the viewer's email is on the SAVED allowlist. (Approvers are NOT
-// auto-exempt anymore — the allowlist controls everyone. The actor who turns
-// maintenance ON is auto-added, so admins can't accidentally lock themselves out.)
+// GET /api/maintenance  → { maintenance, allowed, allowlist? }
+//
+// `allowed` is about the VERIFIED session, never about a `?email=` the caller
+// supplies. That parameter was the whole bypass: the addresses on the allowlist
+// are approver addresses, which ship in the client bundle, so anybody could ask
+// the endpoint whether an admin is allowed in and act on the yes. It is now
+// ignored — and the screen no longer has an address to send, because it reads the
+// answer for whoever holds the token.
+//
+// No session means blocked, not allowed: the allowlist cannot recognise somebody
+// it knows nothing about. (The gate never covers the public paths, so a visitor
+// who has not signed in yet is not affected — see PUBLIC_PATHS.)
+//
+// `allowlist` goes only to an approver. It is the list of who can still get in
+// during a window, which is nobody else's business.
+//
+// `identified` and `superUser` are here so the screen stops working them out for
+// itself — it used to read localStorage and run isSuperUser() in the browser, both
+// of which the viewer can write.
 export async function GET(request: Request) {
   try {
-    const email = (new URL(request.url).searchParams.get('email') || '').toLowerCase().trim();
-    const { on, allow } = await getSettings();
-    const allowed = !!email && allow.includes(email);
-    return NextResponse.json({ maintenance: on, allowed, allowlist: allow });
+    const state = await readMaintenance();
+    const auth = await requireSession(request);
+    if (!auth.ok) {
+      return NextResponse.json({
+        maintenance: state.on,
+        allowed: !state.on,
+        identified: false,
+        superUser: false,
+      });
+    }
+    const allowed = !maintenanceBlocks(
+      { email: auth.user.email, athleteEmail: auth.user.athleteEmail, athleteId: auth.user.athleteId },
+      state,
+    );
+    return NextResponse.json({
+      maintenance: state.on,
+      allowed,
+      identified: true,
+      superUser: auth.user.isSuperUser,
+      ...(auth.user.canApprove ? { allowlist: state.allow } : {}),
+    });
   } catch {
-    return NextResponse.json({ maintenance: false, allowed: true, allowlist: [] });
+    // Fails open, the same way readMaintenance does and for the same reason: a
+    // read that did not answer is not evidence that the club is closed.
+    return NextResponse.json({ maintenance: false, allowed: true, identified: false, superUser: false });
   }
 }
 
@@ -41,8 +76,13 @@ export async function PUT(request: Request) {
   try {
     const auth = await requireSession(request);
     if (!auth.ok) return authError(auth);
-    const actorEmail = auth.user.email;
-    if (!canApprove(actorEmail)) {
+    // `auth.user.canApprove`, NOT canApprove(auth.user.email): the second is a
+    // check against an email LITERAL, and login is Strava-only, so the JWT email
+    // is always the synthetic `strava_<id>@…local`. That check could never pass
+    // for anybody — the toggle 403'd for every admin in the club, which is how
+    // maintenance mode got stuck on with no way to turn it off from the app. The
+    // session flag reads the row's `is_approver` and handles exactly this.
+    if (!auth.user.canApprove) {
       return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
     }
     const { on, allowlist } = await request.json();
@@ -58,13 +98,29 @@ export async function PUT(request: Request) {
 
     if (typeof on === 'boolean') {
       rows.push({ key: 'maintenance_mode', value: on ? 'on' : 'off', updated_at: now });
-      // SAFEGUARD: turning maintenance ON auto-adds the actor to the allowlist so
-      // the admin who flips it can never lock themselves out.
-      if (on) {
-        const actor = String(actorEmail).toLowerCase().trim();
-        const base = nextAllow ?? (await getSettings()).allow;
-        if (actor && !base.includes(actor)) nextAllow = [...base, actor];
-      }
+    }
+
+    // SAFEGUARD: while maintenance is (or is about to be) ON, the actor is always
+    // on the allowlist. Nobody can lock themselves out of the switch.
+    //
+    // It used to run only when the request said `on: true`, which left the other
+    // way in wide open — editing the allowlist during a window. The roster screen
+    // can now shut one member out with a tap, and the admin is a member: one tap on
+    // their own row and the club has a window nobody can end from inside the app.
+    //
+    // Adds their athlete ID, not their address. The address it used to add was the
+    // JWT one — synthetic for a Strava login, which is everybody — so the safeguard
+    // wrote an entry that could never match the person it was meant to protect.
+    // Their real address goes in too when the row has one, so the list stays
+    // readable to a human editing it.
+    const willBeOn = typeof on === 'boolean' ? on : (await getSettings()).on;
+    if (willBeOn && (nextAllow || typeof on === 'boolean')) {
+      const handles = [auth.user.athleteId, auth.user.athleteEmail, auth.user.email]
+        .map((h) => String(h || '').toLowerCase().trim())
+        .filter((h) => h && !h.endsWith('.local'));
+      const base = nextAllow ?? (await getSettings()).allow;
+      const missing = handles.filter((h) => !base.includes(h));
+      if (missing.length > 0) nextAllow = [...base, ...missing];
     }
     if (nextAllow) rows.push({ key: 'maintenance_allow', value: nextAllow.join(','), updated_at: now });
 
@@ -72,6 +128,10 @@ export async function PUT(request: Request) {
       const { error } = await supabase.from('app_settings').upsert(rows, { onConflict: 'key' });
       if (error) throw error;
     }
+    // The API gate caches its answer for a few seconds. Drop it here so the
+    // window starts (or ends) on the tap rather than up to a TTL later — this
+    // instance at least; others expire on their own.
+    clearMaintenanceCache();
     const { on: nowOn, allow } = await getSettings();
     return NextResponse.json({ maintenance: nowOn, allowlist: allow });
   } catch (err: unknown) {

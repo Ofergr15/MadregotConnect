@@ -81,13 +81,26 @@ describe('computeDistanceBests with laps', () => {
     expect(fiveK.fromSegment).toBe(true);
   });
 
-  it('still scales the whole run when it is shorter than the bucket', () => {
-    // 4.80 km has no 5 km inside it, so the tolerance window is the only route —
-    // the behaviour every row without laps stored still relies on.
-    const run = { ...base, id: 'c', activity_name: 'short', distance: 4800, duration: 1440, laps: laps(300, 300, 300, 300, 240) };
+  it('still scales the whole run when it is a GPS-error short of the bucket', () => {
+    // 4.96 km has no 5 km inside it, so the tolerance window is the only route —
+    // the behaviour every row without laps stored still relies on. 1% is all the
+    // low side forgives now (see PrBucket.under): a watch reading 4.96 on a
+    // measured 5 km, not a session that stopped short.
+    const run = { ...base, id: 'c', activity_name: 'short', distance: 4960, duration: 1488, laps: laps(300, 300, 300, 300, 288) };
     const fiveK = computeDistanceBests(filterQualifyingRuns([run])).find((b) => b.key === '5k')!;
-    expect(fiveK.seconds).toBe(1500);
+    expect(fiveK.seconds).toBe(Math.round(1488 * (5000 / 4960)));
     expect(fiveK.fromSegment).toBe(false);
+  });
+
+  // The other half of the same rule, and the reason it exists: a 4.80 km run
+  // scaled up to 5 km reports 200 m nobody ran, at a pace taken from the 4.80 km
+  // they did — which is exactly the claim best-segment.ts refuses to make on the
+  // segment path ("a number presented as a 10K time should be 10 km that were
+  // actually run consecutively").
+  it('refuses to scale up a run that genuinely stopped short', () => {
+    const run = { ...base, id: 'c2', activity_name: 'short', distance: 4800, duration: 1440, laps: laps(300, 300, 300, 300, 240) };
+    const fiveK = computeDistanceBests(filterQualifyingRuns([run])).find((b) => b.key === '5k')!;
+    expect(fiveK.seconds).toBeNull();
   });
 
   it('leaves lapless rows exactly as they were', () => {

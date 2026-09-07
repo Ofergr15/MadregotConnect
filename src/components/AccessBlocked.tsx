@@ -5,17 +5,30 @@ import { useTranslations } from 'next-intl';
 import { ShieldOff, Clock } from 'lucide-react';
 import { Card, Button } from '@/components/ui';
 import { getSupabase } from '@/lib/supabase/client';
-import { clearIdentityKeys } from '@/lib/auth/identity-keys';
+import { signOutEverywhere } from '@/lib/auth/sign-out';
+import type { BlockedMembership } from '@/lib/auth/membership';
 
 /**
  * The door, when the person holding a valid session is not a member.
  *
- * There are two ways to be signed in and still not belong in the app, and the
- * server tells them apart in /api/auth/me's `membership`:
+ * There are three ways to be signed in and still not belong in the app, and the
+ * server tells them apart in /api/auth/me's `membership` (see membershipFor):
  *   'none'     — the session verified, but no athletes row answers to its email
  *                (never joined, or their row was archived/renamed)
- *   'inactive' — a row exists and is not active: invited-but-unfinished, or
- *                access that was removed
+ *   'pending'  — a row that has never been approved: they just signed in for the
+ *                first time and the coach has not let them in yet
+ *   'inactive' — a row that was approved once and is not active now: access
+ *                removed, or a /join that was never finished
+ *
+ * 'pending' and 'inactive' were one screen until a Strava sign-in started landing
+ * as 'pending' — before that, the only way to be non-active was to have LOST
+ * access, so "your access is not active, an admin can turn it back on" covered
+ * both. It is the wrong first sentence to say to somebody who just joined, and it
+ * sends them to ask for help with something that is simply in progress.
+ *
+ * The waiting screen is also the one the (app) layout re-polls, so it changes by
+ * itself the moment the coach approves — which is why its copy promises that
+ * instead of promising an email.
  *
  * Why this is a screen and not an error: before it, such an account got the
  * FULL signed-in shell — header, composer, tab bar — because the layout only
@@ -27,7 +40,7 @@ import { clearIdentityKeys } from '@/lib/auth/identity-keys';
  * No Header and no BottomTabBar are rendered around this (see the (app) layout):
  * navigation you aren't allowed to use is a worse lie than no navigation.
  */
-export function AccessBlocked({ membership }: { membership: 'none' | 'inactive' }) {
+export function AccessBlocked({ membership }: { membership: BlockedMembership }) {
   const t = useTranslations('blocked');
   const [email, setEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
@@ -48,18 +61,18 @@ export function AccessBlocked({ membership }: { membership: 'none' | 'inactive' 
 
   const signOut = async () => {
     setSigningOut(true);
-    try {
-      await getSupabase().auth.signOut();
-    } catch {
-      // A failed sign-out must not trap them on this screen — the local identity
-      // is what the shell reads, so clearing it is the part that matters.
-    }
-    clearIdentityKeys();
+    // Clears the device cookie too, which is the part that used to be missing:
+    // without it the landing page minted a new session on arrival and put them
+    // straight back on this very screen.
+    await signOutEverywhere();
     window.location.href = '/';
   };
 
-  const pending = membership === 'inactive';
-  const Icon = pending ? Clock : ShieldOff;
+  // One key prefix per state, so the three messages can't be mixed up by an
+  // inverted boolean the way `pending ? … : …` was starting to.
+  const state = membership === 'pending' ? 'pending' : membership === 'inactive' ? 'revoked' : 'none';
+  // A clock means "this is in progress"; the crossed shield means "this is not".
+  const Icon = state === 'pending' ? Clock : ShieldOff;
 
   return (
     <div className="min-h-[100dvh] bg-page flex items-center justify-center p-4">
@@ -73,11 +86,9 @@ export function AccessBlocked({ membership }: { membership: 'none' | 'inactive' 
             <Icon className="h-6 w-6 text-ink-400" />
           </div>
 
-          <h1 className="text-lg font-bold text-ink-700">
-            {pending ? t('pendingTitle') : t('noneTitle')}
-          </h1>
+          <h1 className="text-lg font-bold text-ink-700">{t(`${state}Title`)}</h1>
           <p className="mt-2 max-w-[300px] text-sm leading-relaxed text-ink-400">
-            {pending ? t('pendingBody') : t('noneBody')}
+            {t(`${state}Body`)}
           </p>
 
           {email && (
@@ -95,9 +106,7 @@ export function AccessBlocked({ membership }: { membership: 'none' | 'inactive' 
             <Button onClick={signOut} disabled={signingOut} className="w-full max-w-[260px]">
               {signingOut ? t('signingOut') : t('switchAccount')}
             </Button>
-            <p className="mt-1 text-xs leading-relaxed text-ink-400">
-              {pending ? t('pendingHint') : t('noneHint')}
-            </p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-400">{t(`${state}Hint`)}</p>
           </div>
         </div>
       </Card>

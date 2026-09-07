@@ -1,10 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Share, Plus, PartyPopper } from 'lucide-react';
+import { Share, Plus, PartyPopper, MoreHorizontal, Compass, Link2, Check } from 'lucide-react';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
+import { isIosDevice } from '@/lib/pwa';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The install offer — step 1 of the first run, and the only screen that comes
@@ -17,6 +18,14 @@ import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
 //   'ios'              — Safari has neither, so it can only be instructions,
 //                         and the flow resumes when the app is next launched
 //                         from the icon.
+//   'inapp'            — WhatsApp's (or Instagram's, or Gmail's) webview, which
+//                         is how the club's invite links are actually opened. It
+//                         cannot install a PWA at all, so the only useful step is
+//                         to leave it. Without this branch these members were
+//                         shown Safari's Share-sheet steps for a menu item that
+//                         isn't in their browser, and stayed in a webview for
+//                         good — which on iOS also means never getting a working
+//                         notification.
 //
 // No X in the corner: this is a step now, not a nag, and every way out is a
 // labelled choice — "not now" (comes back next visit) or "don't offer again".
@@ -26,6 +35,19 @@ import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
 export function InstallPrompt() {
   const t = useTranslations('install');
   const { offer, dismissForever, skipForSession } = useInstallStep();
+  const [copied, setCopied] = useState(false);
+
+  const copyLink = async () => {
+    // The fallback for the member whose webview hides its own menu: paste the
+    // address into Safari themselves. clipboard can reject (permissions, http),
+    // and a failed copy must not look like a broken button — the steps above it
+    // are still the primary route.
+    try {
+      await navigator.clipboard.writeText(window.location.origin);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
 
   // Escape closes it, the one keyboard gesture every dialog is expected to answer.
   // On the document rather than the backdrop div: the div isn't focusable (a
@@ -78,13 +100,53 @@ export function InstallPrompt() {
           <Image src="/images/icon-192.png" alt="" width={40} height={40} className="rounded-xl" />
         </div>
 
-        <h2 id="install-prompt-title" className="mt-3.5 text-center text-lg font-bold leading-snug text-ink-700">{t('title')}</h2>
-        <p className="mx-auto mt-2 max-w-[300px] text-center text-13 font-light leading-relaxed text-ink-400">
-          {t('description')}
-        </p>
-
-        {offer.kind === 'ios' ? (
+        {offer.kind === 'inapp' ? (
           <>
+            <h2 id="install-prompt-title" className="mt-3.5 text-center text-lg font-bold leading-snug text-ink-700">
+              {t('inappTitle')}
+            </h2>
+            <p className="mx-auto mt-2 max-w-[300px] text-center text-13 font-light leading-relaxed text-ink-400">
+              {t('inappDescription')}
+            </p>
+            <ol className="mt-4 flex flex-col gap-3">
+              {[
+                { icon: MoreHorizontal, text: t('inappIosStep1') },
+                { icon: Compass, text: isIosDevice() ? t('inappIosStep2') : t('inappAndroidStep2') },
+                { icon: Plus, text: t('inappIosStep3') },
+              ].map((step, i) => (
+                <li key={i} className="flex items-center gap-3">
+                  <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-brand-600/15 text-xs font-black text-brand-600">
+                    {i + 1}
+                  </span>
+                  <step.icon className="h-4 w-4 shrink-0 text-ink-500" />
+                  <span className="text-13 text-ink-700">{step.text}</span>
+                </li>
+              ))}
+            </ol>
+            <button
+              type="button"
+              onClick={copyLink}
+              className="mt-5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-pill bg-brand-600 text-[15px] font-bold text-white active:bg-brand-700"
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+              {copied ? t('inappCopied') : t('inappCopy')}
+            </button>
+            {/* Soft only. They have to leave this browser to act on any of it, and
+                a webview that comes back is a webview that hasn't done it yet. */}
+            <button
+              type="button"
+              onClick={skipForSession}
+              className="mt-2.5 flex min-h-[48px] w-full items-center justify-center rounded-pill border border-page text-[15px] font-bold text-ink-700 active:bg-page"
+            >
+              {t('skip')}
+            </button>
+          </>
+        ) : offer.kind === 'ios' ? (
+          <>
+            <h2 id="install-prompt-title" className="mt-3.5 text-center text-lg font-bold leading-snug text-ink-700">{t('title')}</h2>
+            <p className="mx-auto mt-2 max-w-[300px] text-center text-13 font-light leading-relaxed text-ink-400">
+              {t('description')}
+            </p>
             <ol className="mt-4 flex flex-col gap-3">
               {[
                 { icon: Share, text: t('iosStep1') },
@@ -112,6 +174,11 @@ export function InstallPrompt() {
             </button>
           </>
         ) : (
+          <>
+            <h2 id="install-prompt-title" className="mt-3.5 text-center text-lg font-bold leading-snug text-ink-700">{t('title')}</h2>
+            <p className="mx-auto mt-2 max-w-[300px] text-center text-13 font-light leading-relaxed text-ink-400">
+              {t('description')}
+            </p>
           <div className="mt-5 flex flex-col gap-2.5">
             <button
               type="button"
@@ -128,6 +195,7 @@ export function InstallPrompt() {
               {t('skip')}
             </button>
           </div>
+          </>
         )}
 
         <button

@@ -1,3 +1,7 @@
+import Link from 'next/link';
+
+import { HandoffFinish } from './HandoffFinish';
+
 /**
  * The last page of a Strava login that started inside the app.
  *
@@ -12,6 +16,11 @@
  * no session, no client hooks, no translation bundle. It renders on the first
  * paint even on a bad connection, which matters because it is the only
  * instruction the member gets.
+ *
+ * <HandoffFinish> is what decides the instruction is TRUE. This page used to be
+ * served to every browser that finished a Strava login, including ones with no ✕
+ * to press — see that file. It stays server-rendered; the client component only
+ * takes over when this browser can finish the login itself.
  */
 export default function AuthHandoffPage() {
   return (
@@ -47,7 +56,21 @@ export default function AuthHandoffPage() {
           החלון הזה נפתח על ידי האייפון מחוץ לאפליקציה, ולכן ההתחברות מסתיימת בתוך
           האפליקציה עצמה.
         </p>
+
+        {/* The way out when there is no ✕ to press and no app underneath — a
+            closed sheet whose app was killed, or a browser we misread. Signing in
+            again from '/' stores a verifier in THIS partition, so the second
+            attempt finishes here instead of parking for nobody. Quiet on purpose:
+            closing the sheet is still the right move in the common case. */}
+        <Link
+          href="/"
+          className="mt-6 inline-block text-xs font-semibold text-brand-600 underline decoration-brand-600/30 underline-offset-4"
+        >
+          לא רואים כפתור סגירה? המשיכו כאן
+        </Link>
       </div>
+
+      <HandoffFinish />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Check, Eye, EyeOff } from 'lucide-react';
-import { getSupabase } from '@/lib/supabase/client';
+import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { InsetSection, InsetRow, EmptyState, LoadingBlock } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
 import { cn } from '@/lib/utils';
@@ -264,8 +264,7 @@ function OnboardContent() {
           <div className="mt-6">
             <button
               onClick={async () => {
-                const supabase = getSupabase();
-                await supabase.auth.signOut();
+                await signOutEverywhere();
                 window.location.href = '/';
               }}
               className="block w-full bg-page hover:bg-ink-300/40 text-ink-700 font-medium px-4 py-3 rounded-lg transition-colors text-center"
@@ -359,8 +358,7 @@ function OnboardContent() {
             <button
               type="button"
               onClick={async () => {
-                const supabase = getSupabase();
-                await supabase.auth.signOut();
+                await signOutEverywhere();
                 window.location.href = '/';
               }}
               className="block w-full text-center text-sm text-ink-400 hover:text-ink-500 transition-colors mt-3"

@@ -2,16 +2,16 @@
 
 import { useTranslations } from 'next-intl';
 import { Clock } from 'lucide-react';
-import { getSupabase } from '@/lib/supabase/client';
+import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { Card, EmptyState, Button } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
+import ClaimExistingAccount from '@/components/ClaimExistingAccount';
 
 export default function PendingApprovalPage() {
   const t = useTranslations('onboarding');
 
   const handleBackHome = async () => {
-    const supabase = getSupabase();
-    await supabase.auth.signOut();
+    await signOutEverywhere();
     window.location.href = '/';
   };
 
@@ -31,6 +31,13 @@ export default function PendingApprovalPage() {
           action={<Button variant="secondary" onClick={handleBackHome}>{t('backHome')}</Button>}
           className="mx-auto"
         />
+
+        {/* Under the "waiting for approval" message, because for some of the people
+            reading it that message is simply wrong: they are already members, and
+            the only reason they are here is that their Strava name could not be
+            matched to their roster row. This is their way back to their own
+            account without anybody's help. */}
+        <ClaimExistingAccount />
       </Card>
       <ApprovalPushOptIn />
     </div>

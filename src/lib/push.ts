@@ -571,7 +571,58 @@ export async function resolveAudience(
   return subscriptionsForAthletes(athleteIds);
 }
 
-/** Push subscriptions for an explicit list of athlete ids (e.g. RSVP non-responders). */
+/**
+ * Given athlete rows (id + status), the ids that must not be notified at all.
+ *
+ * Somebody the app is refusing to let in does not get pushed to. They are sitting on
+ * the AccessBlocked screen — waiting for approval, or with access removed — so every
+ * notification is an invitation to tap through to a wall: a teammate's run they
+ * cannot open, a plan they cannot see. The pending case is what made this urgent,
+ * because a Strava sign-in now lands there and such an account can genuinely hold a
+ * subscription (it has a session, it can install the PWA, it can be asked for
+ * permission) while having access to not one screen a notification links to.
+ *
+ * A revoked member is the sharper version of the same thing: their subscription
+ * outlives their access, so the club went on pushing its social traffic at somebody
+ * it had removed.
+ *
+ * Only an explicit non-active status silences. An id missing from the read — legacy
+ * staff who live in `coaches`, an athlete row that no longer resolves — is NOT
+ * silenced, for the same reason every other filter in this file fails open: a member
+ * who quietly stops hearing from the club is the worse bug.
+ *
+ * Pure; the DB round trip is in filterBlockedRecipients below.
+ */
+export function computeSilencedAthleteIds(
+  athleteRows: Array<{ id: string; status?: string | null }>,
+): Set<string> {
+  return new Set(athleteRows.filter((a) => a.status !== 'active').map((a) => a.id));
+}
+
+/** Drop subscriptions belonging to an account that cannot use the app. Fails OPEN. */
+async function filterBlockedRecipients(subs: SubRow[]): Promise<SubRow[]> {
+  if (subs.length === 0) return subs;
+  try {
+    const supabase = createServerClient();
+    const ids = [...new Set(subs.map((s) => s.athlete_id).filter(Boolean))];
+    const { data, error } = await supabase.from('athletes').select('id, status').in('id', ids);
+    if (error) return subs;
+    const silenced = computeSilencedAthleteIds((data || []) as Array<{ id: string; status: string | null }>);
+    if (silenced.size === 0) return subs;
+    return subs.filter((s) => !silenced.has(s.athlete_id));
+  } catch {
+    return subs; // fail open
+  }
+}
+
+/**
+ * Push subscriptions for an explicit list of athlete ids (e.g. RSVP non-responders).
+ *
+ * This is the single choke point every send path goes through — resolveAudience for a
+ * broadcast, notifyAthlete for a personal ping, notifyStaff for management alerts,
+ * notifyTeammatesOfActivity for the social fan-out — which is why "may this person be
+ * in the app at all" is filtered here and not in each of them separately.
+ */
 export async function subscriptionsForAthletes(athleteIds: string[]): Promise<SubRow[]> {
   if (athleteIds.length === 0) return [];
   const supabase = createServerClient();
@@ -579,7 +630,7 @@ export async function subscriptionsForAthletes(athleteIds: string[]): Promise<Su
     .from('push_subscriptions')
     .select('id, endpoint, p256dh, auth, athlete_id')
     .in('athlete_id', athleteIds);
-  return (subs || []) as SubRow[];
+  return filterBlockedRecipients((subs || []) as SubRow[]);
 }
 
 /**

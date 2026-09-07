@@ -141,43 +141,67 @@ export async function GET(request: Request) {
       const REPLY_COLS = 'coach_reply, coach_reply_at, coach_reply_by, ';
       const baseCols = (extra: string) =>
         `id, athlete_id, garmin_activity_id, difficulty, feel, pain, pain_detail, wants_feedback, comment, ${extra}created_at, athletes(name, avatar_url, group_id, groups(name))`;
-      let { data, error } = await supabase
-        .from('workout_feedback')
-        .select(baseCols(REPLY_COLS))
-        .gte('created_at', since)
-        .order('created_at', { ascending: false })
-        .limit(300);
-      if (error && ((error as { code?: string }).code === '42703' || /coach_reply/.test(error.message || ''))) {
-        ({ data, error } = await supabase
+      // The reports and the active roster in one wave — the roster is needed only
+      // for the "who hasn't given feedback yet" list further down and has no
+      // reason to wait for the reports. This route ran five round trips strictly
+      // in series, and at ~350ms of Supabase latency each that was most of its
+      // 1.6s regardless of how little data any one of them returned.
+      const [feedbackRes, activeRes] = await Promise.all([
+        supabase
           .from('workout_feedback')
-          .select(baseCols(''))
+          .select(baseCols(REPLY_COLS))
           .gte('created_at', since)
           .order('created_at', { ascending: false })
-          .limit(300));
-      }
+          .limit(300)
+          .then((res) => (res.error
+            && ((res.error as { code?: string }).code === '42703' || /coach_reply/.test(res.error.message || ''))
+            // Fall back if migration 036 isn't applied.
+            ? supabase
+              .from('workout_feedback')
+              .select(baseCols(''))
+              .gte('created_at', since)
+              .order('created_at', { ascending: false })
+              .limit(300)
+            : res)),
+        supabase
+          .from('athletes')
+          .select('id, name, avatar_url, group_id, groups(name)')
+          .eq('status', 'active'),
+      ]);
+      const { data, error } = feedbackRes;
+      const activeAthletes = activeRes.data;
       if (error) throw error;
 
       // Attach the activity each feedback is about (name/type/distance/time).
       const actIds = Array.from(
         new Set((data || []).map((r: any) => r.garmin_activity_id).filter(Boolean)),
       );
-      const actMap = new Map<number, any>();
-      if (actIds.length > 0) {
-        const { data: acts } = await supabase
-          .from('athlete_activities')
-          .select('garmin_activity_id, activity_name, activity_type, distance, start_time')
-          .in('garmin_activity_id', actIds);
-        (acts || []).forEach((a: any) => actMap.set(a.garmin_activity_id, a));
-      }
-
-      // Every card's reply thread, in two queries rather than one request per
-      // card. `threadsForFeedback` explains what this replaces.
       const feedbackRows = (data || []) as unknown as Array<{ id: string; athlete_id: string }>;
-      const threads = await threadsForFeedback(
-        supabase,
-        feedbackRows.map((r) => r.id),
-        caller.athleteId,
-      );
+
+      // Wave two: the activities the reports are about, every card's reply
+      // thread, and the recent runs the "missing" list is derived from. All three
+      // need only wave one, and none needs the others.
+      const [actsRes, threads, recentRes] = await Promise.all([
+        actIds.length > 0
+          ? supabase
+            .from('athlete_activities')
+            .select('garmin_activity_id, activity_name, activity_type, distance, start_time')
+            .in('garmin_activity_id', actIds)
+          : Promise.resolve({ data: [] as any[] }),
+        // Every card's reply thread, in two queries rather than one request per
+        // card. `threadsForFeedback` explains what this replaces.
+        threadsForFeedback(supabase, feedbackRows.map((r) => r.id), caller.athleteId),
+        supabase
+          .from('athlete_activities')
+          .select('athlete_id, garmin_activity_id, activity_name, activity_type, distance, start_time')
+          .in('athlete_id', (activeAthletes || []).map((a: any) => a.id))
+          .gt('distance', 0)
+          .gte('start_time', since)
+          .order('start_time', { ascending: false }),
+      ]);
+
+      const actMap = new Map<number, any>();
+      (actsRes.data || []).forEach((a: any) => actMap.set(a.garmin_activity_id, a));
 
       const items = (data || []).map((r: any) => {
         const act = r.garmin_activity_id ? actMap.get(r.garmin_activity_id) : null;
@@ -213,17 +237,7 @@ export async function GET(request: Request) {
       const coveredKeys = new Set(
         (data || []).map((r: any) => feedbackKey(r.athlete_id, r.garmin_activity_id)),
       );
-      const { data: activeAthletes } = await supabase
-        .from('athletes')
-        .select('id, name, avatar_url, group_id, groups(name)')
-        .eq('status', 'active');
-      const { data: recentActs } = await supabase
-        .from('athlete_activities')
-        .select('athlete_id, garmin_activity_id, activity_name, activity_type, distance, start_time')
-        .in('athlete_id', (activeAthletes || []).map((a: any) => a.id))
-        .gt('distance', 0)
-        .gte('start_time', since)
-        .order('start_time', { ascending: false });
+      const recentActs = recentRes.data;
       const latestByAthlete = new Map<string, any>();
       for (const act of (recentActs || [])) {
         if (!latestByAthlete.has(act.athlete_id)) latestByAthlete.set(act.athlete_id, act);

@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { APP_URL, canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
-import { isEmailConfigured, notifyRegistrationApproved } from '@/lib/email';
+import { notifyRegistrationApproved } from '@/lib/email';
 import { groupDisplayName } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -68,30 +68,24 @@ export async function POST(request: Request) {
       groupName = group?.name ? groupDisplayName(group.name) : null;
     }
 
-    if (!isEmailConfigured()) {
-      // Not an error the caller can fix by retrying, and the link is the useful
-      // half of the answer anyway.
-      return NextResponse.json({
-        ok: true,
-        emailed: false,
-        emailReason: 'email-not-configured',
-        joinUrl: `${APP_URL}/join/${token}`,
-      });
-    }
+    const mail = await notifyRegistrationApproved({
+      email: reqRow.email,
+      token,
+      groupName,
+      athleteId: reqRow.athlete_id,
+      signupRequestId: id,
+    });
 
-    try {
-      await notifyRegistrationApproved({ email: reqRow.email, token, groupName });
-    } catch (mailErr) {
-      console.error('Re-send of an approval link failed:', mailErr);
-      return NextResponse.json({
-        ok: true,
-        emailed: false,
-        emailReason: mailErr instanceof Error ? mailErr.message : 'send failed',
-        joinUrl: `${APP_URL}/join/${token}`,
-      });
-    }
-
-    return NextResponse.json({ ok: true, emailed: true, joinUrl: `${APP_URL}/join/${token}` });
+    // ok:true either way, and the link ALWAYS rides back. A refusal here is not the
+    // caller's mistake and there is nothing for them to retry — but the URL is the
+    // useful half of the answer, and copying it out is the one thing that always
+    // works. Failing this request would take the link away with it.
+    return NextResponse.json({
+      ok: true,
+      emailed: mail.ok,
+      emailReason: mail.ok ? undefined : mail.code === 'email-not-configured' ? mail.code : mail.reason,
+      joinUrl: `${APP_URL}/join/${token}`,
+    });
   } catch (err) {
     console.error('Failed to resend an approval link:', err);
     return NextResponse.json({ error: 'Failed to resend' }, { status: 500 });
