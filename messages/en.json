@@ -291,7 +291,19 @@
     "deleteConfirm": "Are you sure you want to remove {name}? This action cannot be undone.",
     "noAthletes": "No athletes found",
     "noAthletesStatus": "No athletes with this status",
-    "inviteFirst": "Invite your first athlete to get started"
+    "inviteFirst": "Invite your first athlete to get started",
+    "searchPlaceholder": "Search by name or email",
+    "noSearchMatches": "No member matches that search",
+    "blocked": "Blocked",
+    "maintenanceOn": "Maintenance mode is on",
+    "maintenanceBlockedCount": "{count} members cannot get in right now",
+    "maintenanceTurnOff": "Turn maintenance off",
+    "maintenanceTurningOff": "Turning off…",
+    "maintenanceBlockedBadge": "Blocked",
+    "maintenanceAllowedBadge": "Allowed",
+    "maintenanceRelease": "Release from maintenance",
+    "maintenanceBlock": "Block during maintenance",
+    "maintenanceSaving": "Updating…"
   },
   "planner": {
     "title": "Weekly Planner",
@@ -1147,7 +1159,10 @@
     "tourTabsTitle": "The bottom bar",
     "tourTabsBody": "This is how you move between screens, anywhere in the app. The middle button is a quick attendance confirmation for the next session.",
     "tourSetupTitle": "Finish your profile here",
-    "tourSetupBody": "The percentage shows what's left: your watch, a photo, personal details and sizes. Come back any time and pick up where you stopped."
+    "tourSetupBody": "The percentage shows what's left: your watch, a photo, personal details and sizes. Come back any time and pick up where you stopped.",
+    "taskInstall": "Add to home screen",
+    "hintInstall": "For notifications and the full app",
+    "ctaInstall": "Install"
   },
   "onboarding": {
     "completeSetup": "Complete Your Setup",
@@ -1717,7 +1732,15 @@
     "gotIt": "Got it",
     "dismiss": "Dismiss",
     "skip": "Not now",
-    "dontAskAgain": "Don't ask again"
+    "dontAskAgain": "Don't ask again",
+    "inappTitle": "Open this link in your browser",
+    "inappDescription": "You're inside another app's browser (WhatsApp, Instagram), and it can't add Madregot to your home screen.",
+    "inappIosStep1": "Tap ⋯ or the share button at the bottom",
+    "inappIosStep2": "Choose \"Open in Safari\"",
+    "inappIosStep3": "From there you can add Madregot to your home screen",
+    "inappAndroidStep2": "Choose \"Open in Chrome\"",
+    "inappCopy": "Copy the link",
+    "inappCopied": "Link copied"
   },
   "push": {
     "title": "Get notified when your coach replies",

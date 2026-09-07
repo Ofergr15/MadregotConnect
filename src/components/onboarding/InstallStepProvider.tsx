@@ -10,13 +10,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { isIosSafari } from '@/lib/pwa';
+import { isInAppBrowser, isIosDevice, isIosSafari, isStandalone } from '@/lib/pwa';
 import {
   INSTALL_DISMISS_KEY,
   INSTALL_SESSION_SKIP_KEY,
   OFFER_SETTLE_MS,
   isInstallStepAnswered,
   recordInstallOfferSkipped,
+  resetInstallOffer,
 } from '@/lib/onboarding/first-run-order';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -41,7 +42,10 @@ export interface BeforeInstallPromptEvent extends Event {
 
 export type InstallOffer =
   | { kind: 'prompt'; prompt: BeforeInstallPromptEvent }
-  | { kind: 'ios' };
+  | { kind: 'ios' }
+  // A webview that cannot install anything (WhatsApp, Instagram, Gmail). The
+  // offer there is to leave it — see isInAppBrowser().
+  | { kind: 'inapp' };
 
 export interface InstallStepValue {
   /** What to render, or null when there is nothing to ask. */
@@ -52,6 +56,14 @@ export interface InstallStepValue {
   dismissForever: () => void;
   /** "Not now" — closes for this visit, returns on the next. */
   skipForSession: () => void;
+  /** Ask me again — from the setup checklist, after any kind of dismissal. */
+  reopen: () => void;
+  /**
+   * Is there anything reopen() could usefully show on this device? False once it
+   * IS the installed app, and false on a browser that cannot install at all —
+   * desktop Firefox would otherwise be handed iPhone instructions.
+   */
+  canOffer: boolean;
 }
 
 /**
@@ -64,6 +76,8 @@ const FALLBACK: InstallStepValue = {
   answered: true,
   dismissForever: () => {},
   skipForSession: () => {},
+  reopen: () => {},
+  canOffer: false,
 };
 
 const InstallStepContext = createContext<InstallStepValue | null>(null);
@@ -75,6 +89,11 @@ export function useInstallStep(): InstallStepValue {
 export function InstallStepProvider({ children }: { children: ReactNode }) {
   const [offer, setOffer] = useState<InstallOffer | null>(null);
   const [answered, setAnswered] = useState(false);
+  const [canOffer, setCanOffer] = useState(false);
+
+  // The deferred Chromium prompt, kept even after the sheet closes. It fires once
+  // per load, so reopen() has nothing to re-offer unless we hold on to it here.
+  const promptRef = useRef<BeforeInstallPromptEvent | null>(null);
 
   // Mirrors `offer` for the settle timer, which has to read the current value
   // without re-arming itself on every change.
@@ -85,6 +104,10 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Anything to offer here at all? An iPhone always has the Share-sheet route,
+    // a webview always has "open in the real browser", and Chromium answers for
+    // itself when `beforeinstallprompt` arrives below.
+    setCanOffer(!isStandalone() && (isIosDevice() || isInAppBrowser()));
     // Already installed, already opted out, or already waved away this visit:
     // nothing to ask, and the tour is free to start straight away.
     if (isInstallStepAnswered()) {
@@ -104,6 +127,8 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
       // the sheet behind it.
       // (iOS Safari never fires this event — it takes the `isIosSafari()` branch
       // below, which runs inside the effect and so was never affected.)
+      promptRef.current = event as BeforeInstallPromptEvent;
+      setCanOffer(true);
       if (isInstallStepAnswered()) return;
       show({ kind: 'prompt', prompt: event as BeforeInstallPromptEvent });
     };
@@ -120,7 +145,10 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
     // added the icon — they leave the browser entirely. The steps are the whole
     // offer, and the flow resumes in a brand-new session, where the standalone
     // check inside isInstallStepAnswered() above is what notices.
-    if (isIosSafari()) show({ kind: 'ios' });
+    // Order matters: a webview can't install, so telling it to use the Share sheet
+    // sends the member looking for a menu item that does not exist there.
+    if (isInAppBrowser()) show({ kind: 'inapp' });
+    else if (isIosSafari()) show({ kind: 'ios' });
 
     const timer = setTimeout(() => {
       if (!offerRef.current) setAnswered(true);
@@ -149,9 +177,19 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
     setAnswered(true);
   }, [show]);
 
+  const reopen = useCallback(() => {
+    // Clears the sticky answers first, or isInstallStepAnswered() would shut the
+    // sheet again on the next render.
+    resetInstallOffer();
+    setAnswered(false);
+    if (promptRef.current) show({ kind: 'prompt', prompt: promptRef.current });
+    else if (isInAppBrowser()) show({ kind: 'inapp' });
+    else show({ kind: 'ios' });
+  }, [show]);
+
   const value = useMemo(
-    () => ({ offer, answered, dismissForever, skipForSession }),
-    [offer, answered, dismissForever, skipForSession],
+    () => ({ offer, answered, dismissForever, skipForSession, reopen, canOffer }),
+    [offer, answered, dismissForever, skipForSession, reopen, canOffer],
   );
 
   return <InstallStepContext.Provider value={value}>{children}</InstallStepContext.Provider>;

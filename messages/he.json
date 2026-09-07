@@ -291,7 +291,19 @@
     "deleteConfirm": "האם אתה בטוח שברצונך להסיר את {name}? לא ניתן לבטל פעולה זו.",
     "noAthletes": "לא נמצאו ספורטאים",
     "noAthletesStatus": "אין ספורטאים בסטטוס זה",
-    "inviteFirst": "הזמן את הספורטאי הראשון שלך כדי להתחיל"
+    "inviteFirst": "הזמן את הספורטאי הראשון שלך כדי להתחיל",
+    "searchPlaceholder": "חיפוש לפי שם או אימייל",
+    "noSearchMatches": "אין חבר שמתאים לחיפוש",
+    "blocked": "חסומים",
+    "maintenanceOn": "מצב תחזוקה פעיל",
+    "maintenanceBlockedCount": "{count} מחברי המועדון לא מצליחים להיכנס כרגע",
+    "maintenanceTurnOff": "כבה מצב תחזוקה",
+    "maintenanceTurningOff": "מכבה…",
+    "maintenanceBlockedBadge": "חסום",
+    "maintenanceAllowedBadge": "מאושר",
+    "maintenanceRelease": "שחרר ממצב תחזוקה",
+    "maintenanceBlock": "החזר לחסימת תחזוקה",
+    "maintenanceSaving": "מעדכן…"
   },
   "planner": {
     "title": "מתכנן שבועי",
@@ -1147,7 +1159,10 @@
     "tourTabsTitle": "התפריט התחתון",
     "tourTabsBody": "מכאן עוברים בין המסכים, בכל מקום באפליקציה. הכפתור באמצע הוא אישור הגעה מהיר לאימון הקרוב.",
     "tourSetupTitle": "כאן משלימים את הפרופיל",
-    "tourSetupBody": "האחוז מראה מה עוד חסר: חיבור השעון, תמונה, פרטים אישיים ומידות. אפשר להיכנס בכל רגע ולהמשיך מאיפה שעצרת."
+    "tourSetupBody": "האחוז מראה מה עוד חסר: חיבור השעון, תמונה, פרטים אישיים ומידות. אפשר להיכנס בכל רגע ולהמשיך מאיפה שעצרת.",
+    "taskInstall": "הוספה למסך הבית",
+    "hintInstall": "כדי לקבל התראות ואפליקציה מלאה",
+    "ctaInstall": "התקנה"
   },
   "onboarding": {
     "completeSetup": "השלם את ההגדרה",
@@ -1717,7 +1732,15 @@
     "gotIt": "הבנתי",
     "dismiss": "סגירה",
     "skip": "לא עכשיו",
-    "dontAskAgain": "אל תציע לי שוב"
+    "dontAskAgain": "אל תציע לי שוב",
+    "inappTitle": "פתחו את הקישור בדפדפן",
+    "inappDescription": "אתם בתוך דפדפן של אפליקציה אחרת (וואטסאפ, אינסטגרם), וממנו אי אפשר להתקין את מדרגות על מסך הבית.",
+    "inappIosStep1": "לחצו על ⋯ או על כפתור השיתוף למטה",
+    "inappIosStep2": "בחרו \"פתח ב-Safari\"",
+    "inappIosStep3": "שם תוכלו להוסיף את מדרגות למסך הבית",
+    "inappAndroidStep2": "בחרו \"פתח ב-Chrome\"",
+    "inappCopy": "העתקת הקישור",
+    "inappCopied": "הקישור הועתק"
   },
   "push": {
     "title": "התראה על תשובת המאמן",

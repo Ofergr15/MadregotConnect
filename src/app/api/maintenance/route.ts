@@ -98,22 +98,29 @@ export async function PUT(request: Request) {
 
     if (typeof on === 'boolean') {
       rows.push({ key: 'maintenance_mode', value: on ? 'on' : 'off', updated_at: now });
-      // SAFEGUARD: turning maintenance ON auto-adds the actor to the allowlist so
-      // the admin who flips it can never lock themselves out.
-      //
-      // Adds their athlete ID, not their address. The address it used to add was
-      // the JWT one — synthetic for a Strava login, which is everybody — so the
-      // safeguard wrote an entry that could never match the person it was meant
-      // to protect. Their real address goes in too when the row has one, so the
-      // list stays readable to a human editing it.
-      if (on) {
-        const handles = [auth.user.athleteId, auth.user.athleteEmail, auth.user.email]
-          .map((h) => String(h || '').toLowerCase().trim())
-          .filter((h) => h && !h.endsWith('.local'));
-        const base = nextAllow ?? (await getSettings()).allow;
-        const missing = handles.filter((h) => !base.includes(h));
-        if (missing.length > 0) nextAllow = [...base, ...missing];
-      }
+    }
+
+    // SAFEGUARD: while maintenance is (or is about to be) ON, the actor is always
+    // on the allowlist. Nobody can lock themselves out of the switch.
+    //
+    // It used to run only when the request said `on: true`, which left the other
+    // way in wide open — editing the allowlist during a window. The roster screen
+    // can now shut one member out with a tap, and the admin is a member: one tap on
+    // their own row and the club has a window nobody can end from inside the app.
+    //
+    // Adds their athlete ID, not their address. The address it used to add was the
+    // JWT one — synthetic for a Strava login, which is everybody — so the safeguard
+    // wrote an entry that could never match the person it was meant to protect.
+    // Their real address goes in too when the row has one, so the list stays
+    // readable to a human editing it.
+    const willBeOn = typeof on === 'boolean' ? on : (await getSettings()).on;
+    if (willBeOn && (nextAllow || typeof on === 'boolean')) {
+      const handles = [auth.user.athleteId, auth.user.athleteEmail, auth.user.email]
+        .map((h) => String(h || '').toLowerCase().trim())
+        .filter((h) => h && !h.endsWith('.local'));
+      const base = nextAllow ?? (await getSettings()).allow;
+      const missing = handles.filter((h) => !base.includes(h));
+      if (missing.length > 0) nextAllow = [...base, ...missing];
     }
     if (nextAllow) rows.push({ key: 'maintenance_allow', value: nextAllow.join(','), updated_at: now });
 
