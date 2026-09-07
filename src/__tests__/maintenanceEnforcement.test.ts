@@ -19,31 +19,49 @@ const ON = { on: true, allow: ['coach@madregot.club'] };
 // ── the rule ───────────────────────────────────────────────────────────────────
 const { maintenanceBlocks } = await import('@/lib/maintenance');
 
+const SYNTHETIC = 'strava_106828158@strava.madregot.local';
+
 describe('maintenanceBlocks', () => {
   it('blocks nobody while maintenance is off', () => {
-    expect(maintenanceBlocks('runner@example.com', { on: false, allow: [] })).toBe(false);
+    expect(maintenanceBlocks({ email: 'runner@example.com' }, { on: false, allow: [] })).toBe(false);
     // Off means off even for somebody who happens to be listed.
-    expect(maintenanceBlocks('coach@madregot.club', { on: false, allow: ['coach@madregot.club'] })).toBe(false);
+    expect(maintenanceBlocks({ email: 'coach@madregot.club' }, { on: false, allow: ['coach@madregot.club'] })).toBe(false);
   });
 
   it('lets an allowlisted address through, case and whitespace aside', () => {
-    expect(maintenanceBlocks('coach@madregot.club', ON)).toBe(false);
-    expect(maintenanceBlocks('  Coach@Madregot.Club ', ON)).toBe(false);
+    expect(maintenanceBlocks({ email: 'coach@madregot.club' }, ON)).toBe(false);
+    expect(maintenanceBlocks({ email: '  Coach@Madregot.Club ' }, ON)).toBe(false);
+  });
+
+  it('matches the address on the athlete ROW, not just the one in the token', () => {
+    // THE production lockout, 2026-09-07. Login is Strava-only, so the JWT email
+    // is always synthetic and no entry an admin could type would ever match it:
+    // maintenance mode shut out 100% of the club, admins included, and the off
+    // switch was behind the door. An admin types the address they know.
+    expect(maintenanceBlocks({ email: SYNTHETIC, athleteEmail: 'coach@madregot.club' }, ON)).toBe(false);
+    expect(maintenanceBlocks({ email: SYNTHETIC }, ON)).toBe(true);
+  });
+
+  it('matches an athlete id, the handle that always exists', () => {
+    // Plenty of members have no real address on their row either — a Strava
+    // signup never provides one — so the admin screens write the id.
+    const byId = { on: true, allow: ['11111111-1111-1111-1111-111111111111'] };
+    expect(maintenanceBlocks({ email: SYNTHETIC, athleteId: '11111111-1111-1111-1111-111111111111' }, byId)).toBe(false);
+    expect(maintenanceBlocks({ email: SYNTHETIC, athleteId: '22222222-2222-2222-2222-222222222222' }, byId)).toBe(true);
   });
 
   it('blocks everyone else, approved and staff included', () => {
     // This is the point of the change: being an approved, fully active member is
     // not an exemption. The allowlist is the only exemption there is, and the
     // person who turns the window on is auto-added to it (PUT /api/maintenance).
-    expect(maintenanceBlocks('runner@example.com', ON)).toBe(true);
+    expect(maintenanceBlocks({ email: 'runner@example.com' }, ON)).toBe(true);
   });
 
   it('blocks a viewer with no resolvable identity', () => {
     // The allowlist cannot recognise somebody it knows nothing about, and "we
     // could not tell who you are" must not be the way in.
-    expect(maintenanceBlocks('', ON)).toBe(true);
-    expect(maintenanceBlocks(null, ON)).toBe(true);
-    expect(maintenanceBlocks(undefined, ON)).toBe(true);
+    expect(maintenanceBlocks({}, ON)).toBe(true);
+    expect(maintenanceBlocks({ email: '', athleteEmail: null, athleteId: null }, ON)).toBe(true);
   });
 });
 
@@ -61,6 +79,7 @@ vi.mock('@/lib/auth-session', () => ({
     ok: true,
     user: {
       email: sessionEmail,
+      athleteEmail: null,
       athleteId: 'a1',
       role: 'runner',
       isStaff: false,

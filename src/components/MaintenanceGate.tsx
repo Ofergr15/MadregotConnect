@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, LogIn } from 'lucide-react';
+import { Eye, LogIn, Wrench } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
-import { useApi } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 
 // Public routes the gate must NEVER cover — otherwise a logged-out user (e.g.
 // Ofer in the installed PWA, which has its own session separate from Safari)
@@ -74,6 +74,33 @@ export function MaintenanceGate() {
       .catch(() => setEmail(''));
   }, []);
 
+  // The off switch has to live ON the door. A super user who is not on the
+  // allowlist used to be blocked here with no way to the settings screen that
+  // holds the toggle — the switch was behind the door it locks, and the only way
+  // out was a SQL statement. PUT /api/maintenance needs nothing but a verified
+  // approver session, so one tap from here is enough.
+  const [turningOff, setTurningOff] = useState(false);
+  const turnOff = async () => {
+    setTurningOff(true);
+    try {
+      const res = await fetch('/api/maintenance', {
+        method: 'PUT',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ on: false }),
+      });
+      if (res.ok) {
+        // A hard reload rather than mutate(): every API refused while the window
+        // was on, so the shell behind this overlay is full of failed requests.
+        window.location.reload();
+        return;
+      }
+    } catch {
+      // Falls through to re-enabling the button — the window is still on, and
+      // saying nothing is better than a screen that claims it worked.
+    }
+    setTurningOff(false);
+  };
+
   const noIdentity = data?.identified === false;
   const isAsaf = email.toLowerCase().trim() === ASAF_EMAIL;
   // Fails open on a fetch error, same as the original try/catch and for the same
@@ -132,16 +159,27 @@ export function MaintenanceGate() {
           </>
         )}
 
+        {/* Super-user only: turn the window off from the door itself. */}
+        {isSuper && (
+          <button
+            onClick={turnOff}
+            disabled={turningOff}
+            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-pill bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 disabled:opacity-60 transition-colors"
+            dir="rtl"
+          >
+            <Wrench className="h-4 w-4" /> {turningOff ? 'מכבה…' : 'כבה מצב תחזוקה'}
+          </button>
+        )}
+
         {/* Super-user only: a clear "view as" button right on the gate, so Ofer
             can switch scenarios without hunting for the tiny floating pill. */}
         {isSuper && (
           <button
             onClick={() => window.dispatchEvent(new Event('open-view-as'))}
-            // The light system's primary button (same as ui/Button's `primary`) —
-            // the old amber outline was a warning colour on a dark field, and on
-            // white it both loses contrast and reads as an alert rather than the
-            // one thing you're meant to tap.
-            className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-pill bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 transition-colors"
+            // ui/Button's `secondary` now, not `primary`: turning the window off
+            // is the one thing you're meant to tap on this screen, and two solid
+            // brand buttons stacked would say they matter equally.
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2.5 rounded-pill bg-card border border-brand-600 text-brand-600 text-sm font-bold hover:bg-brand-600/5 transition-colors"
             dir="rtl"
           >
             <Eye className="h-4 w-4" /> תצוגה כמשתמש אחר

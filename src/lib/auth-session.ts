@@ -16,6 +16,17 @@ export { invalidateToken, clearSessionCache } from '@/lib/auth/session-cache';
 
 export interface SessionUser {
   email: string;
+  /**
+   * The address on the athlete ROW, when it differs from the one above.
+   *
+   * `email` is the JWT's, and for a Strava login that is the synthetic
+   * `strava_<id>@strava.madregot.local` — an internal artefact no human ever
+   * typed and no club list will ever contain. Anything that matches a person
+   * against an address an ADMIN entered has to compare against this instead, or
+   * it can never match anybody: login is Strava-only, so every member's JWT
+   * email is synthetic. (Same reason `isSuperUser`/`canApprove` read a row flag.)
+   */
+  athleteEmail: string | null;
   /** Athlete row id — null for a staff account that has no `athletes` row. */
   athleteId: string | null;
   name: string;
@@ -231,6 +242,7 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
       ok: true,
       user: {
         email,
+        athleteEmail: athlete.email && athlete.email !== email ? athlete.email : null,
         athleteId: athlete.id,
         name: athlete.name || '',
         role,
@@ -265,6 +277,8 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
       ok: true,
       user: {
         email,
+        // A `coaches`-only record always has a real address, and it is `email`.
+        athleteEmail: null,
         athleteId: null,
         name: coach.name || '',
         role,

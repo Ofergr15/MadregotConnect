@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { clearMaintenanceCache, maintenanceBlocks, readMaintenance } from '@/lib/maintenance';
 
@@ -48,9 +47,13 @@ export async function GET(request: Request) {
         superUser: false,
       });
     }
+    const allowed = !maintenanceBlocks(
+      { email: auth.user.email, athleteEmail: auth.user.athleteEmail, athleteId: auth.user.athleteId },
+      state,
+    );
     return NextResponse.json({
       maintenance: state.on,
-      allowed: !maintenanceBlocks(auth.user.email, state),
+      allowed,
       identified: true,
       superUser: auth.user.isSuperUser,
       ...(auth.user.canApprove ? { allowlist: state.allow } : {}),
@@ -73,8 +76,13 @@ export async function PUT(request: Request) {
   try {
     const auth = await requireSession(request);
     if (!auth.ok) return authError(auth);
-    const actorEmail = auth.user.email;
-    if (!canApprove(actorEmail)) {
+    // `auth.user.canApprove`, NOT canApprove(auth.user.email): the second is a
+    // check against an email LITERAL, and login is Strava-only, so the JWT email
+    // is always the synthetic `strava_<id>@…local`. That check could never pass
+    // for anybody — the toggle 403'd for every admin in the club, which is how
+    // maintenance mode got stuck on with no way to turn it off from the app. The
+    // session flag reads the row's `is_approver` and handles exactly this.
+    if (!auth.user.canApprove) {
       return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
     }
     const { on, allowlist } = await request.json();
@@ -92,10 +100,19 @@ export async function PUT(request: Request) {
       rows.push({ key: 'maintenance_mode', value: on ? 'on' : 'off', updated_at: now });
       // SAFEGUARD: turning maintenance ON auto-adds the actor to the allowlist so
       // the admin who flips it can never lock themselves out.
+      //
+      // Adds their athlete ID, not their address. The address it used to add was
+      // the JWT one — synthetic for a Strava login, which is everybody — so the
+      // safeguard wrote an entry that could never match the person it was meant
+      // to protect. Their real address goes in too when the row has one, so the
+      // list stays readable to a human editing it.
       if (on) {
-        const actor = String(actorEmail).toLowerCase().trim();
+        const handles = [auth.user.athleteId, auth.user.athleteEmail, auth.user.email]
+          .map((h) => String(h || '').toLowerCase().trim())
+          .filter((h) => h && !h.endsWith('.local'));
         const base = nextAllow ?? (await getSettings()).allow;
-        if (actor && !base.includes(actor)) nextAllow = [...base, actor];
+        const missing = handles.filter((h) => !base.includes(h));
+        if (missing.length > 0) nextAllow = [...base, ...missing];
       }
     }
     if (nextAllow) rows.push({ key: 'maintenance_allow', value: nextAllow.join(','), updated_at: now });

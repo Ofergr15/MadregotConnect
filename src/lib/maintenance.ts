@@ -23,7 +23,8 @@ import { createServerClient } from '@/lib/supabase/server';
  *
  * The allowlist governs everyone, staff included; that is the existing product
  * decision (see PUT /api/maintenance, which auto-adds whoever turns it on so they
- * cannot lock themselves out).
+ * cannot lock themselves out). An entry is an email OR an athlete id — see
+ * MaintenanceIdentity for why an address alone cannot identify anybody here.
  */
 
 export interface MaintenanceState {
@@ -75,15 +76,38 @@ export async function readMaintenance(): Promise<MaintenanceState> {
 }
 
 /**
- * Is this person shut out right now? Pure, so the rule is testable without a
- * database — and it is one rule, used by both the API gate and the screen, rather
- * than two that can drift.
+ * Every handle that can identify one person to the allowlist.
+ *
+ * More than one, because a single address cannot do it. Login is Strava-only, so
+ * the JWT email is ALWAYS the synthetic `strava_<id>@strava.madregot.local` — the
+ * first version of this compared the allowlist against that and nothing else,
+ * which meant no entry an admin could type would ever match, and turning
+ * maintenance on locked out 100% of the club, admins included, with the off
+ * switch behind the door. (Found in production 2026-09-07.)
+ *
+ * `athleteId` is the handle that always works and the one the admin screens write,
+ * because plenty of members have no real address on their row either.
  */
-export function maintenanceBlocks(email: string | null | undefined, state: MaintenanceState): boolean {
+export interface MaintenanceIdentity {
+  /** The JWT address. Synthetic for a Strava login. */
+  email?: string | null;
+  /** The address on the athlete row — what a human would recognise. */
+  athleteEmail?: string | null;
+  athleteId?: string | null;
+}
+
+/**
+ * Is this person shut out right now? Pure, so the rule is testable without a
+ * database — and it is one rule, used by the API gate, the screen and the admin
+ * views, rather than several that can drift.
+ */
+export function maintenanceBlocks(who: MaintenanceIdentity, state: MaintenanceState): boolean {
   if (!state.on) return false;
-  const who = (email || '').toLowerCase().trim();
+  const handles = [who.email, who.athleteEmail, who.athleteId]
+    .map((h) => (h || '').toLowerCase().trim())
+    .filter(Boolean);
   // No resolvable identity while maintenance is on is blocked, not exempt: the
   // allowlist cannot recognise somebody it knows nothing about.
-  if (!who) return true;
-  return !state.allow.includes(who);
+  if (handles.length === 0) return true;
+  return !handles.some((h) => state.allow.includes(h));
 }

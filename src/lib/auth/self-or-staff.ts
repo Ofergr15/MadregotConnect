@@ -103,7 +103,11 @@ export async function resolveVerifiedCaller(
   //
   // 503 rather than 403: this is temporary and says "come back", and it is the
   // status the rest of the app already uses for "ask again later".
-  if (maintenanceBlocks(auth.user.email, await readMaintenance())) {
+  const blockedByMaintenance = maintenanceBlocks(
+    { email: auth.user.email, athleteEmail: auth.user.athleteEmail, athleteId: auth.user.athleteId },
+    await readMaintenance(),
+  );
+  if (blockedByMaintenance) {
     return {
       denied: NextResponse.json(
         { error: 'maintenance', message: 'האפליקציה בעבודות תחזוקה — ננסה שוב בקרוב.' },
