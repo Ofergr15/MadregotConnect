@@ -12,6 +12,7 @@ import {
   matchAthleteByName,
   matchAthleteByNameKey,
   pickAthleteRow,
+  stravaDisplayNameOf,
   type IdentityRow,
 } from '@/lib/auth/athlete-identity';
 import { mergeAthleteRows } from '@/lib/auth/merge-athletes';
@@ -150,9 +151,10 @@ export async function GET(request: Request) {
       athlete_id: stravaId,
     };
     const encrypted = encrypt(stravaAuth);
-    const name =
-      [tokenData.athlete?.firstname, tokenData.athlete?.lastname].filter(Boolean).join(' ') ||
-      `Strava ${stravaId}`;
+    // What Strava itself calls this person, or null when it says nothing usable —
+    // see stravaDisplayNameOf for why null and not a placeholder.
+    const stravaDisplayName = stravaDisplayNameOf(tokenData.athlete);
+    const name = stravaDisplayName || `Strava ${stravaId}`;
     const email = stravaAuthEmail(stravaId);
     const avatar = tokenData.athlete?.profile || tokenData.athlete?.profile_medium || null;
 
@@ -231,6 +233,12 @@ export async function GET(request: Request) {
       const { error: linkErr } = await admin
         .from('athletes')
         .update({
+          // Same rule as login mode: Strava owns the name. It matters more here
+          // than anywhere, because the row this token names is still carrying
+          // placeholderNameFromEmail() — "grosfeldofer" out of an address — until
+          // the member types something. This is the first moment the app knows
+          // what they are actually called.
+          ...(stravaDisplayName ? { name: stravaDisplayName } : {}),
           strava_auth: encrypted,
           strava_athlete_id: stravaId,
           strava_enabled: true,
@@ -259,7 +267,8 @@ export async function GET(request: Request) {
       const joinAuth = await createSyntheticSession(admin, invited.email, {
         strava_athlete_id: stravaId,
         athlete_id: invited.id,
-        name: invited.name || name,
+        // Strava's spelling first, for the same reason the row above just took it.
+        name: stravaDisplayName || invited.name || name,
       });
       if (joinAuth.error || !joinAuth.session) {
         console.error(`[auth-debug:${debugId}] callback:invite_session_failed`, joinAuth.error);
@@ -420,6 +429,15 @@ export async function GET(request: Request) {
       const { error: updateErr } = await admin
         .from('athletes')
         .update({
+          // The roster takes the name STRAVA holds, on every login. The roster
+          // name is whatever a human typed at registration months ago — Hebrew,
+          // sometimes misspelled, sometimes a first name alone — and it is the
+          // only thing this app has to recognise a member by when Strava hands it
+          // a Latin display name and no email. Letting Strava own the field means
+          // the two sides stop drifting apart, and the club sees one spelling of a
+          // person instead of two. Never written from `name`: that variable falls
+          // back to a "Strava <id>" placeholder, which would be a downgrade.
+          ...(stravaDisplayName ? { name: stravaDisplayName } : {}),
           strava_auth: encrypted,
           strava_athlete_id: stravaId,
           strava_enabled: true,
