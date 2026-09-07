@@ -79,9 +79,9 @@ Identical to runner, **plus מתכנן in More**: סקירה · מתכנן · פ
 ### admin — this is you
 
 **Bar:** פיד · לוח בקרה · [נוכחות] · ספורטאים · משוב אימונים · עוד
-**More → morePages:** סקירה · מתכנן · אקדמיה · קבוצות · פעילויות · תוכנית · אימון ·
-נוכחות · נפח הקבוצה · יומן · היסטוריה · הגדרות · פרופיל · כלי מאמן
-(13 overflow cards + סקירה, which is static. כלי מאמן is back in the sheet: פיד
+**More → morePages:** סקירה · חדר בקרה · מתכנן · אקדמיה · קבוצות · פעילויות · תוכנית ·
+אימון · נוכחות · נפח הקבוצה · יומן · היסטוריה · הגדרות · פרופיל · כלי מאמן
+(14 overflow cards + סקירה, which is static. כלי מאמן is back in the sheet: פיד
 returning to the bar took its flat slot.)
 
 **The admin sees everything** (2026-09-07, Ofer's call — it replaced the opposite
@@ -107,9 +107,22 @@ the member half, which is the פרופיל tab.
 - [ ] View-as → רץ, then פרופיל: the runner's nav, no staff tabs, athlete profile.
 - [ ] הגדרות → ניהול טאבים: the whole admin row reads "מנהל רואה הכל" instead of
       toggles, because no cell in that column changes anything now.
-- [ ] ⚠️ /dashboard is still the control room, not your training home — that's a
-      separate call (v2.39.104) and it wasn't part of this one. Your own week is on
-      תוכנית, your runs on פעילויות. Say if you want the training home back too.
+- [ ] **/dashboard is your training home now**, not the control room (2026-09-07,
+      Ofer's call — the previous version of this doc asked for it and this is the
+      answer). Your account has an athlete row, so לוח בקרה opens the week, the
+      streak, the RSVP card and the leaderboard, same as any member's.
+- [ ] **חדר בקרה is where the control room went** — `/dashboard/control-room`, its
+      own URL. Two ways in: the first row of כלי מאמן (two taps, and it carries the
+      subtitle "המועדון עכשיו"), or the More card. Everything on it should be exactly
+      what /dashboard used to show you: greeting, needs-attention list, roster,
+      delivery, system status.
+- [ ] The roster on חדר בקרה and the RSVP card on לוח בקרה must name **the same
+      session** — both go through `teamDayTarget`. Check on a Monday or Tuesday
+      (Tue/Fri are the club's days): the card asks about Tuesday, the roster shows
+      Tuesday.
+- [ ] An admin with **no athlete row** still lands on the control room at /dashboard
+      — nothing else on that screen would have anything to say to them. Two doors,
+      one screen; view-as → מנהל is the way to see it.
 
 ### coach
 
@@ -130,9 +143,13 @@ back into More.
       visibility only, and the sharp controls inside הגדרות (granting admin) are
       separately gated on the email allowlist, not on role — but coach already
       held `settings` before this change. Say if you want coach narrowed.
-- [ ] Since 2026-09-07 the admin is a strict superset: it adds אימון (which no
-      permission row grants) and, for an admin with no athlete row, החשבון. There
-      is nothing a coach reaches that an admin can't.
+- [ ] Since 2026-09-07 the admin is a strict superset: it adds אימון and חדר בקרה
+      (neither has a permission row) and, for an admin with no athlete row, החשבון.
+      There is nothing a coach reaches that an admin can't.
+- [ ] No חדר בקרה for coach — admin-only by construction, since nothing grants the
+      row and only admin bypasses the matrix. It IS grantable, though: everything
+      behind it is staff-gated server-side, so flipping the coach cell in
+      הגדרות → ניהול טאבים gives a working screen. Say if coaches should have it.
 - [ ] A coach who also runs keeps both halves: staff tabs AND פיד / פעילויות /
       תוכנית / פרופיל. Several coaches here train with the club — check one.
 - [ ] No אימון for coach: the row is `academy_coach`/`academy_user` only, and the
@@ -363,6 +380,7 @@ Easy to forget precisely because nothing in the bar points at them.
 
 | Screen | Check |
 |---|---|
+| חדר בקרה (`/dashboard/control-room`) | Needs-attention rows appear only with a number and collapse to "all clear"; club stats + delivery rate; Coach Pulse; the roster names the same session as the RSVP card on לוח בקרה; system status. Same screen from the כלי מאמן row and from the More card — and, for an admin with no athlete row, from `/dashboard` |
 | ספורטאים | Roster loads; add / edit / remove; group assignment; data-source switch; invite link generation |
 | קבוצות | Groups and members; pace offsets |
 | מתכנן (`plan/new`) | Paste a workout → parse → save; push to Garmin; per-group variants; clipboards; import from program |

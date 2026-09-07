@@ -163,11 +163,32 @@ describe('staff', () => {
     //
     // They diverged again when the admin stopped being read off the matrix: the
     // admin's list is now every tab, so it is a strict superset of the coach's —
-    // `practice` and `profile` are the two it adds, and there is nothing a coach
-    // reaches that an admin can't. Written as two set differences so the fact is
-    // stated rather than buried in a pair of long literal lists.
-    expect(staff('admin').filter((t) => !staff('coach').includes(t))).toEqual(['practice', 'profile']);
+    // and these three are what it adds, with nothing a coach reaches that an admin
+    // can't. Written as two set differences so the fact is stated rather than buried
+    // in a pair of long literal lists.
+    expect(staff('admin').filter((t) => !staff('coach').includes(t)))
+      .toEqual(['control-room', 'practice', 'profile']);
     expect(staff('coach').filter((t) => !staff('admin').includes(t))).toEqual([]);
+  });
+
+  it('gives the control room to the admin and to nobody else by default', () => {
+    // Admin-only BY CONSTRUCTION rather than by an exception: no production row
+    // grants `control-room`, and only the admin bypasses the matrix, so listing it
+    // in ALL_NAV_ITEMS is the whole implementation. That is why there is no
+    // migration with this change.
+    expect(permissions.some((p) => p.tab === 'control-room')).toBe(false);
+    expect(staff('admin')).toContain('control-room');
+    for (const role of ['coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer']) {
+      expect(tabsFor({ permissions, effectiveRole: role, isAthlete: true }), `${role} reached the control room`)
+        .not.toContain('control-room');
+    }
+    // …and it is grantable, which is the point of it being a matrix tab at all
+    // (everything behind it is staff-gated server-side, so a coach given the row
+    // gets a working screen). The settings editor lists it for that reason.
+    expect(tabsFor({
+      permissions: [...permissions, { role: 'coach', tab: 'control-room', enabled: true }],
+      effectiveRole: 'coach',
+    })).toContain('control-room');
   });
 
   it('every staff role gets the coach-tools hub without a permission row', () => {

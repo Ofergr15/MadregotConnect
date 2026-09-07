@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck,
+  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -35,6 +35,18 @@ export const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy
 export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
   { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
+  // The control room, at a URL of its own since 2026-09-07. It used to be
+  // /dashboard's admin branch, which only worked while an admin account was
+  // assumed not to be anybody's member account — and in this club every admin
+  // runs, so /dashboard is their training home and the control room needed a door.
+  //
+  // Listed here, so `admin` gets it by rule 1 and no exception. For an admin with
+  // NO athlete row that means two doors to one screen (/dashboard still renders it,
+  // since nothing else on that screen would have anything to say to them), exactly
+  // as ADMIN_ACCOUNT_ITEM and PROFILE_ITEM share /dashboard/profile. Everything on
+  // it is staff-gated server-side, so it is also safe to grant a coach from the
+  // permissions matrix — ungranted, it is admin-only by construction.
+  { href: '/dashboard/control-room', tab: 'control-room', labelKey: 'controlRoom', icon: Gauge },
   // A beetle, not a speech bubble: this is the "something is broken" channel,
   // and a message icon read as one more place to talk to the coach.
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: Bug },
