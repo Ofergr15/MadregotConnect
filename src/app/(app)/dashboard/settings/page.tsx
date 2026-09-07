@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout, Wrench, Lock, Unlock, DoorOpen } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout, Wrench, Lock, Unlock, DoorOpen, History } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
@@ -17,6 +17,7 @@ import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceTo
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { MapPrefsRow } from '@/components/MapPrefsRow';
+import { GarminHistoryImport } from '@/components/admin/GarminHistoryImport';
 import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
 import { ADMIN_HIDDEN_TABS } from '@/lib/nav-items';
@@ -360,7 +361,7 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations' | 'coreRunners';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations' | 'coreRunners' | 'garminHistory';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
@@ -377,6 +378,11 @@ const settingsTabs = [
   { key: 'challenges' as SettingsTab, label: 'Challenge Manager', icon: Trophy, iconBg: 'bg-band-3' },
   { key: 'store' as SettingsTab, label: 'Store Manager', icon: ShoppingBag, iconBg: 'bg-band-2' },
   { key: 'perks' as SettingsTab, label: 'Perks Manager', icon: Gift, iconBg: 'bg-pink-600' },
+  // A repair tool rather than a manager: it pulls the Garmin history that the
+  // 100-activity sync never asked for (see lib/garmin/history-backfill.ts). Last
+  // in the list because it is something you reach for when a PR looks wrong, not
+  // something you visit.
+  { key: 'garminHistory' as SettingsTab, label: 'Garmin History', icon: History, iconBg: 'bg-brand-600' },
 ];
 
 // getOnboardingStep is gone with the two chips it fed. It read a Google →
@@ -1121,6 +1127,10 @@ export default function SettingsPage() {
 
       {/* Reminders detail */}
       {activeTab === 'reminders' && <ReminderConfig />}
+
+      {/* Garmin history import — the repair tool for the 100-activity sync cap.
+          Staff-gated by the route it calls, same as every other tab here. */}
+      {activeTab === 'garminHistory' && <GarminHistoryImport />}
 
       {/* Notification preferences detail (per-user category toggles) */}
       {activeTab === 'notifprefs' && notifPrefsAthleteId && <NotificationPrefs athleteId={notifPrefsAthleteId} />}

@@ -775,7 +775,17 @@
     "signedUpToday": "נרשם היום",
     "signedUpDaysAgo": "מחכה {days} ימים",
     "approvedAndReleased": "אושר והוסר מחסימת התחזוקה — יכול להיכנס",
-    "approvedClubOpen": "אושר. התחזוקה כבויה, אין ממה לשחרר"
+    "approvedClubOpen": "אושר. התחזוקה כבויה, אין ממה לשחרר",
+    "garminHistoryTitle": "ייבוא היסטוריה מגרמין",
+    "garminHistoryIntro": "גרמין נתנה לנו רק את 100 האימונים האחרונים של כל אתלט, כך שריצות ותיקות יותר — והשיאים שבתוכן — לא יובאו מעולם. כאן הולכים אחורה, 100 בכל פעם, ומוסיפים רק את מה שחסר.",
+    "garminHistoryAthletes": "אתלטים עם שעון מחובר",
+    "garminHistoryRunAll": "ייבוא לכל {count} האתלטים",
+    "garminHistoryRunOne": "ייבוא",
+    "garminHistoryStop": "עצור",
+    "garminHistoryProgress": "{imported} ריצות נוספו · {pages} עמודים נקראו · הוותיקה {date}",
+    "garminHistoryTotal": "{count} ריצות נוספו עד כה",
+    "garminHistoryNoGarmin": "אין חיבור לגרמין — Strava בלבד",
+    "garminHistoryNobody": "לאף אחד אין שעון מחובר"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",

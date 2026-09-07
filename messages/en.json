@@ -775,7 +775,17 @@
     "signedUpToday": "Signed up today",
     "signedUpDaysAgo": "Waiting {days} days",
     "approvedAndReleased": "Approved and taken off the maintenance block — they can get in",
-    "approvedClubOpen": "Approved. Maintenance is off, nothing to release"
+    "approvedClubOpen": "Approved. Maintenance is off, nothing to release",
+    "garminHistoryTitle": "Import Garmin history",
+    "garminHistoryIntro": "Garmin only ever gave us the 100 most recent activities per athlete, so older runs — and the personal bests inside them — were never imported. This walks further back, 100 at a time, and adds only what is missing.",
+    "garminHistoryAthletes": "Athletes with a watch",
+    "garminHistoryRunAll": "Import for all {count}",
+    "garminHistoryRunOne": "Import",
+    "garminHistoryStop": "Stop",
+    "garminHistoryProgress": "{imported} runs added · {pages} pages read · oldest {date}",
+    "garminHistoryTotal": "{count} runs added so far",
+    "garminHistoryNoGarmin": "No Garmin connection — Strava only",
+    "garminHistoryNobody": "Nobody has a watch connected"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",
