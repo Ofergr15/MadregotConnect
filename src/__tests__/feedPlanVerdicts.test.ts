@@ -268,7 +268,7 @@ describe('loadFeedPlanVerdicts', () => {
   // coach was still editing and nobody had been asked to run.
   it('reads only a published plan, never a draft', async () => {
     stubClub();
-    await loadFeedPlanVerdicts(supabase, [run('a', FAST, 282)]);
+    await load([run('a', FAST, 282)]);
     const plans = ops.filter(o => o.table === 'weekly_plans');
     expect(plans).toHaveLength(2);
     for (const op of plans) {
