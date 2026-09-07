@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   HANDOFF_STORAGE_KEY,
   HANDOFF_TTL_MS,
@@ -203,5 +204,39 @@ describe('the pending verifier in the app partition', () => {
     storePendingVerifier(newVerifier());
     clearPendingVerifier();
     expect(readPendingVerifier()).toBeNull();
+  });
+});
+
+describe('the /auth/handoff screen', () => {
+  // "Close this window with the ✕ and the app will continue" is true in exactly
+  // one place — the sheet iOS forces on a standalone PWA. The login asks for a
+  // handoff unconditionally, so the same page was served to WhatsApp's in-app
+  // browser (no ✕ anywhere) and to a plain Safari tab (the tab IS the app), where
+  // it is a dead end. Reported 2026-09-07 with somebody stuck on it for minutes.
+  const finish = readFileSync(new URL('../app/auth/handoff/HandoffFinish.tsx', import.meta.url), 'utf8');
+  const page = readFileSync(new URL('../app/auth/handoff/page.tsx', import.meta.url), 'utf8');
+
+  it('decides by the pending verifier, the one signal that tells the two apart', () => {
+    // Only the partition that STARTED the login holds a verifier; a sheet never
+    // does, which is the whole reason the handoff exists. So a verifier here means
+    // this browser can claim the parked login itself.
+    expect(finish).toContain('readPendingVerifier()');
+    expect(finish).toMatch(/if \(!readPendingVerifier\(\)\) return/);
+  });
+
+  it("sends the browser that can finish to '/', where the claim already lives", () => {
+    expect(finish).toContain("window.location.replace('/')");
+  });
+
+  it('keeps an escape hatch even when we read the context wrong', () => {
+    // A closed sheet whose app was killed, or a browser we misjudged: signing in
+    // again from '/' stores a verifier in THIS partition, so the retry lands here
+    // with one and finishes instead of parking for nobody.
+    expect(page).toMatch(/href="\/"/);
+  });
+
+  it('stays server-rendered, so the instruction survives a bad connection', () => {
+    expect(page).not.toContain("'use client'");
+    expect(page).toContain('<HandoffFinish />');
   });
 });
