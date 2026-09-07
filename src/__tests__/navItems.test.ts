@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveNavItems, ALL_NAV_ITEMS, ADMIN_HIDDEN_TABS, type TabPermission } from '@/lib/nav-items';
+import { resolveNavItems, ALL_NAV_ITEMS, type TabPermission } from '@/lib/nav-items';
 
 /**
  * Which pages a role can reach. Three places used to answer this independently —
@@ -59,60 +59,78 @@ describe('what each production role can reach', () => {
     expect(athlete('viewer')).not.toContain('feed');
   });
 
-  it('academy_user gets practice, which no staff role does', () => {
+  it('academy_user gets practice, which no coach does', () => {
     expect(athlete('academy_user')).toContain('practice');
-    expect(athlete('admin')).not.toContain('practice');
     expect(athlete('coach')).not.toContain('practice');
+    // The admin does, but not from a permission row — it sees everything.
+    expect(athlete('admin')).toContain('practice');
   });
 });
 
 describe('staff', () => {
   const staff = (role: string) => tabsFor({ permissions, effectiveRole: role });
 
-  it('admin reaches everything it is granted EXCEPT its own training, plus coach tools and its account', () => {
+  it('admin sees every tab there is, plus coach tools and its account', () => {
+    // Rule 1: not "everything it is granted" — everything, full stop.
     expect(staff('admin')).toEqual([
-      'dashboard', 'review', 'plan/new', 'athletes', 'academy', 'groups',
-      'practice-attendance', 'workout-feedback',
-      'team-volume', 'calendar', 'history', 'settings', 'profile', 'coach-tools',
+      ...ALL_NAV_ITEMS.map(i => i.tab), 'profile', 'coach-tools',
     ]);
   });
 
-  it('drops the admin\'s own training screens even though production grants them', () => {
-    // Production has every tab on for `admin`, so this is the whole difference —
-    // see ADMIN_HIDDEN_TABS for why the rule is code and not three data rows.
-    for (const tab of ADMIN_HIDDEN_TABS) {
-      expect(permissions.some(p => p.role === 'admin' && p.tab === tab && p.enabled)).toBe(true);
-      expect(staff('admin'), `admin still reaches ${tab}`).not.toContain(tab);
-      // Nobody else loses anything.
-      expect(tabsFor({ permissions, effectiveRole: 'coach' })).toContain(tab);
-    }
+  it('shows the admin a tab no permission row grants it', () => {
+    // `practice` is enabled for the academy roles and for nobody else, so it is the
+    // one tab that proves the admin's list is not read off the matrix at all. The
+    // point of the rule: the role that fixes the club can open every screen in it.
+    expect(permissions.some(p => p.role === 'admin' && p.tab === 'practice')).toBe(false);
+    expect(staff('admin')).toContain('practice');
   });
 
-  it('hides them from an admin who is also in the גרעין', () => {
-    // The squad's grants are runner grants, and they are unioned in AFTER the
-    // permission list — so the filter has to run last or the core flag hands the
-    // feed and the activity list back.
-    const coreAdmin = tabsFor({ permissions, effectiveRole: 'admin', isAthlete: true, isCoreRunner: true });
-    for (const tab of ADMIN_HIDDEN_TABS) expect(coreAdmin).not.toContain(tab);
+  it('keeps every tab even if the admin column is emptied', () => {
+    // The whole admin column is decorative now — the settings editor says so in
+    // words instead of offering switches that change nothing.
+    const noAdminRows = permissions.filter(p => p.role !== 'admin');
+    expect(tabsFor({ permissions: noAdminRows, effectiveRole: 'admin' })).toEqual(staff('admin'));
   });
 
-  it('gives the admin an account tab, not a training profile', () => {
-    // Same route and same tab id as the athlete's (one active state, and old
-    // links still land) — the label is the observable difference, and the page
-    // behind it branches on the same role. See AdminAccount.
+  it('gives an admin who also runs their training profile, and one who does not an account tab', () => {
+    // Rule 3, and the defect that prompted it: every admin account in this club has
+    // an athlete row — they are the coaches and the owner — and the super-user
+    // renders as `admin`, so an account-screen-for-all-admins rule meant the app
+    // hid its own users' training from them.
+    //
+    // Same route and same tab id either way (one active state, and old links still
+    // land); the label is the observable difference, and ProfileGate branches on the
+    // same two inputs.
     const profileOf = (input: Parameters<typeof resolveNavItems>[0]) =>
       resolveNavItems(input).find(i => i.tab === 'profile');
-    const account = profileOf({ permissions, effectiveRole: 'admin' });
+    const running = profileOf({ permissions, effectiveRole: 'admin', isAthlete: true });
+    expect(running?.labelKey).toBe('profile');
+    expect(running?.href).toBe('/dashboard/profile');
+
+    // No athlete row: nothing to show, and this is the only screen holding sign-out
+    // and the view-as switcher, so the slot can't just be empty.
+    const account = profileOf({ permissions, effectiveRole: 'admin', isAthlete: false });
     expect(account?.labelKey).toBe('account');
     expect(account?.href).toBe('/dashboard/profile');
-    // …and it does not depend on the admin having an athlete row: it is the only
-    // screen holding sign-out, so an admin without one would have no way out.
-    expect(profileOf({ permissions, effectiveRole: 'admin', isAthlete: false })?.labelKey).toBe('account');
+
     // Exactly one of the two, never both.
     expect(resolveNavItems({ permissions, effectiveRole: 'admin', isAthlete: true }).filter(i => i.tab === 'profile'))
       .toHaveLength(1);
     // An athlete still gets the athlete one.
     expect(profileOf({ permissions, effectiveRole: 'runner', isAthlete: true })?.labelKey).toBe('profile');
+  });
+
+  it('keeps the member half of a coach who also runs', () => {
+    // The other side of rule 3, and the commoner case: several coaches train with
+    // the club. Their staff tabs and their own profile, never one at the cost of
+    // the other.
+    const coachWhoRuns = tabsFor({ permissions, effectiveRole: 'coach', isAthlete: true });
+    for (const staffOnly of ['athletes', 'groups', 'settings', 'workout-feedback', 'plan/new']) {
+      expect(coachWhoRuns, `lost ${staffOnly}`).toContain(staffOnly);
+    }
+    for (const member of ['feed', 'activities', 'program', 'profile']) {
+      expect(coachWhoRuns, `lost ${member}`).toContain(member);
+    }
   });
 
   it('a coach reaches feedback triage and attendance', () => {
@@ -131,7 +149,7 @@ describe('staff', () => {
     expect(staff('coach')).toContain('practice-attendance');
   });
 
-  it('no longer leaves a coach with exactly an admin nav', () => {
+  it('leaves the admin with strictly more than a coach', () => {
     // Not the intended outcome of adding the two rows, but the actual one: those
     // were the last two tabs admin held and coach did not, so the two roles are
     // now nav-identical. Written as a set difference and asserted empty so the
@@ -143,12 +161,13 @@ describe('staff', () => {
     // rows, so that predates it; recorded here because "coach ≡ admin" is the
     // kind of thing that should be a decision, not a side effect.
     //
-    // The two diverged again with the admin-nav pass, and DELIBERATELY this time:
-    // an admin has an account screen a coach doesn't, and a coach keeps the three
-    // training screens an admin no longer has. A coach is a member who coaches;
-    // the admin account is nobody's member account.
-    expect(staff('admin').filter((t) => !staff('coach').includes(t))).toEqual(['profile']);
-    expect(staff('coach').filter((t) => !staff('admin').includes(t))).toEqual(ADMIN_HIDDEN_TABS);
+    // They diverged again when the admin stopped being read off the matrix: the
+    // admin's list is now every tab, so it is a strict superset of the coach's —
+    // `practice` and `profile` are the two it adds, and there is nothing a coach
+    // reaches that an admin can't. Written as two set differences so the fact is
+    // stated rather than buried in a pair of long literal lists.
+    expect(staff('admin').filter((t) => !staff('coach').includes(t))).toEqual(['practice', 'profile']);
+    expect(staff('coach').filter((t) => !staff('admin').includes(t))).toEqual([]);
   });
 
   it('every staff role gets the coach-tools hub without a permission row', () => {
@@ -252,18 +271,23 @@ describe('view-as previews', () => {
   });
 
   it('previewing the admin shows the admin nav, account tab included', () => {
-    // Not an exception to the rule above: the account screen IS part of what an
-    // admin sees, so a preview that hid it would be showing something no admin
-    // has. The same goes the other way — the three training tabs stay hidden.
-    const preview = tabsFor({ permissions, effectiveRole: 'admin', previewRole: 'admin' });
-    expect(preview).toContain('profile');
-    for (const tab of ADMIN_HIDDEN_TABS) expect(preview).not.toContain(tab);
+    // Not an exception to the rule above: the account screen IS what a pure admin
+    // account has in that slot, so a preview that hid it would be showing something
+    // no such admin sees. The previewer's own athlete row is not the previewed
+    // account's, which is why this stays the account tab even for Ofer.
+    const preview = resolveNavItems({
+      permissions, effectiveRole: 'admin', previewRole: 'admin', isAthlete: true,
+    });
+    expect(preview.find(i => i.tab === 'profile')?.labelKey).toBe('account');
+    // …and everything else an admin sees is there too.
+    expect(preview.map(i => i.tab)).toEqual([...ALL_NAV_ITEMS.map(i => i.tab), 'profile', 'coach-tools']);
   });
 
-  it('gives the runner screens back when the admin previews a runner', () => {
-    // The intended way for an admin who also runs to reach their own training.
+  it('shows a previewed runner the runner nav, not the previewer\'s', () => {
     const preview = tabsFor({ permissions, effectiveRole: 'runner', previewRole: 'runner' });
-    for (const tab of ADMIN_HIDDEN_TABS) expect(preview).toContain(tab);
+    expect(preview).toEqual(['dashboard', 'feed', 'review', 'activities', 'program', 'calendar', 'profile']);
+    // Nothing staff-only leaks in from the account doing the previewing.
+    for (const tab of ['athletes', 'groups', 'settings', 'practice']) expect(preview).not.toContain(tab);
   });
 });
 

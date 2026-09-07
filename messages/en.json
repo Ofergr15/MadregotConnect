@@ -760,7 +760,7 @@
     "feedbackCount": "{count} reports",
     "feedbackNewCount": "{count} new",
     "feedbackNoMatch": "No report matches this search",
-    "notForAdmin": "Not for an admin",
+    "adminSeesEverything": "Always on for an admin",
     "maintenanceUsersTitle": "Maintenance mode is on",
     "maintenanceUsersBlocked": "{count} approved members cannot get in right now",
     "showBlockedOnly": "Blocked only",

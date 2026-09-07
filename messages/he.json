@@ -760,7 +760,7 @@
     "feedbackCount": "{count} דיווחים",
     "feedbackNewCount": "{count} חדשים",
     "feedbackNoMatch": "אין דיווח שמתאים לחיפוש",
-    "notForAdmin": "לא רלוונטי למנהל",
+    "adminSeesEverything": "מנהל רואה הכל",
     "maintenanceUsersTitle": "מצב תחזוקה פועל",
     "maintenanceUsersBlocked": "{count} חברים מאושרים לא מצליחים להיכנס כרגע",
     "showBlockedOnly": "רק חסומים",
