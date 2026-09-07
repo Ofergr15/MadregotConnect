@@ -7,10 +7,14 @@ import { COACH_ID } from '@/lib/constants';
 import { resolveAppOrigin, stravaAuthEmail } from '@/lib/strava/client';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
 import {
+  duplicatesToFold,
+  isSyntheticAuthEmail,
   matchAthleteByName,
+  matchAthleteByNameKey,
   pickAthleteRow,
   type IdentityRow,
 } from '@/lib/auth/athlete-identity';
+import { mergeAthleteRows } from '@/lib/auth/merge-athletes';
 import { HANDOFF_TTL_MS, parseLoginState } from '@/lib/auth/login-handoff';
 import { queuePendingStravaSignup } from '@/lib/signup-queue';
 
@@ -194,16 +198,34 @@ export async function GET(request: Request) {
       // not a redirect handler's. Say so plainly instead of failing blankly.
       const { data: clash } = await admin
         .from('athletes')
-        .select('id')
+        .select('id, email')
         .eq('strava_athlete_id', stravaId)
         .neq('id', invited.id)
         .maybeSingle();
       if (clash) {
-        console.error(`[auth-debug:${debugId}] callback:invite_strava_taken`, {
+        // The likely cause is known and now repairable on the spot: they pressed
+        // "sign in with Strava" on the landing page before opening this link, and
+        // login mode created a shell for them. The invite token names the real row
+        // with certainty, so fold the shell into it and carry on — this used to
+        // dead-end at "?strava=duplicate", which asked the member to wait for
+        // somebody to hand-run a migration.
+        const folded = await mergeAthleteRows(admin, {
+          duplicateId: clash.id,
+          realId: invited.id,
+          reason: 'strava-invite-reconcile',
+        });
+        console.info(`[auth-debug:${debugId}] callback:invite_strava_taken`, {
           athleteId: invited.id,
           heldBy: clash.id,
+          merged: folded.merged,
+          error: folded.error || null,
         });
-        return NextResponse.redirect(new URL(`/join/${joinToken}?strava=duplicate`, origin));
+        // Not merged means the clashing row holds a real email address — two
+        // genuine accounts, which only a human may join. strava_athlete_id is
+        // UNIQUE, so the update below would fail; say so instead.
+        if (!folded.merged) {
+          return NextResponse.redirect(new URL(`/join/${joinToken}?strava=duplicate`, origin));
+        }
       }
 
       const { error: linkErr } = await admin
@@ -295,35 +317,90 @@ export async function GET(request: Request) {
     // FIRST Strava login, because strava_athlete_id is written by a Strava login:
     // it was always NULL, so the callback inserted a second row for someone
     // already in the club. That is where all four production duplicates came from.
-    const { data: matched, error: existingError } = await admin
+    // One read of the whole roster — 27 rows, and every match below needs it. The
+    // comparisons run in JS because none of them are expressible in PostgREST:
+    // case, whitespace, Unicode composition, and the consonant-skeleton match that
+    // bridges a Hebrew roster name to a Latin Strava one.
+    const { data: rosterRows, error: existingError } = await admin
       .from('athletes')
-      .select(ATHLETE_MATCH_COLUMNS)
-      .or(`strava_athlete_id.eq.${stravaId},email.eq.${email}`);
+      .select(ATHLETE_MATCH_COLUMNS);
     if (existingError) {
       console.error('Strava login athlete lookup failed:', existingError);
       return NextResponse.redirect(new URL('/?strava=error&reason=lookup_failed', origin));
     }
+    const roster = (rosterRows || []) as unknown as IdentityRow[];
 
-    let existing = pickAthleteRow((matched || []) as unknown as IdentityRow[], stravaId);
+    // Rows that claim THIS Strava identity: the id itself, or the synthetic
+    // address derived from it. Both are certain; a duplicate is normally in here
+    // too, because the duplicate is the row a previous login wrote the id onto.
+    const claiming = roster.filter(
+      r =>
+        (r.strava_athlete_id != null && Number(r.strava_athlete_id) === Number(stravaId)) ||
+        (r.email || '').trim().toLowerCase() === email.toLowerCase(),
+    );
+
+    let existing = pickAthleteRow(claiming, stravaId);
     let matchedBy = existing ? 'strava_identity' : 'none';
 
     if (!existing) {
-      // First Strava login for a member who is already on the roster. Small club,
-      // so read the active rows and match in JS: the comparison normalises case,
-      // whitespace and Unicode composition, none of which PostgREST can do.
-      const { data: roster } = await admin
-        .from('athletes')
-        .select(ATHLETE_MATCH_COLUMNS)
-        .eq('status', 'active');
-      existing = matchAthleteByName((roster || []) as unknown as IdentityRow[], name);
+      // First Strava login for a member who is already on the roster.
+      existing = matchAthleteByName(roster, name);
       if (existing) matchedBy = 'name';
+    }
+    if (!existing) {
+      // Same, across scripts: the roster says "אסף אלקסלסי", Strava says "Asaf
+      // Elkeslassy". Without this the exact match above CANNOT fire for six of the
+      // club's members, so a duplicate was not bad luck for them — it was certain.
+      existing = matchAthleteByNameKey(roster, name);
+      if (existing) matchedBy = 'name_key';
+    }
+
+    // ── Reconcile, on EVERY login rather than only the first ──────────────────
+    //
+    // This is what repairs the duplicates that already exist, without anybody
+    // having to do anything. Somebody in that state is recognised above by their
+    // Strava id — which sits on the DUPLICATE, since a previous login put it there
+    // — so `existing` is the empty shell and their real account, with their group
+    // and their history, is still sitting beside it. The name key finds it, and
+    // then both halves are in hand at once. That only ever happens here.
+    if (existing && isSyntheticAuthEmail(existing.email)) {
+      const real = matchAthleteByNameKey(roster, existing.name) || matchAthleteByNameKey(roster, name);
+      if (real && real.id !== existing.id) {
+        console.info(`[auth-debug:${debugId}] callback:reclaimed_roster_row`, {
+          shell: existing.id,
+          real: real.id,
+        });
+        existing = real;
+        matchedBy = `${matchedBy}+reclaimed`;
+      }
+    }
+
+    // Fold away every shell that claimed this same Strava identity. Restricted to
+    // `claiming` on purpose: those rows matched on the id or the address being
+    // presented right now, which is the strongest evidence the app has. And
+    // restricted to synthetic addresses by the SQL function itself, so this can
+    // never delete a row keyed on a member's own email.
+    if (existing && !isSyntheticAuthEmail(existing.email)) {
+      for (const shell of duplicatesToFold(claiming, existing)) {
+        const result = await mergeAthleteRows(admin, {
+          duplicateId: shell.id,
+          realId: existing.id,
+          reason: 'strava-login-reconcile',
+        });
+        console.info(`[auth-debug:${debugId}] callback:folded_duplicate`, {
+          shell: shell.id,
+          into: existing.id,
+          merged: result.merged,
+          error: result.error || null,
+        });
+      }
     }
 
     console.info(`[auth-debug:${debugId}] callback:athlete_lookup`, {
       found: !!existing,
       athleteId: existing?.id || null,
       matchedBy,
-      candidates: matched?.length || 0,
+      candidates: claiming.length,
     });
 
     let athleteId = existing?.id as string | undefined;

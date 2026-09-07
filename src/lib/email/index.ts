@@ -162,6 +162,50 @@ export async function notifyRegistrationApproved(user: {
   });
 }
 
+/**
+ * "מישהו התחבר עם Strava ואומר שזה אתה" — the claim link (migration 098).
+ *
+ * The only mail in this file whose click MERGES two accounts, so it is written to
+ * be read carefully rather than tapped reflexively: it names the account being
+ * claimed, says what happens, and says what to do if it wasn't them. The recipient
+ * is the one person who can tell, because it goes only to the address their own
+ * roster row is keyed on — which is exactly what makes it proof.
+ *
+ * ⚠️ Never include the shell's Strava name in the SUBJECT. If this arrives at the
+ * wrong mailbox (a mistyped address that happens to belong to another member), the
+ * subject line is the part that leaks, and "someone called X is trying to reach
+ * your account" is a name we were not asked to hand out.
+ */
+export async function notifyAthleteClaim(claim: {
+  email: string;
+  token: string;
+  /** The Strava display name doing the asking — shown in the body, not the subject. */
+  stravaName?: string | null;
+  /** The name on the account being claimed, so the reader knows which one this is. */
+  targetName?: string | null;
+  athleteId?: string | null;
+}): Promise<SendResult> {
+  const who = (claim.stravaName || '').trim();
+  return sendEmail({
+    template: 'athlete_claim',
+    to: claim.email,
+    subject: '🔗 חיבור חשבון Strava למדרגות',
+    athleteId: claim.athleteId ?? null,
+    html: renderEmail({
+      title: 'זה אתה?',
+      paragraphs: [
+        `התחברות חדשה דרך Strava${who ? ` בשם ${who}` : ''} מבקשת להתחבר לחשבון שלך במדרגות${
+          claim.targetName ? ` (${claim.targetName})` : ''
+        }.`,
+        'אם זה אתה — הקישור למטה יחבר את השניים לחשבון אחד: כל האימונים, הדבוקה וההיסטוריה שלך יישארו איתך, ותוכל להיכנס דרך Strava מעכשיו.',
+        'אם זה לא אתה — אין שום צורך לעשות דבר. בלי הקישור הזה שום דבר לא קורה, והוא נכבה מעצמו אחרי חצי שעה.',
+      ],
+      cta: { label: 'כן, זה אני — לחיבור →', href: `${APP_URL}/claim/${claim.token}` },
+      notes: ['הקישור חד-פעמי, אישי, ותקף לחצי שעה. אל תעבירו אותו לאף אחד.'],
+    }),
+  });
+}
+
 // ── Academy ──────────────────────────────────────────────────────────────────────
 
 export async function notifyAdminNewAcademyRegistration(user: {

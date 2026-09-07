@@ -20,7 +20,13 @@ import { apiHeaders, useApi } from '@/lib/api';
 // that, and they are queued for approval anyway.
 // (NOTE: '/academy-register' has the same problem and is deliberately left alone
 // here — same argument applies to it, but it is not this change's business.)
-const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register'];
+// '/claim' is here for the same reason as '/register': it is a link we MAIL to a
+// person (migration 098 — a member proving that a Strava sign-in is theirs), it is
+// valid for half an hour, and it is single-use. Behind the gate, the one click that
+// reunites somebody with their own account would spend its token on a "we're
+// rebuilding" screen and be gone. Nothing on that page touches the app the gate is
+// protecting: it merges two rows and stops.
+const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register', '/claim'];
 const isPublicPath = (p: string) =>
   PUBLIC_PATHS.some((pub) => p === pub || p.startsWith(pub + '/'));
 
