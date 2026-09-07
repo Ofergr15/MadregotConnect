@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { APP_URL, canApprove, COACH_ID } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
-import { isEmailConfigured, notifyRegistrationApproved } from '@/lib/email';
+import { notifyRegistrationApproved } from '@/lib/email';
 import { groupDisplayName } from '@/lib/utils';
 import { placeholderNameFromEmail } from '@/lib/signup';
 
@@ -184,28 +184,25 @@ export async function POST(request: Request) {
       .eq('status', 'pending');
     if (markError) throw markError;
 
-    // Isolated: the approval is already committed, and a Resend outage must not
-    // undo it or make the queue look like nothing happened. If this fails, the
-    // link is still on the row and can be re-sent (or copied out of the queue).
+    // Isolated: the approval is already committed, and a Resend outage must not undo
+    // it or make the queue look like nothing happened. If this fails, the link is
+    // still on the row and can be re-sent (or copied out of the queue).
     //
-    // `emailed` used to be a guess dressed as a fact. It was true unless something
-    // threw, and nothing threw: an unconfigured key returns quietly, and Resend's
-    // SDK resolves with { error } instead of throwing. So the queue reported a
-    // link delivered to somebody who never got one. Both holes are closed now —
-    // this asks first, and notifyRegistrationApproved throws on a refusal — and
-    // `emailReason` carries the refusal out to the screen, because "Resend won't
-    // send to that address from this sender" is not a thing anyone can guess.
-    let emailed = isEmailConfigured();
-    let emailReason: string | null = emailed ? null : 'email-not-configured';
-    if (emailed) {
-      try {
-        await notifyRegistrationApproved({ email: reqRow.email, token, groupName });
-      } catch (mailErr) {
-        emailed = false;
-        emailReason = mailErr instanceof Error ? mailErr.message : 'send failed';
-        console.error('Approval email failed for a signup request:', mailErr);
-      }
-    }
+    // `emailed` used to be a guess dressed as a fact — true unless something threw,
+    // and nothing threw, because Resend's SDK resolves refusals as `{ error }`. So the
+    // queue reported a link delivered to somebody who never got one. It is now
+    // whatever the one send path actually observed, and the refusal itself travels out
+    // as `emailReason`, because "Resend won't send to that address from this sender"
+    // is not something anyone can guess from "failed".
+    const mail = await notifyRegistrationApproved({
+      email: reqRow.email,
+      token,
+      groupName,
+      athleteId: athleteId || null,
+      signupRequestId: id,
+    });
+    const emailed = mail.ok;
+    const emailReason = mail.ok ? null : mail.code === 'email-not-configured' ? mail.code : mail.reason;
 
     // The link rides back regardless of the mail. It is the only thing the
     // approver can act on when delivery fails, and going to look it up means a

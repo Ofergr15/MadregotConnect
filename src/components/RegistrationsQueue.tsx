@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Check, ChevronDown, Copy, MessageCircle, Send, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
 import { Card, LoadingBlock, ConfirmSheet, SegmentedControl } from '@/components/ui';
+import EmailHealthBanner from '@/components/EmailHealthBanner';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
 
@@ -121,8 +122,8 @@ function errorText(code: string): string {
 /**
  * Why a send failed, in words that point at the fix.
  *
- * `reason` is Resend's own `name: message` (see sendOrThrow in lib/email.ts). The
- * one worth naming explicitly is the sandbox sender: with no RESEND_FROM_EMAIL set,
+ * `reason` is Resend's own message, carried out by sendEmail() in lib/email/send.ts.
+ * The one worth naming explicitly is the sandbox sender: with no RESEND_FROM_EMAIL set,
  * mail goes out as `onboarding@resend.dev`, which Resend only delivers to the
  * address that owns the Resend account. Every applicant is "every other recipient",
  * so on the day the club signs up, nobody gets a link — and that is a config fix,
@@ -521,6 +522,10 @@ export default function RegistrationsQueue() {
           <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
         </button>
       </div>
+
+      {/* Above the tabs, not below: whether mail works at all decides what approving
+          even means on this screen, and it renders nothing when mail is healthy. */}
+      <EmailHealthBanner />
 
       {/* activeBg overridden to ink: this screen is mono, and the default brand
           blue would be the only colour on it. */}
