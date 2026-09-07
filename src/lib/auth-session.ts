@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { canApprove, isSuperUser, STAFF_ROLES } from '@/lib/constants';
 import { isCoreRunner } from '@/lib/core-runner';
+import { pickAthleteRow, stravaIdFromAuthEmail } from '@/lib/auth/athlete-identity';
 import {
   entryExpiry,
   isTokenExpired,
@@ -42,8 +43,16 @@ export type AuthResult =
   | { ok: true; user: SessionUser }
   | { ok: false; status: number; error: string };
 
-/** Columns of `athletes` this resolver needs, minus the optional flag columns. */
-const ATHLETE_BASE_COLUMNS = 'id, name, role, group_id, status';
+/**
+ * Columns of `athletes` this resolver needs, minus the optional flag columns.
+ *
+ * `email` and `strava_athlete_id` are here to be RANKED on, not returned: when a
+ * synthetic address matches nothing, the identity is the Strava id, and choosing
+ * between candidates needs to see both. The credential columns are deliberately
+ * not in this list — presence would sharpen the ranking slightly and is not worth
+ * pulling ciphertext through the hottest query in the app.
+ */
+const ATHLETE_BASE_COLUMNS = 'id, name, email, role, group_id, status, strava_athlete_id';
 /** Added by migrations 084 and 091, both applied by hand — so both are optional. */
 const ATHLETE_FLAG_COLUMNS = 'is_super_user, is_approver, is_core_runner';
 /** Postgres "column does not exist" — i.e. 084/091 not applied here yet. */
@@ -51,6 +60,8 @@ const UNDEFINED_COLUMN = '42703';
 
 interface AthleteRow {
   id: string;
+  email?: string | null;
+  strava_athlete_id?: number | null;
   name: string | null;
   role: string | null;
   group_id: string | null;
@@ -61,7 +72,18 @@ interface AthleteRow {
 }
 
 /**
- * The athlete rows for an email, newest first.
+ * The athlete rows that could belong to this session, newest first.
+ *
+ * Matched on the email AND, for a Strava login, on the athlete id encoded in the
+ * synthetic address. The email alone is not an identity here: Strava sends no
+ * address, so `strava_<id>@strava.madregot.local` is one the app invented, and the
+ * member's row is keyed on their REAL email as soon as anybody corrects it. When
+ * that happened the session resolved to nothing and every route answered 403 — the
+ * app told a fully approved member "this account is not connected to a membership",
+ * with no way back in, because a Strava sign-in is the only door. See
+ * src/lib/auth/athlete-identity.ts, whose header describes this exact defect as
+ * fixed in /api/auth/resolve-role; requireSession replaced that resolver as the
+ * gate and did not carry the fix over.
  *
  * Asks for the migration-084 privilege flags and, if this database does not have
  * them yet, retries without. Worth the branch rather than just requiring the
@@ -80,12 +102,16 @@ async function fetchAthleteRows(
   // string, so Supabase's generic can't infer the row shape from it anyway, and
   // `.returns` is one more method every test fake of this chain would have to
   // grow for no added safety.
+  const stravaId = stravaIdFromAuthEmail(email);
   const query = async (columns: string) => {
-    const { data, error } = await supabase
-      .from('athletes')
-      .select(columns)
-      .eq('email', email)
-      .order('created_at', { ascending: false });
+    const base = supabase.from('athletes').select(columns);
+    // `.or` only when there is a second thing to match. A real address must keep
+    // resolving on exactly one column, so an ordinary login cannot start matching
+    // rows for a reason it never used to.
+    const filtered = stravaId
+      ? base.or(`email.eq.${email},strava_athlete_id.eq.${stravaId}`)
+      : base.eq('email', email);
+    const { data, error } = await filtered.order('created_at', { ascending: false });
     return { rows: (data || []) as unknown as AthleteRow[], error };
   };
 
@@ -190,7 +216,14 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
   // picks among duplicates too — so the athleteId in the session matches the one
   // sign-in handed the client.
   const rows = await fetchAthleteRows(supabase, email);
-  const athlete = rows.find((r) => r.status === 'active') || rows[0];
+  const stravaId = stravaIdFromAuthEmail(email);
+  // For a Strava login the ranker decides, because it is the one that knows the
+  // Strava id IS the identity — and it is what the OAuth callback itself uses, so
+  // the session agrees with the row sign-in handed the client. Everyone else keeps
+  // the previous rule untouched: prefer an active row, then the newest.
+  const athlete = stravaId
+    ? pickAthleteRow(rows, stravaId)
+    : rows.find((r) => r.status === 'active') || rows[0];
 
   if (athlete) {
     const role = athlete.role || 'runner';
