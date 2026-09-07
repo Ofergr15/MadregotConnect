@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp, MessageCircle, Share2, Maximize2,
 } from 'lucide-react';
 import { cn, formatActivityTime, formatActivityDate, activityLocalDay } from '@/lib/utils';
+import { displaySplits } from '@/lib/activities/km-splits';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { ActivityDetailBody } from '@/components/activity/ActivityDetailBody';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
@@ -52,7 +53,10 @@ function ActivityCard({
     activityId: activity.id,
     athleteId: activity.athlete_id,
     startTime: activity.start_time,
-    fallbackSplits: activity.splits,
+    // Binned to kilometres here, not handed over raw: the plan bands are projected
+    // onto these bin lengths, and per-lap "kilometres" would align the plan to a
+    // grid the chart doesn't draw.
+    fallbackSplits: displaySplits(activity.splits, activity.laps),
   });
 
   const distKm = (activity.distance / 1000).toFixed(1);

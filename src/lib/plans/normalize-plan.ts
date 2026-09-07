@@ -1,4 +1,5 @@
 import type { ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
+import { autoFixWorkout } from '@/lib/plans/auto-fix';
 import { planEstimateOptions, workoutDistanceEstimated } from '@/lib/workout-distance';
 import type { EstimateOptions } from '@/lib/workout-distance';
 import { workoutDurationSec } from '@/lib/workout-duration';
@@ -93,8 +94,14 @@ function expectedDuration(workout: ParsedWorkout, opts: EstimateOptions): number
 }
 
 export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
+  // The import's own repairs first, so every figure below — the day's km, the
+  // matcher hints, and the board built from them — is computed from the session
+  // as corrected rather than as parsed. Idempotent, and a no-op on a session
+  // whose fixes the coach undid; see `lib/plans/auto-fix.ts`.
+  const workouts = plan.workouts.map(autoFixWorkout);
+
   const perDay = new Map<number, ParsedWorkout[]>();
-  for (const workout of plan.workouts) {
+  for (const workout of workouts) {
     const list = perDay.get(workout.dayOfWeek) || [];
     list.push(workout);
     perDay.set(workout.dayOfWeek, list);
@@ -112,7 +119,7 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
   // on read as well as on write.
   // Derived from the whole plan, once: an unpaced easy run is priced at the pace
   // band this coach actually writes rather than a global assumption.
-  const estimateOptions = planEstimateOptions(plan.workouts);
+  const estimateOptions = planEstimateOptions(workouts);
 
   const resolvedIndex = new Map<ParsedWorkout, number>();
   for (const siblings of perDay.values()) {
@@ -124,7 +131,7 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
   }
 
   return {
-    workouts: plan.workouts.map((workout) => {
+    workouts: workouts.map((workout) => {
       const siblings = perDay.get(workout.dayOfWeek) || [workout];
       const partIndex = resolvedIndex.get(workout) || siblings.indexOf(workout) + 1;
       const partCount = siblings.length;

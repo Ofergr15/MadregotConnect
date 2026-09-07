@@ -20,8 +20,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
-import { kmSplitsFromLaps } from '@/lib/activities/km-splits';
-import { readStoredLaps } from '@/lib/plan-execution/laps';
+import { displaySplits } from '@/lib/activities/km-splits';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,24 +77,14 @@ export async function GET(request: Request) {
     }
 
     const r = row as any;
-    // The splits the UI draws, on the kilometre grid it labels them with.
-    //
-    // Two columns hold the same run at different grains, and both are unreliable:
-    // `splits` was written by /api/garmin/activity-details, which has no callers
-    // left (589 of the club's last 595 runs have none) and sometimes stored
-    // Garmin's AGGREGATED summaries — two "splits" for a 12 km run. `laps` is
-    // per lap press, which on a workout run is per STEP: 31 laps for 15 km, with
-    // a median of 140 m.
-    //
-    // So: take whichever is the finer record of the run, then bin it into real
-    // kilometres. The old fallback did neither — it read Strava's `moving_time`
-    // off Garmin laps, so every Garmin run shipped splits of 0:00 at pace 0:00,
-    // which is the splits table of zeroes, the pace chart pinned flat against a
-    // y-axis labelled "-1:-28", and "0 of 31 kilometres inside the target band"
-    // reported about a run whose laps were all there.
-    const stored = readStoredLaps(r.splits);
-    const lapped = readStoredLaps(r.laps);
-    const splits = kmSplitsFromLaps(stored.length >= lapped.length ? stored : lapped);
+    // The splits the UI draws, on the kilometre grid it labels them with — from
+    // whichever column is the finer record of the run (see `displaySplits`). The
+    // old fallback read Strava's `moving_time` off Garmin laps and binned nothing,
+    // so every Garmin run shipped splits of 0:00 at pace 0:00: a splits table of
+    // zeroes, a pace chart pinned flat against a y-axis labelled "-1:-28", and
+    // "0 of 31 kilometres inside the target band" said about a 15 km run whose
+    // laps were all there.
+    const splits = displaySplits(r.splits, r.laps);
 
     // The summary row, shaped like the list endpoint's rows so the detail UI can
     // take either one. `gps_points`/`laps`/`splits` are dropped from it — they're

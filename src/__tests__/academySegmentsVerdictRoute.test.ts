@@ -229,6 +229,82 @@ describe('GET /api/academy/segments?verdict=1', () => {
     }
   });
 
+  /**
+   * The pace row answers "did you hit the pace you were asked to run", and on a
+   * warm-up-plus-block session the run's average is not that number — 4:53 over 12 km
+   * against a 4:40 target, for 10 km run at 4:42. The block's own stretch is graded
+   * instead, and the average is kept beside it so the card can show both.
+   */
+  describe('block-aligned pace', () => {
+    const session = {
+      dayOfWeek: 3,
+      name: 'חימום + 10 ק״מ בקצב',
+      distanceMinKm: 12,
+      distanceMaxKm: 12,
+      steps: [
+        { order: 1, type: 'warmup', durationType: 'distance', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 330, targetPaceMaxPerKm: 360 },
+        { order: 2, type: 'active', durationType: 'distance', durationValue: 10000, targetType: 'pace', targetPaceMinPerKm: 280, targetPaceMaxPerKm: 285 },
+      ],
+    };
+    const blockRun = {
+      ...theRun,
+      distance: 12000,
+      duration: 3510,
+      moving_duration: 3510,
+      average_pace: 293,
+      laps: [
+        ...Array.from({ length: 2 }, () => ({ distance: 1000, duration: 345 })),
+        ...Array.from({ length: 10 }, () => ({ distance: 1000, duration: 282 })),
+      ],
+    };
+
+    beforeEach(() => {
+      respond = (op) => {
+        if (op.table === 'weekly_plans') {
+          const isShared = op.calls.some(([m, a]) => m === 'eq' && a[0] === 'coach_id');
+          return {
+            data: isShared
+              ? [{ week_start_date: '2026-09-06', parsed_workouts: { workouts: [session] }, created_at: '2026-09-05T00:00:00Z' }]
+              : [],
+            error: null,
+          };
+        }
+        if (op.table === 'athletes') return { data: [{ group_id: 'g1' }], error: null };
+        if (op.table === 'groups') return { data: [{ name: 'Group A - SUB 2:30' }], error: null };
+        if (op.table === 'athlete_activities') return { data: [blockRun], error: null };
+        return { data: [], error: null };
+      };
+    });
+
+    it('grades the pace over the block and says which stretch that was', async () => {
+      const body = await (await call(`athleteId=${ATHLETE}&date=${DATE}&verdict=1&activityId=act-session`)).json();
+      const pace = body.verdict.metrics.find((m: { key: string }) => m.key === 'pace');
+      expect(pace).toMatchObject({
+        status: 'on_target', actual: 282, plannedMin: 280, plannedMax: 285, deviation: 0,
+      });
+      expect(body.verdict.paceScope).toMatchObject({
+        fromM: 2000, toM: 12000, plannedLengthM: 10000, truncated: false,
+        source: 'laps', resolutionM: 1000,
+      });
+      // The average is still there to be shown next to it, unchanged.
+      expect(body.verdict.wholeRunPace).toBe(293);
+      // And every block, so the detail can list the warm-up separately.
+      expect(body.blocks.blocks.map((b: { actualPace: number }) => b.actualPace))
+        .toEqual([345, 282]);
+    });
+
+    /**
+     * The score is what the ring shows, and the block verdict is what makes there be
+     * one at all: a whole-run average that no band covers is `structured_session`,
+     * which the scorer refuses to grade — so this session, run exactly as written, was
+     * showing a dashed ring and "nothing to compare" with the answer beside it.
+     */
+    it('scores against the block verdict rather than withholding a number', async () => {
+      const body = await (await call(`athleteId=${ATHLETE}&date=${DATE}&verdict=1&activityId=act-session`)).json();
+      expect(body.verdict).toMatchObject({ status: 'graded', score: 100, direction: 'on_target' });
+    });
+  });
+
   it('requires a verified caller', async () => {
     resolveVerifiedCaller.mockResolvedValue({ denied: new Response('nope', { status: 401 }) });
     expect((await call(`athleteId=${ATHLETE}&date=${DATE}&verdict=1`)).status).toBe(401);

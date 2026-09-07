@@ -23,7 +23,10 @@ import {
   type Lap,
   type PlannedKmPoint,
 } from '@/lib/academy/segments';
-import { hasStoredLaps, toLaps } from '@/lib/plan-execution/laps';
+import { hasStoredLaps, normalizeStoredLaps, type StoredLap } from '@/lib/garmin/laps';
+import { gradeWatchSteps } from '@/lib/academy/watch-steps';
+import { narrowExecutedWorkout } from '@/lib/garmin/executed-workout';
+import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
 import { segmentReportFor } from '@/lib/plan-execution/resolve';
 import { executionTakesPaceChart, workRepsOf } from '@/components/activity/ExecutionQuality';
 import type { Split } from '@/components/activity/types';
@@ -350,41 +353,12 @@ describe('buildVerdict — runs it refuses to grade on pace', () => {
   });
 });
 
-describe('toLaps — the two shapes stored in athlete_activities.laps', () => {
-  it('passes Garmin laps through', () => {
-    expect(toLaps([{ distance: 2000, duration: 410, averagePace: 205 }]))
-      .toEqual([{ distance: 2000, duration: 410, averagePace: 205 }]);
-  });
-
-  it('reads a raw Strava lap, which has neither `duration` nor `averagePace`', () => {
-    // The defect: these were dropped entirely, so a Strava athlete's interval
-    // session had no reps and got scored on distance alone.
-    const laps = toLaps([
-      { name: 'Lap 1', lap_index: 1, distance: 2000, moving_time: 410, elapsed_time: 415, average_speed: 4.878 },
-    ]);
-    expect(laps).toHaveLength(1);
-    expect(laps[0].duration).toBe(410);
-    // 1000 / 4.878 m/s ≈ 205 s/km.
-    expect(laps[0].averagePace).toBe(205);
-  });
-
-  it('derives pace from distance and time when neither provider gave one', () => {
-    expect(toLaps([{ distance: 2000, moving_time: 410 }])[0].averagePace).toBe(205);
-  });
-
-  it('falls back to elapsed time when a lap has no moving time', () => {
-    expect(toLaps([{ distance: 400, elapsed_time: 120, average_speed: 0 }])[0])
-      .toEqual({ distance: 400, duration: 120, averagePace: 300 });
-  });
-
-  it('drops laps it cannot use rather than inventing a pace for them', () => {
-    // A zero-distance lap would otherwise divide by zero; a lap with no time at
-    // all can't be paced. Both are silently useless, never NaN.
-    expect(toLaps([{ distance: 0, duration: 30 }, { distance: 1000 }, null, 'x'])).toEqual([]);
-    expect(toLaps(null)).toEqual([]);
-    expect(toLaps({ laps: [] })).toEqual([]);
-  });
-
+/**
+ * The lap reader itself is pinned in `storedLaps.test.ts`, beside the module. What
+ * belongs here is the end of the chain: that a Strava-shaped run reaches the same
+ * VERDICT as the Garmin-shaped one, which is the thing an athlete notices.
+ */
+describe('the shapes stored in athlete_activities.laps, end to end', () => {
   it('tells "nobody asked" apart from "asked, and there were none"', () => {
     // `[]` is written back deliberately so the Garmin fetch happens once per run.
     expect(hasStoredLaps([])).toBe(true);
@@ -406,7 +380,7 @@ describe('toLaps — the two shapes stored in athlete_activities.laps', () => {
       adherence: assessWorkout(planned, run({ duration: 3300, movingDuration: 3300 }), DEFAULT_TOLERANCES),
       segments: matchLapsToSteps(
         flattenPlannedSteps(workout),
-        toLaps(stravaShaped),
+        normalizeStoredLaps(stravaShaped),
         DEFAULT_TOLERANCES.paceSec,
       ),
       workoutName: workout.name,
@@ -503,6 +477,127 @@ describe('buildVerdict — a paced session whose reps could not be read', () => 
     });
     expect(verdict.status).toBe('graded');
     expect(verdict.score).not.toBeNull();
+  });
+});
+
+/**
+ * The run that stopped in the middle — the shape that sent this whole area back for
+ * repair. One athlete's Sunday: 2 km easy plus 20 km at 4:35, and he came home at 12 km.
+ *
+ * Every rule in the engine fired correctly and the card was still wrong. No step and no
+ * block was complete, so pace fell back to the whole-run average, which no band covers
+ * on a session like this — `structured_session`, which the scorer refuses. The athlete
+ * got a dashed accuracy ring, and under it the run's 4:45 average printed beside the
+ * 4:35 he was asked for with "no comparison" in the next cell, while his own watch had
+ * already marked the 10 km of the block he ran as on target.
+ */
+describe('buildVerdict — the run that stopped mid-session', () => {
+  const SUNDAY = '2026-09-06';
+
+  const sundayPlan = {
+    dayOfWeek: 0, name: 'ראשון ארוך', distanceMinKm: 23, distanceMaxKm: 24,
+    steps: [
+      {
+        order: 1, type: 'warmup', durationType: 'distance', durationValue: 2000,
+        targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 330,
+      },
+      {
+        order: 2, type: 'active', durationType: 'distance', durationValue: 20000,
+        targetType: 'pace', targetPaceMinPerKm: 275, targetPaceMaxPerKm: 275,
+      },
+      // The strides at the end are not decoration in this fixture: they are why no
+      // single band covers enough of the plan for the whole-run average to be graded
+      // against it, which is the state (`structured_session`) the whole case turns on.
+      {
+        order: 3, type: 'interval', durationType: 'open', repeatCount: 8,
+        repeatSteps: [
+          { order: 1, type: 'interval', durationType: 'time', durationValue: 15, targetType: 'no_target' },
+          { order: 2, type: 'rest', durationType: 'time', durationValue: 45, targetType: 'no_target' },
+        ],
+      },
+    ] as WorkoutStep[],
+  } as ParsedWorkout;
+
+  /** The same session as the watch was driving it, with the pace in the coach's note. */
+  const onTheWatch = narrowExecutedWorkout([{
+    workoutName: 'ראשון 6.9',
+    steps: [
+      { stepIndex: 0, intensity: 'WARMUP', durationType: 'DISTANCE', durationValue: 2000, notes: '5:00-5:30' },
+      { stepIndex: 1, intensity: 'ACTIVE', durationType: 'DISTANCE', durationValue: 20000, notes: '4:35' },
+      { stepIndex: 2, intensity: 'ACTIVE', durationType: 'TIME', durationValue: 15, notes: 'עלייה' },
+      { stepIndex: 3, intensity: 'REST', durationType: 'TIME', durationValue: 45, targetType: 'OPEN' },
+      { stepIndex: 4, durationType: 'REPEAT_UNTIL_STEPS_CMPLT', durationValue: 2, targetValue: 8 },
+    ],
+  }])!;
+
+  /** 2 km of warm-up at 5:10, then 10 km of the 20 km block at 4:35, then home. */
+  const stoppedShort: StoredLap[] = [
+    ...Array.from({ length: 2 }, () => ({
+      distance: 1000, duration: 310, averagePace: 310, averageHR: null, maxHR: null, wktStepIndex: 0,
+    })),
+    ...Array.from({ length: 10 }, () => ({
+      distance: 1000, duration: 275, averagePace: 275, averageHR: null, maxHR: null, wktStepIndex: 1,
+    })),
+  ];
+
+  function sundayVerdict(watch: boolean) {
+    const graded = assessWorkout(
+      buildPlannedWorkout(sundayPlan, SUNDAY),
+      { id: 'act-9', date: SUNDAY, distance: 12000, duration: 3370, movingDuration: 3370, averagePace: 281 },
+      DEFAULT_TOLERANCES,
+    );
+    const watched = watch
+      ? gradeWatchSteps(onTheWatch, stoppedShort, 1, DEFAULT_TOLERANCES.paceSec)
+      : null;
+    const { pace, paceScope } = resolveDominantPace(graded.pace, watched, null);
+    return buildVerdict({
+      activityId: 'act-9', athleteId: 'ath-1',
+      adherence: { ...graded, pace },
+      segments: null,
+      workoutName: sundayPlan.name,
+      paceScope,
+      wholeRunPace: graded.pace.actual,
+    });
+  }
+
+  it('grades the pace over the part of the block that was run', () => {
+    const verdict = sundayVerdict(true);
+    expect(verdict.paceScope).toMatchObject({
+      label: 'Run 20km', plannedLengthM: 20000, ranLengthM: 10000,
+      truncated: true, source: 'watch',
+    });
+    expect(verdict.metrics.find((m) => m.key === 'pace'))
+      .toMatchObject({ status: 'on_target', actual: 275, plannedMin: 275, deviation: 0 });
+    // The number on his watch, kept beside it: told only that he ran 4:35 when Garmin
+    // says 4:41, the first thing anyone concludes is that the app is broken.
+    expect(verdict.wholeRunPace).toBe(281);
+  });
+
+  it('puts a real number in the ring instead of a dash', () => {
+    const verdict = sundayVerdict(true);
+    expect(verdict.status).toBe('graded');
+    expect(verdict.score).not.toBeNull();
+    // And still says which way it missed, because that is the story of the run — the
+    // pace was on target and `direction` must not read as "as planned" for 12 of 23 km.
+    expect(verdict.direction).toBe('too_short');
+    expect(verdict.basis).toBe('metrics');
+  });
+
+  // What the athlete is told, measured from the plan and not from the tolerated edge.
+  it('reports the gap to the plan, not to the edge of the tolerance', () => {
+    const distance = sundayVerdict(true).metrics.find((m) => m.key === 'distance') as ExecutionMetric;
+    expect(planGap(distance)).toBe(-11000);
+    expect(distance.deviation).toBe(-7550);
+  });
+
+  // The before picture, and the reason the watch path is worth its query: with no step
+  // list there is nothing to say the 4:35 was the block's, and withholding is correct.
+  it('still withholds the score when nothing can say what the pace was over', () => {
+    const verdict = sundayVerdict(false);
+    expect(verdict.paceScope).toBeNull();
+    expect(verdict.score).toBeNull();
+    expect(verdict.metrics.find((m) => m.key === 'pace'))
+      .toMatchObject({ status: 'unknown', actual: 281, reason: 'structured_session' });
   });
 });
 
@@ -605,7 +700,8 @@ describe('segmentReportFor', () => {
   });
 
   it('reaches the same verdict from a stored lap blob as the run page does', () => {
-    // The roll-up's laps come out of `athlete_activities.laps` through `toLaps`,
+    // The roll-up's laps come out of `athlete_activities.laps` through the one
+    // normalizer (`normalizeStoredLaps`, in `garmin/laps.ts`),
     // never from Garmin. Same reps, same score, whichever side asked.
     const stored = lapsAt(187).map(l => ({
       distance: l.distance, moving_time: l.duration, average_speed: 1000 / l.averagePace!,
@@ -614,7 +710,7 @@ describe('segmentReportFor', () => {
     const adherence = assessWorkout(buildPlannedWorkout(workout, DATE), run(), DEFAULT_TOLERANCES);
     const fromStore = buildVerdict({
       activityId: 'act-1', athleteId: 'ath-1', adherence, workoutName: workout.name,
-      segments: segmentReportFor(workout, toLaps(stored), DEFAULT_TOLERANCES.paceSec),
+      segments: segmentReportFor(workout, normalizeStoredLaps(stored), DEFAULT_TOLERANCES.paceSec),
     });
     const fromRunPage = verdictFor(187, run());
     expect(fromStore.score).toBe(fromRunPage.score);
@@ -654,7 +750,7 @@ describe('workRepsOf', () => {
 
   /**
    * One rep run past the tolerance, the rest in band, warmup and cooldown to plan.
-   * The band is 200–210 and the tolerance 5, so 192 is the first pace that counts
+   * The band is 200–210 and the tolerance 10, so 189 is the first pace that counts
    * as faster rather than close enough.
    */
   function repsOfPacedEnds() {

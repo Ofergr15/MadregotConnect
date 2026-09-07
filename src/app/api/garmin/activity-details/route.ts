@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { GarminClient } from '@/lib/garmin/client';
-import { fromGarminLaps, type StoredLap } from '@/lib/plan-execution/laps';
+import { lapsWorthStoring, narrowLaps, type StoredLap } from '@/lib/garmin/laps';
 
 export async function GET(request: Request) {
   try {
@@ -201,15 +201,14 @@ export async function GET(request: Request) {
     // Per-step LAPS (separate from the per-km `splits` used by the charts). When a
     // pushed structured workout is run on-watch, Garmin records one lap per step —
     // the basis for per-segment planned-vs-actual verdicts in academy compliance.
-    // Written through `fromGarminLaps` — the one writer for this column, paired
-    // with the one reader — so elevation comes along too. This mapping used to be
-    // inline here and kept everything except elevation, which is what the run
-    // detail's elevation chart draws from.
+    // Written through `narrowLaps` — the one writer for this column, paired with
+    // the one reader — so `wktStepIndex` and elevation come along too. This mapping
+    // used to be inline here and kept five fields, which is why the run detail's
+    // elevation chart was empty for every run in the club.
     let laps: StoredLap[] = [];
     try {
-      const fetched = fromGarminLaps(await client.getActivitySplits(Number(activityId)));
-      // One lap is the whole run restated — no per-step record, nothing to cache.
-      if (fetched.length > 1) laps = fetched;
+      const lapData = await client.getActivitySplits(Number(activityId));
+      if (lapsWorthStoring(lapData)) laps = narrowLaps(lapData);
     } catch { /* laps are optional */ }
 
     // Cache splits, laps, and enrichment data to DB

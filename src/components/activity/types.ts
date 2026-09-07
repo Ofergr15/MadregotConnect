@@ -42,7 +42,16 @@ export interface ActivityEntry {
   shoe_name?: string | null;
   has_polyline?: boolean;
   gps_points?: Array<{ lat: number; lng: number }> | null;
-  splits?: Split[] | null;
+  /**
+   * The two jsonb columns as the list endpoint ships them — deliberately NOT
+   * `Split[]`. Three writers have filled them in three shapes (Garmin laps,
+   * Strava splits with `moving_time`, raw DTO passthrough) and `laps` is per lap
+   * press rather than per kilometre, so typing them as splits is what let the UI
+   * chart a 15-second stride as "km 14" at 0:00. Read them through
+   * `displaySplits` (`lib/activities/km-splits.ts`); never render them directly.
+   */
+  splits?: unknown;
+  laps?: unknown;
   athlete_name?: string;
 }
 
