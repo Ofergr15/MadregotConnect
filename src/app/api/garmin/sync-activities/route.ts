@@ -13,7 +13,30 @@ import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
 import { mapActivityDetail } from '@/lib/garmin/activity-detail';
 import { isMissingColumn, withoutColumns } from '@/lib/supabase/schema-drift';
 import { backfillGarminWorkoutIds } from '@/lib/garmin/workout-id-backfill';
+import { lapsWorthStoring, narrowLaps } from '@/lib/garmin/laps';
+import { narrowExecutedWorkout } from '@/lib/garmin/executed-workout';
+import { saveActivityStream } from '@/lib/garmin/stream-store';
+import { backfillActivityStreams } from '@/lib/garmin/stream-backfill';
+import { backfillGarminHistory } from '@/lib/garmin/history-backfill';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+
+/**
+ * Both handlers here walk rows making SERIAL Garmin requests, so neither fits the
+ * platform default — and having no ceiling declared is not the same as having a
+ * generous one: the request is then killed mid-flight with no error body, so the
+ * caller sees a dead request and cannot tell a timeout from a bug. That is exactly
+ * how the first Garmin history import failed.
+ *
+ * The PATCH backfills are the binding case: `?mode=stream` is 1-3 requests per row
+ * and a 40-row batch is comfortably a minute of wall clock, so on the default the
+ * function dies mid-batch — the rows it already wrote are kept (each is committed as
+ * it goes), but `nextBefore` never comes back and the caller's cursor loop stalls on
+ * the same batch forever.
+ *
+ * 300s is what `push-workouts` and `strava/sync-activities` use for the same reason:
+ * a provider round trip per page, writes in batches, and a human watching.
+ */
+export const maxDuration = 300;
 
 /**
  * HTTP entry point. Anyone could previously trigger a full-club Garmin sync —
@@ -113,6 +136,13 @@ export async function runSyncRequest(request: Request) {
 
         if (newActivities.length > 0) {
           const rows: Record<string, any>[] = [];
+          // Traces are collected here and written after the upsert: activity_streams
+          // is keyed by athlete_activities.id, which only exists once the row does.
+          const traces: Array<{
+            garminActivityId: number;
+            stream: Awaited<ReturnType<typeof client.getActivityTrace>>['stream'];
+            laps: unknown[] | null;
+          }> = [];
           for (const a of newActivities) {
             // Detail and GPS are fetched INDEPENDENTLY, and the polyline is
             // requested unconditionally. Both matter:
@@ -128,8 +158,43 @@ export async function runSyncRequest(request: Request) {
             try {
               detail = await client.getActivityFull(a.activityId);
             } catch { /* the list row + polyline still carry most of it */ }
-            const gpsPoints = await client.getActivityGpsPoints(a.activityId);
+            // One details call, both answers. This endpoint's response carries the
+            // per-sample trace as well as the polyline, and until now the sync read
+            // the polyline out of it and dropped the rest — the trace is what makes
+            // "did they run the 20 km block at 4:25" answerable at all, since a
+            // whole-run average includes the warm-up and the strides.
+            const { gpsPoints, stream } = await client.getActivityTrace(a.activityId, a.distance);
             const enriched = mapActivityDetail(detail, a, gpsPoints);
+
+            // Laps at SYNC time, not when a human happens to open the run. They were
+            // on-demand only, so 49 of the last 659 runs had any — meaning no rep
+            // verdict was computable for the rest, on the screen every athlete sees.
+            // `lapCount` comes free on the list row: 1 lap is the run itself and
+            // tells the engine nothing, so only ask Garmin when there are markers.
+            let lapDTOs: unknown[] = [];
+            if ((a.lapCount || 0) > 1) {
+              lapDTOs = await client.getActivitySplits(a.activityId);
+            }
+            traces.push({
+              garminActivityId: a.activityId,
+              stream,
+              laps: lapsWorthStoring(lapDTOs) ? lapDTOs : null,
+            });
+            const laps = lapsWorthStoring(lapDTOs) ? narrowLaps(lapDTOs) : [];
+
+            // The workout the device ran, but only when a lap says it ran one. Every
+            // stamped lap carries `wktStepIndex`, an index into a step list this row
+            // does not have — and the number is worse than useless without it, since a
+            // "3" read against our own parsed plan names a different step than the
+            // watch meant (repeat markers occupy indices; athletes run workouts we
+            // didn't write). Gating on the stamp rather than asking for every activity
+            // keeps this at zero extra requests for the ~85% of runs that are plain,
+            // and it's the exact condition under which the answer is usable:
+            // `garmin_workout_id` comes off a list field that doesn't always populate.
+            let executedWorkout = null;
+            if (laps.some(l => l.wktStepIndex != null) || a.workoutId) {
+              executedWorkout = narrowExecutedWorkout(await client.getActivityWorkout(a.activityId));
+            }
 
             rows.push({
               athlete_id: athlete.id,
@@ -145,6 +210,8 @@ export async function runSyncRequest(request: Request) {
               calories: a.calories || null,
               elevation_gain: a.elevationGain,
               shoe_id: athlete.active_shoe_id || null,
+              ...(laps.length ? { laps } : {}),
+              ...(executedWorkout ? { executed_workout: executedWorkout } : {}),
               ...enriched,
             });
           }
@@ -170,7 +237,7 @@ export async function runSyncRequest(request: Request) {
           // retry drops only the column the error actually NAMES, one at a time:
           // a database without garmin_workout_id (migration 092) must not also
           // lose shoe attribution, which is what stripping both at once costs.
-          const optionalColumns = ['garmin_workout_id', 'shoe_id'];
+          const optionalColumns = ['executed_workout', 'garmin_workout_id', 'laps', 'shoe_id'];
           const dropped: string[] = [];
           while (insertError && dropped.length < optionalColumns.length) {
             const failure = insertError;
@@ -204,6 +271,21 @@ export async function runSyncRequest(request: Request) {
           const idByGarminActivityId = new Map(
             (insertedRows || []).map((r: { id: string; garmin_activity_id: number }) => [r.garmin_activity_id, r.id]),
           );
+
+          // Store the evidence for each run just inserted. Best-effort by design:
+          // a trace that fails to save costs that run its rep verdict, and nothing
+          // else — never the sync, the badges or the teammate pushes below.
+          for (const trace of traces) {
+            const activityId = idByGarminActivityId.get(trace.garminActivityId);
+            if (!activityId) continue; // deduped by the upsert — already has its own row
+            await saveActivityStream(supabase, {
+              activityId,
+              garminActivityId: trace.garminActivityId,
+              source: 'garmin',
+              stream: trace.stream,
+              laps: trace.laps,
+            });
+          }
 
           // Notify group teammates for each genuinely new run just inserted
           // above (never for anything filtered out of `newActivities` via
@@ -322,6 +404,21 @@ export async function runSyncRequest(request: Request) {
  *   ?mode=workout  rows with no garmin_workout_id — plan attribution for history
  *                  (lib/garmin/workout-id-backfill.ts; one Garmin request per
  *                  athlete rather than two per row, so `limit` goes to 1000)
+ *   ?mode=stream   rows with no activity_streams row — the per-sample trace, the
+ *                  laps, and (for a run whose laps are stamped) the step list those
+ *                  stamps index into: the evidence for "did they run the session"
+ *                  (lib/garmin/stream-backfill.ts; 1-3 Garmin requests per row,
+ *                  `limit` capped at 60, `?refetch=1` to re-fetch existing rows)
+ *   ?mode=history  activities from BEFORE the athlete connected, which the POST
+ *                  path's single `getActivities(0, 100)` never asked for and
+ *                  never will (lib/garmin/history-backfill.ts). The only mode
+ *                  here that ADDS rows rather than filling columns on existing
+ *                  ones, and the only one whose cursor is a page rather than a
+ *                  `before` timestamp — it walks Garmin's list backwards, so
+ *                  there is no row in the table yet to take a cursor from.
+ *                  ?pages=N per athlete (default 3), ?fromPage=N to resume from
+ *                  a previous response's `nextPage`, ?athleteId=… for one
+ *                  athlete, ?rematch=1 to re-run plan matching after.
  *   ?limit=N       rows per call, 1-100 (default 25; Garmin calls are serial,
  *                  ~2 requests per row, so keep it inside maxDuration)
  *   ?before=<ISO>  only rows older than this start_time — the batch cursor
@@ -370,9 +467,26 @@ export async function PATCH(request: Request) {
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const requestedMode = searchParams.get('mode');
-    const mode = requestedMode === 'missing' || requestedMode === 'workout' ? requestedMode : 'route';
+    const mode = requestedMode === 'missing' || requestedMode === 'workout'
+      || requestedMode === 'stream' || requestedMode === 'history'
+      ? requestedMode
+      : 'route';
     const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 25, 1), 100);
     const before = searchParams.get('before');
+
+    // Also its own pass, and for a stronger reason than the others: the loop
+    // below enriches rows that EXIST, and the whole point here is that the rows
+    // do not — so there is nothing for a row-shaped select to return. Reads
+    // Garmin's list, not the table.
+    if (mode === 'history') {
+      const result = await backfillGarminHistory(supabase, {
+        athleteId: searchParams.get('athleteId'),
+        maxPages: Number(searchParams.get('pages')) || undefined,
+        fromPage: Number(searchParams.get('fromPage')) || undefined,
+        rematch: searchParams.get('rematch') === '1',
+      });
+      return NextResponse.json({ mode, ...result });
+    }
 
     // Its own pass: this one is keyed on garmin_workout_id itself (the filters
     // below can't reach an already-enriched row) and needs no per-row Garmin
@@ -387,6 +501,26 @@ export async function PATCH(request: Request) {
       if (result.unmigrated) {
         return NextResponse.json(
           { error: 'athlete_activities.garmin_workout_id is missing — apply migration 092 first', mode },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ mode, ...result });
+    }
+
+    // Also its own pass: keyed on "has no row in activity_streams", which the
+    // athlete_activities filters below cannot express, and it writes to a different
+    // table.
+    if (mode === 'stream') {
+      const result = await backfillActivityStreams(supabase, {
+        limit: Number(searchParams.get('limit')) || undefined,
+        before,
+        since: searchParams.get('since'),
+        athleteId: searchParams.get('athleteId'),
+        refetch: searchParams.get('refetch') === '1',
+      });
+      if (result.unmigrated) {
+        return NextResponse.json(
+          { error: 'activity_streams is missing — apply migration 094 first', mode },
           { status: 409 },
         );
       }

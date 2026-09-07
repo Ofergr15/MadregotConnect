@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Loader2, MessageSquare, Trash2, Bug, Lightbulb, Dumbbell, MessageCircle, Search, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
 import { reviewContextRows, type ReviewContext } from '@/lib/review-context';
-import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock } from '@/components/ui';
+import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, Spinner } from '@/components/ui';
 import { InsetSection } from '@/components/ui/InsetList';
 
 /**
@@ -43,19 +43,26 @@ export interface FeedbackItem {
   priority: FeedbackPriority;
   admin_notes: string | null;
   sort_order: number | null;
-  image_url: string | null;
+  /** Whether this report has a screenshot — NOT the screenshot itself. They are
+   *  stored base64 in the row and were 98% of the list response (366 KB of 370 KB),
+   *  for images the list does not render. The sheet fetches the one it opens. */
+  has_image: boolean;
   created_at: string;
   /** Auto-collected diagnostics (migration 093) — see src/lib/review-context.ts.
    *  Null on every report filed before that shipped, so it renders conditionally. */
   context: ReviewContext | null;
 }
 
+// `labelKey` into the `settings` namespace, which has had all four of these
+// strings all along. They used to be hardcoded English literals, so the one
+// screen a Hebrew-speaking club files bugs into answered "Bug Report" —
+// untranslated, and the long English words are also what overflowed the filter.
 const categoryConfig = {
-  feature_request: { label: 'Feature Request', icon: Lightbulb, color: 'text-purple-800', bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
-  bug_report: { label: 'Bug Report', icon: Bug, color: 'text-accent-red-ink', bg: 'bg-accent-red/15', border: 'border-accent-red/30' },
-  training_feedback: { label: 'Training Feedback', icon: Dumbbell, color: 'text-band-2-ink', bg: 'bg-band-2/15', border: 'border-band-2/30' },
-  general: { label: 'General', icon: MessageCircle, color: 'text-teal-600', bg: 'bg-teal-500/15', border: 'border-teal-500/30' },
-};
+  feature_request: { labelKey: 'featureRequest', icon: Lightbulb, color: 'text-purple-800', bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
+  bug_report: { labelKey: 'bugReport', icon: Bug, color: 'text-accent-red-ink', bg: 'bg-accent-red/15', border: 'border-accent-red/30' },
+  training_feedback: { labelKey: 'trainingFeedback', icon: Dumbbell, color: 'text-band-2-ink', bg: 'bg-band-2/15', border: 'border-band-2/30' },
+  general: { labelKey: 'general', icon: MessageCircle, color: 'text-teal-600', bg: 'bg-teal-500/15', border: 'border-teal-500/30' },
+} as const;
 
 const priorityConfig = {
   low: { label: 'Low', bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/30' },
@@ -68,6 +75,8 @@ const STATUS_ORDER: FeedbackStatus[] = ['new', 'idea', 'sprint', 'denied', 'done
 export function FeedbackAdmin() {
   const t = useTranslations('settings');
   const tc = useTranslations('common');
+  const locale = useLocale();
+  const catLabel = (c: FeedbackCategory) => t(categoryConfig[c].labelKey);
 
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +86,29 @@ export function FeedbackAdmin() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  // The open report's screenshot, fetched on open rather than shipped with the
+  // list. Keyed by id so a stale response for the report you just closed can't
+  // paint itself over the one you opened next.
+  const [image, setImage] = useState<{ id: string; url: string | null } | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  const openReport = async (item: FeedbackItem) => {
+    setSelected(item);
+    setAdminNotes(item.admin_notes || '');
+    setImage(null);
+    if (!item.has_image) return;
+    setImageLoading(true);
+    try {
+      const res = await fetch(`/api/feedback?image=${encodeURIComponent(item.id)}`, { headers: await apiHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      setImage({ id: item.id, url: data.image_url ?? null });
+    } catch {
+      /* the report is still readable without its screenshot */
+    } finally {
+      setImageLoading(false);
+    }
+  };
 
   const fetchFeedback = async () => {
     try {
@@ -141,42 +173,73 @@ export function FeedbackAdmin() {
     <>
       {selected && (
         <Sheet open onOpenChange={(o) => { if (!o) { setSelected(null); setConfirmDeleteOpen(false); } }}>
+          {/* min-w-0 + truncate the whole way down: an email address is a single
+              unbreakable word, and a synthetic Strava one
+              (strava_106828158@strava.madregot.local) is long enough to widen the
+              sheet past the screen on its own. */}
           <div className="pb-4 mb-1 border-b border-page/50 flex items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-brand-600/15 flex items-center justify-center">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="w-11 h-11 shrink-0 rounded-full bg-brand-600/15 flex items-center justify-center">
                 <span className="text-sm font-bold text-brand-600">
                   {selected.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                 </span>
               </div>
-              <div>
-                <p className="text-base font-bold text-ink-700">{selected.athlete_name}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {selected.athlete_email && <span className="text-xs text-ink-400">{selected.athlete_email}</span>}
-                  {selected.group_name && <span className="text-xs text-ink-400">· {selected.group_name}</span>}
+              <div className="min-w-0">
+                <p className="truncate text-base font-bold text-ink-700">{selected.athlete_name}</p>
+                <div className="flex min-w-0 items-center gap-1 mt-0.5">
+                  {selected.athlete_email && <span className="truncate text-xs text-ink-400">{selected.athlete_email}</span>}
+                  {selected.group_name && <span className="shrink-0 text-xs text-ink-400">· {selected.group_name}</span>}
                 </div>
               </div>
             </div>
           </div>
           <div className="pt-4">
-            <div className="flex items-center gap-2 mb-4">
+            {/* flex-wrap, because the chip plus a full "Wednesday, September 3,
+                2026, 09:41 PM" timestamp is wider than a phone every single time —
+                this row was the widest thing in the sheet. The date is also
+                short-form now and localized; it was hardcoded en-US in an
+                otherwise Hebrew screen. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-4">
               {(() => {
-                const catConfig = categoryConfig[selected.category || 'general'];
+                const category = selected.category || 'general';
+                const catConfig = categoryConfig[category];
                 const CatIcon = catConfig.icon;
                 return (
-                  <span className={cn('flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border', catConfig.bg, catConfig.border, catConfig.color)}>
-                    <CatIcon className="w-3.5 h-3.5" />
-                    {catConfig.label}
+                  <span className={cn('flex min-w-0 items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border', catConfig.bg, catConfig.border, catConfig.color)}>
+                    <CatIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{catLabel(category)}</span>
                   </span>
                 );
               })()}
               <span className="text-xs text-ink-400">
-                {new Date(selected.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {/* Bare <bdi> (i.e. dir="auto"), not dir="ltr": the Hebrew date reads
+                    "6 בספט׳ 2026, 20:15" — it opens with a neutral digit and then a
+                    Hebrew month, so forcing LTR reorders it. auto takes the direction
+                    from the first strong character, which is right in both locales. */}
+                <bdi>
+                  {new Date(selected.created_at).toLocaleString(locale === 'he' ? 'he-IL' : 'en-GB', {
+                    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                  })}
+                </bdi>
               </span>
             </div>
-            <p className="text-base text-ink-700 leading-relaxed whitespace-pre-wrap mb-4">{selected.message}</p>
-            {selected.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={selected.image_url} alt="Attached" className="max-h-48 rounded-lg border border-page/50 mb-5" />
+            {/* break-words: a report is often a pasted URL or a stack trace, i.e.
+                one unbreakable token far wider than the sheet. */}
+            <p className="text-base text-ink-700 leading-relaxed whitespace-pre-wrap break-words mb-4" dir="auto">{selected.message}</p>
+            {selected.has_image && (
+              imageLoading || image?.id !== selected.id ? (
+                // Reserves the same height the image will take, so opening a report
+                // with a screenshot doesn't shove the triage controls down a moment
+                // after they are already under the reader's thumb.
+                <div className="mb-5 flex h-48 items-center justify-center rounded-lg border border-page/50 bg-page/30">
+                  <Spinner />
+                </div>
+              ) : image.url ? (
+                // max-w-full, or a landscape screenshot is scaled by max-h-48 to a
+                // width the sheet can't hold and the whole sheet scrolls sideways.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={image.url} alt="Attached" className="max-h-48 max-w-full rounded-lg border border-page/50 mb-5" />
+              ) : null
             )}
 
             {/* The reporter's device, app version and the screen it happened on.
@@ -193,7 +256,10 @@ export function FeedbackAdmin() {
                   {rows.map(r => (
                     <div key={r.label} className="flex items-baseline gap-2 text-2xs">
                       <dt className="w-20 shrink-0 text-ink-400">{r.label}</dt>
-                      <dd className="min-w-0 flex-1 font-medium text-ink-700" dir="auto">{r.value}</dd>
+                      {/* break-words: "Viewport" and the device string are long
+                          unbreakable tokens (390×844, iPhone; iOS 18.5), and
+                          min-w-0 alone doesn't break a single word. */}
+                      <dd className="min-w-0 flex-1 break-words font-medium text-ink-700" dir="auto">{r.value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -296,6 +362,12 @@ export function FeedbackAdmin() {
         />
       </div>
 
+      {/* Five labelled segments never fit a phone — "Training Feedback" alone is
+          wider than the ~70px each one gets at 402px, and because a flex item
+          can't shrink below its text the whole track ran off the screen. The four
+          categories are their icons (named to a screen reader, and each report
+          carries the same coloured icon in the list, so the mapping is on screen);
+          "All" keeps its word, because that one isn't guessable from a glyph. */}
       <div className="mb-4">
         <SegmentedControl<FeedbackCategory | 'all'>
           value={filterCategory}
@@ -303,10 +375,16 @@ export function FeedbackAdmin() {
           options={[
             { value: 'all', label: t('all') },
             ...(['bug_report', 'feature_request', 'training_feedback', 'general'] as FeedbackCategory[]).map(cat => ({
-              value: cat, label: categoryConfig[cat].label, icon: categoryConfig[cat].icon,
+              value: cat, label: catLabel(cat), icon: categoryConfig[cat].icon, iconOnly: true,
             })),
           ]}
         />
+        {filterCategory !== 'all' && (
+          // Which icon is selected, spelled out — an icon-only control leaves the
+          // current filter unnamed, and "why is this list so short" is exactly the
+          // question a silent filter causes.
+          <p className="mt-1.5 text-center text-3xs font-semibold text-ink-400">{catLabel(filterCategory)}</p>
+        )}
       </div>
 
       {/* Grouped by status. The drag-and-drop Kanban board this replaced didn't
@@ -337,7 +415,7 @@ export function FeedbackAdmin() {
                     if (h < 1) return t('justNow');
                     if (h < 24) return t('hoursAgo', { hours: Math.floor(h) });
                     if (h < 48) return t('yesterday');
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    return date.toLocaleDateString(locale === 'he' ? 'he-IL' : 'en-GB', { month: 'short', day: 'numeric' });
                   })();
                   // The screen it happened on, in the LIST — the single most
                   // useful triage field, and having to open each report to see
@@ -346,19 +424,27 @@ export function FeedbackAdmin() {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => { setSelected(item); setAdminNotes(item.admin_notes || ''); }}
+                      onClick={() => openReport(item)}
                       className="w-full text-start px-4 py-3 active:bg-page/40 transition-colors"
                     >
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className={cn('flex items-center gap-1 text-3xs font-semibold px-1.5 py-0.5 rounded border', catCfg.bg, catCfg.border, catCfg.color)}>
-                          <CatIcon className="w-2.5 h-2.5" />{catCfg.label}
+                      {/* flex-wrap + min-w-0: two chips side by side already
+                          overflowed the card on the longer category names, and the
+                          card has nothing to give — it's inside the inset list's
+                          px-4. Wrapping is the only honest answer. */}
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                        <span className={cn('flex min-w-0 items-center gap-1 text-3xs font-semibold px-1.5 py-0.5 rounded border', catCfg.bg, catCfg.border, catCfg.color)}>
+                          <CatIcon className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate">{catLabel(item.category || 'general')}</span>
                         </span>
-                        <span className={cn('text-3xs font-semibold px-1.5 py-0.5 rounded border', priCfg.bg, priCfg.border, priCfg.text)}>
+                        <span className={cn('shrink-0 text-3xs font-semibold px-1.5 py-0.5 rounded border', priCfg.bg, priCfg.border, priCfg.text)}>
                           {t(item.priority || 'medium')}
                         </span>
-                        {item.image_url && <Smartphone className="w-2.5 h-2.5 text-ink-400" />}
+                        {item.has_image && <Smartphone className="w-2.5 h-2.5 shrink-0 text-ink-400" />}
                       </div>
-                      <p className="text-sm text-ink-700 leading-relaxed line-clamp-2 mb-1.5">{item.message}</p>
+                      {/* break-words for the same reason as the sheet: a report is
+                          often one pasted URL. line-clamp caps the height, not the
+                          width of an unbreakable token. */}
+                      <p className="text-sm text-ink-700 leading-relaxed line-clamp-2 break-words mb-1.5" dir="auto">{item.message}</p>
                       <div className="flex items-center justify-between gap-2">
                         <span className="min-w-0 truncate text-3xs text-ink-400 font-medium">
                           {item.athlete_name.split(' ')[0]}
@@ -367,7 +453,7 @@ export function FeedbackAdmin() {
                         <span className="shrink-0 text-3xs text-ink-400">{timeAgo}</span>
                       </div>
                       {item.admin_notes && (
-                        <p className="text-3xs text-ink-400 italic mt-1 border-t border-page/30 pt-1">{item.admin_notes}</p>
+                        <p className="text-3xs text-ink-400 italic mt-1 border-t border-page/30 pt-1 break-words" dir="auto">{item.admin_notes}</p>
                       )}
                     </button>
                   );

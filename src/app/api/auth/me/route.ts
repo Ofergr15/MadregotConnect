@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
+import { membershipFor } from '@/lib/auth/membership';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
       // A verified account with no membership row is an answer, not a failure —
       // it's the 'viewer' this route already fell through to. Only a missing or
       // invalid token is a real 401.
-      if (auth.status === 403) return NextResponse.json({ role: 'viewer' });
+      if (auth.status === 403) return NextResponse.json({ role: 'viewer', membership: 'none' });
       return authError(auth);
     }
 
@@ -46,8 +47,18 @@ export async function GET(request: Request) {
     // from `role` alone (migration 091). Free here — requireSession resolved it.
     const isCore = auth.user.isCoreRunner === true;
 
+    // ── May this person be inside the app at all? ───────────────────────────
+    //
+    // `membership` is the shell's gate, and it is deliberately a THIRD answer
+    // rather than something the client derives from `role`: a revoked or
+    // not-yet-approved member keeps their role ('runner'), so role alone reads
+    // as "let them in". The values, and what each one means, are documented on
+    // membershipFor() in src/lib/auth/membership.ts — the one place that decides.
+    // Only 'active' may see club content. See AccessBlocked + the (app) layout:
+    // before this existed, a revoked account got the whole signed-in shell and
+    // every card inside it failed on its own with a raw English 403.
     if (!auth.user.athleteId) {
-      return NextResponse.json({ role: auth.user.role || 'coach', isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
+      return NextResponse.json({ role: auth.user.role || 'coach', membership: 'active', isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
     }
 
     const supabase = createServerClient();
@@ -58,18 +69,25 @@ export async function GET(request: Request) {
     // second read because requireSession's select can't carry it — that select
     // gates the whole app, and a column it doesn't have yet in some environment
     // must not be able to fail it. Here a missing column just reads as false.
+    //
+    // `approved` is here for the same reason: it is what separates "waiting for
+    // the coach" from "access was removed", and requireSession does not carry it.
+    // A read that fails leaves it undefined, which membershipFor() resolves to the
+    // answer that promises nothing.
     const { data: row } = await supabase
       .from('athletes')
-      .select('is_academy')
+      .select('is_academy, approved')
       .eq('id', auth.user.athleteId)
       .maybeSingle();
+
+    const membership = membershipFor({ status: auth.user.athleteStatus, approved: row?.approved });
 
     await supabase
       .from('athletes')
       .update({ last_seen_at: new Date().toISOString() })
       .eq('id', auth.user.athleteId);
 
-    return NextResponse.json({ role: auth.user.role || 'runner', isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
+    return NextResponse.json({ role: auth.user.role || 'runner', membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

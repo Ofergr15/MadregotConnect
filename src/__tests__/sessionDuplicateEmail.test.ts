@@ -87,6 +87,9 @@ describe('requireSession — duplicate emails must not lock anyone out', () => {
     if (!result.ok) return;
     expect(result.user).toEqual({
       email: 'runner@example.com',
+      // Null because the row's address IS the token's — it only carries a value
+      // when they differ, which is what a Strava login's synthetic email causes.
+      athleteEmail: null,
       athleteId: 'a1',
       name: 'Runner',
       role: 'runner',

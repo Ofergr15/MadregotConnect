@@ -27,6 +27,7 @@ import {
   DIRECTION_COLOR,
   PACE_STATUS_COLOR,
   ZERO_AT_TOLERANCE_MULTIPLE,
+  planGap,
   type ExecutionDirection,
   type ExecutionMetric,
   type ExecutionRep,
@@ -97,9 +98,12 @@ function verdictDetail(
   }
   if (direction === 'too_long' || direction === 'too_short') {
     const distance = verdict.metrics.find((metric) => metric.key === 'distance');
+    // Measured from the PLAN, not from the tolerated edge: "shorter than planned"
+    // has to be the gap to what the plan said. See `planGap`.
+    const gap = distance ? planGap(distance) : null;
     // No number to quote means no sentence to build — never "longer by  km".
-    if (distance?.deviation != null) {
-      const km = (Math.abs(distance.deviation) / 1000).toFixed(1);
+    if (gap != null && gap !== 0) {
+      const km = (Math.abs(gap) / 1000).toFixed(1);
       return t(direction === 'too_long' ? 'detail_too_long' : 'detail_too_short', { km });
     }
   }
@@ -339,7 +343,7 @@ function RepRows({ reps }: { reps: ExecutionRep[] }) {
 
 // ── What was measured, and what wasn't ──────────────────────────────────────
 
-function MetricRow({ metric }: { metric: ExecutionMetric }) {
+function MetricRow({ metric, note }: { metric: ExecutionMetric; note?: React.ReactNode }) {
   const t = useTranslations('execution');
   const graded = metric.status !== 'unknown';
   const color = graded
@@ -373,37 +377,79 @@ function MetricRow({ metric }: { metric: ExecutionMetric }) {
   const unit = metric.key === 'distance' ? t('unitKm') : metric.key === 'pace' ? t('unitPerKm') : null;
 
   return (
-    <div className="flex items-baseline gap-2 py-2">
-      <span className="w-16 shrink-0 text-xs font-semibold text-ink-700">
-        {t(`metric_${metric.key}` as 'metric_distance')}
-      </span>
-      <span className="w-24 shrink-0 text-xs text-ink-400">
-        {planned ? <><Num>{planned}</Num>{unit && <span className="ms-0.5">{unit}</span>}</> : '—'}
-      </span>
-      <span className="flex-1 text-sm font-bold" style={{ color }}>
-        {/* The unit goes on the actual too, for distance only: "8.0" beside a
-            planned "13.6 km" is the one cell in this table that can't be read on
-            its own, and it's the cell that carries the whole verdict. A pace and
-            a duration announce their own format. */}
-        {actual ? (
-          <>
-            <Num>{actual}</Num>
-            {metric.key === 'distance' && unit && <span className="ms-0.5 text-xs font-semibold">{unit}</span>}
-          </>
-        ) : '—'}
-      </span>
-      {graded ? (
-        <span className="shrink-0 text-3xs font-bold" style={{ color }}>
-          {t(`status_${metric.status}` as 'status_on_target')}
+    <div className="py-2">
+      <div className="flex items-baseline gap-2">
+        <span className="w-16 shrink-0 text-xs font-semibold text-ink-700">
+          {t(`metric_${metric.key}` as 'metric_distance')}
         </span>
-      ) : (
-        // "no comparison", not "not measured": the actual on this row usually WAS
-        // measured — 56:40 is a real time — it's the plan side that's missing.
-        <span className="shrink-0 rounded-full bg-page px-2 py-0.5 text-3xs font-semibold text-ink-400">
-          {t('noComparison')}
+        <span className="w-24 shrink-0 text-xs text-ink-400">
+          {planned ? <><Num>{planned}</Num>{unit && <span className="ms-0.5">{unit}</span>}</> : '—'}
         </span>
-      )}
+        <span className="flex-1 text-sm font-bold" style={{ color }}>
+          {/* The unit goes on the actual too, for distance only: "8.0" beside a
+              planned "13.6 km" is the one cell in this table that can't be read on
+              its own, and it's the cell that carries the whole verdict. A pace and
+              a duration announce their own format. */}
+          {actual ? (
+            <>
+              <Num>{actual}</Num>
+              {metric.key === 'distance' && unit && <span className="ms-0.5 text-xs font-semibold">{unit}</span>}
+            </>
+          ) : '—'}
+        </span>
+        {graded ? (
+          <span className="shrink-0 text-3xs font-bold" style={{ color }}>
+            {t(`status_${metric.status}` as 'status_on_target')}
+          </span>
+        ) : (
+          // "no comparison", not "not measured": the actual on this row usually WAS
+          // measured — 56:40 is a real time — it's the plan side that's missing.
+          <span className="shrink-0 rounded-full bg-page px-2 py-0.5 text-3xs font-semibold text-ink-400">
+            {t('noComparison')}
+          </span>
+        )}
+      </div>
+      {/* Indented under the numbers it qualifies, not in the reason list below the
+          table: this one is not a missing measurement, it's what the two numbers on
+          this row are measurements OF. */}
+      {note && <p className="mt-1 ps-[4.5rem] text-3xs leading-snug text-ink-400">{note}</p>}
     </div>
+  );
+}
+
+/**
+ * What the pace row is actually about — the sentence that makes its two numbers
+ * readable.
+ *
+ * They are a stretch of the run, not the run. On "2 km easy, 20 km at 4:35, 8 strides"
+ * the pace shown is the 20 km block's, while the athlete's own watch says the run
+ * averaged 4:45 — so an unlabelled 4:35 on a row headed "pace" is a card that is right
+ * in every field and reads as broken. On a run that stopped mid-block it matters more
+ * than that: "4:35 over the 13 of 20 km you ran of it" is what makes the on-target chip
+ * beside it true, and without it the same chip claims the block was completed.
+ */
+function paceScopeNote(
+  verdict: ExecutionVerdict,
+  t: ReturnType<typeof useTranslations<'execution'>>,
+): React.ReactNode | null {
+  const scope = verdict.paceScope;
+  if (!scope) return null;
+  const km = (meters: number) => (meters / 1000).toFixed(1);
+  return (
+    <>
+      {scope.truncated && scope.ranLengthM != null && scope.plannedLengthM != null
+        ? t('paceScopePartial', {
+          label: scope.label,
+          ran: km(scope.ranLengthM),
+          planned: km(scope.plannedLengthM),
+        })
+        : t('paceScope', { label: scope.label })}
+      {/* The number on the athlete's watch, kept on the card: told only that they ran
+          4:35 when their Garmin says 4:45, the first thought is that the app is wrong. */}
+      {verdict.wholeRunPace != null && (
+        <> {t('paceScopeWholeRun')} <Num>{formatPace(verdict.wholeRunPace)}</Num> {t('unitPerKm')}</>
+      )}
+    </>
   );
 }
 
@@ -641,6 +687,18 @@ export function ExecutionQuality({
   const paceComparable = gradedReps.length > 0
     || (paceMetric != null && paceMetric.status !== 'unknown');
 
+  // The marker's colour is about the marker. A run graded `too_short` can have held the
+  // pace exactly — that is the common shape of a session cut short — and a red pin in
+  // the middle of the green band contradicts its own position. Only the two
+  // distance-led directions are overridden, and only when the pace really was in band:
+  // every pace-led direction (`too_fast`, `too_slow`, `mixed`) is already the marker's
+  // own story.
+  const axisDirection: ExecutionDirection =
+    (verdict.direction === 'too_long' || verdict.direction === 'too_short')
+      && (workReps.length ? workOnTarget === workReps.length : paceMetric?.status === 'on_target')
+      ? 'on_target'
+      : verdict.direction;
+
   return (
     <div className={cn('overflow-hidden rounded-card border border-page bg-card', className)}>
       {/* A hairline in the verdict's colour, so the answer is legible before a
@@ -683,7 +741,7 @@ export function ExecutionQuality({
               bandMin={verdict.paceBandMin as number}
               bandMax={verdict.paceBandMax as number}
               toleranceSec={verdict.toleranceSec}
-              direction={verdict.direction}
+              direction={axisDirection}
               noRepOnTarget={workReps.length > 0 && workOnTarget === 0}
             />
           </div>
@@ -730,7 +788,11 @@ export function ExecutionQuality({
           </div>
           <div className="divide-y divide-page">
             {verdict.metrics.map((metric) => (
-              <MetricRow key={metric.key} metric={metric} />
+              <MetricRow
+                key={metric.key}
+                metric={metric}
+                note={metric.key === 'pace' ? paceScopeNote(verdict, t) : null}
+              />
             ))}
           </div>
           {/* The reasons, once, under the rows they belong to — a grey cell with

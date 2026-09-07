@@ -82,11 +82,16 @@ describe('getPaceColor', () => {
     expect(getPaceColor(400, 0, 400)).toBe(PACE_COLOR_RAMP[3]);
   });
 
-  // The ramp is green→teal→sky→blue on purpose, not green→yellow→orange→red:
-  // red/green is the pair ~8% of men can't separate, and in this app red is the
-  // "something is wrong" colour — a slow recovery kilometre is not wrong.
-  it('avoids the red/green pairing', () => {
-    expect(PACE_COLOR_RAMP).toEqual(['#22c55e', '#14b8a6', '#0ea5e9', '#2563eb']);
+  // The ramp is ONE HUE, light→dark, on purpose. Not green→yellow→orange→red
+  // (red/green is the pair ~8% of men can't separate, and in this app red is the
+  // "something is wrong" colour — a slow recovery kilometre is not wrong), and no
+  // longer green→teal→sky→blue either: that one put all its information in hue at
+  // a single lightness, so its first two steps measured ΔE 11.3 for normal vision
+  // and 2.0 for tritan readers. Locked so a future "let's make it more colourful"
+  // has to come through this test and read the reasoning in format.ts.
+  it('is a single-hue light→dark ramp, not a rainbow', () => {
+    expect(PACE_COLOR_RAMP).toEqual(['#60a5fa', '#3b82f6', '#1525FF', '#111a99']);
     expect(PACE_COLOR_RAMP).not.toContain('#ef4444');
+    expect(PACE_COLOR_RAMP).not.toContain('#22c55e');
   });
 });

@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   UserPlus, Copy, CheckCircle2, Wifi, WifiOff, Clock,
   Users as UsersIcon, Check, Mail, Trash2, ChevronDown,
-  PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle
+  PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle,
+  Wrench, Search, Lock, Unlock, DoorOpen
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -12,6 +14,7 @@ import { isProtectedEmail } from '@/lib/constants';
 import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow, Card, Button, EmptyState, BigStat } from '@/components/ui';
 import { useTranslations } from 'next-intl';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { maintenanceBlocks, type MaintenanceState } from '@/lib/maintenance-rule';
 
 interface Athlete {
   id: string;
@@ -64,7 +67,75 @@ export default function AthletesPage() {
   const [moveModal, setMoveModal] = useState<{ athleteId: string; athleteName: string } | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'invited' | 'paused'>('all');
+  const [filter, setFilter] = useState<'all' | 'active' | 'invited' | 'paused' | 'blocked'>('all');
+  const [query, setQuery] = useState('');
+
+  // Maintenance, on the roster. It is the only state on this screen that can make
+  // a perfectly active member unable to open the app at all, and until now it was
+  // invisible here: the switch lived in Settings and the allowlist was a text
+  // field of addresses, so "why can't Dana get in" had no answer on the screen
+  // that lists Dana. `allowlist` only comes back to an approver — so its absence,
+  // not `maintenance`, is what decides whether any of this renders. Without it we
+  // cannot tell who is exempt, and guessing would paint the whole club as blocked.
+  const { data: maintenanceData, mutate: mutateMaintenance } =
+    useApi<{ maintenance: boolean; allowlist?: string[] }>('/api/maintenance');
+  const canSeeMaintenance = Array.isArray(maintenanceData?.allowlist);
+  const maintenanceState: MaintenanceState = useMemo(
+    () => ({ on: !!maintenanceData?.maintenance, allow: maintenanceData?.allowlist || [] }),
+    [maintenanceData],
+  );
+  const [releasing, setReleasing] = useState<string | null>(null);
+  const [turningOff, setTurningOff] = useState(false);
+
+  // Same predicate the API gate uses (maintenance-rule.ts), given the handles this
+  // screen has. Never the JWT address — a Strava login's is synthetic, so it can
+  // match nothing; the id is the handle that always exists.
+  const blockedByMaintenance = (athlete: Athlete) =>
+    canSeeMaintenance
+    && maintenanceBlocks({ athleteEmail: athlete.email, athleteId: athlete.id }, maintenanceState);
+
+  /** Handles worth writing for one person: the id always, the address if it's real. */
+  const handlesFor = (athlete: Athlete) =>
+    [athlete.id, athlete.email]
+      .map((h) => String(h || '').toLowerCase().trim())
+      .filter((h) => h && !h.endsWith('.local'));
+
+  const setMaintenanceAllow = async (allowlist: string[]) => {
+    const res = await fetch('/api/maintenance', {
+      method: 'PUT',
+      headers: await bearerHeaders(),
+      body: JSON.stringify({ allowlist }),
+    });
+    if (res.ok) mutateMaintenance();
+  };
+
+  const toggleMaintenanceFor = async (athlete: Athlete, release: boolean) => {
+    setReleasing(athlete.id);
+    try {
+      const handles = handlesFor(athlete);
+      const next = release
+        ? [...new Set([...maintenanceState.allow, ...handles])]
+        : maintenanceState.allow.filter((entry) => !handles.includes(entry));
+      await setMaintenanceAllow(next);
+      setActiveMenu(null);
+    } finally {
+      setReleasing(null);
+    }
+  };
+
+  const turnMaintenanceOff = async () => {
+    setTurningOff(true);
+    try {
+      const res = await fetch('/api/maintenance', {
+        method: 'PUT',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ on: false }),
+      });
+      if (res.ok) mutateMaintenance();
+    } finally {
+      setTurningOff(false);
+    }
+  };
 
   const createInvite = async () => {
     if (!inviteName.trim() || !inviteEmail.trim()) return;
@@ -220,10 +291,16 @@ ${inviteLink}`;
     }
   };
 
-  const filteredAthletes = athletes.filter(a => {
+  const filteredAthletes = athletes.filter((a) => {
+    // 22 members and no way to find one — every "where is X" ended in a scroll.
+    const needle = query.trim().toLowerCase();
+    if (needle && !`${a.name} ${a.email}`.toLowerCase().includes(needle)) return false;
     if (filter === 'all') return true;
+    if (filter === 'blocked') return blockedByMaintenance(a);
     return a.status === filter;
   });
+
+  const blockedCount = canSeeMaintenance ? athletes.filter(blockedByMaintenance).length : 0;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -279,6 +356,43 @@ ${inviteLink}`;
         </Button>
       </div>
 
+      {/* Maintenance banner — the club is closed and this is the screen where you
+          find out who that hurts, with the switch right here instead of buried in
+          Settings. Shown only to an approver, who is the only caller that gets an
+          allowlist back and the only one allowed to write it. */}
+      {canSeeMaintenance && maintenanceState.on && (
+        <Card variant="solid" className="border border-accent-red/40 bg-accent-red/5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="shrink-0 w-9 h-9 rounded-full bg-accent-red/15 flex items-center justify-center">
+                <Wrench className="h-4 w-4 text-accent-red" />
+              </span>
+              <div>
+                <p className="font-semibold text-accent-red">{t('maintenanceOn')}</p>
+                <p className="text-sm text-ink-400 mt-0.5">
+                  {t('maintenanceBlockedCount', { count: blockedCount })}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* The roster can release one person, but the queue is where their
+                  whole state is — approval, last entry, watch, notifications —
+                  and where approving also lets them past the window. */}
+              <Link href="/dashboard/entry-queue">
+                <Button variant="secondary">
+                  <DoorOpen className="h-4 w-4" />
+                  {t('maintenanceOpenQueue')}
+                </Button>
+              </Link>
+              <Button variant="primary" onClick={turnMaintenanceOff} disabled={turningOff}>
+                <Wrench className="h-4 w-4" />
+                {turningOff ? t('maintenanceTurningOff') : t('maintenanceTurnOff')}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card variant="solid">
@@ -296,20 +410,42 @@ ${inviteLink}`;
       </div>
 
       {/* Filter tabs */}
+      <div className="flex flex-wrap items-center gap-3">
       <SegmentedControl
         value={filter}
         onChange={setFilter}
-        options={(['all', 'active', 'invited', 'paused'] as const).map((tab) => ({
+        options={(maintenanceState.on && canSeeMaintenance
+          ? (['all', 'active', 'invited', 'paused', 'blocked'] as const)
+          : (['all', 'active', 'invited', 'paused'] as const)
+        ).map((tab) => ({
           value: tab,
           // `t(tab)`, not the raw key: these chips rendered as "all (22) /
           // active (21) / invited (1) / paused (0)" — four English words in the
           // middle of a Hebrew page, directly under the stat blocks that already
           // say פעיל / הוזמן / מושהה. The keys existed; the interpolation just
           // never went through the translator.
-          label: `${t(tab)} (${tab === 'all' ? athletes.length : athletes.filter((a) => a.status === tab).length})`,
+          label: `${t(tab)} (${
+            tab === 'all'
+              ? athletes.length
+              : tab === 'blocked'
+                ? blockedCount
+                : athletes.filter((a) => a.status === tab).length
+          })`,
         }))}
         className="w-fit"
       />
+
+        {/* Search — a roster this size was scroll-only until now. */}
+        <label className="relative flex-1 min-w-[200px]">
+          <Search className="absolute top-1/2 -translate-y-1/2 start-3 h-4 w-4 text-ink-400 pointer-events-none" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+            className="w-full bg-card border border-page rounded-full ps-9 pe-4 py-2.5 min-h-[44px] text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-600"
+          />
+        </label>
+      </div>
 
       {/* Invite Form — a bottom sheet like every other transient/task flow on
           this page (action menu, move-to-group, delete confirm), instead of
@@ -462,7 +598,19 @@ ${inviteLink}`;
                       </span>
                     )}
                   </span>
-                  <span className="shrink-0">{getStatusBadge(athlete.status)}</span>
+                  <span className="shrink-0 flex items-center gap-1.5">
+                    {blockedByMaintenance(athlete) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-2xs font-semibold bg-accent-red/15 text-accent-red border border-accent-red/30">
+                        <Lock className="h-3 w-3" /> {t('maintenanceBlockedBadge')}
+                      </span>
+                    )}
+                    {canSeeMaintenance && maintenanceState.on && !blockedByMaintenance(athlete) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-2xs font-semibold bg-accent-600/15 text-accent-900 border border-accent-600/30">
+                        <Unlock className="h-3 w-3" /> {t('maintenanceAllowedBadge')}
+                      </span>
+                    )}
+                    {getStatusBadge(athlete.status)}
+                  </span>
                 </div>
               </button>
             );
@@ -472,7 +620,7 @@ ${inviteLink}`;
         <EmptyState
           icon={UsersIcon}
           title={t('noAthletes')}
-          description={filter !== 'all' ? t('noAthletesStatus') : t('inviteFirst')}
+          description={query.trim() ? t('noSearchMatches') : filter !== 'all' ? t('noAthletesStatus') : t('inviteFirst')}
         />
       )}
 
@@ -510,6 +658,27 @@ ${inviteLink}`;
                   onClick={() => updateAthleteStatus(athlete.id, 'active')}
                 />
               ) : null}
+              {/* Let them in, or shut them back out, without leaving the roster.
+                  Writes the athlete ID (plus a real address if the row has one),
+                  because the allowlist is matched against handles and an id is the
+                  only one every member is guaranteed to have. */}
+              {canSeeMaintenance && maintenanceState.on && (
+                blockedByMaintenance(athlete) ? (
+                  <InsetRow
+                    icon={Unlock}
+                    iconBg="bg-accent-600"
+                    label={releasing === athlete.id ? t('maintenanceSaving') : t('maintenanceRelease')}
+                    onClick={() => toggleMaintenanceFor(athlete, true)}
+                  />
+                ) : (
+                  <InsetRow
+                    icon={Lock}
+                    iconBg="bg-accent-red"
+                    label={releasing === athlete.id ? t('maintenanceSaving') : t('maintenanceBlock')}
+                    onClick={() => toggleMaintenanceFor(athlete, false)}
+                  />
+                )
+              )}
               <InsetRow
                 icon={Wifi}
                 iconBg="bg-band-3"

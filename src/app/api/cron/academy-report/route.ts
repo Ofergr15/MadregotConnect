@@ -66,14 +66,23 @@ async function run(request: Request) {
   // Send to the coach-configured recipients (comma-joined for nodemailer);
   // falls back to ADMIN_EMAIL inside the mailer when none are set.
   const to = recipients.length > 0 ? recipients.join(', ') : undefined;
-  const sent = await sendAcademyWeeklyReport({
+  const result = await sendAcademyWeeklyReport({
     weekStart: report.weekStart,
     weekEnd: report.weekEnd,
     rows,
     to,
   });
 
-  return NextResponse.json({ sent, weekStart: report.weekStart, athletes: rows.length, recipients: recipients.length || 'default' });
+  // `sent` used to be a bare boolean that was true whenever nothing threw — and
+  // nothing threw, because Resend resolves refusals. This is a weekly cron whose only
+  // reader is a Vercel log, so the reason has to be IN the response or it is lost.
+  return NextResponse.json({
+    sent: result.ok,
+    reason: result.ok ? undefined : result.reason,
+    weekStart: report.weekStart,
+    athletes: rows.length,
+    recipients: recipients.length || 'default',
+  });
 }
 
 export async function GET(request: Request) {

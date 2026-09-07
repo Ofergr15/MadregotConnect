@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift,
+  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -53,6 +53,16 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },
 ];
 export const PROFILE_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'profile', icon: User };
+// The profile tab for an admin account that has NO athlete row — nothing but the
+// club to administer, so there is no training profile to show. SAME route and SAME
+// tab id as the athlete's (one active-state rule, one place a deep link can land),
+// and the page behind it branches the same way: what such an account needs is the
+// thing no other screen holds — who am I signed in as, what am I allowed to do,
+// which version is this, and how do I get out.
+//
+// An admin who DOES run gets `PROFILE_ITEM` instead, because that account is a
+// member as well as an administrator; see `resolveNavItems`.
+export const ADMIN_ACCOUNT_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'account', icon: ShieldCheck };
 export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench };
 // Store and Benefits are static "More" sheet rows, not gated by
 // role_tab_permissions (roadmap #9, #5) — every role can reach them.
@@ -98,6 +108,28 @@ export interface NavResolutionInput {
 /**
  * Which pages this user can reach, in nav order. The single source of truth for
  * the Header, the BottomTabBar, this module's hook and Search.
+ *
+ * The rule, decided 2026-09-07 and the reason the admin branches below exist:
+ *
+ *   1. `admin` SEES EVERYTHING. Every tab there is, whatever `role_tab_permissions`
+ *      happens to say — it is the role that administers the club, so a screen it
+ *      cannot open is a screen nobody can fix. That also means the admin column of
+ *      the permissions editor grants nothing; the editor says so in words rather
+ *      than offering switches that do nothing.
+ *   2. EVERY OTHER ROLE sees exactly what is defined for it — the matrix rows, plus
+ *      the two membership flags below, which are definitions of their own (no role
+ *      row can express "is in the academy" or "is in the גרעין").
+ *   3. AN ACCOUNT CAN BE BOTH. A coach who runs, an admin who runs — the club has
+ *      several — and the staff half must never cost them the member half. That is
+ *      what the `isAthlete` branch on the profile tab is for: having an athlete row
+ *      is what makes an account a member, and a member has a training profile.
+ *
+ * Rule 1 replaced the opposite call (v2.39.128, ADMIN_HIDDEN_TABS), which took the
+ * feed, the activity list and the weekly program out of the admin's nav on the
+ * grounds that "the admin account is nobody's member account". For this club it is:
+ * the accounts holding `admin` are the coaches and the owner, who all train, and
+ * the super-user renders as `admin` by default — so the rule read as the app
+ * hiding their own training from them.
  */
 export function resolveNavItems({
   permissions,
@@ -109,6 +141,7 @@ export function resolveNavItems({
   fallback = false,
 }: NavResolutionInput): NavItem[] {
   if (!effectiveRole) return [];
+  const isAdmin = effectiveRole === 'admin';
   const enabled = permissions.filter(p => p.role === effectiveRole && p.enabled).map(p => p.tab);
 
   // הגרעין's own grants, unioned in. Skipped while previewing another role —
@@ -119,15 +152,30 @@ export function resolveNavItems({
       if (p.role === 'core_runner' && p.enabled && !enabled.includes(p.tab)) enabled.push(p.tab);
     }
   }
-  // Admin can always reach settings — otherwise revoking that one row locks the
-  // only account that can grant it back out of the permissions editor.
-  if (effectiveRole === 'admin' && !enabled.includes('settings')) enabled.push('settings');
-  const items = ALL_NAV_ITEMS.filter(i => enabled.includes(i.tab));
+  // Rule 1: the admin's list is the whole list, and the matrix is not consulted for
+  // it at all. Not even `settings` needs its row any more — that force-add existed
+  // because revoking that one cell locked the only account that can grant it back
+  // out of the editor that grants it, and now no cell in the admin column can lock
+  // anything.
+  const items = isAdmin
+    ? [...ALL_NAV_ITEMS]
+    // Filtered last, so this also sees the גרעין union above.
+    : ALL_NAV_ITEMS.filter(i => enabled.includes(i.tab));
 
-  // Athlete-flavoured roles get their own profile. Skipped for staff previews,
-  // where the point is to see the staff nav.
-  if (isAthlete || (previewRole && !STAFF_ROLES.includes(previewRole))) {
+  // Rule 3: a member's profile belongs to whoever has an athlete row, staff or not —
+  // a coach who runs and an admin who runs both keep it. Skipped for a staff
+  // PREVIEW, where the point is to see the staff nav and the previewer's own athlete
+  // row isn't the previewed account's.
+  const previewingStaff = !!previewRole && STAFF_ROLES.includes(previewRole);
+  if (!previewingStaff && (isAthlete || previewRole)) {
     if (!items.some(i => i.tab === 'profile')) items.push(PROFILE_ITEM);
+  }
+  // An admin with no athlete row has no training profile to show, and this is the
+  // only screen holding sign-out and the view-as switcher — so it gets the account
+  // screen in that slot rather than nothing. Same for a preview of `admin`, which
+  // has to show what a pure admin account sees.
+  else if (isAdmin && !items.some(i => i.tab === 'profile')) {
+    items.push(ADMIN_ACCOUNT_ITEM);
   }
   // Coach Tools hub — every staff account, same force-add pattern as `settings`
   // (deliberately not gated by the DB permissions table).

@@ -69,3 +69,16 @@ export function resetSilentReauth(): void {
   hopeless = false;
   inFlight = null;
 }
+
+/**
+ * The reverse, for signing out: stop recovering this session.
+ *
+ * Sign-out deletes the device cookie, so the route would 401 anyway — but on a
+ * soft navigation this module keeps its state, and an in-flight recovery started
+ * before the cookie went could still land a fresh session on a browser whose
+ * owner just asked to leave.
+ */
+export function blockSilentReauth(): void {
+  hopeless = true;
+  inFlight = null;
+}

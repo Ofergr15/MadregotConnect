@@ -8,7 +8,7 @@ import { User, LogOut, X, Bug, Bell, Eye, Search as SearchIcon } from 'lucide-re
 import { cn, resolveGroup } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
-import { clearIdentityKeys } from '@/lib/auth/identity-keys';
+import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
 import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
@@ -196,11 +196,13 @@ export function Header() {
   };
 
   const handleLogout = async () => {
-    const supabase = getSupabase();
-    await supabase.auth.signOut();
-    // Includes any active "view as" scenario — see IDENTITY_KEYS.
-    clearIdentityKeys();
-    router.push('/');
+    // Includes any active "view as" scenario and the device cookie — see
+    // signOutEverywhere for what each of the four claims is.
+    await signOutEverywhere();
+    // A hard navigation, not router.push: a soft one keeps every module's state
+    // and SWR's whole cache, so the previous account's data was still sitting in
+    // memory behind the landing page.
+    window.location.href = '/';
   };
 
   const initials = userName

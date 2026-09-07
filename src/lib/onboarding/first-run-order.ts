@@ -46,6 +46,23 @@ export function recordInstallOfferSkipped(): void {
 }
 
 /**
+ * Ask again, because somebody asked us to.
+ *
+ * Every way out of the install offer is sticky by design — a dismissal, a session
+ * skip, or three visits' worth of "not now" — and until this existed there was no
+ * way back in. A member who waved it away and never added the icon stayed on the
+ * web permanently: no icon, and on iOS no app-native notifications ever, since
+ * those need a subscription created while standalone. The flow had an exit but no
+ * door. This is the door — reached from the setup checklist, so it is always an
+ * explicit request rather than the nag this state was invented to prevent.
+ */
+export function resetInstallOffer(): void {
+  localStorage.removeItem(INSTALL_DISMISS_KEY);
+  localStorage.removeItem(INSTALL_OFFER_COUNT_KEY);
+  sessionStorage.removeItem(INSTALL_SESSION_SKIP_KEY);
+}
+
+/**
  * How long to wait for `beforeinstallprompt` before concluding this device
  * can't be asked at all. Chromium fires it as part of page load; anything that
  * hasn't by now (desktop Firefox, an in-app webview, Chrome on iOS) never will

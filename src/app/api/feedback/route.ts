@@ -128,10 +128,10 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
 
     // `?count=1` — just the totals, for the "N reports, M new" link on the
-    // review screen. It exists so that badge doesn't have to download the full
-    // list: every row carries a base64 screenshot in `image_url`, so the list
-    // response is measured in megabytes and is far too heavy to fetch for a
-    // number. `head: true` sends no rows at all.
+    // review screen. It exists so that badge doesn't have to download the whole
+    // list to render a number; `head: true` sends no rows at all. (It was added
+    // when the list still inlined every screenshot and so ran to megabytes — the
+    // list is small now, but a count is still the right request for a count.)
     if (new URL(request.url).searchParams.get('count') === '1') {
       const [total, fresh] = await Promise.all([
         supabase.from('feedback').select('id', { count: 'exact', head: true }),
@@ -141,6 +141,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ total: total.count ?? 0, new: fresh.count ?? 0 });
     }
 
+    // `?image=<id>` — one report's screenshot, fetched only when a staff member
+    // actually opens that report. See the list below for why it isn't inlined.
+    const imageId = new URL(request.url).searchParams.get('image');
+    if (imageId) {
+      const { data, error } = await supabase
+        .from('feedback')
+        .select('image_url')
+        .eq('id', imageId)
+        .maybeSingle();
+      if (error) throw error;
+      return NextResponse.json({ image_url: data?.image_url ?? null });
+    }
+
     const { data, error } = await supabase
       .from('feedback')
       .select('*')
@@ -148,7 +161,16 @@ export async function GET(request: Request) {
       .limit(100);
 
     if (error) throw error;
-    return NextResponse.json({ feedback: data || [] });
+    // The screenshots do not travel with the list. They are stored as base64 in
+    // the row, and measured on the real table they were 366 KB of a 370 KB
+    // response — 98% — with one report alone at 284 KB. The list renders no
+    // images at all; only the detail sheet does, one report at a time. So the
+    // list says whether there is one and the sheet fetches it via `?image=`.
+    const feedback = (data || []).map(({ image_url, ...row }) => ({
+      ...row,
+      has_image: !!image_url,
+    }));
+    return NextResponse.json({ feedback });
   } catch (error: any) {
     console.error('Feedback fetch error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

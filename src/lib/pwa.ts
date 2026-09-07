@@ -38,6 +38,34 @@ export function isIosSafari(): boolean {
   return isIosDevice() && /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
 }
 
+/**
+ * An in-app browser — the webview inside WhatsApp, Instagram, Facebook or Gmail.
+ *
+ * This is how the club actually arrives: invites go out on WhatsApp, and a link
+ * tapped there opens in WhatsApp's own webview, not in Safari or Chrome. That
+ * webview CANNOT install a PWA — there is no Add to Home Screen in its share
+ * sheet and no `beforeinstallprompt` — so the install step used to show it either
+ * Safari's steps (pointing at a menu item that isn't there) or nothing at all.
+ * Either way the member stayed in a webview forever: no icon, and on iOS no
+ * app-native notifications, which need a subscription created while standalone.
+ *
+ * So it gets its own offer: leave this browser first. Detected by the app tokens
+ * these webviews put in the UA, plus the iOS tell — WKWebView omits the `Safari/`
+ * product that real Safari always sends, which catches the ones that identify
+ * themselves as nothing at all.
+ */
+export function isInAppBrowser(): boolean {
+  const ua = window.navigator.userAgent;
+  if (/fban|fbav|fb_iab|instagram|line\/|micromessenger|twitter|snapchat|linkedinapp|pinterest/i.test(ua)) return true;
+  // WhatsApp is the one that matters here and it is inconsistent: some versions
+  // append WhatsApp, others send a bare WKWebView UA.
+  if (/whatsapp/i.test(ua)) return true;
+  if (isStandalone()) return false; // the installed app is a webview too, by definition
+  if (isIosDevice() && /applewebkit/i.test(ua) && !/safari\//i.test(ua)) return true;
+  // Android's webview says so outright; Chrome proper never carries `; wv`.
+  return /android/i.test(ua) && /;\s?wv\)/i.test(ua);
+}
+
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');

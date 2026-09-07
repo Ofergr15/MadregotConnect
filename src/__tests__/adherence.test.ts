@@ -153,17 +153,17 @@ describe('assessWorkout — per-metric status', () => {
     expect(a.pace.status).toBe('on_target');
   });
 
-  it('pace-seconds example: 5:00 target ±5s → 4:55 ok, 4:50 too fast, 5:06 too slow', () => {
-    // Single target 300 s/km (5:00), default ±5s → good 295..305.
+  it('pace-seconds example: 5:00 target ±10s → 4:50 ok, 4:49 too fast, 5:11 too slow', () => {
+    // Single target 300 s/km (5:00), default ±10s → good 290..310.
     const p = buildPlannedWorkout(
       workout([{ type: 'active', durationType: 'distance', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 300 }]),
       '2026-07-13'
     );
     const at = (pace: number) => assessWorkout(p, { id: 'x', date: '2026-07-13', distance: 2000, duration: 2 * pace, averagePace: pace }).pace.status;
-    expect(at(295)).toBe('on_target'); // 4:55
-    expect(at(305)).toBe('on_target'); // 5:05
-    expect(at(290)).toBe('faster');    // 4:50
-    expect(at(306)).toBe('slower');    // 5:06
+    expect(at(290)).toBe('on_target'); // 4:50
+    expect(at(310)).toBe('on_target'); // 5:10
+    expect(at(289)).toBe('faster');    // 4:49
+    expect(at(311)).toBe('slower');    // 5:11
   });
 });
 

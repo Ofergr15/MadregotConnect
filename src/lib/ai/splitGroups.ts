@@ -116,6 +116,32 @@ function splitWorkout(workout: ParsedWorkout, group: 1 | 2 | 3): ParsedWorkout {
   };
 }
 
+/**
+ * One lane's pace band out of a free-text note, in sec/km — the coach's own
+ * notation, read wherever it turns up.
+ *
+ * It turns up in more than the plan text. The structured workouts on the athletes'
+ * watches carry the coach's notes verbatim on each step ("4:25 (4:35) ((4:45))",
+ * "5:00-5:30"), and Garmin stores no machine-readable pace target for them at all —
+ * one workout in eight has a SPEED target, the rest have the note. So the note IS
+ * the target for grading a watch-driven run, which means this reading of it cannot be
+ * private to the plan splitter.
+ *
+ * A note with no bracket notation is one pace for everybody, so every lane gets it —
+ * that is the same rule `splitStep` applies, and most club weeks are written that way.
+ * Null when there is no pace in the text at all.
+ */
+export function lanePaceFromNotes(
+  notes: string | null | undefined,
+  lane: 1 | 2 | 3,
+): { min: number; max: number } | null {
+  if (!notes) return null;
+  const byLane = extractPacesFromNotes(notes);
+  const picked = lane === 1 ? byLane.g1 : lane === 2 ? byLane.g2 : byLane.g3;
+  if (picked) return picked;
+  return parsePaceToSeconds(notes);
+}
+
 export function splitIntoGroups(plan: ParsedWeeklyPlan): GroupedWeeklyPlans {
   return {
     group1: { workouts: plan.workouts.map(w => splitWorkout(w, 1)) },

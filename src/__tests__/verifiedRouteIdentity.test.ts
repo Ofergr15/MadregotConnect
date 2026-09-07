@@ -83,6 +83,15 @@ describe('verified identity on every API route', () => {
 
 // ---------------------------------------------------------------------------
 
+// Maintenance mode is off for everything below. resolveVerifiedCaller reads it on
+// every request, and that read is a real `app_settings` query — it would show up in
+// `ops` and make "no query ran before the 403" look false. Which gate wins during a
+// window is pinned in maintenanceEnforcement.test.ts instead.
+vi.mock('@/lib/maintenance', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/maintenance')>()),
+  readMaintenance: async () => ({ on: false, allow: [] }),
+}));
+
 const requireSession = vi.fn();
 vi.mock('@/lib/auth-session', () => ({
   requireSession: (req: Request) => requireSession(req),
@@ -97,6 +106,7 @@ type SessionOverrides = Partial<{
   email: string;
   athleteId: string | null;
   role: string;
+  athleteStatus: string | null;
   isStaff: boolean;
   isSuperUser: boolean;
   canApprove: boolean;
@@ -187,14 +197,27 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue({ ok: false, status: 403, error: 'No membership found for this account' });
     const res = await me(new Request('https://example.test/api/auth/me'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ role: 'viewer' });
+    expect(await res.json()).toEqual({ role: 'viewer', membership: 'none' });
+  });
+
+  // The shell's gate. A revoked or not-yet-approved member keeps their ROLE, so
+  // role alone reads as "let them in" — which is exactly how such an account used
+  // to get the whole signed-in shell. `membership` is the separate answer.
+  it('reports membership inactive for an athlete row that is not active', async () => {
+    requireSession.mockResolvedValue(session({ athleteStatus: 'invited' }));
+    selected = { is_academy: false };
+    const res = await me(new Request('https://example.test/api/auth/me'));
+    const body = await res.json();
+    expect(body.membership).toBe('inactive');
+    // Still a runner — the role is not what was taken away.
+    expect(body.role).toBe('runner');
   });
 
   it('returns the session role plus the academy flag, and stamps last_seen_at by id', async () => {
     requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
     selected = { is_academy: true };
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', isAcademy: true, isSuper: false, canApprove: false, isCoreRunner: false });
+    expect(await res.json()).toEqual({ role: 'coach', membership: 'active', isAcademy: true, isSuper: false, canApprove: false, isCoreRunner: false });
 
     const update = ops.find((o) => o.op === 'update');
     expect(update?.table).toBe('athletes');
@@ -206,7 +229,7 @@ describe('GET /api/auth/me', () => {
   it('serves a legacy coaches-only account, which has no athletes row to read', async () => {
     requireSession.mockResolvedValue(session({ athleteId: null, role: 'coach', isStaff: true }));
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', isSuper: false, canApprove: false, isCoreRunner: false });
+    expect(await res.json()).toEqual({ role: 'coach', membership: 'active', isSuper: false, canApprove: false, isCoreRunner: false });
     // Nothing to select or stamp — and stamping by a null id would touch rows.
     expect(ops).toHaveLength(0);
   });
@@ -216,7 +239,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session());
     selected = null;
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'runner', isAcademy: false, isSuper: false, canApprove: false, isCoreRunner: false });
+    expect(await res.json()).toEqual({ role: 'runner', membership: 'active', isAcademy: false, isSuper: false, canApprove: false, isCoreRunner: false });
   });
 
   // The view-as control was deciding "is this the super user" client-side, off

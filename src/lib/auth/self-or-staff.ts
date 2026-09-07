@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authError, requireSession } from '@/lib/auth-session';
+import { maintenanceBlocks, readMaintenance } from '@/lib/maintenance';
 
 // Coach/admin-flavoured roles that may act on behalf of any athlete. Kept as
 // the single source of truth — several routes each hand-rolled their own
@@ -91,6 +92,31 @@ export async function resolveVerifiedCaller(
       caller: { email: '', isSuperUser: false, canApprove: false, isStaff: false, athleteId: null, role: '', isCoreRunner: false },
     };
   }
+  // ── Maintenance mode, with teeth ─────────────────────────────────────────
+  //
+  // Every member, staff and self-or-staff route funnels through here, so this is
+  // the one place that can make the window real. It used to be an overlay only,
+  // and every way around the overlay was a one-liner in the console (see
+  // src/lib/maintenance.ts) while the APIs kept serving — so "the club is closed"
+  // was a picture of a closed door. The allowlist governs everyone, staff
+  // included; that is the existing decision in PUT /api/maintenance.
+  //
+  // 503 rather than 403: this is temporary and says "come back", and it is the
+  // status the rest of the app already uses for "ask again later".
+  const blockedByMaintenance = maintenanceBlocks(
+    { email: auth.user.email, athleteEmail: auth.user.athleteEmail, athleteId: auth.user.athleteId },
+    await readMaintenance(),
+  );
+  if (blockedByMaintenance) {
+    return {
+      denied: NextResponse.json(
+        { error: 'maintenance', message: 'האפליקציה בעבודות תחזוקה — ננסה שוב בקרוב.' },
+        { status: 503 },
+      ),
+      caller: { email: '', isSuperUser: false, canApprove: false, isStaff: false, athleteId: null, role: '', isCoreRunner: false },
+    };
+  }
+
   return {
     denied: null,
     caller: {

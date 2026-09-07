@@ -415,7 +415,11 @@ export default function ActivitiesPage() {
               value={(
                 <>
                   {weekData.avgHR || '\u2014'}
-                  <span className="text-lg font-medium text-ink-400 ms-0.5">{t('bpm')}</span>
+                  {/* Smaller than the pace card's unit on purpose: "/km" is three
+                      characters but bpm spells out as "\u05e4\u05e2\u05d9\u05de\u05d5\u05ea/\u05d3\u05e7\u05d4", and at text-lg
+                      the number plus the unit came to 139px inside a 130px card on
+                      a 320px phone \u2014 the card clips, so the unit read "\u05e4\u05e2\u05d9\u05de\u05d5". */}
+                  <span className="text-xs sm:text-lg font-medium text-ink-400 ms-0.5">{t('bpm')}</span>
                 </>
               )}
               label={t('avgHeartRate')}
@@ -425,8 +429,11 @@ export default function ActivitiesPage() {
 
         {/* Daily Volume Chart */}
         <div className="bg-card/30 rounded-card border border-page/20 p-5">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-bold text-ink-700">{t('dailyVolume')}</h3>
+          {/* Wrap rather than squeeze: with both calories and elevation present
+              there is no room left for the heading on a 320px phone, and it was
+              breaking "נפח יומי" onto two lines mid-title. */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-5">
+            <h3 className="shrink-0 text-sm font-bold text-ink-700">{t('dailyVolume')}</h3>
             <div className="flex items-center gap-4 text-xs text-ink-400">
               {weekData.totalCalories > 0 && (
                 <span className="flex items-center gap-1.5"><Flame className="h-3.5 w-3.5 text-band-3" />{weekData.totalCalories.toLocaleString()} {t('cal')}</span>

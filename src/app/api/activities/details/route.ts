@@ -1,9 +1,10 @@
 /**
  * GET /api/activities/details?activityId=<uuid|legacy numeric>[&athleteId=]
  *
- * Returns route/splits and the activity's own summary row from what we already
- * stored at Strava sync time. No live Garmin call — Strava is the only activity
- * source.
+ * Returns route/splits and the activity's own summary row from what the sync
+ * already stored. No live provider call — and both providers fill these columns,
+ * Garmin for most of the club and Strava for the rest, which is why the splits
+ * are read through one normaliser rather than one provider's key names.
  *
  * `athleteId` is optional. A caller arriving from a feed card has the activity's
  * uuid and nothing else; when it IS supplied it narrows the lookup, which is how
@@ -19,6 +20,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
+import { displaySplits } from '@/lib/activities/km-splits';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,24 +77,14 @@ export async function GET(request: Request) {
     }
 
     const r = row as any;
-    const laps = (r.laps as any[]) || [];
-    const splits =
-      (r.splits as any[]) ||
-      laps.map((lap, i) => ({
-        distance: lap.distance || 0,
-        duration: lap.moving_time || lap.elapsed_time || 0,
-        averagePace:
-          lap.distance > 0
-            ? Math.round((lap.moving_time || lap.elapsed_time || 0) / (lap.distance / 1000))
-            : 0,
-        averageHR: lap.average_heartrate || null,
-        maxHR: lap.max_heartrate || null,
-        elevationGain: null,
-        elevationLoss: null,
-        cadence: null,
-        strideLength: null,
-        name: lap.name || `Lap ${i + 1}`,
-      }));
+    // The splits the UI draws, on the kilometre grid it labels them with — from
+    // whichever column is the finer record of the run (see `displaySplits`). The
+    // old fallback read Strava's `moving_time` off Garmin laps and binned nothing,
+    // so every Garmin run shipped splits of 0:00 at pace 0:00: a splits table of
+    // zeroes, a pace chart pinned flat against a y-axis labelled "-1:-28", and
+    // "0 of 31 kilometres inside the target band" said about a 15 km run whose
+    // laps were all there.
+    const splits = displaySplits(r.splits, r.laps);
 
     // The summary row, shaped like the list endpoint's rows so the detail UI can
     // take either one. `gps_points`/`laps`/`splits` are dropped from it — they're

@@ -84,6 +84,36 @@ export interface ExecutionMetric {
   reason: ExecutionUnknownReason | null;
 }
 
+/**
+ * Which stretch of the run the pace row is about.
+ *
+ * The pace row's `actual` is NOT the run's average — on "2 km easy, 20 km at 4:25,
+ * 8 strides" the average is none of the three numbers the coach wrote. It is the
+ * pace over one named part of the session (see `dominantBlock` /
+ * `dominantWatchStep`), and a number over an unnamed stretch is a number the
+ * athlete can't check, so whoever grades pace hands this along with it.
+ */
+export interface ExecutionPaceScope {
+  /** The step or block, in the plan's own words: "20 ק״מ 4:25" / "Warmup". */
+  label: string;
+  /** Where it was found on the distance axis. Null when the source can't say —
+   *  a watch step reports a step, and eight strides have no single from/to. */
+  fromM: number | null;
+  toM: number | null;
+  plannedLengthM: number | null;
+  /** How much of it actually happened. Only differs from `plannedLengthM` on a
+   *  `truncated` scope, and that difference is the sentence the athlete needs:
+   *  "4:35 over the 13 of 20 km you ran of it". */
+  ranLengthM: number | null;
+  /** The run ended before the step did: the pace is over the part that happened. */
+  truncated: boolean;
+  /** How precisely a searched window could be placed. Null for a watch step,
+   *  which isn't a search. */
+  resolutionM: number | null;
+  /** `watch` = the device said so; the others are inferred from a trace. */
+  source: 'watch' | 'stream' | 'laps';
+}
+
 export interface ExecutionRep {
   index: number;
   /** English label from segments.ts, e.g. "Interval 2km" / "Rest". */
@@ -127,6 +157,10 @@ export interface ExecutionVerdict {
   /** The coach's work band (sec/km) — what to SHOW, even when it wasn't graded. */
   paceBandMin: number | null;
   paceBandMax: number | null;
+  /** Set when the pace row describes one part of the run rather than all of it. */
+  paceScope: ExecutionPaceScope | null;
+  /** The run's average pace, when the pace row above isn't it. */
+  wholeRunPace: number | null;
   metrics: ExecutionMetric[];
   reps: ExecutionRep[];
   repsAligned: boolean;
@@ -198,6 +232,26 @@ export function rangeDeviation(
   if (actual < lower) return { deviation: actual - lower, tolerance: Math.max(min * toleranceFraction, 1) };
   if (actual > upper) return { deviation: actual - upper, tolerance: Math.max(max * toleranceFraction, 1) };
   return { deviation: 0, tolerance: Math.max(min * toleranceFraction, 1) };
+}
+
+/**
+ * Signed distance outside the PLAN's own band, in the metric's unit.
+ *
+ * Not the same number as `deviation`, and the difference is the difference
+ * between a score and a sentence. `deviation` measures from the TOLERATED edge,
+ * because that is where closeness starts decaying — 15.0 km against a 23 km plan
+ * is 4.5 km outside the ±15% band. But the athlete is told "the distance was
+ * {km} km shorter than planned", and the plan said 23: they were 8.0 km short,
+ * and 4.5 is a number that appears nowhere in their run or their plan.
+ *
+ * So the copy asks this, the ring asks `deviation`, and neither has to lie.
+ */
+export function planGap(metric: ExecutionMetric): number | null {
+  const { actual, plannedMin, plannedMax } = metric;
+  if (actual == null || plannedMin == null || plannedMax == null) return null;
+  if (actual < plannedMin) return actual - plannedMin;
+  if (actual > plannedMax) return actual - plannedMax;
+  return 0;
 }
 
 /** Weight on the per-rep verdicts when a session has both reps and metrics. */
@@ -350,12 +404,24 @@ export function directionFromDeviations(deviations: number[]): ExecutionDirectio
 export interface VerdictInput {
   activityId: string;
   athleteId: string;
-  /** Null when no planned workout was matched to this run. */
+  /**
+   * Null when no planned workout was matched to this run.
+   *
+   * `adherence.pace` may have been REPLACED by the caller with a block's or a watch
+   * step's answer before it got here — that is the intended way in, because it is
+   * `comparedMin`/`comparedMax` that decide whether pace is gradeable at all (see
+   * `paceUnknownReason`), and only the caller has the laps and the trace needed to
+   * fill them on a structured session. When it does that, it passes `paceScope` and
+   * `wholeRunPace` below so the row can say what it is about.
+   */
   adherence: WorkoutAdherence | null;
   /** Null when the run has no stored laps, or they didn't line up with the plan. */
   segments: SegmentReport | null;
   tolerances?: AdherenceTolerances;
   workoutName?: string | null;
+  /** See `ExecutionPaceScope`. Omit when `adherence.pace` is the whole-run average. */
+  paceScope?: ExecutionPaceScope | null;
+  wholeRunPace?: number | null;
 }
 
 export function buildVerdict(input: VerdictInput): ExecutionVerdict {
@@ -378,6 +444,8 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
       workoutName: input.workoutName ?? adherence?.name ?? null,
       paceBandMin: null,
       paceBandMax: null,
+      paceScope: null,
+      wholeRunPace: null,
       metrics: [],
       reps: [],
       repsAligned: false,
@@ -480,6 +548,15 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
     workoutName: input.workoutName ?? adherence.name ?? null,
     paceBandMin: adherence.pace.plannedMin,
     paceBandMax: adherence.pace.plannedMax,
+    paceScope: input.paceScope ?? null,
+    // Only when it differs from the pace row, so a caller reading `wholeRunPace`
+    // doesn't have to compare two numbers to find out whether it's the same one —
+    // and so the card never prints "whole run 4:35" under an actual of 4:35.
+    wholeRunPace: input.paceScope != null
+      && input.wholeRunPace != null
+      && input.wholeRunPace !== paceMetric?.actual
+      ? input.wholeRunPace
+      : null,
     metrics,
     reps,
     repsAligned: input.segments?.aligned ?? false,

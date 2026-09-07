@@ -437,10 +437,17 @@ export default function FeedPage() {
         />
       )}
 
+      {/* The headline is ours, not the server's. This branch used to render
+          `error` itself as the title, which meant an API sentence written for a
+          developer — in English, in an RTL Hebrew app — was the biggest text on
+          the screen ("No membership found for this account"). The raw string
+          stays as the small line underneath, where it still helps a bug report
+          without pretending to be a message to the user. */}
       {!loading && error && error !== 'NOT_SIGNED_IN' && (
         <EmptyState
           icon={AlertCircle}
-          title={error}
+          title={t('loadError')}
+          description={error}
           action={<Button onClick={loadInitial}>{t('retry')}</Button>}
         />
       )}

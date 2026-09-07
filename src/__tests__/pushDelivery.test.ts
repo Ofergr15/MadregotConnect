@@ -87,9 +87,12 @@ beforeEach(() => {
   writes = { updated: [], deleted: [], inserted: [] };
   tables = {
     app_settings: [{ key: 'maintenance_mode', value: 'off' }],
+    // `status` is not decoration here: subscriptionsForAthletes drops the
+    // subscriptions of anyone the app is refusing to let in, so a fixture athlete
+    // without it receives nothing at all (see computeSilencedAthleteIds).
     athletes: [
-      { id: 'a1', email: 'a1@x.test', notification_prefs: null, group_id: null, last_seen_at: null },
-      { id: 'a2', email: 'a2@x.test', notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'a1', email: 'a1@x.test', status: 'active', notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'a2', email: 'a2@x.test', status: 'active', notification_prefs: null, group_id: null, last_seen_at: null },
     ],
     scheduled_notifications: [],
     push_subscriptions: [],
@@ -175,7 +178,7 @@ describe('sendPushDetailed — silenced audiences say so', () => {
   });
 
   it('explains itself when every recipient muted the category', async () => {
-    tables.athletes = [{ id: 'a1', email: 'a1@x.test', notification_prefs: { teammates: false }, group_id: null, last_seen_at: null }];
+    tables.athletes = [{ id: 'a1', status: 'active', email: 'a1@x.test', notification_prefs: { teammates: false }, group_id: null, last_seen_at: null }];
     const result = await sendPushDetailed([sub('s1', 'a1')], { title: 'muted', body: 'x', category: 'teammates' });
     expect(result.sent).toBe(0);
     expect(sendNotification).not.toHaveBeenCalled();
@@ -272,7 +275,7 @@ describe('app-icon badge — what the athlete actually sees on the home screen',
     // a1 muted teammates, so the two kudos rows below were never delivered to
     // them — the badge used to climb for them anyway, which is how "I turned
     // אימוני חברי הקבוצה off" still produced a growing red number.
-    tables.athletes = [{ id: 'a1', email: 'a1@x.test', notification_prefs: { teammates: false }, group_id: null, last_seen_at: null }];
+    tables.athletes = [{ id: 'a1', status: 'active', email: 'a1@x.test', notification_prefs: { teammates: false }, group_id: null, last_seen_at: null }];
     tables.scheduled_notifications = [notif(), notif()];
     // A coach message still gets through — that toggle is on.
     await sendPushDetailed([sub('s1', 'a1')], { title: 'coach', body: 'x', category: 'coach' });
@@ -297,8 +300,9 @@ describe('teammate-activity copy — the same event read two different ways', ()
   /** One runner, one follower with one device. */
   const run = (runner: Record<string, unknown> = {}, distanceMeters = 8300) => {
     tables.athletes = [
-      { id: 'runner', email: 'r@x.test', name: 'אסף אלקסלסי', gender: 'male', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null, ...runner },
-      { id: 'f1', email: 'f1@x.test', notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'runner', email: 'r@x.test', name: 'אסף אלקסלסי', gender: 'male', status: 'active', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null, ...runner },
+      // The follower has to be an active member or they are not notified at all.
+      { id: 'f1', email: 'f1@x.test', status: 'active', notification_prefs: null, group_id: null, last_seen_at: null },
     ];
     tables.athlete_follows = [{ follower_id: 'f1' }];
     tables.push_subscriptions = [sub('s1', 'f1')];
@@ -349,8 +353,8 @@ describe('teammate-activity copy — the same event read two different ways', ()
   it('writes the history row in the FOLLOWER\'s language, not the runner\'s', async () => {
     // The runner is irrelevant to the wording — their followers are the readers.
     tables.athletes = [
-      { id: 'runner', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', avatar_url: null, notification_prefs: { language: 'he' }, group_id: null, last_seen_at: null },
-      { id: 'f1', email: 'f1@x.test', notification_prefs: { language: 'en' }, group_id: null, last_seen_at: null },
+      { id: 'runner', status: 'active', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', avatar_url: null, notification_prefs: { language: 'he' }, group_id: null, last_seen_at: null },
+      { id: 'f1', status: 'active', email: 'f1@x.test', notification_prefs: { language: 'en' }, group_id: null, last_seen_at: null },
     ];
     tables.athlete_follows = [{ follower_id: 'f1' }];
     tables.push_subscriptions = [sub('s1', 'f1')];
@@ -365,9 +369,9 @@ describe('teammate-activity copy — the same event read two different ways', ()
     // subscriptions by their athlete's saved language and sending per group.
     // Without it, whichever language won would be wrong for somebody.
     tables.athletes = [
-      { id: 'runner', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null },
-      { id: 'f_en', email: 'en@x.test', notification_prefs: { language: 'en' }, group_id: null, last_seen_at: null },
-      { id: 'f_he', email: 'he@x.test', notification_prefs: { language: 'he' }, group_id: null, last_seen_at: null },
+      { id: 'runner', status: 'active', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'f_en', status: 'active', email: 'en@x.test', notification_prefs: { language: 'en' }, group_id: null, last_seen_at: null },
+      { id: 'f_he', status: 'active', email: 'he@x.test', notification_prefs: { language: 'he' }, group_id: null, last_seen_at: null },
     ];
     tables.athlete_follows = [{ follower_id: 'f_en' }, { follower_id: 'f_he' }];
     tables.push_subscriptions = [sub('s_en', 'f_en'), sub('s_he', 'f_he')];
@@ -400,9 +404,9 @@ describe('teammate-activity copy — the same event read two different ways', ()
     // The club's reality today. Grouping must not cost an extra push, or an
     // all-Hebrew club pays for a feature it never uses.
     tables.athletes = [
-      { id: 'runner', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null },
-      { id: 'f1', email: 'f1@x.test', notification_prefs: null, group_id: null, last_seen_at: null },
-      { id: 'f2', email: 'f2@x.test', notification_prefs: { language: 'he' }, group_id: null, last_seen_at: null },
+      { id: 'runner', status: 'active', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'f1', status: 'active', email: 'f1@x.test', notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'f2', status: 'active', email: 'f2@x.test', notification_prefs: { language: 'he' }, group_id: null, last_seen_at: null },
     ];
     tables.athlete_follows = [{ follower_id: 'f1' }, { follower_id: 'f2' }];
     tables.push_subscriptions = [sub('s1', 'f1'), sub('s2', 'f2')];
