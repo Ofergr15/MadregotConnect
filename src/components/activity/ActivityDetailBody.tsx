@@ -6,6 +6,7 @@ import {
   RefreshCw, Sparkles, TrendingUp, Zap,
 } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
+import { displaySplits } from '@/lib/activities/km-splits';
 import type { ExecutionVerdict } from '@/lib/plan-execution/verdict';
 import { cn } from '@/lib/utils';
 import { ElevationChart, HRChart, PaceChart } from './charts';
@@ -89,7 +90,11 @@ export function ActivityDetailBody({
   const maxHR = Math.max(DEFAULT_MAX_HR, act.max_hr ?? 0);
   const hrZone = act.average_hr ? getHRZone(act.average_hr, maxHR) : null;
 
-  const splits = details?.splits || act.splits || [];
+  // The row already holds the laps, so the kilometres are drawable before the
+  // details request lands — and still drawable if it fails. Through the same
+  // binning the server does, or the two paints disagree: the row's raw `laps` are
+  // per workout STEP, and rendering them as splits is the 31-kilometre 15 km run.
+  const splits = details?.splits || displaySplits(act.splits, act.laps);
   // Prefer the route stored at sync time (instant, reliable); fall back to the
   // live-fetched points for activities synced before GPS was persisted.
   const routePoints = (act.gps_points && act.gps_points.length > 0)
@@ -276,9 +281,13 @@ export function ActivityDetailBody({
               <HRChart splits={splits} maxHR={maxHR} />
             </div>
           )}
-          <div className="bg-page/40 rounded-xl p-4 border border-page/20">
-            <ElevationChart splits={splits} />
-          </div>
+          {/* Same test the chart itself applies — otherwise a run with no
+              elevation on its laps leaves an empty bordered box behind. */}
+          {splits.some(s => s.elevationGain != null || s.elevationLoss != null) && (
+            <div className="bg-page/40 rounded-xl p-4 border border-page/20">
+              <ElevationChart splits={splits} />
+            </div>
+          )}
         </div>
       )}
 

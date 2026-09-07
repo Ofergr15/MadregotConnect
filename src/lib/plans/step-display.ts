@@ -55,7 +55,11 @@ export function stepMetric(step: WorkoutStep, units: StepUnits): string {
   if (step.durationType === 'time' && value) {
     // A coach-written RANGE beats the single figure the parser had to choose:
     // Saturday is written "40-50 דק׳" and stored as 2700s, and "45 דק׳" is a
-    // decision the athlete never made.
+    // decision the athlete never made. Stored ends first (the import's auto-fix
+    // writes them), the note only where the step has none.
+    if (step.durationMaxValue && step.durationMaxValue > value) {
+      return `${value / 60}–${step.durationMaxValue / 60} ${units.min}`;
+    }
     const fromNotes = durationRangeFromNotes(step.notes);
     if (fromNotes && fromNotes.min !== fromNotes.max) {
       return `${fromNotes.min / 60}–${fromNotes.max / 60} ${units.min}`;

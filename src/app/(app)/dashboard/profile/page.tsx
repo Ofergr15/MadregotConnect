@@ -80,11 +80,17 @@ function Spinning() {
 }
 
 /**
- * Whose profile this is. The admin account isn't a runner — it's the account the
- * system is administered from — so it gets AdminAccount here (identity,
- * privileges, view-as, version, sign out) instead of a km table and a Garmin
- * connection it will never have. Same route on purpose: one nav entry, one active
- * state, and every existing /dashboard/profile link still lands somewhere true.
+ * Whose profile this is. An admin account with NO athlete row isn't a runner — it's
+ * only the account the system is administered from — so it gets AdminAccount here
+ * (identity, privileges, view-as, version, sign out) instead of a km table and a
+ * Garmin connection it will never have. Same route on purpose: one nav entry, one
+ * active state, and every existing /dashboard/profile link still lands somewhere
+ * true.
+ *
+ * An admin who DOES have an athlete row gets their training profile, because that
+ * account is a member as well as an administrator — the club's admins are its
+ * coaches and its owner, and they all run. This branch and the profile tab in
+ * `resolveNavItems` answer the same question, so they read the same two inputs.
  *
  * The branch is OUTSIDE ProfileContent, not an early return inside it, because
  * that component opens with a dozen athlete fetches — for an admin they would all
@@ -98,9 +104,16 @@ function Spinning() {
  * training screen appear and then be replaced.
  */
 function ProfileGate() {
-  const { effectiveRole, ready } = useNavIdentity();
-  if (!ready) return <Spinning />;
-  if (effectiveRole === 'admin') return <AdminAccount />;
+  const { effectiveRole, isAthlete, ready } = useNavIdentity();
+  // `isAthlete` is read from localStorage in the hook's own mount effect, so it is
+  // false on the very first render — and `ready` can be true there already when SWR
+  // answers both requests from cache. Waiting one tick costs nothing and is the
+  // difference between "an admin who runs sees their profile" and "an admin who
+  // runs sees the account screen flash first".
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!ready || !mounted) return <Spinning />;
+  if (effectiveRole === 'admin' && !isAthlete) return <AdminAccount />;
   return <ProfileContent />;
 }
 

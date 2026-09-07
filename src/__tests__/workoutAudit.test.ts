@@ -154,6 +154,171 @@ describe('auditWorkout — notes', () => {
   });
 });
 
+// ── the five structural detectors ───────────────────────────────────────────
+// Each of these is a real misread off the week of 12.07.26, and each is written
+// against the RESULT rather than the PDF — no vision call, so they can run on
+// every week the club has ever imported.
+
+describe('auditWorkout — one column handed to three groups', () => {
+  /** Sunday's descending ladder. The document gives ❶ 4:00→3:30, ❷ 4:10→3:40, ❸ 4:20→3:50. */
+  const ladder = (over: Partial<WorkoutStep> = {}) => workout([
+    step({ order: 1, type: 'warmup', durationType: 'distance', durationValue: 6000, targetPaceMinPerKm: 280, targetPaceMaxPerKm: 330 }),
+    step({
+      order: 2, type: 'interval', durationValue: 90,
+      targetPaceMinPerKm: 250, targetPaceMaxPerKm: 250, ...over,
+    }),
+  ]);
+
+  it('flags an interval whose three groups are all on one pace', () => {
+    const finding = auditWorkout(ladder()).find((f) => f.code === 'sameIntervalPace');
+    expect(finding).toMatchObject({ level: 'warn', count: 1, steps: [2] });
+  });
+
+  it('is silent when the document\'s three columns did come through', () => {
+    expect(codes(ladder({
+      group2Pace: { min: 260, max: 260 }, group3Pace: { min: 270, max: 270 },
+    }))).not.toContain('sameIntervalPace');
+  });
+
+  it('treats an absent ❷ as ❷ running ❶\'s pace, because that is what the board does', () => {
+    expect(codes(ladder({ group3Pace: { min: 250, max: 250 } }))).toContain('sameIntervalPace');
+  });
+
+  it('does not ask an unpaced interval which column it came from', () => {
+    expect(codes(ladder({
+      targetType: 'no_target', targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined,
+      notes: 'מתגברת',
+    }))).not.toContain('sameIntervalPace');
+  });
+
+  it('says it once, about the steps, instead of twice', () => {
+    // `groupPacesIdentical` is the same observation with no step numbers on it.
+    expect(codes(ladder())).not.toContain('groupPacesIdentical');
+  });
+
+  it('looks inside a repeat block', () => {
+    const set = workout([step({
+      order: 3, type: 'interval', durationValue: 0, repeatCount: 10,
+      repeatSteps: [
+        step({ order: 1, type: 'interval', durationType: 'distance', durationValue: 200, targetPaceMinPerKm: 200 }),
+        step({ order: 2, type: 'rest', durationValue: 60, targetType: 'no_target', notes: 'הליכה' }),
+      ],
+    })]);
+    expect(auditWorkout(set).find((f) => f.code === 'sameIntervalPace')?.steps).toEqual([1]);
+  });
+
+  it('points at the step itself, since a leg\'s number is not the session\'s', () => {
+    // `order` restarts inside a repeat block, so this 200 m leg and the 6 km run
+    // above it are both "1". A screen that marks rows by number stripes the run.
+    const leg = step({ order: 1, type: 'interval', durationType: 'distance', durationValue: 200, targetPaceMinPerKm: 200 });
+    const run = step({
+      order: 1, durationType: 'distance', durationValue: 6000,
+      targetPaceMinPerKm: 280, group2Pace: { min: 290, max: 290 }, group3Pace: { min: 300, max: 300 },
+    });
+    const set = workout([run, step({ order: 2, type: 'interval', durationValue: 0, repeatCount: 10, repeatSteps: [leg] })]);
+
+    const finding = auditWorkout(set).find((f) => f.code === 'sameIntervalPace');
+    expect(finding?.refs).toEqual([leg]);
+    expect(finding?.refs).not.toContain(run);
+  });
+});
+
+describe('auditWorkout — a day that belongs to the day before it', () => {
+  /** The first table on page 3: it opens on the rest that followed Tuesday's test. */
+  const continuation = workout([
+    step({ order: 1, type: 'rest', durationValue: 600, targetType: 'no_target', notes: 'מנוחה' }),
+    step({ order: 2, type: 'interval', durationValue: 45, targetPaceMinPerKm: 195, targetPaceMaxPerKm: 200 }),
+    step({ order: 3, type: 'cooldown', durationType: 'distance', durationValue: 2000, targetPaceMinPerKm: 300, notes: 'שחרור' }),
+  ], { dayOfWeek: 4 });
+
+  it('warns when a session opens on a rest', () => {
+    const finding = auditWorkout(continuation).find((f) => f.code === 'startsWithRest');
+    expect(finding).toMatchObject({ level: 'warn', steps: [1] });
+  });
+
+  it('leads with it — nothing else matters until the day is the right day', () => {
+    expect(auditWorkout(continuation)[0].code).toBe('startsWithRest');
+  });
+
+  it('leaves a rest day alone', () => {
+    // One rest step and nothing else is a rest day, not a truncated Tuesday.
+    expect(codes(workout([step({ type: 'rest', targetType: 'no_target', notes: 'מנוחה' })])))
+      .not.toContain('startsWithRest');
+  });
+
+  it('leaves a session that starts with a warmup alone', () => {
+    expect(codes(TUESDAY_EVENING)).not.toContain('startsWithRest');
+  });
+});
+
+describe('auditWorkout — a range stored as one end of itself', () => {
+  it('catches the 70 that was written 70-90', () => {
+    const finding = auditWorkout(workout([
+      step({ durationValue: 4200, targetType: 'no_target', notes: '70-90 דק׳ ריצת שחרור קלה' }),
+    ])).find((f) => f.code === 'collapsedTimeRange');
+    expect(finding).toMatchObject({ level: 'warn', count: 1 });
+  });
+
+  it('accepts a time whose note states that one time', () => {
+    expect(codes(MONDAY)).not.toContain('collapsedTimeRange');
+  });
+
+  it('does not read the reps inside a block as the block\'s own range', () => {
+    // "6 × 90 שניות" in a 40-minute block does not redefine the block.
+    expect(codes(workout([
+      step({ durationValue: 2400, notes: '6 × 90 שניות', targetPaceMinPerKm: 250 }),
+    ]))).not.toContain('collapsedTimeRange');
+  });
+});
+
+describe('auditWorkout — a pace on a maximum effort', () => {
+  it('warns about the pace invented for the 2,000 test', () => {
+    const finding = auditWorkout(workout([
+      step({ order: 1, type: 'warmup', durationType: 'distance', durationValue: 2000, targetPaceMinPerKm: 300 }),
+      step({ order: 2, type: 'interval', durationType: 'distance', durationValue: 2000, targetPaceMinPerKm: 200 }),
+    ], { name: 'טסט 2,000', partKind: 'test' })).find((f) => f.code === 'pacedTest');
+    // The warmup is meant to carry a pace; only the test itself is the finding.
+    expect(finding).toMatchObject({ level: 'warn', steps: [2] });
+  });
+
+  it('finds it from the step\'s own note when the session is not named for it', () => {
+    expect(codes(workout([
+      step({ order: 2, durationType: 'distance', durationValue: 2000, targetPaceMinPerKm: 200, notes: 'טסט · ריצת מקסימום' }),
+    ]))).toContain('pacedTest');
+  });
+
+  it('says nothing about a test with no pace on it — which is the point', () => {
+    expect(codes(workout([
+      step({ durationType: 'distance', durationValue: 2000, targetType: 'no_target', notes: 'טסט · ריצת מקסימום' }),
+    ]))).not.toContain('pacedTest');
+  });
+});
+
+describe('auditWorkout — a session folded into a note', () => {
+  it('finds the evening option living inside another step', () => {
+    const finding = auditWorkout(workout([
+      step({ order: 1, durationValue: 3000, targetPaceMinPerKm: 290, targetPaceMaxPerKm: 330 }),
+      step({ order: 2, type: 'cooldown', durationType: 'open', durationValue: undefined, targetType: 'no_target', notes: 'אופציה ל30-40 דק׳ קל בערב / כוח' }),
+    ])).find((f) => f.code === 'sessionInNotes');
+    expect(finding).toMatchObject({ level: 'warn', steps: [2] });
+  });
+
+  it('leaves the option alone once it IS its own session', () => {
+    // MONDAY_EVENING carries the same sentence and is already split out.
+    expect(codes(MONDAY_EVENING)).not.toContain('sessionInNotes');
+  });
+
+  it('does not call a plain note a session', () => {
+    expect(codes(workout([step({ durationValue: 3600, notes: 'דגש על ריצה נוחה וקלה', targetPaceMinPerKm: 290 })])))
+      .not.toContain('sessionInNotes');
+  });
+
+  it('needs the minutes, not just the word', () => {
+    expect(codes(workout([step({ durationValue: 3600, notes: 'אופציה בערב', targetPaceMinPerKm: 290 })])))
+      .not.toContain('sessionInNotes');
+  });
+});
+
 describe('auditWorkout — shape', () => {
   it('notes a session that is one step and no structure', () => {
     expect(codes(MONDAY)).toContain('singleStep');

@@ -48,7 +48,7 @@ import { GarminClient } from '@/lib/garmin/client';
 import { ensureMatchedWorkout } from '@/lib/plans/matched-workout';
 import { isMissingMatchesTable, workoutPlanForGroup } from '@/lib/plans/match-athlete-activities';
 import { activityLocalDateStr } from '@/lib/utils';
-import { hasStoredLaps, toLaps } from './laps';
+import { hasStoredLaps, normalizeStoredLaps } from '@/lib/garmin/laps';
 import {
   buildVerdict,
   toExecutionSummary,
@@ -127,7 +127,7 @@ async function ensureLaps(
   row: ActivityRow,
   workout: ParsedWorkout,
 ): Promise<Lap[]> {
-  if (hasStoredLaps(row.laps)) return toLaps(row.laps);
+  if (hasStoredLaps(row.laps)) return normalizeStoredLaps(row.laps);
   if (!row.garmin_activity_id || !prescribesPace(workout)) return [];
 
   try {
@@ -141,7 +141,7 @@ async function ensureLaps(
     const client = new GarminClient(athlete.garmin_auth as never);
     const raw = await client.getActivitySplits(Number(row.garmin_activity_id));
     // One lap is the whole run relabelled — no more use than no laps at all.
-    const laps = Array.isArray(raw) && raw.length > 1 ? toLaps(raw) : [];
+    const laps = Array.isArray(raw) && raw.length > 1 ? normalizeStoredLaps(raw) : [];
 
     // Write back either way. `[]` is the "already asked" marker that stops every
     // future open of this run from paying for the same empty answer.
@@ -260,7 +260,7 @@ export async function resolveExecutionSummaries(
       ? workoutsFor(match.weekly_plan_id, match.group_number)
         .find((candidate) => candidate.workoutKey === match.workout_key) ?? null
       : null;
-    return toExecutionSummary(verdictFor(row, workout, tolerances, toLaps(row.laps)));
+    return toExecutionSummary(verdictFor(row, workout, tolerances, normalizeStoredLaps(row.laps)));
   });
 }
 

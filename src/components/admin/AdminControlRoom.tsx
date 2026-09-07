@@ -30,11 +30,18 @@ import { CoachPulse } from '@/components/CoachPulse';
 //      because both are about the athletes rather than about this account.
 //   4. What state the system itself is in.
 //
-// Personal training is NOT here — and as of the admin-nav pass it isn't anywhere
-// in the admin's app: the Profile tab is an ACCOUNT screen now (see AdminAccount),
-// and the feed, the activity list and the weekly program are dropped from the
-// admin's nav (ADMIN_HIDDEN_TABS). An admin who also runs sees their own week by
-// previewing themselves as a runner.
+// Personal training is NOT here — this screen is the club, not the account. It is
+// the only such screen, though: an admin sees every tab there is (see
+// resolveNavItems), so an admin who runs reaches their own week, their runs and
+// their profile exactly where every other member does.
+//
+// WHERE IT LIVES (2026-09-07): /dashboard/control-room, reached from the first row
+// of Coach Tools — and /dashboard as well, but only for an admin with no athlete
+// row, for whom nothing on the training home would have anything to say. An admin
+// who DOES run (in this club, all of them) gets their training home at /dashboard
+// like every other member. This component stays presentational either way: the
+// greeting, the name and which session the roster is about come from
+// `ControlRoomScreen`, which both doors render, so the screen cannot differ by door.
 //
 // One request feeds items 1, 2 and 4 (see /api/admin/overview) — a control room
 // whose numbers arrive in six waves reads as broken even when it isn't.

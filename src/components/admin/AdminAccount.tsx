@@ -13,13 +13,17 @@ import { MaintenanceRow } from '@/components/MaintenanceToggle';
 // ═════════════════════════════════════════════════════════════════════════════
 // THE ADMIN'S PROFILE — an account, not an athlete.
 //
-// The admin account exists so the club can be run from a session that isn't
-// anybody's member account. Until now its Profile tab was the member one: weekly
-// kilometres, personal records, a pace group, a Garmin connection and a "share
-// your workout" row — every line of it about a runner who doesn't exist. The
-// control room on /dashboard made the same call for the home screen (v2.39.104);
-// this is the other half, and with ADMIN_HIDDEN_TABS the admin's nav now has no
-// screen left that is about this account's own training.
+// This is the Profile tab for an admin account with no athlete row — one that
+// exists so the club can be run from a session that isn't anybody's member
+// account. Its Profile tab used to be the member one: weekly kilometres, personal
+// records, a pace group, a Garmin connection and a "share your workout" row —
+// every line of it about a runner who doesn't exist. The control room on
+// /dashboard made the same call for the home screen (v2.39.104); this is the other
+// half.
+//
+// An admin who DOES have an athlete row gets the member profile instead: the
+// club's admins are its coaches and its owner, and they all run (see ProfileGate
+// and `resolveNavItems`).
 //
 // What an admin actually needs from a profile is what nothing else in the app
 // holds: WHO am I signed in as (three login paths and a view-as switch make that

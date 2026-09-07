@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   weekTargetRange,
   weekTargetState,
-  weekTargetProgressPct,
-  weekTargetFloorPct,
+  weekTargetGeometry,
+  weekTargetSegments,
   dayTargetLabel,
 } from '@/lib/plans/week-target';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
@@ -22,7 +22,7 @@ describe('weekTargetRange', () => {
       weekTotalMin: 118,
       weekTotalMax: 146.3,
     });
-    expect(target).toEqual({ min: 100, max: 146.3 });
+    expect(target).toEqual({ min: 100, max: 146.3, optionalKm: 31.3 });
   });
 
   it('returns null with no plan for the week', () => {
@@ -45,20 +45,37 @@ describe('weekTargetRange', () => {
     expect(weekTargetRange({ hasPlan: true, weekTotalMin: 90, weekTotalMax: 120 })).toEqual({
       min: 90,
       max: 120,
+      optionalKm: 0,
     });
   });
 
   it('falls back when every session in the week is marked optional', () => {
     expect(
       weekTargetRange({ hasPlan: true, weekRequiredMin: 0, weekTotalMin: 40, weekTotalMax: 60 }),
-    ).toEqual({ min: 40, max: 60 });
+    ).toEqual({ min: 40, max: 60, optionalKm: 0 });
   });
 
   it('clamps a floor that sits above the ceiling instead of drawing backwards', () => {
     expect(weekTargetRange({ hasPlan: true, weekRequiredMin: 80, weekTotalMax: 60 })).toEqual({
       min: 60,
       max: 60,
+      optionalKm: 0,
     });
+  });
+
+  it('reports how much of the ceiling is offered rather than prescribed', () => {
+    // The sentence under the bar exists to explain the width of the green zone,
+    // so it has to be the offered kilometres and not the whole span: this week is
+    // 100–146.3, of which the prescribed sessions reach 115.
+    expect(
+      weekTargetRange({ hasPlan: true, weekRequiredMin: 100, weekRequiredMax: 115, weekTotalMax: 146.3 })!.optionalKm,
+    ).toBe(31.3);
+  });
+
+  it('says nothing was offered when the plan predates the split', () => {
+    // `weekRequiredMax` is absent, so the offered share is unknowable — and the
+    // caption hides rather than crediting the whole band to optional sessions.
+    expect(weekTargetRange({ hasPlan: true, weekTotalMin: 90, weekTotalMax: 120 })!.optionalKm).toBe(0);
   });
 
   it('rounds the float dust off both ends', () => {
@@ -68,7 +85,7 @@ describe('weekTargetRange', () => {
       weekRequiredMin: 13.400000000000006,
       weekTotalMax: 20.700000000000003,
     });
-    expect(target).toEqual({ min: 13.4, max: 20.7 });
+    expect(target).toEqual({ min: 13.4, max: 20.7, optionalKm: 0 });
   });
 });
 
@@ -96,23 +113,25 @@ describe('weekTargetState', () => {
   });
 });
 
-describe('weekTargetProgressPct', () => {
+describe('weekTargetGeometry', () => {
   const target = { min: 100, max: 150 };
 
   it('measures the fill against the ceiling', () => {
-    expect(weekTargetProgressPct(75, target)).toBe(50);
+    expect(weekTargetGeometry(75, target)).toEqual({ fillPct: 50, floorPct: 67, ceilingPct: 100 });
   });
 
-  it('caps at 100 rather than overflowing the track', () => {
-    expect(weekTargetProgressPct(200, target)).toBe(100);
+  it('keeps the zone on screen when the week ran past the ceiling', () => {
+    // The whole point of stretching the scale: at 200 km the fill fills the track,
+    // and the zone has to still be a visible stretch of it rather than covered.
+    expect(weekTargetGeometry(200, target)).toEqual({ fillPct: 100, floorPct: 50, ceilingPct: 75 });
   });
 
   it('floors at 0 rather than drawing a negative width', () => {
-    expect(weekTargetProgressPct(-5, target)).toBe(0);
+    expect(weekTargetGeometry(-5, target).fillPct).toBe(0);
   });
 
-  it('places the floor marker proportionally', () => {
-    expect(weekTargetFloorPct(target)).toBe(67);
+  it('draws a full-width zone rather than dividing by zero', () => {
+    expect(weekTargetGeometry(0, { min: 0, max: 0 })).toEqual({ fillPct: 0, floorPct: 0, ceilingPct: 100 });
   });
 });
 
@@ -172,7 +191,7 @@ describe('the range against a real published week', () => {
     expect(b.weekRequiredMin).toBe(34); // 23 + 11
     expect(b.weekRequiredMax).toBe(37); // 24 + 13
     expect(b.weekTotalMax).toBe(47); // + the offered 10
-    expect(weekTargetRange({ hasPlan: true, ...b })).toEqual({ min: 34, max: 47 });
+    expect(weekTargetRange({ hasPlan: true, ...b })).toEqual({ min: 34, max: 47, optionalKm: 10 });
   });
 
   it('recognises the optional session from its name alone', () => {
@@ -183,5 +202,51 @@ describe('the range against a real published week', () => {
     expect(monday.sessions.map((s) => s.optional)).toEqual([false, true]);
     expect(monday.requiredMax).toBe(13);
     expect(monday.max).toBe(23);
+  });
+});
+
+describe('weekTargetSegments', () => {
+  const target = { min: 100, max: 120, optionalKm: 20 };
+
+  it('paints nothing inside the band while the week is short of the floor', () => {
+    const s = weekTargetSegments(60, target);
+    expect(s.inBand).toBe(false);
+    // The floor tick is the only thing marking the target then.
+    expect(s.showFloorTick).toBe(true);
+    expect(s.fillPct).toBe(50);
+    expect(s.floorPct).toBe(83);
+  });
+
+  it('paints from the floor to the fill once inside', () => {
+    const s = weekTargetSegments(110, target);
+    expect(s.inBand).toBe(true);
+    expect(s.showFloorTick).toBe(false);
+    expect(s.inEndPct).toBe(s.fillPct);
+    expect(s.fillPct).toBeLessThan(100);
+  });
+
+  it('leaves the band visible on a week that landed exactly on the ceiling', () => {
+    // The state the single-coloured fill used to swallow whole: fill = 100%.
+    const s = weekTargetSegments(120, target);
+    expect(s.fillPct).toBe(100);
+    expect(s.inEndPct).toBe(100);
+    expect(s.inBand).toBe(true);
+    expect(s.floorPct).toBeLessThan(100);
+  });
+
+  it('stops the in-band segment at the ceiling on an overshoot', () => {
+    // 132 km against a 100–120 band: the last 12 are the overshoot and must NOT
+    // be painted as kilometres that landed inside the target.
+    const s = weekTargetSegments(132, target);
+    expect(s.fillPct).toBe(100);
+    expect(s.ceilingPct).toBe(91);
+    expect(s.inEndPct).toBe(91);
+    expect(s.inBand).toBe(true);
+  });
+
+  it('survives a week with no target at all', () => {
+    // Nothing run and nothing asked: an empty track, not a full one.
+    expect(weekTargetSegments(0, { min: 0, max: 0 }))
+      .toMatchObject({ fillPct: 0, floorPct: 0, ceilingPct: 100, inBand: false });
   });
 });

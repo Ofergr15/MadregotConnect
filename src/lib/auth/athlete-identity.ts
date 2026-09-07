@@ -431,3 +431,28 @@ export function suggestAthleteByName<T extends IdentityRow>(
 export function duplicatesToFold<T extends IdentityRow>(rows: T[], keep: T): T[] {
   return rows.filter(r => r.id !== keep.id && isSyntheticAuthEmail(r.email));
 }
+
+/**
+ * The name STRAVA holds for this person, or null when it holds nothing usable.
+ *
+ * Strava owns the roster name from the moment a member connects it: the name on
+ * the row is whatever a human typed at registration — Hebrew, sometimes
+ * misspelled, sometimes a first name alone, sometimes placeholderNameFromEmail()
+ * — and it is the only handle this app has when Strava sends a Latin display name
+ * and no email address. Letting one side own the field is what stops the two
+ * drifting apart, and stops the club seeing two spellings of one person.
+ *
+ * Returns null rather than a placeholder on purpose. The callback's own `name`
+ * falls back to "Strava <id>" so that a brand-new row is never nameless, and
+ * writing THAT over a name somebody chose would be a downgrade, not a sync.
+ */
+export function stravaDisplayNameOf(
+  athlete: { firstname?: string | null; lastname?: string | null } | null | undefined,
+): string | null {
+  const joined = [athlete?.firstname, athlete?.lastname]
+    .map(part => (part || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  return joined || null;
+}

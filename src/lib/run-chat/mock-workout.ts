@@ -47,6 +47,17 @@ export interface PlannedWorkout {
   segments: WorkoutSegment[];
   /** Provenance used to preserve prompt edits or link back to a weekly plan match. */
   source?: 'prompt_edit' | Record<string, unknown>;
+  /**
+   * How far the session is, for the line under the title on the board.
+   *
+   * The board is the ONLY place most athletes see the workout, and it used to
+   * carry no distance at all — not the coach's figure and not a derived one — so
+   * a day written as "40–60 דק׳" reached them with no idea whether that was 9 km
+   * or 13. `estimated` is true when the number came out of time × pace rather
+   * than the plan, and it is printed as such: a derived figure the athlete can
+   * see is derived is useful, one passed off as the coach's is not.
+   */
+  distanceKm?: { min: number; max: number; estimated: boolean };
 }
 
 /**

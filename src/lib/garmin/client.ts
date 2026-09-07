@@ -8,6 +8,7 @@ import {
   type ScheduleConfirmation,
 } from './delivery';
 import { decrypt } from '../encryption';
+import { parseActivityStream, polylineFromDetails, type ParsedStream } from './streams';
 
 export class GarminClient {
   private gc: GarminConnect;
@@ -149,13 +150,49 @@ export class GarminClient {
     return this.gc.getActivity({ activityId });
   }
 
-  async getActivityDetails(activityId: number): Promise<any> {
+  /**
+   * `maxChartSize` is how many samples Garmin will return from the trace, and it is
+   * a resolution decision, not a size one. At 2000 a 90-minute run comes back at
+   * one sample every 2.7 s, which cannot show a 15-second stride at all and blurs
+   * the boundaries of a 400 m rep. Asking for 12000 gets the watch's native ~1 Hz
+   * for any run up to about three hours; Garmin caps it silently if it disagrees,
+   * which is why the actual interval is measured and stored rather than assumed.
+   *
+   * The polyline stays at 2000 — that one is genuinely a size decision, and a map
+   * does not get better past a couple of thousand points.
+   */
+  async getActivityDetails(activityId: number, maxChartSize = 2000): Promise<any> {
     await this.restoreSession();
     // Use the library's internal HTTP client which handles auth properly
     return (this.gc as any).client.get(
       `https://connectapi.garmin.com/activity-service/activity/${activityId}/details`,
-      { params: { maxChartSize: 2000, maxPolylineSize: 2000 } }
+      { params: { maxChartSize, maxPolylineSize: 2000 } }
     );
+  }
+
+  /**
+   * The route AND the per-sample trace from ONE details call.
+   *
+   * The sync used to call this endpoint for the polyline and discard the trace in
+   * the same response — the data that answers "did they run the 20 km at 4:25, and
+   * did the 8 strides happen" was being thrown away once per activity. Callers that
+   * only want the map should keep using `getActivityGpsPoints`.
+   *
+   * Never throws: a missing trace must cost a run its verdict, not its sync.
+   */
+  async getActivityTrace(activityId: number, expectedDistanceM?: number): Promise<{
+    gpsPoints: Array<{ lat: number; lng: number }>;
+    stream: ParsedStream | null;
+  }> {
+    try {
+      const details = await this.getActivityDetails(activityId, 12000);
+      return {
+        gpsPoints: polylineFromDetails(details),
+        stream: parseActivityStream(details, expectedDistanceM),
+      };
+    } catch {
+      return { gpsPoints: [], stream: null };
+    }
   }
 
   /**
@@ -173,6 +210,30 @@ export class GarminClient {
           .map((p: any) => ({ lat: p.lat, lng: p.lon }));
       }
       return [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * The structured workout this activity was run from, as the DEVICE had it.
+   *
+   * Not the same thing as fetching `workout-service/workout/{workoutId}`: most of
+   * these workouts belong to the coach's account rather than the athlete's, and that
+   * endpoint answers 403 for them. This one hangs off the activity, so the athlete's
+   * own session can always read it — and it returns the step list Garmin numbered,
+   * which is what a lap's `wktStepIndex` points into.
+   *
+   * `[]` for a run not started from a workout (most runs) and on any error: a run's
+   * verdict may go without this, its sync may not.
+   */
+  async getActivityWorkout(activityId: number): Promise<any[]> {
+    await this.restoreSession();
+    try {
+      const data = await (this.gc as any).client.get(
+        `https://connectapi.garmin.com/activity-service/activity/${activityId}/workouts`
+      );
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }

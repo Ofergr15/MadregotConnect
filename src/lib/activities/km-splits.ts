@@ -18,7 +18,7 @@
  * Units, as everywhere: distance METERS, duration SECONDS, pace SECONDS PER KM.
  */
 
-import type { StoredLap } from '@/lib/plan-execution/laps';
+import { normalizeStoredLaps, type StoredLap } from '@/lib/garmin/laps';
 
 /**
  * One kilometre of a run. Structurally the `Split` the activity UI renders
@@ -137,4 +137,30 @@ export function kmSplitsFromLaps(laps: StoredLap[]): KmSplit[] {
   }
 
   return splits;
+}
+
+/**
+ * The kilometres to draw for one activity ROW, from the two jsonb columns that
+ * each hold the same run at a different grain — and both unreliably:
+ *
+ *  - `splits` was written by `/api/garmin/activity-details`, which has no callers
+ *    left (589 of the club's last 595 runs have none) and sometimes stored
+ *    Garmin's AGGREGATED summaries — two "splits" for a 12 km run.
+ *  - `laps` is per lap press, which on a workout run is per STEP: 31 laps for
+ *    15 km, with a median of 140 m.
+ *
+ * So: take whichever is the finer record, then bin it into real kilometres.
+ *
+ * This lives here, taking the raw columns, because BOTH the server and the client
+ * make the choice — `GET /api/activities/details` for the response, and the detail
+ * body for the row it already holds while that request is in flight or after it
+ * failed. Two copies of "which column, and does it need normalizing" is how the
+ * screen came to show a splits table of 0:00 in the first place: the client read
+ * Strava's `moving_time` off Garmin laps and charted every one of them as a
+ * kilometre.
+ */
+export function displaySplits(rawSplits: unknown, rawLaps: unknown): KmSplit[] {
+  const stored = normalizeStoredLaps(rawSplits);
+  const lapped = normalizeStoredLaps(rawLaps);
+  return kmSplitsFromLaps(stored.length >= lapped.length ? stored : lapped);
 }

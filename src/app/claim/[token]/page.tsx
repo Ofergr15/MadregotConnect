@@ -78,6 +78,11 @@ export default function ClaimPage() {
             <p className="mt-2 text-13 text-ink-500 leading-relaxed">
               {already ? t('alreadyDone') : t('doneBody')}
             </p>
+            {/* A real navigation, not <Link>: the merge that just ran rewrote which
+                athlete row this session belongs to, so every client cache behind a
+                soft transition — SWR, module state, the ids read from localStorage
+                at mount — would still be the pre-merge account's. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
               href="/"
               className="mt-5 inline-flex items-center justify-center h-11 px-6 rounded-pill bg-ink-900 text-white text-sm font-semibold"

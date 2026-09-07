@@ -352,6 +352,11 @@ export function ElevationChart({ splits }: { splits: Split[] }) {
   const chartH = height - pad.top - pad.bottom;
 
   if (splits.length < 2) return null;
+  // "Nobody measured it" is not "it was flat". A run whose laps carry no elevation
+  // at all — every row synced before the sync started storing it — drew an empty
+  // grid ticked +1 m / -1 m, which reads as a broken chart rather than as missing
+  // data. A measured 0 still draws: a flat kilometre really is 0.
+  if (!splits.some(s => s.elevationGain != null || s.elevationLoss != null)) return null;
 
   const gains = splits.map(s => s.elevationGain || 0);
   const losses = splits.map(s => s.elevationLoss || 0);

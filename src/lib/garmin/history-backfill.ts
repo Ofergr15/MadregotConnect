@@ -1,7 +1,7 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from './client';
 import { mapActivityDetail } from './activity-detail';
-import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
+import { matchesStoredActivity, type StoredActivity } from '@/lib/activity-dedup';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { isMissingColumn, withoutColumns } from '@/lib/supabase/schema-drift';
@@ -182,16 +182,31 @@ async function backfillAthlete(
     nextPage: null,
   };
 
-  // Every Garmin id this athlete already has, in one read. The alternative — a
-  // per-activity existence check — would be a round trip per list row, which on
-  // a history walk is thousands of them.
+  // Everything this athlete already has, in ONE read: the Garmin ids for the
+  // same-source check, and (start_time, distance) for the cross-source one.
+  //
+  // The second half of that used to be a query PER CANDIDATE ACTIVITY, and that
+  // is what made the first real import fail. A hundred list rows meant a hundred
+  // sequential Supabase round trips inside a single serverless invocation, on top
+  // of the Garmin fetch — comfortably past the platform's timeout, and the caller
+  // saw only a dead request with no error in it. An athlete's whole activity
+  // table is a few hundred narrow rows; reading it once costs one round trip and
+  // removes all of them.
   const { data: existingRows, error: existingError } = await supabase
     .from('athlete_activities')
-    .select('garmin_activity_id')
+    .select('garmin_activity_id, start_time, distance')
     .eq('athlete_id', athlete.id);
   if (existingError) return { ...base, error: existingError.message };
   const existingIds = new Set(
     (existingRows || []).map((r: { garmin_activity_id: number | null }) => r.garmin_activity_id),
+  );
+  // Grows as the walk inserts, so a run imported on page 2 still shields its
+  // Strava twin from being imported again on page 3.
+  const storedActivities: StoredActivity[] = (existingRows || []).map(
+    (r: { start_time: string | null; distance: number | null }) => ({
+      start_time: r.start_time,
+      distance: r.distance,
+    }),
   );
 
   const client = new GarminClient(athlete.garmin_auth as never);
@@ -219,7 +234,7 @@ async function backfillAthlete(
 
     const rows: Record<string, unknown>[] = [];
     for (const a of candidates) {
-      if (await hasCrossSourceDuplicate(supabase, athlete.id, a.startTimeLocal, a.distance)) continue;
+      if (matchesStoredActivity(storedActivities, a.startTimeLocal, a.distance)) continue;
       // Detail is `null`: no per-activity Garmin call. The mapper falls back to
       // the list row for every scalar, and `gps_points`/`has_polyline` are then
       // dropped so `PATCH ?mode=route` still sees this row as one needing a map.
@@ -243,6 +258,7 @@ async function backfillAthlete(
       // Guard the rest of THIS page against a Garmin list that repeats an id
       // across the overlap, and the next page against re-reading it.
       existingIds.add(a.activityId);
+      storedActivities.push({ start_time: a.startTimeLocal, distance: Math.round(a.distance) });
     }
 
     if (rows.length > 0) {
