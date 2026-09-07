@@ -71,6 +71,23 @@ function recipients(to: string | string[]): string[] {
     .filter(Boolean);
 }
 
+/**
+ * A synthetic sign-in address, which is not an address at all.
+ *
+ * Login is Strava-only, so a member who never typed an email has
+ * `strava_<id>@strava.madregot.local` on their row — and callers pass
+ * `athlete.email` straight through. Resend refuses it, correctly, which showed up
+ * as a REFUSED approval mail: a red line in email_log and `ok: false` for an
+ * approval that was in fact fine. Nothing was ever going to arrive, because there
+ * is no inbox behind that address; the push notification is that person's channel.
+ *
+ * Dropped here rather than at each of the eight call sites, for the same reason
+ * everything else about sending lives in this file.
+ */
+function isSynthetic(address: string): boolean {
+  return address.toLowerCase().endsWith('.local');
+}
+
 /** Insert the audit row. Returns its id, or null if it could not be written —
  *  which is never treated as a failure of the send. */
 async function writeLog(row: Record<string, unknown>): Promise<string | null> {
@@ -95,7 +112,8 @@ async function writeLog(row: Record<string, unknown>): Promise<string | null> {
 
 export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
   const cfg = readEmailConfig();
-  const to = recipients(msg.to);
+  const asked = recipients(msg.to);
+  const to = asked.filter(a => !isSynthetic(a));
 
   const base = {
     template: msg.template,
@@ -105,6 +123,23 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
     athlete_id: msg.athleteId ?? null,
     signup_request_id: msg.signupRequestId ?? null,
   };
+
+  if (!to.length && asked.length) {
+    // Every address was synthetic: this person has no inbox, by design. Recorded as
+    // SKIPPED, the same category as "no key in this environment" — not refused and
+    // not failed, because there is nothing here to fix and nothing was lost. The
+    // approval push is what reaches them.
+    // Logs what was ASKED for, not the empty filtered list — "who was this meant
+    // for" is the only useful thing about the row.
+    const logId = await writeLog({ ...base, recipients: asked, status: 'skipped', error_code: 'synthetic-address' });
+    return {
+      ok: false,
+      status: 'skipped',
+      code: 'synthetic-address',
+      reason: 'למשתמש הזה אין כתובת מייל אמיתית (התחברות דרך Strava) — נשלחה התראה במקום.',
+      logId,
+    };
+  }
 
   if (!to.length) {
     // Nobody to write to. A bug in the caller, not an infrastructure failure, so it

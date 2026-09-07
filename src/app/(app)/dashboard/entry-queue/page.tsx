@@ -56,6 +56,8 @@ export default function EntryQueuePage() {
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [turningOff, setTurningOff] = useState(false);
+  // Per-person outcome of a reminder: sent, sent-but-nowhere-to-land, or failed.
+  const [nudged, setNudged] = useState<Record<string, 'sent' | 'unreachable' | 'failed' | null>>({});
 
   // Memoised so the counts below don't recompute on every render over a fresh []
   const members = useMemo(() => data?.members || [], [data]);
@@ -91,6 +93,29 @@ export default function EntryQueuePage() {
         mutate();
         mutateMaintenance();
       }
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /**
+   * The nudge for somebody nothing is holding out who never came in. Push only —
+   * half the club has no real address — so the result says whether their phone
+   * could actually be reached rather than just ticking.
+   */
+  const nudge = async (member: EntryQueueMember) => {
+    setBusyId(member.id);
+    setNudged((prev) => ({ ...prev, [member.id]: null }));
+    try {
+      const res = await fetch('/api/admin/entry-queue/nudge', {
+        method: 'POST',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ athleteId: member.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      setNudged((prev) => ({ ...prev, [member.id]: res.ok ? (body.reachable ? 'sent' : 'unreachable') : 'failed' }));
+    } catch {
+      setNudged((prev) => ({ ...prev, [member.id]: 'failed' }));
     } finally {
       setBusyId(null);
     }
@@ -306,11 +331,33 @@ export default function EntryQueuePage() {
                       <Unlock className="h-4 w-4" />
                       {busy ? t('saving') : m.stage === 'pending' ? t('approveEntry') : t('releaseEntry')}
                     </Button>
+                  ) : (m.stage === 'never' || m.stage === 'setup') && canApprove ? (
+                    // Nothing is holding them out — they just never arrived. This is
+                    // the only way the app had to reach them at all.
+                    <Button variant="secondary" className="flex-1" onClick={() => nudge(m)} disabled={busy}>
+                      <Bell className="h-4 w-4" />
+                      {busy
+                        ? t('saving')
+                        : nudged[m.id] === 'sent'
+                          ? t('reminderSent')
+                          : nudged[m.id] === 'unreachable'
+                            ? t('reminderUnreachable')
+                            : nudged[m.id] === 'failed'
+                              ? t('reminderFailed')
+                              : t('sendReminder')}
+                    </Button>
                   ) : (
                     <Link href={`/dashboard/teammate/${m.id}`} className="flex-1">
                       <Button variant="secondary" className="w-full">
                         <ChevronLeft className="h-4 w-4" />
                         {t('openProfile')}
+                      </Button>
+                    </Link>
+                  )}
+                  {(m.stage === 'never' || m.stage === 'setup') && canApprove && (
+                    <Link href={`/dashboard/teammate/${m.id}`}>
+                      <Button variant="ghost" title={t('openProfile')}>
+                        <ChevronLeft className="h-4 w-4" />
                       </Button>
                     </Link>
                   )}

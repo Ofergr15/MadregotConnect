@@ -125,6 +125,33 @@ describe('sendEmail — a resolved promise is not a sent email', () => {
     expect(result.ok).toBe(false);
     expect(sendSpy).not.toHaveBeenCalled();
   });
+
+  it('skips a synthetic Strava address instead of having it refused', async () => {
+    // Login is Strava-only, so a member who never typed an email has
+    // strava_<id>@strava.madregot.local on their row and callers pass athlete.email
+    // straight through. Resend refused it — correctly — which painted a perfectly
+    // good approval as a red REFUSED line in email_log. There is no inbox behind
+    // that address; the approval PUSH is that person's channel.
+    const result = await sendEmail({ ...msg, to: 'strava_106828158@strava.madregot.local' });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    // 'skipped', the same category as "no key here" — nothing to fix, nothing lost.
+    expect(result.status).toBe('skipped');
+    expect(result.code).toBe('synthetic-address');
+    expect(sendSpy).not.toHaveBeenCalled();
+    // Still recorded, and against the address it was MEANT for: "who was this for"
+    // is the only useful thing about the row.
+    expect(logged[0]).toMatchObject({
+      status: 'skipped',
+      error_code: 'synthetic-address',
+      recipients: ['strava_106828158@strava.madregot.local'],
+    });
+  });
+
+  it('still writes to the real recipients when only one of them is synthetic', async () => {
+    await sendEmail({ ...msg, to: 'coach@madregot.club, strava_1@strava.madregot.local' });
+    expect(sendSpy.mock.calls[0][0]).toMatchObject({ to: ['coach@madregot.club'] });
+  });
 });
 
 describe('sendEmail — the audit trail', () => {

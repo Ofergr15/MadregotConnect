@@ -2389,6 +2389,10 @@
     "maintenanceTurnOff": "כבה מצב תחזוקה",
     "emptyTitle": "אין אף אחד שמחכה",
     "emptyDescription": "כל מי שנרשם אושר, נכנס והוגדר.",
-    "noMatches": "לא נמצאו התאמות"
+    "noMatches": "לא נמצאו התאמות",
+    "sendReminder": "שלח תזכורת",
+    "reminderSent": "התזכורת נשלחה ✓",
+    "reminderUnreachable": "אין לו התראות פעילות",
+    "reminderFailed": "השליחה נכשלה"
   }
 }

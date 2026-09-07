@@ -2389,6 +2389,10 @@
     "maintenanceTurnOff": "Turn maintenance off",
     "emptyTitle": "Nobody is waiting",
     "emptyDescription": "Everyone who signed up is approved, in and set up.",
-    "noMatches": "No matches"
+    "noMatches": "No matches",
+    "sendReminder": "Send a reminder",
+    "reminderSent": "Reminder sent ✓",
+    "reminderUnreachable": "No notifications on their phone",
+    "reminderFailed": "Couldn't send"
   }
 }
