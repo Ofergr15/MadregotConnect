@@ -512,7 +512,13 @@ function TenWeekChart({
               {w.km}
             </span>
             <div
-              className={cn('w-full rounded-t-[3px]', w.isCurrent ? 'bg-brand-600' : 'bg-ink-300')}
+              // One rule for both volume charts in the app (the other is
+              // VolumeHistory): the series is brand at /55 and the current period is
+              // full brand, so the emphasised bar is the DARKEST rather than a second
+              // hue. Grey bars beside a brand one made the emphasis colour-alone; the
+              // bold label above carries it too. Ported from the WeeklyVolumeCard this
+              // section replaced, which had the same fix applied to it.
+              className={cn('w-full rounded-t-[3px]', w.isCurrent ? 'bg-brand-600' : 'bg-brand-600/55')}
               // Floor of 3px so a zero week is a visible baseline tick rather
               // than a gap that reads as missing data.
               style={{ height: `${Math.max(3, Math.round((w.km / peak) * 68))}px` }}

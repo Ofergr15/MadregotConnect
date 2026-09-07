@@ -194,9 +194,9 @@ describe('matchLapsToSteps', () => {
 
   it('honours a caller\'s pace tolerance', () => {
     const laps = lapsExactlyToPlan();
-    laps[1] = lap(400, 248); // 8 s/km slow
+    laps[1] = lap(400, 255); // 15 s/km slow — outside the ±10 default
     expect(matchLapsToSteps(flat(), laps).segments[1].status).toBe('slower');
-    expect(matchLapsToSteps(flat(), laps, 10).segments[1].status).toBe('on_target');
+    expect(matchLapsToSteps(flat(), laps, 20).segments[1].status).toBe('on_target');
   });
 });
 
@@ -500,9 +500,9 @@ describe('findPlannedEfforts', () => {
   });
 
   it('honours a caller\'s pace tolerance', () => {
-    const laps = [lap(400, 253), lap(400, 253)]; // 8 s/km off the slow edge
+    const laps = [lap(400, 260), lap(400, 260)]; // 15 s/km off the slow edge
     expect(findPlannedEfforts(reps(), laps).foundTotal).toBe(0);
-    expect(findPlannedEfforts(reps(), laps, 10).foundTotal).toBe(2);
+    expect(findPlannedEfforts(reps(), laps, 20).foundTotal).toBe(2);
   });
 
   it('accepts a rep the athlete overran or cut short by up to a fifth', () => {

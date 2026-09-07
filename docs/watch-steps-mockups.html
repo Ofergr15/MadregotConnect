@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>שלבי האימון מהשעון — 3 הצעות עיצוב</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;500;700&display=swap" rel="stylesheet">
+<style>
+/* ══ The app's own tokens, lifted from tailwind.config.ts. Nothing invented. ══ */
+:root{
+  --page:#DFDFDF; --card:#FFFFFF;
+  --ink-900:#1D1E26; --ink-700:#2D2E38; --ink-500:#4F4F4F; --ink-400:#5F5F5F; --ink-300:#BBBBBB;
+  --brand:#1525FF; --band-2:#159AFF; --band-2-ink:#0B5285; --band-3:#FF5315; --band-3-ink:#8A2B08;
+  --accent:#16a34a; --accent-500:#22c55e; --accent-ink:#14532d;
+  --red:#AD3838; --red-ink:#8F2B2B;
+  --r-card:25px; --r-pill:50px; --r-tile:5px;
+
+  /* ── SCHEME A — Ofer's temperature scale (the default below) ──
+     too fast = red · in band = green · too slow = blue · no target = grey */
+  --fast:var(--red);        --fast-ink:var(--red-ink);
+  --good:var(--accent);     --good-ink:var(--accent-ink);
+  --slow:var(--band-2);     --slow-ink:var(--band-2-ink);
+  --none:var(--ink-300);    --none-ink:var(--ink-400);
+}
+/* ── SCHEME B — the app's CURRENT convention (PlanVerdictCard today) ──
+   faster/more = blue "worth knowing, not a failure" · slower/less = amber · red = off plan only */
+body[data-scheme="b"]{
+  --fast:var(--band-2);  --fast-ink:var(--band-2-ink);
+  --slow:var(--band-3);  --slow-ink:var(--band-3-ink);
+}
+/* ── SCHEME C — one hue, direction carried by the arrow only (CVD-safe) ── */
+body[data-scheme="c"]{
+  --fast:#8A6D3B;  --fast-ink:#6B5329;
+  --slow:#8A6D3B;  --slow-ink:#6B5329;
+  --good:#16a34a;  --good-ink:#14532d;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:Heebo,system-ui,sans-serif;font-weight:300;
+  background:var(--page);color:var(--ink-700);
+  padding:24px 16px 80px;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:920px;margin:0 auto}
+h1{font-size:28px;line-height:34px;font-weight:700;color:var(--ink-900);margin-bottom:6px}
+.sub{font-size:13px;color:var(--ink-400);margin-bottom:20px;line-height:20px}
+h2{font-size:20px;font-weight:700;color:var(--ink-900);margin:36px 0 4px}
+h2 .num{color:var(--brand)}
+.why{font-size:13px;line-height:20px;color:var(--ink-500);margin-bottom:14px;max-width:640px}
+.card{background:var(--card);border-radius:var(--r-card);padding:18px;margin-bottom:14px}
+.phone{max-width:390px;margin:0 auto 14px;background:var(--card);border-radius:var(--r-card);padding:18px}
+.hdr{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.hdr .eyebrow{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink-400);letter-spacing:.04em}
+.hdr .wname{font-size:12px;color:var(--ink-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr .verdict{margin-inline-start:auto;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;flex-shrink:0}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.tabular{font-variant-numeric:tabular-nums}
+
+/* ── scheme switcher ── */
+.switch{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--card);
+        border-radius:var(--r-pill);padding:6px 8px;margin-bottom:8px;font-size:12px}
+.switch b{font-weight:700;color:var(--ink-700);padding:0 6px}
+.switch button{font-family:inherit;font-size:12px;font-weight:500;border:1px solid var(--ink-300);
+        background:transparent;color:var(--ink-500);border-radius:var(--r-pill);padding:5px 12px;cursor:pointer}
+.switch button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--ink-400);margin-bottom:18px;
+        padding:0 8px;align-items:center}
+.legend span{display:flex;align-items:center;gap:5px}
+.sw{width:10px;height:10px;border-radius:50%}
+
+/* ═══════ DESIGN 1 — the step train ═══════ */
+/* A long workout does not fit a 390px phone, so the row scrolls. The mask is the
+   affordance — without it the clipped step at the edge reads as a broken layout. */
+.train{display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding:4px 0 2px;
+       scrollbar-width:none;
+       mask-image:linear-gradient(to left,#000 0,#000 88%,transparent 100%);
+       -webkit-mask-image:linear-gradient(to left,#000 0,#000 88%,transparent 100%)}
+.train::-webkit-scrollbar{display:none}
+.train.fits{mask-image:none;-webkit-mask-image:none}
+.scrollhint{font-size:10px;color:var(--ink-400);text-align:start;margin-top:4px}
+.stepnode{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;width:66px}
+.bead{width:46px;height:46px;border-radius:50%;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;position:relative;
+      font-size:12px;font-weight:700;line-height:1.05;color:#fff}
+.bead .unit{font-size:8px;font-weight:500;opacity:.85}
+.bead.b-good{background:var(--good)}
+.bead.b-fast{background:var(--fast)}
+.bead.b-slow{background:var(--slow)}
+.bead.b-none{background:var(--card);border:2px dashed var(--ink-300);color:var(--ink-400)}
+.bead.b-part{background:conic-gradient(var(--band-3) 0 25%, #E6E6E6 25% 100%);color:var(--ink-700)}
+.bead.b-miss{background:var(--card);border:2px solid var(--red);color:var(--red-ink)}
+.bead.small{width:30px;height:30px;font-size:10px;margin-top:8px}
+.reps{position:absolute;inset-inline-end:-4px;top:-4px;background:var(--ink-900);color:#fff;
+      font-size:9px;font-weight:700;border-radius:var(--r-pill);padding:1px 5px;line-height:14px}
+.stepnode .lbl{font-size:10px;color:var(--ink-400);text-align:center;line-height:13px}
+.stepnode .act{font-size:11px;font-weight:700;color:var(--ink-700)}
+.link{flex-shrink:0;width:26px;display:flex;align-items:center;justify-content:center;height:46px}
+.arrow{font-size:16px;font-weight:700;line-height:1}
+.a-good{color:var(--good-ink)}.a-fast{color:var(--fast-ink)}.a-slow{color:var(--slow-ink)}.a-none{color:var(--ink-300)}
+.tail{font-size:12px;color:var(--ink-500);margin-top:12px;padding-top:12px;border-top:1px solid #EFEFEF;line-height:19px}
+
+/* ═══════ DESIGN 2 — the target ruler ═══════ */
+.ruler-row{display:grid;grid-template-columns:104px 1fr 58px;gap:10px;align-items:center;
+           padding:9px 0;border-bottom:1px solid #F2F2F2}
+.ruler-row:last-child{border-bottom:0}
+.rname{font-size:12px;font-weight:500;color:var(--ink-700);line-height:16px}
+.rname small{display:block;font-size:10px;font-weight:300;color:var(--ink-400)}
+.track{position:relative;height:24px}
+.track .axis{position:absolute;inset-inline:0;top:11px;height:2px;background:#EAEAEA;border-radius:2px}
+.track .band{position:absolute;top:7px;height:10px;background:color-mix(in srgb,var(--good) 22%,transparent);
+             border-radius:var(--r-tile);border-inline:2px solid color-mix(in srgb,var(--good) 55%,transparent)}
+.track .pin{position:absolute;top:4px;width:16px;height:16px;border-radius:50%;
+            border:2.5px solid var(--card);transform:translateX(50%)}
+.track .pin.p-good{background:var(--good)}
+.track .pin.p-fast{background:var(--fast)}
+.track .pin.p-slow{background:var(--slow)}
+.track .tick{position:absolute;top:7px;width:9px;height:9px;border-radius:50%;
+             border:2px solid var(--card);transform:translateX(50%)}
+.track .tick.p-good{background:var(--good)}
+.track .tick.p-fast{background:var(--fast)}
+.track .tick.p-slow{background:var(--slow)}
+.track .ghost{position:absolute;top:2px;bottom:2px;inset-inline-start:0;background:repeating-linear-gradient(
+              -45deg,#EDEDED,#EDEDED 3px,transparent 3px,transparent 6px);border-radius:var(--r-tile)}
+.rval{font-size:13px;font-weight:700;text-align:end;line-height:16px}
+.rval small{display:block;font-size:9px;font-weight:500;color:var(--ink-400)}
+.axis-hdr{display:grid;grid-template-columns:104px 1fr 58px;gap:10px;font-size:9px;color:var(--ink-400);
+          margin-bottom:2px}
+.axis-hdr .ends{display:flex;justify-content:space-between}
+.hidden-note{font-size:11px;color:var(--ink-400);background:#F5F5F5;border-radius:var(--r-tile);
+             padding:8px 10px;margin-top:10px;line-height:17px}
+
+/* ═══════ DESIGN 3 — ring + beads ═══════ */
+.ring-card{display:flex;align-items:center;gap:16px}
+.ring{position:relative;width:84px;height:84px;flex-shrink:0}
+.ring svg{transform:rotate(-90deg)}
+.ring .inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .big{font-size:17px;font-weight:700;color:var(--ink-900);line-height:1.1}
+.ring .cap{font-size:8px;font-weight:500;color:var(--ink-400)}
+.ring-side{flex:1;min-width:0}
+.ring-side .top{font-size:13px;font-weight:700;color:var(--ink-900);margin-bottom:2px}
+.ring-side .mid{font-size:11px;color:var(--ink-500);line-height:17px;margin-bottom:8px}
+.pips{display:flex;gap:3px;flex-wrap:wrap}
+.pip{width:12px;height:12px;border-radius:3px}
+.pip.g{background:var(--good)}.pip.f{background:var(--fast)}.pip.s{background:var(--slow)}
+.pip.n{background:var(--ink-300)}
+.pip.m{background:transparent;border:1.5px dashed var(--ink-300)}
+.pip.tall{height:18px;border-radius:3px}
+
+/* ── feed chip row ── */
+.chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:var(--r-pill);
+      padding:5px 11px;font-size:11px;font-weight:700}
+.chip-good{background:color-mix(in srgb,var(--good) 15%,#fff);color:var(--good-ink)}
+.chip-fast{background:color-mix(in srgb,var(--fast) 15%,#fff);color:var(--fast-ink)}
+.chip-slow{background:color-mix(in srgb,var(--slow) 15%,#fff);color:var(--slow-ink)}
+.chip-part{background:color-mix(in srgb,var(--band-3) 15%,#fff);color:var(--band-3-ink)}
+.chip .mini{display:flex;gap:2px}
+.chip .mini i{width:4px;height:11px;border-radius:1px;background:currentColor;opacity:.9}
+.chip .mini i.off{opacity:.22}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:start;font-weight:700;color:var(--ink-400);font-size:10px;text-transform:uppercase;
+   padding:0 8px 6px;border-bottom:1px solid #EFEFEF}
+td{padding:9px 8px;border-bottom:1px solid #F5F5F5;color:var(--ink-700);vertical-align:top;line-height:18px}
+td:first-child{font-weight:500}
+.tag{display:inline-block;border-radius:var(--r-pill);padding:2px 8px;font-size:10px;font-weight:700}
+.pro{background:color-mix(in srgb,var(--good) 15%,#fff);color:var(--good-ink)}
+.con{background:color-mix(in srgb,var(--red) 12%,#fff);color:var(--red-ink)}
+.note{background:#F5F5F5;border-radius:var(--r-tile);padding:12px 14px;font-size:12px;
+      line-height:19px;color:var(--ink-500);margin:10px 0}
+.note b{color:var(--ink-700);font-weight:700}
+.caseline{font-size:11px;color:var(--ink-400);margin:-6px 0 10px;padding-inline-start:2px}
+</style>
+</head>
+<body data-scheme="a">
+<div class="wrap">
+
+  <h1>שלבי האימון מהשעון</h1>
+  <p class="sub">
+    שלוש הצעות להציג את מה שהמנוע החדש יודע: <b>מה השעון ביקש בכל שלב, ומה בוצע בו</b>.
+    כל המספרים כאן אמיתיים — מריצות של החודש. מחליפים סכמת צבעים בכפתורים למטה,
+    וכל שלושת העיצובים משתנים יחד.
+  </p>
+
+  <div class="switch">
+    <b>סכמת צבע</b>
+    <button data-s="a" aria-pressed="true">א · טמפרטורה (מהר=אדום, אט=כחול)</button>
+    <button data-s="b" aria-pressed="false">ב · הקיים באפליקציה (מהר=כחול, אט=כתום)</button>
+    <button data-s="c" aria-pressed="false">ג · גוון אחד + חץ בלבד</button>
+  </div>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--good)"></i> בטווח היעד</span>
+    <span><i class="sw" style="background:var(--fast)"></i> מהר מהיעד</span>
+    <span><i class="sw" style="background:var(--slow)"></i> אט מהיעד</span>
+    <span><i class="sw" style="background:var(--ink-300)"></i> בלי יעד קצב</span>
+    <span><i class="sw" style="background:#fff;border:2px solid var(--red)"></i> לא בוצע</span>
+  </div>
+
+  <!-- ══════════════════════════════════ 1 ══════════════════════════════════ -->
+  <h2><span class="num">1.</span> רכבת השלבים <span style="font-size:12px;font-weight:300;color:var(--ink-400)">— העיגול והחץ</span></h2>
+  <p class="why">
+    הרעיון שלך, כמו שהוא: עיגול לכל שלב (בפנים — מה השלב ביקש), וחץ שצבעו וכיוונו אומרים
+    איך רץ. קורא ב־2 שניות, נכנס לרוחב של כרטיס פיד, וגם עובד לאימון עם 12 שלבים
+    כי הוא נגלל. מה שהוא <em>לא</em> נותן: בכמה פיספסת — אדום זה גם 3 שניות וגם 30.
+  </p>
+
+  <!-- Case: Sahar, own workout, 2026-09-07 -->
+  <div class="phone">
+    <div class="hdr">
+      <span class="eyebrow">האימון שהשעון הריץ</span>
+      <span class="wname">EZ + intervals</span>
+      <span class="verdict" style="color:var(--good-ink)"><i class="dot" style="background:var(--good)"></i>בוצע לפי התוכנית</span>
+    </div>
+    <div class="train">
+      <div class="stepnode">
+        <div class="bead b-good">22<span class="unit">ק״מ</span></div>
+        <div class="lbl">רצף</div><div class="act tabular">4:48</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-none">15<span class="unit">שנ׳</span><span class="reps">8/8</span></div>
+        <div class="lbl">ספרינטים</div><div class="act tabular">3:25</div>
+      </div>
+      <div class="link"><span class="arrow a-none">–</span></div>
+      <div class="stepnode">
+        <div class="bead b-none small">45<span class="unit">שנ׳</span><span class="reps">8/8</span></div>
+        <div class="lbl">מנוחה</div>
+      </div>
+    </div>
+    <p class="tail">
+      22.0 ק״מ ביעד <b class="tabular">4:45–4:55</b> → <b class="tabular">4:48</b>.
+      היעד נלקח מההערה שהיא עצמה כתבה בשלב, לא מהתוכנית של הקבוצה.
+    </p>
+  </div>
+  <p class="caseline">↑ הריצה שהמנוע הישן טעה בה: הוא השווה אותה לתוכנית של יום ראשון וכתב «אט מהיעד».</p>
+
+  <!-- Case: Guy, ladder, 2026-09-04 -->
+  <div class="phone">
+    <div class="hdr">
+      <span class="eyebrow">האימון שהשעון הריץ</span>
+      <span class="wname">סולם 45 שנ׳</span>
+      <span class="verdict" style="color:var(--good-ink)"><i class="dot" style="background:var(--good)"></i>4 מתוך 4 בטווח</span>
+    </div>
+    <div class="train">
+      <div class="stepnode">
+        <div class="bead b-good">3<span class="unit">ק״מ</span></div>
+        <div class="lbl">חימום</div><div class="act tabular">5:12</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-good">4:00</div><div class="lbl">45 שנ׳</div><div class="act tabular">4:03</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-good">3:50</div><div class="lbl">45 שנ׳</div><div class="act tabular">3:52</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-good">3:40</div><div class="lbl">45 שנ׳</div><div class="act tabular">3:36</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-good">3:30</div><div class="lbl">45 שנ׳</div><div class="act tabular">3:31</div>
+      </div>
+      <div class="link"><span class="arrow a-none">–</span></div>
+      <div class="stepnode">
+        <div class="bead b-none">2<span class="unit">ק״מ</span></div>
+        <div class="lbl">שחרור</div><div class="act tabular">5:40</div>
+      </div>
+    </div>
+    <p class="scrollhint">↔ שבעה שלבים לא נכנסים לרוחב טלפון — השורה נגללת. הגרסה המלאה למטה.</p>
+    <p class="tail">
+      ארבע חזרות, ארבעה יעדים יורדים, כל אחת נמדדת מול <b>היעד שלה</b> —
+      זה מה שהמנוע הישן לא ידע לעשות (הוא ספר את מסמני החזרה כשלבים והזיז את כל המספור).
+    </p>
+  </div>
+
+  <!-- The same ladder with room for all seven steps: what a tablet, or the run screen
+       in landscape, would show without scrolling. -->
+  <div class="card">
+    <div class="hdr">
+      <span class="eyebrow">אותו סולם, ברוחב מלא</span>
+      <span class="verdict" style="color:var(--good-ink)"><i class="dot" style="background:var(--good)"></i>4 מתוך 4 בטווח</span>
+    </div>
+    <div class="train fits">
+      <div class="stepnode">
+        <div class="bead b-good">3<span class="unit">ק״מ</span></div>
+        <div class="lbl">חימום</div><div class="act tabular">5:12</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-good">4:00</div><div class="lbl">45 שנ׳</div><div class="act tabular">4:03</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-good">3:50</div><div class="lbl">45 שנ׳</div><div class="act tabular">3:52</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-good">3:40</div><div class="lbl">45 שנ׳</div><div class="act tabular">3:36</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-good">3:30</div><div class="lbl">45 שנ׳</div><div class="act tabular">3:31</div>
+      </div>
+      <div class="link"><span class="arrow a-none">–</span></div>
+      <div class="stepnode">
+        <div class="bead b-none">2<span class="unit">ק״מ</span></div>
+        <div class="lbl">שחרור</div><div class="act tabular">5:40</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Case: abandoned session -->
+  <div class="phone">
+    <div class="hdr">
+      <span class="eyebrow">האימון שהשעון הריץ</span>
+      <span class="wname">2 ק״מ + 20 ק״מ + 8 ספרינטים</span>
+      <span class="verdict" style="color:var(--red-ink)"><i class="dot" style="background:var(--red)"></i>בוצע חלקית</span>
+    </div>
+    <div class="train">
+      <div class="stepnode">
+        <div class="bead b-good">2<span class="unit">ק״מ</span></div>
+        <div class="lbl">חימום</div><div class="act tabular">5:45</div>
+      </div>
+      <div class="link"><span class="arrow a-good">✓</span></div>
+      <div class="stepnode">
+        <div class="bead b-part">5<span class="unit">/20</span></div>
+        <div class="lbl">רצף בקצב</div><div class="act" style="color:var(--band-3-ink)">25%</div>
+      </div>
+      <div class="link"><span class="arrow a-none">–</span></div>
+      <div class="stepnode">
+        <div class="bead b-miss">0<span class="unit">/8</span></div>
+        <div class="lbl">ספרינטים</div><div class="act" style="color:var(--red-ink)">לא בוצע</div>
+      </div>
+      <div class="link"><span class="arrow a-none">–</span></div>
+      <div class="stepnode">
+        <div class="bead b-miss small">0<span class="unit">/8</span></div>
+        <div class="lbl">מנוחה</div>
+      </div>
+    </div>
+    <p class="tail">
+      5 ק״מ מתוך 20. השלב <b>לא מקבל ציון קצב</b> גם אם ה־5 ק״מ היו בטווח —
+      מי שעצר אחרי רבע מהבלוק לא רץ בלוק מוצלח (<code>truncated</code>).
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════ 2 ══════════════════════════════════ -->
+  <h2><span class="num">2.</span> סרגל היעד <span style="font-size:12px;font-weight:300;color:var(--ink-400)">— רואים בכמה</span></h2>
+  <p class="why">
+    אותו מידע, אבל על ציר: הקטע הירוק הוא טווח היעד, והנקודה היא איפה הקצב נפל בפועל.
+    <b>3 שניות מהיעד ו־30 שניות מהיעד לא נראים אותו דבר</b>, ובסט חזרות רואים את
+    הדריפט — כל חזרה היא נקודה קטנה על אותו ציר. זה העיצוב שמאמן ירצה; הוא צריך
+    רוחב, ולכן מקומו במסך הריצה ולא בפיד.
+  </p>
+
+  <div class="phone" style="max-width:430px">
+    <div class="hdr">
+      <span class="eyebrow">האימון שהשעון הריץ</span>
+      <span class="wname">6×400 + רצף</span>
+      <span class="verdict" style="color:var(--band-3-ink)"><i class="dot" style="background:var(--band-3)"></i>4 מתוך 6 בטווח</span>
+    </div>
+    <div class="axis-hdr">
+      <span></span><span class="ends"><i>מהר</i><i>אט</i></span><span></span>
+    </div>
+    <div class="ruler-row">
+      <div class="rname">חימום 2 ק״מ<small>5:30–6:00</small></div>
+      <div class="track">
+        <div class="axis"></div><div class="band" style="inset-inline-start:44%;width:26%"></div>
+        <div class="pin p-good" style="inset-inline-start:56%"></div>
+      </div>
+      <div class="rval tabular" style="color:var(--good-ink)">5:45<small>בטווח</small></div>
+    </div>
+    <div class="ruler-row">
+      <div class="rname">6×400 מ׳<small>יעד 1:28–1:32</small></div>
+      <div class="track">
+        <div class="axis"></div><div class="band" style="inset-inline-start:40%;width:22%"></div>
+        <div class="tick p-good" style="inset-inline-start:44%"></div>
+        <div class="tick p-good" style="inset-inline-start:50%"></div>
+        <div class="tick p-good" style="inset-inline-start:55%"></div>
+        <div class="tick p-good" style="inset-inline-start:60%"></div>
+        <div class="tick p-slow" style="inset-inline-start:71%"></div>
+        <div class="tick p-slow" style="inset-inline-start:80%"></div>
+      </div>
+      <div class="rval tabular" style="color:var(--band-3-ink)">4/6<small>בטווח</small></div>
+    </div>
+    <div class="ruler-row">
+      <div class="rname">מנוחה 90 שנ׳<small>×6 · בלי יעד</small></div>
+      <div class="track"><div class="axis"></div>
+        <div style="position:absolute;top:6px;inset-inline-start:0;font-size:10px;color:var(--ink-400)">6/6 בוצעו</div>
+      </div>
+      <div class="rval tabular" style="color:var(--ink-400)">—<small>אין יעד</small></div>
+    </div>
+    <div class="ruler-row">
+      <div class="rname">רצף 8 ק״מ<small>4:35–4:45</small></div>
+      <div class="track">
+        <div class="axis"></div><div class="band" style="inset-inline-start:38%;width:20%"></div>
+        <div class="pin p-fast" style="inset-inline-start:26%"></div>
+      </div>
+      <div class="rval tabular" style="color:var(--fast-ink)">4:22<small>מהר ב־13</small></div>
+    </div>
+    <p class="hidden-note">
+      <b>מה שחבר לקבוצה רואה:</b> אותן שורות בלי המספרים — טווח היעד, שם השלב והסטטוס בלבד.
+      קצב של חזרה בת 45 שניות עדין יותר מהקילומטרים שכבר מוצגים בפיד, ודופק לפי שלב הוא מידע חדש,
+      ולכן שניהם מסוננים לכל מי שאינו הרץ עצמו או צוות.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════ 3 ══════════════════════════════════ -->
+  <h2><span class="num">3.</span> טבעת וחרוזים <span style="font-size:12px;font-weight:300;color:var(--ink-400)">— לכרטיס בפיד</span></h2>
+  <p class="why">
+    התמצית. הטבעת היא «כמה מהשלבים נפלו בטווח», בפנים הקצב של השלב הראשי, ומתחת
+    חרוז לכל חזרה. תופס גובה של שורה וחצי, ולכן זה היחיד מהשלושה שאפשר להדביק
+    בכרטיס פיד בלי להאריך אותו. הפירוט המלא נשאר בהקשה אחת.
+  </p>
+
+  <div class="phone">
+    <div class="ring-card">
+      <div class="ring">
+        <svg width="84" height="84" viewBox="0 0 84 84">
+          <circle cx="42" cy="42" r="36" fill="none" stroke="#EDEDED" stroke-width="9"/>
+          <circle cx="42" cy="42" r="36" fill="none" stroke="var(--good)" stroke-width="9"
+                  stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="0"/>
+        </svg>
+        <div class="inner"><span class="big tabular">4:48</span><span class="cap">קצב הבלוק</span></div>
+      </div>
+      <div class="ring-side">
+        <div class="top">3 מתוך 3 השלבים בטווח</div>
+        <div class="mid">22 ק״מ רצף · 8 ספרינטים · 8 מנוחות</div>
+        <div class="pips">
+          <i class="pip tall g" title="רצף 22 ק״מ"></i>
+          <i class="pip n"></i><i class="pip n"></i><i class="pip n"></i><i class="pip n"></i>
+          <i class="pip n"></i><i class="pip n"></i><i class="pip n"></i><i class="pip n"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="ring-card">
+      <div class="ring">
+        <svg width="84" height="84" viewBox="0 0 84 84">
+          <circle cx="42" cy="42" r="36" fill="none" stroke="#EDEDED" stroke-width="9"/>
+          <circle cx="42" cy="42" r="36" fill="none" stroke="var(--band-3)" stroke-width="9"
+                  stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="75"/>
+        </svg>
+        <div class="inner"><span class="big tabular">1:33</span><span class="cap">ממוצע 400</span></div>
+      </div>
+      <div class="ring-side">
+        <div class="top">4 מתוך 6 חזרות בטווח</div>
+        <div class="mid">6×400 מ׳ ביעד 1:28–1:32 · שתי החזרות האחרונות נשמטו</div>
+        <div class="pips">
+          <i class="pip g"></i><i class="pip g"></i><i class="pip g"></i><i class="pip g"></i>
+          <i class="pip s"></i><i class="pip s"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="ring-card">
+      <div class="ring">
+        <svg width="84" height="84" viewBox="0 0 84 84">
+          <circle cx="42" cy="42" r="36" fill="none" stroke="#EDEDED" stroke-width="9"/>
+          <circle cx="42" cy="42" r="36" fill="none" stroke="var(--red)" stroke-width="9"
+                  stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="170"/>
+        </svg>
+        <div class="inner"><span class="big" style="font-size:15px">5/20</span><span class="cap">ק״מ מהבלוק</span></div>
+      </div>
+      <div class="ring-side">
+        <div class="top">האימון נקטע</div>
+        <div class="mid">רבע מהבלוק, ואף אחד מ־8 הספרינטים. אין ציון קצב לבלוק שנקטע.</div>
+        <div class="pips">
+          <i class="pip tall g" title="חימום"></i>
+          <i class="pip tall" style="background:var(--band-3)"></i>
+          <i class="pip m"></i><i class="pip m"></i><i class="pip m"></i><i class="pip m"></i>
+          <i class="pip m"></i><i class="pip m"></i><i class="pip m"></i><i class="pip m"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="why" style="margin-top:18px">ואיך זה נראה כשיפינו אותו לצ׳יפ בודד על כרטיס בפיד:</p>
+  <div class="card">
+    <div class="chips">
+      <span class="chip chip-good"><i class="dot" style="background:currentColor"></i>3/3 שלבים בטווח</span>
+      <span class="chip chip-part"><span class="mini"><i></i><i></i><i></i><i></i><i class="off"></i><i class="off"></i></span>4/6 חזרות</span>
+      <span class="chip chip-fast">▲ מהר מהיעד</span>
+      <span class="chip chip-slow">▼ אט מהיעד</span>
+      <span class="chip chip-part">האימון נקטע · 25%</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ decisions ══════════════════════════════════ -->
+  <h2>שלוש החלטות שצריך להכריע</h2>
+
+  <div class="card">
+    <table>
+      <thead><tr><th style="width:130px">השאלה</th><th>מה שכדאי לדעת</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>אדום = מהר?</td>
+          <td>
+            הסכמה שלך (א) קוהרנטית — כחול=קר=אט, אדום=חם=מהר — ומאמנית נכונה:
+            ריצה קלה שנרוצה מהר מדי היא <em>טעות</em>, לא הצלחה.
+            <b>אבל היא הופכת את מה שכבר באפליקציה:</b> ב־<code>PlanVerdictCard</code> כחול הוא
+            היום «יותר ממה שביקשנו — שווה לדעת, לא כישלון», כתום הוא «פחות», ואדום שמור
+            לכותרת «לא לפי התוכנית». אם עוברים לסכמה א׳, צריך להחליף אותה
+            <span class="tag con">בכל שלושת המקומות ביחד</span> — אחרת אותו כחול יאמר שני
+            דברים הפוכים בשני מסכים.
+          </td>
+        </tr>
+        <tr>
+          <td>לאן החץ מצביע?</td>
+          <td>
+            «למעלה» דו־משמעי: קצב נמדד בשנ׳/ק״מ, ולכן מהר יותר הוא <em>מספר קטן יותר</em>.
+            חץ מעלה יכול להיקרא «יותר מהר» או «מספר גבוה = אט». בעיצוב 2 הבעיה נעלמת
+            כי המקום על הציר הוא התשובה <span class="tag pro">בלי מקרא</span>.
+            אם בוחרים חץ — צריך גם מילה לידו.
+          </td>
+        </tr>
+        <tr>
+          <td>אדום מול ירוק</td>
+          <td>
+            זה בדיוק הצמד שעיוורי־צבעים לא מפרידים (דאוטרנופיה, ~8% מהגברים — והמועדון
+            בעיקר גברים). בכל שלושת העיצובים כאן הצבע הוא <em>שכבה שנייה</em>: יש גם חץ,
+            גם מספר וגם מילה. אל תוותר על זה. סכמה ג׳ היא הגרסה שלא מסתמכת על אדום/ירוק
+            בכלל — גוון אחד לחריגה, והכיוון רק מהחץ.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>ההמלצה שלי:</b> עיצוב 3 בפיד (הוא היחיד שנכנס לשם בלי להאריך את הכרטיס),
+    עיצוב 2 במסך הריצה (הוא היחיד שעונה «בכמה»), ועיצוב 1 בראש מסך הריצה כסרגל
+    ניווט מעל עיצוב 2 — העיגולים הם התוכן, והסרגל למטה הוא הפירוט.
+    לגבי צבע: סכמה א׳ שלך, אבל אז מחליפים גם את <code>PlanVerdictCard</code> באותו commit.
+  </div>
+
+</div>
+<script>
+  const body = document.body;
+  document.querySelectorAll('.switch button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      body.dataset.scheme = btn.dataset.s;
+      document.querySelectorAll('.switch button').forEach(b =>
+        b.setAttribute('aria-pressed', String(b === btn)));
+    });
+  });
+</script>
+</body>
+</html>

@@ -21,7 +21,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { kmSplitsFromLaps } from '@/lib/activities/km-splits';
-import { readStoredLaps } from '@/lib/plan-execution/laps';
+import { normalizeStoredLaps } from '@/lib/garmin/laps';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,8 +93,8 @@ export async function GET(request: Request) {
     // which is the splits table of zeroes, the pace chart pinned flat against a
     // y-axis labelled "-1:-28", and "0 of 31 kilometres inside the target band"
     // reported about a run whose laps were all there.
-    const stored = readStoredLaps(r.splits);
-    const lapped = readStoredLaps(r.laps);
+    const stored = normalizeStoredLaps(r.splits);
+    const lapped = normalizeStoredLaps(r.laps);
     const splits = kmSplitsFromLaps(stored.length >= lapped.length ? stored : lapped);
 
     // The summary row, shaped like the list endpoint's rows so the detail UI can

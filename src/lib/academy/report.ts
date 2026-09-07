@@ -14,7 +14,7 @@ import {
 import { loadAcademySettings } from './settings-server';
 import { isMissingMatchesTable } from '@/lib/plans/match-athlete-activities';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
-import { toLaps } from '@/lib/plan-execution/laps';
+import { normalizeStoredLaps } from '@/lib/garmin/laps';
 import { segmentReportFor } from '@/lib/plan-execution/resolve';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import type { Lap } from './segments';
@@ -261,7 +261,7 @@ export async function computeAcademyWeekAdherence(opts: {
   const actualByAthlete = new Map<string, ActualActivity[]>();
   const lapsByActivity = new Map<string, Lap[]>();
   for (const r of (acts.data || []) as any[]) {
-    if (opts.withExecution) lapsByActivity.set(r.id, toLaps(r.laps));
+    if (opts.withExecution) lapsByActivity.set(r.id, normalizeStoredLaps(r.laps));
     const arr = actualByAthlete.get(r.athlete_id) || [];
     arr.push({
       id: r.id,

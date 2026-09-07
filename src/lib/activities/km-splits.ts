@@ -18,7 +18,7 @@
  * Units, as everywhere: distance METERS, duration SECONDS, pace SECONDS PER KM.
  */
 
-import type { StoredLap } from '@/lib/plan-execution/laps';
+import type { StoredLap } from '@/lib/garmin/laps';
 
 /**
  * One kilometre of a run. Structurally the `Split` the activity UI renders

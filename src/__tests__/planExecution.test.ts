@@ -23,7 +23,7 @@ import {
   type Lap,
   type PlannedKmPoint,
 } from '@/lib/academy/segments';
-import { hasStoredLaps, toLaps } from '@/lib/plan-execution/laps';
+import { hasStoredLaps, normalizeStoredLaps } from '@/lib/garmin/laps';
 import { segmentReportFor } from '@/lib/plan-execution/resolve';
 import { executionTakesPaceChart, workRepsOf } from '@/components/activity/ExecutionQuality';
 import type { Split } from '@/components/activity/types';
@@ -218,8 +218,8 @@ describe('buildVerdict — the 4x2000 pair', () => {
     const verdict = verdictFor(187, run({ distance: 13600, duration: 3300, movingDuration: 3300 }));
     expect(verdict.direction).toBe('too_fast');
     expect(verdict.repCounts).toMatchObject({ onTarget: 0, faster: 4, slower: 0 });
-    // 187 vs a 200 band with ±5 tolerance → 8 s/km outside, negative = fast.
-    expect(verdict.paceDeviationSec).toBe(-8);
+    // 187 vs a 200 band with ±10 tolerance → 3 s/km outside, negative = fast.
+    expect(verdict.paceDeviationSec).toBe(-3);
     expect(verdict.score).toBeLessThan(100);
   });
 
@@ -283,8 +283,8 @@ describe('buildVerdict — the 4x2000 pair', () => {
   it('weights the reps over distance/duration when it has both', () => {
     const verdict = verdictFor(187, run({ distance: 13600 }));
     expect(verdict.basis).toBe('reps_and_metrics');
-    // 8 s/km outside a ±5 band → 1 - 8/15 per rep; distance is spot on.
-    const repPart = 1 - 8 / (DEFAULT_TOLERANCES.paceSec * ZERO_AT_TOLERANCE_MULTIPLE);
+    // 3 s/km outside a ±10 band → 1 - 3/30 per rep; distance is spot on.
+    const repPart = 1 - 3 / (DEFAULT_TOLERANCES.paceSec * ZERO_AT_TOLERANCE_MULTIPLE);
     const expected = Math.round((REPS_WEIGHT * repPart + (1 - REPS_WEIGHT) * 1) * 100);
     expect(verdict.score).toBe(expected);
   });
@@ -342,41 +342,12 @@ describe('buildVerdict — runs it refuses to grade on pace', () => {
   });
 });
 
-describe('toLaps — the two shapes stored in athlete_activities.laps', () => {
-  it('passes Garmin laps through', () => {
-    expect(toLaps([{ distance: 2000, duration: 410, averagePace: 205 }]))
-      .toEqual([{ distance: 2000, duration: 410, averagePace: 205 }]);
-  });
-
-  it('reads a raw Strava lap, which has neither `duration` nor `averagePace`', () => {
-    // The defect: these were dropped entirely, so a Strava athlete's interval
-    // session had no reps and got scored on distance alone.
-    const laps = toLaps([
-      { name: 'Lap 1', lap_index: 1, distance: 2000, moving_time: 410, elapsed_time: 415, average_speed: 4.878 },
-    ]);
-    expect(laps).toHaveLength(1);
-    expect(laps[0].duration).toBe(410);
-    // 1000 / 4.878 m/s ≈ 205 s/km.
-    expect(laps[0].averagePace).toBe(205);
-  });
-
-  it('derives pace from distance and time when neither provider gave one', () => {
-    expect(toLaps([{ distance: 2000, moving_time: 410 }])[0].averagePace).toBe(205);
-  });
-
-  it('falls back to elapsed time when a lap has no moving time', () => {
-    expect(toLaps([{ distance: 400, elapsed_time: 120, average_speed: 0 }])[0])
-      .toEqual({ distance: 400, duration: 120, averagePace: 300 });
-  });
-
-  it('drops laps it cannot use rather than inventing a pace for them', () => {
-    // A zero-distance lap would otherwise divide by zero; a lap with no time at
-    // all can't be paced. Both are silently useless, never NaN.
-    expect(toLaps([{ distance: 0, duration: 30 }, { distance: 1000 }, null, 'x'])).toEqual([]);
-    expect(toLaps(null)).toEqual([]);
-    expect(toLaps({ laps: [] })).toEqual([]);
-  });
-
+/**
+ * The lap reader itself is pinned in `storedLaps.test.ts`, beside the module. What
+ * belongs here is the end of the chain: that a Strava-shaped run reaches the same
+ * VERDICT as the Garmin-shaped one, which is the thing an athlete notices.
+ */
+describe('the shapes stored in athlete_activities.laps, end to end', () => {
   it('tells "nobody asked" apart from "asked, and there were none"', () => {
     // `[]` is written back deliberately so the Garmin fetch happens once per run.
     expect(hasStoredLaps([])).toBe(true);
@@ -398,7 +369,7 @@ describe('toLaps — the two shapes stored in athlete_activities.laps', () => {
       adherence: assessWorkout(planned, run({ duration: 3300, movingDuration: 3300 }), DEFAULT_TOLERANCES),
       segments: matchLapsToSteps(
         flattenPlannedSteps(workout),
-        toLaps(stravaShaped),
+        normalizeStoredLaps(stravaShaped),
         DEFAULT_TOLERANCES.paceSec,
       ),
       workoutName: workout.name,
@@ -597,7 +568,8 @@ describe('segmentReportFor', () => {
   });
 
   it('reaches the same verdict from a stored lap blob as the run page does', () => {
-    // The roll-up's laps come out of `athlete_activities.laps` through `toLaps`,
+    // The roll-up's laps come out of `athlete_activities.laps` through the one
+    // normalizer (`normalizeStoredLaps`, in `garmin/laps.ts`),
     // never from Garmin. Same reps, same score, whichever side asked.
     const stored = lapsAt(187).map(l => ({
       distance: l.distance, moving_time: l.duration, average_speed: 1000 / l.averagePace!,
@@ -606,7 +578,7 @@ describe('segmentReportFor', () => {
     const adherence = assessWorkout(buildPlannedWorkout(workout, DATE), run(), DEFAULT_TOLERANCES);
     const fromStore = buildVerdict({
       activityId: 'act-1', athleteId: 'ath-1', adherence, workoutName: workout.name,
-      segments: segmentReportFor(workout, toLaps(stored), DEFAULT_TOLERANCES.paceSec),
+      segments: segmentReportFor(workout, normalizeStoredLaps(stored), DEFAULT_TOLERANCES.paceSec),
     });
     const fromRunPage = verdictFor(187, run());
     expect(fromStore.score).toBe(fromRunPage.score);
@@ -646,13 +618,13 @@ describe('workRepsOf', () => {
 
   /**
    * One rep run past the tolerance, the rest in band, warmup and cooldown to plan.
-   * The band is 200–210 and the tolerance 5, so 192 is the first pace that counts
+   * The band is 200–210 and the tolerance 10, so 189 is the first pace that counts
    * as faster rather than close enough.
    */
   function repsOfPacedEnds() {
     const workout = pacedEnds();
     const laps = lapsAt(205);
-    laps[1] = { distance: 2000, duration: 2000 * (192 / 1000), averagePace: 192 };
+    laps[1] = { distance: 2000, duration: 2000 * (187 / 1000), averagePace: 187 };
     const verdict = buildVerdict({
       activityId: 'act-1', athleteId: 'ath-1', workoutName: workout.name,
       adherence: assessWorkout(buildPlannedWorkout(workout, DATE), run(), DEFAULT_TOLERANCES),
