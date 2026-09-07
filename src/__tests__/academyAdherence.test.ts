@@ -143,12 +143,15 @@ describe('buildPlannedWorkout', () => {
 
 describe('assessPace', () => {
   it('allows the tolerance in seconds per km on both sides of the band', () => {
-    // A 5:00 target with paceSec=5 is good from 4:55 to 5:05.
+    // A 5:00 target on the default paceSec=10 is good from 4:50 to 5:10.
     expect(assessPace(300, 300, 300)).toBe('on_target');
-    expect(assessPace(295, 300, 300)).toBe('on_target');
-    expect(assessPace(305, 300, 300)).toBe('on_target');
-    expect(assessPace(294, 300, 300)).toBe('faster');
-    expect(assessPace(306, 300, 300)).toBe('slower');
+    expect(assessPace(290, 300, 300)).toBe('on_target');
+    expect(assessPace(310, 300, 300)).toBe('on_target');
+    expect(assessPace(289, 300, 300)).toBe('faster');
+    expect(assessPace(311, 300, 300)).toBe('slower');
+    // And the caller's own tolerance still wins over the default.
+    expect(assessPace(294, 300, 300, 5)).toBe('faster');
+    expect(assessPace(306, 300, 300, 5)).toBe('slower');
   });
 
   it('is unknown without both an actual and a band', () => {

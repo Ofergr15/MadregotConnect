@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout } from 'lucide-react';
+import Link from 'next/link';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout, Wrench, Lock, Unlock, DoorOpen, History } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
@@ -16,6 +17,7 @@ import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceTo
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { MapPrefsRow } from '@/components/MapPrefsRow';
+import { GarminHistoryImport } from '@/components/admin/GarminHistoryImport';
 import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
 import { ADMIN_HIDDEN_TABS } from '@/lib/nav-items';
@@ -39,8 +41,13 @@ interface User {
   approved?: boolean;
   approvedAt?: string | null;
   lastSeenAt?: string | null;
+  createdAt?: string | null;
   /** In the גרעין — the flag (migration 091) OR the legacy role. See lib/core-runner. */
   isCoreRunner?: boolean;
+  /** The maintenance window is keeping them out right now (server's verdict). */
+  blocked?: boolean;
+  /** A watch credential is on file — not `onboardingStatus`, which goes stale. */
+  hasWatch?: boolean;
 }
 
 type Role = 'admin' | 'coach' | 'academy_coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
@@ -72,6 +79,67 @@ const roleConfig = {
   academy_user: { label: 'Academy', bg: 'bg-brand-600/15', text: 'text-brand-600', border: 'border-brand-600/30', dot: 'bg-brand-600' },
   viewer: { label: 'Viewer', bg: 'bg-ink-300/15', text: 'text-ink-400', border: 'border-ink-300/30', dot: 'bg-ink-300' },
 };
+
+/**
+ * An address, or nothing.
+ *
+ * Login is Strava-only, so most members carry `strava_<id>@strava.madregot.local`
+ * on their row. Printing it under their name filled the roster with a string that
+ * looks like a contact detail, isn't one, and is the same for everybody except
+ * the digits. Nothing is more honest than a fake inbox.
+ */
+function realAddress(email: string | null | undefined): string | null {
+  const value = String(email || '').trim();
+  return value && !value.toLowerCase().endsWith('.local') ? value : null;
+}
+
+/** How long somebody has been waiting — the queue's actual priority signal. */
+function waitingSince(user: User, t: TFunc): string | null {
+  if (!user.createdAt) return null;
+  const days = Math.floor((Date.now() - new Date(user.createdAt).getTime()) / 86400000);
+  return days <= 0 ? t('signedUpToday') : t('signedUpDaysAgo', { days });
+}
+
+/** One small state chip. Same four tones as the entry-queue cards. */
+function StateChip({ tone, icon: Icon, label }: {
+  tone: 'ok' | 'warn' | 'bad' | 'muted';
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}) {
+  const tones: Record<string, string> = {
+    ok: 'bg-accent-600/15 text-accent-900 border-accent-600/25',
+    warn: 'bg-band-3/20 text-band-3-ink border-band-3/30',
+    bad: 'bg-accent-red/15 text-accent-red border-accent-red/25',
+    muted: 'bg-page text-ink-400 border-page',
+  };
+  return (
+    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-semibold border', tones[tone])}>
+      <Icon className="w-2.5 h-2.5" />
+      {label}
+    </span>
+  );
+}
+
+/**
+ * What the approve tap actually did, in a sentence.
+ *
+ * The two outcomes are genuinely different and the admin needs to tell them
+ * apart: during a maintenance window the release is the half that makes the
+ * approval felt, and while the club is open there is nothing to release and
+ * saying "removed from the block" would be a lie.
+ */
+function ApprovalOutcome({ outcome, t }: { outcome?: 'released' | 'approved'; t: TFunc }) {
+  if (!outcome) return null;
+  return (
+    <p className={cn(
+      'mt-2 text-xs font-semibold flex items-center gap-1.5',
+      outcome === 'released' ? 'text-accent-900' : 'text-ink-400',
+    )}>
+      {outcome === 'released' ? <Unlock className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+      {outcome === 'released' ? t('approvedAndReleased') : t('approvedClubOpen')}
+    </p>
+  );
+}
 
 /**
  * The דבוקה picker, sitting next to the role picker on the same member row.
@@ -293,7 +361,7 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations' | 'coreRunners';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations' | 'coreRunners' | 'garminHistory';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
@@ -310,14 +378,19 @@ const settingsTabs = [
   { key: 'challenges' as SettingsTab, label: 'Challenge Manager', icon: Trophy, iconBg: 'bg-band-3' },
   { key: 'store' as SettingsTab, label: 'Store Manager', icon: ShoppingBag, iconBg: 'bg-band-2' },
   { key: 'perks' as SettingsTab, label: 'Perks Manager', icon: Gift, iconBg: 'bg-pink-600' },
+  // A repair tool rather than a manager: it pulls the Garmin history that the
+  // 100-activity sync never asked for (see lib/garmin/history-backfill.ts). Last
+  // in the list because it is something you reach for when a PR looks wrong, not
+  // something you visit.
+  { key: 'garminHistory' as SettingsTab, label: 'Garmin History', icon: History, iconBg: 'bg-brand-600' },
 ];
 
-function getOnboardingStep(status: string | undefined, approved: boolean | undefined): { step: number; label: string; color: string } {
-  if (approved === true) return { step: 3, label: 'Active', color: 'text-accent-600' };
-  if (status === 'garmin_authed') return { step: 2, label: 'Awaiting approval', color: 'text-band-3' };
-  if (status === 'google_authed') return { step: 1, label: 'Needs Garmin', color: 'text-band-3' };
-  return { step: 0, label: 'Pending', color: 'text-ink-400' };
-}
+// getOnboardingStep is gone with the two chips it fed. It read a Google →
+// Garmin funnel that no longer exists — sign-in is Strava-only, so "Google" was
+// grey for every member forever — and it decided "has a watch" from
+// onboarding_status, which still says garmin_authed for people whose credential
+// has since been cleared. Both facts now come from the credentials themselves
+// (User.hasWatch, resolved server-side in /api/admin/users).
 
 export default function SettingsPage() {
   const t = useTranslations('settings');
@@ -395,6 +468,21 @@ export default function SettingsPage() {
   const [uRole, setURole] = useState<'all' | Role>('all');
   const [uGroup, setUGroup] = useState<'all' | '0' | '1' | '2' | 'none'>('all');
   const [uGarmin, setUGarmin] = useState<'all' | 'with' | 'without'>('all');
+  // Is the maintenance window on, per the roster response — the second door.
+  const [maintenanceOn, setMaintenanceOn] = useState(false);
+  // Show only people the window is currently keeping out. Only offered while it
+  // is on, because otherwise it filters to nobody and reads as a broken screen.
+  const [uBlockedOnly, setUBlockedOnly] = useState(false);
+  /**
+   * What the last approve actually DID, per member.
+   *
+   * 'released' = approved and taken off the maintenance block; 'approved' = the
+   * club was open, so there was nothing to release. This exists because the
+   * release was invisible: the endpoint has released people since 2.39.127 and
+   * the only way to find out was to read the response in devtools or ask the
+   * member. An action whose effect you can't see is an action you can't trust.
+   */
+  const [approveOutcome, setApproveOutcome] = useState<Record<string, 'released' | 'approved'>>({});
 
   useEffect(() => {
     const me = localStorage.getItem('coach_email') || localStorage.getItem('athlete_email') || '';
@@ -490,19 +578,19 @@ export default function SettingsPage() {
             {user.isCoreRunner && <span className="text-xs" title={CORE_RUNNER_LABEL}>{CORE_RUNNER_MARK}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-ink-400 truncate">{user.email}</span>
+            {/* A real address if there is one; otherwise say how they signed in
+                rather than printing a synthetic mailbox nobody can write to. */}
+            <span className="text-xs text-ink-400 truncate">{realAddress(user.email) || t('stravaSignIn')}</span>
             <span className={cn('text-3xs font-medium', lastSeenColor)}>{lastSeenLabel}</span>
-            {user.onboardingStatus === 'garmin_authed' && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-900 border border-accent-600/20 flex items-center gap-1">
-                <Watch className="w-2.5 h-2.5" />{t('garmin')}
-              </span>
-            )}
-            {user.onboardingStatus === 'google_authed' && (
-              <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-band-3/15 text-band-3-ink border border-band-3/20">{t('googleOnly')}</span>
-            )}
+            {/* Credentials, not onboarding_status — that column still said
+                garmin_authed for people whose credential had been cleared. */}
+            {user.hasWatch && <StateChip tone="ok" icon={Watch} label={t('watchConnected')} />}
             {user.approved === false && (
               <span className="text-3xs font-bold px-1.5 py-0.5 rounded bg-accent-red/15 text-accent-red-ink border border-accent-red/20">{t('pending')}</span>
             )}
+            {/* Approved, active, and still can't open the app. This is the state
+                that had no name anywhere before. */}
+            {user.blocked && <StateChip tone="bad" icon={Lock} label={t('blockedByMaintenance')} />}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -564,7 +652,21 @@ export default function SettingsPage() {
           <span>{CORE_RUNNER_MARK}</span>
           {t('coreRunner')}
         </button>
+        {/* Let them in without leaving the roster. Same endpoint as approve —
+            it is idempotent on an already-approved row and releases from the
+            window, which is precisely what this person needs and nothing else. */}
+        {user.blocked && canApproveHere && (
+          <button
+            onClick={() => handleApprove(user)}
+            disabled={updatingUsers.has(user.id)}
+            className="flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border border-accent-red/30 bg-accent-red/10 text-xs font-semibold text-accent-red transition-colors hover:bg-accent-red/20 disabled:opacity-50"
+          >
+            <Unlock className="w-3.5 h-3.5" />
+            {t('releaseFromBlock')}
+          </button>
+        )}
       </div>
+      <ApprovalOutcome outcome={approveOutcome[user.id]} t={t} />
       </div>
     );
   };
@@ -703,6 +805,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
       setUsers(data.users || []);
+      setMaintenanceOn(!!data.maintenance);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
@@ -710,6 +813,18 @@ export default function SettingsPage() {
     }
   };
 
+  /**
+   * Approve — which is also "let them in".
+   *
+   * One request opens both doors: it sets `approved` AND adds the athlete to the
+   * maintenance allowlist (see lib/maintenance-release.ts). That has been true
+   * since 2.39.127 and completely invisible here, which is why "does approving
+   * remove the block?" kept being an open question. The response says which of
+   * the two happened, and now so does the screen.
+   *
+   * Safe to call on somebody already approved: the release is idempotent and the
+   * row is not rewritten — that is exactly the path the "שחרר" button uses.
+   */
   const handleApprove = async (user: User) => {
     setUpdatingUsers(prev => new Set(prev).add(user.id));
     try {
@@ -720,12 +835,21 @@ export default function SettingsPage() {
         headers: await bearerHeaders(),
         body: JSON.stringify({ athleteId: user.id }),
       });
-      if (!response.ok) throw new Error('Failed to approve');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || data.message || 'Failed to approve');
+      }
+      const result = await response.json().catch(() => ({}));
       await fetchUsers();
+      setApproveOutcome(prev => ({ ...prev, [user.id]: result.released ? 'released' : 'approved' }));
       setSavedUsers(prev => new Set(prev).add(user.id));
       setTimeout(() => {
         setSavedUsers(prev => { const s = new Set(prev); s.delete(user.id); return s; });
       }, 2000);
+      // Longer than the tick: this is a sentence to read, not a flash of state.
+      setTimeout(() => {
+        setApproveOutcome(prev => { const n = { ...prev }; delete n[user.id]; return n; });
+      }, 8000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve user');
     } finally {
@@ -848,8 +972,14 @@ export default function SettingsPage() {
     }
   };
 
-  const pendingUsers = users.filter(u => u.approved === false);
+  // Oldest signup first: somebody who has been waiting a week outranks somebody
+  // who signed up an hour ago, and the previous order was by email address.
+  const pendingUsers = users
+    .filter(u => u.approved === false)
+    .sort((a, b) => (a.createdAt || '9999').localeCompare(b.createdAt || '9999'));
   const allActiveUsers = users.filter(u => u.approved !== false);
+  // Approved and still shut out — the state that has no other name on any screen.
+  const blockedActive = allActiveUsers.filter(u => u.blocked);
   // Apply the User Manager filter bar (name / role / group / garmin).
   const activeUsers = allActiveUsers.filter(u => {
     if (uSearch.trim()) {
@@ -862,12 +992,17 @@ export default function SettingsPage() {
       if (uGroup === 'none' ? idx >= 0 : idx !== Number(uGroup)) return false;
     }
     if (uGarmin !== 'all') {
-      const hasGarmin = u.onboardingStatus === 'garmin_authed';
-      if (uGarmin === 'with' ? !hasGarmin : hasGarmin) return false;
+      // Credentials on file, not `onboarding_status`: every member has a declared
+      // source and only some have anything behind it, so the old filter answered
+      // a different question than the one on the button.
+      const hasWatch = !!u.hasWatch;
+      if (uGarmin === 'with' ? !hasWatch : hasWatch) return false;
     }
+    if (uBlockedOnly && !u.blocked) return false;
     return true;
   });
-  const uFiltersActive = uSearch.trim() !== '' || uRole !== 'all' || uGroup !== 'all' || uGarmin !== 'all';
+  const uFiltersActive =
+    uSearch.trim() !== '' || uRole !== 'all' || uGroup !== 'all' || uGarmin !== 'all' || uBlockedOnly;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -993,6 +1128,10 @@ export default function SettingsPage() {
       {/* Reminders detail */}
       {activeTab === 'reminders' && <ReminderConfig />}
 
+      {/* Garmin history import — the repair tool for the 100-activity sync cap.
+          Staff-gated by the route it calls, same as every other tab here. */}
+      {activeTab === 'garminHistory' && <GarminHistoryImport />}
+
       {/* Notification preferences detail (per-user category toggles) */}
       {activeTab === 'notifprefs' && notifPrefsAthleteId && <NotificationPrefs athleteId={notifPrefsAthleteId} />}
       {activeTab === 'notifprefs' && !notifPrefsAthleteId && (
@@ -1020,6 +1159,52 @@ export default function SettingsPage() {
       {activeTab === 'users' && loading && <LoadingBlock className="min-h-[60vh]" size={32} />}
       {activeTab === 'users' && !loading && (
         <div className="space-y-4">
+          {/* ═══ THE SECOND DOOR ═══
+              A roster that shows only `approved` is a roster that lies while a
+              maintenance window is open: 19 of 28 members were approved AND
+              locked out at the same time, and nothing on this screen said so.
+              The count is the server's own verdict per member, and the row is a
+              way out — either into the queue panel, which shows one card per
+              person, or straight to a filter of exactly who it costs. */}
+          {maintenanceOn && (
+            <div className="rounded-2xl border border-accent-red/30 bg-accent-red/5 p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="w-9 h-9 rounded-full bg-accent-red/15 flex items-center justify-center shrink-0">
+                  <Wrench className="w-4 h-4 text-accent-red" />
+                </span>
+                <div className="flex-1 min-w-[160px]">
+                  <p className="text-sm font-semibold text-accent-red">{t('maintenanceUsersTitle')}</p>
+                  <p className="text-xs text-ink-400 mt-0.5">
+                    {t('maintenanceUsersBlocked', { count: blockedActive.length })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {blockedActive.length > 0 && (
+                    <button
+                      onClick={() => setUBlockedOnly(v => !v)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 min-h-[38px] rounded-lg border text-xs font-semibold transition-colors',
+                        uBlockedOnly
+                          ? 'bg-accent-red text-white border-accent-red'
+                          : 'bg-card text-accent-red border-accent-red/30 hover:bg-accent-red/10',
+                      )}
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      {t('showBlockedOnly')}
+                    </button>
+                  )}
+                  <Link
+                    href="/dashboard/entry-queue"
+                    className="flex items-center gap-1.5 px-3 min-h-[38px] rounded-lg border border-page bg-card text-xs font-semibold text-ink-700 hover:bg-page"
+                  >
+                    <DoorOpen className="w-3.5 h-3.5" />
+                    {t('openEntryQueue')}
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Pending Approval Section (collapsible) */}
           {pendingUsers.length > 0 && (() => {
             const pendOpen = !collapsedSections.has('pending');
@@ -1035,44 +1220,35 @@ export default function SettingsPage() {
               </button>
               {pendOpen && (
               <div className="space-y-2">
-                {pendingUsers.map(user => {
-                  const onboarding = getOnboardingStep(user.onboardingStatus, user.approved);
-                  return (
-                    <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl bg-card/80 border border-page/50">
+                {pendingUsers.map(user => (
+                  <div key={user.id} className="p-3 rounded-xl bg-card/80 border border-page/50">
+                    <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-band-3/15 flex items-center justify-center shrink-0">
                         <span className="text-xs font-bold text-band-3">
                           {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink-700 truncate">{user.name}</p>
-                        <p className="text-xs text-ink-400 truncate">{user.email}</p>
+                        <p className="text-sm font-medium text-ink-700 truncate" dir="auto">{user.name}</p>
+                        <p className="text-xs text-ink-400 truncate">
+                          {waitingSince(user, t) || realAddress(user.email) || t('stravaSignIn')}
+                        </p>
                       </div>
-
-                      {/* Status chips */}
-                      <div className="hidden sm:flex items-center gap-1.5">
-                        <span className={cn(
-                          'text-3xs font-semibold px-2 py-0.5 rounded-full',
-                          onboarding.step >= 1 ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400'
-                        )}>{t('google')}</span>
-                        <span className={cn(
-                          'text-3xs font-semibold px-2 py-0.5 rounded-full',
-                          onboarding.step >= 2 ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400'
-                        )}>{t('garmin')}</span>
-                      </div>
-
                       {canApproveHere ? (
                         <button
                           onClick={() => handleApprove(user)}
                           disabled={updatingUsers.has(user.id)}
-                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-accent-600 hover:opacity-90 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                          className="flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-semibold text-white bg-accent-600 hover:opacity-90 rounded-lg transition-colors disabled:opacity-50 shrink-0"
                         >
                           {updatingUsers.has(user.id) ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <Unlock className="w-3.5 h-3.5" />
                           )}
-                          {t('approve')}
+                          {/* "אשר" alone under-sold it: while a window is open this
+                              also takes them off the block, and the button should
+                              say what it does. */}
+                          {maintenanceOn ? t('approveAndLetIn') : t('approve')}
                         </button>
                       ) : (
                         <span className="text-3xs font-medium text-ink-400 shrink-0 px-2 py-1 rounded bg-page/40">
@@ -1087,8 +1263,19 @@ export default function SettingsPage() {
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  );
-                })}
+                    {/* The chips that decide whether approving is enough: a watch
+                        on file, and whether the window is also in their way. */}
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      <StateChip tone={user.hasWatch ? 'ok' : 'muted'} icon={Watch}
+                        label={user.hasWatch ? t('watchConnected') : t('noWatchYet')} />
+                      {maintenanceOn && (
+                        <StateChip tone={user.blocked ? 'bad' : 'ok'} icon={user.blocked ? Lock : Unlock}
+                          label={user.blocked ? t('blockedByMaintenance') : t('allowedThrough')} />
+                      )}
+                    </div>
+                    <ApprovalOutcome outcome={approveOutcome[user.id]} t={t} />
+                  </div>
+                ))}
               </div>
               )}
             </div>

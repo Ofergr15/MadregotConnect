@@ -7,6 +7,7 @@ import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { segmentReportFor } from '@/lib/plan-execution/resolve';
 import { toLaps } from '@/lib/plan-execution/laps';
+import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
@@ -114,6 +115,10 @@ export async function loadFeedPlanVerdicts(
     // Lanes, individual plans, shared plans, tolerances and the cached laps are
     // five independent reads — the feed's critical path, so they go out together.
     //
+    // Both plan reads are Published weeks only (PLAN_STATUSES): a draft is the
+    // coach mid-edit, and a red "off plan" chip for a week nobody was asked to run
+    // is worse than no chip.
+    //
     // The laps are what keep an interval session gradeable here. Without them a
     // structured workout's entire content — its per-rep paces — is unreadable, so
     // `buildVerdict` correctly refuses to score it and the card loses its ring;
@@ -127,10 +132,12 @@ export async function loadFeedPlanVerdicts(
       supabase
         .from('weekly_plans').select('week_start_date, athlete_id, parsed_workouts, created_at')
         .in('week_start_date', weeks).in('athlete_id', athleteIds)
+        .in('status', PLAN_STATUSES)
         .order('created_at', { ascending: false }),
       supabase
         .from('weekly_plans').select('week_start_date, parsed_workouts, created_at')
         .eq('coach_id', COACH_ID).in('week_start_date', weeks).is('athlete_id', null)
+        .in('status', PLAN_STATUSES)
         .order('created_at', { ascending: false }),
       loadAcademySettings(),
       supabase

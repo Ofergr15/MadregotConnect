@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Wrench, Search, Lock, Unlock, Clock, BellOff, Bell, Watch,
   CheckCircle2, DoorOpen, UserCheck, ChevronLeft, Users as UsersIcon,
@@ -52,10 +53,23 @@ export default function EntryQueuePage() {
   const allowlist = maintenanceData?.allowlist;
   const canEditAllowlist = Array.isArray(allowlist);
 
-  const [bucket, setBucket] = useState<Bucket>('waiting');
+  // Coach Tools links straight to a bucket ("3 waiting" → the three of them), so
+  // the count you tapped and the list you land on are the same set.
+  const searchParams = useSearchParams();
+  const [bucket, setBucket] = useState<Bucket>(() => {
+    const asked = searchParams.get('bucket');
+    return (['waiting', 'stuck', 'ready', 'all'] as string[]).includes(asked || '')
+      ? (asked as Bucket)
+      : 'waiting';
+  });
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [turningOff, setTurningOff] = useState(false);
+  // Per-person outcome of a reminder: sent, sent-but-nowhere-to-land, or failed.
+  const [nudged, setNudged] = useState<Record<string, 'sent' | 'unreachable' | 'failed' | null>>({});
+  // What the last "let in" did: both doors, or only the approval because the club
+  // was already open. Two different facts, and the admin has to be able to tell.
+  const [letInResult, setLetInResult] = useState<Record<string, 'released' | 'approved' | 'failed' | null>>({});
 
   // Memoised so the counts below don't recompute on every render over a fresh []
   const members = useMemo(() => data?.members || [], [data]);
@@ -78,19 +92,54 @@ export default function EntryQueuePage() {
     return m.stage === 'ready';
   });
 
-  /** Approve + release, in one request. Both doors, one tap. */
+  /**
+   * Approve + release, in one request. Both doors, one tap.
+   *
+   * The response says which doors it actually opened, and that gets shown: a
+   * release you can't see is a release nobody believes happened.
+   */
   const letIn = async (member: EntryQueueMember) => {
     setBusyId(member.id);
+    setLetInResult((prev) => ({ ...prev, [member.id]: null }));
     try {
       const res = await fetch('/api/admin/approve', {
         method: 'POST',
         headers: await bearerHeaders(),
         body: JSON.stringify({ athleteId: member.id }),
       });
+      const body = await res.json().catch(() => ({}));
       if (res.ok) {
+        setLetInResult((prev) => ({ ...prev, [member.id]: body.released ? 'released' : 'approved' }));
         mutate();
         mutateMaintenance();
+      } else {
+        setLetInResult((prev) => ({ ...prev, [member.id]: 'failed' }));
       }
+    } catch {
+      setLetInResult((prev) => ({ ...prev, [member.id]: 'failed' }));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /**
+   * The nudge for somebody nothing is holding out who never came in. Push only —
+   * half the club has no real address — so the result says whether their phone
+   * could actually be reached rather than just ticking.
+   */
+  const nudge = async (member: EntryQueueMember) => {
+    setBusyId(member.id);
+    setNudged((prev) => ({ ...prev, [member.id]: null }));
+    try {
+      const res = await fetch('/api/admin/entry-queue/nudge', {
+        method: 'POST',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ athleteId: member.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      setNudged((prev) => ({ ...prev, [member.id]: res.ok ? (body.reachable ? 'sent' : 'unreachable') : 'failed' }));
+    } catch {
+      setNudged((prev) => ({ ...prev, [member.id]: 'failed' }));
     } finally {
       setBusyId(null);
     }
@@ -306,11 +355,33 @@ export default function EntryQueuePage() {
                       <Unlock className="h-4 w-4" />
                       {busy ? t('saving') : m.stage === 'pending' ? t('approveEntry') : t('releaseEntry')}
                     </Button>
+                  ) : (m.stage === 'never' || m.stage === 'setup') && canApprove ? (
+                    // Nothing is holding them out — they just never arrived. This is
+                    // the only way the app had to reach them at all.
+                    <Button variant="secondary" className="flex-1" onClick={() => nudge(m)} disabled={busy}>
+                      <Bell className="h-4 w-4" />
+                      {busy
+                        ? t('saving')
+                        : nudged[m.id] === 'sent'
+                          ? t('reminderSent')
+                          : nudged[m.id] === 'unreachable'
+                            ? t('reminderUnreachable')
+                            : nudged[m.id] === 'failed'
+                              ? t('reminderFailed')
+                              : t('sendReminder')}
+                    </Button>
                   ) : (
                     <Link href={`/dashboard/teammate/${m.id}`} className="flex-1">
                       <Button variant="secondary" className="w-full">
                         <ChevronLeft className="h-4 w-4" />
                         {t('openProfile')}
+                      </Button>
+                    </Link>
+                  )}
+                  {(m.stage === 'never' || m.stage === 'setup') && canApprove && (
+                    <Link href={`/dashboard/teammate/${m.id}`}>
+                      <Button variant="ghost" title={t('openProfile')}>
+                        <ChevronLeft className="h-4 w-4" />
                       </Button>
                     </Link>
                   )}
@@ -323,6 +394,28 @@ export default function EntryQueuePage() {
                     </Button>
                   )}
                 </div>
+
+                {/* What the tap did. 'released' is the half that makes an approval
+                    felt during a window; while the club is open there is nothing
+                    to release and claiming otherwise would be a lie. */}
+                {letInResult[m.id] && (
+                  <p
+                    className={cn(
+                      'mt-2.5 text-xs font-semibold flex items-center gap-1.5',
+                      letInResult[m.id] === 'released' ? 'text-accent-900'
+                        : letInResult[m.id] === 'failed' ? 'text-accent-red' : 'text-ink-400',
+                    )}
+                  >
+                    {letInResult[m.id] === 'failed'
+                      ? <Lock className="h-3 w-3" />
+                      : letInResult[m.id] === 'released' ? <Unlock className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
+                    {letInResult[m.id] === 'released'
+                      ? t('resultReleased')
+                      : letInResult[m.id] === 'approved'
+                        ? t('resultApproved')
+                        : t('resultFailed')}
+                  </p>
+                )}
               </Card>
             );
           })}

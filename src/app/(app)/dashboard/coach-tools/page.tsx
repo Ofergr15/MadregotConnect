@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, UserPlus, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, UserPlus, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
+import { isWaitingOnUs, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
@@ -61,12 +62,83 @@ export default function CoachToolsPage() {
   const role = previewRole || (isSuperUser(email) ? 'admin' : data?.role) || null;
   const showAcademy = role === 'academy_coach' || role === 'admin';
 
+  // ── THE STATUS STRIP ───────────────────────────────────────────────────────
+  // This page was a pure launcher: twelve rows, all equally quiet, and nothing
+  // on it said whether anything needed doing. So a maintenance window left on
+  // for days, or three people waiting a week for approval, were invisible until
+  // somebody complained. Same SWR key the queue panel reads, so opening it is a
+  // cache hit and the numbers here cannot disagree with the list inside.
+  // 403 for non-approver staff just leaves `queue` undefined and the strip out.
+  const { data: queue } = useApi<{ maintenance: boolean; members: EntryQueueMember[] }>(
+    '/api/admin/entry-queue',
+  );
+  const members = queue?.members;
+  const waiting = members?.filter((m) => isWaitingOnUs(m.stage)).length ?? 0;
+  const blocked = members?.filter((m) => m.blocked).length ?? 0;
+  const stuck = members?.filter((m) => m.stage === 'never' || m.stage === 'setup').length ?? 0;
+
+  /**
+   * A count worth interrupting for, as a pill. Zero shows nothing at all.
+   * Carries the chevron itself, because `trailing` replaces it — a row that
+   * loses its chevron the moment it gains a badge stops looking tappable.
+   */
+  const countPill = (n: number, tone: 'bad' | 'warn') =>
+    n > 0 ? (
+      <span className="flex items-center gap-2 shrink-0">
+        <span
+          className={`min-w-[22px] px-1.5 py-0.5 rounded-pill text-3xs font-bold text-center tabular-nums text-white ${
+            tone === 'bad' ? 'bg-accent-red' : 'bg-band-3'
+          }`}
+        >
+          {n}
+        </span>
+        <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
+      </span>
+    ) : undefined;
+
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
         <p className="text-ink-400 mt-1 text-sm" dir="rtl">{t('subtitle')}</p>
       </div>
+
+      {/* Only when there is something to say. A status card that permanently
+          reads "all clear" is a card people stop looking at. */}
+      {!!members && (queue!.maintenance || waiting > 0 || stuck > 0) && (
+        <InsetSection header={t('statusHeader')}>
+          {queue!.maintenance && (
+            <InsetRow
+              icon={Wrench}
+              iconBg="bg-accent-red"
+              label={t('statusMaintenance')}
+              sublabel={t('statusMaintenanceBlocked', { count: blocked })}
+              href="/dashboard/entry-queue?bucket=waiting"
+              trailing={countPill(blocked, 'bad')}
+            />
+          )}
+          {waiting > 0 && (
+            <InsetRow
+              icon={Lock}
+              iconBg="bg-band-3"
+              label={t('statusWaiting')}
+              sublabel={t('statusWaitingSub')}
+              href="/dashboard/entry-queue?bucket=waiting"
+              trailing={countPill(waiting, 'bad')}
+            />
+          )}
+          {stuck > 0 && (
+            <InsetRow
+              icon={BellOff}
+              iconBg="bg-ink-300"
+              label={t('statusStuck')}
+              sublabel={t('statusStuckSub')}
+              href="/dashboard/entry-queue?bucket=stuck"
+              trailing={countPill(stuck, 'warn')}
+            />
+          )}
+        </InsetSection>
+      )}
 
       <InsetSection header={t('planning')}>
         <InsetRow icon={Calendar} iconBg="bg-brand-600" label={tn('planner')} href="/dashboard/plan/new" />
@@ -91,7 +163,13 @@ export default function CoachToolsPage() {
         {/* First row in Management on purpose: it is the only screen that answers
             "why can't this person get in" across BOTH gates — approval and the
             maintenance window — and the only one that can open them together. */}
-        <InsetRow icon={DoorOpen} iconBg="bg-brand-600" label={t('entryQueue')} href="/dashboard/entry-queue" />
+        <InsetRow
+          icon={DoorOpen}
+          iconBg="bg-brand-600"
+          label={t('entryQueue')}
+          href="/dashboard/entry-queue"
+          trailing={countPill(waiting, 'bad')}
+        />
         <InsetRow icon={UserPlus} iconBg="bg-accent-600" label={ts('registrations')} href="/dashboard/settings?tab=registrations" />
         <InsetRow icon={Users} iconBg="bg-indigo-500" label={ts('userManager')} href="/dashboard/settings?tab=users" />
         <InsetRow icon={Layout} iconBg="bg-band-3" label={ts('tabManager')} href="/dashboard/settings?tab=tabs" />
@@ -105,6 +183,10 @@ export default function CoachToolsPage() {
         <InsetRow icon={Trophy} iconBg="bg-band-3" label={ts('challengeManager')} href="/dashboard/settings?tab=challenges" />
         <InsetRow icon={ShoppingBag} iconBg="bg-band-2" label={ts('storeManager')} href="/dashboard/settings?tab=store" />
         <InsetRow icon={Gift} iconBg="bg-pink-600" label={ts('perksManager')} href="/dashboard/settings?tab=perks" />
+        {/* Last, and the only repair tool in the list: it pulls the Garmin
+            history the 100-activity sync never asked for, which is what made a
+            marathon PR wrong. Reached for when something looks off, not routinely. */}
+        <InsetRow icon={History} iconBg="bg-brand-600" label={ts('garminHistoryTitle')} href="/dashboard/settings?tab=garminHistory" />
       </InsetSection>
 
       <InsetSection>

@@ -82,7 +82,14 @@
     "planning": "תכנון",
     "rosterAndGroups": "ספורטאים וקבוצות",
     "insights": "תובנות",
-    "entryQueue": "מחכים להיכנס"
+    "entryQueue": "מחכים להיכנס",
+    "statusHeader": "דורש טיפול",
+    "statusMaintenance": "מצב תחזוקה פועל",
+    "statusMaintenanceBlocked": "{count} חברים חסומים כרגע",
+    "statusWaiting": "מחכים שנאשר",
+    "statusWaitingSub": "אישור אחד פותח גם את התחזוקה",
+    "statusStuck": "אושרו ולא נכנסו",
+    "statusStuckSub": "אפשר לשלוח להם תזכורת"
   },
   "header": {
     "coach": "מאמן",
@@ -753,7 +760,32 @@
     "feedbackCount": "{count} דיווחים",
     "feedbackNewCount": "{count} חדשים",
     "feedbackNoMatch": "אין דיווח שמתאים לחיפוש",
-    "notForAdmin": "לא רלוונטי למנהל"
+    "notForAdmin": "לא רלוונטי למנהל",
+    "maintenanceUsersTitle": "מצב תחזוקה פועל",
+    "maintenanceUsersBlocked": "{count} חברים מאושרים לא מצליחים להיכנס כרגע",
+    "showBlockedOnly": "רק חסומים",
+    "openEntryQueue": "תור הכניסה",
+    "approveAndLetIn": "אשר והכנס",
+    "watchConnected": "שעון מחובר",
+    "noWatchYet": "אין שעון",
+    "blockedByMaintenance": "חסום בתחזוקה",
+    "allowedThrough": "מורשה להיכנס",
+    "releaseFromBlock": "שחרר מהחסימה",
+    "stravaSignIn": "התחברות דרך Strava",
+    "signedUpToday": "נרשם היום",
+    "signedUpDaysAgo": "מחכה {days} ימים",
+    "approvedAndReleased": "אושר והוסר מחסימת התחזוקה — יכול להיכנס",
+    "approvedClubOpen": "אושר. התחזוקה כבויה, אין ממה לשחרר",
+    "garminHistoryTitle": "ייבוא היסטוריה מגרמין",
+    "garminHistoryIntro": "גרמין נתנה לנו רק את 100 האימונים האחרונים של כל אתלט, כך שריצות ותיקות יותר — והשיאים שבתוכן — לא יובאו מעולם. כאן הולכים אחורה, 100 בכל פעם, ומוסיפים רק את מה שחסר.",
+    "garminHistoryAthletes": "אתלטים עם שעון מחובר",
+    "garminHistoryRunAll": "ייבוא לכל {count} האתלטים",
+    "garminHistoryRunOne": "ייבוא",
+    "garminHistoryStop": "עצור",
+    "garminHistoryProgress": "{imported} ריצות נוספו · הוותיקה {date}",
+    "garminHistoryTotal": "{count} ריצות נוספו עד כה",
+    "garminHistoryNoGarmin": "אין חיבור לגרמין — Strava בלבד",
+    "garminHistoryNobody": "לאף אחד אין שעון מחובר"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",
@@ -2416,6 +2448,13 @@
     "maintenanceTurnOff": "כבה מצב תחזוקה",
     "emptyTitle": "אין אף אחד שמחכה",
     "emptyDescription": "כל מי שנרשם אושר, נכנס והוגדר.",
-    "noMatches": "לא נמצאו התאמות"
+    "noMatches": "לא נמצאו התאמות",
+    "sendReminder": "שלח תזכורת",
+    "reminderSent": "התזכורת נשלחה ✓",
+    "reminderUnreachable": "אין לו התראות פעילות",
+    "reminderFailed": "השליחה נכשלה",
+    "resultReleased": "אושר והוסר מחסימת התחזוקה — יכול להיכנס",
+    "resultApproved": "אושר. התחזוקה כבויה, אין ממה לשחרר",
+    "resultFailed": "הפעולה נכשלה"
   }
 }

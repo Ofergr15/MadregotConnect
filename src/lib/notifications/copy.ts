@@ -538,6 +538,43 @@ export function approvalCopy(locale: NotificationLocale, p: { name: string | nul
 }
 
 /**
+ * The nudge for somebody who was approved and never came in.
+ *
+ * Its own copy rather than a second approvalCopy: "you're approved!" is wrong the
+ * second time — they already know, and being told again reads like the app forgot
+ * it had said so. What they need is the missing piece named. Two reasons, because
+ * those are the two the entry queue can actually see: no watch connected, or
+ * nothing set up at all.
+ */
+export function entryNudgeCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; missing: 'watch' | 'setup' },
+): PushCopy {
+  const who = (p.name || '').trim();
+  const hey = who ? `${who}, ` : '';
+  if (p.missing === 'watch') {
+    return locale === 'he'
+      ? {
+          title: `${hey}נשאר רק לחבר שעון ⌚`,
+          body: 'החשבון שלך פעיל — חיבור השעון הוא מה שיביא את הריצות שלך לאפליקציה',
+        }
+      : {
+          title: `${hey}just the watch left ⌚`,
+          body: 'Your account is active — connecting your watch is what brings your runs in',
+        };
+  }
+  return locale === 'he'
+    ? {
+        title: `${hey}מחכים לך באפליקציה 👋`,
+        body: 'החשבון שלך פתוח ומאושר — כדאי להיכנס ולסיים את ההגדרה',
+      }
+    : {
+        title: `${hey}we're waiting for you 👋`,
+        body: 'Your account is open and approved — come in and finish setting up',
+      };
+}
+
+/**
  * Badge names live in the DB in both languages (badges.name_he / name_en), so
  * this takes both and picks — the one case where the copy isn't fully owned by
  * this module.

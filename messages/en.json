@@ -82,7 +82,14 @@
     "planning": "Planning",
     "rosterAndGroups": "Roster & Groups",
     "insights": "Insights",
-    "entryQueue": "Waiting to get in"
+    "entryQueue": "Waiting to get in",
+    "statusHeader": "Needs attention",
+    "statusMaintenance": "Maintenance mode is on",
+    "statusMaintenanceBlocked": "{count} members are blocked right now",
+    "statusWaiting": "Waiting on us",
+    "statusWaitingSub": "One approval opens the maintenance block too",
+    "statusStuck": "Approved, never came in",
+    "statusStuckSub": "You can send them a reminder"
   },
   "header": {
     "coach": "Coach",
@@ -753,7 +760,32 @@
     "feedbackCount": "{count} reports",
     "feedbackNewCount": "{count} new",
     "feedbackNoMatch": "No report matches this search",
-    "notForAdmin": "Not for an admin"
+    "notForAdmin": "Not for an admin",
+    "maintenanceUsersTitle": "Maintenance mode is on",
+    "maintenanceUsersBlocked": "{count} approved members cannot get in right now",
+    "showBlockedOnly": "Blocked only",
+    "openEntryQueue": "Entry queue",
+    "approveAndLetIn": "Approve & let in",
+    "watchConnected": "Watch connected",
+    "noWatchYet": "No watch",
+    "blockedByMaintenance": "Blocked by maintenance",
+    "allowedThrough": "Allowed through",
+    "releaseFromBlock": "Release",
+    "stravaSignIn": "Signed in with Strava",
+    "signedUpToday": "Signed up today",
+    "signedUpDaysAgo": "Waiting {days} days",
+    "approvedAndReleased": "Approved and taken off the maintenance block — they can get in",
+    "approvedClubOpen": "Approved. Maintenance is off, nothing to release",
+    "garminHistoryTitle": "Import Garmin history",
+    "garminHistoryIntro": "Garmin only ever gave us the 100 most recent activities per athlete, so older runs — and the personal bests inside them — were never imported. This walks further back, 100 at a time, and adds only what is missing.",
+    "garminHistoryAthletes": "Athletes with a watch",
+    "garminHistoryRunAll": "Import for all {count}",
+    "garminHistoryRunOne": "Import",
+    "garminHistoryStop": "Stop",
+    "garminHistoryProgress": "{imported} runs added · oldest run now {date}",
+    "garminHistoryTotal": "{count} runs added so far",
+    "garminHistoryNoGarmin": "No Garmin connection — Strava only",
+    "garminHistoryNobody": "Nobody has a watch connected"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",
@@ -2416,6 +2448,13 @@
     "maintenanceTurnOff": "Turn maintenance off",
     "emptyTitle": "Nobody is waiting",
     "emptyDescription": "Everyone who signed up is approved, in and set up.",
-    "noMatches": "No matches"
+    "noMatches": "No matches",
+    "sendReminder": "Send a reminder",
+    "reminderSent": "Reminder sent ✓",
+    "reminderUnreachable": "No notifications on their phone",
+    "reminderFailed": "Couldn't send",
+    "resultReleased": "Approved and taken off the maintenance block — they can get in",
+    "resultApproved": "Approved. Maintenance is off, nothing to release",
+    "resultFailed": "That did not go through"
   }
 }
