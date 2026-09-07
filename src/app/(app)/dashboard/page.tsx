@@ -19,9 +19,10 @@ import { CoachPulse } from '@/components/CoachPulse';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, WORKOUT_TYPE_LABELS as typeLabels, planDayKey } from '@/lib/plans/workout-parsing';
+import { teamDayTarget } from '@/lib/plans/team-day';
 import { Spinner, Card, BigStat, EmptyState, Button } from '@/components/ui';
 import { useNavIdentity } from '@/lib/nav-items';
-import { AdminControlRoom } from '@/components/admin/AdminControlRoom';
+import { ControlRoomScreen } from '@/components/admin/ControlRoomScreen';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 // The goal race lived here as three consts until the designer's Profile frame
 // put the same countdown on a second screen — see src/lib/goal-race.ts. The
@@ -107,18 +108,39 @@ export default function DashboardPage() {
   // tab shows the last-known stats/weekly instantly (keepPreviousData) while
   // quietly revalidating in the background, instead of a blank spinner every
   // single time — the concrete fix for "moving between screens feels slow".
-  // An ADMIN gets a different home entirely (AdminControlRoom): their first
-  // screen is what the club needs from them, not how far they ran. The same
-  // resolution the nav uses, so a super-user "viewing as runner" gets the runner
-  // home — `effectiveRole` already has the preview role applied.
-  const { effectiveRole, ready: identityReady } = useNavIdentity();
+  // An admin with NO athlete row gets a different home entirely (the control
+  // room): their first screen is what the club needs from them, and there is no
+  // "how far did you run" to put there. An admin who DOES run gets this screen,
+  // like every other member — that account is a member as well as an
+  // administrator, and the club's admins are its coaches and its owner, who all
+  // train (2026-09-07; the same call behind `resolveNavItems` and ProfileGate).
+  // Their control room is /dashboard/control-room, one tap from Coach Tools.
+  //
+  // The same role resolution the nav uses, so a super-user "viewing as runner"
+  // gets the runner home — `effectiveRole` already has the preview role applied.
+  const { effectiveRole, isAthlete, ready: identityReady } = useNavIdentity();
+  // `isAthlete` comes out of localStorage in the hook's own mount effect, so it is
+  // false on the very first render even when SWR answers the role from cache. The
+  // spinner below waits for this rather than trusting it early — the difference
+  // between "an admin who runs sees their week" and "an admin who runs watches the
+  // control room appear and be replaced". Same guard, same reason, as ProfileGate.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const isAdminView = identityReady && effectiveRole === 'admin';
-  // Held back until the role is known, then skipped entirely for an admin:
-  // nothing on the control room is built from it, and this is the request the
-  // athlete home waits on. Firing it and throwing the answer away would put a
-  // second server-side week computation on the admin's landing page.
+  const controlRoomView = isAdminView && mounted && !isAthlete;
+  // "Which of the two homes is this" — the question everything below is gated on.
+  // Only an ADMIN has to wait for `mounted` to answer it, which is why this is not
+  // simply `identityReady && mounted`: for every other role the answer is "the
+  // athlete home" from the first render, and making the club's most-visited screen
+  // start its main request a frame later to spare the admin a flash would be paying
+  // the wrong account.
+  const homeKnown = identityReady && (!isAdminView || mounted);
+  // Held back until then, and skipped entirely for the control room: nothing on it
+  // is built from this, and it is the request the athlete home waits on. Firing it
+  // and throwing the answer away would put a second server-side week computation on
+  // that account's landing page.
   const { data: weekly, isLoading: weeklyLoading } = useApi<WeeklyData>(
-    identityReady && !isAdminView ? '/api/dashboard/weekly' : null,
+    homeKnown && !controlRoomView ? '/api/dashboard/weekly' : null,
   );
   const { data: reminderConfig } = useApi<{ config?: { teamDays?: number[]; workoutHour?: number } }>('/api/reminder-config');
   // Admin-editable team-workout days (0=Sun..6=Sat) → which days the RSVP card
@@ -147,7 +169,7 @@ export default function DashboardPage() {
   // …and not for an admin either: the control room carries its own counts from
   // /api/admin/overview, which computes the delivery rate with two COUNTs
   // instead of pulling every delivery row down to filter it in the browser.
-  const { data: stats } = useApi<DashboardStats>(isCoach && !isAdminView ? '/api/dashboard/stats' : null);
+  const { data: stats } = useApi<DashboardStats>(isCoach && !controlRoomView ? '/api/dashboard/stats' : null);
   const [athleteId, setAthleteId] = useState<string | null>(null);
   // A push notification's ?rsvp=weekStart:day deep-link (see cron/tick's
   // training_before pushes) — previously ignored entirely, so tapping the
@@ -198,7 +220,7 @@ export default function DashboardPage() {
   // athleteId) still has personal stats worth fetching. Coaches with no
   // athlete profile simply have no athleteId, so this stays null for them.
   const { data: summary } = useApi<{ weekStreak: number }>(
-    athleteId && !isAdminView ? `/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}` : null,
+    athleteId && !controlRoomView ? `/api/athletes/summary?athleteId=${encodeURIComponent(athleteId)}` : null,
   );
 
   useEffect(() => {
@@ -249,14 +271,18 @@ export default function DashboardPage() {
   // but the hero above renders the moment stats/weekly are ready.
   useEffect(() => {
     async function load() {
-      // An admin never sees this account's own runs on this page (the control
-      // room replaces it), so there is nothing for a sync or a "customize your
-      // post" popup to feed — and re-running it on every visit would cost the
-      // one screen that has to feel instant. Nor does the admin's app sync
-      // anywhere else now — the Profile tab is an account screen (AdminAccount)
-      // and the activity list is out of the admin's nav — which is consistent
-      // rather than a gap: it is not an account that records runs.
-      if (!identityReady || isAdminView) return;
+      // Still skipped in the admin view, and for the original reason: the control
+      // room shows this account no runs of its own, so there is nothing for a sync
+      // or a "customize your post" popup to feed, and re-running it on every visit
+      // would cost the one screen that has to feel instant. An account with no
+      // athlete row does not record runs anywhere, so nothing is missed.
+      //
+      // The condition is `controlRoomView`, not "is an admin": the skip belongs to
+      // the SCREEN, and an admin who runs no longer sees it here. That account is
+      // looking at its own training week, with its own runs on it — withholding the
+      // sync would leave the one member whose app never picks up a fresh Strava run
+      // until the hourly cron, on the screen built to show it.
+      if (!homeKnown || controlRoomView) return;
       const myAthleteId = localStorage.getItem('athlete_id');
       const syncKey = myAthleteId ? `dashboard_synced:${myAthleteId}` : 'dashboard_synced';
       // Super-user "view as" preview is read-only (sync POST is blocked).
@@ -387,11 +413,11 @@ export default function DashboardPage() {
       } catch (e) { console.error(e); }
     }
     load();
-    // Waits for the role rather than firing immediately: `isAdminView` is false
-    // until useNavIdentity resolves, so an unconditional first run would start
-    // the very sync it is meant to skip. The localStorage lock inside still
-    // guards the duplicate-run case.
-  }, [identityReady, isAdminView]);
+    // Waits for the role rather than firing immediately: `controlRoomView` is false
+    // until useNavIdentity resolves AND the athlete row is read, so an
+    // unconditional first run would start the very sync it is meant to skip. The
+    // localStorage lock inside still guards the duplicate-run case.
+  }, [homeKnown, controlRoomView]);
 
   // Only the very first-ever load (no cached plan yet) blocks on a spinner —
   // keepPreviousData means a revisit shows the last-known content instantly
@@ -402,11 +428,11 @@ export default function DashboardPage() {
   // spinner BACK on screen a moment after a coach's page had already rendered.
   // Nothing is lost — the coach strip reads `stats?.x || 0`, so it just fills in.
   //
-  // `!identityReady` joins it because the whole page shape depends on the role:
-  // rendering the athlete hero for a beat and then swapping in the control room
-  // is a worse first impression than one short spinner. Admins skip
-  // /api/dashboard/weekly entirely, so weeklyLoading is never true for them.
-  if (!identityReady || (!isAdminView && weeklyLoading)) return (
+  // `!homeKnown` joins it because the whole page shape depends on which home this
+  // is: rendering the athlete hero for a beat and then swapping in the control room
+  // is a worse first impression than one short spinner. The control room skips
+  // /api/dashboard/weekly entirely, so weeklyLoading is never true for it.
+  if (!homeKnown || (!controlRoomView && weeklyLoading)) return (
     <div className="flex items-center justify-center h-[60vh]">
       <Spinner size={40} />
     </div>
@@ -416,7 +442,6 @@ export default function DashboardPage() {
   // with a real date, and the plan week itself was chosen in Israel time by the
   // server — reading the day from the browser instead put the two out of step.
   const todayKey = israelToday();
-  const todayDow = israelDateAnchor().getDay();
   const tomorrowDate = (() => { const d = israelDateAnchor(); d.setDate(d.getDate() + 1); return d; })();
   const tomorrowKey = toISODate(tomorrowDate);
   const hasData = weekly && weekly.weekTotalMax > 0;
@@ -439,17 +464,11 @@ export default function DashboardPage() {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
       return { date: base, dow: rsvpUrlOverride.day, dayBefore: base.getTime() > todayStart.getTime() };
     }
-    // Israel-anchored dates: `getPlanWeekStart` below reads local date parts, so
-    // a raw `new Date()` files the answer under the wrong week between midnight
-    // and 03:00 — and on a Sunday that is the whole previous week.
-    if (teamDays.includes(todayDow)) {
-      return { date: israelDateAnchor(), dow: todayDow, dayBefore: false }; // workout day
-    }
-    const tomorrowDow = tomorrowDate.getDay();
-    if (teamDays.includes(tomorrowDow)) {
-      return { date: tomorrowDate, dow: tomorrowDow, dayBefore: true }; // day before
-    }
-    return null;
+    // Today's session, else tomorrow's, else nothing — through the same helper the
+    // control room's roster reads (lib/plans/team-day). The card and the roster are
+    // the two halves of one question ("who is coming?"), so they must never name
+    // different sessions; that is the whole reason it is not inlined here.
+    return teamDayTarget(teamDays);
   })();
   const rsvpWeekStart = rsvpUrlOverride ? rsvpUrlOverride.weekStart : (rsvpTarget ? getPlanWeekStart(rsvpTarget.date) : '');
   // `max > 0`, and matched on the RSVP date rather than the weekday: without the
@@ -472,22 +491,13 @@ export default function DashboardPage() {
   // month name once translated instead of forcing English into an RTL page).
   const raceDateLabel = GOAL_RACE.date.toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
 
-  // An admin's home is a different screen entirely — see AdminControlRoom for
-  // why. Returning here, above every plan/km/PR derivation below, is the point:
+  // An admin with no athlete row has a different home entirely — see
+  // AdminControlRoom for why, and /dashboard/control-room for where it also lives
+  // now. Returning here, above every plan/km/PR derivation below, is the point:
   // none of that work is done, and none of the athlete hero can flash first.
-  // The attendance roster is passed through because it is about the athletes,
-  // not about this account, and it is the one thing the coach home had that an
-  // admin still opens the app for.
-  if (isAdminView) {
-    return (
-      <AdminControlRoom
-        greeting={greeting}
-        firstName={firstName}
-        rosterWeekStart={rsvpTarget ? rsvpWeekStart : undefined}
-        rosterDay={rsvpTarget?.dow}
-      />
-    );
-  }
+  // `ControlRoomScreen` brings its own greeting and roster rather than taking this
+  // page's, so the screen is the same through either door.
+  if (controlRoomView) return <ControlRoomScreen />;
 
   const heroWorkout = (() => {
     // Matched on DATE, not on weekday. `dayOfWeek` alone is meaningless without

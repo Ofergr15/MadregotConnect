@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, UserPlus, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, UserPlus, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { isWaitingOnUs, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
@@ -139,6 +139,23 @@ export default function CoachToolsPage() {
           )}
         </InsetSection>
       )}
+
+      {/* The control room, first and in a section of its own — it is not one tool
+          among twelve, it is the screen that says whether the club is fine. It used
+          to be what /dashboard rendered for an admin; now that /dashboard is the
+          training home for an admin who runs (which in this club is all of them),
+          this row is how they get to it: two taps, from a tab they already live in.
+          A pure admin still lands on it at /dashboard, so for them this is a second
+          door to the same screen — see ControlRoomScreen. */}
+      <InsetSection>
+        <InsetRow
+          icon={Gauge}
+          iconBg="bg-brand-600"
+          label={tn('controlRoom')}
+          sublabel={t('controlRoomSub')}
+          href="/dashboard/control-room"
+        />
+      </InsetSection>
 
       <InsetSection header={t('planning')}>
         <InsetRow icon={Calendar} iconBg="bg-brand-600" label={tn('planner')} href="/dashboard/plan/new" />

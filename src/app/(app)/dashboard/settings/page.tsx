@@ -332,6 +332,10 @@ interface TabPermission {
 
 const allTabs = [
   { key: 'dashboard', label: 'Dashboard' },
+  // Admin-only by construction (nothing grants it), and listed here so it can be
+  // GRANTED to a coach without a migration — everything behind it is staff-gated
+  // server-side, so a coach who is given it gets a working screen.
+  { key: 'control-room', label: 'Control Room' },
   { key: 'plan/new', label: 'Weekly Planner' },
   { key: 'athletes', label: 'Athletes' },
   { key: 'academy', label: 'Academy' },
