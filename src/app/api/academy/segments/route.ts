@@ -6,7 +6,7 @@ import { activityLocalDateStr, planWeekStartOf } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { assessWorkout, buildPlannedWorkout, type PaceStatus } from '@/lib/academy/adherence';
+import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import {
   flattenPlannedSteps,
   matchLapsToSteps,
@@ -14,9 +14,10 @@ import {
   findPlannedEfforts,
   isContinuousPlan,
 } from '@/lib/academy/segments';
-import { buildVerdict, type ExecutionPaceScope } from '@/lib/plan-execution/verdict';
-import { dominantBlock, gradePlanBlocks, traceFromLaps, traceFromStream } from '@/lib/academy/execution';
-import { dominantWatchStep, gradeWatchSteps } from '@/lib/academy/watch-steps';
+import { buildVerdict } from '@/lib/plan-execution/verdict';
+import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
+import { gradePlanBlocks, traceFromLaps, traceFromStream } from '@/lib/academy/execution';
+import { gradeWatchSteps } from '@/lib/academy/watch-steps';
 import { loadActivityStream } from '@/lib/garmin/stream-store';
 import { lapsWorthStoring, narrowLaps, normalizeStoredLaps, type StoredLap } from '@/lib/garmin/laps';
 import { narrowExecutedWorkout, type ExecutedWorkout } from '@/lib/garmin/executed-workout';
@@ -327,75 +328,16 @@ export async function GET(request: Request) {
         tolerances,
       );
 
-      // The pace row answers "did you hit the pace you were asked to run". When the
-      // plan has a block and the run has a trace, that question is about the block,
-      // so the block's answer replaces the whole-run one — the longest graded block,
-      // because that is what the session was mostly about. The average is still
-      // returned as `verdict.wholeRunPace` so a card can show both, and
-      // `verdict.paceScope` tells the client which stretch of the run it describes.
+      // The pace row answers "did you hit the pace you were asked to run", which on
+      // this plan shape is a question about one stretch of the run rather than about
+      // its average — the watch's own main step if it drove the run, else the longest
+      // graded block. `resolveDominantPace` makes that substitution for every surface
+      // that grades a run, and it is also what puts a NUMBER in the accuracy ring:
+      // see the module comment for why `comparedMin` is load-bearing.
       //
-      // Handing this to `buildVerdict` as the pace metric is also what puts a NUMBER
-      // in the accuracy ring on a structured session. The scorer withholds the score
-      // when a pace was prescribed and never checked — which is exactly
-      // `comparedMin == null`, the state the whole-run average is left in — so a
-      // session whose blocks all graded on target was still showing "—" and "nothing
-      // to compare" with the answer sitting right beside it.
-      //
-      // Exposure: a block average is COARSER than the per-km splits already visible
-      // to any member on this run's chart and in the feed's `paceBands`, so putting
-      // it in the member-visible verdict publishes nothing new. The per-rep paces
-      // below stay trimmed — those are finer than splits.
-      //
-      // The watch's own step wins over the searched block when there is one: same
-      // question, same `dominant*` rule, evidence instead of inference. It also fixes a
-      // case the search cannot — an athlete running a workout of their own making was
-      // being graded against the club plan's structure, which on one real Sunday turned
-      // her 22 km at 4:48 (her own step said 4:35-4:45: on target) into "slower".
-      const watchStep = watched ? dominantWatchStep(watched) : null;
-      // Not `watchStep ?? dominantBlock(blocks)` in one expression: the two verdict
-      // shapes differ (a step has no window) and keeping them apart lets each be read
-      // for what it is instead of through `'window' in dominant`.
-      const block = watchStep ? null : dominantBlock(blocks);
-      const dominant: { status: PaceStatus; plannedPaceMin: number | null; plannedPaceMax: number | null; actualPace: number | null } | null
-        = watchStep ?? block;
-      const paceScope: ExecutionPaceScope | null = watchStep
-        ? {
-          label: watchStep.label,
-          // The watch names a step, not a stretch of the distance axis: it can
-          // report the same step several times over (eight strides), so there is
-          // no single from/to to give. `watchSteps` below carries the detail.
-          fromM: null,
-          toM: null,
-          plannedLengthM: watchStep.plannedDistanceM,
-          truncated: watchStep.truncated,
-          resolutionM: null,
-          source: 'watch',
-        }
-        : block
-          ? {
-            label: block.label,
-            fromM: block.window?.startM ?? null,
-            toM: block.window?.endM ?? null,
-            plannedLengthM: block.plannedLengthM,
-            truncated: block.truncated,
-            resolutionM: blocks.resolutionM,
-            source: blocks.source,
-          }
-          : null;
-      const pace = dominant
-        ? {
-          ...graded.pace,
-          status: dominant.status,
-          // The block's own band, shown as well as compared against: the row now
-          // describes that block, and printing the whole session's work band beside
-          // a block's pace labels a 4:25 number "4:35 planned".
-          plannedMin: dominant.plannedPaceMin,
-          plannedMax: dominant.plannedPaceMax,
-          comparedMin: dominant.plannedPaceMin,
-          comparedMax: dominant.plannedPaceMax,
-          actual: dominant.actualPace,
-        }
-        : graded.pace;
+      // The average is still returned as `verdict.wholeRunPace` so the card can show
+      // both, and `verdict.paceScope` names the stretch this row describes.
+      const { pace, paceScope } = resolveDominantPace(graded.pace, watched, blocks);
 
       return NextResponse.json({
         ...bandsPayload,

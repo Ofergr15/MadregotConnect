@@ -101,6 +101,10 @@ export interface ExecutionPaceScope {
   fromM: number | null;
   toM: number | null;
   plannedLengthM: number | null;
+  /** How much of it actually happened. Only differs from `plannedLengthM` on a
+   *  `truncated` scope, and that difference is the sentence the athlete needs:
+   *  "4:35 over the 13 of 20 km you ran of it". */
+  ranLengthM: number | null;
   /** The run ended before the step did: the pace is over the part that happened. */
   truncated: boolean;
   /** How precisely a searched window could be placed. Null for a watch step,
@@ -546,8 +550,13 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
     paceBandMax: adherence.pace.plannedMax,
     paceScope: input.paceScope ?? null,
     // Only when it differs from the pace row, so a caller reading `wholeRunPace`
-    // doesn't have to compare two numbers to find out whether it's the same one.
-    wholeRunPace: input.paceScope ? input.wholeRunPace ?? null : null,
+    // doesn't have to compare two numbers to find out whether it's the same one —
+    // and so the card never prints "whole run 4:35" under an actual of 4:35.
+    wholeRunPace: input.paceScope != null
+      && input.wholeRunPace != null
+      && input.wholeRunPace !== paceMetric?.actual
+      ? input.wholeRunPace
+      : null,
     metrics,
     reps,
     repsAligned: input.segments?.aligned ?? false,

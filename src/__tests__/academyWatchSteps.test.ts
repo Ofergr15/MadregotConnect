@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { dominantWatchStep, gradeWatchSteps, groupLapsByStep } from '@/lib/academy/watch-steps';
+import {
+  dominantWatchStep, gradeWatchSteps, groupLapsByStep, partialWatchStep,
+} from '@/lib/academy/watch-steps';
 import { narrowExecutedWorkout } from '@/lib/garmin/executed-workout';
 import { normalizeStoredLaps, type StoredLap } from '@/lib/garmin/laps';
 
@@ -161,6 +163,8 @@ describe('gradeWatchSteps', () => {
     // would read as "did the session". The dominant-step rule is what refuses it.
     expect(report.steps[1].status).toBe('on_target');
     expect(dominantWatchStep(report)).toBeNull();
+    // Under a third of the block, so the partial rule refuses it too — see below.
+    expect(partialWatchStep(report)).toBeNull();
   });
 
   /**
@@ -276,6 +280,50 @@ describe('gradeWatchSteps', () => {
         ...Array.from({ length: 6 }, () => [lap(400, 80, 1), lap(200, 84, 2)]).flat(),
       ], 1)!;
       expect(dominantWatchStep(report)!.label).toBe('Interval 400m');
+    });
+  });
+
+  /**
+   * The run that stopped in the middle. One athlete's real Sunday: 2 km warm-up, 10 km of
+   * a 20 km block at 4:35, then the strides, and home at 15 km of the 23 planned.
+   *
+   * Every step `dominantWatchStep` would pick is cut short on a run like that, so the card
+   * showed a dashed accuracy ring and paired the run's 4:45 average with the 4:35 band
+   * under "nothing to compare" — while the watch had already marked the block on target.
+   */
+  describe('partialWatchStep', () => {
+    const cutShort = (blockKm: number, extra: StoredLap[] = []) => gradeWatchSteps(sunday, [
+      lap(1000, 310, 0), lap(1000, 314, 0),
+      ...Array.from({ length: blockKm }, () => lap(1000, 275, 1)),
+      ...extra,
+    ], 2)!;
+
+    it('reports the pace over the part of the block that was run', () => {
+      const report = cutShort(10);
+      expect(dominantWatchStep(report)).toBeNull();
+      expect(partialWatchStep(report)).toMatchObject({
+        label: 'Run 20km', plannedDistanceM: 20000, actualDistanceM: 10000,
+        actualPace: 275, status: 'on_target', truncated: true,
+      });
+    });
+
+    /**
+     * The reason both thresholds exist. Four of eight strides is half a step — and 340 m
+     * of a 2.3 km run, on a session abandoned after the warm-up. Answering "3:25, on
+     * target" for that is the false credit the whole truncation rule is there to prevent.
+     */
+    it('never answers with a set of strides the run never got past', () => {
+      const report = gradeWatchSteps(sunday, [
+        lap(1000, 310, 0), lap(1000, 314, 0),
+        ...Array.from({ length: 4 }, () => [lap(85, 15, 2), lap(90, 45, 3)]).flat(),
+      ], 2)!;
+      expect(partialWatchStep(report)).toBeNull();
+    });
+
+    // A step is only cut short against what it asked for, so a completed one is never
+    // this function's business however far short of the plan the run itself fell.
+    it('says nothing when the step it would report was finished', () => {
+      expect(partialWatchStep(gradeWatchSteps(sunday, sundayLaps(), 2)!)).toBeNull();
     });
   });
 });

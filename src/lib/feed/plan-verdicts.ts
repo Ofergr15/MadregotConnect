@@ -1,20 +1,16 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { activityLocalDateStr, planWeekStartOf, resolveGroup } from '@/lib/utils';
-import { assessWorkout, buildPlannedWorkout, type MetricStatus, type PaceStatus } from '@/lib/academy/adherence';
+import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
-import {
-  buildVerdict,
-  toExecutionSummary,
-  type ExecutionPaceScope,
-  type ExecutionSummary,
-} from '@/lib/plan-execution/verdict';
+import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
+import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
 import { segmentReportFor } from '@/lib/plan-execution/resolve';
 import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { flattenPlannedSteps } from '@/lib/academy/segments';
-import { dominantBlock, gradePlanBlocks, traceFromLaps } from '@/lib/academy/execution';
+import { gradePlanBlocks, traceFromLaps } from '@/lib/academy/execution';
 import { dominantWatchStep, gradeWatchSteps } from '@/lib/academy/watch-steps';
 import { normalizeStoredLaps } from '@/lib/garmin/laps';
 import type { ExecutedWorkout } from '@/lib/garmin/executed-workout';
@@ -262,46 +258,17 @@ export async function loadFeedPlanVerdicts(
       const watched = workout
         ? gradeWatchSteps(workout, laps, lane, tolerances.paceSec)
         : null;
-      const watchStep = watched ? dominantWatchStep(watched) : null;
-      const trace = watchStep ? null : traceFromLaps(laps);
+      // Only searched for when the watch has no answer — locating a block on the
+      // distance axis is the expensive half of this loop, and on a page of twenty runs
+      // it is worth not doing for the ones already answered. `dominantWatchStep` is a
+      // pick over a handful of steps, so asking it here and again inside
+      // `resolveDominantPace` costs nothing and keeps the two in step.
+      const trace = watched && dominantWatchStep(watched) ? null : traceFromLaps(laps);
       const blocks = trace ? gradePlanBlocks(flattenPlannedSteps(planned), trace, tolerances.paceSec) : null;
-      const block = watchStep ? null : blocks ? dominantBlock(blocks) : null;
-      const dominant = watchStep ?? block;
-      // The same substitution the segments route makes, for the same two reasons:
-      // the row is about that block, and `comparedMin`/`comparedMax` are what let
-      // `buildVerdict` score a structured session at all.
-      const pace = dominant
-        ? {
-          ...graded.pace,
-          status: dominant.status,
-          plannedMin: dominant.plannedPaceMin,
-          plannedMax: dominant.plannedPaceMax,
-          comparedMin: dominant.plannedPaceMin,
-          comparedMax: dominant.plannedPaceMax,
-          actual: dominant.actualPace,
-        }
-        : graded.pace;
-      const paceScope: ExecutionPaceScope | null = watchStep
-        ? {
-          label: watchStep.label,
-          fromM: null,
-          toM: null,
-          plannedLengthM: watchStep.plannedDistanceM,
-          truncated: watchStep.truncated,
-          resolutionM: null,
-          source: 'watch',
-        }
-        : block && blocks
-          ? {
-            label: block.label,
-            fromM: block.window?.startM ?? null,
-            toM: block.window?.endM ?? null,
-            plannedLengthM: block.plannedLengthM,
-            truncated: block.truncated,
-            resolutionM: blocks.resolutionM,
-            source: blocks.source,
-          }
-          : null;
+      // The same substitution the segments route makes, through the same function:
+      // the row is about one stretch of the run, and `comparedMin`/`comparedMax` are
+      // what let `buildVerdict` score a structured session at all.
+      const { pace, paceScope } = resolveDominantPace(graded.pace, watched, blocks);
 
       const verdict = buildVerdict({
         activityId: row.id,

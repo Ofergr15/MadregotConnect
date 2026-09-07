@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kmSplitsFromLaps } from '@/lib/activities/km-splits';
+import { displaySplits, kmSplitsFromLaps } from '@/lib/activities/km-splits';
 import { normalizeStoredLaps } from '@/lib/garmin/laps';
 
 /**
@@ -105,6 +105,36 @@ describe('kmSplitsFromLaps — the kilometre grid the UI says it draws', () => {
   it('still returns the one short split of a run shorter than a kilometre', () => {
     expect(kmSplitsFromLaps(normalizeStoredLaps([{ distance: 150, duration: 45 }])))
       .toMatchObject([{ distance: 150, duration: 45, averagePace: 300 }]);
+  });
+});
+
+/**
+ * `displaySplits` is the seam both the server and the client draw through — the
+ * detail route for its response, and the detail body for the row it already holds
+ * while that request is in flight. They must agree, or the screen re-draws itself
+ * differently a moment after it appeared.
+ */
+describe('displaySplits — which column the kilometres come from', () => {
+  it('prefers whichever column is the finer record of the run', () => {
+    // Garmin's aggregated summaries in `splits` — two rows for a 15 km run —
+    // against the 31 real lap presses. The laps win, and get binned.
+    const aggregated = [
+      { distance: 12000, duration: 3300, averagePace: 275 },
+      { distance: 3009, duration: 960, averagePace: 319 },
+    ];
+    expect(displaySplits(aggregated, SUNDAY_LAPS)).toHaveLength(15);
+    // And the other way round: a run whose `splits` are the real per-km record
+    // keeps them, rather than being rebuilt from two long laps.
+    const perKm = Array.from({ length: 5 }, () => ({ distance: 1000, duration: 300 }));
+    expect(displaySplits(perKm, [{ distance: 5000, duration: 1500 }])).toHaveLength(5);
+  });
+
+  it('reads either provider’s shape and says nothing when a row has neither column', () => {
+    // Strava's keys, straight off the jsonb — the shape that shipped 0:00 rows.
+    expect(displaySplits([{ distance: 1000, moving_time: 300 }], null))
+      .toMatchObject([{ distance: 1000, duration: 300, averagePace: 300 }]);
+    expect(displaySplits(null, null)).toEqual([]);
+    expect(displaySplits(undefined, [])).toEqual([]);
   });
 });
 

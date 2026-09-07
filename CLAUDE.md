@@ -157,6 +157,21 @@ so a run cannot pick up two answers. `report.complete` is the separate signal th
 step was never run — the athlete who abandoned a ladder at rep 5 still has an on-target
 rep 4, and only the distance row says the session didn't happen.
 
+**A run cut short still gets an answer, from the watch only.** Both functions above skip
+a step or block the athlete didn't finish, which on a run that stopped mid-session skips
+everything — and that left the club's most obvious defect: a dashed accuracy ring with
+the run's 4:45 average printed beside the 4:35 that was asked for and "no comparison" in
+the next cell, on a run whose own watch had already marked the 10 km of block it did get
+through as on target. So `partialWatchStep()` is consulted **after** both come back empty
+(in `resolveDominantPace`), and only from the device's step list — never from the block
+search, whose truncated window is "everything from the cursor to wherever the run ended"
+rather than a stretch anything named. It answers only for a step that was at least a
+third of what it asked for and at least half of what the athlete ran (a stride set is
+neither), and it always travels with `paceScope.truncated`, which the card turns into
+"that pace is for Run 20km — the 10 km of 20 km you got through". Grading a fragment is
+safe *because* distance and duration are two of the three metrics and both collapse on a
+short run: the pace can lift the score, never carry it.
+
 **Pace is never the whole-run average.** `assessWorkout`'s pace row only means
 anything when one band covers ≥90% of the plan (`computeGradedPaceBand`), and even
 then it's wrong for the shape above — the average of a warm-up plus a block is neither
@@ -321,10 +336,13 @@ If you add a new plan-derived label to the feed, mask it under `pace` too.
 
 Same date, the verdict's pace stopped being the whole-run average and became a **block
 average over a named stretch of the run**: `verdict.paceScope` (`label`, `fromM`/`toM`,
-`plannedLengthM`, `truncated`, `resolutionM`, `source: 'watch' | 'stream' | 'laps'`), with
-the run's own average kept beside it as `verdict.wholeRunPace` — a bare number, and only
-set when it differs from the pace row, so nothing has to compare two figures to find out
-whether it is the same one. See "four engines" above for how the stretch is chosen.
+`plannedLengthM`, `ranLengthM`, `truncated`, `resolutionM`, `source: 'watch' | 'stream' |
+'laps'`), with the run's own average kept beside it as `verdict.wholeRunPace` — a bare
+number, and only set when it differs from the pace row, so nothing has to compare two
+figures to find out whether it is the same one. Both are rendered: the pace row of the
+accuracy card carries a line saying which stretch it is about, because an unlabelled 4:35
+on a run the athlete's watch says averaged 4:45 reads as a broken app. See "four engines"
+above for how the stretch is chosen.
 `FEED_SELECT` in `src/lib/feed/project.ts` reads `laps` for the same reason the verdict
 does; it is consumed server-side to build the trace and **never reaches the client**, so
 keep it out of the projected item.

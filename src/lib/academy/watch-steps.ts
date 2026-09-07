@@ -288,3 +288,57 @@ export function dominantWatchStep(report: WatchStepReport): WatchStepVerdict | n
       && v.type !== 'warmup' && v.type !== 'cooldown')
     .sort((a, b) => b.actualDistanceM - a.actualDistanceM)[0] || null;
 }
+
+/** How much of what a step asked for was run, on the axis the step was written in. */
+export function stepRanFraction(step: WatchStepVerdict): number | null {
+  if (step.plannedDurationSec) return step.actualDurationSec / step.plannedDurationSec;
+  if (step.plannedDistanceM) return step.actualDistanceM / step.plannedDistanceM;
+  // An open step asked for nothing measurable, so no fraction of it exists.
+  return null;
+}
+
+/**
+ * How much of a cut-short step has to have been run for the pace over it to be that
+ * step's pace, rather than the pace of the easy first piece of it that everybody holds.
+ * A third: enough to be into the work, and nowhere near enough to read as having done it.
+ */
+const PARTIAL_STEP_MIN = 1 / 3;
+
+/**
+ * And how much of the run the step has to be, so that the pace row is about the run the
+ * athlete went out on. Four of eight strides is half a step and 400 m of a 15 km run —
+ * it clears the bar above and fails this one, which is why the two are separate numbers.
+ */
+const PARTIAL_RUN_MIN = 0.5;
+
+/**
+ * The step to report a pace for when the run ended mid-session, so every step
+ * `dominantWatchStep` would pick was cut short.
+ *
+ * This exists because withholding was worse than answering. An athlete sent out for 2 km
+ * easy plus 20 km at 4:35 who stopped at 15 km got a dashed accuracy ring and a pace row
+ * pairing the run's 4:45 average with the 4:35 band under "nothing to compare" — while
+ * the watch's own step list said the 10 km of the block he did run came out at 4:35, on
+ * target. The honest reading is "you held the pace and you stopped 8 km early", and the
+ * distance row, the direction and the headline all say the second half of it.
+ *
+ * That is also what makes grading a fragment safe rather than generous: distance and
+ * duration are two thirds of the metrics and both collapse on a run cut short, so the
+ * pace can lift the score but never carry it. What the two thresholds prevent is the
+ * pace row being about something other than the session — a stride set, or the first
+ * kilometre of a block nobody got into.
+ *
+ * Deliberately NOT part of `dominantWatchStep`: a truncated step must never take the
+ * place of a verdict a complete one could give, so this is only consulted after both
+ * `dominantWatchStep` and `dominantBlock` come back empty (see `resolveDominantPace`),
+ * and it always travels with `truncated: true` so every surface can say what it is.
+ */
+export function partialWatchStep(report: WatchStepReport): WatchStepVerdict | null {
+  const ran = report.steps.reduce((sum, v) => sum + v.actualDistanceM, 0);
+  return report.steps
+    .filter(v => v.graded && v.status !== 'unknown' && v.truncated
+      && v.type !== 'warmup' && v.type !== 'cooldown'
+      && (stepRanFraction(v) ?? 0) >= PARTIAL_STEP_MIN
+      && v.actualDistanceM >= ran * PARTIAL_RUN_MIN)
+    .sort((a, b) => b.actualDistanceM - a.actualDistanceM)[0] || null;
+}
