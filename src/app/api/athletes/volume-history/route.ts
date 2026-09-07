@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { fetchWeekTargets } from '@/lib/plans/week-target-history';
+import { COACH_ID } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +11,10 @@ export const dynamic = 'force-dynamic';
 // Durable training-volume history for an athlete, read from weekly_km_snapshots
 // (written nightly by the sync cron — a complete per-week record incl. zero
 // weeks, unaffected by later activity edits). Default `granularity=week`
-// returns the most recent `weeks` weeks unchanged (existing callers). `month`/
+// returns the most recent `weeks` weeks, each with `target` — that week's own
+// plan band, recomputed from that week's `weekly_plans` row, so the chart can
+// mark the weeks that landed on the plan they actually had rather than against
+// today's band. `month`/
 // `year` aggregate the underlying weekly rows into calendar buckets (a week is
 // bucketed by its own week_start's month/year — the same approximation the
 // rest of the app's week-bucketing already uses, not a precise pro-rata split
@@ -54,7 +59,18 @@ export async function GET(request: Request) {
         durationSec: Number(r.duration_s) || 0,
       }));
 
-    let series = weekRows;
+    let series: Array<(typeof weekRows)[number] & { target?: { min: number; max: number } }> = weekRows;
+    if (granularity === 'week') {
+      // Each week's own target band, so the chart can show whether that week
+      // landed on the plan THAT WEEK. Only at week granularity: a month has no
+      // target of its own, and summing the bands of whichever weeks happen to
+      // have a plan row would invent one.
+      const targets = await fetchWeekTargets(supabase, COACH_ID, weekRows.map((w) => w.weekStart));
+      series = weekRows.map((w) => {
+        const t = targets.get(w.weekStart);
+        return t ? { ...w, target: { min: t.min, max: t.max } } : w;
+      });
+    }
     if (granularity !== 'week') {
       const bucketLen = granularity === 'year' ? 4 : 7; // 'YYYY' or 'YYYY-MM'
       const buckets = new Map<string, { weekStart: string; km: number; runs: number; durationSec: number }>();

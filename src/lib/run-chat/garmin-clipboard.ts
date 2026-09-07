@@ -17,7 +17,7 @@ import { intensityLayout } from './clipboard-layout';
 import { DEJAVU_SANS_BASE64 } from './dejavu-sans.generated';
 
 /** Bump when the renderer changes so stored images regenerate. */
-export const CLIPBOARD_VERSION = 'v10';
+export const CLIPBOARD_VERSION = 'v11';
 
 /** Horizontal inset for steps nested under a Repeat block (Garmin "tab"). */
 const REPEAT_INDENT_PX = 28;
@@ -131,6 +131,30 @@ function stepRows(steps: WorkoutSegment[], contentW: number): { svg: string; hei
   return { svg: rows.join('\n'), height: y };
 }
 
+/**
+ * The distance line under the title: "11–13 ק״מ", and on a derived figure the
+ * words that say so.
+ *
+ * A single number when the two ends match, because "12–12 ק״מ" reads as a
+ * mistake. The range is written with an ASCII hyphen rather than an en-dash: the
+ * hyphen keeps the two ends bound to the number instead of letting the
+ * surrounding Hebrew flip them into a countdown.
+ *
+ * The line is wrapped in an RTL isolate (U+2067 … U+2069) because resvg lays
+ * every text run out on a hard left-to-right base and ignores `direction="rtl"`.
+ * Measured, unwrapped, the three parts land number-leftmost and "ק״מ"
+ * rightmost — so a Hebrew reader meets the unit first and the number last, i.e.
+ * the line backwards. The isolate gives the run an RTL base, which puts the
+ * number at the right edge where the eye starts, the unit next to it, and the
+ * "derived" qualifier last.
+ */
+export function distanceLine(d: PlannedWorkout['distanceKm']): string | null {
+  if (!d || d.max <= 0) return null;
+  const fmt = (n: number) => String(Math.round(n * 10) / 10);
+  const range = d.max > d.min ? `${fmt(d.min)}-${fmt(d.max)}` : fmt(d.max);
+  return `⁧${range} ק״מ${d.estimated ? ' · מחושב מזמן וקצב' : ''}⁩`;
+}
+
 /** Build a Garmin-clipboard PNG buffer for the given planned workout. */
 export async function renderGarminClipboardPng(workout: PlannedWorkout): Promise<Buffer> {
   const steps = flattenClipboardSteps(workout);
@@ -138,7 +162,10 @@ export async function renderGarminClipboardPng(workout: PlannedWorkout): Promise
   const width = 390;
   const padX = 20;
   const contentW = width - padX * 2;
-  const titleH = 56;
+  const distanceText = distanceLine(workout.distanceKm);
+  // Room for the distance line when there is one. Rest days and drills sessions
+  // have none, and the card should not carry a blank row for them.
+  const titleH = distanceText ? 78 : 56;
   const sparkH = 56;
   const sparkGap = 20;
   const { svg: rowsSvg, height: rowsH } = stepRows(steps, contentW);
@@ -152,6 +179,11 @@ export async function renderGarminClipboardPng(workout: PlannedWorkout): Promise
   <text x="${padX}" y="38"
     font-family="${fontFor(workout.title)}"
     font-size="22" font-weight="700" fill="${TEXT}">${escapeXml(workout.title)}</text>
+${distanceText ? `
+  <!-- How far this session is — the one number the board never carried -->
+  <text x="${padX}" y="62"
+    font-family="${fontFor(distanceText)}"
+    font-size="15" font-weight="700" fill="${GREY}">${escapeXml(distanceText)}</text>` : ''}
 
   <!-- Intensity strip -->
   <g transform="translate(${padX},${titleH})">

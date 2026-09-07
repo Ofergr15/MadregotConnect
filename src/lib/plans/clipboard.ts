@@ -4,6 +4,8 @@ import type {
   WorkoutSegment,
   WorkoutSegmentKind,
 } from '@/lib/run-chat/mock-workout';
+import { getWorkoutKm } from '@/lib/plans/workout-parsing';
+import { isEstimate, type EstimateOptions } from '@/lib/plans/step-estimate';
 
 const LABELS: Record<WorkoutStep['type'], string> = {
   warmup: 'Warm Up',
@@ -19,6 +21,14 @@ function pace(seconds: number): string {
   return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, '0')}`;
 }
 
+function clock(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  if (hours) return `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+  return `${minutes}:${String(rest).padStart(2, '0')}`;
+}
+
 function durationText(step: WorkoutStep): string {
   if (step.durationType === 'distance' && step.durationValue) {
     if (step.durationValue >= 1000) {
@@ -28,11 +38,18 @@ function durationText(step: WorkoutStep): string {
     return `${step.durationValue} m`;
   }
   if (step.durationType === 'time' && step.durationValue) {
-    const hours = Math.floor(step.durationValue / 3600);
-    const minutes = Math.floor((step.durationValue % 3600) / 60);
-    const seconds = step.durationValue % 60;
-    if (hours) return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+    // The RANGE where the step has one. This line is what the athlete's board
+    // prints, and it is the whole reason the import restores collapsed ranges:
+    // a 40–50 minute run reached sixty phones as "40:00". Whole minutes get the
+    // short form ("40-50 min"), because "40:00-50:00" is a stopwatch reading of
+    // something the coach wrote as two numbers.
+    const max = step.durationMaxValue;
+    if (max && max > step.durationValue) {
+      return step.durationValue % 60 === 0 && max % 60 === 0
+        ? `${step.durationValue / 60}-${max / 60} min`
+        : `${clock(step.durationValue)}-${clock(max)}`;
+    }
+    return clock(step.durationValue);
   }
   return 'Lap Button Press';
 }
@@ -110,11 +127,24 @@ export function workoutToClipboardText(workout: ParsedWorkout): string {
   return lines.join('\n');
 }
 
-export function parsedWorkoutToClipboard(workout: ParsedWorkout): PlannedWorkout {
+/**
+ * `opts` carries the plan-wide pace band (`planEstimateOptions`) when the caller
+ * has the whole week to hand: a session written only in minutes is priced off
+ * the easy pace THIS plan states, not a default. Without it the derivation still
+ * works, just more coarsely.
+ */
+export function parsedWorkoutToClipboard(workout: ParsedWorkout, opts?: EstimateOptions): PlannedWorkout {
+  const km = getWorkoutKm(workout, opts);
   return {
     title: workout.name,
     prompt: workout.clipboardText || workoutToClipboardText(workout),
     segments: workout.steps.map(stepToSegment),
+    // `from: 'none'` means the session says nothing about distance and nothing
+    // about time either — a drills or strength evening. No line rather than 0.
+    distanceKm:
+      km.from === 'none' || km.max <= 0
+        ? undefined
+        : { min: km.min, max: km.max, estimated: isEstimate(km.from) },
   };
 }
 

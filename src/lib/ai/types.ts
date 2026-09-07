@@ -34,7 +34,27 @@ export interface ParsedWorkout {
   clipboardText?: string;
   distanceMinKm?: number;
   distanceMaxKm?: number;
+  /**
+   * What the import repaired by itself, with the values it replaced.
+   *
+   * An empty array is not the same as absent: absent means the session has never
+   * been through the fixer, empty means it has and there is nothing outstanding —
+   * either because nothing was wrong or because the coach undid it. See
+   * `lib/plans/auto-fix.ts`, which is also what keeps normalization (it runs on
+   * read too) from re-applying a fix that was taken back.
+   */
+  autoFixes?: AutoFix[];
   steps: WorkoutStep[];
+}
+
+/** A repair the import made to a step, and what the step said before it. */
+export interface AutoFix {
+  /** A time range collapsed to one figure, restored from the step's own note. */
+  code: 'timeRange';
+  /** Indices from `workout.steps` down through `repeatSteps` — `order` is not unique. */
+  stepPath: number[];
+  fromSec: number;
+  toSec: { min: number; max: number };
 }
 
 export interface GroupPace {
@@ -52,6 +72,15 @@ export interface WorkoutStep {
   type: 'warmup' | 'interval' | 'rest' | 'recovery' | 'cooldown' | 'active';
   durationType: 'distance' | 'time' | 'open';
   durationValue?: number; // meters for distance, seconds for time
+  /**
+   * The far end of a time step written as a range ("40-50 דק׳"): `durationValue`
+   * holds 2400 and this holds 3000. Set by the import's auto-fix (see
+   * `lib/plans/auto-fix.ts`) so the athlete's board can print the range the coach
+   * wrote instead of the single figure the parse had to choose. Only ever set on
+   * `durationType: 'time'`; a Garmin push still uses `durationValue`, since a
+   * watch can only be given one number.
+   */
+  durationMaxValue?: number;
   targetType: 'pace' | 'heart_rate' | 'no_target';
   targetZone?: string; // "easy", "threshold", "interval", "tempo", "sprint", "marathon_pace"
   targetPaceMinPerKm?: number; // seconds per km (faster limit) — Group ❶
