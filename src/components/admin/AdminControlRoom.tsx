@@ -30,9 +30,11 @@ import { CoachPulse } from '@/components/CoachPulse';
 //      because both are about the athletes rather than about this account.
 //   4. What state the system itself is in.
 //
-// Personal training is NOT here and is not duplicated anywhere: the Profile tab
-// already holds the km table, the recent runs and the records, and that is where
-// an admin who also runs goes to see their own week.
+// Personal training is NOT here — and as of the admin-nav pass it isn't anywhere
+// in the admin's app: the Profile tab is an ACCOUNT screen now (see AdminAccount),
+// and the feed, the activity list and the weekly program are dropped from the
+// admin's nav (ADMIN_HIDDEN_TABS). An admin who also runs sees their own week by
+// previewing themselves as a runner.
 //
 // One request feeds items 1, 2 and 4 (see /api/admin/overview) — a control room
 // whose numbers arrive in six waves reads as broken even when it isn't.

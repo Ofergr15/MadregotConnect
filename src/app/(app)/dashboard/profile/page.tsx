@@ -28,6 +28,8 @@ import { getDisplayWeekStart, formatPlanWeekRange } from '@/lib/plans/workout-pa
 import { fetchActivities } from '@/lib/activities-client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { APP_VERSION } from '@/lib/version';
+import { useNavIdentity } from '@/lib/nav-items';
+import { AdminAccount } from '@/components/admin/AdminAccount';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
 
 interface FollowedAthlete {
@@ -67,10 +69,39 @@ function tabFromParam(tab: string | null): ProfileTab | null {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mt-20"></div>}>
-      <ProfileContent />
+    <Suspense fallback={<Spinning />}>
+      <ProfileGate />
     </Suspense>
   );
+}
+
+function Spinning() {
+  return <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mt-20"></div>;
+}
+
+/**
+ * Whose profile this is. The admin account isn't a runner — it's the account the
+ * system is administered from — so it gets AdminAccount here (identity,
+ * privileges, view-as, version, sign out) instead of a km table and a Garmin
+ * connection it will never have. Same route on purpose: one nav entry, one active
+ * state, and every existing /dashboard/profile link still lands somewhere true.
+ *
+ * The branch is OUTSIDE ProfileContent, not an early return inside it, because
+ * that component opens with a dozen athlete fetches — for an admin they would all
+ * run, 404 or return an empty set, and be thrown away.
+ *
+ * Which means a spinner until the role is known. `useNavIdentity` reads
+ * /api/auth/me and /api/admin/tab-permissions through SWR, and both nav chromes
+ * on this very page have already asked for them, so in practice it resolves from
+ * cache; a cold load pays for it once. Rendering the athlete profile in the
+ * meantime would be worse than the wait — the admin would watch their own empty
+ * training screen appear and then be replaced.
+ */
+function ProfileGate() {
+  const { effectiveRole, ready } = useNavIdentity();
+  if (!ready) return <Spinning />;
+  if (effectiveRole === 'admin') return <AdminAccount />;
+  return <ProfileContent />;
 }
 
 function ProfileContent() {

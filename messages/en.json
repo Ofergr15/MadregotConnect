@@ -73,7 +73,8 @@
     "coachTools": "Coach Tools",
     "confirmAttendanceAria": "Confirm attendance for your next workout",
     "confirm": "Confirm",
-    "attendanceRosterAria": "View attendance roster"
+    "attendanceRosterAria": "View attendance roster",
+    "account": "Account"
   },
   "coachTools": {
     "title": "Coach Tools",
@@ -201,6 +202,27 @@
     "syncedLast24h": "Arrived in the last 24h",
     "syncedValue": "{n} activities",
     "syncedNone": "Worth checking the sync"
+  },
+  "adminAccount": {
+    "title": "Account",
+    "thisAccount": "This account",
+    "role": "Role",
+    "systemAdmin": "System administrator",
+    "superUser": "Super user",
+    "superUserHint": "Can preview any role and grant privileges",
+    "approver": "Sign-up approver",
+    "approverHint": "Can approve new members",
+    "granted": "Yes",
+    "notGranted": "No",
+    "viewAs": "View the app as",
+    "active": "Active now",
+    "backToMyView": "Back to my own view",
+    "system": "System",
+    "version": "App version",
+    "installed": "Opened from",
+    "installedHint": "A home-screen app is what push notifications need",
+    "installedApp": "Home screen",
+    "installedBrowser": "Browser"
   },
   "dashboard": {
     "valenciaMarathon": "Valencia Marathon",
@@ -730,7 +752,8 @@
     "feedbackSearch": "Search reports, names or groups",
     "feedbackCount": "{count} reports",
     "feedbackNewCount": "{count} new",
-    "feedbackNoMatch": "No report matches this search"
+    "feedbackNoMatch": "No report matches this search",
+    "notForAdmin": "Not for an admin"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",

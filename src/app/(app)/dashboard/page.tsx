@@ -252,8 +252,10 @@ export default function DashboardPage() {
       // An admin never sees this account's own runs on this page (the control
       // room replaces it), so there is nothing for a sync or a "customize your
       // post" popup to feed — and re-running it on every visit would cost the
-      // one screen that has to feel instant. Personal sync still happens from
-      // the Profile tab, which is where an admin who also runs looks.
+      // one screen that has to feel instant. Nor does the admin's app sync
+      // anywhere else now — the Profile tab is an account screen (AdminAccount)
+      // and the activity list is out of the admin's nav — which is consistent
+      // rather than a gap: it is not an account that records runs.
       if (!identityReady || isAdminView) return;
       const myAthleteId = localStorage.getItem('athlete_id');
       const syncKey = myAthleteId ? `dashboard_synced:${myAthleteId}` : 'dashboard_synced';

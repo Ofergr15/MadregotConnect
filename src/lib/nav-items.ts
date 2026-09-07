@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift,
+  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -32,6 +32,33 @@ export interface NavItem { href: string; tab: string; labelKey: string; icon: Re
 // permission-gated staff tab — one definition so the two can't drift.
 export const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy', labelKey: 'academy', icon: GraduationCap };
 
+/**
+ * Tabs that show THIS ACCOUNT's own training — its runs, its plan for the week,
+ * the club's social feed — and are therefore not part of the admin's app.
+ *
+ * The admin account is the one that runs the system, not a member who runs: it
+ * exists so the club can be administered from a session that isn't anybody's
+ * athlete account. /dashboard already knows that (it serves a control room, not a
+ * training log, since v2.39.104), but the rest of the nav didn't — production
+ * grants role `admin` every tab there is, so the admin's tab bar still opened onto
+ * the feed, this account's activity list and its own weekly program.
+ *
+ * Held here in CODE rather than by turning those three rows off in
+ * `role_tab_permissions`, which is where every other nav grant lives, for one
+ * reason: those rows are applied to production by hand (see the migrations note in
+ * the repo docs), so a data-only fix ships as a deploy that changes nothing until
+ * somebody remembers to run the SQL. It's a property of what an admin IS, not a
+ * per-club policy, so it doesn't need to be editable — but a toggle that silently
+ * does nothing would be worse than none, so the tab-permission editor renders
+ * these three cells for `admin` as unavailable instead of as switches.
+ *
+ * Nothing is taken away, only hidden: the routes still serve this account, and the
+ * super-user's "view as runner" preview is the intended way back to them (below,
+ * the filter applies to the role being RENDERED, so previewing a runner restores
+ * the runner's tabs and previewing the admin shows what an admin sees).
+ */
+export const ADMIN_HIDDEN_TABS = ['feed', 'activities', 'program'];
+
 export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
   { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
@@ -53,6 +80,14 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },
 ];
 export const PROFILE_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'profile', icon: User };
+// The admin's version of the profile tab. SAME route and SAME tab id — one
+// active-state rule, one place a deep link can land — but the page behind it
+// renders AdminAccount instead of the training profile, because the account that
+// runs the club is not a running account: a km table, personal records and a
+// Garmin connection are not its story. What it does need is the thing no other
+// screen holds: who am I signed in as, what am I allowed to do, which version is
+// this, and how do I get out.
+export const ADMIN_ACCOUNT_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'account', icon: ShieldCheck };
 export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench };
 // Store and Benefits are static "More" sheet rows, not gated by
 // role_tab_permissions (roadmap #9, #5) — every role can reach them.
@@ -122,11 +157,25 @@ export function resolveNavItems({
   // Admin can always reach settings — otherwise revoking that one row locks the
   // only account that can grant it back out of the permissions editor.
   if (effectiveRole === 'admin' && !enabled.includes('settings')) enabled.push('settings');
-  const items = ALL_NAV_ITEMS.filter(i => enabled.includes(i.tab));
+  // Last, so it also wins over the גרעין union above: an admin who is in the core
+  // squad is still an admin, and the squad's grants are runner grants.
+  const items = ALL_NAV_ITEMS.filter(i =>
+    enabled.includes(i.tab) && !(effectiveRole === 'admin' && ADMIN_HIDDEN_TABS.includes(i.tab)),
+  );
 
+  // The admin gets an ACCOUNT tab where an athlete gets a profile — unconditional,
+  // because it is the only screen that holds sign-out and the view-as switcher, so
+  // an admin without an athlete row would otherwise have no way out of the app.
+  // It replaces the profile rather than joining it: this account's own kilometres
+  // are not what the person who runs the club opened the app for (same call as the
+  // control room on /dashboard). An admin who also runs sees their training by
+  // previewing themselves as a runner.
+  if (effectiveRole === 'admin') {
+    if (!items.some(i => i.tab === 'profile')) items.push(ADMIN_ACCOUNT_ITEM);
+  }
   // Athlete-flavoured roles get their own profile. Skipped for staff previews,
   // where the point is to see the staff nav.
-  if (isAthlete || (previewRole && !STAFF_ROLES.includes(previewRole))) {
+  else if (isAthlete || (previewRole && !STAFF_ROLES.includes(previewRole))) {
     if (!items.some(i => i.tab === 'profile')) items.push(PROFILE_ITEM);
   }
   // Coach Tools hub — every staff account, same force-add pattern as `settings`

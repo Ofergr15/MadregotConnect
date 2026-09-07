@@ -73,7 +73,8 @@
     "coachTools": "כלי מאמן",
     "confirmAttendanceAria": "אישור הגעה לאימון הקרוב",
     "confirm": "אישור",
-    "attendanceRosterAria": "צפייה ברשימת נוכחות"
+    "attendanceRosterAria": "צפייה ברשימת נוכחות",
+    "account": "החשבון"
   },
   "coachTools": {
     "title": "כלי מאמן",
@@ -201,6 +202,27 @@
     "syncedLast24h": "נכנסו ביממה האחרונה",
     "syncedValue": "{n} פעילויות",
     "syncedNone": "כדאי לבדוק את הסנכרון"
+  },
+  "adminAccount": {
+    "title": "החשבון",
+    "thisAccount": "החשבון הזה",
+    "role": "תפקיד",
+    "systemAdmin": "מנהל המערכת",
+    "superUser": "משתמש-על",
+    "superUserHint": "יכול לצפות בכל תפקיד ולהעניק הרשאות",
+    "approver": "מאשר הרשמות",
+    "approverHint": "יכול לאשר חברים חדשים",
+    "granted": "כן",
+    "notGranted": "לא",
+    "viewAs": "לראות את האפליקציה כ־",
+    "active": "פעיל כרגע",
+    "backToMyView": "חזרה לתצוגה שלי",
+    "system": "מצב המערכת",
+    "version": "גרסת האפליקציה",
+    "installed": "נפתחה מתוך",
+    "installedHint": "התראות פוש עובדות רק מאפליקציה במסך הבית",
+    "installedApp": "מסך הבית",
+    "installedBrowser": "דפדפן"
   },
   "dashboard": {
     "valenciaMarathon": "מרתון ולנסיה",
@@ -730,7 +752,8 @@
     "feedbackSearch": "חיפוש בדיווחים, בשם או בדבוקה",
     "feedbackCount": "{count} דיווחים",
     "feedbackNewCount": "{count} חדשים",
-    "feedbackNoMatch": "אין דיווח שמתאים לחיפוש"
+    "feedbackNoMatch": "אין דיווח שמתאים לחיפוש",
+    "notForAdmin": "לא רלוונטי למנהל"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",

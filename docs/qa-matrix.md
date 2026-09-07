@@ -78,15 +78,31 @@ Identical to runner, **plus מתכנן in More**: סקירה · מתכנן · פ
 
 ### admin — this is you
 
-**Bar:** פיד · לוח בקרה · [נוכחות] · ספורטאים · משוב אימונים · עוד
+**Bar (2026-09-07 onward):** לוח בקרה · ספורטאים · [נוכחות] · משוב אימונים · כלי מאמן · עוד
 (נוכחות is the middle staff slot, so it sits between the 2nd and 3rd tabs.)
-**More → morePages, in this order:** סקירה · מתכנן · אקדמיה · קבוצות · פעילויות · תוכנית · נוכחות · נפח הקבוצה · יומן · היסטוריה · הגדרות · פרופיל · כלי מאמן
+**More → morePages, in this order:** סקירה · מתכנן · אקדמיה · קבוצות · נוכחות · נפח הקבוצה · יומן · היסטוריה · הגדרות · החשבון
 
-- [ ] 13 cards in the More grid, in that order
+The admin's nav no longer carries this account's own training. פיד, פעילויות and
+תוכנית are dropped for `admin` — every one of them is about a member's own runs,
+and the admin account is not a member's account (see `ADMIN_HIDDEN_TABS`; the
+production permission rows still grant all three, the code drops them). That is
+also why כלי מאמן moved up into the bar: פיד freed a flat slot.
+
+- [ ] 10 cards in the More grid, in that order
+- [ ] No פיד / פעילויות / תוכנית anywhere in the bar or the sheet
 - [ ] נוכחות appears twice — once as the middle bar slot, once as a More card.
       Intended (it's excluded from *flat tabs* only), but eyeball it and say if
       it looks wrong.
-- [ ] פרופיל is there only because your account also has an athlete row. Fine.
+- [ ] **החשבון** (where פרופיל used to be) opens the admin account screen, not a
+      training profile: who you're signed in as, משתמש-על / מאשר הרשמות, view-as,
+      maintenance, version, sign out. No kilometres, no records, no Garmin.
+      It no longer depends on your account having an athlete row.
+- [ ] View-as → רץ, then פרופיל: you get the athlete profile back, and פיד /
+      פעילויות / תוכנית return to the bar. That preview is the intended route to
+      your own training as an admin.
+- [ ] הגדרות → ניהול טאבים: the admin row shows פיד / פעילויות / תוכנית as
+      "לא רלוונטי למנהל" instead of two toggles, because those toggles would no
+      longer change anything.
 - [ ] ⚠️ **אימון (`/dashboard/practice`) is missing entirely.** `practice` is
       enabled for `academy_coach` and `academy_user` only, so as admin there is
       no route to it from the UI. Open `/dashboard/practice` by URL, decide
@@ -107,10 +123,13 @@ back into More.
 - [ ] נוכחות now has a permission row to match the slot the bar was already
       rendering unconditionally. Tap it — page and API should agree now.
 - [ ] ⚠️ Side effect worth your eye: those were the last two tabs admin held and
-      coach did not, so **coach and admin now see an identical nav**. Nav is
+      coach did not, so **coach and admin saw an identical nav**. Nav is
       visibility only, and the sharp controls inside הגדרות (granting admin) are
       separately gated on the email allowlist, not on role — but coach already
       held `settings` before this change. Say if you want coach narrowed.
+- [ ] The two diverged again on 2026-09-07, deliberately: a coach KEEPS פיד,
+      פעילויות and תוכנית (a coach is a member who coaches), and only the admin
+      gets החשבון instead of a training פרופיל.
 - [ ] No אימון for coach either (see admin).
 
 ### academy_coach
