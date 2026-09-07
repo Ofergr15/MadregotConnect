@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   UserPlus, Copy, CheckCircle2, Wifi, WifiOff, Clock,
   Users as UsersIcon, Check, Mail, Trash2, ChevronDown,
   PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle,
-  Wrench, Search, Lock, Unlock
+  Wrench, Search, Lock, Unlock, DoorOpen
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -373,10 +374,21 @@ ${inviteLink}`;
                 </p>
               </div>
             </div>
-            <Button variant="primary" onClick={turnMaintenanceOff} disabled={turningOff}>
-              <Wrench className="h-4 w-4" />
-              {turningOff ? t('maintenanceTurningOff') : t('maintenanceTurnOff')}
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* The roster can release one person, but the queue is where their
+                  whole state is — approval, last entry, watch, notifications —
+                  and where approving also lets them past the window. */}
+              <Link href="/dashboard/entry-queue">
+                <Button variant="secondary">
+                  <DoorOpen className="h-4 w-4" />
+                  {t('maintenanceOpenQueue')}
+                </Button>
+              </Link>
+              <Button variant="primary" onClick={turnMaintenanceOff} disabled={turningOff}>
+                <Wrench className="h-4 w-4" />
+                {turningOff ? t('maintenanceTurningOff') : t('maintenanceTurnOff')}
+              </Button>
+            </div>
           </div>
         </Card>
       )}

@@ -80,7 +80,8 @@
     "subtitle": "Planning, roster, and team insights",
     "planning": "Planning",
     "rosterAndGroups": "Roster & Groups",
-    "insights": "Insights"
+    "insights": "Insights",
+    "entryQueue": "Waiting to get in"
   },
   "header": {
     "coach": "Coach",
@@ -303,7 +304,8 @@
     "maintenanceAllowedBadge": "Allowed",
     "maintenanceRelease": "Release from maintenance",
     "maintenanceBlock": "Block during maintenance",
-    "maintenanceSaving": "Updating…"
+    "maintenanceSaving": "Updating…",
+    "maintenanceOpenQueue": "Entry queue"
   },
   "planner": {
     "title": "Weekly Planner",
@@ -2329,5 +2331,41 @@
     "revokedHint": "If this looks wrong, talk to your coach.",
     "switchAccount": "Sign in with another account",
     "signingOut": "Signing out…"
+  },
+  "entryQueue": {
+    "title": "Waiting to get in",
+    "subtitle": "{waiting} waiting on you · {total} club members",
+    "waiting": "Waiting on me",
+    "stuck": "Stuck",
+    "ready": "Ready",
+    "all": "All",
+    "searchPlaceholder": "Search by name or email",
+    "stagePending": "Awaiting approval",
+    "stageBlocked": "Blocked by maintenance",
+    "stageNever": "Never signed in",
+    "stageSetup": "Setup unfinished",
+    "stageReady": "Ready",
+    "lineSignedUp": "Signed up {date} · awaiting approval",
+    "lineApprovedBlocked": "Approved {date} · maintenance is blocking them",
+    "lineApprovedNever": "Approved {date} · hasn't come in yet",
+    "lineLastSeen": "Last seen {date} · setup {done} of {total}",
+    "entered": "In {date}",
+    "neverEntered": "Never in",
+    "noWatch": "No watch",
+    "pushOn": "Notifications",
+    "pushOff": "No notifications",
+    "setupProgress": "Setup {done}/{total}",
+    "noGroup": "No group",
+    "approveEntry": "Approve entry",
+    "releaseEntry": "Let them in",
+    "openProfile": "Open profile",
+    "blockAgain": "Block again",
+    "saving": "Updating…",
+    "maintenanceOn": "Maintenance mode is on",
+    "maintenanceBlockedCount": "{count} members are blocked right now",
+    "maintenanceTurnOff": "Turn maintenance off",
+    "emptyTitle": "Nobody is waiting",
+    "emptyDescription": "Everyone who signed up is approved, in and set up.",
+    "noMatches": "No matches"
   }
 }

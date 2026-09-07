@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, UserPlus, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, UserPlus, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -88,6 +88,10 @@ export default function CoachToolsPage() {
       </InsetSection>
 
       <InsetSection header={ts('management')}>
+        {/* First row in Management on purpose: it is the only screen that answers
+            "why can't this person get in" across BOTH gates — approval and the
+            maintenance window — and the only one that can open them together. */}
+        <InsetRow icon={DoorOpen} iconBg="bg-brand-600" label={t('entryQueue')} href="/dashboard/entry-queue" />
         <InsetRow icon={UserPlus} iconBg="bg-accent-600" label={ts('registrations')} href="/dashboard/settings?tab=registrations" />
         <InsetRow icon={Users} iconBg="bg-indigo-500" label={ts('userManager')} href="/dashboard/settings?tab=users" />
         <InsetRow icon={Layout} iconBg="bg-band-3" label={ts('tabManager')} href="/dashboard/settings?tab=tabs" />

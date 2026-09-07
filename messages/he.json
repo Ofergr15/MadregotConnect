@@ -80,7 +80,8 @@
     "subtitle": "תכנון, ניהול ותובנות צוות",
     "planning": "תכנון",
     "rosterAndGroups": "ספורטאים וקבוצות",
-    "insights": "תובנות"
+    "insights": "תובנות",
+    "entryQueue": "מחכים להיכנס"
   },
   "header": {
     "coach": "מאמן",
@@ -303,7 +304,8 @@
     "maintenanceAllowedBadge": "מאושר",
     "maintenanceRelease": "שחרר ממצב תחזוקה",
     "maintenanceBlock": "החזר לחסימת תחזוקה",
-    "maintenanceSaving": "מעדכן…"
+    "maintenanceSaving": "מעדכן…",
+    "maintenanceOpenQueue": "מחכים להיכנס"
   },
   "planner": {
     "title": "מתכנן שבועי",
@@ -2329,5 +2331,41 @@
     "revokedHint": "אם זו טעות — כדאי לפנות למאמן.",
     "switchAccount": "התחברות עם חשבון אחר",
     "signingOut": "מתנתק…"
+  },
+  "entryQueue": {
+    "title": "מחכים להיכנס",
+    "subtitle": "{waiting} מחכים לך · {total} חברי מועדון",
+    "waiting": "מחכים לי",
+    "stuck": "תקועים",
+    "ready": "מוכנים",
+    "all": "הכל",
+    "searchPlaceholder": "חיפוש לפי שם או אימייל",
+    "stagePending": "ממתין לאישור",
+    "stageBlocked": "חסום בתחזוקה",
+    "stageNever": "לא נכנס מעולם",
+    "stageSetup": "לא סיים הגדרה",
+    "stageReady": "מוכן",
+    "lineSignedUp": "נרשם ב-{date} · ממתין לאישור",
+    "lineApprovedBlocked": "אושר ב-{date} · מצב תחזוקה חוסם אותו",
+    "lineApprovedNever": "אושר ב-{date} · עוד לא נכנס",
+    "lineLastSeen": "נכנס לאחרונה {date} · הגדרה {done} מתוך {total}",
+    "entered": "נכנס {date}",
+    "neverEntered": "לא נכנס מעולם",
+    "noWatch": "אין שעון",
+    "pushOn": "התראות",
+    "pushOff": "אין התראות",
+    "setupProgress": "הגדרה {done}/{total}",
+    "noGroup": "אין דבוקה",
+    "approveEntry": "אשר כניסה",
+    "releaseEntry": "שחרר כניסה",
+    "openProfile": "פתח פרופיל",
+    "blockAgain": "חסום שוב",
+    "saving": "מעדכן…",
+    "maintenanceOn": "מצב תחזוקה פעיל",
+    "maintenanceBlockedCount": "{count} חברי מועדון חסומים כרגע",
+    "maintenanceTurnOff": "כבה מצב תחזוקה",
+    "emptyTitle": "אין אף אחד שמחכה",
+    "emptyDescription": "כל מי שנרשם אושר, נכנס והוגדר.",
+    "noMatches": "לא נמצאו התאמות"
   }
 }
