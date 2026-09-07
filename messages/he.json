@@ -2417,9 +2417,9 @@
   "entryQueue": {
     "title": "מחכים להיכנס",
     "subtitle": "{waiting} מחכים לך · {total} חברי מועדון",
-    "waiting": "מחכים לי",
-    "stuck": "תקועים",
-    "ready": "מוכנים",
+    "waiting": "מחכים להחלטה",
+    "stuck": "לא סיימו להתחבר",
+    "ready": "מחוברים",
     "all": "הכל",
     "searchPlaceholder": "חיפוש לפי שם או אימייל",
     "stagePending": "ממתין לאישור",
@@ -2455,6 +2455,24 @@
     "reminderFailed": "השליחה נכשלה",
     "resultReleased": "אושר והוסר מחסימת התחזוקה — יכול להיכנס",
     "resultApproved": "אושר. התחזוקה כבויה, אין ממה לשחרר",
-    "resultFailed": "הפעולה נכשלה"
+    "resultFailed": "הפעולה נכשלה",
+    "distTitle": "המצב של {total} חברי המועדון",
+    "filter_noPush": "בלי התראות",
+    "filter_noWatch": "בלי שעון",
+    "filter_neverEntered": "לא נכנסו",
+    "filter_noGroup": "בלי דבוקה",
+    "clearFilters": "נקה סינון",
+    "bulkTitle": "{count} עוד לא סיימו להתחבר",
+    "bulkSubtitle": "אפשר להגיע ל-{reachable} מהם בהתראה עכשיו",
+    "bulkRemind": "שלח תזכורת ל-{count}",
+    "bulkProgress": "{ready} מתוך {total} מחוברים לגמרי",
+    "bulkResult": "נשלחו {sent} · {unreachable} בלי התראות · {failed} נכשלו",
+    "orphanLine": "נרשם ב-{date} דרך טופס ההרשמה",
+    "orphanNoAccount": "אין לו עוד חשבון",
+    "orphanPickGroup": "לאיזו דבוקה לשייך?",
+    "orphanApprove": "אשר ושלח קישור",
+    "orphanApproved": "אושר — הקישור נשלח במייל",
+    "orphanReject": "דחה",
+    "orphanRejected": "הבקשה נדחתה"
   }
 }

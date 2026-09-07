@@ -2417,9 +2417,9 @@
   "entryQueue": {
     "title": "Waiting to get in",
     "subtitle": "{waiting} waiting on you · {total} club members",
-    "waiting": "Waiting on me",
-    "stuck": "Stuck",
-    "ready": "Ready",
+    "waiting": "Needs a decision",
+    "stuck": "Not connected yet",
+    "ready": "Connected",
     "all": "All",
     "searchPlaceholder": "Search by name or email",
     "stagePending": "Awaiting approval",
@@ -2455,6 +2455,24 @@
     "reminderFailed": "Couldn't send",
     "resultReleased": "Approved and taken off the maintenance block — they can get in",
     "resultApproved": "Approved. Maintenance is off, nothing to release",
-    "resultFailed": "That did not go through"
+    "resultFailed": "That did not go through",
+    "distTitle": "Where all {total} members stand",
+    "filter_noPush": "No notifications",
+    "filter_noWatch": "No watch",
+    "filter_neverEntered": "Never opened it",
+    "filter_noGroup": "No group",
+    "clearFilters": "Clear filters",
+    "bulkTitle": "{count} haven't finished connecting",
+    "bulkSubtitle": "{reachable} of them can be reached by notification right now",
+    "bulkRemind": "Remind all {count}",
+    "bulkProgress": "{ready} of {total} fully connected",
+    "bulkResult": "{sent} sent · {unreachable} with no notifications · {failed} failed",
+    "orphanLine": "Signed up on {date} via the registration form",
+    "orphanNoAccount": "No account yet",
+    "orphanPickGroup": "Which group should they join?",
+    "orphanApprove": "Approve and send link",
+    "orphanApproved": "Approved — link emailed",
+    "orphanReject": "Reject",
+    "orphanRejected": "Request rejected"
   }
 }

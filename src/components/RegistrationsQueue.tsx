@@ -1018,10 +1018,6 @@ function QueueRow({
       className={cn(
         !last && 'border-b border-page',
         selected && 'bg-page/40',
-        // A black edge on the row's leading side. Eight of these down the list is
-        // the "these are the ones blocking you" signal, and it survives being
-        // glanced at, which a greyed-out button alone does not.
-        needsGroup && 'shadow-[inset_-3px_0_0_0_#1D1E26]',
       )}
     >
     <div

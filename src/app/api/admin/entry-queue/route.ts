@@ -9,6 +9,7 @@ import {
   realEmail,
   sortEntryQueue,
   type EntryQueueMember,
+  type PendingSignupRequest,
 } from '@/lib/admin/entry-queue';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,39 @@ const FULL_COLUMNS = `${BASE_COLUMNS}, approved, approved_at, last_seen_at, acti
 /** '42703' = Postgres undefined_column; 'PGRST204' = PostgREST's schema cache. */
 function isMissingColumn(code?: string) {
   return code === '42703' || code === 'PGRST204';
+}
+
+/**
+ * Pending signup requests that no athlete row answers for.
+ *
+ * Tolerant twice over, like everything that touches this table: no `signup_requests`
+ * at all ('42P01', migration 083 unapplied) and no `source` column (089) both mean
+ * "nothing to add here", never a failed queue. The queue is the screen an admin
+ * opens when somebody can't get in; it does not get to be the thing that's down.
+ */
+async function readOrphanRequests(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteEmails: Set<string>,
+): Promise<PendingSignupRequest[]> {
+  const WITH_SOURCE = 'id, email, source, created_at, group_id, athlete_id';
+  const first = await supabase.from('signup_requests').select(WITH_SOURCE).eq('status', 'pending');
+  const { data, error } = isMissingColumn(first.error?.code)
+    ? await supabase
+        .from('signup_requests')
+        .select('id, email, created_at, group_id, athlete_id')
+        .eq('status', 'pending')
+    : first;
+  if (error || !data) return [];
+
+  return (data as unknown as Array<Record<string, unknown>>)
+    .filter((r) => !r.athlete_id && !athleteEmails.has(String(r.email || '').toLowerCase().trim()))
+    .map((r) => ({
+      id: r.id as string,
+      email: (r.email as string) || '',
+      source: (r.source as string) ?? null,
+      createdAt: (r.created_at as string) || null,
+      groupId: (r.group_id as string) || null,
+    }));
 }
 
 export async function GET(request: Request) {
@@ -112,8 +146,27 @@ export async function GET(request: Request) {
       };
     });
 
+    // ── the applicants who have no athlete row yet ───────────────────────────
+    // Two things make a pending signup_request invisible above: no athlete_id, and
+    // no athlete carrying the same address. Those are the /register applicants, and
+    // they are the only rows the retired בקשות הרשמה tab held on its own. Backfilled
+    // rows (source='club-backfill', 23 of the 24 pending in production) always have
+    // an athlete_id, so they are already members up there and are NOT repeated here.
+    const orphanRequests = await readOrphanRequests(
+      supabase,
+      new Set(
+        athletes
+          .map((a) => String(a.email || '').toLowerCase().trim())
+          .filter(Boolean),
+      ),
+    );
+
     return NextResponse.json({
       maintenance: state.on,
+      // For the group picker on an orphan's card: approving one writes a דבוקה, and
+      // the names have to come from somewhere the browser is allowed to read.
+      groups: (groups || []).map((g: { id: string; name: string }) => ({ id: g.id, name: g.name })),
+      orphanRequests,
       // The panel's actions all need approver rights. `canApprove` off the verified
       // session, never an email literal — login is Strava-only, so a check against
       // APPROVER_EMAILS can never match anybody.

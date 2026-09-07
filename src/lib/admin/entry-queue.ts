@@ -63,6 +63,57 @@ export interface EntryQueueMember {
   stage: EntryStage;
 }
 
+/**
+ * A pending `signup_requests` row with NO athlete row behind it yet.
+ *
+ * Everybody else in this queue is an athlete, so the queue is built from
+ * `athletes`. A /register applicant isn't one until they're approved, which made
+ * them invisible to an athletes-driven screen — they only ever appeared on the
+ * separate בקשות הרשמה tab. They are the one thing that tab held that nothing
+ * else did, so they come along.
+ */
+export interface PendingSignupRequest {
+  id: string;
+  email: string;
+  /** 'register' | 'strava-login' | 'club-backfill' | null — how they got here. */
+  source: string | null;
+  createdAt: string | null;
+  groupId: string | null;
+}
+
+/** The count per stage, in STAGE_ORDER — what the bar at the top is drawn from. */
+export function stageCounts(members: EntryQueueMember[]): Record<EntryStage, number> {
+  const out: Record<EntryStage, number> = { pending: 0, blocked: 0, never: 0, setup: 0, ready: 0 };
+  for (const m of members) out[m.stage] += 1;
+  return out;
+}
+
+/**
+ * The four things that actually stop somebody from getting value out of the app,
+ * as filters that stack. Not "statuses": a person can be all four at once, which
+ * is why these are checkboxes over the list and not a fifth bucket.
+ */
+export const ENTRY_FILTERS = ['noPush', 'noWatch', 'neverEntered', 'noGroup'] as const;
+export type EntryFilter = (typeof ENTRY_FILTERS)[number];
+
+export function matchesFilter(m: EntryQueueMember, filter: EntryFilter): boolean {
+  switch (filter) {
+    case 'noPush':
+      return !m.hasPush;
+    case 'noWatch':
+      return !m.hasGarmin && !m.hasStrava;
+    case 'neverEntered':
+      return !m.lastSeenAt;
+    case 'noGroup':
+      return !m.groupName;
+  }
+}
+
+/** AND, not OR: "no watch AND no notifications" is the person to chase first. */
+export function matchesFilters(m: EntryQueueMember, filters: readonly EntryFilter[]): boolean {
+  return filters.every((f) => matchesFilter(m, f));
+}
+
 /** What the stage is computed from. Everything else on the row is decoration. */
 export interface EntryStageInput {
   approved: boolean;
