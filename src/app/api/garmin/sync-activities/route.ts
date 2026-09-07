@@ -13,6 +13,7 @@ import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
 import { mapActivityDetail } from '@/lib/garmin/activity-detail';
 import { isMissingColumn, withoutColumns } from '@/lib/supabase/schema-drift';
 import { backfillGarminWorkoutIds } from '@/lib/garmin/workout-id-backfill';
+import { backfillGarminHistory } from '@/lib/garmin/history-backfill';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 /**
@@ -322,6 +323,16 @@ export async function runSyncRequest(request: Request) {
  *   ?mode=workout  rows with no garmin_workout_id — plan attribution for history
  *                  (lib/garmin/workout-id-backfill.ts; one Garmin request per
  *                  athlete rather than two per row, so `limit` goes to 1000)
+ *   ?mode=history  activities from BEFORE the athlete connected, which the POST
+ *                  path's single `getActivities(0, 100)` never asked for and
+ *                  never will (lib/garmin/history-backfill.ts). The only mode
+ *                  here that ADDS rows rather than filling columns on existing
+ *                  ones, and the only one whose cursor is a page rather than a
+ *                  `before` timestamp — it walks Garmin's list backwards, so
+ *                  there is no row in the table yet to take a cursor from.
+ *                  ?pages=N per athlete (default 3), ?fromPage=N to resume from
+ *                  a previous response's `nextPage`, ?athleteId=… for one
+ *                  athlete, ?rematch=1 to re-run plan matching after.
  *   ?limit=N       rows per call, 1-100 (default 25; Garmin calls are serial,
  *                  ~2 requests per row, so keep it inside maxDuration)
  *   ?before=<ISO>  only rows older than this start_time — the batch cursor
@@ -370,9 +381,25 @@ export async function PATCH(request: Request) {
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
     const requestedMode = searchParams.get('mode');
-    const mode = requestedMode === 'missing' || requestedMode === 'workout' ? requestedMode : 'route';
+    const mode = requestedMode === 'missing' || requestedMode === 'workout' || requestedMode === 'history'
+      ? requestedMode
+      : 'route';
     const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 25, 1), 100);
     const before = searchParams.get('before');
+
+    // Also its own pass, and for a stronger reason than the others: the loop
+    // below enriches rows that EXIST, and the whole point here is that the rows
+    // do not — so there is nothing for a row-shaped select to return. Reads
+    // Garmin's list, not the table.
+    if (mode === 'history') {
+      const result = await backfillGarminHistory(supabase, {
+        athleteId: searchParams.get('athleteId'),
+        maxPages: Number(searchParams.get('pages')) || undefined,
+        fromPage: Number(searchParams.get('fromPage')) || undefined,
+        rematch: searchParams.get('rematch') === '1',
+      });
+      return NextResponse.json({ mode, ...result });
+    }
 
     // Its own pass: this one is keyed on garmin_workout_id itself (the filters
     // below can't reach an already-enriched row) and needs no per-row Garmin

@@ -24,6 +24,7 @@ import { notifyAthlete } from '@/lib/push';
 import { badgeEarnedCopy } from '@/lib/notifications/copy';
 import { getPlanWeekStart, computeWeekStreak, activityWeekStart, activityLocalDateStr } from '@/lib/utils';
 import { PR_BUCKETS, PR_RUN_TYPES, filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
+import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 
 // Keep in sync with the CHECK constraint in 059_badges.sql. Only the types
 // this engine knows how to evaluate are listed here — a genuinely new
@@ -311,7 +312,22 @@ export async function checkAndAwardBadges(
       .eq('athlete_id', athleteId)
       .order('start_time', { ascending: false });
     if (error) throw error;
-    qualifyingRuns = filterQualifyingRuns((data || []) as RunActivityRow[]);
+    // With their laps — the same second query GET /api/athletes/prs and the
+    // profile stats route both make. Without it `evalPrBucket` sees no laps at
+    // all, so `computeDistanceBests` can only take whole runs scaled to the
+    // bucket distance while the PR card the athlete is looking at takes real
+    // segments out of longer runs, and the two disagree about the same bucket:
+    // measured on one athlete, the `first_hm` badge recorded 1:31:37 (a 20.5 km
+    // run scaled up) against a card showing 1:24:14 (an actual 21.097 km
+    // stretch). The comment on evalPrBucket claims exact parity with that
+    // route; this is what makes it true. Best-effort inside attachLapsForPrs —
+    // a failed laps read degrades to the whole-run answer rather than costing
+    // the athlete the badge.
+    qualifyingRuns = await attachLapsForPrs(
+      supabase,
+      athleteId,
+      filterQualifyingRuns((data || []) as RunActivityRow[]),
+    );
     return qualifyingRuns;
   };
 

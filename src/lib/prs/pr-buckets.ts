@@ -16,14 +16,36 @@ export interface PrBucket {
   key: string;
   label: string;
   meters: number;
-  tolerance: number;
+  /**
+   * How far OVER the bucket distance a whole run may be and still supply its
+   * time, as a fraction. Generous: the run genuinely covered the distance, and
+   * scaling 5.3 km down to 5 km reports a pace that was actually held.
+   */
+  over: number;
+  /**
+   * How far UNDER it may be — deliberately much tighter, and not the same
+   * quantity as `over` at all.
+   *
+   * Scaling a SHORT run up invents distance the athlete never ran, at their
+   * average pace, on exactly the stretch where nobody holds average pace: a
+   * 41.2 km run in 2:54:45 came out as a "2:58:57 marathon" that has no
+   * finishing kilometre in it, and best-segment.ts states the opposite
+   * principle for the segment path ("a number presented as a 10K time should be
+   * 10 km that were actually run consecutively"). 1% is the scale of GPS
+   * distance error, which is the only thing the low side is here to forgive —
+   * a watch reading 4.96 km on a measured 5 km, not a session that stopped
+   * short. Measured over the club's 2,300 stored runs, tightening from the old
+   * proportional window moved two half-marathon bests (both correctly slower)
+   * and emptied no bucket for anyone.
+   */
+  under: number;
 }
 
 export const PR_BUCKETS: PrBucket[] = [
-  { key: '5k', label: '5K', meters: 5000, tolerance: 0.06 }, // 4.70–5.30 km
-  { key: '10k', label: '10K', meters: 10000, tolerance: 0.05 }, // 9.5–10.5 km
-  { key: 'hm', label: 'Half Marathon', meters: 21097, tolerance: 0.04 }, // ~20.25–21.94 km
-  { key: 'fm', label: 'Marathon', meters: 42195, tolerance: 0.03 }, // ~40.9–43.5 km
+  { key: '5k', label: '5K', meters: 5000, over: 0.06, under: 0.01 }, // 4.95–5.30 km
+  { key: '10k', label: '10K', meters: 10000, over: 0.05, under: 0.01 }, // 9.9–10.5 km
+  { key: 'hm', label: 'Half Marathon', meters: 21097, over: 0.04, under: 0.01 }, // ~20.89–21.94 km
+  { key: 'fm', label: 'Marathon', meters: 42195, over: 0.03, under: 0.01 }, // ~41.77–43.46 km
 ];
 
 // Runs only — exclude walks/other; matches the sync-time run-type filter.
@@ -84,7 +106,9 @@ export interface DistanceBest {
  *  2. The whole run, scaled to the bucket distance, when it lands in the
  *     tolerance window. Kept as the fallback because most rows have no laps
  *     stored yet (the laps backfill drains on a cron), and it is the only way a
- *     4.95 km run can register as a 5K at all.
+ *     4.95 km run can register as a 5K at all. The window is ASYMMETRIC — see
+ *     `PrBucket.under` for why scaling a short run up is a different claim from
+ *     scaling a long one down.
  *
  * (1) beats (2) on the same run whenever both exist, because scaling a whole run
  * charges the target distance at the run's AVERAGE pace — on a long run that is
@@ -92,8 +116,8 @@ export interface DistanceBest {
  */
 export function computeDistanceBests<T extends RunActivityRow>(runs: T[]): DistanceBest[] {
   return PR_BUCKETS.map((b) => {
-    const lo = b.meters * (1 - b.tolerance);
-    const hi = b.meters * (1 + b.tolerance);
+    const lo = b.meters * (1 - b.under);
+    const hi = b.meters * (1 + b.over);
     let best:
       | { seconds: number; date: string; name: string | null; id: string | null; fromSegment: boolean; sourceMeters: number }
       | null = null;
