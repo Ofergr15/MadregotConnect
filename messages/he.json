@@ -782,7 +782,7 @@
     "garminHistoryRunAll": "ייבוא לכל {count} האתלטים",
     "garminHistoryRunOne": "ייבוא",
     "garminHistoryStop": "עצור",
-    "garminHistoryProgress": "{imported} ריצות נוספו · {pages} עמודים נקראו · הוותיקה {date}",
+    "garminHistoryProgress": "{imported} ריצות נוספו · הוותיקה {date}",
     "garminHistoryTotal": "{count} ריצות נוספו עד כה",
     "garminHistoryNoGarmin": "אין חיבור לגרמין — Strava בלבד",
     "garminHistoryNobody": "לאף אחד אין שעון מחובר"

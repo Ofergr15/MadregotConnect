@@ -252,9 +252,12 @@ export function GarminHistoryImport() {
                       : p?.noGarmin
                         ? t('garminHistoryNoGarmin')
                         : p
+                          // Page count deliberately not shown: the sublabel is a
+                          // single truncating line, and with pages in it the date
+                          // — the one number that says whether this worked — was
+                          // the part that got cut off.
                           ? t('garminHistoryProgress', {
                               imported: p.imported,
-                              pages: p.pages,
                               date: shortDate(p.oldest),
                             })
                           : undefined

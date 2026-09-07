@@ -782,7 +782,7 @@
     "garminHistoryRunAll": "Import for all {count}",
     "garminHistoryRunOne": "Import",
     "garminHistoryStop": "Stop",
-    "garminHistoryProgress": "{imported} runs added · {pages} pages read · oldest {date}",
+    "garminHistoryProgress": "{imported} runs added · oldest run now {date}",
     "garminHistoryTotal": "{count} runs added so far",
     "garminHistoryNoGarmin": "No Garmin connection — Strava only",
     "garminHistoryNobody": "Nobody has a watch connected"
