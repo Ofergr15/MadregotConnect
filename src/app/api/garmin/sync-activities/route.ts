@@ -17,6 +17,19 @@ import { backfillGarminHistory } from '@/lib/garmin/history-backfill';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 /**
+ * This route had NO ceiling declared, which is not the same as having a generous
+ * one: with nothing exported here the platform applies its own short default,
+ * and the request is killed mid-flight with no error body — so the caller sees a
+ * dead request and cannot tell a timeout from a bug. That is exactly how the
+ * first Garmin history import failed.
+ *
+ * 300s matches strava/sync-activities, the closest comparable route: both make a
+ * provider round trip per page and write in batches, and both are triggered by a
+ * human who is watching.
+ */
+export const maxDuration = 300;
+
+/**
  * HTTP entry point. Anyone could previously trigger a full-club Garmin sync —
  * one unauthenticated POST per second was a free way to burn the club's Garmin
  * rate limit and push a feedback nudge at every athlete.

@@ -20,10 +20,11 @@ import { InsetSection, InsetRow, SkeletonList } from '@/components/ui';
 //
 // The paging loop lives HERE, in the browser, and not in the route:
 //
-//   • Vercel gives the handler sixty seconds. Two Garmin pages per request is
-//     comfortably inside it; a whole athlete's decade is not, and a whole club's
-//     is not even close. Short requests in a loop cannot time out halfway
-//     through and leave nobody knowing how far it got.
+//   • The route's ceiling is 300s. A few Garmin pages per request sit comfortably
+//     inside it; a whole athlete's decade does not, and a whole club's is not even
+//     close. Bounded requests in a loop cannot time out halfway through and leave
+//     nobody knowing how far it got — and each one that lands is progress that a
+//     later failure cannot take back.
 //   • `fromPage` is one number for the whole call, so a single server-side walk
 //     over every athlete would advance them all in lockstep — and they exhaust
 //     at wildly different depths (the twice-a-day runner is still going when the
@@ -36,16 +37,40 @@ import { InsetSection, InsetRow, SkeletonList } from '@/components/ui';
 // second walk over the same pages imports nothing and simply confirms the count.
 // ═════════════════════════════════════════════════════════════════════════════
 
-/** Garmin list pages per request. Two ≈ 200 activities, well inside 60s. */
-const PAGES_PER_REQUEST = 2;
+/**
+ * Garmin list pages per request. Four ≈ 400 activities.
+ *
+ * Two, originally — chosen against a 60s budget the route did not actually have
+ * (it declared no ceiling at all, so the platform applied a much shorter default
+ * and killed the request with no error body). With the ceiling declared and the
+ * per-activity duplicate query gone, the work per page is one Garmin fetch and
+ * one batched insert, so fewer, larger requests now beat more, smaller ones.
+ */
+const PAGES_PER_REQUEST = 4;
 
 /**
- * Requests per athlete before the loop gives up on its own. 25 × 2 pages is the
- * route's own MAX_PAGE ceiling, so this can only ever stop at the same place the
- * server would — it exists so a server that kept handing back a `nextPage`
- * couldn't spin the browser forever.
+ * Attempts per page before the walk gives up on an athlete. A history walk is
+ * long enough that a single transient failure — a Garmin hiccup, a cold start,
+ * one dropped connection — should not end it, and retrying is free of side
+ * effects: the same page re-read imports the same rows, and the unique index
+ * throws them away.
  */
-const MAX_ROUNDS = 25;
+const ATTEMPTS_PER_PAGE = 3;
+
+/**
+ * How long the browser waits for one request. Below the route's own ceiling on
+ * purpose: if a request is going to take longer than this something is wrong with
+ * it, and a retry is more likely to succeed than the wait is.
+ */
+const REQUEST_TIMEOUT_MS = 150_000;
+
+/**
+ * Requests per athlete before the loop gives up on its own. 15 × 4 pages clears
+ * the backfill's own MAX_PAGE ceiling of 50, so this can only ever stop at the
+ * same place the server would — it exists so a server that kept handing back a
+ * `nextPage` couldn't spin the browser forever.
+ */
+const MAX_ROUNDS = 15;
 
 interface AthleteRow {
   id: string;
@@ -72,6 +97,12 @@ type Progress = {
   oldest: string | null;
   running: boolean;
   done: boolean;
+  /**
+   * Where the next attempt should start. Kept even after a failure or a Stop, so
+   * pressing Import again continues the walk instead of re-reading from the top —
+   * the difference between "carry on" and "start the twenty pages over".
+   */
+  nextPage: number;
   /** Garmin has no credential for this athlete — the route returned no result row. */
   noGarmin?: boolean;
   error?: string;
@@ -94,40 +125,99 @@ export function GarminHistoryImport() {
   // inside a running async function sees the value it closed over, not the
   // current one — which is exactly the bug that makes a Stop button do nothing.
   const stopRef = useRef(false);
+  // The same map as `progress`, readable synchronously — see `set` in runAthlete.
+  const progressRef = useRef<Record<string, Progress>>({});
 
   // Only athletes with a watch connected can have Garmin history. `hasWatch` is
   // true for Strava-only athletes too; those come back with no result row and
   // are labelled as such rather than silently doing nothing.
   const athletes = (data?.users || []).filter((u) => u.hasWatch);
 
+  /**
+   * One request for one athlete, one span of pages.
+   *
+   * The error it throws carries the STATUS and whatever the body said, because
+   * the first failure of this screen reported nothing but a bare number — and a
+   * bare number cannot distinguish "the platform killed the request" from
+   * "Garmin refused the credential", which are opposite problems.
+   */
   const patch = async (athleteId: string, fromPage: number): Promise<HistoryResponse> => {
     const headers = await apiHeaders();
-    const res = await fetch(
-      `/api/garmin/sync-activities?mode=history&athleteId=${encodeURIComponent(athleteId)}` +
-        `&pages=${PAGES_PER_REQUEST}&fromPage=${fromPage}`,
-      { method: 'PATCH', headers },
-    );
-    if (!res.ok) throw new Error(`${res.status}`);
-    return res.json();
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(
+        `/api/garmin/sync-activities?mode=history&athleteId=${encodeURIComponent(athleteId)}` +
+          `&pages=${PAGES_PER_REQUEST}&fromPage=${fromPage}`,
+        { method: 'PATCH', headers, signal: abort.signal },
+      );
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status}${detail ? ` — ${detail.slice(0, 140)}` : ''}`);
+      }
+      return res.json();
+    } finally {
+      clearTimeout(timer);
+    }
   };
 
-  /** Walk one athlete's history to the end (or until Stop), updating as it goes. */
+  /**
+   * `patch` with retries. Re-reading a page is idempotent — same rows, thrown away
+   * by the unique index — so the only cost of a retry is one Garmin request, and
+   * the alternative is a walk that abandons an athlete's whole remaining history
+   * over one bad response.
+   */
+  const patchWithRetry = async (athleteId: string, fromPage: number): Promise<HistoryResponse> => {
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= ATTEMPTS_PER_PAGE; attempt++) {
+      if (stopRef.current) throw lastError ?? new Error('stopped');
+      try {
+        return await patch(athleteId, fromPage);
+      } catch (e) {
+        lastError = e as Error;
+        // Back off a little — a cold start or a rate limit both want a pause, and
+        // hammering the same page immediately is how one failure becomes three.
+        if (attempt < ATTEMPTS_PER_PAGE) await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
+    }
+    throw lastError ?? new Error('failed');
+  };
+
+  /**
+   * Walk one athlete's history to the end (or until Stop), updating as it goes.
+   *
+   * Resumes from wherever a previous attempt stopped, and carries that attempt's
+   * import count forward, so a failed walk that is retried reads as one walk with
+   * an interruption in it rather than two conflicting stories.
+   */
   const runAthlete = async (athleteId: string) => {
-    let page = 1;
-    let imported = 0;
-    let pages = 0;
-    let oldest: string | null = null;
-    const set = (p: Partial<Progress>) =>
-      setProgress((prev) => ({
-        ...prev,
-        [athleteId]: { imported, pages, oldest, running: true, done: false, ...p },
-      }));
+    const prior = progressRef.current[athleteId];
+    let page = prior?.nextPage ?? 1;
+    let imported = prior?.imported ?? 0;
+    let pages = prior?.pages ?? 0;
+    let oldest: string | null = prior?.oldest ?? null;
+    const set = (p: Partial<Progress>) => {
+      const next: Progress = {
+        imported,
+        pages,
+        oldest,
+        running: true,
+        done: false,
+        nextPage: page,
+        ...p,
+      };
+      // Mirrored into a ref as well as state: a walk started while another one
+      // just finished reads this synchronously, and React's state is a render
+      // behind.
+      progressRef.current = { ...progressRef.current, [athleteId]: next };
+      setProgress((prev) => ({ ...prev, [athleteId]: next }));
+    };
 
     set({});
     for (let round = 0; round < MAX_ROUNDS; round++) {
       let json: HistoryResponse;
       try {
-        json = await patch(athleteId, page);
+        json = await patchWithRetry(athleteId, page);
       } catch (e) {
         set({ running: false, error: (e as Error).message });
         return;
@@ -178,6 +268,10 @@ export function GarminHistoryImport() {
       // running ten walks at once is the fastest way to get the club rate-limited.
       for (const a of athletes) {
         if (stopRef.current) break;
+        // Already walked to the end in this sitting — pressing the button again
+        // after a failure part-way through the club should pick up the rest, not
+        // re-read what already finished.
+        if (progressRef.current[a.id]?.done) continue;
         await runAthlete(a.id);
       }
     } finally {
@@ -273,6 +367,11 @@ export function GarminHistoryImport() {
                     >
                       {p?.running ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : p && !p.done ? (
+                        // An interrupted walk resumes from its own cursor, so the
+                        // button has to say so — "Import" on a half-finished row
+                        // reads like starting over.
+                        t('garminHistoryResume')
                       ) : (
                         t('garminHistoryRunOne')
                       )}

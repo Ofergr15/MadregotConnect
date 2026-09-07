@@ -48,10 +48,15 @@ vi.mock('@/lib/garmin/client', () => ({
 
 // A Strava twin of the same run would be found here on the live path; these
 // cases are about paging, so nothing is ever a duplicate unless a case says so.
+//
+// Keyed by distance because that is the one field a case can vary per row without
+// disturbing the paging it is really testing. The real matcher is pure and tested
+// directly in `activityDedup.test.ts`.
 let crossSourceDuplicateIds: Set<number>;
 vi.mock('@/lib/activity-dedup', () => ({
-  hasCrossSourceDuplicate: (_s: unknown, _a: string, _t: string, distance: number) =>
-    Promise.resolve(crossSourceDuplicateIds.has(distance)),
+  hasCrossSourceDuplicate: () => Promise.resolve(false),
+  matchesStoredActivity: (_stored: unknown[], _t: string, distance: number) =>
+    crossSourceDuplicateIds.has(distance),
 }));
 
 const awardBadges = vi.fn((_id: string) => Promise.resolve({ awarded: [] }));
@@ -79,6 +84,8 @@ vi.mock('@/lib/post-workout', () => ({
 /** Rows the fake table already holds, and the ones the backfill upserts into it. */
 let storedIds: number[];
 let upserted: Record<string, unknown>[][];
+/** Reads against `athlete_activities` — see the N+1 case below. */
+let activitySelects: number;
 
 function fakeSupabase() {
   const chain = (table: string, op: string, inserted: Record<string, unknown>[] = []) => {
@@ -105,7 +112,10 @@ function fakeSupabase() {
   return {
     from(table: string) {
       return {
-        select: () => chain(table, 'select'),
+        select: () => {
+          if (table === 'athlete_activities') activitySelects++;
+          return chain(table, 'select');
+        },
         upsert: (payload: Record<string, unknown>[]) => {
           upserted.push(payload);
           storedIds.push(...payload.map((r) => r.garmin_activity_id as number));
@@ -129,6 +139,7 @@ beforeEach(() => {
   requestedOffsets = [];
   storedIds = [];
   upserted = [];
+  activitySelects = 0;
   crossSourceDuplicateIds = new Set();
   awardBadges.mockClear();
   rematch.mockClear();
@@ -247,6 +258,21 @@ describe('backfillGarminHistory', () => {
     pages.set(90, [listRow(2)]);
     await run({ maxPages: 1, rematch: true });
     expect(rematch).toHaveBeenCalledWith('athlete-1');
+  });
+
+  // The fault that made the first real import fail. The cross-source duplicate
+  // check used to be a QUERY PER CANDIDATE ACTIVITY, so three full pages meant
+  // three hundred sequential Supabase round trips inside one serverless
+  // invocation — past the timeout, and the caller saw a dead request with no
+  // error in it. It is now one prefetch per athlete plus the oldest-stored read,
+  // and that must hold no matter how deep the walk goes.
+  it('reads the activity table a fixed number of times, not once per candidate', async () => {
+    pages.set(90, fullPage(1000));
+    pages.set(180, fullPage(2000));
+    pages.set(270, fullPage(3000));
+    await run({ maxPages: 3 });
+    expect(upserted.flat()).toHaveLength(300);
+    expect(activitySelects).toBe(2);
   });
 
   // A revoked credential on one athlete is that athlete's problem, exactly as

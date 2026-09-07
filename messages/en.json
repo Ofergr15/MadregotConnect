@@ -781,6 +781,7 @@
     "garminHistoryAthletes": "Athletes with a watch",
     "garminHistoryRunAll": "Import for all {count}",
     "garminHistoryRunOne": "Import",
+    "garminHistoryResume": "Continue",
     "garminHistoryStop": "Stop",
     "garminHistoryProgress": "{imported} runs added · oldest run now {date}",
     "garminHistoryTotal": "{count} runs added so far",
