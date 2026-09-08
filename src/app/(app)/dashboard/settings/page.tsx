@@ -22,6 +22,12 @@ import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/R
 import { canGrantAdmin } from '@/lib/constants';
 import { FeedbackAdmin } from '@/components/FeedbackAdmin';
 import { CORE_RUNNER_LABEL, CORE_RUNNER_MARK } from '@/lib/core-runner';
+// The SAME resolver the Header, the tab bar and Search use. Deliberately not a
+// second reading of role_tab_permissions: this screen's whole job is to state
+// what a member will actually see when they open the app, and a lookalike
+// computation here would be a fourth copy of the rules — the exact drift that
+// put resolveNavItems in one file in the first place.
+import { resolveNavItems } from '@/lib/nav-items';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
@@ -43,6 +49,8 @@ interface User {
   createdAt?: string | null;
   /** In the גרעין — the flag (migration 091) OR the legacy role. See lib/core-runner. */
   isCoreRunner?: boolean;
+  /** In the academy. Like isCoreRunner, it can only ADD reachable pages. */
+  isAcademy?: boolean;
   /** The maintenance window is keeping them out right now (server's verdict). */
   blocked?: boolean;
   /** A watch credential is on file — not `onboardingStatus`, which goes stale. */
@@ -402,6 +410,9 @@ const settingsTabs = [
 export default function SettingsPage() {
   const t = useTranslations('settings');
   const tc = useTranslations('common');
+  // Page names come from the `nav` namespace, so a member's page list here reads
+  // with the exact words that member sees on their own tab bar.
+  const tnav = useTranslations('nav');
 
   // null = the Settings landing (iOS-style list); a value = a detail screen
   // open. The 8 "ניהול" rows now live in Coach Tools and link here with
@@ -472,7 +483,11 @@ export default function SettingsPage() {
   );
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [uSearch, setUSearch] = useState('');
-  const [uRole, setURole] = useState<'all' | Role>('all');
+  // Which role TAB is open (it used to be a dropdown filter alongside the
+  // others). Opens on רצים because that is the roster you come here to manage —
+  // 16 of the club's 25 rows — and 'all' meant the screen opened as seven
+  // stacked accordions you had to scroll past to reach them.
+  const [uRole, setURole] = useState<'all' | Role>('runner');
   const [uGroup, setUGroup] = useState<'all' | '0' | '1' | '2' | 'none'>('all');
   const [uGarmin, setUGarmin] = useState<'all' | 'with' | 'without'>('all');
   // Is the maintenance window on, per the roster response — the second door.
@@ -533,6 +548,12 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeTab === 'users') {
       loadOnce('users', fetchUsers);
+      // The roster prints each member's reachable pages, which is the role
+      // matrix joined onto their role — so this screen needs the matrix too. Same
+      // `permissions` state the Tab Manager edits, on purpose: change a cell
+      // there, come back here, and the page lists already agree. A separate
+      // read-only copy could disagree with what you just saved.
+      loadOnce('permissions', fetchPermissions);
     } else if (activeTab === 'tabs') {
       loadOnce('permissions', fetchPermissions);
       loadOnce('mobilePermissions', fetchMobilePermissions);
@@ -547,9 +568,41 @@ export default function SettingsPage() {
       return next;
     });
 
+  /**
+   * Which pages this member can actually open, and what earned each one.
+   *
+   * Answered by resolveNavItems — the same function the Header and the tab bar
+   * call — three times over, because "what do they have" and "why do they have
+   * it" are different questions and this screen is where you ask the second one:
+   *
+   *   base   = their role alone, per the matrix
+   *   +core  = base plus whatever the גרעין grants
+   *   full   = base plus BOTH flags
+   *
+   * The differences between the three are what a flag is adding, which is the
+   * one thing the role matrix can never show you: two runners side by side, one
+   * in the גרעין, genuinely have different apps.
+   *
+   * `isAthlete: true` for every row without asking — this roster IS the athletes
+   * table, so every member on it has an athlete row and therefore a profile.
+   */
+  const reachablePages = (user: User) => {
+    const forRole = (extra: { isAcademyMember?: boolean; isCoreRunner?: boolean }) =>
+      resolveNavItems({ permissions, effectiveRole: user.role, isAthlete: true, ...extra });
+    const base = new Set(forRole({}).map(i => i.tab));
+    const withCore = new Set(forRole({ isCoreRunner: user.isCoreRunner }).map(i => i.tab));
+    return forRole({ isCoreRunner: user.isCoreRunner, isAcademyMember: user.isAcademy }).map(item => ({
+      tab: item.tab,
+      label: tnav(item.labelKey as any),
+      // null = the role granted it. Otherwise the flag that did.
+      via: base.has(item.tab) ? null : withCore.has(item.tab) ? 'core' : 'academy',
+    }));
+  };
+
   // One member row (used inside the role/group sections of User Manager).
   const renderUserRow = (user: User) => {
     const isAdmin = user.role === 'admin';
+    const pages = reachablePages(user);
     let lastSeenLabel = t('never');
     let lastSeenColor = 'text-ink-400';
     if (user.lastSeenAt) {
@@ -671,6 +724,40 @@ export default function SettingsPage() {
             <Unlock className="w-3.5 h-3.5" />
             {t('releaseFromBlock')}
           </button>
+        )}
+      </div>
+
+      {/* WHAT THIS MEMBER CAN OPEN.
+          The reason this screen exists in this form: the role dropdown above says
+          what they ARE, and until now nothing on any screen said what that gets
+          them — you had to hold the Tab Manager's matrix in your head and join it
+          to this row yourself, and the two membership flags weren't in the matrix
+          at all.
+          Read-only on purpose. To change this list you change the role, the
+          flag, or the matrix; there is no per-person override, so the matrix
+          stays the single answer to "what does a runner see". */}
+      {/* Hidden, not empty, until the matrix has landed. The roster and the matrix
+          are two requests: rendering this line early prints "0 pages" in red for
+          every member for one paint, which reads as a permissions outage. */}
+      <div className={cn('mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-1', permissionsLoading && 'hidden')}>
+        <span className="text-3xs font-bold uppercase tracking-wider text-ink-400 shrink-0">
+          {isAdmin ? t('allPages') : t('pagesCount', { count: pages.length })}
+        </span>
+        {/* The admin's list is every page there is, by construction (rule 1 in
+            resolveNavItems), so naming all 17 would be 17 words that say the one
+            thing the label already said. */}
+        {!isAdmin && (
+          pages.length === 0
+            ? <span className="text-3xs text-accent-red">{t('noPages')}</span>
+            : pages.map((p, i) => (
+                <span key={p.tab} className="text-3xs">
+                  {i > 0 && <span className="text-ink-300 me-1.5">·</span>}
+                  <span className={p.via ? 'font-bold text-accent-900' : 'text-ink-500'}>{p.label}</span>
+                  {/* Which flag paid for it — the fact the matrix cannot state. */}
+                  {p.via === 'core' && <span className="ms-0.5" title={CORE_RUNNER_LABEL}>{CORE_RUNNER_MARK}</span>}
+                  {p.via === 'academy' && <span className="ms-0.5" title={t('academyMember')}>🎓</span>}
+                </span>
+              ))
         )}
       </div>
       <ApprovalOutcome outcome={approveOutcome[user.id]} t={t} />
@@ -987,13 +1074,16 @@ export default function SettingsPage() {
   const allActiveUsers = users.filter(u => u.approved !== false);
   // Approved and still shut out — the state that has no other name on any screen.
   const blockedActive = allActiveUsers.filter(u => u.blocked);
-  // Apply the User Manager filter bar (name / role / group / garmin).
-  const activeUsers = allActiveUsers.filter(u => {
+  // Apply the User Manager filter bar (name / group / garmin) — everything
+  // EXCEPT the role, which is a tab now rather than a filter. Split out so the
+  // tab row can count each role against the same filtered pool it will render:
+  // searching a name and then reading "Runner (16)" on a tab holding one match
+  // is the tab lying about its own contents.
+  const matchesNonRoleFilters = (u: User) => {
     if (uSearch.trim()) {
       const q = uSearch.trim().toLowerCase();
       if (!(`${u.name} ${u.email}`.toLowerCase().includes(q))) return false;
     }
-    if (uRole !== 'all' && u.role !== uRole) return false;
     if (uGroup !== 'all') {
       const idx = u.groupId ? resolveGroup(groupsById[u.groupId]).index : -1;
       if (uGroup === 'none' ? idx >= 0 : idx !== Number(uGroup)) return false;
@@ -1007,9 +1097,23 @@ export default function SettingsPage() {
     }
     if (uBlockedOnly && !u.blocked) return false;
     return true;
-  });
+  };
+  const filteredPool = allActiveUsers.filter(matchesNonRoleFilters);
+  const activeUsers = filteredPool.filter(u => uRole === 'all' || u.role === uRole);
+  // Per-role counts for the tab row, from the same pool.
+  const roleCounts = allRoles.reduce<Record<string, number>>((acc, r) => {
+    acc[r] = filteredPool.filter(u => u.role === r).length;
+    return acc;
+  }, {});
+  // The role is no longer part of this: it is the tab you are standing on, so
+  // counting it as an active filter printed "16 of 25" and a Clear button for
+  // simply having opened the רצים tab.
   const uFiltersActive =
-    uSearch.trim() !== '' || uRole !== 'all' || uGroup !== 'all' || uGarmin !== 'all' || uBlockedOnly;
+    uSearch.trim() !== '' || uGroup !== 'all' || uGarmin !== 'all' || uBlockedOnly;
+  // Which roles get a tab: the ones that have somebody, plus whichever tab is
+  // currently selected (so a search that empties your tab doesn't yank it out
+  // from under you and leave nothing highlighted).
+  const roleTabs = allRoles.filter(r => roleCounts[r] > 0 || uRole === r);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -1298,8 +1402,61 @@ export default function SettingsPage() {
             <div className="px-5 py-4 border-b border-page/50 flex items-center gap-2">
               <Users className="w-4 h-4 text-ink-400" />
               <h2 className="text-sm font-semibold text-ink-700">
-                {t('members')} ({uFiltersActive ? `${activeUsers.length} of ${allActiveUsers.length}` : activeUsers.length})
+                {t('members')} ({uFiltersActive ? `${activeUsers.length} of ${filteredPool.length}` : activeUsers.length})
               </h2>
+            </div>
+            {/* What the page list under each member does and does not count. Said
+                once here rather than per row: the four static quick actions are
+                the same for all 25 members, so listing them 25 times would bury
+                the differences this screen exists to show. */}
+            <p className="px-5 pt-3 text-3xs leading-relaxed text-ink-400">{t('pagesNote')}</p>
+
+            {/* ROLE TABS — רצים · מאמנים · מנהלים · … , one role on screen at a
+                time. This was seven stacked accordions, which on a phone meant
+                scrolling past every other role to reach the runners and no way to
+                tell at a glance how many of each there are.
+                Horizontally scrollable rather than wrapped: a wrapped row of seven
+                pills is two lines of chrome above a roster, and roles beyond the
+                first few are ones you open rarely.
+                'all' is kept as the last tab, not the first — it is the "show me
+                everything" escape hatch, and as the default it was the problem. */}
+            <div className="border-b border-page/50 overflow-x-auto scrollbar-none">
+              <div className="flex items-center gap-1 px-3 py-2 min-w-max">
+                {roleTabs.map(role => {
+                  const rc = roleConfig[role];
+                  const selected = uRole === role;
+                  return (
+                    <button
+                      key={role}
+                      onClick={() => setURole(role)}
+                      aria-pressed={selected}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 min-h-[38px] rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap',
+                        selected
+                          ? cn(rc.bg, rc.text, rc.border)
+                          : 'bg-page/60 text-ink-400 border-transparent hover:text-ink-700',
+                      )}
+                    >
+                      <span className={cn('w-1.5 h-1.5 rounded-full', rc?.dot || 'bg-ink-300')} />
+                      {getRoleLabel(role, t)}
+                      <span className={selected ? 'opacity-70' : 'text-ink-400'}>({roleCounts[role]})</span>
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setURole('all')}
+                  aria-pressed={uRole === 'all'}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 min-h-[38px] rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap',
+                    uRole === 'all'
+                      ? 'bg-ink-700/10 text-ink-700 border-ink-300/30'
+                      : 'bg-page/60 text-ink-400 border-transparent hover:text-ink-700',
+                  )}
+                >
+                  {t('allRoles')}
+                  <span className={uRole === 'all' ? 'opacity-70' : 'text-ink-400'}>({filteredPool.length})</span>
+                </button>
+              </div>
             </div>
 
             {/* Filter bar: name / role / group / garmin */}
@@ -1313,16 +1470,9 @@ export default function SettingsPage() {
                   className="w-full bg-page border border-page rounded-lg ps-9 pe-3 h-9 text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600"
                 />
               </div>
-              <FilterPickerButton<'all' | Role>
-                value={uRole}
-                onChange={setURole}
-                title={t('filterByRole')}
-                label={t('allRoles')}
-                options={[
-                  { value: 'all', label: t('allRoles') },
-                  ...allRoles.map(r => ({ value: r, label: roleConfig[r]?.label || r })),
-                ]}
-              />
+              {/* The role picker that used to sit here is the tab row above now —
+                  two controls selecting the same thing was how you ended up on the
+                  רצים tab with the filter set to מאמנים and an empty screen. */}
               <FilterPickerButton<'all' | '0' | '1' | '2' | 'none'>
                 value={uGroup}
                 onChange={setUGroup}
@@ -1358,18 +1508,28 @@ export default function SettingsPage() {
             {activeUsers.length === 0 ? (
               <EmptyState
                 icon={Users}
-                title={uFiltersActive ? t('noUsersMatchFilters') : t('noActiveUsers')}
+                title={
+                  uFiltersActive ? t('noUsersMatchFilters')
+                    // An empty ROLE tab is not an empty club — say which it is.
+                    : uRole !== 'all' ? t('noUsersInRole', { role: getRoleLabel(uRole, t) })
+                    : t('noActiveUsers')
+                }
                 className="px-6 py-12"
               />
             ) : (
               <div className="divide-y divide-page/40">
-                {allRoles
+                {(uRole === 'all' ? allRoles : [uRole])
                   .map(role => ({ role, members: activeUsers.filter(u => u.role === role) }))
                   .filter(s => s.members.length > 0)
                   .map(({ role, members }) => {
                     const rc = roleConfig[role];
                     const roleKey = `role:${role}`;
-                    const roleOpen = uFiltersActive || !collapsedSections.has(roleKey);
+                    // On a role tab there is exactly one section and the tab above
+                    // already names it, so it renders headerless and always open —
+                    // a collapse control for the only thing on screen is a way to
+                    // hide the whole screen.
+                    const onlySection = uRole !== 'all';
+                    const roleOpen = onlySection || uFiltersActive || !collapsedSections.has(roleKey);
                     // Does this role have members assigned to real groups? If so, split.
                     const hasGroups = members.some(u => u.groupId && resolveGroup(groupsById[u.groupId]).index >= 0);
                     // Buckets 0,1,2 = Group 1/2/3, 99 = No group. Ordered.
@@ -1384,16 +1544,18 @@ export default function SettingsPage() {
                     }
                     return (
                       <div key={role}>
-                        {/* Role header */}
-                        <button
-                          onClick={() => toggleSection(roleKey)}
-                          className="w-full flex items-center gap-2.5 px-5 py-3 hover:bg-page/60 transition-colors"
-                        >
-                          {roleOpen ? <ChevronDown className="w-4 h-4 text-ink-400" /> : <ChevronRight className="w-4 h-4 text-ink-400" />}
-                          <span className={cn('w-2 h-2 rounded-full', rc?.dot || 'bg-ink-300')} />
-                          <span className="text-sm font-semibold text-ink-700">{rc?.label || role}</span>
-                          <span className="text-xs text-ink-400">({members.length})</span>
-                        </button>
+                        {/* Role header — only when several roles share the screen. */}
+                        {!onlySection && (
+                          <button
+                            onClick={() => toggleSection(roleKey)}
+                            className="w-full flex items-center gap-2.5 px-5 py-3 hover:bg-page/60 transition-colors"
+                          >
+                            {roleOpen ? <ChevronDown className="w-4 h-4 text-ink-400" /> : <ChevronRight className="w-4 h-4 text-ink-400" />}
+                            <span className={cn('w-2 h-2 rounded-full', rc?.dot || 'bg-ink-300')} />
+                            <span className="text-sm font-semibold text-ink-700">{rc?.label || role}</span>
+                            <span className="text-xs text-ink-400">({members.length})</span>
+                          </button>
+                        )}
 
                         {roleOpen && (
                           <div className="px-3 pb-3 space-y-2">

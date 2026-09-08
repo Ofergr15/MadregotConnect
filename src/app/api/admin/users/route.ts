@@ -64,6 +64,15 @@ interface User {
    * and never leave the server.
    */
   hasWatch?: boolean;
+  /**
+   * In the academy. Sits beside `isCoreRunner` because the two behave
+   * identically as far as reachable pages go: both are FLAGS, not roles, and
+   * both only ever ADD pages on top of whatever the role grants (see
+   * resolveNavItems). The roster needs it to state what a given member can
+   * actually open — without it, two runners with different page lists render
+   * identically.
+   */
+  isAcademy?: boolean;
 }
 
 const BASE_COLUMNS =
@@ -85,7 +94,7 @@ export async function GET(request: Request) {
     const CREDENTIALS = 'garmin_auth, strava_auth';
     const withFlag = await supabase
       .from('athletes')
-      .select(`${BASE_COLUMNS}, ${CREDENTIALS}, is_core_runner`)
+      .select(`${BASE_COLUMNS}, ${CREDENTIALS}, is_core_runner, is_academy`)
       .order('email');
 
     const { data: athletes, error } =
@@ -110,6 +119,10 @@ export async function GET(request: Request) {
       lastSeenAt: a.last_seen_at,
       createdAt: a.created_at ?? null,
       isCoreRunner: isCoreRunner(a),
+      // Undefined in the column-fallback path above, same as is_core_runner —
+      // reads as "not in the academy", which is the safe way to be wrong here
+      // (it understates the page list rather than inventing access).
+      isAcademy: !!a.is_academy,
       blocked: isBlockedByMaintenance({ id: a.id, email: a.email }, maintenance),
       hasWatch: !!(a.garmin_auth || a.strava_auth),
     }));
