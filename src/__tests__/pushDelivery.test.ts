@@ -448,7 +448,7 @@ describe('teammate-activity freshness — a backfill is not news', () => {
   const HOUR = 60 * 60 * 1000;
 
   /** One runner, one follower with one device, and a run that ended `agoMs` ago. */
-  const announce = (agoMs: number, durationSeconds = 1800) => {
+  const announce = (agoMs: number, durationSeconds = 1800, distanceMeters = 8300) => {
     tables.athletes = [
       { id: 'runner', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', status: 'active', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null },
       { id: 'f1', email: 'f1@x.test', status: 'active', notification_prefs: null, group_id: null, last_seen_at: null },
@@ -456,7 +456,7 @@ describe('teammate-activity freshness — a backfill is not news', () => {
     tables.athlete_follows = [{ follower_id: 'f1' }];
     tables.push_subscriptions = [sub('s1', 'f1')];
     return notifyTeammatesOfActivity({
-      athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300,
+      athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters,
       startTime: new Date(Date.now() - agoMs - durationSeconds * 1000).toISOString(),
       durationSeconds,
     });
@@ -507,6 +507,22 @@ describe('teammate-activity freshness — a backfill is not news', () => {
     // This is the reason the cutoff is a window on the run and not a comparison
     // against the athlete's connection timestamp — see isFreshEnoughToAnnounce.
     expect(isFreshEnoughToAnnounce(new Date(Date.now() + 3 * HOUR).toISOString(), 1800)).toBe(true);
+  });
+
+  it('says nothing about a run with no distance', async () => {
+    // Measured 2026-09-08: one athlete's Strava held ten GPS-less recordings
+    // (has_latlng false, HR only), which Strava reports with distance exactly 0,
+    // and the club was told about all ten as "0.0 ק\"מ". The sentence this
+    // notification is made of has nowhere to put a zero.
+    await expect(announce(5 * 60 * 1000, 1800, 0)).resolves.toBe(0);
+    expect(sendNotification).not.toHaveBeenCalled();
+    expect(writes.inserted).toEqual([]);
+  });
+
+  it('still announces a very short run', async () => {
+    // Zero exactly, not a floor: a 300m run is real, and the club has been told
+    // about those before.
+    await expect(announce(5 * 60 * 1000, 1800, 300)).resolves.toBe(1);
   });
 
   it('draws the line at a day, and states it in one place', async () => {

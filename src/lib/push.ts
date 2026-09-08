@@ -728,6 +728,23 @@ export async function notifyTeammatesOfActivity(activity: {
   // hundreds of times and the answer needs no query.
   if (!isFreshEnoughToAnnounce(activity.startTime, activity.durationSeconds)) return 0;
 
+  // A run with no distance has nothing to announce. The whole notification is
+  // "<name> finished a run • <km>", so a zero renders as "0.0 ק"מ" — a sentence
+  // that tells its reader nothing and, ten of them deep, reads as a broken app.
+  //
+  // Not hypothetical: on 2026-09-08 one athlete's Strava account turned out to
+  // hold ten GPS-less recordings (has_latlng false, distance 0, HR only —
+  // Strava reports exactly 0 for those, and `distance` here is passed straight
+  // through from it), and the club was told about all ten. They are also
+  // invisible to hasCrossSourceDuplicate, which bails on a zero distance and
+  // could not match the times anyway: with no GPS, Strava has no timezone to
+  // localize with, so `start_date_local` comes back as UTC and lands hours away
+  // from the Garmin row for the same physical run.
+  //
+  // Zero exactly, not a floor — a 300m run is a real, if short, run, and the
+  // club has announced those before.
+  if (!activity.distanceMeters || activity.distanceMeters <= 0) return 0;
+
   const supabase = createServerClient();
   const { data: athlete } = await supabase
     .from('athletes')
