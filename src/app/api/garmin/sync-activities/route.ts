@@ -304,6 +304,12 @@ export async function runSyncRequest(request: Request) {
                     activityKey: `${athlete.id}-${a.activityId}`,
                     activityId,
                     distanceMeters: row.distance,
+                    // Not every new row deserves an announcement: a first-ever
+                    // connection backfills months of history as "new" here.
+                    // notifyTeammatesOfActivity drops anything that finished
+                    // over a day ago — same rule as the nudge below.
+                    startTime: row.start_time,
+                    durationSeconds: row.duration,
                   });
                 } catch (notifyErr) {
                   console.warn(`Teammate notify for Garmin activity ${a.activityId} failed:`, notifyErr);

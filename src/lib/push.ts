@@ -634,6 +634,60 @@ export async function subscriptionsForAthletes(athleteIds: string[]): Promise<Su
 }
 
 /**
+ * How recently a run must have FINISHED for its social announcement to be worth
+ * sending. See isFreshEnoughToAnnounce.
+ */
+export const ANNOUNCE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Is this run recent enough to tell anybody about?
+ *
+ * Exists because of a measured incident on 2026-09-08: a member connected, the
+ * first sync pulled 109 historical activities in ten minutes, every one of them
+ * was a genuinely new `athlete_activities` row, and so every one of them fired
+ * the teammate fan-out. Their followers got 109 pushes announcing runs from
+ * months ago. "New to us" is not the same claim as "just happened", and this
+ * fan-out is the one place that conflated them.
+ *
+ * The rule is a window on the run, not on the member: a run that ended more than
+ * ANNOUNCE_WINDOW_MS ago is never announced, whoever it belongs to and whatever
+ * caused it to arrive late. That covers the first connection, a re-connection, a
+ * sync that was broken for a week and then fixed, and a hand-run backfill — all
+ * of which produce the same burst of stale-but-new rows. The identical rule and
+ * the identical window already guard the "customize your post" nudge in the
+ * Garmin sync, which hit this problem first.
+ *
+ * THE ALTERNATIVE, and why not: compare the run against the moment the athlete
+ * connected (`garmin_authed_at`, or the row's `created_at`), which is how the
+ * request was originally phrased — "only runs that finish from that moment
+ * onward". Rejected on a timezone fact, not a preference. `start_time` holds
+ * LOCAL wall-clock with no offset, so a run finished an hour ago in Israel
+ * (UTC+3) parses three hours BEHIND a real UTC connection timestamp, and the
+ * anchor would silently swallow the genuine "welcome, they just ran" push it
+ * exists to allow. Against a 24h window that same 3h error is harmless and
+ * always errs toward sending. `created_at` is wrong for a second reason: a
+ * member who joins by email in March and connects Garmin in September has six
+ * months of history that is all *after* their row was created.
+ *
+ * Fails OPEN — an unparseable or missing start time announces, because that was
+ * the behaviour before this guard existed and silently dropping a real run's
+ * announcement is the worse of the two failures.
+ */
+export function isFreshEnoughToAnnounce(
+  startTime: string | null | undefined,
+  durationSeconds?: number | null,
+  now: number = Date.now(),
+): boolean {
+  if (!startTime) return true;
+  const startedAt = new Date(startTime).getTime();
+  if (Number.isNaN(startedAt)) return true;
+  // Measured from the END of the run ("runs that FINISH from now on"), which for
+  // a three-hour long run is the difference between announcing it and not.
+  const endedAt = startedAt + Math.max(0, (durationSeconds || 0) * 1000);
+  return now - endedAt < ANNOUNCE_WINDOW_MS;
+}
+
+/**
  * Notify an athlete's followers (everyone with an athlete_follows row where
  * followee_id = this athlete — see migration 060) that they just finished a
  * run. The push carries a fixed header title and puts who-did-what in the
@@ -648,6 +702,9 @@ export async function subscriptionsForAthletes(athleteIds: string[]): Promise<Su
  * Call this ONLY right after a genuinely NEW athlete_activities row is
  * inserted (never on a re-sync of an activity already known — see the
  * Strava/Garmin sync-activities routes for how "new" is determined there).
+ * "Genuinely new" is necessary and NOT sufficient: a first sync backfills
+ * months of history as new, so `startTime`/`durationSeconds` are required and
+ * a run that finished long ago is dropped here (isFreshEnoughToAnnounce).
  *
  * No-op if the athlete has no followers, or no follower has a push
  * subscription. Each follower's 'teammates' mute preference is respected
@@ -662,7 +719,15 @@ export async function notifyTeammatesOfActivity(activity: {
   /** The real athlete_activities.id (UUID) — lets a follower give kudos directly from this notification. */
   activityId: string;
   distanceMeters: number;
+  /** athlete_activities.start_time — LOCAL wall-clock, as both syncs store it. */
+  startTime: string | null | undefined;
+  /** athlete_activities.duration, seconds. */
+  durationSeconds?: number | null;
 }): Promise<number> {
+  // Before anything else, including the athlete lookup: a backfill runs this
+  // hundreds of times and the answer needs no query.
+  if (!isFreshEnoughToAnnounce(activity.startTime, activity.durationSeconds)) return 0;
+
   const supabase = createServerClient();
   const { data: athlete } = await supabase
     .from('athletes')

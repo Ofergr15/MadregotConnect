@@ -378,6 +378,11 @@ export async function runStravaSyncRequest(request: Request) {
               activityKey: inserted.id,
               activityId: inserted.id,
               distanceMeters: row.distance,
+              // A first Strava connection backfills history as new rows here, so
+              // "new" alone is not grounds for a push — notifyTeammatesOfActivity
+              // drops anything that finished over a day ago.
+              startTime: row.start_time,
+              durationSeconds: row.duration,
             });
           } catch (notifyErr) {
             console.warn(`Teammate notify for Strava activity ${a.id} failed:`, notifyErr);
