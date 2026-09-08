@@ -61,6 +61,25 @@ export interface EntryQueueMember {
   setupDone: number;
   setupTotal: number;
   stage: EntryStage;
+  /**
+   * When an auth account first existed for this person — `auth.users.created_at`.
+   *
+   * This is "did they ever START logging in": nothing mints a GoTrue user except a
+   * sign-in that actually reached our callback, so a row here means they got that
+   * far even if they never landed inside the app. Null when there is no account —
+   * and also when the listing couldn't be read, which is what `loginKnown` is for.
+   */
+  authAccountAt?: string | null;
+  /** `auth.users.last_sign_in_at` — the identity layer's last successful login. */
+  lastSignInAt?: string | null;
+  /**
+   * False when the auth listing could not be read at all (a listUsers failure).
+   * The login step then renders as unknown rather than as "never started": telling
+   * a coach somebody never tried when we simply didn't look is worse than silence.
+   */
+  loginKnown?: boolean;
+  /** Which scored setup tasks are still open, by SETUP_TASK_KEYS name. */
+  setupMissing?: string[];
 }
 
 /**
@@ -149,6 +168,170 @@ export function entryStage(m: EntryStageInput): EntryStage {
  */
 export function isWaitingOnUs(stage: EntryStage): boolean {
   return stage === 'pending' || stage === 'blocked';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE FLOW — the same people, as the route they actually walk.
+//
+// `EntryStage` above answers "whose problem is this person", which is what the
+// approve button needs. It does NOT answer the question a coach asks about a
+// specific member: how far did Eli get, and what is the next thing that has to
+// happen. Five stages collapsed six different failures into "לא נכנס מעולם", and
+// a row of chips beside it invited the reader to reassemble the order themselves.
+//
+// So the same facts, ordered: signed up → approved → started logging in → got in
+// → connected a watch → finished the profile. One step per thing that can fail,
+// each with its own evidence:
+//
+//   signedUp     athletes row               (always true — it is why they're here)
+//   approved     approved && !blocked       BOTH doors, as everywhere else here
+//   loginStarted auth.users row exists      an OAuth callback minted an identity
+//   loggedIn     athletes.last_seen_at      /api/auth/me answered them: they're IN
+//   watch        garmin_auth || strava_auth credentials, never `data_source`
+//   profile      all 5 scored setup tasks   see lib/onboarding/setup-tasks
+//
+// loginStarted and loggedIn are deliberately two steps and not one. They come
+// apart in production for a real, known reason: an iOS standalone PWA sends the
+// Strava login into the in-app browser sheet, whose storage the app cannot see, so
+// the member logs in successfully and is still looking at the marketing page
+// (migration 082). That person has an auth account, a last_sign_in_at, and no
+// last_seen_at — and they are the hardest case to help, because from the coach's
+// old screen they were indistinguishable from somebody who never bothered.
+//
+// NOT MONOTONE, on purpose. The club backfill wrote Garmin credentials for members
+// who have never opened the app, so `watch` can be done while `loggedIn` is not.
+// The funnel therefore counts how far somebody got WITHOUT a gap (`reached`) and
+// the track marks any later step they've already passed, rather than pretending
+// the order was obeyed.
+// ═════════════════════════════════════════════════════════════════════════════
+
+export const FLOW_STEPS = ['signedUp', 'approved', 'loginStarted', 'loggedIn', 'watch', 'profile'] as const;
+export type FlowStep = (typeof FLOW_STEPS)[number];
+
+/** One step of one person's track. */
+export interface FlowStepState {
+  key: FlowStep;
+  /** The evidence for this step is present. */
+  done: boolean;
+  /** We could not tell (only ever the login steps, when listUsers failed). */
+  unknown: boolean;
+  /** The date the evidence carries, when it has one. */
+  at: string | null;
+}
+
+export interface MemberFlow {
+  steps: FlowStepState[];
+  /** The first step with no evidence — the ONE thing to fix. Null when finished. */
+  stuckAt: FlowStep | null;
+  /** How many steps are done from the start with no gap. 6 = all the way in. */
+  reached: number;
+}
+
+/**
+ * Where somebody is on the flow.
+ *
+ * `unknown` counts as done for the purpose of moving on: if we couldn't read the
+ * auth listing we must not park 25 people on "didn't start logging in" — anybody
+ * with a `last_seen_at` demonstrably did, and for the rest the honest answer is a
+ * question mark on that step, not a verdict.
+ */
+export function memberFlow(m: EntryQueueMember): MemberFlow {
+  const loginKnown = m.loginKnown !== false;
+  // Being inside the app is proof of a login whatever the listing says — the
+  // session that stamped last_seen_at cannot exist without one.
+  const startedLogin = !!m.authAccountAt || !!m.lastSignInAt || !!m.lastSeenAt;
+
+  const steps: FlowStepState[] = [
+    { key: 'signedUp', done: true, unknown: false, at: m.createdAt },
+    { key: 'approved', done: m.approved && !m.blocked, unknown: false, at: m.approvedAt },
+    {
+      key: 'loginStarted',
+      done: startedLogin,
+      unknown: !loginKnown && !m.lastSeenAt,
+      at: m.authAccountAt || m.lastSignInAt || null,
+    },
+    { key: 'loggedIn', done: !!m.lastSeenAt, unknown: false, at: m.lastSeenAt },
+    { key: 'watch', done: m.hasGarmin || m.hasStrava, unknown: false, at: null },
+    {
+      key: 'profile',
+      done: m.setupTotal > 0 && m.setupDone >= m.setupTotal,
+      unknown: false,
+      at: null,
+    },
+  ];
+
+  const blocking = steps.find((s) => !s.done && !s.unknown) || null;
+  let reached = 0;
+  for (const s of steps) {
+    if (!s.done && !s.unknown) break;
+    reached += 1;
+  }
+  return { steps, stuckAt: blocking ? blocking.key : null, reached };
+}
+
+/**
+ * The funnel: how many people got at least this far, with no step skipped.
+ *
+ * Cumulative rather than per-step, because per-step counts of a non-monotone flow
+ * produce the nonsense of "7 connected a watch" sitting under "9 got in" while
+ * four of the seven have never logged in at all.
+ */
+export function flowFunnel(members: EntryQueueMember[]): Record<FlowStep, number> {
+  const out = { signedUp: 0, approved: 0, loginStarted: 0, loggedIn: 0, watch: 0, profile: 0 } as Record<FlowStep, number>;
+  for (const m of members) {
+    const { reached } = memberFlow(m);
+    for (let i = 0; i < reached; i += 1) out[FLOW_STEPS[i]] += 1;
+  }
+  return out;
+}
+
+/**
+ * The list's groups — the buckets a coach works, one per kind of next action.
+ *
+ * 'mine' is the only one that needs the coach: approve, or release from the
+ * window. The rest need a nudge, and 'ready' needs nothing.
+ */
+export const FLOW_GROUPS = ['mine', 'login', 'watch', 'profile', 'ready'] as const;
+export type FlowGroup = (typeof FLOW_GROUPS)[number];
+
+export function flowGroup(m: EntryQueueMember): FlowGroup {
+  const { stuckAt } = memberFlow(m);
+  if (!stuckAt) return 'ready';
+  if (stuckAt === 'approved') return 'mine';
+  if (stuckAt === 'loginStarted' || stuckAt === 'loggedIn') return 'login';
+  if (stuckAt === 'watch') return 'watch';
+  return 'profile';
+}
+
+/** Which group a tap on a funnel step should land in. */
+export const GROUP_OF_STEP: Record<FlowStep, FlowGroup> = {
+  signedUp: 'mine',
+  approved: 'mine',
+  loginStarted: 'login',
+  loggedIn: 'login',
+  watch: 'watch',
+  profile: 'profile',
+};
+
+/**
+ * Furthest-behind first, and inside that, longest-waiting first.
+ *
+ * The person on step 2 after 69 days is the club's oldest failure, and the queue
+ * is worked from the top. `reached` ascending puts them there; `ready` (6) sinks.
+ */
+export function sortByFlow(members: EntryQueueMember[]): EntryQueueMember[] {
+  return [...members]
+    .map((m) => ({ m, flow: memberFlow(m) }))
+    .sort((a, b) => {
+      if (a.flow.reached !== b.flow.reached) return a.flow.reached - b.flow.reached;
+      const at = a.m.createdAt || '';
+      const bt = b.m.createdAt || '';
+      if (at && bt) return at.localeCompare(bt);
+      if (at) return -1;
+      if (bt) return 1;
+      return a.m.name.localeCompare(b.m.name);
+    })
+    .map((x) => x.m);
 }
 
 /** Handles worth writing to the allowlist: the id always, a real address if any. */

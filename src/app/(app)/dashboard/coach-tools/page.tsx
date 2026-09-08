@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, UserPlus, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
-import { isWaitingOnUs, type EntryQueueMember } from '@/lib/admin/entry-queue';
+import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
@@ -73,9 +73,12 @@ export default function CoachToolsPage() {
     '/api/admin/entry-queue',
   );
   const members = queue?.members;
-  const waiting = members?.filter((m) => isWaitingOnUs(m.stage)).length ?? 0;
+  // The same grouping the queue itself filters by, so the number you tap and the
+  // list you land on are the same set — 'mine' needs an approval, 'login' is
+  // "approved and still not inside", which is what statusStuck claims to count.
+  const waiting = members?.filter((m) => flowGroup(m) === 'mine').length ?? 0;
   const blocked = members?.filter((m) => m.blocked).length ?? 0;
-  const stuck = members?.filter((m) => m.stage === 'never' || m.stage === 'setup').length ?? 0;
+  const stuck = members?.filter((m) => flowGroup(m) === 'login').length ?? 0;
 
   /**
    * A count worth interrupting for, as a pill. Zero shows nothing at all.
@@ -113,7 +116,7 @@ export default function CoachToolsPage() {
               iconBg="bg-accent-red"
               label={t('statusMaintenance')}
               sublabel={t('statusMaintenanceBlocked', { count: blocked })}
-              href="/dashboard/entry-queue?bucket=waiting"
+              href="/dashboard/entry-queue?at=mine"
               trailing={countPill(blocked, 'bad')}
             />
           )}
@@ -123,7 +126,7 @@ export default function CoachToolsPage() {
               iconBg="bg-band-3"
               label={t('statusWaiting')}
               sublabel={t('statusWaitingSub')}
-              href="/dashboard/entry-queue?bucket=waiting"
+              href="/dashboard/entry-queue?at=mine"
               trailing={countPill(waiting, 'bad')}
             />
           )}
@@ -133,7 +136,7 @@ export default function CoachToolsPage() {
               iconBg="bg-ink-300"
               label={t('statusStuck')}
               sublabel={t('statusStuckSub')}
-              href="/dashboard/entry-queue?bucket=stuck"
+              href="/dashboard/entry-queue?at=login"
               trailing={countPill(stuck, 'warn')}
             />
           )}

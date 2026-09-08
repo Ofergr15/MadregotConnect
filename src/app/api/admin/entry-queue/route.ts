@@ -7,7 +7,7 @@ import {
   entryStage,
   isBlockedByMaintenance,
   realEmail,
-  sortEntryQueue,
+  sortByFlow,
   type EntryQueueMember,
   type PendingSignupRequest,
 } from '@/lib/admin/entry-queue';
@@ -76,6 +76,62 @@ async function readOrphanRequests(
     }));
 }
 
+/** One auth account, keyed by lowercased email: "did they ever try to log in". */
+interface AuthFacts {
+  createdAt: string | null;
+  lastSignInAt: string | null;
+}
+
+/**
+ * The GoTrue users, by email — the evidence behind the flow's "started logging in".
+ *
+ * There is no other durable record of a login ATTEMPT. `login_handoffs` (082) is
+ * swept within ten minutes by design, and `athletes.last_seen_at` only ever proves
+ * the app opened. An `auth.users` row proves an identity was minted, which on this
+ * app only happens inside the Strava callback or a claim — so its presence with no
+ * `last_seen_at` is exactly the iOS in-app-browser failure, and the member who
+ * needs help most.
+ *
+ * Returns null rather than an empty map when the listing fails, so the panel can
+ * say "unknown" on those two steps instead of accusing the whole club of never
+ * having tried. Paged to the end: 100 at a time, capped so a runaway user table
+ * can't turn this screen into a minute-long request.
+ */
+async function readAuthFacts(
+  supabase: ReturnType<typeof createServerClient>,
+): Promise<Map<string, AuthFacts> | null> {
+  const byEmail = new Map<string, AuthFacts>();
+  try {
+    for (let page = 1; page <= 20; page += 1) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 100 });
+      if (error) return null;
+      const users = data?.users || [];
+      for (const u of users) {
+        const key = String(u.email || '').toLowerCase().trim();
+        if (!key) continue;
+        // Keep the earliest account and the latest sign-in across duplicates: a
+        // member who has both a real-email row and a Strava shell is one person,
+        // and "when did they first try" is the earlier of the two.
+        const prev = byEmail.get(key);
+        byEmail.set(key, {
+          createdAt:
+            prev?.createdAt && u.created_at
+              ? (prev.createdAt < u.created_at ? prev.createdAt : u.created_at)
+              : prev?.createdAt || u.created_at || null,
+          lastSignInAt:
+            prev?.lastSignInAt && u.last_sign_in_at
+              ? (prev.lastSignInAt > u.last_sign_in_at ? prev.lastSignInAt : u.last_sign_in_at)
+              : prev?.lastSignInAt || u.last_sign_in_at || null,
+        });
+      }
+      if (users.length < 100) break;
+    }
+    return byEmail;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const { denied, caller } = await requireStaffCaller(request);
@@ -98,6 +154,9 @@ export async function GET(request: Request) {
 
     const { data: subs } = await supabase.from('push_subscriptions').select('athlete_id');
     const pushed = new Set((subs || []).map((s: { athlete_id: string }) => s.athlete_id));
+
+    // The login evidence. Null = we couldn't look; see readAuthFacts.
+    const authFacts = await readAuthFacts(supabase);
 
     const members: EntryQueueMember[] = athletes.map((a) => {
       const id = a.id as string;
@@ -125,6 +184,10 @@ export async function GET(request: Request) {
       const lastSeenAt = (a.last_seen_at as string) || null;
       const hasWatch = !!a.garmin_auth || !!a.strava_auth;
       const hasPush = pushed.has(id);
+      // The auth row is matched on the RAW address, synthetic included: the Strava
+      // shell's `strava_<id>@strava.madregot.local` is the email its GoTrue user
+      // carries, so stripping it first would lose the login of every Strava member.
+      const auth = authFacts?.get(String(a.email || '').toLowerCase().trim()) || null;
       return {
         id,
         name: (a.name as string) || realEmail(email) || '—',
@@ -143,6 +206,12 @@ export async function GET(request: Request) {
         setupDone: setup.doneCount,
         setupTotal: setup.totalCount,
         stage: entryStage({ approved, blocked, lastSeenAt, hasWatch, hasPush }),
+        authAccountAt: auth?.createdAt || null,
+        lastSignInAt: auth?.lastSignInAt || null,
+        loginKnown: authFacts !== null,
+        // Named, not just counted: "3 מתוך 5" sends the coach to the profile to
+        // find out which 3, and the answer was already in this response.
+        setupMissing: setup.tasks.filter((t) => !t.done).map((t) => t.key),
       };
     });
 
@@ -171,7 +240,9 @@ export async function GET(request: Request) {
       // session, never an email literal — login is Strava-only, so a check against
       // APPROVER_EMAILS can never match anybody.
       canApprove: caller.canApprove,
-      members: sortEntryQueue(members),
+      // Furthest-behind first: the flow's own order, so the top of the list is
+      // the club's oldest failure rather than its newest signup.
+      members: sortByFlow(members),
     });
   } catch (err) {
     console.error('Failed to build the entry queue:', err);
