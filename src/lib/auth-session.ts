@@ -3,6 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { canApprove, isSuperUser, STAFF_ROLES } from '@/lib/constants';
 import { isCoreRunner } from '@/lib/core-runner';
 import { pickAthleteRow, stravaIdFromAuthEmail } from '@/lib/auth/athlete-identity';
+import { membershipFor, type Membership } from '@/lib/auth/membership';
+import { blockedFromApp, pathnameOf, requiresApproval } from '@/lib/auth/approval-gate';
 import {
   entryExpiry,
   isTokenExpired,
@@ -33,6 +35,16 @@ export interface SessionUser {
   role: string;
   groupId: string | null;
   athleteStatus: string | null;
+  /**
+   * May this account be inside the app — the server's copy of the answer
+   * /api/auth/me sends the client. 'none' is impossible here: a session that
+   * resolves to no row at all never becomes a SessionUser (403 below).
+   *
+   * Enforced in `requireSession`, not by each route: until now this decision only
+   * existed in a client `useEffect` whose own comment says it fails open, so every
+   * route served club content to an unapproved Strava sign-in.
+   */
+  membership: Exclude<Membership, 'none'>;
   isStaff: boolean;
   /**
    * May "view as" any member. Resolved as `athletes.is_super_user` OR the
@@ -66,6 +78,13 @@ export type AuthResult =
 const ATHLETE_BASE_COLUMNS = 'id, name, email, role, group_id, status, strava_athlete_id';
 /** Added by migrations 084 and 091, both applied by hand — so both are optional. */
 const ATHLETE_FLAG_COLUMNS = 'is_super_user, is_approver, is_core_runner';
+/**
+ * The approval column, also optional — it arrived with the registrations queue and
+ * a database without it has no approval gate to enforce. Selected separately from
+ * the flags so an unapplied 084 cannot take it down with them, because unlike a
+ * privilege flag this one decides whether anybody gets in at all.
+ */
+const ATHLETE_APPROVAL_COLUMN = 'approved';
 /** Postgres "column does not exist" — i.e. 084/091 not applied here yet. */
 const UNDEFINED_COLUMN = '42703';
 
@@ -77,6 +96,7 @@ interface AthleteRow {
   role: string | null;
   group_id: string | null;
   status: string | null;
+  approved?: boolean | null;
   is_super_user?: boolean | null;
   is_approver?: boolean | null;
   is_core_runner?: boolean | null;
@@ -108,7 +128,7 @@ interface AthleteRow {
 async function fetchAthleteRows(
   supabase: ReturnType<typeof createServerClient>,
   email: string,
-): Promise<AthleteRow[]> {
+): Promise<{ rows: AthleteRow[]; approvalKnown: boolean }> {
   // Cast rather than `.returns<AthleteRow[]>()`: the column list is a runtime
   // string, so Supabase's generic can't infer the row shape from it anyway, and
   // `.returns` is one more method every test fake of this chain would have to
@@ -126,15 +146,37 @@ async function fetchAthleteRows(
     return { rows: (data || []) as unknown as AthleteRow[], error };
   };
 
-  const first = await query(`${ATHLETE_BASE_COLUMNS}, ${ATHLETE_FLAG_COLUMNS}`);
-  if (!first.error) return first.rows;
-  if (first.error.code !== UNDEFINED_COLUMN) return [];
+  // Widest first, then drop one optional group at a time. Order matters: `approved`
+  // outlives the privilege flags, because losing it means the approval gate stops
+  // being enforceable while losing a flag only costs somebody a menu.
+  const attempts: Array<{ columns: string; approvalKnown: boolean; warn?: string }> = [
+    { columns: `${ATHLETE_BASE_COLUMNS}, ${ATHLETE_APPROVAL_COLUMN}, ${ATHLETE_FLAG_COLUMNS}`, approvalKnown: true },
+    {
+      columns: `${ATHLETE_BASE_COLUMNS}, ${ATHLETE_APPROVAL_COLUMN}`,
+      approvalKnown: true,
+      warn: '[auth] migration 084/091 not applied; athlete flag columns unavailable',
+    },
+    {
+      columns: ATHLETE_BASE_COLUMNS,
+      // Nothing to enforce: a database with no `approved` column has never had an
+      // approval decision recorded in it, and treating every member as unapproved
+      // would lock the whole club out over a missing migration.
+      approvalKnown: false,
+      warn: '[auth] athletes.approved unavailable; the approval gate is OFF for this database',
+    },
+  ];
 
-  // One retry covers both migrations, and it must: asking for a column that is
-  // not there fails the WHOLE select, so an unapplied 091 would take the 084
-  // flags down with it and drop the super user's own privileges.
-  console.warn('[auth] migration 084/091 not applied; athlete flag columns unavailable');
-  return (await query(ATHLETE_BASE_COLUMNS)).rows;
+  for (const attempt of attempts) {
+    const result = await query(attempt.columns);
+    if (!result.error) {
+      if (attempt.warn) console.warn(attempt.warn);
+      return { rows: result.rows, approvalKnown: attempt.approvalKnown };
+    }
+    // Anything other than a missing column is a real failure — retrying with fewer
+    // columns would not fix it, and it must not read as "no such member".
+    if (result.error.code !== UNDEFINED_COLUMN) return { rows: [], approvalKnown: false };
+  }
+  return { rows: [], approvalKnown: false };
 }
 
 function bearerToken(request: Request): string {
@@ -168,12 +210,24 @@ export async function requireSession(request: Request): Promise<AuthResult> {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return { ok: false, status: 500, error: 'Supabase not configured' };
 
-  return resolveCached(
+  const result = await resolveCached(
     tokenKey(token),
     entryExpiry(token),
     () => resolveSession(token, url, anonKey),
     (result) => result.ok,
   );
+  if (!result.ok) return result;
+
+  // AFTER the cache, never inside the resolver: the cache key is the token, so a
+  // decision that depends on the PATH cannot live in the memoised value — the first
+  // request of a session would decide it for every route the session then calls.
+  // Two errors, because the waiting screen says different things: 'pending' is "an
+  // approval is coming", 'inactive' is "nothing is coming".
+  const blocked = blockedFromApp(result.user);
+  if (blocked && requiresApproval(pathnameOf(request))) {
+    return { ok: false, status: 403, error: blocked };
+  }
+  return result;
 }
 
 /** The uncached resolution: verify the JWT, then find the membership row. */
@@ -226,7 +280,7 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
   // Prefer an active row, then the newest, which is how /api/auth/resolve-role
   // picks among duplicates too — so the athleteId in the session matches the one
   // sign-in handed the client.
-  const rows = await fetchAthleteRows(supabase, email);
+  const { rows, approvalKnown } = await fetchAthleteRows(supabase, email);
   const stravaId = stravaIdFromAuthEmail(email);
   // For a Strava login the ranker decides, because it is the one that knows the
   // Strava id IS the identity — and it is what the OAuth callback itself uses, so
@@ -248,6 +302,11 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
         role,
         groupId: athlete.group_id || null,
         athleteStatus: athlete.status || null,
+        // The same predicate /api/auth/me sends and the layout blocks on, resolved
+        // here so the SERVER can act on it too — see lib/auth/approval-gate.ts.
+        // 'active' when the column could not be read: a database with no `approved`
+        // has no approval to enforce, and guessing "unapproved" locks out the club.
+        membership: approvalKnown ? membershipFor(athlete) : 'active',
         isStaff: STAFF_ROLES.includes(role),
         // Either source is enough. The row flag exists for accounts whose email
         // can never match a literal (Strava signups); the literal stays so this
@@ -284,6 +343,9 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
         role,
         groupId: null,
         athleteStatus: null,
+        // A legacy `coaches` record is staff by definition; there is no athlete row
+        // to have been approved, and there never was an approval step for them.
+        membership: 'active',
         isStaff: true,
         // No athlete row means no גרעין membership to read. The flag lives on
         // `athletes`, and a coaches-only record is not a club member — they get

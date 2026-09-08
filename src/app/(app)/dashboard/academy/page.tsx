@@ -193,7 +193,7 @@ export default function AcademyPage() {
   const [athletes, setAthletes] = useState<Athlete[] | null>(null);
   const loadAthletes = useCallback(async () => {
     try {
-      const res = await fetch('/api/athletes');
+      const res = await fetch('/api/athletes', { headers: await bearerHeaders(false) });
       const data = await res.json();
       setAthletes(data.athletes || []);
     } catch (err) {

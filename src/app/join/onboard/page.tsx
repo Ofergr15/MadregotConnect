@@ -65,7 +65,9 @@ function OnboardContent() {
 
   useEffect(() => {
     if (!skipGroup) {
-      fetch('/api/groups')
+      // The PUBLIC list (id, name, pace label). This page has no session — it is
+      // where somebody gets one — and /api/groups is gated now.
+      fetch('/api/public/groups')
         .then(res => res.json())
         .then(data => {
           const fetchedGroups = data.groups || [];

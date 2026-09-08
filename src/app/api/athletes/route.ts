@@ -10,9 +10,9 @@ import { athleteWriteError, denyAthleteWrite } from '@/lib/auth/athlete-write-sc
 const DEMO_COACH_ID = COACH_ID;
 
 /**
- * Staff gate for creating and deleting athletes. GET stays open: the athletes,
- * academy, profile, photos and plan screens all read the roster, several of them
- * before a session has resolved.
+ * Staff gate for creating and deleting athletes. GET requires a session but not
+ * staff: the athletes, academy, profile and plan screens all read the roster, and
+ * they are all inside the signed-in shell.
  */
 async function requireStaff(request: Request) {
   const auth = await requireSession(request);
@@ -29,6 +29,11 @@ async function requireStaff(request: Request) {
 // GET - List all athletes for the coach
 export async function GET(request: Request) {
   try {
+    // Was fully open. It returns the club's entire roster with email addresses and
+    // onboarding state, which is not something an anonymous request should get.
+    const auth = await requireSession(request);
+    if (!auth.ok) return authError(auth);
+
     const { searchParams } = new URL(request.url);
     const coachId = searchParams.get('coach_id') || DEMO_COACH_ID;
 
@@ -65,7 +70,9 @@ export async function GET(request: Request) {
     const transformedAthletes = athletes?.map(athlete => ({
       id: athlete.id,
       name: athlete.name,
-      email: athlete.email,
+      // Staff only — see the same split in GET /api/groups. The non-staff callers
+      // of this route (academy, profile) use the id and the name.
+      email: auth.user.isStaff ? athlete.email : null,
       status: athlete.status,
       groupName: (athlete.groups as any)?.name ? groupDisplayName((athlete.groups as any).name) : null,
       groupId: athlete.group_id,
