@@ -5,6 +5,7 @@ import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge,
+  DoorOpen,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -76,6 +77,20 @@ export const PROFILE_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile
 // member as well as an administrator; see `resolveNavItems`.
 export const ADMIN_ACCOUNT_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'account', icon: ShieldCheck };
 export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench };
+/**
+ * "Who is waiting to get in" — force-added for staff, same as Coach Tools.
+ *
+ * It had no nav entry at all: the only doors were three inline links (Coach Tools,
+ * Settings, the athletes list), so the screen existed and could not be FOUND. A
+ * screen whose whole job is "somebody is waiting on you" has to be reachable
+ * without remembering which other screen links to it — including from Search,
+ * which offers reachable sections and therefore could not offer this one either.
+ *
+ * Not in ALL_NAV_ITEMS: that would make every non-admin role depend on a
+ * `role_tab_permissions` row that does not exist, which is the same invisibility
+ * in a different place.
+ */
+export const ENTRY_QUEUE_ITEM: NavItem = { href: '/dashboard/entry-queue', tab: 'entry-queue', labelKey: 'entryQueue', icon: DoorOpen };
 // Store and Benefits are static "More" sheet rows, not gated by
 // role_tab_permissions (roadmap #9, #5) — every role can reach them.
 export const STORE_ITEM: NavItem = { href: '/dashboard/store', tab: 'store', labelKey: 'store', icon: ShoppingBag };
@@ -193,6 +208,11 @@ export function resolveNavItems({
   // (deliberately not gated by the DB permissions table).
   if (STAFF_ROLES.includes(effectiveRole) && !items.some(i => i.tab === 'coach-tools')) {
     items.push(COACH_TOOLS_ITEM);
+  }
+  // The entry queue, on the same terms and immediately after it: both are staff
+  // hubs rather than pages of the training app, and neither is in the matrix.
+  if (STAFF_ROLES.includes(effectiveRole) && !items.some(i => i.tab === 'entry-queue')) {
+    items.push(ENTRY_QUEUE_ITEM);
   }
   // Academy members reach the academy regardless of role_tab_permissions.
   // Membership is the `is_academy` flag, not a role — an athlete whose role is

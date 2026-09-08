@@ -73,7 +73,7 @@ describe('staff', () => {
   it('admin sees every tab there is, plus coach tools and its account', () => {
     // Rule 1: not "everything it is granted" — everything, full stop.
     expect(staff('admin')).toEqual([
-      ...ALL_NAV_ITEMS.map(i => i.tab), 'profile', 'coach-tools',
+      ...ALL_NAV_ITEMS.map(i => i.tab), 'profile', 'coach-tools', 'entry-queue',
     ]);
   });
 
@@ -198,6 +198,22 @@ describe('staff', () => {
     }
   });
 
+  it('every staff role gets the entry queue, which is why it now has a door', () => {
+    // The screen existed with no nav entry at all — three inline links from other
+    // screens were the only way in, so "somebody is waiting on you" could only be
+    // found by remembering where it was linked from. Search could not offer it
+    // either: Search offers reachable sections, and this was not one.
+    expect(permissions.some((p) => p.tab === 'entry-queue')).toBe(false);
+    for (const role of ['admin', 'coach', 'academy_coach']) {
+      expect(staff(role)).toContain('entry-queue');
+    }
+  });
+
+  it('keeps the entry queue away from a plain runner', () => {
+    expect(tabsFor({ permissions, effectiveRole: 'runner', isAthlete: true }))
+      .not.toContain('entry-queue');
+  });
+
   it('staff do not get a profile tab unless they also have an athlete row', () => {
     expect(staff('coach')).not.toContain('profile');
     expect(tabsFor({ permissions, effectiveRole: 'coach', isAthlete: true })).toContain('profile');
@@ -301,7 +317,7 @@ describe('view-as previews', () => {
     });
     expect(preview.find(i => i.tab === 'profile')?.labelKey).toBe('account');
     // …and everything else an admin sees is there too.
-    expect(preview.map(i => i.tab)).toEqual([...ALL_NAV_ITEMS.map(i => i.tab), 'profile', 'coach-tools']);
+    expect(preview.map(i => i.tab)).toEqual([...ALL_NAV_ITEMS.map(i => i.tab), 'profile', 'coach-tools', 'entry-queue']);
   });
 
   it('shows a previewed runner the runner nav, not the previewer\'s', () => {
@@ -330,7 +346,7 @@ describe('the empty cases', () => {
   });
 
   it('only ever returns real nav entries', () => {
-    const known = new Set([...ALL_NAV_ITEMS.map((i) => i.tab), 'profile', 'coach-tools']);
+    const known = new Set([...ALL_NAV_ITEMS.map((i) => i.tab), 'profile', 'coach-tools', 'entry-queue']);
     for (const role of Object.keys(PROD)) {
       for (const tab of tabsFor({ permissions, effectiveRole: role, isAthlete: true })) {
         expect(known, `${role} resolved unknown tab ${tab}`).toContain(tab);
