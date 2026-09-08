@@ -125,6 +125,27 @@ export default function AppLayout({
     });
   }, [router]);
 
+  // Does this browser hold ANY claim to an identity? Read straight out of
+  // localStorage, in the same effect flush as the mount, so it is known a full
+  // async hop before `authorized` above is — that one waits on getSession(),
+  // which takes auth-js's lock and can go to the network to refresh.
+  //
+  // It exists so the membership request below can START then, instead of being
+  // gated on `authorized` and turning a cold open into a strict waterfall:
+  // getSession → /api/auth/me → the shell → the screen's own requests. It is
+  // deliberately the same pair of keys the fallback above trusts, so it can only
+  // fire for a browser that would have been let in anyway — a logged-out visitor
+  // still makes no request (and a 401 here is fail-open, see below, so a wrong
+  // guess costs a request rather than a screen).
+  const [hasLocalIdentity, setHasLocalIdentity] = useState(false);
+  useEffect(() => {
+    try {
+      setHasLocalIdentity(
+        !!(localStorage.getItem('athlete_id') || localStorage.getItem('coach_email')),
+      );
+    } catch { /* private mode — `authorized` will answer a moment later */ }
+  }, []);
+
   // ── Is this session still a MEMBER? ───────────────────────────────────────
   //
   // The check above only proves a session exists. That is not the same question:
@@ -148,7 +169,7 @@ export default function AppLayout({
   // poll never (`0`) — there is nothing to wait for, and this route stamps
   // last_seen_at on every call.
   const { data: me, isLoading: meLoading } = useApi<{ membership?: string }>(
-    authorized ? '/api/auth/me' : null,
+    hasLocalIdentity || authorized ? '/api/auth/me' : null,
     { refreshInterval: (latest) => (latest?.membership && latest.membership !== 'active' ? 30_000 : 0) },
   );
   const blocked = BLOCKED_MEMBERSHIPS.find((m) => m === me?.membership) ?? null;
@@ -171,6 +192,11 @@ export default function AppLayout({
   // Held behind the same spinner as the session check rather than swapped in
   // after the fact: a revoked member should never see a flash of the feed they
   // just lost.
+  //
+  // This is a full round trip with nothing on screen, so it used to be THE cost of
+  // every reload. It isn't any more: the SWR cache is persistent (lib/swr-persist),
+  // so `me` is already there on the second open onward and this gate passes
+  // without waiting. Only a genuinely first open on a device pays it.
   if (!authorized || (meLoading && !me)) {
     return (
       // Ink, not brand: this is the frame immediately after AppSplash on a cold

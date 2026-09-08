@@ -1,3 +1,5 @@
+import { clearPersistedSWRCache } from '@/lib/swr-persist';
+
 // Every localStorage key that says "who is signed in" in this browser.
 //
 // Two places wipe identity — clearLocalIdentity() before a new
@@ -30,4 +32,11 @@ export function clearIdentityKeys() {
   for (const key of IDENTITY_KEYS) {
     localStorage.removeItem(key);
   }
+  // The persistent SWR cache holds this person's actual club data (runs, paces,
+  // the feed they could see) and is scoped by the two keys above — so it has to go
+  // with them, and it has to go here rather than in signOutEverywhere: this
+  // function is also what clearLocalIdentity() calls before a new Strava/Google
+  // sign-in, which is the path where the next person on the device would otherwise
+  // be the first to see the last person's numbers.
+  clearPersistedSWRCache();
 }

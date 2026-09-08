@@ -51,6 +51,22 @@ describe('clearIdentityKeys', () => {
     expect(store.get('locale')).toBe('he');
   });
 
+  it('takes the persistent SWR cache with it', () => {
+    // That cache holds the signed-in member's actual club data — their runs, their
+    // paces, the feed they could see — and it is scoped by the very keys this
+    // function removes. Leaving it behind would mean the next person to sign in on
+    // the phone gets a screen painted from the last person's data before any
+    // request answers. It hangs off THIS function rather than off
+    // signOutEverywhere because clearLocalIdentity() (the path before a new
+    // Strava/Google sign-in) is the case where that actually happens.
+    store.set('athlete_id', 'a1');
+    store.set('mc_swr_cache_v1', '{"v":"x","id":"a1|","e":[]}');
+
+    clearIdentityKeys();
+
+    expect(store.has('mc_swr_cache_v1')).toBe(false);
+  });
+
   it('is a no-op on the server rather than throwing', () => {
     vi.stubGlobal('window', undefined);
     expect(() => clearIdentityKeys()).not.toThrow();

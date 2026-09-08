@@ -365,6 +365,30 @@ on **a step shorter than a kilometre**. It is still a status and never a number,
 still masked under the existing `pace` key, so nothing new leaves the server — but do
 not "improve" the badge by shipping the step's pace alongside it.
 
+Recorded exposure change, **2026-09-07** — the first one that is about the *device*
+rather than the API. `src/lib/swr-persist.ts` persists the SWR cache to
+**localStorage** (`mc_swr_cache_v1`), so club data now **rests on the phone between
+sessions**: whatever GETs the app made through `useApi` — this member's runs and paces,
+the feed they can see, teammate names. Nothing new is disclosed to anyone (it is the
+same data that session had already fetched and rendered), but "already on screen" and
+"still on disk tomorrow" are different risks, so three rules in that file are
+load-bearing rather than tidy, and are pinned by `src/__tests__/swrPersist.test.ts`:
+
+- **Scoped to one identity** (`athlete_id`/`coach_email`) and refused *and deleted* when
+  it doesn't match — the club shares phones and one iPad, and painting the previous
+  person's kilometres is the failure this prevents.
+- **Wiped on sign-out**, from `clearIdentityKeys()` rather than `signOutEverywhere()`,
+  because `clearLocalIdentity()` before a new Strava/Google sign-in is the path that
+  actually happens.
+- **Scoped to `APP_VERSION`**, so a changed response shape can't be restored into a
+  screen that no longer understands it — that failure has no failing request to explain
+  the blank card.
+
+Only `data` is restored, never a persisted `error` or `isValidating`. It is a cache, not
+a store: don't put anything in it the API doesn't already hand this session. If you add
+a route whose response should never touch disk, it needs an explicit skip in `save()` —
+there is no allowlist today.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:

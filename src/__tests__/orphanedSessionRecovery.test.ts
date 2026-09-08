@@ -22,8 +22,15 @@ const fetchMock = vi.fn();
 const trySilentReauth = vi.fn();
 const signOut = vi.fn();
 const bearerHeaders = vi.fn();
+const invalidateBearerToken = vi.fn();
 
-vi.mock('@/lib/auth/bearer-headers', () => ({ bearerHeaders: () => bearerHeaders() }));
+vi.mock('@/lib/auth/bearer-headers', () => ({
+  bearerHeaders: () => bearerHeaders(),
+  // The real one drops the module-scoped token cache so the recovery below isn't
+  // undone by the corpse being handed straight back. Nothing here caches, so the
+  // spy only has to exist — but it has to, or importing lib/api throws.
+  invalidateBearerToken: () => invalidateBearerToken(),
+}));
 vi.mock('@/lib/auth/silent-reauth', () => ({ trySilentReauth: () => trySilentReauth() }));
 vi.mock('@/lib/supabase/client', () => ({
   getSupabase: () => ({ auth: { signOut: (opts?: unknown) => signOut(opts) } }),
@@ -43,6 +50,7 @@ describe('apiFetcher recovery from an orphaned session', () => {
     trySilentReauth.mockReset();
     signOut.mockReset();
     bearerHeaders.mockReset();
+    invalidateBearerToken.mockReset();
     bearerHeaders.mockResolvedValue({ Authorization: 'Bearer dead.but.wellformed' });
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -63,6 +71,20 @@ describe('apiFetcher recovery from an orphaned session', () => {
     expect((fetchMock.mock.calls[1][1] as { headers: Record<string, string> }).headers.Authorization)
       .toBe('Bearer fresh.token.here');
     expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it('drops the cached token before recovering, so the corpse is not served again', async () => {
+    // bearerHeaders keeps the access token in module scope for most of its life
+    // (that is what stops every request awaiting getSession()). A token that just
+    // 401'd is exactly the one it would hand back — including to the retry below
+    // if trySilentReauth returns nothing — so recovery has to invalidate it first.
+    fetchMock.mockResolvedValueOnce(unauthorized).mockResolvedValueOnce(ok({ items: [] }));
+    trySilentReauth.mockResolvedValue('fresh.token.here');
+
+    const apiFetcher = await loadFetcher();
+    await apiFetcher('/api/feed');
+
+    expect(invalidateBearerToken).toHaveBeenCalledTimes(1);
   });
 
   it('retries exactly once, so a still-401 route cannot loop', async () => {

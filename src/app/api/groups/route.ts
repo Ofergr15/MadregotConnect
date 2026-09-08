@@ -9,6 +9,29 @@ const DEMO_COACH_ID = COACH_ID;
 
 export const dynamic = 'force-dynamic';
 
+// ── Why this is memoised, and why the window is so short ─────────────────────
+// Half the app reads this on every page (Header, tab bar, profile, onboarding,
+// leaderboards) and it was still ~390 ms warm even after the auth-blob fix
+// below — three queries and a nested join, of which nearly all the wall clock
+// is the Supabase round trip.
+//
+// The TTL is 10 s rather than the 30 s used for the tab matrix, because unlike
+// that matrix this response is NOT only written by the handlers in this file.
+// An athlete's group_id moves in a dozen other routes (athletes/update-group,
+// admin/users, admin/registrations/approve, onboarding, public/signup, …), and
+// the roster is part of what this returns. Rather than thread an invalidator
+// through all of them and get it wrong the next time one is added, the window
+// is kept short enough that a stale roster heals before anyone reads it twice.
+// The writers in THIS file do clear it, since those are the edits somebody is
+// watching the result of.
+const MEMO_TTL_MS = 10_000;
+const memo = new Map<string, { body: unknown; expires: number }>();
+
+/** Called by this file's own POST/PUT/DELETE. */
+function clearGroupsMemo(): void {
+  memo.clear();
+}
+
 /**
  * Staff gate for the write handlers. GET stays open — half the app reads the
  * group list (Header, tab bar, profile, onboarding, leaderboards) and it holds
@@ -28,6 +51,13 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const coachId = searchParams.get('coach_id') || DEMO_COACH_ID;
+
+    // Keyed by coach: the id is caller-supplied, so one coach's roster must not
+    // be served from another's entry. (In practice it is always the default.)
+    const hit = memo.get(coachId);
+    if (hit && hit.expires > Date.now()) {
+      return NextResponse.json(hit.body);
+    }
 
     const supabase = createServerClient();
 
@@ -118,7 +148,12 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ groups: transformedGroups || [] });
+    const body = { groups: transformedGroups || [] };
+    // Only a read that answered — the catch below is a 500, so there is no
+    // empty-club response to memoise.
+    memo.set(coachId, { body, expires: Date.now() + MEMO_TTL_MS });
+
+    return NextResponse.json(body);
   } catch (error) {
     console.error('Failed to fetch groups:', error);
     return NextResponse.json(
@@ -164,6 +199,8 @@ export async function POST(request: Request) {
       .single();
 
     if (error) throw error;
+
+    clearGroupsMemo();
 
     return NextResponse.json({ group });
   } catch (error) {
@@ -229,6 +266,8 @@ export async function PUT(request: Request) {
 
     if (error) throw error;
 
+    clearGroupsMemo();
+
     return NextResponse.json({ group });
   } catch (error) {
     console.error('Failed to update group:', error);
@@ -263,6 +302,8 @@ export async function DELETE(request: Request) {
       .eq('coach_id', DEMO_COACH_ID);
 
     if (error) throw error;
+
+    clearGroupsMemo();
 
     return NextResponse.json({ success: true });
   } catch (error) {
