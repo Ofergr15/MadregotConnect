@@ -107,7 +107,16 @@ export function useIsSuperUser(): boolean {
       .then(({ data }) => {
         if (cancelled) return;
         if (isSuperUser(data.session?.user?.email)) setEmailSuper(true);
-        else setAskServer(true);
+        // Only with a session in hand. This hook is mounted by ImpersonationBar,
+        // which lives in the ROOT layout — so it also runs on the landing page and
+        // the login screen, where there is no session and /api/auth/me can only
+        // 401. That is not a free wasted request: SWR retries a failed key with
+        // exponential backoff, so a logged-out visitor was making four calls to a
+        // route that cannot answer them (measured at 0.2s, 5.2s, 15.2s and 55.3s
+        // after load), the first of them contending with the landing page's own
+        // data. No session also means no synthetic-Strava case to resolve — that
+        // whole question is about which of two emails a signed-in account has.
+        else if (data.session) setAskServer(true);
       })
       .catch(() => {});
     return () => { cancelled = true; };

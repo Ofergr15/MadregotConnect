@@ -1,5 +1,4 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { APPROVER_EMAILS, STAFF_ROLES } from '@/lib/constants';
 import {
   localesForAthletes,
   persistNotifications,
@@ -14,21 +13,29 @@ type PushCopy = { title: string; body: string };
 /**
  * Who counts as "the people running the club" for a management notification.
  *
- * Three independent sources, unioned, because each one alone misses somebody
- * real:
+ * TWO sources, unioned: `role = 'admin'` and `is_super_user`. Narrowed to this
+ * on 2026-09-08, deliberately, and the thing it replaced is worth recording
+ * because the old list looked more correct than it was.
  *
- *  - `is_super_user` / `is_approver` (migration 084) — the flags the app
- *    actually gates admin surfaces on.
- *  - APPROVER_EMAILS — the legacy allowlist, still the only thing that marks
- *    the club account.
- *  - a staff `role` — a coach is a coach whether or not anyone remembered to
- *    stamp a flag on their row.
+ * It used to union four sources — APPROVER_EMAILS, any STAFF_ROLES role,
+ * `is_super_user` and `is_approver` — on the reasoning that each alone missed
+ * somebody real. In practice that resolved to NINE people, because `role='admin'`
+ * had been handed out to five ordinary members (and one of the nine was the
+ * `Test Coach` fixture row). Every bug report, store order and pain alert went to
+ * all of them. An alert that reaches nine people is an alert nobody owns.
  *
- * The email list cannot be the whole answer, which is what every existing
- * staff fan-out on this codebase assumed. A Strava-only login gets a synthetic
- * `strava_*@strava.madregot.local` address, so it matches no literal on that
- * list — the club's own admin signs in that way and was therefore unreachable
- * by the store-order and feedback alerts that claim to notify "the coaches".
+ * The union is still two queries rather than one `.or(...)`, and still for the
+ * original reason: `is_super_user` is a hand-applied migration (084), so a
+ * database without that column has to still get the `role` answer instead of
+ * losing the whole select to a 42703.
+ *
+ * WHAT THIS COSTS, stated plainly because it is a real regression and it was
+ * chosen with the cost on the table: a plain `coach` no longer receives any
+ * management notification. That includes the workout-feedback alert, which is how
+ * a coach finds out one of their athletes reported PAIN, and the sign-up alert,
+ * which drops the one coach who is also an approver. If either turns out to
+ * matter, the fix is not to widen this function again — it is to give that one
+ * caller its own recipient list, so the next narrowing doesn't silently undo it.
  *
  * Returns ids only. Best-effort: a query failure yields an empty list rather
  * than throwing, because every caller is a side-effect on somebody else's
@@ -38,14 +45,9 @@ export async function staffRecipientIds(): Promise<string[]> {
   const ids = new Set<string>();
   try {
     const supabase = createServerClient();
-    // One query per source rather than a single `.or(...)`: the flag columns are
-    // hand-applied migrations, so a tenant without them must still get the role
-    // and email answers instead of losing the whole select to a 42703.
     const sources = [
-      supabase.from('athletes').select('id').in('email', APPROVER_EMAILS),
-      supabase.from('athletes').select('id').in('role', STAFF_ROLES),
+      supabase.from('athletes').select('id').eq('role', 'admin'),
       supabase.from('athletes').select('id').eq('is_super_user', true),
-      supabase.from('athletes').select('id').eq('is_approver', true),
     ];
     for (const result of await Promise.all(sources)) {
       if (result.error) continue;
@@ -56,8 +58,9 @@ export async function staffRecipientIds(): Promise<string[]> {
 }
 
 /**
- * Send one management notification to every staff member, and record it in
- * their inbox.
+ * Send one management notification to everyone staffRecipientIds() names — since
+ * 2026-09-08 that is the admins and the super user, not every staff role — and
+ * record it in their inbox.
  *
  * This is the fan-out that `store/orders` and `workout-feedback` each had their
  * own copy of. Both copies resolved recipients by email (see above, they were
