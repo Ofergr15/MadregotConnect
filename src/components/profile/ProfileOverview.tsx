@@ -410,6 +410,11 @@ function DayTile({
   isTeamDay: boolean;
   kmUnit: string;
 }) {
+  // What the km line will actually be, counted before it is drawn — see the size
+  // step below. The "+" is one character and the unit is three, and both of them
+  // were previously invisible to the decision that had to fit them.
+  const lineLength = km.length + (hasOptional ? 1 : 0) + kmUnit.length;
+
   return (
     <div
       className={cn(
@@ -428,20 +433,40 @@ function DayTile({
       )}
       {/* A parsed day can read "23.6–24.5", which wraps inside a 74px tile and
           pushed the team-day dot off its own line. One line always, a size down
-          when the range is long enough to need it. */}
+          when the range is long enough to need it.
+          The size step measures the WHOLE line — the range, the optional "+" and
+          the unit — because measuring `km` alone is what let a 9-character range
+          overflow the tile it was supposed to fit: "23.6–24.5" took the 11px step
+          and then had "+ ק״מ" added to it, which is another ~28px in a 74px box.
+          Both thresholds and the 3px gap were measured, not guessed: the eight real
+          label shapes were rendered at 74px in Heebo 300 and the tightest of them
+          ("23.6–24.5 ק״מ" at 11px) clears the tile by ~6px. */}
       <span
         className={cn(
-          'whitespace-nowrap font-light text-ink-500',
-          km.length > 6 ? 'text-2xs' : 'text-sm',
+          // gap instead of a literal space between the number and the unit: a
+          // space is a bidi-neutral character between an LTR run and an RTL word,
+          // so it was being reordered along with everything around it.
+          'flex max-w-full items-baseline justify-center gap-[3px] whitespace-nowrap font-light text-ink-500',
+          lineLength > 11 ? 'text-3xs' : lineLength > 8 ? 'text-2xs' : 'text-sm',
         )}
       >
         {hasKm ? (
           <>
-            {/* dir="ltr" or bidi prints "24–23" for a 23–24 day. */}
-            <bdi dir="ltr">{km}</bdi>
-            {/* The offered evening is not in the range, but the day is not
-                silent about it either — a bare "+" is the whole hint. */}
-            {hasOptional && <span className="text-brand-600">+</span>} {kmUnit}
+            {/* dir="ltr" or bidi prints "24–23" for a 23–24 day.
+                The "+" sits INSIDE this run rather than beside it. As a sibling of
+                the RTL parent its position was bidi's to decide, and bidi decided
+                differently depending on what followed: the same markup printed
+                "11–13 +" on one tile and "+23.6–24.5" on the next, so a mark that
+                means "there's an optional session too" ended up attached to
+                whichever number it happened to land next to. Inside the LTR run it
+                is always immediately after the range it qualifies. */}
+            <bdi dir="ltr">
+              {km}
+              {/* The offered evening is not in the range, but the day is not
+                  silent about it either — a bare "+" is the whole hint. */}
+              {hasOptional && <span className="text-brand-600">+</span>}
+            </bdi>
+            <span>{kmUnit}</span>
           </>
         ) : (
           '—'
