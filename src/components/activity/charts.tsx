@@ -377,13 +377,24 @@ export function ElevationChart({ splits }: { splits: Split[] }) {
     <div ref={boxRef}>
       <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="flex items-center gap-1.5"><Mountain className="h-3 w-3" /> {t('chartElevationPerKm')}</span>
+        {/*
+          Uphill is RED and downhill is GREEN, which reads backwards for a
+          moment and is the point. On this screen green already means "the good
+          kilometre" — SplitsTable paints the fastest split `accent-600` and the
+          slowest `accent-red` — so a green climb told the reader two opposite
+          things with one colour, and a red descent told them a descent was bad.
+          Keyed to effort instead, both uses agree: green = easier (fast km,
+          downhill), red = harder (slow km, climb). Reported by a member,
+          2026-09-08. Flip these two and you have to flip the bars, the axis
+          labels, and SplitsTable's elevation column with them.
+        */}
         <LegendItem
           label={t('legendGain')}
-          swatch={<span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-600/80" />}
+          swatch={<span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-red/80" />}
         />
         <LegendItem
           label={t('legendLoss')}
-          swatch={<span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-red/80" />}
+          swatch={<span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent-600/80" />}
         />
       </h4>
       <svg
@@ -406,8 +417,8 @@ export function ElevationChart({ splits }: { splits: Split[] }) {
               <line x1={pad.left} x2={width - pad.right} y1={yUp} y2={yUp} stroke="#DFDFDF" strokeWidth="0.5" strokeDasharray="4 4" />
               {frac === 0.5 || frac === 1 ? (
                 <>
-                  <text x={pad.left - 8} y={yUp + 4} textAnchor="end" className="fill-accent-600/70" fontSize="10">+{val}m</text>
-                  <text x={pad.left - 8} y={yDown + 4} textAnchor="end" className="fill-accent-red/70" fontSize="10">-{val}m</text>
+                  <text x={pad.left - 8} y={yUp + 4} textAnchor="end" className="fill-accent-red/70" fontSize="10">+{val}m</text>
+                  <text x={pad.left - 8} y={yDown + 4} textAnchor="end" className="fill-accent-600/70" fontSize="10">-{val}m</text>
                 </>
               ) : null}
               <line x1={pad.left} x2={width - pad.right} y1={yDown} y2={yDown} stroke="#DFDFDF" strokeWidth="0.5" strokeDasharray="4 4" />
@@ -421,13 +432,21 @@ export function ElevationChart({ splits }: { splits: Split[] }) {
           const isHover = hoverIdx === i;
           return (
             <g key={i}>
+              {/*
+                Literal hexes because an SVG `fill` takes no Tailwind class, so
+                these are the token values spelled out: accent-red #AD3838 and
+                accent-600 #16a34a, matching the legend swatches above. They
+                previously read #D74E4E / #22c55e — neither is a token, so the
+                swatch and the bar it described were different colours.
+                Up = red, down = green; see the note on the legend.
+              */}
               {gainH > 0 && (
                 <rect x={x - barW / 2} y={midY - gainH} width={barW} height={gainH} rx="2"
-                  fill="#22c55e" opacity={isHover ? 0.9 : 0.6} className="transition-opacity" />
+                  fill="#AD3838" opacity={isHover ? 0.9 : 0.6} className="transition-opacity" />
               )}
               {lossH > 0 && (
                 <rect x={x - barW / 2} y={midY} width={barW} height={lossH} rx="2"
-                  fill="#D74E4E" opacity={isHover ? 0.9 : 0.5} className="transition-opacity" />
+                  fill="#16a34a" opacity={isHover ? 0.9 : 0.6} className="transition-opacity" />
               )}
             </g>
           );

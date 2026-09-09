@@ -1156,6 +1156,8 @@
   "review": {
     "title": "Review",
     "subtitle": "Something not working? Tell us and we'll fix it. Ideas and improvements are just as welcome.",
+    "back": "Back",
+    "backTo": "Back to {screen}",
     "category": "Category",
     "categoryQuestion": "What kind of report is this?",
     "featureRequest": "An idea",
