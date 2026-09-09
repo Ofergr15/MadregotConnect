@@ -1652,6 +1652,10 @@ export default function SettingsPage() {
                       : 'bg-page/60 text-ink-400 border-transparent hover:text-ink-700',
                   )}
                 >
+                  {/* Short label ("הכל", not "כל התפקידים"): this sits in a row of
+                      tabs that each already carry a role name and a count, and the
+                      long form was the widest chip there — for the one tab whose
+                      meaning is obvious from its position at the end. */}
                   {t('allRoles')}
                   <span className={uRole === 'all' ? 'opacity-70' : 'text-ink-400'}>({filteredPool.length})</span>
                 </button>
