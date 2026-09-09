@@ -9,7 +9,7 @@ import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
-import { findCrossSourceDuplicate, twinVerdict, upgradePatch } from '@/lib/activity-dedup';
+import { dedupeSameSourceBatch, findCrossSourceDuplicate, twinVerdict, upgradePatch } from '@/lib/activity-dedup';
 import { mapActivityDetail } from '@/lib/garmin/activity-detail';
 import { isMissingColumn, withoutColumns } from '@/lib/supabase/schema-drift';
 import { backfillGarminWorkoutIds } from '@/lib/garmin/workout-id-backfill';
@@ -93,7 +93,7 @@ export async function runSyncRequest(request: Request) {
     }
 
     let totalSynced = 0;
-    const results: Array<{ athleteId: string; name: string; synced: number; upgradedFromStrava?: number; error?: string }> = [];
+    const results: Array<{ athleteId: string; name: string; synced: number; upgradedFromStrava?: number; sameDeviceDupes?: number; error?: string }> = [];
 
     for (const athlete of athletes) {
       if (!athlete.garmin_auth) continue;
@@ -129,7 +129,19 @@ export async function runSyncRequest(request: Request) {
           .eq('athlete_id', athlete.id);
 
         const existingIds = new Set((existing || []).map(e => e.garmin_activity_id));
-        const candidateActivities = runActivities.filter(a => !existingIds.has(a.activityId));
+        const freshActivities = runActivities.filter(a => !existingIds.has(a.activityId));
+
+        // Two Garmin devices, one run. An athlete wearing a watch AND a band
+        // uploads the session twice under two different activity ids, so
+        // `existingIds` can't see it and the cross-source check below won't
+        // either — both rows are Garmin's. Measured 2026-09-09: 16.1 km with a
+        // route and 14.7 km without, 47 seconds apart, in this same batch, both
+        // on the club feed and both in his weekly total.
+        //
+        // Collapsed BEFORE the per-candidate work below, so the loser never costs
+        // its 2-4 Garmin detail requests either.
+        const { keep: candidateActivities, dropped: sameDeviceDupes } =
+          dedupeSameSourceBatch(freshActivities);
 
         // Strava can independently import this same run (Garmin auto-export) —
         // strava/sync-activities' own existingByStrava check can never catch that,
@@ -149,7 +161,7 @@ export async function runSyncRequest(request: Request) {
         const newActivities: typeof candidateActivities = [];
         const allUpgrades: Array<{ rowId: string; activity: (typeof candidateActivities)[number] }> = [];
         for (const a of candidateActivities) {
-          const twin = await findCrossSourceDuplicate(supabase, athlete.id, a.startTimeLocal, a.distance);
+          const twin = await findCrossSourceDuplicate(supabase, athlete.id, a.startTimeLocal, a.distance, a.duration);
           const verdict = twinVerdict(twin);
           if (verdict === 'insert') newActivities.push(a);
           else if (verdict === 'upgrade' && twin) allUpgrades.push({ rowId: twin.id, activity: a });
@@ -484,6 +496,10 @@ export async function runSyncRequest(request: Request) {
           name: athlete.name,
           synced: newActivities.length,
           ...(upgradedFromStrava ? { upgradedFromStrava } : {}),
+          // Reported, not silent: a run dropped here is a row the athlete would
+          // otherwise have seen, and "which of my devices won" is the first
+          // question anybody asks about it.
+          ...(sameDeviceDupes.length ? { sameDeviceDupes: sameDeviceDupes.length } : {}),
         });
       } catch (e: any) {
         results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: e.message });

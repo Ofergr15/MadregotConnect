@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  dedupeSameSourceBatch,
   findStoredMatch,
   matchesStoredActivity,
+  preferredRecording,
+  runsOverlapEnough,
   twinVerdict,
+  type BatchCandidate,
   type StoredActivity,
   type StoredTwin,
 } from '@/lib/activity-dedup';
@@ -193,5 +197,153 @@ describe('twinVerdict', () => {
   it('leaves an unknown or missing source alone', () => {
     expect(twinVerdict(twin(null))).toBe('skip');
     expect(twinVerdict(twin('manual'))).toBe('skip');
+  });
+});
+
+/**
+ * The same-device case, and the real session that nearly got deleted by it.
+ *
+ * Everything above is cross-source. Two GARMIN rows for one run — a watch and a
+ * band on the same account — carry two different `garmin_activity_id`s, so the
+ * sync's own existence check can't see them and the cross-source check won't
+ * either, since neither row is Strava's.
+ *
+ * The reason this is keyed on time overlap and not on the window is the club-wide
+ * scan that found it: 7 same-source pairs, and 5 of them were one athlete's
+ * 6 × 2 km rep session — six activities 9-10 minutes apart, ~430 s each, every
+ * consecutive pair inside the 15-minute window and within 1% on distance. A
+ * dedupe that trusted window-plus-distance would have deleted five real reps.
+ * Both measured shapes are pinned below.
+ */
+describe('runsOverlapEnough', () => {
+  const T = new Date('2026-09-09T06:00:00').getTime();
+
+  // Shalev Bahalul, 2026-09-09: watch 16.1 km / 4904 s, band 14.7 km / 4904 s,
+  // 47 s apart. ~99% overlap — one run, twice.
+  it('calls two devices recording one run the same run', () => {
+    expect(runsOverlapEnough(T, 4904, T + 47_000, 4904)).toBe(true);
+  });
+
+  // The reps: 430 s of running, then ~9 minutes of standing still.
+  it('keeps consecutive reps apart', () => {
+    expect(runsOverlapEnough(T, 430, T + 9 * 60_000, 430)).toBe(false);
+  });
+
+  // Touching but not overlapping: rep two starts as rep one ends.
+  it('rejects back-to-back recordings', () => {
+    expect(runsOverlapEnough(T, 600, T + 600_000, 600)).toBe(false);
+  });
+
+  // Below MIN_OVERLAP: half of the shorter recording is outside the other.
+  it('rejects a half overlap', () => {
+    expect(runsOverlapEnough(T, 600, T + 300_000, 600)).toBe(false);
+  });
+
+  // Unknown duration must fall back to the window-and-distance verdict — the
+  // overlap test may only ever narrow a match, never invent one.
+  it('answers yes when either duration is missing', () => {
+    expect(runsOverlapEnough(T, null, T, 600)).toBe(true);
+    expect(runsOverlapEnough(T, 600, T, undefined)).toBe(true);
+    expect(runsOverlapEnough(T, 0, T, 600)).toBe(true);
+  });
+});
+
+describe('findStoredMatch with durations', () => {
+  // The latent cross-source bug the same-device fix also closes: a Strava import
+  // of rep #2 used to match the stored Garmin rep #1 and be silently dropped.
+  it('no longer swallows a second rep against a stored first one', () => {
+    const stored: StoredActivity[] = [
+      { start_time: '2026-09-09T06:00:00', distance: 2000, duration: 430 },
+    ];
+    expect(matchesStoredActivity(stored, '2026-09-09T06:09:00', 2010, 430)).toBe(false);
+  });
+
+  it('still matches the same run recorded twice', () => {
+    const stored: StoredActivity[] = [
+      { start_time: '2026-09-09T06:00:00', distance: 16112, duration: 4904 },
+    ];
+    expect(matchesStoredActivity(stored, '2026-09-09T06:00:47', 14714, 4904)).toBe(true);
+  });
+});
+
+describe('preferredRecording', () => {
+  const base = { activityId: 100, startTimeLocal: '2026-09-09T06:00:00', distance: 16112, duration: 4904 };
+
+  // Not a close call: a band with no fix derives distance from cadence, which is
+  // how one run came back as 14.7 km against the watch's 16.1 km.
+  it('prefers the device that had a GPS fix', () => {
+    const watch: BatchCandidate = { ...base, activityId: 2, startLatitude: 32.1 };
+    const band: BatchCandidate = { ...base, activityId: 1, startLatitude: null };
+    expect(preferredRecording(band, watch)).toBe(watch);
+    expect(preferredRecording(watch, band)).toBe(watch);
+  });
+
+  it('falls back to lap count, then duration', () => {
+    const lapped = { ...base, activityId: 2, lapCount: 12 };
+    const plain = { ...base, activityId: 1, lapCount: 1 };
+    expect(preferredRecording(plain, lapped)).toBe(lapped);
+
+    const longer = { ...base, activityId: 2, duration: 5000 };
+    const shorter = { ...base, activityId: 1, duration: 4000 };
+    expect(preferredRecording(shorter, longer)).toBe(longer);
+  });
+
+  // So the outcome never depends on the order Garmin happened to list them in.
+  it('settles a tie by activity id', () => {
+    const a = { ...base, activityId: 7 };
+    const b = { ...base, activityId: 9 };
+    expect(preferredRecording(a, b)).toBe(a);
+    expect(preferredRecording(b, a)).toBe(a);
+  });
+});
+
+describe('dedupeSameSourceBatch', () => {
+  const watch = {
+    activityId: 24292830250, startTimeLocal: '2026-09-09T06:00:00',
+    distance: 16112, duration: 4904, startLatitude: 32.0853, lapCount: 8,
+  };
+  const band = {
+    activityId: 24292828223, startTimeLocal: '2026-09-09T06:00:47',
+    distance: 14714, duration: 4904, startLatitude: null, lapCount: 1,
+  };
+
+  it('collapses the measured pair and keeps the watch', () => {
+    const { keep, dropped } = dedupeSameSourceBatch([watch, band]);
+    expect(keep).toEqual([watch]);
+    expect(dropped).toEqual([{ kept: watch, dropped: band }]);
+  });
+
+  // Order-independent — the band listed first must not win by arriving first.
+  it('keeps the watch whichever order Garmin listed them in', () => {
+    expect(dedupeSameSourceBatch([band, watch]).keep).toEqual([watch]);
+  });
+
+  // The near-miss, verbatim: six reps must all survive.
+  it('leaves a rep session intact', () => {
+    const reps = Array.from({ length: 6 }, (_, i) => ({
+      activityId: 900 + i,
+      startTimeLocal: new Date(new Date('2026-09-09T06:00:00').getTime() + i * 9.5 * 60_000)
+        .toISOString(),
+      distance: 2000 + i,
+      duration: 430,
+      startLatitude: 32.0853,
+      lapCount: 1,
+    }));
+    const { keep, dropped } = dedupeSameSourceBatch(reps);
+    expect(keep).toHaveLength(6);
+    expect(dropped).toHaveLength(0);
+  });
+
+  it('passes an ordinary batch of unrelated runs straight through', () => {
+    const runs = [
+      { activityId: 1, startTimeLocal: '2026-09-07T06:00:00', distance: 10000, duration: 3000 },
+      { activityId: 2, startTimeLocal: '2026-09-08T06:00:00', distance: 10000, duration: 3000 },
+      { activityId: 3, startTimeLocal: '2026-09-09T06:00:00', distance: 21097, duration: 6000 },
+    ];
+    expect(dedupeSameSourceBatch(runs).keep).toHaveLength(3);
+  });
+
+  it('handles an empty batch', () => {
+    expect(dedupeSameSourceBatch([])).toEqual({ keep: [], dropped: [] });
   });
 });
