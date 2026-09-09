@@ -1907,6 +1907,17 @@
     "enableError": "Error: {error}",
     "permissionDenied": "Blocked — allow notifications in your device settings",
     "notEnabledHere": "Not enabled on this device",
+    "env": {
+      "installFirstTitle": "Add to your home screen first",
+      "installFirstBody": "On iPhone, push notifications only work from the app installed on your home screen. In a browser tab they do not exist at all — not blocked, simply unavailable.",
+      "installFirstShort": "On iPhone, add to the home screen and open it from there — a browser tab has no push",
+      "inAppBrowserTitle": "Open this in your browser",
+      "inAppBrowserBody": "You're inside another app's browser (WhatsApp, Instagram). It can't install the app and can't receive push. Open the link in Safari or Chrome.",
+      "inAppBrowserShort": "You're in another app's browser — open this in Safari or Chrome",
+      "unsupportedTitle": "Push not supported here",
+      "unsupportedBody": "Notifications will still appear inside the app, under the bell at the top.",
+      "unsupportedShort": "This browser does not support push notifications"
+    },
     "languageHeader": "Language / שפה",
     "languageActive": "app + notifications / האפליקציה וההתראות",
     "testHeader": "Test notifications",
