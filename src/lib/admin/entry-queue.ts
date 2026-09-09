@@ -80,6 +80,41 @@ export interface EntryQueueMember {
   loginKnown?: boolean;
   /** Which scored setup tasks are still open, by SETUP_TASK_KEYS name. */
   setupMissing?: string[];
+  /**
+   * Taken out of the club — `athletes.status = REMOVED_STATUS`, see the block on
+   * `isRemoved` below. Their row and their whole history stay; they just stop
+   * being a member. Kept out of the flow entirely rather than shown as somebody
+   * "stuck at signing up", which is what a removed person would otherwise look
+   * like on this screen.
+   */
+  removed?: boolean;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// REMOVING SOMEBODY FROM THE CLUB
+//
+// Soft, and it has to be soft: 25 tables cascade off `athletes(id)` — activities,
+// badges, attendance, feed posts, store orders, race matches — so a hard delete
+// takes a member's entire history with it and cannot be undone. The app already
+// has this instinct elsewhere: DELETE on a badge or a challenge refuses and tells
+// you to deactivate instead.
+//
+// The lever already existed and nothing used it. `status` is not 'active' →
+// `membershipFor` returns 'inactive' → the shell renders AccessBlocked, with the
+// copy for it already written. Every club-facing query (the leaderboard, standings,
+// discover, the plan picker, the admin counts) filters `status = 'active'`, so a
+// removed member drops out of all of them for free.
+//
+// The catch, and the reason this is a named constant rather than an inline string:
+// POST /api/auth/resolve-role used to flip ANY non-active status back to 'active'
+// on the next sign-in, so a removal would have quietly reinstated itself the next
+// time they opened the app. That path now treats this one value as terminal.
+// ═════════════════════════════════════════════════════════════════════════════
+
+export const REMOVED_STATUS = 'removed';
+
+export function isRemoved(row: { status?: string | null }): boolean {
+  return row.status === REMOVED_STATUS;
 }
 
 /**
@@ -301,6 +336,29 @@ export function flowGroup(m: EntryQueueMember): FlowGroup {
   if (stuckAt === 'loginStarted' || stuckAt === 'loggedIn') return 'login';
   if (stuckAt === 'watch') return 'watch';
   return 'profile';
+}
+
+/**
+ * What is actually missing, named — the content of the reminder.
+ *
+ * The nudge used to pick between two fixed messages ("just the watch left" / "come
+ * and finish setting up"), so the member was told to go and find their own gap. The
+ * scored tasks were already in the response; this is them, in the order the flow
+ * walks, with the login step in front when that is what is broken.
+ *
+ * 'login' is deliberately exclusive: somebody who cannot get in cannot act on
+ * "you're missing a photo", and listing both makes the one thing they CAN do the
+ * fourth item in a sentence.
+ */
+export type MemberGap = 'login' | string;
+
+export function memberGaps(m: EntryQueueMember): MemberGap[] {
+  const { stuckAt } = memberFlow(m);
+  if (stuckAt === 'loginStarted' || stuckAt === 'loggedIn') return ['login'];
+  // 'approved' is not a gap of theirs — it is one of ours, and no reminder to the
+  // member can move it.
+  if (stuckAt === 'approved') return [];
+  return m.setupMissing || [];
 }
 
 /** Which group a tap on a funnel step should land in. */

@@ -8,6 +8,7 @@ import {
   Wrench, Search, Lock, Unlock, Bell, BellOff, Watch, Activity,
   CheckCircle2, UserCheck, ChevronLeft, Users as UsersIcon,
   UserPlus, Mail, Smartphone, AlertTriangle, HelpCircle,
+  UserMinus, RotateCcw,
 } from 'lucide-react';
 import { cn, getGroupChip, groupDisplayName } from '@/lib/utils';
 import { useApi } from '@/lib/api';
@@ -20,6 +21,7 @@ import {
   flowGroup,
   GROUP_OF_STEP,
   memberFlow,
+  memberGaps,
   type EntryQueueMember,
   type FlowGroup,
   type FlowStep,
@@ -55,14 +57,24 @@ import {
 interface QueueResponse {
   maintenance: boolean;
   canApprove: boolean;
+  /** Admin only, and separately from canApprove — see the remove route's header. */
+  canRemove?: boolean;
   members: EntryQueueMember[];
   /** /register applicants with no athlete row yet — see PendingSignupRequest. */
   orphanRequests?: PendingSignupRequest[];
   groups?: Array<{ id: string; name: string }>;
 }
 
-/** The list's filter: one group, or everybody. */
-type Filter = FlowGroup | 'all';
+/**
+ * The list's filter: one group, everybody, or the people taken out of the club.
+ *
+ * 'removed' is deliberately a filter and not a group: those people are not on the
+ * flow at all — they aren't walking it — and mixing them into 'mine' would show a
+ * removed member as somebody stuck at signing up, which is the opposite of true.
+ * It exists so the soft removal is REVERSIBLE from the same screen that did it; a
+ * removal you can't find again is a delete with extra steps.
+ */
+type Filter = FlowGroup | 'all' | 'removed';
 
 /** Deep links from Coach Tools predate the flow; keep them landing sensibly. */
 const LEGACY_BUCKET: Record<string, Filter> = {
@@ -117,7 +129,7 @@ export default function EntryQueuePage() {
   // this screen did every time the queue was clear.
   const [chosenFilter, setFilter] = useState<Filter | null>(() => {
     const at = searchParams.get('at');
-    if (at && ([...FLOW_GROUPS, 'all'] as string[]).includes(at)) return at as Filter;
+    if (at && ([...FLOW_GROUPS, 'all', 'removed'] as string[]).includes(at)) return at as Filter;
     return LEGACY_BUCKET[searchParams.get('bucket') || ''] || null;
   });
   const [query, setQuery] = useState('');
@@ -134,10 +146,21 @@ export default function EntryQueuePage() {
   // What the last "let in" did: both doors, or only the approval because the club
   // was already open. Two different facts, and the admin has to be able to tell.
   const [letInResult, setLetInResult] = useState<Record<string, 'released' | 'approved' | 'failed' | null>>({});
+  // Ending a membership asks twice. Not a browser confirm(): this is a phone, the
+  // buttons are 44px apart, and the second tap has to be a different-looking button
+  // in a different place — not the same spot the first tap was in.
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [removeResult, setRemoveResult] = useState<Record<string, 'removed' | 'restored' | 'failed' | null>>({});
 
-  const members = useMemo(() => data?.members || [], [data]);
+  const allMembers = useMemo(() => data?.members || [], [data]);
+  // Two lists, and everything below the split is about the first one. A removed
+  // member is not on the flow, so they are out of the funnel, the group counts, the
+  // bulk reminder and the search results — they have their own filter.
+  const members = useMemo(() => allMembers.filter((m) => !m.removed), [allMembers]);
+  const removedMembers = useMemo(() => allMembers.filter((m) => m.removed), [allMembers]);
   const maintenanceOn = !!data?.maintenance;
   const canApprove = !!data?.canApprove;
+  const canRemove = !!data?.canRemove;
 
   const orphans = useMemo(() => data?.orphanRequests || [], [data]);
   const groups = useMemo(() => data?.groups || [], [data]);
@@ -156,12 +179,13 @@ export default function EntryQueuePage() {
   // the funnel, in the groups and in the headline. Anything less and the screen
   // says "nobody is waiting" while somebody is.
   const counts = useMemo(() => {
-    const out = { mine: 0, login: 0, watch: 0, profile: 0, ready: 0, all: 0 } as Record<Filter, number>;
+    const out = { mine: 0, login: 0, watch: 0, profile: 0, ready: 0, all: 0, removed: 0 } as Record<Filter, number>;
     for (const m of members) out[groupOf.get(m.id)!] += 1;
     out.mine += orphans.length;
     out.all = members.length + orphans.length;
+    out.removed = removedMembers.length;
     return out;
-  }, [members, orphans, groupOf]);
+  }, [members, orphans, groupOf, removedMembers]);
 
   /** The funnel: "signed up 25 → approved 23 → …". Orphans stop at step one. */
   const funnel = useMemo(() => {
@@ -180,6 +204,12 @@ export default function EntryQueuePage() {
   const visibleOrphans = orphans.filter(
     (r) => (filter === 'mine' || filter === 'all') && (!needle || r.email.toLowerCase().includes(needle)),
   );
+
+  /** Only under their own filter — never mixed into a list of people getting in. */
+  const visibleRemoved =
+    filter === 'removed'
+      ? removedMembers.filter((m) => !needle || `${m.name} ${m.email || ''}`.toLowerCase().includes(needle))
+      : [];
 
   /** The bulk target: everybody in view the app can still be nudged about. */
   const nudgeable = visible.filter((m) => {
@@ -299,6 +329,40 @@ export default function EntryQueuePage() {
     }
   };
 
+  /**
+   * Take somebody out of the club, or put them back.
+   *
+   * Soft both ways: this writes `athletes.status` and nothing else, so their runs,
+   * their PRs and their whole history survive and the restore is a single tap. The
+   * card says so before the second tap, because "delete" on a phone is assumed to
+   * mean gone and that assumption is what stops people using the button correctly —
+   * either they never touch it, or they touch it believing it's reversible when it
+   * isn't. Here it is, and it says which.
+   */
+  const setMembership = async (member: EntryQueueMember, action: 'remove' | 'restore') => {
+    setBusyId(member.id);
+    setRemoveResult((prev) => ({ ...prev, [member.id]: null }));
+    try {
+      const res = await fetch('/api/admin/entry-queue/remove', {
+        method: 'POST',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ athleteId: member.id, action }),
+      });
+      if (res.ok) {
+        setRemoveResult((prev) => ({ ...prev, [member.id]: action === 'remove' ? 'removed' : 'restored' }));
+        setConfirmRemove(null);
+        mutate();
+        mutateMaintenance();
+      } else {
+        setRemoveResult((prev) => ({ ...prev, [member.id]: 'failed' }));
+      }
+    } catch {
+      setRemoveResult((prev) => ({ ...prev, [member.id]: 'failed' }));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   /** Shut somebody back out of an open window — the undo for a mistaken release. */
   const blockAgain = async (member: EntryQueueMember) => {
     if (!canEditAllowlist) return;
@@ -373,6 +437,14 @@ export default function EntryQueuePage() {
         return t('whySignedUp');
     }
   };
+
+  /**
+   * The gaps the reminder will name, in words — the same list the push is built
+   * from (memberGaps), so the preview on the card cannot say one thing while the
+   * notification says another.
+   */
+  const gapList = (m: EntryQueueMember) =>
+    memberGaps(m).map((g) => (g === 'login' ? t('missing_login') : t(`missing_${g}` as never)));
 
   /** The date the current wait started, so "how long" is honest per step. */
   const waitingSince = (m: EntryQueueMember, stuck: FlowStep) => {
@@ -472,7 +544,9 @@ export default function EntryQueuePage() {
 
       {/* The groups, by what the next action is: yours, a reminder, or nothing. */}
       <div className="flex flex-wrap items-center gap-2" dir="rtl">
-        {([...FLOW_GROUPS, 'all'] as Filter[]).map((g) => {
+        {/* 'removed' appears only once somebody is in it — an empty tab would
+            advertise the button rather than the people. */}
+        {([...FLOW_GROUPS, 'all', ...(removedMembers.length ? (['removed'] as const) : [])] as Filter[]).map((g) => {
           const on = filter === g;
           return (
             <button
@@ -623,8 +697,45 @@ export default function EntryQueuePage() {
         </div>
       )}
 
+      {/* The people who were taken out of the club. No flow track and no chips:
+          there is exactly one thing to know about them (they're out) and one thing
+          to do (put them back), and drawing six steps for somebody who isn't
+          walking them would say they're stuck when they're simply not here. */}
+      {visibleRemoved.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs text-ink-400 leading-relaxed" dir="rtl">{t('removedIntro')}</p>
+          {visibleRemoved.map((m) => {
+            const busy = busyId === m.id;
+            return (
+              <Card key={m.id} variant="solid" className="opacity-90">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="shrink-0 w-9 h-9 rounded-full bg-page flex items-center justify-center">
+                      <UserMinus className="h-4 w-4 text-ink-400" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-semibold text-ink-500 truncate" dir="auto">{m.name}</p>
+                      {m.email && <p className="text-xs text-ink-300 truncate">{m.email}</p>}
+                    </div>
+                  </div>
+                  {canRemove && (
+                    <Button variant="secondary" onClick={() => setMembership(m, 'restore')} disabled={busy}>
+                      <RotateCcw className="h-4 w-4" />
+                      {busy ? t('saving') : t('restoreToClub')}
+                    </Button>
+                  )}
+                </div>
+                {removeResult[m.id] === 'failed' && (
+                  <p className="mt-2.5 text-xs font-semibold text-accent-red" dir="rtl">{t('resultFailed')}</p>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
       {visible.length === 0 ? (
-        visibleOrphans.length === 0 && (
+        visibleOrphans.length === 0 && visibleRemoved.length === 0 && (
           <EmptyState
             icon={UsersIcon}
             title={query.trim() ? t('noMatches') : t(`empty_${filter}` as never)}
@@ -712,6 +823,20 @@ export default function EntryQueuePage() {
                   <Chip tone={m.setupDone >= m.setupTotal ? 'ok' : 'muted'} icon={UserCheck} label={t('setupProgress', { done: m.setupDone, total: m.setupTotal })} />
                 </div>
 
+                {/* What the reminder will actually say, before it is sent, and
+                    whether it will light up a phone or only land in the in-app
+                    inbox. Both were only discoverable by tapping and reading the
+                    result — which is a strange way to find out you just sent a
+                    stranger's phone a notification about their shirt size. */}
+                {stuck && !mine && canApprove && (
+                  <p className="mt-2.5 text-2xs text-ink-400 leading-relaxed" dir="rtl">
+                    {gapList(m).length > 0
+                      ? t('reminderWillSay', { items: gapList(m).join(' · ') })
+                      : t('reminderWillSayGeneral')}
+                    {!m.hasPush && <> · <span className="text-band-3-ink font-semibold">{t('reminderInboxOnly')}</span></>}
+                  </p>
+                )}
+
                 {/* One action per card. For anybody the club is holding out, it is
                     the same button whichever door is shut: approve and release. */}
                 <div className="flex items-center gap-2 mt-4">
@@ -757,7 +882,55 @@ export default function EntryQueuePage() {
                       <Lock className="h-4 w-4" />
                     </Button>
                   )}
+                  {/* Admin only. Last in the row, and it opens a question rather
+                      than doing anything — see the confirm block below. */}
+                  {canRemove && confirmRemove !== m.id && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => setConfirmRemove(m.id)}
+                      disabled={busy}
+                      title={t('removeFromClub')}
+                    >
+                      <UserMinus className="h-4 w-4 text-accent-red" />
+                    </Button>
+                  )}
                 </div>
+
+                {/* The second tap. It states what survives, because that is the
+                    only fact that makes this button usable: everything the member
+                    ever ran stays, and putting them back is one tap from the
+                    'removed' filter. */}
+                {confirmRemove === m.id && (
+                  <div className="mt-3 rounded-card border border-accent-red/40 bg-accent-red/5 p-3" dir="rtl">
+                    <p className="text-[13px] font-semibold text-accent-red">{t('removeConfirmTitle', { name: m.name })}</p>
+                    <p className="text-2xs text-ink-500 mt-1 leading-relaxed">{t('removeConfirmBody')}</p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button variant="danger" className="flex-1" onClick={() => setMembership(m, 'remove')} disabled={busy}>
+                        <UserMinus className="h-4 w-4" />
+                        {busy ? t('saving') : t('removeConfirmYes')}
+                      </Button>
+                      <Button variant="ghost" onClick={() => setConfirmRemove(null)} disabled={busy}>
+                        {t('removeConfirmNo')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {removeResult[m.id] && (
+                  <p
+                    className={cn(
+                      'mt-2.5 text-xs font-semibold',
+                      removeResult[m.id] === 'failed' ? 'text-accent-red' : 'text-ink-400',
+                    )}
+                    dir="rtl"
+                  >
+                    {removeResult[m.id] === 'removed'
+                      ? t('removeDone')
+                      : removeResult[m.id] === 'restored'
+                        ? t('restoreDone')
+                        : t('resultFailed')}
+                  </p>
+                )}
 
                 {/* What the tap did. 'released' is the half that makes an approval
                     felt during a window; while the club is open there is nothing

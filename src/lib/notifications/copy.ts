@@ -599,6 +599,83 @@ export function entryNudgeCopy(
 }
 
 /**
+ * The same nudge, with the gaps NAMED.
+ *
+ * entryNudgeCopy above picks between two fixed sentences, so the member is told
+ * that something is unfinished and sent off to find out what. The entry queue
+ * already knows exactly which scored tasks are open — it prints them on the card —
+ * and a reminder that says "a photo and your sizes" is a thing somebody can do in
+ * the two minutes they have, where "finish setting up" is a thing they postpone.
+ *
+ * 'login' arrives alone (see memberGaps): somebody who can't get in can't act on a
+ * missing photo, and the ONE thing they can do must not be the fourth item in a
+ * sentence. Its copy is about the app opening for them, not about the checklist.
+ *
+ * An empty list falls back to entryNudgeCopy's general "come and finish" rather
+ * than sending a sentence with nothing in it.
+ */
+export function entryGapsCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; gaps: string[] },
+): PushCopy {
+  const who = (p.name || '').trim();
+  const hey = who ? `${who}, ` : '';
+
+  if (p.gaps.includes('login')) {
+    return locale === 'he'
+      ? {
+          title: `${hey}האפליקציה מחכה לך 👋`,
+          body: 'החשבון שלך מאושר אבל עוד לא נכנסת — נסו להתחבר מהדפדפן ולא מתוך אפליקציה אחרת, וזה ייפתח',
+        }
+      : {
+          title: `${hey}the app is waiting for you 👋`,
+          body: "Your account is approved but you haven't got in yet — sign in from the browser rather than inside another app and it will open",
+        };
+  }
+
+  const names = p.gaps.map((g) => gapName(locale, g)).filter(Boolean);
+  if (!names.length) return entryNudgeCopy(locale, { name: p.name, missing: 'setup' });
+
+  const list = listWords(locale, names);
+  return locale === 'he'
+    ? {
+        title: `${hey}נשאר לסדר: ${names[0]}`,
+        body: `כדי שהאפליקציה תעבוד בשבילך במלואה חסר ${list} — דקה בפרופיל וסיימנו`,
+      }
+    : {
+        title: `${hey}still to sort: ${names[0]}`,
+        body: `For the app to work fully for you, ${list} ${names.length > 1 ? 'are' : 'is'} missing — a minute in your profile and you're done`,
+      };
+}
+
+/** A scored setup task as a thing to do, not as a key. */
+function gapName(locale: NotificationLocale, gap: string): string {
+  const he: Record<string, string> = {
+    watch: 'חיבור שעון',
+    photo: 'תמונת פרופיל',
+    personalInfo: 'פרטים אישיים',
+    sizes: 'מידות',
+    notifications: 'התראות',
+  };
+  const en: Record<string, string> = {
+    watch: 'your watch',
+    photo: 'a profile photo',
+    personalInfo: 'your personal details',
+    sizes: 'your sizes',
+    notifications: 'notifications',
+  };
+  return (locale === 'he' ? he : en)[gap] || '';
+}
+
+/** "א, ב ו-ג" / "a, b and c" — the list as a sentence, not as bullet points. */
+function listWords(locale: NotificationLocale, words: string[]): string {
+  if (words.length <= 1) return words[0] || '';
+  const head = words.slice(0, -1).join(', ');
+  const tail = words[words.length - 1];
+  return locale === 'he' ? `${head} ו${tail}` : `${head} and ${tail}`;
+}
+
+/**
  * Badge names live in the DB in both languages (badges.name_he / name_en), so
  * this takes both and picks — the one case where the copy isn't fully owned by
  * this module.

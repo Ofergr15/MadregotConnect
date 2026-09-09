@@ -6,6 +6,7 @@ import { computeSetupState } from '@/lib/onboarding/setup-tasks';
 import {
   entryStage,
   isBlockedByMaintenance,
+  isRemoved,
   realEmail,
   sortByFlow,
   type EntryQueueMember,
@@ -212,6 +213,10 @@ export async function GET(request: Request) {
         // Named, not just counted: "3 מתוך 5" sends the coach to the profile to
         // find out which 3, and the answer was already in this response.
         setupMissing: setup.tasks.filter((t) => !t.done).map((t) => t.key),
+        // Sent, not filtered out: the panel keeps them out of the flow but needs the
+        // rows to offer "put them back", which is the whole reason the removal is
+        // soft. A removal nobody can find again is a delete with extra steps.
+        removed: isRemoved(a as { status?: string | null }),
       };
     });
 
@@ -240,6 +245,10 @@ export async function GET(request: Request) {
       // session, never an email literal — login is Strava-only, so a check against
       // APPROVER_EMAILS can never match anybody.
       canApprove: caller.canApprove,
+      // Ending a membership is admin-only, unlike every other action here — see the
+      // header of the remove route. The client hides the button on this; the route
+      // enforces it, because a hidden button is not a permission.
+      canRemove: caller.isSuperUser || caller.role === 'admin',
       // Furthest-behind first: the flow's own order, so the top of the list is
       // the club's oldest failure rather than its newest signup.
       members: sortByFlow(members),

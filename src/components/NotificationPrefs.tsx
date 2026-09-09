@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing, Send, RefreshCw, Globe, ShieldCheck } from 'lucide-react';
+import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyPopper, BellRing, Send, RefreshCw, Globe, ShieldCheck, Share, ExternalLink, BellOff } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Switch } from '@/components/ui';
-import { subscribeToPush } from '@/lib/pwa';
+import { isInAppBrowser, isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
+import { pushEnvironment, type PushEnvironment } from '@/lib/push-environment';
 import { logClient } from '@/lib/client-log';
 
 type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events' | 'management';
@@ -55,6 +56,7 @@ const ROWS: { key: Category; icon: typeof Calendar; bg: string; staffOnly?: bool
 // returns all-on defaults and PUT is a no-op 501, so toggles simply won't stick).
 export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   const t = useTranslations('notificationPrefs');
+  const tInstall = useTranslations('install');
   const { data, mutate } = useApi<{ prefs: Prefs; isStaff?: boolean }>(
     athleteId ? `/api/athletes/notification-prefs?athleteId=${encodeURIComponent(athleteId)}` : null,
     // Disabled specifically here: this is what actually caused the "toggle it
@@ -76,6 +78,34 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   // waiting for approval), so without this there is no way back in for
   // someone whose permission got reset outside those two moments.
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
+
+  // WHY push can't work here, when it can't — and it is never the permission.
+  //
+  // Reported 2026-09-08 from an iPhone on iOS 18.7, in a Safari TAB: "send a
+  // test notification" answered "no push subscription on this device — try
+  // 'Fix notifications on this device'", and the repair row it named was not on
+  // her screen. Nothing on that screen could have helped her. iOS exposes
+  // PushManager only to an app launched from the home screen, so in a tab
+  // `Notification` does not exist at all — which left `permission` null, and
+  // both the enable row (`permission && permission !== 'granted'`) and the
+  // repair row (`permission === 'granted'`) render on a non-null permission.
+  // The one instruction the screen gave pointed at the one row it had hidden.
+  //
+  // So the reason is computed once, up front, and the screen says it out loud.
+  // Null until the effect runs: every probe reads window, so a server render has
+  // no answer and must not claim one.
+  const [pushEnv, setPushEnv] = useState<PushEnvironment | null>(null);
+  useEffect(() => {
+    setPushEnv(pushEnvironment({
+      inAppBrowser: isInAppBrowser(),
+      ios: isIosDevice(),
+      standalone: isStandalone(),
+      pushApiAvailable:
+        typeof Notification !== 'undefined' &&
+        'serviceWorker' in navigator &&
+        'PushManager' in window,
+    }));
+  }, []);
   const [enabling, setEnabling] = useState(false);
   const [enableError, setEnableError] = useState<string | null>(null);
   useEffect(() => {
@@ -175,8 +205,14 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       // so renaming that row can't leave these instructions pointing at a row
       // that no longer exists under that name.
       const repair = t('repair');
+      // A zero total on a device that CANNOT hold a subscription is not the same
+      // answer as a zero total on one that can. Pointing the first case at the
+      // repair row is what made this report: the row is hidden there, and
+      // re-subscribing is impossible anyway.
       setTestResult(
-        total === 0
+        total === 0 && pushEnv && pushEnv !== 'ready'
+          ? t(`env.${pushEnv}Short`)
+          : total === 0
           ? t('noSubscription', { repair })
           : sent === 0
             ? t('sentNone', { total, repair })
@@ -274,7 +310,34 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
     // src/app/layout.tsx), and forcing rtl here left the English version of this
     // screen — the very screen where English is chosen — laid out right-to-left.
     <div>
-      {permission && permission !== 'granted' && (
+      {pushEnv && pushEnv !== 'ready' && (
+        <>
+          <InsetSection header={t('pushHeader')}>
+            <InsetRow
+              icon={pushEnv === 'installFirst' ? Share : pushEnv === 'inAppBrowser' ? ExternalLink : BellOff}
+              iconBg={pushEnv === 'unsupported' ? 'bg-ink-300' : 'bg-accent-red'}
+              label={t(`env.${pushEnv}Title`)}
+            />
+          </InsetSection>
+          {/* Below the row, not in its `sublabel`: InsetRow truncates both of its
+              lines to one, and the explanation is the part that has to be read
+              in full — this row exists precisely because the one-line version of
+              it sent somebody chasing a control that wasn't there. */}
+          <p className="px-4 pb-2 -mt-1 text-xs text-ink-400" dir="auto">{t(`env.${pushEnv}Body`)}</p>
+          {/* The Share-sheet steps, spelled out, because iOS has no install
+              prompt to offer and no way to report that the icon was added. Same
+              three steps the first-run install screen gives — read from the
+              `install` namespace rather than copied, so the two can't drift. */}
+          {pushEnv === 'installFirst' && (
+            <ol className="px-4 pb-3 -mt-1 space-y-1 text-xs text-ink-400 list-decimal list-inside" dir="auto">
+              <li>{tInstall('iosStep1')}</li>
+              <li>{tInstall('iosStep2')}</li>
+              <li>{tInstall('iosStep3')}</li>
+            </ol>
+          )}
+        </>
+      )}
+      {pushEnv === 'ready' && permission && permission !== 'granted' && (
         <InsetSection header={t('pushHeader')}>
           <InsetRow
             icon={BellRing}

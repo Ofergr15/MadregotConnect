@@ -316,7 +316,10 @@ export async function runStravaSyncRequest(request: Request) {
           // existingByStrava (keyed by strava_activity_id) can never match. Without
           // this check every such run gets counted twice (badges, challenges, shoe
           // mileage, teammate pushes). See hasCrossSourceDuplicate's own comment.
-          if (await hasCrossSourceDuplicate(supabase, athlete.id, a.start_date_local, distanceM)) {
+          // `elapsed_time` (not moving_time): the overlap test compares wall clock
+          // against the other source's stored duration, and a run's moving time is
+          // shorter than the span it actually occupied.
+          if (await hasCrossSourceDuplicate(supabase, athlete.id, a.start_date_local, distanceM, a.elapsed_time)) {
             continue;
           }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { pickAthleteRow, stravaIdFromAuthEmail } from '@/lib/auth/athlete-identity';
+import { isRemoved } from '@/lib/admin/entry-queue';
 
 // Every athlete field any branch below needs, so the table is read once.
 const ATHLETE_COLUMNS =
@@ -196,6 +197,17 @@ export async function POST(req: NextRequest) {
             email: anyAthlete.email,
             group_id: anyAthlete.group_id,
           },
+        });
+      }
+      // A returning member is reactivated — EXCEPT one who was removed from the
+      // club. That value is terminal: this line used to resurrect any non-active
+      // status, so removing somebody would have quietly undone itself the next time
+      // they opened the app. Their membership stays 'inactive', which is what the
+      // shell already renders AccessBlocked for.
+      if (isRemoved(anyAthlete)) {
+        return NextResponse.json({
+          removed: true,
+          athlete: { id: anyAthlete.id, name: anyAthlete.name, email: anyAthlete.email, group_id: anyAthlete.group_id },
         });
       }
       if (anyAthlete.status !== 'active') {

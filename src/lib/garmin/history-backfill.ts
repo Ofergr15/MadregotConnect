@@ -183,7 +183,10 @@ async function backfillAthlete(
   };
 
   // Everything this athlete already has, in ONE read: the Garmin ids for the
-  // same-source check, and (start_time, distance) for the cross-source one.
+  // same-source check, and (start_time, distance, duration) for the cross-source
+  // one — duration because the comparison also asks whether the two recordings
+  // cover the same wall clock, which is what keeps a set of reps from reading as
+  // one run duplicated.
   //
   // The second half of that used to be a query PER CANDIDATE ACTIVITY, and that
   // is what made the first real import fail. A hundred list rows meant a hundred
@@ -194,7 +197,7 @@ async function backfillAthlete(
   // removes all of them.
   const { data: existingRows, error: existingError } = await supabase
     .from('athlete_activities')
-    .select('garmin_activity_id, start_time, distance')
+    .select('garmin_activity_id, start_time, distance, duration')
     .eq('athlete_id', athlete.id);
   if (existingError) return { ...base, error: existingError.message };
   const existingIds = new Set(
@@ -203,9 +206,10 @@ async function backfillAthlete(
   // Grows as the walk inserts, so a run imported on page 2 still shields its
   // Strava twin from being imported again on page 3.
   const storedActivities: StoredActivity[] = (existingRows || []).map(
-    (r: { start_time: string | null; distance: number | null }) => ({
+    (r: { start_time: string | null; distance: number | null; duration: number | null }) => ({
       start_time: r.start_time,
       distance: r.distance,
+      duration: r.duration,
     }),
   );
 
@@ -234,7 +238,7 @@ async function backfillAthlete(
 
     const rows: Record<string, unknown>[] = [];
     for (const a of candidates) {
-      if (matchesStoredActivity(storedActivities, a.startTimeLocal, a.distance)) continue;
+      if (matchesStoredActivity(storedActivities, a.startTimeLocal, a.distance, a.duration)) continue;
       // Detail is `null`: no per-activity Garmin call. The mapper falls back to
       // the list row for every scalar, and `gps_points`/`has_polyline` are then
       // dropped so `PATCH ?mode=route` still sees this row as one needing a map.
@@ -258,7 +262,17 @@ async function backfillAthlete(
       // Guard the rest of THIS page against a Garmin list that repeats an id
       // across the overlap, and the next page against re-reading it.
       existingIds.add(a.activityId);
-      storedActivities.push({ start_time: a.startTimeLocal, distance: Math.round(a.distance) });
+      // duration travels with it so the overlap test works against rows this walk
+      // inserted too — which is also what makes a two-device recording of one old
+      // run collapse here, the same way `dedupeSameSourceBatch` collapses it on
+      // the live path. History keeps whichever copy Garmin listed first rather
+      // than the better recording: the live path can compare full list rows, and
+      // an old run's map arrives later from `PATCH ?mode=route` either way.
+      storedActivities.push({
+        start_time: a.startTimeLocal,
+        distance: Math.round(a.distance),
+        duration: Math.round(a.duration),
+      });
     }
 
     if (rows.length > 0) {

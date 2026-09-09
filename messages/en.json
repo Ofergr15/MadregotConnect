@@ -336,7 +336,8 @@
     "maintenanceRelease": "Release from maintenance",
     "maintenanceBlock": "Block during maintenance",
     "maintenanceSaving": "Updating…",
-    "maintenanceOpenQueue": "Entry queue"
+    "maintenanceOpenQueue": "Entry queue",
+    "removed": "Removed"
   },
   "planner": {
     "title": "Weekly Planner",
@@ -1906,6 +1907,17 @@
     "enableError": "Error: {error}",
     "permissionDenied": "Blocked — allow notifications in your device settings",
     "notEnabledHere": "Not enabled on this device",
+    "env": {
+      "installFirstTitle": "Add to your home screen first",
+      "installFirstBody": "On iPhone, push notifications only work from the app installed on your home screen. In a browser tab they do not exist at all — not blocked, simply unavailable.",
+      "installFirstShort": "On iPhone, add to the home screen and open it from there — a browser tab has no push",
+      "inAppBrowserTitle": "Open this in your browser",
+      "inAppBrowserBody": "You're inside another app's browser (WhatsApp, Instagram). It can't install the app and can't receive push. Open the link in Safari or Chrome.",
+      "inAppBrowserShort": "You're in another app's browser — open this in Safari or Chrome",
+      "unsupportedTitle": "Push not supported here",
+      "unsupportedBody": "Notifications will still appear inside the app, under the bell at the top.",
+      "unsupportedShort": "This browser does not support push notifications"
+    },
     "languageHeader": "Language / שפה",
     "languageActive": "app + notifications / האפליקציה וההתראות",
     "testHeader": "Test notifications",
@@ -2558,6 +2570,21 @@
     "orphanApprove": "Approve and send the link",
     "orphanApproved": "Approved — the link was emailed",
     "orphanReject": "Turn down",
-    "orphanRejected": "Request turned down"
+    "orphanRejected": "Request turned down",
+    "group_removed": "Removed",
+    "empty_removed": "Nobody has been removed",
+    "removedIntro": "Removed from the club. Their runs, PRs and whole history are kept — putting them back is one tap.",
+    "removeFromClub": "Remove from the club",
+    "removeConfirmTitle": "Remove {name} from the club?",
+    "removeConfirmBody": "They lose access to the app and drop out of the roster, the league and their group. Their runs, PRs and entire history are kept — and one tap in the “Removed” tab puts them back.",
+    "removeConfirmYes": "Yes, remove",
+    "removeConfirmNo": "Cancel",
+    "removeDone": "Removed from the club · restore from the “Removed” tab",
+    "restoreDone": "Back in the club ✓",
+    "restoreToClub": "Put back",
+    "missing_login": "getting into the app",
+    "reminderWillSay": "The reminder will say what's missing: {items}",
+    "reminderWillSayGeneral": "The reminder will invite them in to finish setting up",
+    "reminderInboxOnly": "in-app inbox only"
   }
 }
