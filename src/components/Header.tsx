@@ -353,11 +353,17 @@ export function Header() {
             )}
 
             {/* Search (roadmap #17). Mobile has its own entry below — the round
-                icon button next to the bell — plus a row in BottomTabBar's
-                "More" sheet. */}
+                icon button next to the bell. Both are FIXED entries in the top
+                bar: search is not in any nav list and no longer in the "More"
+                sheet, so it can't be revoked and can't be missed. */}
             <Link
               href="/dashboard/search"
-              className={cn('p-2 rounded-lg transition-colors', 'text-ink-400 hover:text-brand-600 hover:bg-card')}
+              className={cn(
+                'p-2 rounded-lg transition-colors',
+                pathname === '/dashboard/search'
+                  ? 'text-brand-600 bg-card'
+                  : 'text-ink-400 hover:text-brand-600 hover:bg-card',
+              )}
               title={t('search')}
               aria-label={t('search')}
             >
@@ -515,12 +521,15 @@ export function Header() {
                 )}
               </Link>
             )}
+            {/* Search's ONLY mobile entry point since 2026-09-09 — the "More"
+                sheet card was removed, so this button carries the active state
+                the card used to show. */}
             <Link
               href="/dashboard/search"
               aria-label={t('search')}
               className={cn(
                 'flex items-center justify-center w-11 h-11 rounded-full active:scale-95 transition-transform',
-                'bg-card text-brand-600',
+                pathname === '/dashboard/search' ? 'bg-brand-600 text-white' : 'bg-card text-brand-600',
               )}
             >
               <SearchIcon className="h-5 w-5" />

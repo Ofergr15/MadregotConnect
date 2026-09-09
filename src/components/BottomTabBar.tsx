@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, Bug } from 'lucide-react';
+import { Menu, CalendarCheck, ShoppingBag, Gift, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
@@ -72,22 +72,25 @@ export function BottomTabBar() {
   for (const item of navItems) {
     if (primary.length >= 4) break;
     if (isStaffView && item.tab === 'practice-attendance') continue;
-    // Review has two permanent homes of its own now — the button beside the logo
-    // in the Header and the static card in the sheet below — so it must never be
-    // promoted into a flat tab, which would spend one of four daily-use slots on
-    // a screen you visit when something breaks.
+    // Review has a permanent home of its own — the beetle beside the logo in the
+    // Header, on every screen size — so it must never be promoted into a flat
+    // tab, which would spend one of four daily-use slots on a screen you visit
+    // when something breaks.
     if (item.tab === 'review') continue;
     if (byTab.has(item.tab)) { primary.push(item); byTab.delete(item.tab); }
   }
-  // Same reason review is skipped above: it's a static card in the sheet for
-  // every role, so leaving it in the permission-gated overflow would print it
-  // twice for anyone whose `review` tab is enabled.
+  // Same reason review is skipped above: the Header shows it to every role
+  // unconditionally, so leaving it in the permission-gated overflow would print
+  // it twice for anyone whose `review` tab is enabled.
   const overflow = navItems.filter(i => byTab.has(i.tab) && i.tab !== 'review');
   const isActive = (href: string) => pathname === href;
   const overflowActive = overflow.some(i => isActive(i.href));
   // The static quick-action pages are reachable from the "More" sheet only, so
   // they light its slot up exactly like an overflow page does.
-  const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits', '/dashboard/review'];
+  // Search and review are NOT here: they moved out of the sheet to their fixed
+  // Header entries, and lighting "More" up on a page the sheet no longer offers
+  // would point at the wrong door.
+  const MORE_SHEET_HREFS = ['/dashboard/store', '/dashboard/benefits'];
   const moreActive = MORE_SHEET_HREFS.some(isActive);
 
   // STAFF ONLY: one "do something now" destination, additive to the 4 primary
@@ -174,7 +177,7 @@ export function BottomTabBar() {
         {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
 
         {/* "עוד" is unconditional: the sheet always has the static quick-actions
-            group (search/store/benefits), so it's never empty — and it used to
+            group (store/benefits), so it's never empty — and it used to
             vanish entirely for a role whose every enabled tab fit in the bar
             (e.g. `viewer`: activities/dashboard/program), taking the only mobile
             route to those three pages with it. */}
@@ -198,21 +201,25 @@ export function BottomTabBar() {
       <Sheet open={moreOpen} onOpenChange={setMoreOpen} title={t('more' as any)} className="md:hidden">
         <div className="space-y-5">
           {/* Static group — every role, not gated by role_mobile_tab_permissions
-              (roadmap #17, In-App Global Search; roadmap #9, Store; roadmap
-              #5, Benefits/Discounts; Photos — was previously unreachable from
-              mobile nav entirely, same "every role, always visible" fix). */}
+              (roadmap #9, Store; roadmap #5, Benefits/Discounts; Photos — was
+              previously unreachable from mobile nav entirely, same "every role,
+              always visible" fix). */}
           <div>
             <p className={cn('px-1 mb-2 text-2xs font-bold uppercase tracking-wider', 'text-ink-400')}>{t('quickActions' as any)}</p>
             <div className="grid grid-cols-3 gap-3">
-              <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />
               <MoreCard icon={Gift} label={t('benefits' as any)} href="/dashboard/benefits" active={isActive('/dashboard/benefits')} onClick={() => setMoreOpen(false)} />
-              {/* Review — static, like the three above, and for a stronger
-                  reason: it's the "something is broken" channel, so it cannot be
-                  gated by a permission row that might itself be the thing that's
-                  wrong. Also lives beside the logo in the Header now; this card
-                  keeps the place the club already knows. */}
-              <MoreCard icon={Bug} label={t('review' as any)} href="/dashboard/review" active={isActive('/dashboard/review')} onClick={() => setMoreOpen(false)} />
+              {/* Search and Review used to sit here too, and both were removed
+                  2026-09-09: each already has a PERMANENT home in the Header on
+                  every screen size — search is the round button in the top-right
+                  cluster, review is the beetle beside the logo — so a card here
+                  was a second door to a destination the top bar never hides.
+                  Two fewer things in the menu, and neither becomes harder to
+                  reach: the fixed one is closer than one inside a sheet.
+
+                  Both are still filtered out of `overflow` below, so a role whose
+                  `review` permission row is enabled doesn't get it back as a
+                  card. Do not re-add without first taking the Header entry out. */}
               {/* Photos is still being built — card and route disabled for now.
                   Restore with the Header nav entry and the page (re-add the
                   lucide Camera import too). */}
