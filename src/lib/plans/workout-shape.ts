@@ -2,6 +2,9 @@ import type { WorkoutStep } from '@/lib/ai/types';
 import { stepPaceTokens, joinGroupPaces } from '@/lib/garmin/pace';
 import { stepDurationSec } from '@/lib/workout-duration';
 import { isRestStep, stepQualifier } from './step-display';
+// The card's heading and the grader's verdict have to agree on where the session
+// ends, so the jog-home test lives with the roles rather than here.
+import { isJogHome } from './graded-steps';
 
 /**
  * The SHAPE of a workout — how its steps group into sections and sets — as
@@ -32,19 +35,6 @@ export interface WorkoutSection {
   steps: WorkoutStep[];
 }
 
-/** 4:40/km or slower, over a short distance, at the end of a session — a jog home. */
-const COOLDOWN_PACE_FLOOR = 280;
-const COOLDOWN_MAX_METERS = 2000;
-
-function isCooldownish(step: WorkoutStep): boolean {
-  if (step.type === 'cooldown' || step.type === 'recovery') return true;
-  return step.type === 'active'
-    && step.durationType === 'distance'
-    && !!step.durationValue
-    && step.durationValue <= COOLDOWN_MAX_METERS
-    && (step.targetPaceMinPerKm || 0) >= COOLDOWN_PACE_FLOOR;
-}
-
 /**
  * A LEADING run of warmups and a TRAILING run of easy work; everything between
  * them is the session.
@@ -57,7 +47,7 @@ export function workoutSections(steps: WorkoutStep[]): WorkoutSection[] {
   let start = 0;
   while (start < steps.length && steps[start].type === 'warmup') start++;
   let end = steps.length;
-  while (end > start && isCooldownish(steps[end - 1])) end--;
+  while (end > start && isJogHome(steps[end - 1])) end--;
 
   const sections: WorkoutSection[] = [
     { kind: 'warmup', steps: steps.slice(0, start) },

@@ -6,6 +6,7 @@ import {
   type ExecutedStep, type ExecutedWorkout,
 } from '../garmin/executed-workout';
 import type { StoredLap } from '../garmin/laps';
+import { isSupportStep, stepRole } from '../plans/graded-steps';
 
 // ── Grading against the workout the watch actually ran ───────────────────────
 // The other two engines in here INFER which part of the plan a stretch of running
@@ -259,8 +260,7 @@ export function gradeWatchSteps(
   });
 
   const graded = verdicts.filter(v => v.graded);
-  const repeated = verdicts.filter(v =>
-    v.plannedRepeats > 1 && v.type !== 'rest' && v.type !== 'recovery');
+  const repeated = verdicts.filter(v => v.plannedRepeats > 1 && stepRole(v) !== 'rest');
   const targeted = repeated.filter(v => v.graded);
   return {
     workoutName: workout.name,
@@ -284,8 +284,7 @@ export function gradeWatchSteps(
  */
 export function dominantWatchStep(report: WatchStepReport): WatchStepVerdict | null {
   return report.steps
-    .filter(v => v.graded && v.status !== 'unknown' && !v.truncated
-      && v.type !== 'warmup' && v.type !== 'cooldown')
+    .filter(v => v.graded && v.status !== 'unknown' && !v.truncated && !isSupportStep(v))
     .sort((a, b) => b.actualDistanceM - a.actualDistanceM)[0] || null;
 }
 
@@ -336,8 +335,7 @@ const PARTIAL_RUN_MIN = 0.5;
 export function partialWatchStep(report: WatchStepReport): WatchStepVerdict | null {
   const ran = report.steps.reduce((sum, v) => sum + v.actualDistanceM, 0);
   return report.steps
-    .filter(v => v.graded && v.status !== 'unknown' && v.truncated
-      && v.type !== 'warmup' && v.type !== 'cooldown'
+    .filter(v => v.graded && v.status !== 'unknown' && v.truncated && !isSupportStep(v)
       && (stepRanFraction(v) ?? 0) >= PARTIAL_STEP_MIN
       && v.actualDistanceM >= ran * PARTIAL_RUN_MIN)
     .sort((a, b) => b.actualDistanceM - a.actualDistanceM)[0] || null;

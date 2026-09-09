@@ -2,6 +2,7 @@ import { ParsedWorkout } from '../ai/types';
 import { DEFAULT_TOLERANCES, PaceStatus, assessPace } from './adherence';
 import { Lap, PlannedSegment, flattenPlannedSteps } from './segments';
 import type { ActivityStream } from '../garmin/streams';
+import { isSupportStep } from '../plans/graded-steps';
 
 /**
  * Grading a plan against the run that was actually done, block by block.
@@ -552,8 +553,7 @@ export function gradePlanBlocks(
  */
 export function dominantBlock(report: BlockReport): BlockVerdict | null {
   return report.blocks
-    .filter(b => b.status !== 'unknown' && !b.truncated
-      && b.type !== 'warmup' && b.type !== 'cooldown')
+    .filter(b => b.status !== 'unknown' && !b.truncated && !isSupportStep(b))
     .sort((a, b) => b.plannedLengthM - a.plannedLengthM)[0] || null;
 }
 

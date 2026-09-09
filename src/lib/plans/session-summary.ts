@@ -43,7 +43,12 @@ const FRAME_SHARE = 0.15;
 /** How many blocks besides the main set the sub-line will name. */
 const MAX_FRAME_ITEMS = 2;
 
-function isWorkStep(step: WorkoutStep): boolean {
+/**
+ * A structured effort — a set, or a rep. Not the same question as `isWorkStep` in
+ * `graded-steps`, which asks what a VERDICT may be about: a 20 km at 4:25 is
+ * absolutely the work of the session, and it is not a set.
+ */
+function isSetStep(step: WorkoutStep): boolean {
   return !!step.repeatCount || step.type === 'interval';
 }
 
@@ -68,7 +73,7 @@ export function classifyWorkout(workout: ParsedWorkout): WorkoutType {
   if (!workout.steps.length) return 'easy';
 
   const totalSec = workoutDurationSec(workout);
-  const workSec = workout.steps.filter(isWorkStep).reduce((sum, s) => sum + stepDurationSec(s), 0);
+  const workSec = workout.steps.filter(isSetStep).reduce((sum, s) => sum + stepDurationSec(s), 0);
   if (totalSec > 0 && workSec / totalSec >= SET_SHARE) return 'intervals';
 
   // Distance LAST, so a 21 km interval session (Tuesday morning) is not filed
@@ -180,7 +185,7 @@ export function sessionFrame(steps: WorkoutStep[], labels: FrameLabels): string 
   const parts: string[] = [];
   for (const item of items.slice(1)) {
     const worthNaming = item.kind === 'ladder'
-      || isWorkStep(item.step)
+      || isSetStep(item.step)
       || itemSec(item) / totalSec >= FRAME_SHARE;
     if (!worthNaming) continue;
     const label = itemLabel(item, labels);

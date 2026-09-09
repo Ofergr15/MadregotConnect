@@ -1,5 +1,6 @@
 import { ParsedWorkout, WorkoutStep } from '../ai/types';
 import { ASSUMED_PACE, stepDistanceRange } from '../plans/step-estimate';
+import { flattenWithRoles, isPacedStep } from '../plans/graded-steps';
 
 // ── Adherence engine ────────────────────────────────────────────────────────
 // Pure functions that compare a coach's PLANNED workouts to what an academy
@@ -204,11 +205,11 @@ function flattenSteps(steps: WorkoutStep[]): WorkoutStep[] {
 // Warmup/cooldown/rest/recovery are excluded when there are real work steps, so
 // an interval session's band reflects the intervals, not the jog.
 function computePaceBand(steps: WorkoutStep[]): { min?: number; max?: number } {
-  const flat = flattenSteps(steps);
-
-  const paced = flat.filter(s => s.targetType === 'pace' && s.targetPaceMinPerKm);
-  const work = paced.filter(s => s.type === 'interval' || s.type === 'active');
-  const pool = work.length ? work : paced;
+  // The roled flatten, not the plain one: Friday's closing "2 ק״מ 5:00" is typed
+  // `active`, and counting it as work stretched the medio's band to 4:00–5:00.
+  const paced = flattenWithRoles(steps).filter((l) => isPacedStep(l.step));
+  const work = paced.filter((l) => l.role === 'work');
+  const pool = (work.length ? work : paced).map((l) => l.step);
   if (!pool.length) return {};
 
   let min = Infinity;
