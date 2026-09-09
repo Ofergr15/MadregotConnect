@@ -6,13 +6,16 @@ import { useTranslations } from 'next-intl';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Button, SegmentedControl, Skeleton, Switch } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
+import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
 
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
 type ShirtSize = (typeof SHIRT_SIZES)[number];
 
 // EU running-shoe sizing, half-size steps — a free-text field let people type
-// anything (US/UK/cm mixed in), so this is a fixed picklist instead.
-const SHOE_SIZES = Array.from({ length: 21 }, (_, i) => (36 + i * 0.5).toString().replace(/\.0$/, ''));
+// anything (US/UK/cm mixed in), so this is a fixed picklist instead. The range
+// (36–50, extended from 46 after a member had no size to pick) and the reasoning
+// live in lib/shoe-catalog.ts, where a test holds the bounds.
+const SHOE_SIZES = EU_SHOE_SIZES;
 
 interface PersonalInfoData {
   name: string;
