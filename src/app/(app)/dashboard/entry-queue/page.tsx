@@ -448,7 +448,7 @@ export default function EntryQueuePage() {
                   className="w-full flex items-center gap-2 text-start group"
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0 text-ink-400" />
-                  <span className="w-[86px] shrink-0 text-2xs font-semibold text-ink-600 truncate">
+                  <span className="w-[86px] shrink-0 text-2xs font-semibold text-ink-500 truncate">
                     {t(`step_${step}` as never)}
                   </span>
                   <span className="flex-1 h-2.5 rounded-full bg-page overflow-hidden">
@@ -856,7 +856,7 @@ function FlowTrack({
             <span
               className={cn(
                 'mt-1.5 text-[9px] leading-tight text-center w-full px-0.5',
-                isStuck ? 'font-bold text-accent-red' : passed ? 'font-semibold text-ink-600' : 'text-ink-300',
+                isStuck ? 'font-bold text-accent-red' : passed ? 'font-semibold text-ink-500' : 'text-ink-300',
               )}
             >
               {label(step)}
