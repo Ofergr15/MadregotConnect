@@ -126,7 +126,19 @@
         var msg = document.getElementById('msg');
         var diag = document.getElementById('diag');
         var retry = document.getElementById('retry');
+        // Two counters, not one, and they are not interchangeable. `attempts` is
+        // how many checks we have made — it exists for the diagnostic line, so a
+        // manual press has to count. `step` is how far down the backoff we are, and
+        // a manual press must NOT count: otherwise three impatient taps push the
+        // background chain straight to its 20-second rung, which is the opposite of
+        // what tapping meant.
         var attempts = 0;
+        var step = 0;
+        // The one pending probe. Held so that a press, an `online` event and the
+        // chain itself REPLACE each other instead of each spawning their own chain
+        // — the old code left every trigger running in parallel, so a phone that
+        // flapped a few times ended up probing several times a second.
+        var timer = null;
         var stopped = false;
         // 2s, 5s, 10s, then every 20s. Quick enough that a four-second timeout on
         // a cold server start becomes a blink, slow enough to leave a phone with
@@ -140,8 +152,19 @@
             ' · ' + new Date().toLocaleTimeString('he-IL');
         }
 
+        function cancel() {
+          if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+          }
+        }
+
         function probe() {
           if (stopped) return;
+          // Whatever woke us — the timer, the button, the OS — this is now the only
+          // probe in flight. Drop any other pending one before adding ours back in
+          // `schedule()`.
+          cancel();
           attempts++;
           show();
           // cache: 'no-store' plus a changing query string: two independent ways
@@ -150,6 +173,7 @@
             .then(function (r) {
               if (!r.ok && r.status !== 204) throw new Error('bad status');
               stopped = true;
+              cancel();
               msg.textContent = 'החיבור חזר, טוענים מחדש…';
               location.reload();
             })
@@ -161,8 +185,10 @@
 
         function schedule() {
           if (stopped) return;
-          var wait = WAITS[Math.min(attempts, WAITS.length - 1)];
-          setTimeout(probe, wait);
+          cancel();
+          var wait = WAITS[Math.min(step, WAITS.length - 1)];
+          step++;
+          timer = setTimeout(probe, wait);
         }
 
         retry.addEventListener('click', function () {
@@ -171,6 +197,9 @@
           // still trying instead of on this same screen with no explanation.
           retry.disabled = true;
           msg.textContent = 'בודקים חיבור…';
+          // An explicit ask resets the backoff: if this check fails the next one
+          // should be 2s away, not wherever a long wait had drifted to.
+          step = 0;
           probe();
           setTimeout(function () {
             if (stopped) return;
@@ -181,7 +210,13 @@
 
         // The OS noticing the network came back is worth acting on immediately —
         // it just isn't worth waiting for, which is why the timer runs anyway.
-        window.addEventListener('online', probe);
+        window.addEventListener('online', function () {
+          // The network itself changed, so the patience we had built up describes a
+          // situation that no longer exists. Start the backoff over: a phone coming
+          // out of a tunnel shouldn't wait 20s to find out it has signal.
+          step = 0;
+          probe();
+        });
         show();
         schedule();
       })();

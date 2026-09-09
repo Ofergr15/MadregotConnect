@@ -77,7 +77,32 @@ const serwist = new Serwist({
   // it reaches this file, per-entry file size is no longer available, so
   // filtering here isn't possible). See that file for the threshold + why.
   precacheEntries: self.__SW_MANIFEST ?? [],
-  skipWaiting: true,
+  // ⚠️ FALSE on purpose, and it is load-bearing. This was `true`, which is what
+  // made a deploy reload the app out from under whoever was using it.
+  //
+  // With `true`, a newly installed worker activates immediately and `clientsClaim`
+  // hands it the page you are LOOKING AT — a page still running the previous
+  // build's JS. In the same activation, the handler below deletes that build's page
+  // buckets and Serwist prunes its precache, so the next chunk that page lazy-loads
+  // is gone from the cache AND gone from the server (the deploy replaced it). A
+  // failed chunk load reloads the page. That is the "ריפרש שהופך ל-hard refresh"
+  // report, and the update banner appearing was the symptom of the takeover rather
+  // than a prompt before it.
+  //
+  // With `false` the new worker waits. `UpdatePrompt` shows the banner off
+  // `registration.waiting` and the tap sends `SKIP_WAITING` — which only exists as
+  // a message listener in Serwist's `else` branch (`if (skipWaiting)
+  // self.skipWaiting(); else self.addEventListener("message", …)`), so with `true`
+  // that postMessage had nothing listening and every tap fell through to the
+  // component's 2 s timeout instead. The handshake was already written correctly;
+  // this flag was the reason it never ran.
+  //
+  // The cost, accepted: somebody who ignores the banner keeps the old build until
+  // their tabs close. That is the choice the banner exists to offer them.
+  skipWaiting: false,
+  // Still true, and it is what makes the tap feel instant: once the waiting worker
+  // does activate it claims the open pages straight away, so `controllerchange`
+  // fires and UpdatePrompt reloads on the real signal instead of its timeout.
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [

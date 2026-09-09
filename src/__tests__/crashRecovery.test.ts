@@ -97,6 +97,25 @@ describe('hardReload', () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
+  it('tells a waiting worker to take over, since nothing else will', async () => {
+    // sw.ts is `skipWaiting: false` on purpose, so an installed worker sits in
+    // `waiting` until the user accepts the update banner. On "reset this device"
+    // that would leave the freshly fetched worker parked while the old one served
+    // the reload — the one case where an immediate takeover is exactly what was
+    // asked for, and safe, because the reload is already coming.
+    const postMessage = vi.fn();
+    vi.stubGlobal('caches', { keys: async () => [], delete: vi.fn() });
+    vi.stubGlobal('navigator', {
+      serviceWorker: {
+        getRegistrations: async () => [{ update: vi.fn().mockResolvedValue(undefined), waiting: { postMessage } }],
+      },
+    });
+
+    await hardReload();
+
+    expect(postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+  });
+
   it('clears the heal stamp so the next load re-verifies the subscription', async () => {
     // The heal runs once a day and only stamps on success. Without this, a
     // device whose subscription broke after today's heal stays unreachable until
