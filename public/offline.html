@@ -73,6 +73,18 @@
       button:active {
         opacity: 0.85;
       }
+      button[disabled] {
+        opacity: 0.5;
+      }
+      /* The diagnostic line. Small and dim on purpose: it is for the screenshot
+         somebody sends us, not for the athlete standing in a car park. */
+      .diag {
+        margin: 1.25rem 0 0;
+        font-size: 0.7rem;
+        line-height: 1.6;
+        color: #64748b;
+        font-variant-numeric: tabular-nums;
+      }
     </style>
   </head>
   <body>
@@ -90,8 +102,89 @@
         </svg>
       </div>
       <h1>אין חיבור לאינטרנט</h1>
-      <p>נראה שאתם במצב לא מקוון. בדקו את החיבור ונסו שוב.</p>
-      <button type="button" onclick="location.reload()">נסו שוב</button>
+      <p id="msg">נראה שאתם במצב לא מקוון. בדקו את החיבור ונסו שוב.</p>
+      <button id="retry" type="button">נסו שוב</button>
+      <p class="diag" id="diag"></p>
     </div>
+    <script>
+      /*
+       * This screen used to be a dead end: one button, and pressing it before the
+       * connection came back put you right back here. Two athletes reported it on
+       * 2026-09-08/09 while genuinely online — so the screen has to be able to
+       * undo itself.
+       *
+       * It probes /api/ping (204, no database, and NetworkOnly in the service
+       * worker so a cached answer cannot fake success) and reloads only once that
+       * answers. Nothing here trusts navigator.onLine: both reporting phones had
+       * a live connection and would have said true. It is printed instead, at the
+       * bottom, because a screenshot showing "online" next to this screen is the
+       * one piece of evidence that separates "the phone is off the network" from
+       * "the server is not answering" — the distinction that took hours to
+       * establish by hand for those two reports.
+       */
+      (function () {
+        var msg = document.getElementById('msg');
+        var diag = document.getElementById('diag');
+        var retry = document.getElementById('retry');
+        var attempts = 0;
+        var stopped = false;
+        // 2s, 5s, 10s, then every 20s. Quick enough that a four-second timeout on
+        // a cold server start becomes a blink, slow enough to leave a phone with
+        // no signal alone rather than burning its battery.
+        var WAITS = [2000, 5000, 10000, 20000];
+
+        function show() {
+          diag.textContent =
+            'חיבור: ' + (navigator.onLine ? 'מחובר' : 'לא מחובר') +
+            ' · בדיקות: ' + attempts +
+            ' · ' + new Date().toLocaleTimeString('he-IL');
+        }
+
+        function probe() {
+          if (stopped) return;
+          attempts++;
+          show();
+          // cache: 'no-store' plus a changing query string: two independent ways
+          // of making sure a stale 204 from any layer can't read as recovery.
+          fetch('/api/ping?t=' + Date.now(), { cache: 'no-store' })
+            .then(function (r) {
+              if (!r.ok && r.status !== 204) throw new Error('bad status');
+              stopped = true;
+              msg.textContent = 'החיבור חזר, טוענים מחדש…';
+              location.reload();
+            })
+            .catch(function () {
+              show();
+              schedule();
+            });
+        }
+
+        function schedule() {
+          if (stopped) return;
+          var wait = WAITS[Math.min(attempts, WAITS.length - 1)];
+          setTimeout(probe, wait);
+        }
+
+        retry.addEventListener('click', function () {
+          // A manual press means "check now" — but still a probe, not a blind
+          // reload, so a failed attempt leaves the athlete on a screen that is
+          // still trying instead of on this same screen with no explanation.
+          retry.disabled = true;
+          msg.textContent = 'בודקים חיבור…';
+          probe();
+          setTimeout(function () {
+            if (stopped) return;
+            retry.disabled = false;
+            msg.textContent = 'עדיין אין חיבור. ממשיכים לנסות ברקע.';
+          }, 4000);
+        });
+
+        // The OS noticing the network came back is worth acting on immediately —
+        // it just isn't worth waiting for, which is why the timer runs anyway.
+        window.addEventListener('online', probe);
+        show();
+        schedule();
+      })();
+    </script>
   </body>
 </html>
