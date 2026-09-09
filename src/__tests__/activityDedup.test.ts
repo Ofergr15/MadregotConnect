@@ -70,6 +70,27 @@ describe('matchesStoredActivity', () => {
     expect(matchesStoredActivity([stored()], '2026-03-01T06:00:00', 0)).toBe(false);
   });
 
+  // The line above — a zero-distance CANDIDATE is never a duplicate — is correct
+  // and was still a hole, so it is worth pinning what it does not cover.
+  //
+  // Measured 2026-09-08: an athlete's Strava held ten GPS-less recordings
+  // (distance 0, HR only), each a second copy of a run already imported from
+  // Garmin. This function cannot see that, and no threshold change here would
+  // fix it: with no GPS Strava has no timezone to localize with, so
+  // start_date_local arrives as UTC and lands hours outside the 15-minute
+  // window as well. Both halves fail, independently.
+  //
+  // The fix is therefore upstream, in the Strava sync: a distance-less recording
+  // is not imported at all. If that guard is ever removed, this is the comment
+  // explaining why the duplicates it lets in will not be caught here.
+  it('cannot catch a GPS-less Strava copy of a Garmin run, by construction', () => {
+    const garminRow = stored({ start_time: '2026-07-10T04:04:45', distance: 32024 });
+    // Zero distance: refused on the distance test.
+    expect(matchesStoredActivity([garminRow], '2026-07-10T04:04:45', 0)).toBe(false);
+    // And the timestamp is UTC, not local — 2.5h away from the run it duplicates.
+    expect(matchesStoredActivity([garminRow], '2026-07-10T01:36:00', 32024)).toBe(false);
+  });
+
   it('ignores unusable timestamps rather than matching everything', () => {
     expect(matchesStoredActivity([stored({ start_time: null })], '2026-03-01T06:00:00', 10000)).toBe(false);
     expect(matchesStoredActivity([stored({ start_time: 'not a date' })], '2026-03-01T06:00:00', 10000)).toBe(false);
