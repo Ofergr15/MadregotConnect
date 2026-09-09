@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { InstallPrompt } from '@/components/InstallPrompt';
@@ -19,7 +19,12 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { BLOCKED_MEMBERSHIPS } from '@/lib/auth/membership';
 import { getSupabase } from '@/lib/supabase/client';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
-import { APP_SCROLL_ID } from '@/lib/app-scroll';
+import {
+  APP_SCROLL_ID,
+  recallAppScroll,
+  rememberAppScroll,
+  restoreAppScroll,
+} from '@/lib/app-scroll';
 import { cn } from '@/lib/utils';
 
 // Shared shell for every signed-in surface — /dashboard/* and /feed — via the
@@ -94,18 +99,63 @@ export default function AppLayout({
     try { sessionStorage.setItem(REVIEW_LAST_PATH_KEY, pathname); } catch { /* private mode */ }
   }, [pathname]);
 
+  // ── SCROLL: TOP ON THE WAY IN, WHERE YOU LEFT IT ON THE WAY BACK ──────────
   // Next scrolls the WINDOW to the top on every navigation, and the window no
-  // longer scrolls — without this, tapping a link while scrolled halfway down
-  // opens the next screen already halfway down. Keyed on pathname only, so
-  // changing a tab via ?tab= (settings, profile) keeps your place as before.
+  // longer scrolls (see lib/app-scroll.ts) — without a reset here, tapping a
+  // link while scrolled halfway down opens the next screen already halfway down.
+  // Keyed on pathname only, so changing a tab via ?tab= (settings, profile)
+  // keeps your place as before.
   //
-  // This is a plain reset rather than Next's push-to-top/pop-to-restore pair:
-  // the router doesn't tell a layout which of the two it just did, and restoring
-  // the wrong offset is worse than losing it. Back navigation therefore lands at
-  // the top of the previous screen.
+  // Forward is a reset and BACK is a restore. This used to be a plain reset in
+  // both directions, on the grounds that the router doesn't tell a layout which
+  // of the two it just did — but the browser does: `popstate` fires for back and
+  // forward and for nothing else. The flag is a timestamp rather than a boolean
+  // because a pop that only changes the query string never reaches the effect
+  // below (it is keyed on pathname), and a boolean left standing would spend
+  // itself on the next forward navigation instead. Stale means expired.
+  const poppedAtRef = useRef(0);
   useEffect(() => {
-    const el = document.getElementById(APP_SCROLL_ID);
-    if (el) el.scrollTop = 0;
+    const onPop = () => { poppedAtRef.current = Date.now(); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Record the offset while the user scrolls, not on the way out: by the time
+  // the pathname has changed React has already re-rendered and the container is
+  // being reset, so there is nothing left to read. One rAF-coalesced write per
+  // frame at most.
+  //
+  // Listening on the document in the CAPTURE phase rather than on <main>
+  // directly, because <main> does not exist yet on a cold open — this layout
+  // returns a spinner until the session and /api/auth/me have both answered, and
+  // an effect that looked the element up at attach time would find nothing and
+  // never look again, losing the offset of the very first screen you land on
+  // (which is the one you scroll). Scroll events don't bubble, but they do reach
+  // the document in capture, so this survives the element appearing later.
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = (e: Event) => {
+      const el = e.target as HTMLElement | null;
+      if (!el || el.id !== APP_SCROLL_ID) return;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        rememberAppScroll(pathname, el.scrollTop);
+      });
+    };
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    const wasPop = Date.now() - poppedAtRef.current < 1000;
+    poppedAtRef.current = 0;
+    // restoreAppScroll(0) is the plain reset, so both directions go through it.
+    const cancel = restoreAppScroll(wasPop ? recallAppScroll(pathname) : 0);
+    return cancel;
   }, [pathname]);
 
   useEffect(() => {
